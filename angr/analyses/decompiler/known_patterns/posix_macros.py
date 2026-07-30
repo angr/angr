@@ -11,6 +11,25 @@ the same in every libc and in the Windows CRT (``_S_IFMT``), and the pairing of
 that mask with exactly one of the seven legal type values is self-guarding, so
 these are enabled by default.
 
+``<sys/wait.h>`` status decoders (glibc ``bits/waitstatus.h``)::
+
+    #define __WTERMSIG(status)     ((status) & 0x7f)
+    #define __WIFEXITED(status)    (__WTERMSIG(status) == 0)
+    #define __WIFSIGNALED(status)  (((signed char) (((status) & 0x7f) + 1) >> 1) > 0)
+    #define __WIFSTOPPED(status)   (((status) & 0xff) == 0x7f)
+    #define __WEXITSTATUS(status)  (((status) & 0xff00) >> 8)
+
+Only the first three leave enough residue to identify. gcc rewrites
+``WIFSIGNALED`` into ``(signed char)((status & 0x7f) + 1) > 1`` (the ``>> 1`` and
+the ``> 0`` fold together), which is what is matched here; the signed compare is
+required, since the ``(signed char)`` cast is the whole point of the idiom.
+``WIFSTOPPED`` narrows to a bare ``(char)status == 0x7f`` (the ``& 0xff`` is
+absorbed by the byte-sized compare) and ``WTERMSIG`` is a bare ``status & 0x7f``;
+both are common enough shapes to be opt-in. ``WEXITSTATUS`` / ``WSTOPSIG``
+(identical macros in glibc) are not matchable at all on x86: gcc compiles
+``(status & 0xff00) >> 8`` to a single ``movzbl %ah`` and the decompiler renders
+it as a plain byte-sized virtual variable, leaving no shift or mask to match.
+
 Every macro argument is matched as a virtual variable (optionally behind a
 compiler-inserted narrowing Convert), never as a Load: an outlined call's
 arguments must be the outlined region's live-in virtual variables, so a pattern
@@ -31,6 +50,8 @@ from .pattern import KnownPattern, PatternParam
 from .templates import make_template
 
 if TYPE_CHECKING:
+    from angr.ailment.expression import Expression
+
     from .context import PatternContext
 
 # <sys/stat.h>: the file-type field mask and the seven legal type values
@@ -69,6 +90,68 @@ def _make_s_istype(name: str, macro: str, ifval: int):
     return build
 
 
+def _build_wifexited(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unused-argument
+    # (status & 0x7f) == 0
+    return KnownPattern(
+        name="wifexited",
+        display_name="WIFEXITED",
+        call_name="WIFEXITED",
+        pattern=PBinOp("CmpEQ", (PBinOp("And", (macro_operand("status"), PConst(0x7F))), PConst(0))),
+        params=(PatternParam("status", "int"),),
+        returnty="int",
+    )
+
+
+def _signed_cmp(bindings: dict[str, Expression]) -> bool:
+    cmp_expr = bindings.get("cmp")
+    return cmp_expr is not None and bool(getattr(cmp_expr, "signed", False))
+
+
+def _build_wifsignaled(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unused-argument
+    # ((signed char) ((status & 0x7f) + 1) >> 1) > 0, folded by gcc into
+    # (signed char) ((status & 0x7f) + 1) > 1
+    return KnownPattern(
+        name="wifsignaled",
+        display_name="WIFSIGNALED",
+        call_name="WIFSIGNALED",
+        pattern=PBinOp(
+            "CmpGT",
+            (PBinOp("Add", (PBinOp("And", (macro_operand("status"), PConst(0x7F))), PConst(1))), PConst(1)),
+            commutative=False,
+            name="cmp",
+        ),
+        params=(PatternParam("status", "int"),),
+        returnty="int",
+        where=_signed_cmp,
+    )
+
+
+def _build_wifstopped(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unused-argument
+    # ((status) & 0xff) == 0x7f, which the compiler narrows to (char)status == 0x7f
+    return KnownPattern(
+        name="wifstopped",
+        display_name="WIFSTOPPED",
+        call_name="WIFSTOPPED",
+        pattern=PBinOp("CmpEQ", (macro_operand("status"), PConst(0x7F, bits=8))),
+        params=(PatternParam("status", "int"),),
+        returnty="int",
+        enabled_by_default=False,
+    )
+
+
+def _build_wtermsig(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unused-argument
+    # (status) & 0x7f
+    return KnownPattern(
+        name="wtermsig",
+        display_name="WTERMSIG",
+        call_name="WTERMSIG",
+        pattern=PBinOp("And", (macro_operand("status"), PConst(0x7F))),
+        params=(PatternParam("status", "int"),),
+        returnty="int",
+        enabled_by_default=False,
+    )
+
+
 # the S_IFMT encoding is not Unix-specific: the Windows CRT uses the same bit
 # values (_S_IFMT 0xf000, _S_IFDIR 0x4000, _S_IFCHR 0x2000, _S_IFREG 0x8000), so
 # these are left ungated. The mask/value pairing is self-guarding.
@@ -77,4 +160,21 @@ S_ISTYPE_TEMPLATES = [
     for name, macro, ifval in _S_ISTYPES
 ]
 
-ALL_POSIX_MACRO_TEMPLATES = [*S_ISTYPE_TEMPLATES]
+# the wait-status bit layout is POSIX/glibc-specific, so these are gated to the
+# platform they were calibrated on
+WIFEXITED = make_template(
+    "WIFEXITED", _build_wifexited, platforms=("linux",), enabled_by_default=True, name="wifexited"
+)
+WIFSIGNALED = make_template(
+    "WIFSIGNALED", _build_wifsignaled, platforms=("linux",), enabled_by_default=True, name="wifsignaled"
+)
+# opt-in: the compiler absorbs the & 0xff, leaving a bare byte compare against
+# 0x7f that is indistinguishable from any other char test
+WIFSTOPPED = make_template(
+    "WIFSTOPPED", _build_wifstopped, platforms=("linux",), enabled_by_default=False, name="wifstopped"
+)
+# opt-in: a bare `x & 0x7f` is far too common to attribute to WTERMSIG, and it
+# also nests inside WIFEXITED / WIFSIGNALED
+WTERMSIG = make_template("WTERMSIG", _build_wtermsig, platforms=("linux",), enabled_by_default=False, name="wtermsig")
+
+ALL_POSIX_MACRO_TEMPLATES = [*S_ISTYPE_TEMPLATES, WIFEXITED, WIFSIGNALED, WIFSTOPPED, WTERMSIG]
