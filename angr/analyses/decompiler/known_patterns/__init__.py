@@ -40,7 +40,7 @@ from .linked_list import (
     REMOVE_ENTRY_LIST,
 )
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
-from .posix_macros import ALL_POSIX_MACRO_TEMPLATES
+from .posix_macros import ALL_POSIX_MACRO_TEMPLATES, MAJOR
 from .protobuf_hasbits import ALL_PROTOBUF_TEMPLATES
 from .std_string_cstr import STD_STRING_CSTR
 from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
@@ -141,6 +141,7 @@ __all__ = [
     "CONTAINING_RECORD_PATTERN",
     "INITIALIZE_LIST_HEAD",
     "IS_LIST_EMPTY",
+    "MAJOR",
     "REMOVE_ENTRY_LIST",
     "STD_STRING_CSTR",
     "STD_STRING_EMPTY",
