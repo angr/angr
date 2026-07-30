@@ -30,6 +30,17 @@ both are common enough shapes to be opt-in. ``WEXITSTATUS`` / ``WSTOPSIG``
 ``(status & 0xff00) >> 8`` to a single ``movzbl %ah`` and the decompiler renders
 it as a plain byte-sized virtual variable, leaving no shift or mask to match.
 
+``<sys/sysmacros.h>`` ``major()`` is an ``extern __inline`` function that -O2
+inlines; its glibc encoding scatters the major number over bits 8-19 and 32-63::
+
+    __major  = ((__dev & 0x00000000000fff00u) >>  8);
+    __major |= ((__dev & 0xfffff00000000000u) >> 32);
+
+which gcc reassociates into ``((dev >> 8) & 0xfff) | ((dev >> 32) & 0xfffff000)``.
+That constant quartet is unique enough to enable by default. ``minor()`` and
+``makedev()`` compile to ``Insert``/``Extract`` AIL expressions for which the
+pattern DSL has no node, so they are not defined here.
+
 Every macro argument is matched as a virtual variable (optionally behind a
 compiler-inserted narrowing Convert), never as a Load: an outlined call's
 arguments must be the outlined region's live-in virtual variables, so a pattern
@@ -152,6 +163,27 @@ def _build_wtermsig(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unus
     )
 
 
+def _build_major(ctx: PatternContext) -> KnownPattern | None:
+    # ((dev >> 8) & 0xfff) | ((dev >> 32) & 0xfffff000); the 64-bit dev_t
+    # encoding is fixed, so this only exists on 64-bit targets
+    if ctx.bits < 64:
+        return None
+    return KnownPattern(
+        name="gnu_dev_major",
+        display_name="major",
+        call_name="major",
+        pattern=PBinOp(
+            "Or",
+            (
+                PBinOp("And", (PBinOp("Shr", (PVVar("dev"), PConst(8)), commutative=False), PConst(0xFFF))),
+                PBinOp("And", (PBinOp("Shr", (PVVar("dev"), PConst(32)), commutative=False), PConst(0xFFFFF000))),
+            ),
+        ),
+        params=(PatternParam("dev", "unsigned long long"),),
+        returnty="unsigned int",
+    )
+
+
 # the S_IFMT encoding is not Unix-specific: the Windows CRT uses the same bit
 # values (_S_IFMT 0xf000, _S_IFDIR 0x4000, _S_IFCHR 0x2000, _S_IFREG 0x8000), so
 # these are left ungated. The mask/value pairing is self-guarding.
@@ -177,4 +209,6 @@ WIFSTOPPED = make_template(
 # also nests inside WIFEXITED / WIFSIGNALED
 WTERMSIG = make_template("WTERMSIG", _build_wtermsig, platforms=("linux",), enabled_by_default=False, name="wtermsig")
 
-ALL_POSIX_MACRO_TEMPLATES = [*S_ISTYPE_TEMPLATES, WIFEXITED, WIFSIGNALED, WIFSTOPPED, WTERMSIG]
+MAJOR = make_template("major", _build_major, platforms=("linux",), enabled_by_default=True, name="gnu_dev_major")
+
+ALL_POSIX_MACRO_TEMPLATES = [*S_ISTYPE_TEMPLATES, WIFEXITED, WIFSIGNALED, WIFSTOPPED, WTERMSIG, MAJOR]

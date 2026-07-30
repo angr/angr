@@ -413,6 +413,28 @@ class TestWaitStatusMacros(TestCase):
                 assert macro + "(" not in dec.codegen.text, f"{macro} is opt-in but fired by default"
 
 
+class TestSysMacros(TestCase):
+    # <sys/sysmacros.h> major(): glibc scatters the major number over bits 8-19 and
+    # 32-63, which gcc reassociates into ((dev >> 8) & 0xfff) | ((dev >> 32) & 0xfffff000).
+
+    def test_major(self):
+        proj, cfg, func, dec = _decompile(GLIBC_BIN, "dev_major")
+        finder = _find(proj, func, dec, ALL_POSIX_MACRO_TEMPLATES)
+        assert [m.pattern.name for m in finder.matches] == ["gnu_dev_major"]
+        assert "major(" in _outline_text(proj, cfg, func, dec, finder)
+
+    def test_major_is_64bit_only(self):
+        # the 64-bit dev_t encoding is what the constants encode, so the template
+        # must decline to instantiate on a 32-bit target
+        import dataclasses
+
+        from angr.analyses.decompiler.known_patterns import MAJOR, PatternContext
+
+        ctx64 = PatternContext.from_project(angr.Project(GLIBC_BIN, auto_load_libs=False))
+        assert MAJOR.instantiate(ctx64) is not None
+        assert MAJOR.instantiate(dataclasses.replace(ctx64, bits=32, ptr_size=4)) is None
+
+
 class TestPatternsOutlineDuringDecompilation(TestCase):
     # Every pattern must be recognized and outlined *during* decompilation (by the
     # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
@@ -458,6 +480,7 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
                 ("st_ifsignaled", "WIFSIGNALED("),
                 ("st_ifstopped", "WIFSTOPPED("),
                 ("st_termsig", "WTERMSIG("),
+                ("dev_major", "major("),
             ],
         )
 
