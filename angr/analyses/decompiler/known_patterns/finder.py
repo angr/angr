@@ -250,8 +250,12 @@ class KnownPatternFinder(Analysis):
         for block in self._graph.nodes:
             raw_matches.extend(self._match_block(block))
 
-        # deduplicate/greedily select non-overlapping matches; prefer matches
-        # closer to the statement root (larger trees), then registration order
+        # deduplicate/greedily select non-overlapping matches. Largest match wins:
+        # for nested expressions that means the one closest to the statement root
+        # (shortest expr_path); for statement-set matches, which all sit at the
+        # root, it means the one covering the most statements — so a superset like
+        # list_del_init beats the RemoveEntryList unlink it contains regardless of
+        # registration order. Registration order only breaks remaining ties.
         pattern_order = {id(p): i for i, p in enumerate(self._patterns)}
         raw_matches.sort(
             key=lambda m: (
@@ -259,6 +263,7 @@ class KnownPatternFinder(Analysis):
                 -1 if m.block_loc[1] is None else m.block_loc[1],
                 m.anchor_stmt_idx,
                 len(m.expr_path),
+                -len(self._stmt_footprint(m)),
                 pattern_order[id(m.pattern)],
             )
         )
