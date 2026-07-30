@@ -352,6 +352,67 @@ class TestPosixMacros(TestCase):
                 assert macro + "(" in dec.codegen.text, f"{macro} not outlined during decompilation"
 
 
+class TestWaitStatusMacros(TestCase):
+    # <sys/wait.h> status decoders. WIFEXITED/WIFSIGNALED keep enough residue to be
+    # identifying and are default-on; WIFSTOPPED (a bare `(char)x == 0x7f`) and
+    # WTERMSIG (a bare `x & 0x7f`) are opt-in.
+
+    _CASES = [
+        ("st_ifexited", "wifexited", "WIFEXITED"),
+        ("st_ifsignaled", "wifsignaled", "WIFSIGNALED"),
+        ("st_ifstopped", "wifstopped", "WIFSTOPPED"),
+        ("st_termsig", "wtermsig", "WTERMSIG"),
+    ]
+
+    def test_wait_status_macros(self):
+        for func_name, pattern_name, macro in self._CASES:
+            with self.subTest(macro=macro):
+                proj, cfg, func, dec = _decompile(GLIBC_BIN, func_name)
+                finder = _find(proj, func, dec, ALL_POSIX_MACRO_TEMPLATES)
+                names = [m.pattern.name for m in finder.matches]
+                assert pattern_name in names, f"{macro}: {names}"
+                match = next(m for m in finder.matches if m.pattern.name == pattern_name)
+                result = finder.outline(match)
+                del dec.kb.dec_variables.function_managers[func.addr]
+                func.prototype_source = PrototypeSource.GUESSED
+                dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    func,
+                    clinic_graph=result.graph,
+                    clinic_start_stage=ClinicStage.POST_CALLSITES,
+                    clinic_arg_vvars=dec.clinic.arg_vvars,
+                    cfg=cfg.model,
+                )
+                assert macro + "(" in dec_outer.codegen.text
+
+    def test_wifsignaled_requires_a_signed_compare(self):
+        # the (signed char) cast is the whole idiom: an unsigned compare against the
+        # same constants is an unrelated test, so the pattern must reject it.
+        from angr.analyses.decompiler.known_patterns import PatternContext, patterns_for
+
+        proj = angr.Project(GLIBC_BIN, auto_load_libs=False)
+        ctx = PatternContext.from_project(proj)
+        pat = next(p for p in patterns_for(ctx, ALL_POSIX_MACRO_TEMPLATES) if p.name == "wifsignaled")
+        assert pat.where is not None
+
+        class _FakeCmp:
+            signed = False
+
+        assert pat.where({"cmp": _FakeCmp()}) is False
+        _FakeCmp.signed = True
+        assert pat.where({"cmp": _FakeCmp()}) is True
+
+    def test_opt_in_macros_are_not_default_on(self):
+        # WIFSTOPPED / WTERMSIG must not fire in a plain full-preset decompile
+        proj = angr.Project(GLIBC_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        for func_name, _, macro in self._CASES[2:]:
+            with self.subTest(macro=macro):
+                func = cfg.functions.function(name=func_name)
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+                assert macro + "(" not in dec.codegen.text, f"{macro} is opt-in but fired by default"
+
+
 class TestPatternsOutlineDuringDecompilation(TestCase):
     # Every pattern must be recognized and outlined *during* decompilation (by the
     # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
@@ -389,7 +450,15 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
         _assert_outlines_during(
             self,
             GLIBC_BIN,
-            [("chk_isreg", "S_ISREG("), ("chk_isdir", "S_ISDIR("), ("chk_issock", "S_ISSOCK(")],
+            [
+                ("chk_isreg", "S_ISREG("),
+                ("chk_isdir", "S_ISDIR("),
+                ("chk_issock", "S_ISSOCK("),
+                ("st_ifexited", "WIFEXITED("),
+                ("st_ifsignaled", "WIFSIGNALED("),
+                ("st_ifstopped", "WIFSTOPPED("),
+                ("st_termsig", "WTERMSIG("),
+            ],
         )
 
     def test_containing_record(self):
