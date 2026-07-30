@@ -11,6 +11,7 @@ from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_LINKED_LIST_TEMPLATES,
+    ALL_POSIX_MACRO_TEMPLATES,
     ALL_PROTOBUF_TEMPLATES,
     ALL_STL_TEMPLATES,
     ALL_VECTOR_MATH_TEMPLATES,
@@ -29,6 +30,7 @@ MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patte
 CSTR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_msvc_string_cstr.exe")
 MSVC_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
+GLIBC_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_glibc_macros")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
 _PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_clear_has_field"}
@@ -311,6 +313,45 @@ def _assert_outlines_during(test, bin_path, targets):
                 assert frag in dec.codegen.text, f"{ref!r}: {frag!r} not outlined DURING decompilation"
 
 
+class TestPosixMacros(TestCase):
+    # <sys/stat.h> file-type predicates: ((mode) & 0170000) == S_IFxxx. The mask/value
+    # pairing is self-guarding, so these are enabled by default.
+
+    _S_ISTYPES = [
+        ("chk_isreg", "s_isreg", "S_ISREG"),
+        ("chk_isdir", "s_isdir", "S_ISDIR"),
+        ("chk_ischr", "s_ischr", "S_ISCHR"),
+        ("chk_isblk", "s_isblk", "S_ISBLK"),
+        ("chk_isfifo", "s_isfifo", "S_ISFIFO"),
+        ("chk_islnk", "s_islnk", "S_ISLNK"),
+        ("chk_issock", "s_issock", "S_ISSOCK"),
+    ]
+
+    def test_s_istype_predicates(self):
+        for func_name, pattern_name, macro in self._S_ISTYPES:
+            with self.subTest(macro=macro):
+                proj, cfg, func, dec = _decompile(GLIBC_BIN, func_name)
+                finder = _find(proj, func, dec, ALL_POSIX_MACRO_TEMPLATES)
+                assert len(finder.matches) == 1, f"{macro}: {[m.pattern.name for m in finder.matches]}"
+                assert finder.matches[0].pattern.name == pattern_name
+                text = _outline_text(proj, cfg, func, dec, finder)
+                assert macro + "(" in text
+
+    def test_s_istype_outlines_by_default(self):
+        # these are default-on, so a plain full-preset decompile must outline them
+        # without the opt-in templates being force-enabled
+        proj = angr.Project(GLIBC_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        for func_name, _, macro in self._S_ISTYPES:
+            with self.subTest(macro=macro):
+                func = cfg.functions.function(name=func_name)
+                assert func is not None
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+                assert dec.codegen is not None and dec.codegen.text is not None
+                assert macro + "(" in dec.codegen.text, f"{macro} not outlined during decompilation"
+
+
 class TestPatternsOutlineDuringDecompilation(TestCase):
     # Every pattern must be recognized and outlined *during* decompilation (by the
     # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
@@ -343,6 +384,13 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
             [("lx_is_empty", "IsListEmpty("), ("lx_init", "InitializeListHead("), ("lx_del", "RemoveEntryList(")],
         )
         _assert_outlines_during(self, WDK_BIN, [("wdk_remove", "RemoveEntryList(")])
+
+    def test_posix_macros(self):
+        _assert_outlines_during(
+            self,
+            GLIBC_BIN,
+            [("chk_isreg", "S_ISREG("), ("chk_isdir", "S_ISDIR("), ("chk_issock", "S_ISSOCK(")],
+        )
 
     def test_containing_record(self):
         _assert_outlines_during(self, CR_BIN, [("sum_list", "CONTAINING_RECORD(")])
