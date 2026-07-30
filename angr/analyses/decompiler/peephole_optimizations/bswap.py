@@ -10,7 +10,7 @@ from .utils import get_expr_shift_left_amount
 class Bswap(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    NAME = "Simplifying bswap_16() and bswap_32()"
+    NAME = "Simplifying bswap_16(), bswap_32(), and bswap_64()"
     expr_classes = (BinaryOp, Convert)
 
     def optimize(self, expr: BinaryOp, **kwargs):
@@ -102,7 +102,112 @@ class Bswap(PeepholeOptimizationExprBase):
                     core_expr = next(iter(cores))
                     return Call(expr.idx, "__builtin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
 
+            # bswap_64 (and the SWAR spelling of bswap_32): a recursive
+            # divide-and-conquer tree rather than a flat 4-way Or, so the
+            # flattening above never reaches 4 pieces.
+            core_expr = self._match_swar_bswap(expr, expr.bits)
+            if core_expr is not None:
+                return Call(expr.idx, f"__builtin_bswap{expr.bits}", args=[core_expr], bits=expr.bits, **expr.tags)
+
         return None
+
+    @staticmethod
+    def _swar_mask(k: int, bits: int) -> int:
+        """The mask selecting the high ``k`` bits of every ``2 * k``-bit group."""
+        unit = ((1 << k) - 1) << k  # k=8 -> 0xff00
+        mask = 0
+        for i in range(0, bits, 2 * k):
+            mask |= unit << i
+        return mask
+
+    @classmethod
+    def _match_swap(cls, expr: Expression, k: int, bits: int) -> Expression | None:
+        """One SWAR level: ``Or(Shr(And(e, M), k), And(Shl/Mul(e, k), M))`` -> ``e``.
+        Both Or operand orders and both mask-then-shift / shift-then-mask
+        spellings of each half are accepted."""
+        if not isinstance(expr, BinaryOp) or expr.op != "Or" or expr.bits != bits:
+            return None
+        mask = cls._swar_mask(k, bits)
+
+        def down(e):
+            # the ">> k" half: Shr(And(e, M), k) or And(Shr(e, k), M)
+            if not isinstance(e, BinaryOp):
+                return None
+            if e.op == "Shr" and isinstance(e.operands[1], Const) and e.operands[1].value == k:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op == "And"
+                    and isinstance(inner.operands[1], Const)
+                    and inner.operands[1].value == mask
+                ):
+                    return inner.operands[0]
+            if e.op == "And" and isinstance(e.operands[1], Const) and e.operands[1].value == mask:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op == "Shr"
+                    and isinstance(inner.operands[1], Const)
+                    and inner.operands[1].value == k
+                ):
+                    return inner.operands[0]
+            return None
+
+        def up(e):
+            # the "<< k" half: And(Shl/Mul(e, k), M) or Shl/Mul(And(e, M >> k), k)
+            if not isinstance(e, BinaryOp):
+                return None
+            if e.op == "And" and isinstance(e.operands[1], Const) and e.operands[1].value == mask:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op in {"Shl", "Mul"}
+                    and (get_expr_shift_left_amount(inner) == k)
+                ):
+                    return inner.operands[0]
+            if e.op in {"Shl", "Mul"} and get_expr_shift_left_amount(e) == k:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op == "And"
+                    and isinstance(inner.operands[1], Const)
+                    and inner.operands[1].value == (mask >> k)
+                ):
+                    return inner.operands[0]
+            return None
+
+        a, b = expr.operands
+        for lo, hi in ((a, b), (b, a)):
+            e1, e2 = down(lo), up(hi)
+            if e1 is not None and e2 is not None and e1.likes(e2):
+                return e1
+        return None
+
+    @classmethod
+    def _match_swar_bswap(cls, expr: Expression, bits: int) -> Expression | None:
+        """``bswap(x) = SWAP(bits/2, ... SWAP(8, x))``; returns ``x`` or None.
+
+        gcc lowers ``bswap rax`` into three nested byte/word/dword exchanges::
+
+            SWAP(k, e) := Or(Shr(And(e, M_k), k), And(Shl(e, k), M_k))
+            bswap64(x)  = SWAP(32, SWAP(16, SWAP(8, x)))
+
+        with M_8 = 0xff00ff00ff00ff00, M_16 = 0xffff0000ffff0000 and
+        M_32 = 0xffffffff00000000 (and the 32-bit analogues).
+        """
+        # only whole-register byte swaps exist; without this guard a narrow Or
+        # (e.g. a 1-bit boolean) would skip the loop entirely and the expression
+        # would be returned as its own "core", producing a self-referential call
+        if bits not in (16, 32, 64):
+            return None
+        k = bits // 2
+        cur = expr
+        while k >= 8:
+            cur = cls._match_swap(cur, k, bits)
+            if cur is None:
+                return None
+            k //= 2
+        return cur
 
     def _match_inner(self, or_first: BinaryOp, or_second: BinaryOp) -> tuple[bool, Expression | None]:
         if (
