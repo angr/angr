@@ -1,18 +1,85 @@
 use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
+use std::rc::{Rc, Weak};
 
 use crate::{Z3_CONTEXT, check_z3_error, require};
 use clarirs_core::error::ClarirsError;
 use z3_sys::*;
 
-#[repr(transparent)]
-pub struct RcAst(Z3_ast);
+/// Owns one Z3 reference count on the wrapped AST, plus strong references to
+/// the node's children so a subterm's handle (and cache entry) stays alive
+/// while any Rust-held ancestor is, mirroring Z3's internal retention.
+struct AstHandle {
+    ast: Z3_ast,
+    children: Vec<RcAst>,
+}
+
+impl AstHandle {
+    /// Takes ownership of one Z3 reference count already acquired by the caller.
+    fn new(ast: Z3_ast) -> Self {
+        AstHandle {
+            ast,
+            children: Vec::new(),
+        }
+    }
+}
+
+impl Drop for AstHandle {
+    fn drop(&mut self) {
+        Z3_CONTEXT.with(|&ctx| unsafe { Z3_dec_ref(ctx, self.ast) });
+        // Iterative so deep expression chains can't overflow the stack.
+        let mut stack = std::mem::take(&mut self.children);
+        while let Some(child) = stack.pop() {
+            if let Some(mut handle) = Rc::into_inner(child.0) {
+                stack.append(&mut handle.children);
+            }
+        }
+    }
+}
+
+/// A shared handle to a Z3 AST. All clones share a single Z3 reference count,
+/// released when the last clone drops; [`RcAst::downgrade`] gives a [`WeakAst`]
+/// that observes that release without delaying it.
+pub struct RcAst(Rc<AstHandle>);
 
 impl RcAst {
+    /// The raw Z3 pointer. Only valid while `self` (or another strong clone)
+    /// is alive.
+    fn raw(&self) -> Z3_ast {
+        self.0.ast
+    }
+
+    pub fn downgrade(&self) -> WeakAst {
+        WeakAst(Rc::downgrade(&self.0))
+    }
+
+    /// Attaches converted children so their cache entries live as long as this
+    /// node is reachable from a live `RcAst`.
+    pub(crate) fn with_children(mut self, children: &[RcAst]) -> RcAst {
+        if children.is_empty() {
+            return self;
+        }
+        match Rc::get_mut(&mut self.0) {
+            Some(handle) => {
+                handle.children = children.to_vec();
+                self
+            }
+            // Shared handle (the node collapsed to one of its children):
+            // make a fresh one with its own Z3 reference.
+            None => {
+                Z3_CONTEXT.with(|&ctx| unsafe { Z3_inc_ref(ctx, self.raw()) });
+                RcAst(Rc::new(AstHandle {
+                    ast: self.raw(),
+                    children: children.to_vec(),
+                }))
+            }
+        }
+    }
+
     /// Returns the `DeclKind` of this AST node (assumes it is an application).
     pub fn decl_kind(&self) -> DeclKind {
         Z3_CONTEXT.with(|&ctx| unsafe {
-            let app = Z3_to_app(ctx, self.0).expect("decl_kind: not an application");
+            let app = Z3_to_app(ctx, self.raw()).expect("decl_kind: not an application");
             let decl = Z3_get_app_decl(ctx, app).expect("decl_kind: no declaration");
             Z3_get_decl_kind(ctx, decl)
         })
@@ -21,7 +88,7 @@ impl RcAst {
     /// Returns the number of arguments (assumes it is an application).
     pub fn num_args(&self) -> u32 {
         Z3_CONTEXT.with(|&ctx| unsafe {
-            let app = Z3_to_app(ctx, self.0).expect("num_args: not an application");
+            let app = Z3_to_app(ctx, self.raw()).expect("num_args: not an application");
             Z3_get_app_num_args(ctx, app)
         })
     }
@@ -30,11 +97,11 @@ impl RcAst {
     /// bounds or the node is not an application.
     pub fn arg(&self, index: u32) -> Option<RcAst> {
         Z3_CONTEXT.with(|&ctx| unsafe {
-            let ast_kind = Z3_get_ast_kind(ctx, self.0);
+            let ast_kind = Z3_get_ast_kind(ctx, self.raw());
             if ast_kind != AstKind::App {
                 return None;
             }
-            let app = Z3_to_app(ctx, self.0)?;
+            let app = Z3_to_app(ctx, self.raw())?;
             let num_args = Z3_get_app_num_args(ctx, app);
             if index >= num_args {
                 return None;
@@ -47,10 +114,10 @@ impl RcAst {
     /// otherwise.
     pub fn symbol_name(&self) -> Option<String> {
         Z3_CONTEXT.with(|&ctx| unsafe {
-            if Z3_get_ast_kind(ctx, self.0) != AstKind::App {
+            if Z3_get_ast_kind(ctx, self.raw()) != AstKind::App {
                 return None;
             }
-            let app = Z3_to_app(ctx, self.0)?;
+            let app = Z3_to_app(ctx, self.raw())?;
             let decl = Z3_get_app_decl(ctx, app)?;
             if Z3_get_decl_kind(ctx, decl) != DeclKind::Uninterpreted {
                 return None;
@@ -163,8 +230,7 @@ impl RcAst {
 
 impl Clone for RcAst {
     fn clone(&self) -> Self {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_inc_ref(ctx, self.0) });
-        RcAst(self.0)
+        RcAst(self.0.clone())
     }
 }
 
@@ -174,19 +240,13 @@ impl From<&RcAst> for RcAst {
     }
 }
 
-impl Drop for RcAst {
-    fn drop(&mut self) {
-        Z3_CONTEXT.with(|&ctx| unsafe { Z3_dec_ref(ctx, self.0) });
-    }
-}
-
 impl TryFrom<Z3_ast> for RcAst {
     type Error = ClarirsError;
 
     fn try_from(ast: Z3_ast) -> Result<Self, Self::Error> {
         check_z3_error()?;
         Z3_CONTEXT.with(|&ctx| unsafe { Z3_inc_ref(ctx, ast) });
-        Ok(RcAst(ast))
+        Ok(RcAst(Rc::new(AstHandle::new(ast))))
     }
 }
 
@@ -200,13 +260,13 @@ impl TryFrom<Option<Z3_ast>> for RcAst {
         check_z3_error()?;
         let ast = require(ast)?;
         Z3_CONTEXT.with(|&ctx| unsafe { Z3_inc_ref(ctx, ast) });
-        Ok(RcAst(ast))
+        Ok(RcAst(Rc::new(AstHandle::new(ast))))
     }
 }
 
 impl From<RcAst> for Z3_ast {
     fn from(ast: RcAst) -> Self {
-        ast.0
+        ast.raw()
     }
 }
 
@@ -214,13 +274,83 @@ impl Deref for RcAst {
     type Target = Z3_ast;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.0.ast
     }
 }
 
-impl DerefMut for RcAst {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+/// A non-owning handle to a Z3 AST that never prevents Z3 from reclaiming the
+/// node. `upgrade` returns `None` once the last strong handle has dropped
+/// (the Z3 pointer may then be dangling), so a failed upgrade marks a cache
+/// entry as invalid.
+#[derive(Clone)]
+pub struct WeakAst(Weak<AstHandle>);
+
+impl WeakAst {
+    pub fn upgrade(&self) -> Option<RcAst> {
+        self.0.upgrade().map(RcAst)
+    }
+}
+
+impl From<&RcAst> for WeakAst {
+    fn from(ast: &RcAst) -> Self {
+        ast.downgrade()
+    }
+}
+
+/// A cache from clarirs AST hashes to Z3 ASTs with [`WeakAst`] values, so it
+/// never keeps a Z3 AST alive on its own. An entry stays live while its node
+/// is reachable from any Rust-held [`RcAst`] (handles retain their children);
+/// after that it fails to upgrade and is dropped instead of returned. Dead
+/// entries are removed on lookup, plus a bulk sweep once the map grows past a
+/// high-water mark. Single-threaded, like the Z3 context.
+pub struct WeakAstCache {
+    map: std::cell::RefCell<std::collections::HashMap<u64, WeakAst>>,
+    sweep_at: std::cell::Cell<usize>,
+}
+
+const WEAK_CACHE_MIN_SWEEP: usize = 1024;
+
+impl Default for WeakAstCache {
+    fn default() -> Self {
+        WeakAstCache {
+            map: std::cell::RefCell::new(std::collections::HashMap::new()),
+            sweep_at: std::cell::Cell::new(WEAK_CACHE_MIN_SWEEP),
+        }
+    }
+}
+
+impl WeakAstCache {
+    /// Number of entries currently stored (live or dead).
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.map.borrow().len()
+    }
+
+    #[cfg(test)]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl clarirs_core::cache::Cache<u64, RcAst> for WeakAstCache {
+    fn get(&self, key: &u64) -> Option<RcAst> {
+        let mut map = self.map.borrow_mut();
+        match map.get(key)?.upgrade() {
+            Some(ast) => Some(ast),
+            None => {
+                map.remove(key);
+                None
+            }
+        }
+    }
+
+    fn insert(&self, key: u64, value: &RcAst) {
+        let mut map = self.map.borrow_mut();
+        if map.len() >= self.sweep_at.get() {
+            map.retain(|_, weak| weak.upgrade().is_some());
+            self.sweep_at.set((map.len() * 2).max(WEAK_CACHE_MIN_SWEEP));
+        }
+        map.insert(key, value.downgrade());
     }
 }
 
@@ -622,5 +752,111 @@ impl Deref for RcAstVector {
 impl DerefMut for RcAstVector {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
+    }
+}
+
+#[cfg(test)]
+mod weak_tests {
+    use super::*;
+    use clarirs_core::cache::Cache;
+
+    #[test]
+    fn upgrade_succeeds_while_strong_handle_lives() {
+        let ast = RcAst::mk_bv("weak_live", 64);
+        let weak = ast.downgrade();
+        let upgraded = weak.upgrade().expect("strong handle still alive");
+        assert_eq!(*upgraded, *ast);
+    }
+
+    #[test]
+    fn upgrade_fails_after_last_strong_handle_drops() {
+        let weak = {
+            let ast = RcAst::mk_bv("weak_dead", 64);
+            ast.downgrade()
+        };
+        assert!(weak.upgrade().is_none());
+    }
+
+    #[test]
+    fn clones_share_one_handle() {
+        let ast = RcAst::mk_bv("weak_shared", 64);
+        let weak = ast.downgrade();
+        let clone = ast.clone();
+        drop(ast);
+        assert!(weak.upgrade().is_some());
+        drop(clone);
+        assert!(weak.upgrade().is_none());
+    }
+
+    #[test]
+    fn parent_keeps_child_cache_entry_alive() {
+        let cache = WeakAstCache::default();
+        let child = RcAst::mk_bv("dep_child", 64);
+        cache.insert(1, &child);
+        let parent = RcAst::mk_bool("dep_parent").with_children(std::slice::from_ref(&child));
+        drop(child);
+        assert!(cache.get(&1).is_some());
+        drop(parent);
+        assert!(cache.get(&1).is_none());
+    }
+
+    #[test]
+    fn deep_chain_drops_without_stack_overflow() {
+        let mut node = RcAst::mk_bv("chain_leaf", 64);
+        for _ in 0..200_000 {
+            node = RcAst::mk_bool("chain_link").with_children(std::slice::from_ref(&node));
+        }
+        drop(node);
+    }
+
+    #[test]
+    fn cache_returns_live_entries() {
+        let cache = WeakAstCache::default();
+        let ast = RcAst::mk_bv("cache_live", 64);
+        cache.insert(1, &ast);
+        let hit = cache.get(&1).expect("entry is live");
+        assert_eq!(*hit, *ast);
+    }
+
+    #[test]
+    fn cache_drops_dead_entries_instead_of_returning_them() {
+        let cache = WeakAstCache::default();
+        {
+            let ast = RcAst::mk_bv("cache_dead", 64);
+            cache.insert(2, &ast);
+        }
+        assert!(cache.get(&2).is_none());
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn cache_get_or_insert_recomputes_after_invalidation() {
+        let cache = WeakAstCache::default();
+        {
+            let ast = RcAst::mk_bv("cache_recompute", 64);
+            cache.insert(3, &ast);
+        }
+        let mut computed = false;
+        let ast = cache
+            .get_or_insert::<ClarirsError>(3, || {
+                computed = true;
+                Ok(RcAst::mk_bv("cache_recompute", 64))
+            })
+            .unwrap();
+        assert!(computed, "dead entry must be recomputed, not returned");
+        assert_eq!(*cache.get(&3).expect("re-inserted entry is live"), *ast);
+    }
+
+    #[test]
+    fn cache_sweep_evicts_dead_entries() {
+        let cache = WeakAstCache::default();
+        for i in 0..WEAK_CACHE_MIN_SWEEP as u64 {
+            let ast = RcAst::mk_bv_val(&i.to_string(), 64);
+            cache.insert(i, &ast);
+        }
+        let live = RcAst::mk_bv("cache_survivor", 64);
+        cache.insert(u64::MAX, &live);
+        assert_eq!(cache.len(), 1);
+        assert!(cache.get(&u64::MAX).is_some());
     }
 }
