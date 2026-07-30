@@ -394,7 +394,7 @@ class OpBehaviorIntSdiv(OpBehavior):
         super().__init__(OpCode.INT_SDIV, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        return in1 / in2
+        return claripy.SDiv(in1, in2)
 
     # uintb OpBehaviorIntSdiv::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -432,7 +432,10 @@ class OpBehaviorIntSrem(OpBehavior):
         super().__init__(OpCode.INT_SREM, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        return in1 % in2
+        # Signed remainder truncates toward zero and takes the dividend's sign:
+        # in1 - (in1 sdiv in2) * in2. Claripy's `%` is unsigned, which would
+        # match INT_REM instead.
+        return in1 - claripy.SDiv(in1, in2) * in2
 
     # uintb OpBehaviorIntSrem::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #

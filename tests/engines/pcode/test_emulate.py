@@ -359,8 +359,10 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             OpCode.INT_OR: operator.or_,
             OpCode.INT_REM: operator.mod,
             OpCode.INT_RIGHT: claripy.LShR,
+            OpCode.INT_SDIV: claripy.SDiv,
             OpCode.INT_SLESS: claripy.SLT,
             OpCode.INT_SLESSEQUAL: claripy.SLE,
+            OpCode.INT_SREM: lambda a, b: a - claripy.SDiv(a, b) * b,
             OpCode.INT_SRIGHT: operator.rshift,
             OpCode.INT_SUB: operator.sub,
             OpCode.INT_XOR: operator.xor,
@@ -444,15 +446,59 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             OpCode.INT_OR,
             OpCode.INT_REM,
             OpCode.INT_RIGHT,
-            # OpCode.INT_SDIV,  # FIXME
+            OpCode.INT_SDIV,
             OpCode.INT_SLESS,
             OpCode.INT_SLESSEQUAL,
+            OpCode.INT_SREM,
             OpCode.INT_SRIGHT,
             OpCode.INT_SUB,
             OpCode.INT_XOR,
         ]:
             with self.subTest(opcode):
                 self._test_single_arith_binary_op(opcode)
+
+    def _run_arith_binary_concrete(self, opcode: OpCode, x_val: int, y_val: int, size: int = 8) -> int:
+        result_addr = 0x100000
+        x_addr, y_addr = 0, size
+
+        state = SimState(arch="AMD64", remove_options={"SIMPLIFY_MEMORY_WRITES"})
+        state.memory.store(x_addr, claripy.BVV(x_val, size * 8), endness="Iend_LE")
+        state.memory.store(y_addr, claripy.BVV(y_val, size * 8), endness="Iend_LE")
+
+        successors = self._step_irsb(
+            MockIRSB(
+                [
+                    OP(OpCode.IMARK, None, [VN(RAM_SPACE, 0, 1)]),
+                    OP(
+                        opcode,
+                        VN(RAM_SPACE, result_addr, size),
+                        [VN(RAM_SPACE, x_addr, size), VN(RAM_SPACE, y_addr, size)],
+                    ),
+                ]
+            ),
+            state,
+        )
+        assert len(successors.all_successors) == 1
+        state = successors.all_successors[0]
+        return state.solver.eval_one(state.memory.load(result_addr, size, endness="Iend_LE"))
+
+    def test_signed_div_rem_concrete(self):
+        # Signed div/rem must differ from unsigned INT_DIV/INT_REM for negative
+        # operands: mixed-sign concrete cases an unsigned implementation cannot
+        # satisfy. Values are 64-bit two's complement.
+        mask = (1 << 64) - 1
+        cases = [
+            # x, y, expected sdiv, expected srem
+            (-5, 2, -2, -1),
+            (5, -2, -2, 1),
+            (-5, -2, 2, -1),
+            (-7, 3, -2, -1),
+            (7, -3, -2, 1),
+        ]
+        for x_val, y_val, sdiv, srem in cases:
+            with self.subTest((x_val, y_val)):
+                assert self._run_arith_binary_concrete(OpCode.INT_SDIV, x_val, y_val) == (sdiv & mask)
+                assert self._run_arith_binary_concrete(OpCode.INT_SREM, x_val, y_val) == (srem & mask)
 
     def _test_single_arith_unary_op(self, opcode: OpCode):
         opcode_to_operation = {
@@ -597,8 +643,6 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
     #   OpCode.INT_CARRY
     #   OpCode.INT_SBORROW
     #   OpCode.INT_SCARRY
-    # * OpCode.INT_SDIV
-    # * OpCode.INT_SREM
     # ! OpCode.NEW
     #   OpCode.RETURN
 
