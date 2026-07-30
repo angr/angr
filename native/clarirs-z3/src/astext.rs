@@ -525,9 +525,9 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                                 RcAst::try_from(Z3_mk_int_to_str(z3_ctx, *int_val))?
                             }
                         })
-                        .and_then(|maybe_null| {
+                        .and_then(|converted| {
                             check_z3_error()?;
-                            Ok(maybe_null)
+                            Ok(converted.with_children(children))
                         })
                     })
                 },
@@ -1043,5 +1043,41 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                 )),
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use clarirs_core::cache::Cache;
+    use clarirs_core::prelude::*;
+
+    use super::AstExtZ3;
+    use crate::Z3_AST_CACHE;
+
+    #[test]
+    fn subterm_entries_live_while_root_is_held() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.bvs("cache_live_x", 64)?;
+        let y = ctx.bvs("cache_live_y", 64)?;
+        let add = ctx.add(&x, &y)?;
+
+        let z3_add = add.to_z3()?;
+        Z3_AST_CACHE.with(|cache| {
+            assert!(
+                cache.get(&x.hash()).is_some(),
+                "child entry should be pinned by the held root"
+            );
+            assert!(cache.get(&add.hash()).is_some());
+        });
+
+        drop(z3_add);
+        Z3_AST_CACHE.with(|cache| {
+            assert!(
+                cache.get(&x.hash()).is_none(),
+                "entries should expire once nothing references the root"
+            );
+            assert!(cache.get(&add.hash()).is_none());
+        });
+        Ok(())
     }
 }

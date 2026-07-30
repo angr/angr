@@ -1,5 +1,5 @@
 use crate::astext::AstExtZ3;
-use crate::rc::{RcModel, RcOptimize, RcParamSet, RcSolver};
+use crate::rc::{RcAst, RcModel, RcOptimize, RcParamSet, RcSolver};
 use clarirs_core::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -13,6 +13,11 @@ use z3_sys::{Z3_L_FALSE, Z3_L_TRUE};
 /// it stays `Send`; first use on a new thread rebuilds there.
 struct CachedSolver {
     solver: RcSolver,
+    /// Converted roots of the asserted constraints. The z3 solver holds these
+    /// terms internally anyway; keeping the `RcAst` roots too pins their
+    /// conversion-cache entries for the solver's lifetime, so shared subterms
+    /// of later conversions hit the cache instead of being rebuilt.
+    roots: Vec<RcAst>,
     /// Number of `Z3Solver::assertions` already pushed into `solver`.
     asserted: usize,
     timeout: Option<u32>,
@@ -180,17 +185,25 @@ impl<'c> Z3Solver<'c> {
     }
 
     /// Assert `self.assertions[idx]` into `z3_solver`, using assert-and-track
-    /// when unsat-core extraction is enabled.
-    fn assert_at(&self, z3_solver: &mut RcSolver, idx: usize) -> Result<(), ClarirsError> {
+    /// when unsat-core extraction is enabled. The converted root is pushed into
+    /// `roots` so its conversion-cache entries stay live while the z3 solver
+    /// holds the term.
+    fn assert_at(
+        &self,
+        z3_solver: &mut RcSolver,
+        roots: &mut Vec<RcAst>,
+        idx: usize,
+    ) -> Result<(), ClarirsError> {
         let converted = self.assertions[idx].to_z3()?;
         if self.unsat_core
             && let Some(track_var) = self.tracking_vars.get(&idx)
         {
             let track_z3 = track_var.to_z3()?;
             z3_solver.assert_and_track(&converted, &track_z3)?;
-            return Ok(());
+        } else {
+            z3_solver.assert(&converted)?;
         }
-        z3_solver.assert(&converted)?;
+        roots.push(converted);
         Ok(())
     }
 
@@ -216,13 +229,15 @@ impl<'c> Z3Solver<'c> {
             if !reusable {
                 // Build outside the cache borrow.
                 let mut solver = self.new_z3_solver()?;
+                let mut roots = Vec::new();
                 for idx in 0..self.assertions.len() {
-                    self.assert_at(&mut solver, idx)?;
+                    self.assert_at(&mut solver, &mut roots, idx)?;
                 }
                 cell.borrow_mut().insert(
                     self.cache_id,
                     CachedSolver {
                         solver,
+                        roots,
                         asserted: self.assertions.len(),
                         timeout: self.timeout,
                         unsat_core: self.unsat_core,
@@ -237,7 +252,7 @@ impl<'c> Z3Solver<'c> {
             // Push any assertions added since the last call.
             while cached.asserted < self.assertions.len() {
                 let idx = cached.asserted;
-                self.assert_at(&mut cached.solver, idx)?;
+                self.assert_at(&mut cached.solver, &mut cached.roots, idx)?;
                 cached.asserted = idx + 1;
             }
             f(&mut cached.solver)
@@ -625,6 +640,30 @@ impl<'c> Solver<'c> for Z3Solver<'c> {
 mod tests {
     use super::*;
     use clarirs_core::solver_mixins::ModelCacheMixin;
+
+    #[test]
+    fn solver_pins_conversion_cache_for_its_lifetime() -> Result<(), ClarirsError> {
+        use clarirs_core::cache::Cache;
+
+        let ctx = Context::new();
+        let mut solver = Z3Solver::new(&ctx);
+        let x = ctx.bvs("pin_x", 64)?;
+        let constraint = ctx.eq_(&x, &ctx.bvv(BitVec::from((42, 64)))?)?;
+        solver.add(&constraint)?;
+        assert!(solver.satisfiable()?);
+
+        crate::Z3_AST_CACHE.with(|cache| {
+            assert!(cache.get(&x.hash()).is_some());
+            assert!(cache.get(&constraint.hash()).is_some());
+        });
+
+        drop(solver);
+        crate::Z3_AST_CACHE.with(|cache| {
+            assert!(cache.get(&x.hash()).is_none());
+            assert!(cache.get(&constraint.hash()).is_none());
+        });
+        Ok(())
+    }
 
     #[test]
     fn test_solver_simple() -> Result<(), ClarirsError> {
