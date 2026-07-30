@@ -21,6 +21,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Const,
     Convert,
@@ -293,6 +294,42 @@ class PPhi(PatternExpr):
 
 
 @dataclass(frozen=True)
+class PITE(PatternExpr):
+    """Matches an ITE (ternary) expression ``cond ? iftrue : iffalse``.
+
+    Needed because ITERegionConverter (AFTER_GLOBAL_SIMPLIFICATION) collapses
+    ``if (c) x = a; else x = b;`` diamonds into a single ITE assignment *before*
+    the KnownPatternOutliner runs, so a two-armed value-select idiom reaches the
+    outliner as an expression, not as a PGraphPat region. (A *triangle* -- one
+    arm empty, as in the MSVC std::string::c_str SSO select -- is not converted,
+    which is why that idiom is still a PGraphPat.)
+    """
+
+    cond: PatternExpr
+    iftrue: PatternExpr
+    iffalse: PatternExpr
+    name: str | None = None
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        prepared = self._prepare(expr, state, ctx)
+        if prepared is None:
+            return None
+        expr, state = prepared
+        if not isinstance(expr, ITE):
+            return None
+        st = self.cond.match(expr.cond, state, ctx)
+        if st is None:
+            return None
+        st = self.iftrue.match(expr.iftrue, st, ctx)
+        if st is None:
+            return None
+        st = self.iffalse.match(expr.iffalse, st, ctx)
+        if st is None:
+            return None
+        return self._bind_if_named(self.name, expr, st)
+
+
+@dataclass(frozen=True)
 class PChoice(PatternExpr):
     """Ordered alternation: matches the first alternative that succeeds."""
 
@@ -447,6 +484,8 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("Convert", None)
     if isinstance(node, PConst):
         return ("Const", None)
+    if isinstance(node, PITE):
+        return ("ITE", None)
     if isinstance(node, PVVar):
         return ("VirtualVariable", None)
     if isinstance(node, PAssign):
@@ -455,6 +494,12 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("Store", None)
     if isinstance(node, PCondJump):
         return ("ConditionalJump", None)
+    if isinstance(node, PChoice):
+        # a PChoice is usually a polarity/spelling alternation of one shape; when
+        # every alternative discriminates the same way, keep that discriminator
+        # rather than falling back to "try this pattern everywhere"
+        keys = {pattern_anchor_key(alt) for alt in node.alternatives}
+        return next(iter(keys)) if len(keys) == 1 and None not in keys else None
     if isinstance(node, PStmtSeq):
         return pattern_anchor_key(node.stmts[0]) if node.stmts else None
     if isinstance(node, PGraphPat):
@@ -474,6 +519,8 @@ def expr_anchor_key(expr: Expression) -> tuple[str, str | None]:
         return ("Convert", None)
     if isinstance(expr, Const):
         return ("Const", None)
+    if isinstance(expr, ITE):
+        return ("ITE", None)
     if isinstance(expr, VirtualVariable):
         return ("VirtualVariable", None)
     return ("", None)
