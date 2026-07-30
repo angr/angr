@@ -4,7 +4,16 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from angr.procedures.definitions import SimTypeCollection
-from angr.sim_type import SimCppClass, SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypePointer, SimTypeShort
+from angr.sim_type import (
+    SimCppClass,
+    SimStruct,
+    SimTypeArray,
+    SimTypeChar,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+    SimTypeShort,
+)
 
 typelib = SimTypeCollection()
 typelib.set_names("cpp::std")
@@ -54,3 +63,24 @@ typelib.types = {
         ),
     ),
 }
+
+# std::vector<T> for an element type known only by its size: the
+# std::vector<T>::size() exact-division patterns (see
+# analyses/decompiler/known_patterns/std_vector_size.py) recover sizeof(T) from
+# the magic constant but not the element type, so each supported size gets an
+# opaque N-byte element class named ``T<N>``.
+for _n in (6, 12, 20, 24, 40, 48):
+    _elt_name = f"T{_n}"
+    _elt = SimStruct(OrderedDict([("data", SimTypeArray(SimTypeChar(), _n))]), name=_elt_name)
+    _uniq = f"class std::vector<{_elt_name}, class std::allocator<{_elt_name}>>"
+    typelib.types[_uniq] = SimCppClass(
+        unique_name=_uniq,
+        name=f"std::vector<{_elt_name}>",
+        members=OrderedDict(
+            [
+                ("m_start", SimTypePointer(_elt)),
+                ("m_finish", SimTypePointer(_elt)),
+                ("m_end_of_storage", SimTypePointer(_elt)),
+            ]
+        ),
+    )
