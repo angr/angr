@@ -40,6 +40,7 @@ from .linked_list import (
     REMOVE_ENTRY_LIST,
 )
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
+from .posix_macros import ALL_POSIX_MACRO_TEMPLATES
 from .protobuf_hasbits import ALL_PROTOBUF_TEMPLATES
 from .std_string_cstr import STD_STRING_CSTR
 from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
@@ -89,6 +90,8 @@ for _t in ALL_LINKED_LIST_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_PROTOBUF_TEMPLATES:
     register_pattern_template(_t)
+for _t in ALL_POSIX_MACRO_TEMPLATES:
+    register_pattern_template(_t)
 for _t in ALL_VECTOR_MATH_TEMPLATES:
     register_pattern_template(_t)
 
@@ -131,6 +134,7 @@ ALL_STL_TEMPLATES = [
 __all__ = [
     "ALL_KNOWN_PATTERN_TEMPLATES",
     "ALL_LINKED_LIST_TEMPLATES",
+    "ALL_POSIX_MACRO_TEMPLATES",
     "ALL_PROTOBUF_TEMPLATES",
     "ALL_STL_TEMPLATES",
     "ALL_VECTOR_MATH_TEMPLATES",
