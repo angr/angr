@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
 import os.path
+import re
 import unittest
 from unittest import TestCase
 
@@ -538,3 +539,83 @@ class TestLargestMatchWins(TestCase):
                 assert [m.pattern.name for m in finder.matches] == ["unlink_and_init"], (
                     f"{order_name}: {[m.pattern.name for m in finder.matches]}"
                 )
+
+
+class TestOutlinedResultIdentity(TestCase):
+    # Two regressions in _rewrite_callsite / outline(), both reachable as soon as a
+    # pattern's result is narrower than the return register, or a function contains
+    # more than one outlined match. Uses ad-hoc absolute-address load patterns so the
+    # test does not depend on any particular shipped pattern.
+
+    KSUD_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_ksud.exe")
+
+    @staticmethod
+    def _abs_load_pattern(name: str, addr: int, size: int):
+        """A nullary accessor: a fixed-size load from an absolute address."""
+        from angr.analyses.decompiler.known_patterns import KnownPattern
+        from angr.analyses.decompiler.known_patterns.dsl import PConst, PLoad
+
+        return KnownPattern(
+            name=name,
+            display_name=name,
+            call_name=name,
+            pattern=PLoad(PConst(addr), size=size),
+            params=(),
+            returnty="unsigned int",
+        )
+
+    def _decompile_full(self, patterns, func_name):
+        from angr.analyses.decompiler.known_patterns import ALL_KNOWN_PATTERN_TEMPLATES, TEMPLATE_BY_CALL_NAME
+        from angr.analyses.decompiler.known_patterns.templates import make_template
+
+        def _const_build(pat):
+            return lambda ctx: pat
+
+        templates = [make_template(p.call_name, _const_build(p)) for p in patterns]
+        saved, saved_map = list(ALL_KNOWN_PATTERN_TEMPLATES), dict(TEMPLATE_BY_CALL_NAME)
+        ALL_KNOWN_PATTERN_TEMPLATES[:] = templates
+        TEMPLATE_BY_CALL_NAME.clear()
+        TEMPLATE_BY_CALL_NAME.update({t.call_name: t for t in templates})
+        try:
+            proj = angr.Project(self.KSUD_BIN, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(normalize=True)
+            proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+            func = cfg.functions.function(name=func_name)
+            assert func is not None
+            dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+            assert dec.codegen is not None and dec.codegen.text is not None
+            return dec.codegen.text
+        finally:
+            ALL_KNOWN_PATTERN_TEMPLATES[:] = saved
+            TEMPLATE_BY_CALL_NAME.clear()
+            TEMPLATE_BY_CALL_NAME.update(saved_map)
+
+    def test_two_outlined_results_stay_distinct(self):
+        # every AIL object built with idx=None lands at index 0, and the decompiler's
+        # VariableMap is keyed by index -- so two outlined results used to collide
+        # there and render as the same C variable, silently changing the arithmetic.
+        text = self._decompile_full(
+            [
+                self._abs_load_pattern("KsudMajor", 0x7FFE026C, 4),
+                self._abs_load_pattern("KsudMinor", 0x7FFE0270, 4),
+            ],
+            "ksud_version_combined",
+        )
+        assert "KsudMajor(" in text and "KsudMinor(" in text, text
+        major = re.search(r"(\w+) = KsudMajor\(\)", text)
+        minor = re.search(r"(\w+) = KsudMinor\(\)", text)
+        assert major is not None and minor is not None, text
+        assert major.group(1) != minor.group(1), f"both outlined results collapsed into one variable:\n{text}"
+
+    def test_subword_result_widths(self):
+        # 1- and 2-byte pattern results outline cleanly. (The width mismatch itself
+        # is pinned by test_two_outlined_results_stay_distinct, which crashes in
+        # variable recovery without the fix because it uses the result in
+        # arithmetic; these two only need the result to survive codegen.)
+        for func_name, addr, size in (
+            ("ksud_image_number_low", 0x7FFE002C, 2),
+            ("ksud_kd_debugger_enabled", 0x7FFE02D4, 1),
+        ):
+            with self.subTest(func=func_name):
+                text = self._decompile_full([self._abs_load_pattern("KsudField", addr, size)], func_name)
+                assert "KsudField(" in text, text

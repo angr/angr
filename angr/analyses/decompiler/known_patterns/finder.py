@@ -729,14 +729,14 @@ class KnownPatternFinder(Analysis):
         else:
             vvar_id = self._next_vvar_id()
             result_vvar = VirtualVariable(
-                None,
+                self._next_idx(),
                 vvar_id,
                 match.matched_expr.bits,
                 VirtualVariableCategory.TMP,
                 oident=vvar_id,  # TMP-category vvars must carry a tmp idx
                 ins_addr=ins_addr,
             )
-            lifted = Assignment(None, result_vvar, match.matched_expr.copy(), ins_addr=ins_addr)
+            lifted = Assignment(self._next_idx(), result_vvar, match.matched_expr.copy(), ins_addr=ins_addr)
             replaced, new_anchor = anchor.replace(match.matched_expr, result_vvar.copy())
             if not replaced:
                 raise UnsupportedOutlineError("failed to replace the matched expression in the anchor statement")
@@ -1002,11 +1002,23 @@ class KnownPatternFinder(Analysis):
                 raise UnsupportedOutlineError(f"pattern {pattern.name}: extra arg capture {name!r} is unbound")
             args.append(captured.copy())
 
+        # The Outliner's synthesized call is as wide as the return register, but
+        # the destination it is assigned to is the vvar lifted from the matched
+        # expression, at that expression's own width. Emitting a 64-bit call into
+        # a 32-bit vvar produces a width-mismatched Assignment that later blows up
+        # in variable recovery ("args' length must all be equal"), so narrow the
+        # call to its destination. Sub-byte destinations (1-bit boolean results)
+        # keep the register width: narrowing to 1 bit instead breaks the implicit-
+        # typecast collapsing in codegen.
+        call_bits = old_call.bits
+        if not void_call and old_stmt.dst is not None and old_stmt.dst.bits >= 8:
+            call_bits = old_stmt.dst.bits
+
         new_call = Call(
             self._ail_manager.next_atom() if self._ail_manager is not None else None,
             pattern.call_name,
             args=args,
-            bits=old_call.bits,
+            bits=call_bits,
             ins_addr=ins_addr if ins_addr is not None else old_call.tags.get("ins_addr"),
             known_pattern=pattern.name,
             is_prototype_guessed=False,
@@ -1015,11 +1027,18 @@ class KnownPatternFinder(Analysis):
         if void_call:
             # the Outliner's synthesized destination is a dead return-register
             # vvar; drop it so the call renders as a bare statement
-            new_stmt = SideEffectStatement(None, new_call, ret_expr=None, fp_ret_expr=None, **old_stmt.tags)
+            new_stmt = SideEffectStatement(self._next_idx(), new_call, ret_expr=None, fp_ret_expr=None, **old_stmt.tags)
         else:
-            new_stmt = Assignment(None, old_stmt.dst, new_call, **old_stmt.tags)
+            new_stmt = Assignment(self._next_idx(), old_stmt.dst, new_call, **old_stmt.tags)
         call_block.statements[call_stmt_idx] = new_stmt
         return new_stmt
+
+    def _next_idx(self) -> int | None:
+        """A fresh AIL atom index. Objects built with ``idx=None`` all end up at
+        index 0, and the decompiler's VariableMap is keyed by index -- so two
+        outlined results would collide there and render as the same C variable
+        even though variable recovery kept them distinct."""
+        return self._ail_manager.next_atom() if self._ail_manager is not None else None
 
     def _next_vvar_id(self) -> int:
         vvar_id = self.vvar_id_start
