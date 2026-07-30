@@ -37,6 +37,7 @@ GLIBC_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_p
 KERNEL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_kernel_macros")
 LIBM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
 KSUD_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_ksud.exe")
+STL2_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl2")
 KSUD_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_wdk_ksud.exe")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
@@ -711,6 +712,43 @@ class TestWdkSharedDataPatterns(TestCase):
             except Exception:  # pylint:disable=broad-except
                 continue
         assert total == 0, f"{total} spurious KUSER_SHARED_DATA/NTSTATUS matches"
+
+
+class TestVectorExactDivSize(TestCase):
+    # (_M_finish - _M_start) / sizeof(T) is an *exact* division, so for a
+    # non-power-of-two sizeof(T) the compiler emits a shift by ctz(sizeof(T))
+    # followed by a plain multiply by the modular inverse of the odd part --
+    # not the usual mulhi-and-shift. Both operands follow from sizeof(T), so the
+    # templates can be generated per element size.
+
+    _SIZES = [6, 12, 20, 24, 40, 48]
+
+    def test_exact_div_magic_matches_the_compiler(self):
+        from angr.analyses.decompiler.known_patterns import exact_div_magic
+
+        # shift/magic pairs read off g++ 12.2 -O2 output
+        assert exact_div_magic(12, 64) == (2, 0xAAAAAAAAAAAAAAAB)
+        assert exact_div_magic(20, 64) == (2, 0xCCCCCCCCCCCCCCCD)
+        assert exact_div_magic(40, 64) == (3, 0xCCCCCCCCCCCCCCCD)
+        assert exact_div_magic(48, 64) == (4, 0xAAAAAAAAAAAAAAAB)
+        assert exact_div_magic(56, 64) == (3, 0x6DB6DB6DB6DB6DB7)
+        # 32-bit targets get the inverse mod 2**32
+        assert exact_div_magic(12, 32) == (2, 0xAAAAAAAB)
+
+    def test_struct_element_vector_sizes(self):
+        proj = angr.Project(STL2_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        for n in self._SIZES:
+            with self.subTest(elt_size=n):
+                func = cfg.functions.function(name=f"vec_size_s{n}")
+                assert func is not None
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+                text = dec.codegen.text
+                assert f"std::vector<T{n}>::size(" in text, text
+                # the whole division must be absorbed: no bare magic multiply left
+                assert "12297829382473034411" not in text, text
+                assert "std::string" not in text, text
 
 
 class TestPatternsOutlineDuringDecompilation(TestCase):

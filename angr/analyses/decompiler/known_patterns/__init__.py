@@ -56,6 +56,9 @@ from .std_vector_size import (
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
     STD_VECTOR_SHORT_SIZE,
+    STD_VECTOR_STRUCT_SIZE_TEMPLATES,
+    exact_div_magic,
+    make_std_vector_size_exactdiv_template,
     make_std_vector_size_template,
 )
 from .stl_containers import STD_VECTOR_INT_CAPACITY, STD_VECTOR_INT_EMPTY, STD_VECTOR_INT_INDEX
@@ -88,6 +91,8 @@ register_pattern_template(STD_STRING_CSTR)
 register_pattern_template(STD_VECTOR_SHORT_SIZE)
 register_pattern_template(STD_VECTOR_INT_SIZE)
 register_pattern_template(STD_VECTOR_LONG_LONG_SIZE)
+for _t in STD_VECTOR_STRUCT_SIZE_TEMPLATES:
+    register_pattern_template(_t)
 register_pattern_template(STD_VECTOR_INT_EMPTY)
 register_pattern_template(STD_VECTOR_INT_CAPACITY)
 register_pattern_template(STD_VECTOR_INT_INDEX)
@@ -178,6 +183,7 @@ __all__ = [
     "STD_VECTOR_INT_SIZE",
     "STD_VECTOR_LONG_LONG_SIZE",
     "STD_VECTOR_SHORT_SIZE",
+    "STD_VECTOR_STRUCT_SIZE_TEMPLATES",
     "TEMPLATE_BY_CALL_NAME",
     "CppRef",
     "KnownPattern",
@@ -206,6 +212,8 @@ __all__ = [
     "PatternParam",
     "TypeRef",
     "UnsupportedOutlineError",
+    "exact_div_magic",
+    "make_std_vector_size_exactdiv_template",
     "make_std_vector_size_template",
     "make_template",
     "patterns_for",
