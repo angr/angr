@@ -35,8 +35,13 @@ from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, Unsupp
 from .generator import PatternGenerationError, PatternGenerator
 from .linked_list import (
     ALL_LINKED_LIST_TEMPLATES,
+    HLIST_DEL,
     INITIALIZE_LIST_HEAD,
+    INSERT_HEAD_LIST,
+    INSERT_TAIL_LIST,
     IS_LIST_EMPTY,
+    LIST_DEL,
+    LIST_DEL_INIT,
     REMOVE_ENTRY_LIST,
 )
 from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
@@ -139,8 +144,13 @@ __all__ = [
     "ALL_STL_TEMPLATES",
     "ALL_VECTOR_MATH_TEMPLATES",
     "CONTAINING_RECORD_PATTERN",
+    "HLIST_DEL",
     "INITIALIZE_LIST_HEAD",
+    "INSERT_HEAD_LIST",
+    "INSERT_TAIL_LIST",
     "IS_LIST_EMPTY",
+    "LIST_DEL",
+    "LIST_DEL_INIT",
     "MAJOR",
     "REMOVE_ENTRY_LIST",
     "STD_STRING_CSTR",

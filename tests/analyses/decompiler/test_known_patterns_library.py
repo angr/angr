@@ -31,6 +31,7 @@ CSTR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patte
 MSVC_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
 GLIBC_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_glibc_macros")
+KERNEL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_kernel_macros")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
 _PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_clear_has_field"}
@@ -435,6 +436,64 @@ class TestSysMacros(TestCase):
         assert MAJOR.instantiate(dataclasses.replace(ctx64, bits=32, ptr_size=4)) is None
 
 
+class TestKernelListPatterns(TestCase):
+    # <linux/list.h> operations beyond the empty/init/unlink trio: head and tail
+    # insertion, and the two unlink supersets the kernel actually calls.
+
+    def _check(self, bin_path, func_name, pattern_name, call_name):
+        proj, cfg, func, dec = _decompile(bin_path, func_name)
+        finder = _find(proj, func, dec)
+        names = [m.pattern.name for m in finder.matches]
+        assert pattern_name in names, f"{func_name}: {names}"
+        match = next(m for m in finder.matches if m.pattern.name == pattern_name)
+        result = finder.outline(match)
+        del dec.kb.dec_variables.function_managers[func.addr]
+        func.prototype_source = PrototypeSource.GUESSED
+        dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            clinic_graph=result.graph,
+            clinic_start_stage=ClinicStage.POST_CALLSITES,
+            clinic_arg_vvars=dec.clinic.arg_vvars,
+            cfg=cfg.model,
+        )
+        assert call_name + "(" in dec_outer.codegen.text
+        return dec_outer.codegen.text
+
+    def test_insert_head_list(self):
+        self._check(KERNEL_BIN, "k_list_add", "insert_head_list", "InsertHeadList")
+
+    def test_insert_tail_list(self):
+        self._check(KERNEL_BIN, "k_list_add_tail", "insert_tail_list", "InsertTailList")
+
+    def test_insert_tail_list_matches_wdk_list_entry(self):
+        # one template covers both list_head (next/prev) and LIST_ENTRY (Flink/Blink)
+        proj, _, func, dec = _decompile(WDK_BIN, "wdk_insert_tail")
+        finder = _find(proj, func, dec)
+        assert "insert_tail_list" in [m.pattern.name for m in finder.matches]
+
+    def test_list_del_poisoned(self):
+        # the real kernel list_del() unlinks and then stores LIST_POISON1/2
+        self._check(KERNEL_BIN, "k_list_del_poison", "list_del", "list_del")
+
+    def test_list_del_init(self):
+        self._check(KERNEL_BIN, "k_list_del_init", "list_del_init", "list_del_init")
+
+    def test_supersets_beat_the_bare_unlink(self):
+        # list_del and list_del_init both strictly contain RemoveEntryList; the
+        # finder's largest-match-wins rule must pick the superset
+        for func_name, expected in (("k_list_del_poison", "list_del"), ("k_list_del_init", "list_del_init")):
+            with self.subTest(func=func_name):
+                proj, _, func, dec = _decompile(KERNEL_BIN, func_name)
+                finder = _find(proj, func, dec)
+                names = [m.pattern.name for m in finder.matches]
+                assert names == [expected], names
+                assert "remove_entry_list" not in names
+
+    def test_hlist_del(self):
+        # a control-flow diamond: *pprev = next; if (next) next->pprev = pprev
+        self._check(KERNEL_BIN, "k_hlist_del_plain", "hlist_del", "hlist_del")
+
+
 class TestPatternsOutlineDuringDecompilation(TestCase):
     # Every pattern must be recognized and outlined *during* decompilation (by the
     # KnownPatternOutliner pass at BEFORE_VARIABLE_RECOVERY), not only when a finder
@@ -467,6 +526,17 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
             [("lx_is_empty", "IsListEmpty("), ("lx_init", "InitializeListHead("), ("lx_del", "RemoveEntryList(")],
         )
         _assert_outlines_during(self, WDK_BIN, [("wdk_remove", "RemoveEntryList(")])
+        _assert_outlines_during(
+            self,
+            KERNEL_BIN,
+            [
+                ("k_list_add", "InsertHeadList("),
+                ("k_list_add_tail", "InsertTailList("),
+                ("k_list_del_poison", "list_del("),
+                ("k_list_del_init", "list_del_init("),
+                ("k_hlist_del_plain", "hlist_del("),
+            ],
+        )
 
     def test_posix_macros(self):
         _assert_outlines_during(
