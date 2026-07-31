@@ -359,8 +359,10 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             OpCode.INT_OR: operator.or_,
             OpCode.INT_REM: operator.mod,
             OpCode.INT_RIGHT: claripy.LShR,
+            OpCode.INT_SDIV: claripy.SDiv,
             OpCode.INT_SLESS: claripy.SLT,
             OpCode.INT_SLESSEQUAL: claripy.SLE,
+            OpCode.INT_SREM: claripy.SMod,
             OpCode.INT_SRIGHT: operator.rshift,
             OpCode.INT_SUB: operator.sub,
             OpCode.INT_XOR: operator.xor,
@@ -424,8 +426,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             expected_result = operation(x, y)
 
         solver = claripy.Solver()
-        maybe_true = solver.eval(result == expected_result, 1)[0]
-        assert solver.is_true(maybe_true)
+        assert solver.is_true(result == expected_result)
 
     def test_arith_binary_ops(self):
         for opcode in [
@@ -444,9 +445,10 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             OpCode.INT_OR,
             OpCode.INT_REM,
             OpCode.INT_RIGHT,
-            # OpCode.INT_SDIV,  # FIXME
+            OpCode.INT_SDIV,
             OpCode.INT_SLESS,
             OpCode.INT_SLESSEQUAL,
+            OpCode.INT_SREM,
             OpCode.INT_SRIGHT,
             OpCode.INT_SUB,
             OpCode.INT_XOR,
@@ -597,8 +599,6 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
     #   OpCode.INT_CARRY
     #   OpCode.INT_SBORROW
     #   OpCode.INT_SCARRY
-    # * OpCode.INT_SDIV
-    # * OpCode.INT_SREM
     # ! OpCode.NEW
     #   OpCode.RETURN
 
