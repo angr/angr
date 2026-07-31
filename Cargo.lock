@@ -78,6 +78,7 @@ dependencies = [
  "libafl_bolts",
  "log",
  "num-bigint",
+ "num-traits",
  "pcode",
  "postcard",
  "pyo3",
