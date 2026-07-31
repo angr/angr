@@ -456,7 +456,6 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
             with self.subTest(opcode):
                 self._test_single_arith_binary_op(opcode)
 
-
     def _test_single_arith_unary_op(self, opcode: OpCode):
         opcode_to_operation = {
             OpCode.INT_NEGATE: operator.inv,
