@@ -98,6 +98,16 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 
 INDENT_DELTA = 4
 
+_CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
+    8: SimTypeChar,
+    16: SimTypeShort,
+    32: SimTypeInt,
+    64: SimTypeLongLong,
+    128: SimTypeInt128,
+    256: SimTypeInt256,
+    512: SimTypeInt512,
+}
+
 
 def qualifies_for_simple_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen precisely?
@@ -4223,29 +4233,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
-        # width of converted type is easy
-        dst_type: SimTypeInt | SimTypeChar
-        if 512 >= expr.to_bits > 256:
-            dst_type = SimTypeInt512()
-        elif 256 >= expr.to_bits > 128:
-            dst_type = SimTypeInt256()
-        elif 128 >= expr.to_bits > 64:
-            dst_type = SimTypeInt128()
-        elif 64 >= expr.to_bits > 32:
-            dst_type = SimTypeLongLong()
-        elif 32 >= expr.to_bits > 16:
-            dst_type = SimTypeInt()
-        elif 16 >= expr.to_bits > 8:
-            dst_type = SimTypeShort()
-        elif 8 >= expr.to_bits > 1:
-            dst_type = SimTypeChar()
-        elif expr.to_bits == 1:
-            dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
-        else:
-            raise UnsupportedNodeTypeError(f"Unsupported conversion bits {expr.to_bits}.")
-
-        # convert child
         child = self._handle(expr.operand)
+
+        # Use a mask to represent non-standard size conversions
+        if expr.to_bits < expr.from_bits and expr.to_bits not in _CAST_TYPES_BY_BITS:
+            const_type = child.type if child.type is not None else self.default_simtype_from_bits(expr.from_bits, False)
+            mask = CConstant((1 << expr.to_bits) - 1, const_type, codegen=self, tags=expr.tags)
+            return CBinaryOp("And", child, mask, codegen=self, tags=expr.tags)
+
+        # Cast to the smallest size that can hold the new value
+        dst_type_cls = next((cls for bits, cls in _CAST_TYPES_BY_BITS.items() if bits >= expr.to_bits), None)
+        if dst_type_cls is None or expr.to_bits < 1:
+            raise UnsupportedNodeTypeError(f"Unsupported conversion bits {expr.to_bits}.")
+        dst_type: SimTypeInt | SimTypeChar = dst_type_cls()
+
         orig_child_signed = getattr(child.type, "signed", False)
 
         # signedness of converted type is hard
