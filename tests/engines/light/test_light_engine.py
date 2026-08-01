@@ -69,6 +69,40 @@ class TestLightEngine(TestCase):
         assert seen == [operand]
         assert isinstance(result, MultiValues)
 
+    def test_rda_dirty_expression_visits_inputs(self):
+        engine: Any = object.__new__(SimEngineRDAIL)
+        engine.state = SimpleNamespace(top=lambda bits: claripy.BVS("rda_dirty_top", bits))
+        operand = ailment.Expr.Const(0, 1, 32)
+        guard = ailment.Expr.Const(1, 1, 1)
+        memory_address = ailment.Expr.Const(2, 0x4000, 64)
+        cases = (
+            (guard, memory_address, [operand, guard, memory_address]),
+            (None, None, [operand]),
+        )
+
+        for current_guard, current_address, expected in cases:
+            with self.subTest(guard=current_guard, memory_address=current_address):
+                seen = []
+                engine._expr = seen.append
+                dirty_expr = ailment.Expr.DirtyExpression(
+                    3,
+                    "helper",
+                    [operand],
+                    guard=current_guard,
+                    mfx="read",
+                    maddr=current_address,
+                    msize=4,
+                    bits=32,
+                )
+
+                result = engine._handle_expr_DirtyExpression(dirty_expr)
+
+                self.assertEqual(seen, expected)
+                self.assertIsInstance(result, MultiValues)
+                value = result.one_value()
+                self.assertIsNotNone(value)
+                self.assertEqual(len(value), 32)
+
     def test_variable_recovery_abs_preserves_typevar(self):
         operand_typevar = TypeVariable(name="abs_operand")
         engine: Any = object.__new__(SimEngineVRAIL)
