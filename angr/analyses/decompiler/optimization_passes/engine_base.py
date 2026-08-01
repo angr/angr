@@ -241,6 +241,7 @@ class SimplifierAILEngine(
             )
         if (
             isinstance(operand_expr, ailment.expression.Const)
+            and isinstance(operand_expr.value, int)
             and expr.from_type == ailment.expression.Convert.TYPE_INT
             and expr.to_type == ailment.expression.Convert.TYPE_INT
         ):
