@@ -427,8 +427,8 @@ class AILMergeGraph:
         for original, updated in update_map.items():
             for k in list(self.original_split_blocks.keys()):
                 if k == original:
-                    self.original_split_blocks[updated] = self.original_split_blocks[k]
-                    del self.original_split_blocks[k]
+                    split_blocks = self.original_split_blocks.pop(k)
+                    self.original_split_blocks[updated] = split_blocks
 
             for v in self.original_split_blocks.values():
                 for sblock in v:
@@ -438,8 +438,8 @@ class AILMergeGraph:
 
             for k in list(self.original_blocks.keys()):
                 if k == original:
-                    self.original_blocks[updated] = self.original_blocks[k]
-                    del self.original_blocks[k]
+                    original_blocks = self.original_blocks.pop(k)
+                    self.original_blocks[updated] = original_blocks
 
     def _find_merge_block_by_original(self, block: Block):
         for merge_block, originals in self.merge_blocks_to_originals.items():
