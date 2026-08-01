@@ -82,6 +82,42 @@ class TestIrsb(unittest.TestCase):
         assert from_py == from_lift
         assert from_py.statements  # non-empty
 
+    def test_unary_conversion_types(self):
+        binary = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "binaries", "tests", "x86_64", "manyfloatsum"
+        )
+        project = angr.Project(binary, auto_load_libs=False)
+        irsb = project.factory.block(0x4009BE).vex
+        blocks = (
+            VEXIRSBConverter.convert(irsb, ailment.Manager(arch=project.arch)),
+            VEXIRSBConverter.convert_from_lift(
+                project.arch,
+                irsb.addr,
+                bytes(project.loader.memory.load(irsb.addr, irsb.size)),
+                ailment.Manager(arch=project.arch),
+            ),
+        )
+        expected = {
+            "Iop_F32toF64": (ailment.Expr.Convert.TYPE_FP, ailment.Expr.Convert.TYPE_FP),
+            "Iop_I32StoF64": (ailment.Expr.Convert.TYPE_INT, ailment.Expr.Convert.TYPE_FP),
+        }
+
+        for block in blocks:
+            seen = set()
+            for stmt in block.statements:
+                src = getattr(stmt, "src", None)
+                if not isinstance(src, ailment.Expr.Convert):
+                    continue
+                vex_stmt_idx = src.tags.get("vex_stmt_idx")
+                if vex_stmt_idx is None:
+                    continue
+                vex_expr = getattr(irsb.statements[vex_stmt_idx], "data", None)
+                if not isinstance(vex_expr, pyvex.IRExpr.Unop) or vex_expr.op not in expected:
+                    continue
+                assert (src.from_type, src.to_type) == expected[vex_expr.op]
+                seen.add(vex_expr.op)
+            assert seen == expected.keys()
+
 
 class TestNonConstRoundingMode(unittest.TestCase):
     """VEX sometimes carries the rounding mode in a tmp (e.g. ARM ``vcvtr``
