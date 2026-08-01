@@ -225,7 +225,7 @@ class StructurerBase(Analysis):
                 self.node = node
                 self.original_error = original_error
 
-        def _node_outcomes(node: BaseNode | ailment.Block | None) -> int:
+        def _node_outcomes(node: BaseNode | MultiNode | ailment.Block | None) -> int:
             if node is None:
                 return _CONTINUES
 
@@ -323,11 +323,15 @@ class StructurerBase(Analysis):
         def _wrap_nested_switch(root, nested_switch: SwitchCaseNode):
             def _handle_nested_switch(node: SwitchCaseNode, parent=None, index=0, label=None):
                 if node is nested_switch:
+                    next_node = (
+                        parent.nodes[index + 1]
+                        if isinstance(parent, (SequenceNode, MultiNode)) and index + 1 < len(parent.nodes)
+                        else None
+                    )
                     if (
-                        isinstance(parent, (SequenceNode, MultiNode))
-                        and index + 1 < len(parent.nodes)
-                        and type(parent.nodes[index + 1]) is BreakNode
-                        and parent.nodes[index + 1].target == switch_end_addr
+                        isinstance(next_node, BreakNode)
+                        and type(next_node) is BreakNode
+                        and next_node.target == switch_end_addr
                     ):
                         return None
                     return SequenceNode(node.addr, nodes=[node, BreakNode(node.addr, switch_end_addr)])

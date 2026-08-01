@@ -1,12 +1,14 @@
+# pylint: disable=protected-access
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import archinfo
 import pytest
 
 from angr import ailment
-from angr.analyses.decompiler.structurer_nodes import BreakNode, SequenceNode, SwitchCaseNode
+from angr.analyses.decompiler.structurer_nodes import BaseNode, BreakNode, SequenceNode, SwitchCaseNode
 from angr.analyses.decompiler.structuring.structurer_base import StructurerBase
 
 SWITCH_END = 0x5000
@@ -30,7 +32,7 @@ def _jump_block(addr: int = 0x4000) -> ailment.Block:
 def _make_structurer() -> StructurerBase:
     arch = archinfo.ArchAMD64()
     structurer = object.__new__(StructurerBase)
-    structurer.project = SimpleNamespace(arch=arch)
+    structurer.project = cast(Any, SimpleNamespace(arch=arch))
     structurer.ail_manager = ailment.Manager(arch=arch)
     return structurer
 
@@ -56,7 +58,7 @@ def test_switch_goto_rewrite_carries_proven_outer_exit_through_nested_switch():
     )
     nested = SwitchCaseNode(
         ailment.Expr.Const(3, 0, 32),
-        {0: inner_break, 1: returning_case},
+        cast(Any, {0: inner_break, 1: returning_case}),
         exit_block,
         addr=0x4030,
     )
@@ -78,22 +80,25 @@ def test_switch_goto_rewrite_replaces_proven_nested_switch_case_root():
     exit_block = _jump_block()
     nested = SwitchCaseNode(
         ailment.Expr.Const(3, 0, 32),
-        {0: BreakNode(0x4010, SWITCH_END)},
+        cast(Any, {0: BreakNode(0x4010, SWITCH_END)}),
         exit_block,
         addr=0x4030,
     )
-    cases = {0: nested}
+    cases: dict[int, BaseNode] = {0: nested}
     structurer = _make_structurer()
 
     for _ in range(2):
         structurer._switch_handle_gotos(cases, None, SWITCH_END)
 
     assert len(exit_block.statements) == 1
-    rewritten = cases[0]
-    assert isinstance(rewritten, SequenceNode)
+    assert isinstance(cases[0], SequenceNode)
+    rewritten = cast(SequenceNode, cases[0])
+    # Pylint retains the pre-rewrite SwitchCaseNode type through the mutable dictionary lookup despite the guard above.
+    # pylint: disable=no-member
     assert rewritten.nodes[0] is nested
     assert type(rewritten.nodes[1]) is BreakNode
     assert rewritten.nodes[1].target == SWITCH_END
+    # pylint: enable=no-member
 
 
 def test_switch_goto_rewrite_preserves_existing_path_without_direct_switch_child():
@@ -101,7 +106,7 @@ def test_switch_goto_rewrite_preserves_existing_path_without_direct_switch_child
     inner_case = SequenceNode(exit_block.addr, [exit_block])
     nested = SwitchCaseNode(
         ailment.Expr.Const(3, 0, 32),
-        {0: inner_case},
+        cast(Any, {0: inner_case}),
         ailment.Block(0x4020, 1, statements=[]),
         addr=0x4030,
     )
@@ -118,7 +123,7 @@ def test_switch_goto_rewrite_rejects_unproven_nested_switch_exit():
     exit_block = _jump_block()
     nested = SwitchCaseNode(
         ailment.Expr.Const(3, 0, 32),
-        {0: ailment.Block(0x4010, 1, statements=[])},
+        cast(Any, {0: ailment.Block(0x4010, 1, statements=[])}),
         exit_block,
         addr=0x4030,
     )
@@ -133,7 +138,7 @@ def test_switch_goto_rewrite_does_not_drop_outer_break_for_default_root():
     exit_block = _jump_block()
     nested = SwitchCaseNode(
         ailment.Expr.Const(3, 0, 32),
-        {0: BreakNode(0x4010, SWITCH_END)},
+        cast(Any, {0: BreakNode(0x4010, SWITCH_END)}),
         exit_block,
         addr=0x4030,
     )
