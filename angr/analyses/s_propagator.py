@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import threading
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
 
 import networkx
@@ -22,7 +22,7 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Statement, Store
 from angr.ailment.utils import has_dirty_memory_write, has_effectful_dirty_expression
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
@@ -88,9 +88,10 @@ def _has_memory_write_in_between_stmts(
     blocks: dict[tuple[int, int | None], Block],
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
+    has_dirty_write: Callable[[Statement], bool],
 ) -> bool:
     use_block = blocks[(useloc.addr, useloc.block_idx)]
-    if has_dirty_memory_write(use_block.statements[useloc.stmt_idx]):
+    if has_dirty_write(use_block.statements[useloc.stmt_idx]):
         # A MultiStatementExpression may perform this write before evaluating the vvar use in its result expression.
         return True
     return check_in_between_stmts(
@@ -98,7 +99,7 @@ def _has_memory_write_in_between_stmts(
         blocks,
         defloc,
         useloc,
-        lambda stmt: isinstance(stmt, Store) or has_dirty_memory_write(stmt),
+        lambda stmt: isinstance(stmt, Store) or has_dirty_write(stmt),
     )
 
 
@@ -154,6 +155,8 @@ class SPropagator:
         self._sp_tracker = stack_pointer_tracker
         self._ail_manager = ail_manager
         self.stack_arg_offsets = stack_arg_offsets
+        self._dirty_memory_write_cache: dict[int, tuple[Statement, bool]] = {}
+        self._effectful_assignment_src_cache: dict[int, tuple[Assignment, bool]] = {}
 
         bp_as_gpr = False
         the_func = None
@@ -171,6 +174,24 @@ class SPropagator:
         self.model = SPropagatorModel()
 
         self._analyze()
+
+    def _statement_has_dirty_memory_write(self, stmt: Statement) -> bool:
+        key = id(stmt)
+        cached = self._dirty_memory_write_cache.get(key)
+        if cached is not None and cached[0] is stmt:
+            return cached[1]
+        result = has_dirty_memory_write(stmt)
+        self._dirty_memory_write_cache[key] = stmt, result
+        return result
+
+    def _assignment_src_has_effectful_dirty(self, stmt: Assignment) -> bool:
+        key = id(stmt)
+        cached = self._effectful_assignment_src_cache.get(key)
+        if cached is not None and cached[0] is stmt:
+            return cached[1]
+        result = has_effectful_dirty_expression(stmt.src)
+        self._effectful_assignment_src_cache[key] = stmt, result
+        return result
 
     @property
     def replacements(self):
@@ -232,7 +253,7 @@ class SPropagator:
                 if not (isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id):
                     # come back later, this is not the def you're looking for
                     continue
-                if has_effectful_dirty_expression(stmt.src):
+                if self._assignment_src_has_effectful_dirty(stmt):
                     # Propagating this expression would duplicate or move its side effect. This guard must precede
                     # both ordinary constant propagation and forced stack-argument propagation.
                     continue
@@ -335,7 +356,7 @@ class SPropagator:
                 ):
                     # come back later, this is not the def you're looking for
                     continue
-                if has_effectful_dirty_expression(stmt.src):
+                if self._assignment_src_has_effectful_dirty(stmt):
                     # This loop has propagation paths independent of the initial constant/stack-argument pass.
                     continue
 
@@ -352,7 +373,13 @@ class SPropagator:
                     #    }
                     can_replace = True
                     for vvar_useloc in vvar_useloc_to_count:
-                        if _has_memory_write_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc):
+                        if _has_memory_write_in_between_stmts(
+                            self.func_graph,
+                            blocks,
+                            defloc,
+                            vvar_useloc,
+                            self._statement_has_dirty_memory_write,
+                        ):
                             can_replace = False
 
                     if can_replace:
@@ -368,7 +395,13 @@ class SPropagator:
                     and (
                         not isinstance(stmt.src, Load)
                         or not any(
-                            _has_memory_write_in_between_stmts(self.func_graph, blocks, defloc, useloc)
+                            _has_memory_write_in_between_stmts(
+                                self.func_graph,
+                                blocks,
+                                defloc,
+                                useloc,
+                                self._statement_has_dirty_memory_write,
+                            )
                             for useloc in vvar_useloc_to_count
                         )
                     )
@@ -391,7 +424,13 @@ class SPropagator:
                             is_const_vvar_load_assignment(
                                 stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_WHITELIST)
                             )
-                            and not _has_memory_write_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc)
+                            and not _has_memory_write_in_between_stmts(
+                                self.func_graph,
+                                blocks,
+                                defloc,
+                                vvar_useloc,
+                                self._statement_has_dirty_memory_write,
+                            )
                             and not has_tmp_expr(stmt.src)
                         ):
                             # we can propagate this load because there is no store between its def and use
@@ -482,6 +521,7 @@ class SPropagator:
                                 stmt_src.size,
                                 defloc,
                                 vvar_useloc,
+                                has_dirty_write=self._statement_has_dirty_memory_write,
                             )
                         if not gv_updated:
                             for vvar_used, vvar_useloc in vvar_uselocs_set:
@@ -536,7 +576,7 @@ class SPropagator:
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):
-                    if has_effectful_dirty_expression(stmt.src):
+                    if self._assignment_src_has_effectful_dirty(stmt):
                         # Propagating this expression would duplicate or move its side effect.
                         continue
 
@@ -569,10 +609,12 @@ class SPropagator:
                             same_inst = def_ins_addr is not None and def_ins_addr == block.statements[
                                 tmp_use_stmtidx
                             ].tags.get("ins_addr")
-                            use_has_dirty_memory_write = has_dirty_memory_write(block.statements[tmp_use_stmtidx])
+                            use_has_dirty_memory_write = self._statement_has_dirty_memory_write(
+                                block.statements[tmp_use_stmtidx]
+                            )
                             intervening_statements = block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
                             has_intervening_dirty_memory_write = any(
-                                has_dirty_memory_write(stmt_) for stmt_ in intervening_statements
+                                self._statement_has_dirty_memory_write(stmt_) for stmt_ in intervening_statements
                             )
                             intervening_stores = [stmt_ for stmt_ in intervening_statements if isinstance(stmt_, Store)]
                             stores_are_same_inst = same_inst and all(
@@ -594,11 +636,21 @@ class SPropagator:
 
     @staticmethod
     def is_global_variable_updated(
-        func_graph, block_dict, varid: int, gv_addr: int, gv_size: int, defloc: AILCodeLocation, useloc: AILCodeLocation
+        func_graph,
+        block_dict,
+        varid: int,
+        gv_addr: int,
+        gv_size: int,
+        defloc: AILCodeLocation,
+        useloc: AILCodeLocation,
+        has_dirty_write: Callable[[Statement], bool] | None = None,
     ) -> bool:
+        if has_dirty_write is None:
+            has_dirty_write = has_dirty_memory_write
+
         defblock = block_dict[(defloc.block_addr, defloc.block_idx)]
         useblock = block_dict[(useloc.block_addr, useloc.block_idx)]
-        if has_dirty_memory_write(useblock.statements[useloc.stmt_idx]):
+        if has_dirty_write(useblock.statements[useloc.stmt_idx]):
             # A MultiStatementExpression may perform this write before evaluating the vvar use in its result expression.
             return True
 
@@ -615,7 +667,7 @@ class SPropagator:
 
             for idx in range(start_stmt_idx, end_stmt_idx):
                 stmt = block.statements[idx]
-                if has_dirty_memory_write(stmt):
+                if has_dirty_write(stmt):
                     # A dirty write may alias any guest-memory location.
                     return True
                 if isinstance(stmt, Store) and isinstance(stmt.addr, Const):

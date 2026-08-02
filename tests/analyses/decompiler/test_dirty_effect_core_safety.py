@@ -4,8 +4,9 @@ import networkx
 import pytest
 
 import angr
+import angr.ailment.utils as ailment_utils
 from angr import ailment
-from angr.ailment.expression import DirtyExpression, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import DirtyExpression, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Statement
 from angr.ailment.utils import (
     has_dirty_memory_read,
@@ -75,6 +76,210 @@ def _mse_use_with_dirty_write(idx: int, use, addr):
     return ailment.Expr.MultiStatementExpression(idx + 2, [write], use)
 
 
+def _legacy_dirty_effects(obj: Expression | Statement) -> int:
+    effects = 0
+    for memory_effects, bit in (
+        (None, 1 << 0),
+        (ailment_utils._DIRTY_MEMORY_READ_EFFECTS, 1 << 1),  # pylint:disable=protected-access
+        (ailment_utils._DIRTY_MEMORY_WRITE_EFFECTS, 1 << 2),  # pylint:disable=protected-access
+    ):
+        finder = ailment_utils._EffectfulDirtyExpressionFinder(memory_effects)  # pylint:disable=protected-access
+        try:
+            if isinstance(obj, Expression):
+                finder.walk_expression(obj)
+            else:
+                finder.walk_statement(obj)
+        except ailment_utils._EffectfulDirtyExpressionFound:  # pylint:disable=protected-access
+            effects |= bit
+    return effects
+
+
+def _dirty_expression_slot_roots():
+    clean = ailment.Expr.Const(100, 0, 64)
+    condition = ailment.Expr.Const(101, 1, 1)
+    dirty = _dirty(102, "Ifx_Modify")
+    dirty_condition = _dirty(103, "Ifx_Modify", bits=1)
+    dirty_stmt = ailment.Stmt.DirtyStatement(104, dirty)
+    return (
+        ("unary-operand", ailment.Expr.UnaryOp(110, "Not", dirty, bits=64)),
+        ("reinterpret-operand", ailment.Expr.Reinterpret(111, 64, "int", 64, "float", dirty)),
+        ("convert-operand", ailment.Expr.Convert(112, 64, 64, False, dirty)),
+        (
+            "convert-rounding",
+            ailment.Expr.Convert(113, 64, 64, False, clean, rounding_mode=dirty),
+        ),
+        ("binary-left", ailment.Expr.BinaryOp(114, "Add", (dirty, clean), bits=64)),
+        ("binary-right", ailment.Expr.BinaryOp(115, "Add", (clean, dirty), bits=64)),
+        (
+            "binary-rounding",
+            ailment.Expr.BinaryOp(116, "Add", (clean, clean), bits=64, rounding_mode=dirty),
+        ),
+        ("load-address", ailment.Expr.Load(117, dirty, 8, "Iend_LE")),
+        ("load-guard", ailment.Expr.Load(118, clean, 8, "Iend_LE", guard=dirty_condition)),
+        ("load-alt", ailment.Expr.Load(119, clean, 8, "Iend_LE", alt=dirty)),
+        ("call-target", ailment.Expr.Call(120, dirty, args=[], bits=64)),
+        ("call-argument", ailment.Expr.Call(121, "helper", args=[dirty], bits=64)),
+        ("dirty-operand", _dirty(122, None, operands=(dirty,))),
+        ("dirty-guard", _dirty(123, None, guard=dirty_condition)),
+        ("dirty-address", _dirty(124, None, maddr=dirty)),
+        ("vex-ccall-operand", ailment.Expr.VEXCCallExpression(125, "helper", [dirty], 64)),
+        (
+            "mse-statement",
+            ailment.Expr.MultiStatementExpression(126, [dirty_stmt], clean),
+        ),
+        ("mse-expression", ailment.Expr.MultiStatementExpression(127, [], dirty)),
+        ("struct-field", ailment.Expr.Struct(128, "S", {0: dirty}, {"value": 0}, 64)),
+        ("enum-field", ailment.Expr.RustEnum(129, "Some", [dirty], 64)),
+        ("array-element", ailment.Expr.Array(130, [dirty], 64)),
+        (
+            "let-definition",
+            ailment.Expr.Let(131, [ailment.Stmt.Assignment(132, ailment.Expr.Tmp(133, 0, 64), dirty)], clean),
+        ),
+        ("let-source", ailment.Expr.Let(134, [], dirty)),
+        ("macro-argument", ailment.Expr.FunctionLikeMacro(135, "format", [dirty], bits=64)),
+        ("ite-condition", ailment.Expr.ITE(136, dirty_condition, clean, clean)),
+        ("ite-false", ailment.Expr.ITE(137, condition, dirty, clean)),
+        ("ite-true", ailment.Expr.ITE(138, condition, clean, dirty)),
+        ("extract-base", ailment.Expr.Extract(139, 64, dirty, clean, "Iend_LE")),
+        ("extract-offset", ailment.Expr.Extract(140, 64, clean, dirty, "Iend_LE")),
+        ("insert-base", ailment.Expr.Insert(141, dirty, clean, clean, "Iend_LE")),
+        ("insert-offset", ailment.Expr.Insert(142, clean, dirty, clean, "Iend_LE")),
+        ("insert-value", ailment.Expr.Insert(143, clean, clean, dirty, "Iend_LE")),
+    )
+
+
+def _dirty_statement_slot_roots():
+    clean = ailment.Expr.Const(200, 0, 64)
+    condition = ailment.Expr.Const(201, 1, 1)
+    dirty = _dirty(202, "Ifx_Modify")
+    dirty_condition = _dirty(203, "Ifx_Modify", bits=1)
+    return (
+        ("assignment-destination", ailment.Stmt.Assignment(210, dirty, clean)),
+        ("assignment-source", ailment.Stmt.Assignment(211, clean, dirty)),
+        ("weak-destination", ailment.Stmt.WeakAssignment(212, dirty, clean)),
+        ("weak-source", ailment.Stmt.WeakAssignment(213, clean, dirty)),
+        ("store-address", ailment.Stmt.Store(214, dirty, clean, 8, "Iend_LE")),
+        ("store-data", ailment.Stmt.Store(215, clean, dirty, 8, "Iend_LE")),
+        ("store-guard", ailment.Stmt.Store(216, clean, clean, 8, "Iend_LE", guard=dirty_condition)),
+        ("jump-target", ailment.Stmt.Jump(217, dirty)),
+        ("cjump-condition", ailment.Stmt.ConditionalJump(218, dirty_condition, clean, clean)),
+        ("cjump-true", ailment.Stmt.ConditionalJump(219, condition, dirty, clean)),
+        ("cjump-false", ailment.Stmt.ConditionalJump(220, condition, clean, dirty)),
+        ("side-effect-expression", ailment.Stmt.SideEffectStatement(221, dirty)),
+        ("return-expression", ailment.Stmt.Return(222, [dirty])),
+        ("cas-address", ailment.Stmt.CAS(223, dirty, clean, None, clean, None, clean, None, "Iend_LE")),
+        ("cas-data-low", ailment.Stmt.CAS(224, clean, dirty, None, clean, None, clean, None, "Iend_LE")),
+        ("cas-data-high", ailment.Stmt.CAS(225, clean, clean, dirty, clean, None, clean, None, "Iend_LE")),
+        ("cas-expected-low", ailment.Stmt.CAS(226, clean, clean, None, dirty, None, clean, None, "Iend_LE")),
+        ("cas-expected-high", ailment.Stmt.CAS(227, clean, clean, None, clean, dirty, clean, None, "Iend_LE")),
+        ("cas-old-low", ailment.Stmt.CAS(228, clean, clean, None, clean, None, dirty, None, "Iend_LE")),
+        ("cas-old-high", ailment.Stmt.CAS(229, clean, clean, None, clean, None, clean, dirty, "Iend_LE")),
+        ("dirty-statement", ailment.Stmt.DirtyStatement(230, dirty)),
+    )
+
+
+@pytest.mark.parametrize("case", _dirty_expression_slot_roots(), ids=lambda case: case[0])
+def test_native_dirty_effect_summary_matches_python_expression_walker(case):
+    _, root = case
+
+    assert root._dirty_effects() == 0b111  # pylint:disable=protected-access
+    assert _legacy_dirty_effects(root) == 0b111
+    assert has_effectful_dirty_expression(root)
+    assert has_dirty_memory_read(root)
+    assert has_dirty_memory_write(root)
+
+
+@pytest.mark.parametrize("case", _dirty_statement_slot_roots(), ids=lambda case: case[0])
+def test_native_dirty_effect_summary_matches_python_statement_walker(case):
+    _, root = case
+
+    assert root._dirty_effects() == 0b111  # pylint:disable=protected-access
+    assert _legacy_dirty_effects(root) == 0b111
+    assert has_effectful_dirty_expression(root)
+    assert has_dirty_memory_read(root)
+    assert has_dirty_memory_write(root)
+
+
+@pytest.mark.parametrize(
+    "mfx, expected_mask",
+    (
+        (None, 0b000),
+        ("Ifx_None", 0b001),
+        ("Ifx_Read", 0b011),
+        ("Ifx_Write", 0b101),
+        ("Ifx_Modify", 0b111),
+        ("Ifx_Unknown", 0b001),
+    ),
+)
+def test_native_dirty_effect_mask_protocol(mfx, expected_mask):
+    root = _dirty(240, mfx)
+
+    assert root._dirty_effects() == expected_mask  # pylint:disable=protected-access
+    assert _legacy_dirty_effects(root) == expected_mask
+
+
+def test_native_dirty_effect_summary_ors_duplicate_bits():
+    left = _dirty(241, "Ifx_None")
+    right = _dirty(242, "Ifx_None")
+    root = ailment.Expr.Call(243, left, args=[right], bits=64)
+
+    assert root._dirty_effects() == 0b001  # pylint:disable=protected-access
+    assert _legacy_dirty_effects(root) == 0b001
+
+
+def test_native_dirty_effect_summary_ignores_unevaluated_metadata_slots():
+    clean = ailment.Expr.Const(244, 0, 64)
+    dirty = _dirty(245, "Ifx_Modify")
+    roots = (
+        ailment.Expr.Call(246, "helper", args=[clean], bits=64, arg_vvars=[dirty]),
+        ailment.Stmt.SideEffectStatement(247, clean, ret_expr=dirty, fp_ret_expr=dirty),
+    )
+
+    for root in roots:
+        assert root._dirty_effects() == 0  # pylint:disable=protected-access
+        assert _legacy_dirty_effects(root) == 0
+
+
+def test_native_dirty_effect_summary_treats_non_dirty_statement_payload_as_opaque():
+    root = ailment.Stmt.DirtyStatement(248, ailment.Expr.Const(249, 0, 64))
+
+    assert root._dirty_effects() == 0b111  # pylint:disable=protected-access
+    assert _legacy_dirty_effects(root) == 0b111
+
+
+def test_native_dirty_effect_summary_observes_mutations_without_stale_cache():
+    root = ailment.Expr.Load(250, ailment.Expr.Const(251, 0x3000, 64), 8, "Iend_LE")
+    assert root._dirty_effects() == 0  # pylint:disable=protected-access
+
+    root.guard = _dirty(252, "Ifx_Write", bits=1)
+    assert root._dirty_effects() == 0b101  # pylint:disable=protected-access
+
+    root.guard = None
+    assert root._dirty_effects() == 0  # pylint:disable=protected-access
+
+
+def test_native_dirty_effect_summary_survives_copy_and_serialization():
+    expr = ailment.Expr.MultiStatementExpression(
+        253,
+        [ailment.Stmt.DirtyStatement(254, _dirty(255, None))],
+        ailment.Expr.Const(256, 0, 64),
+    )
+    stmt = ailment.Stmt.Assignment(257, ailment.Expr.Tmp(258, 0, 64), _dirty(259, "Ifx_Read"))
+
+    for clone in (expr.copy(), Expression.from_bytes(expr.to_bytes())):
+        assert clone._dirty_effects() == 0b111  # pylint:disable=protected-access
+    for clone in (stmt.copy(), Statement.from_bytes(stmt.to_bytes())):
+        assert clone._dirty_effects() == 0b011  # pylint:disable=protected-access
+
+
+def test_native_dirty_effect_summary_handles_deep_expression_chain():
+    root = _dirty(260, "Ifx_Write")
+    for idx in range(261, 773):
+        root = ailment.Expr.UnaryOp(idx, "Not", root, bits=64)
+
+    assert root._dirty_effects() == 0b101  # pylint:disable=protected-access
+
+
 def test_dirty_effect_classification_preserves_vex_semantics():
     pure = _dirty(0, None)
     guest_state_effect = _dirty(1, "Ifx_None")
@@ -138,6 +343,93 @@ def test_dirty_effect_search_recurses_through_nonmatching_dirty_fields():
     assert not is_effectful_dirty_expression(roots[1])
 
 
+def test_clean_rust_expressions_skip_python_dirty_effect_walker(monkeypatch):
+    vvar = ailment.Expr.VirtualVariable(14, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
+    expressions = (
+        ailment.Expr.Const(15, 1, 64),
+        ailment.Expr.Tmp(16, 0, 64),
+        ailment.Expr.Register(17, 16, 64),
+        ailment.Expr.ComboRegister(
+            18,
+            [ailment.Expr.Register(19, 16, 32), ailment.Expr.Register(20, 20, 32)],
+        ),
+        ailment.Expr.Phi(21, 64, [((0x1000, 0), vvar)]),
+        vvar,
+        ailment.Expr.StringLiteral(22, "clean", 40),
+        ailment.Expr.VEXCCallExpression(23, "clean_helper", [ailment.Expr.Const(24, 0, 64)], 64),
+    )
+    assert all(expr.depth == 0 for expr in expressions)
+
+    def unexpected_finder(_memory_effects):
+        raise AssertionError("Rust expression constructed a Python dirty-effect walker")
+
+    monkeypatch.setattr(ailment_utils, "_EffectfulDirtyExpressionFinder", unexpected_finder)
+    for query in (has_effectful_dirty_expression, has_dirty_memory_read, has_dirty_memory_write):
+        assert all(not query(expr) for expr in expressions)
+
+
+def test_clean_rust_statements_skip_python_dirty_effect_walker(monkeypatch):
+    addr = ailment.Expr.Const(25, 0x3000, 64)
+    value = ailment.Expr.Const(26, 0, 32)
+    register = ailment.Expr.Register(27, 16, 32)
+    statements = (
+        ailment.Stmt.Assignment(28, register, value),
+        ailment.Stmt.WeakAssignment(29, register, value),
+        ailment.Stmt.Label(30, "clean"),
+        ailment.Stmt.Store(31, addr, value, 4, "Iend_LE", guard=ailment.Expr.Const(32, 1, 1)),
+        ailment.Stmt.Jump(33, addr),
+        ailment.Stmt.ConditionalJump(34, ailment.Expr.Const(35, 1, 1), addr, addr),
+        ailment.Stmt.SideEffectStatement(36, value, ret_expr=register, fp_ret_expr=register),
+        ailment.Stmt.Return(37, [value]),
+        ailment.Stmt.CAS(38, addr, value, value, value, value, register, register, "Iend_LE"),
+        ailment.Stmt.NoOp(39),
+    )
+    assert all(stmt.depth == 1 for stmt in statements if not isinstance(stmt, (ailment.Stmt.Label, ailment.Stmt.NoOp)))
+
+    def unexpected_finder(_memory_effects):
+        raise AssertionError("Rust statement constructed a Python dirty-effect walker")
+
+    monkeypatch.setattr(ailment_utils, "_EffectfulDirtyExpressionFinder", unexpected_finder)
+    for query in (has_effectful_dirty_expression, has_dirty_memory_read, has_dirty_memory_write):
+        assert all(not query(stmt) for stmt in statements)
+
+
+def _dirty_hidden_statement_roots():
+    addr = ailment.Expr.Const(50, 0x3000, 64)
+    value = ailment.Expr.Const(51, 0, 32)
+    register = ailment.Expr.Register(52, 16, 32)
+    condition = ailment.Expr.Const(53, 1, 1)
+    return (
+        ailment.Stmt.Store(54, addr, value, 4, "Iend_LE", guard=_dirty(55, "Ifx_Write", bits=1)),
+        ailment.Stmt.ConditionalJump(56, condition, _dirty(57, "Ifx_Write"), addr),
+        ailment.Stmt.ConditionalJump(58, condition, addr, _dirty(59, "Ifx_Write")),
+        ailment.Stmt.CAS(64, addr, value, _dirty(65, "Ifx_Write", bits=32), value, None, register, None, "Iend_LE"),
+        ailment.Stmt.CAS(66, addr, value, None, value, _dirty(67, "Ifx_Write", bits=32), register, None, "Iend_LE"),
+        ailment.Stmt.CAS(68, addr, value, None, value, None, register, _dirty(69, "Ifx_Write", bits=32), "Iend_LE"),
+    )
+
+
+@pytest.mark.parametrize(
+    "stmt",
+    _dirty_hidden_statement_roots(),
+    ids=("store-guard", "cjump-true", "cjump-false", "cas-data", "cas-expected", "cas-old"),
+)
+def test_native_statement_summary_checks_hidden_evaluated_slots(stmt):
+    assert stmt.depth == 1
+    assert has_effectful_dirty_expression(stmt)
+    assert has_dirty_memory_write(stmt)
+
+
+def test_dirty_effect_queries_accept_python_statement_subclasses():
+    from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
+
+    stmt = IncompleteSwitchCaseHeadStatement(70, ailment.Expr.Const(71, 0, 32), [])
+    assert isinstance(stmt, Statement)
+    assert not has_effectful_dirty_expression(stmt)
+    assert not has_dirty_memory_read(stmt)
+    assert not has_dirty_memory_write(stmt)
+
+
 def _dirty_evaluated_slot_roots():
     addr = ailment.Expr.Const(30, 0x3000, 64)
     guard = ailment.Expr.Const(31, 1, 1)
@@ -196,6 +488,7 @@ def _dirty_evaluated_slot_roots():
     ids=("load-guard", "load-alt", "binary-rounding", "convert-rounding", "let-def", "let-src"),
 )
 def test_dirty_effect_search_covers_all_evaluated_child_slots(root):
+    assert root.depth > 0
     assert has_effectful_dirty_expression(root)
     assert has_dirty_memory_write(root)
 

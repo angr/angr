@@ -9,6 +9,8 @@ from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import BinaryOp, Convert, DirtyExpression, Expression, Let, Load
 from angr.ailment.statement import DirtyStatement, Statement
+from angr.rustylib.ailment import Expression as RustExpression
+from angr.rustylib.ailment import Statement as RustStatement
 
 try:
     from claripy.ast import Bits
@@ -24,6 +26,10 @@ type GetBitsTypeParams = "ailment.expression.Expression"
 
 _DIRTY_MEMORY_READ_EFFECTS = frozenset({"Ifx_Read", "Ifx_Modify"})
 _DIRTY_MEMORY_WRITE_EFFECTS = frozenset({"Ifx_Write", "Ifx_Modify"})
+# Keep these protocol bits synchronized with ``native/angr/src/ailment/ail_expr.rs``.
+_DIRTY_EFFECT = 1 << 0
+_DIRTY_MEMORY_READ = 1 << 1
+_DIRTY_MEMORY_WRITE = 1 << 2
 
 
 class _EffectfulDirtyExpressionFound(Exception):
@@ -102,9 +108,22 @@ def is_effectful_dirty_expression(expr: Expression) -> bool:
 
 
 def _contains_effectful_dirty_expression(obj: Expression | Statement, memory_effects: Collection[str] | None) -> bool:
+    if type(obj) is RustExpression or type(obj) is RustStatement:
+        effects = obj._dirty_effects()  # pylint:disable=protected-access
+        if memory_effects is None:
+            return bool(effects & _DIRTY_EFFECT)
+        if memory_effects == _DIRTY_MEMORY_READ_EFFECTS:
+            return bool(effects & _DIRTY_MEMORY_READ)
+        if memory_effects == _DIRTY_MEMORY_WRITE_EFFECTS:
+            return bool(effects & _DIRTY_MEMORY_WRITE)
+
     finder = _EffectfulDirtyExpressionFinder(memory_effects)
     try:
-        if isinstance(obj, Expression):
+        if type(obj) is RustExpression:
+            finder.walk_expression(obj)
+        elif type(obj) is RustStatement:
+            finder.walk_statement(obj)
+        elif isinstance(obj, Expression):
             finder.walk_expression(obj)
         elif isinstance(obj, Statement):
             finder.walk_statement(obj)

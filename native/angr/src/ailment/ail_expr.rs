@@ -34,6 +34,14 @@ use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+/// Recursive dirty-operation summary bits shared with the statement side.
+///
+/// These deliberately describe only VEX dirty operations. Ordinary loads and
+/// stores are classified by their statement/expression kinds elsewhere.
+pub(crate) const DIRTY_EFFECT: u8 = 1 << 0;
+pub(crate) const DIRTY_MEMORY_READ: u8 = 1 << 1;
+pub(crate) const DIRTY_MEMORY_WRITE: u8 = 1 << 2;
+
 // ---------------------------------------------------------------------------
 // Header
 // ---------------------------------------------------------------------------
@@ -1027,6 +1035,128 @@ impl AilExpression {
 
     pub fn kind_str(&self) -> &'static str {
         self.inner.kind().as_str()
+    }
+
+    /// Summarize effectful VEX dirty operations in every evaluated child.
+    ///
+    /// Keep this traversal aligned with ``AILBlockViewer`` plus the extra
+    /// evaluated fields covered by ``angr.ailment.utils`` (load guards and
+    /// alternatives, rounding-mode expressions, and ``Let`` definitions).
+    /// Computing the summary in Rust avoids materializing a Python wrapper for
+    /// every node in the tree. Callers cache top-level query results when
+    /// useful, so this method intentionally stays uncached and cannot become
+    /// stale after an AIL mutation.
+    pub fn dirty_effects(&self) -> u8 {
+        let expr_effects = |exprs: &[AilExpression]| {
+            exprs
+                .iter()
+                .fold(0, |effects, expr| effects | expr.dirty_effects())
+        };
+        let arc_effects = |exprs: &[Arc<AilExpression>]| {
+            exprs
+                .iter()
+                .fold(0, |effects, expr| effects | expr.dirty_effects())
+        };
+        let opt_effects = |expr: &Option<Arc<AilExpression>>| {
+            expr.as_ref().map_or(0, |expr| expr.dirty_effects())
+        };
+        let target_effects = |target: &CFGTarget| match target {
+            CFGTarget::Expr(expr) => expr.dirty_effects(),
+            CFGTarget::Symbol(_) => 0,
+        };
+        let rounding_effects = |rounding_mode: &Option<RoundingModeOrExpr>| match rounding_mode {
+            Some(RoundingModeOrExpr::Expr(expr)) => expr.dirty_effects(),
+            Some(RoundingModeOrExpr::Mode(_)) | None => 0,
+        };
+
+        match &self.inner {
+            ExprInner::Const { .. }
+            | ExprInner::Tmp { .. }
+            | ExprInner::Register { .. }
+            | ExprInner::Phi { .. }
+            | ExprInner::VirtualVariable { .. }
+            | ExprInner::Macro { .. }
+            | ExprInner::StringLiteral { .. }
+            | ExprInner::BasePointerOffset { .. }
+            | ExprInner::StackBaseOffset { .. } => 0,
+            ExprInner::ComboRegister { registers } => expr_effects(registers),
+            ExprInner::UnaryOp { operand, .. } | ExprInner::Reinterpret { operand, .. } => {
+                operand.dirty_effects()
+            }
+            ExprInner::Convert {
+                operand,
+                rounding_mode,
+                ..
+            } => operand.dirty_effects() | rounding_effects(rounding_mode),
+            ExprInner::BinaryOp {
+                operands,
+                rounding_mode,
+                ..
+            } => {
+                operands[0].dirty_effects()
+                    | operands[1].dirty_effects()
+                    | rounding_effects(rounding_mode)
+            }
+            ExprInner::Load {
+                addr, guard, alt, ..
+            } => addr.dirty_effects() | opt_effects(guard) | opt_effects(alt),
+            ExprInner::Call { target, args, .. } => {
+                target_effects(target) | args.as_ref().map_or(0, |args| expr_effects(args))
+            }
+            ExprInner::DirtyExpression {
+                operands,
+                guard,
+                mfx,
+                maddr,
+                ..
+            } => {
+                let mut effects = expr_effects(operands) | opt_effects(guard) | opt_effects(maddr);
+                if let Some(mfx) = mfx.as_deref() {
+                    effects |= DIRTY_EFFECT;
+                    if matches!(mfx, "Ifx_Read" | "Ifx_Modify") {
+                        effects |= DIRTY_MEMORY_READ;
+                    }
+                    if matches!(mfx, "Ifx_Write" | "Ifx_Modify") {
+                        effects |= DIRTY_MEMORY_WRITE;
+                    }
+                }
+                effects
+            }
+            ExprInner::VEXCCallExpression { operands, .. } => expr_effects(operands),
+            ExprInner::MultiStatementExpression { stmts, expr } => {
+                stmts
+                    .iter()
+                    .fold(0, |effects, stmt| effects | stmt.dirty_effects())
+                    | expr.dirty_effects()
+            }
+            ExprInner::Struct { fields, .. } => fields
+                .values()
+                .fold(0, |effects, expr| effects | expr.dirty_effects()),
+            ExprInner::RustEnum { fields, .. } => arc_effects(fields),
+            ExprInner::Array { elements } => arc_effects(elements),
+            ExprInner::Let { defs, src } => {
+                defs.iter()
+                    .fold(0, |effects, stmt| effects | stmt.dirty_effects())
+                    | src.dirty_effects()
+            }
+            ExprInner::FunctionLikeMacro { args, .. } => {
+                args.as_ref().map_or(0, |args| arc_effects(args))
+            }
+            ExprInner::ITE {
+                cond,
+                iffalse,
+                iftrue,
+            } => cond.dirty_effects() | iffalse.dirty_effects() | iftrue.dirty_effects(),
+            ExprInner::Extract { base, offset, .. } => {
+                base.dirty_effects() | offset.dirty_effects()
+            }
+            ExprInner::Insert {
+                base,
+                offset,
+                value,
+                ..
+            } => base.dirty_effects() | offset.dirty_effects() | value.dirty_effects(),
+        }
     }
 
     /// Depth of this node recomputed from its *current* children, using
@@ -3391,6 +3521,11 @@ impl Expression {
 
     fn clear_hash(&self) {
         self.expr.header.cached_hash.clear();
+    }
+
+    /// Private fast path used by ``angr.ailment.utils``.
+    fn _dirty_effects(&self) -> u8 {
+        self.expr.dirty_effects()
     }
 
     // --- Per-variant accessors ----------------------------------------
