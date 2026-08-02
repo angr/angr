@@ -562,11 +562,13 @@ class SimEngineRDAIL(
         bits = expr.to_bits
         size = bits // self.arch.byte_width
 
+        # Reject inconsistent analysis values before performing Claripy slicing or extension.
         if (
             to_conv.count() == 1
             and 0 in to_conv
             and expr.from_type == ailment.Expr.Convert.TYPE_INT
             and expr.to_type == ailment.Expr.Convert.TYPE_INT
+            and all(len(value) == expr.from_bits for value in to_conv[0])
         ):
             values = to_conv[0]
         else:
