@@ -1,5 +1,8 @@
-import angr
+from __future__ import annotations
+
 import claripy
+
+import angr
 
 
 def test_memory_find_empty_cases():
