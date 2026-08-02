@@ -442,10 +442,18 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             else:
                 new_operands.append(o)
 
+        guard_in = expr.guard
         new_guard = None
-        if expr.guard is not None:
-            new_guard = self._expr(expr.guard)
+        if guard_in is not None:
+            new_guard = self._expr(guard_in)
             if new_guard is not None:
+                updated = True
+
+        maddr_in = expr.maddr
+        new_maddr = None
+        if maddr_in is not None:
+            new_maddr = self._expr(maddr_in)
+            if new_maddr is not None:
                 updated = True
 
         if updated:
@@ -453,9 +461,9 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 expr.idx,
                 expr.callee,
                 new_operands,
-                guard=new_guard,
+                guard=new_guard if new_guard is not None else guard_in,
                 mfx=expr.mfx,
-                maddr=expr.maddr,
+                maddr=new_maddr if new_maddr is not None else maddr_in,
                 msize=expr.msize,
                 bits=expr.bits,
                 **expr.tags,

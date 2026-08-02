@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from angr.ailment import AILBlockRewriter, AILBlockWalker, Block
+from angr.ailment import AILBlockRewriter, AILBlockViewer, AILBlockWalker, Block
 from angr.ailment.expression import (
     Array,
     ComboRegister,
     Const,
+    DirtyExpression,
     Expression,
     FunctionLikeMacro,
     Register,
@@ -46,6 +47,28 @@ class ConstIncrementingRewriter(AILBlockRewriter):
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.value == 1:
             return Const(expr.idx, 2, expr.bits, **expr.tags)
+        return super()._handle_Const(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class RegisterRecordingViewer(AILBlockViewer):
+    def __init__(self):
+        super().__init__()
+        self.registers = []
+
+    def _handle_Register(
+        self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self.registers.append(expr)
+        return super()._handle_Register(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class ConstIndexRecordingRewriter(AILBlockRewriter):
+    def __init__(self):
+        super().__init__(update_block=False)
+        self.const_indices = []
+
+    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self.const_indices.append((expr.value, expr_idx))
         return super()._handle_Const(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -100,3 +123,75 @@ def test_block_rewriter_rebuilds_rust_ail_expression_containers():
     assert not new_enum.likes(enum)
     assert not new_struct.likes(struct)
     assert new_struct.fields[0].value == 2
+
+
+def test_block_walkers_visit_dirty_memory_address():
+    maddr = Register(0, 24, 64)
+    dirty = DirtyExpression(
+        1,
+        "helper",
+        [Const(2, 3, 64)],
+        guard=Const(3, 1, 1),
+        mfx="Ifx_Read",
+        maddr=maddr,
+        msize=4,
+        bits=32,
+    )
+    dst = VirtualVariable(4, 1, 32, VirtualVariableCategory.REGISTER, 16)
+    block = Block(0x400020, 0, statements=[Assignment(5, dst, dirty)])
+
+    seen = RecordingWalker().walk(block)
+    assert seen.count("Register") == 1
+
+    viewer = RegisterRecordingViewer()
+    viewer.walk(block)
+    assert viewer.registers == [maddr]
+
+
+def test_block_rewriter_updates_dirty_memory_address_without_changing_other_metadata():
+    operand = Const(0, 3, 64)
+    guard = Const(1, 0, 1)
+    maddr = Const(2, 1, 64)
+    dirty = DirtyExpression(
+        3,
+        "load_linked_le",
+        [operand],
+        guard=guard,
+        mfx="Ifx_Read",
+        maddr=maddr,
+        msize=8,
+        bits=64,
+        ins_addr=0x400030,
+    )
+    dst = VirtualVariable(4, 1, 64, VirtualVariableCategory.REGISTER, 16)
+    block = Block(0x400030, 0, statements=[Assignment(5, dst, dirty)])
+
+    new_block = ConstIncrementingRewriter(update_block=False).walk(block)
+    new_stmt = new_block.statements[0]
+    assert isinstance(new_stmt, Assignment)
+    assert isinstance(new_stmt.src, DirtyExpression)
+    assert len(new_stmt.src.operands) == 1
+    assert new_stmt.src.operands[0].likes(operand)
+    assert new_stmt.src.guard is not None and new_stmt.src.guard.likes(guard)
+    assert new_stmt.src.idx == dirty.idx
+    assert new_stmt.src.callee == dirty.callee
+    assert new_stmt.src.mfx == dirty.mfx
+    assert new_stmt.src.msize == dirty.msize
+    assert new_stmt.src.bits == dirty.bits
+    assert new_stmt.src.tags == dirty.tags
+    new_maddr = new_stmt.src.maddr
+    assert isinstance(new_maddr, Const)
+    assert new_maddr.value == 2
+
+
+def test_block_rewriter_uses_distinct_dirty_guard_and_memory_address_slots():
+    guard = Const(0, 0, 1)
+    maddr = Const(1, 0x4000, 64)
+    dirty = DirtyExpression(2, "helper", [], guard=guard, mfx="Ifx_Read", maddr=maddr, msize=4, bits=32)
+    dst = VirtualVariable(3, 1, 32, VirtualVariableCategory.REGISTER, 16)
+    block = Block(0x400040, 0, statements=[Assignment(4, dst, dirty)])
+
+    rewriter = ConstIndexRecordingRewriter()
+    rewriter.walk(block)
+
+    assert rewriter.const_indices == [(0, 2), (0x4000, 3)]

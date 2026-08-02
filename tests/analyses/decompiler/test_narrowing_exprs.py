@@ -9,7 +9,15 @@ import os
 import unittest
 
 import angr
-from angr.ailment.expression import BinaryOp, Const, Extract, Insert, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    DirtyExpression,
+    Extract,
+    Insert,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.expression_narrower import EffectiveSizeExtractor
 from tests.common import WORKER, bin_location, print_decompilation_result
@@ -20,6 +28,24 @@ l = logging.getLogger(__name__)
 
 
 class TestNarrowingExpressions(unittest.TestCase):
+    def test_dirty_memory_address_is_a_full_width_use(self):
+        maddr = VirtualVariable(0, 44, 64, VirtualVariableCategory.REGISTER, oident=16)
+        dirty = DirtyExpression(
+            1,
+            "helper",
+            [],
+            mfx="Ifx_Read",
+            maddr=maddr,
+            msize=1,
+            bits=8,
+        )
+        dst = VirtualVariable(2, 48, 8, VirtualVariableCategory.REGISTER, oident=24)
+
+        walker = EffectiveSizeExtractor()
+        walker.walk_statement(Assignment(3, dst, dirty))
+
+        assert walker.vvar_effective_bits[44][maddr.idx] == (0, 64)
+
     def test_insert_base_is_a_full_width_use(self):
         # the base of an Insert is consumed at full width: every byte outside the inserted range is
         # preserved into the result. EffectiveSizeExtractor used to skip the base entirely, so a vvar

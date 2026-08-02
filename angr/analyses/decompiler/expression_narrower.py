@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from angr.ailment.block import Block
     from angr.ailment.expression import (
         ITE,
-        DirtyExpression,
         Expression,
         Load,
         UnaryOp,
@@ -223,13 +222,6 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
         self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
         self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
-
-    def _handle_DirtyExpression(
-        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ):
-        if expr.operands:
-            for i, op in enumerate(expr.operands):
-                self._handle_expr(i, op, stmt_idx, stmt, block)
 
     def _handle_VEXCCallExpression(
         self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
