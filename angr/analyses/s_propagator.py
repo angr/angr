@@ -23,6 +23,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Store
+from angr.ailment.utils import has_dirty_memory_write, has_effectful_dirty_expression
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -32,10 +33,10 @@ from angr.utils.ssa import (
     CONST_VVAR_TMP_WHITELIST,
     CONST_VVAR_WHITELIST,
     AILWhitelistExprTypeWalker,
+    check_in_between_stmts,
     get_uses_defs,
     has_ite_expr,
     has_ite_stmt,
-    has_store_stmt_in_between_stmts,
     has_tmp_expr,
     is_const_and_vvar_assignment,
     is_const_assignment,
@@ -80,6 +81,21 @@ def _whitelist_walker(whitelist: tuple[type, ...]) -> AILWhitelistExprTypeWalker
         walker = AILWhitelistExprTypeWalker(whitelist)
         cache[whitelist] = walker
     return walker
+
+
+def _has_memory_write_in_between_stmts(
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: AILCodeLocation,
+    useloc: AILCodeLocation,
+) -> bool:
+    return check_in_between_stmts(
+        graph,
+        blocks,
+        defloc,
+        useloc,
+        lambda stmt: isinstance(stmt, Store) or has_dirty_memory_write(stmt),
+    )
 
 
 class SPropagatorModel:
@@ -208,15 +224,18 @@ class SPropagator:
 
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
-            if isinstance(stmt, Assignment) and not (
-                isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id
-            ):
-                # come back later, this is not the def you're looking for
-                continue
-            if isinstance(stmt, Assignment) and isinstance(stmt.src, Insert):
-                # Do not propagate Inserts
-                # if this is not acceptable, just make sure we don't proagate inserts into the base of other inserts...
-                continue
+            if isinstance(stmt, Assignment):
+                if not (isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id):
+                    # come back later, this is not the def you're looking for
+                    continue
+                if has_effectful_dirty_expression(stmt.src):
+                    # Propagating this expression would duplicate or move its side effect. This guard must precede
+                    # both ordinary constant propagation and forced stack-argument propagation.
+                    continue
+                if isinstance(stmt.src, Insert):
+                    # Do not propagate Inserts
+                    # if this is not acceptable, just make sure we don't proagate inserts into the base of other inserts...
+                    continue
             if is_phi_assignment(stmt):
                 assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
                 phi_varids[vvar_id] = {
@@ -312,6 +331,9 @@ class SPropagator:
                 ):
                     # come back later, this is not the def you're looking for
                     continue
+                if has_effectful_dirty_expression(stmt.src):
+                    # This loop has propagation paths independent of the initial constant/stack-argument pass.
+                    continue
 
                 if (
                     (vvar.was_reg or vvar.was_parameter)
@@ -326,7 +348,7 @@ class SPropagator:
                     #    }
                     can_replace = True
                     for vvar_useloc in vvar_useloc_to_count:
-                        if has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc):
+                        if _has_memory_write_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc):
                             can_replace = False
 
                     if can_replace:
@@ -354,7 +376,7 @@ class SPropagator:
                             is_const_vvar_load_assignment(
                                 stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_WHITELIST)
                             )
-                            and not has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc)
+                            and not _has_memory_write_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc)
                             and not has_tmp_expr(stmt.src)
                         ):
                             # we can propagate this load because there is no store between its def and use
@@ -499,6 +521,10 @@ class SPropagator:
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):
+                    if has_effectful_dirty_expression(stmt.src):
+                        # Propagating this expression would duplicate or move its side effect.
+                        continue
+
                     r, v = is_const_assignment(stmt, self.only_consts)
                     if r:
                         # we can propagate it!
@@ -528,11 +554,11 @@ class SPropagator:
                                 block.statements[tmp_def_stmtidx].tags["ins_addr"]
                                 == block.statements[tmp_use_stmtidx].tags["ins_addr"]
                             )
-                            has_store = any(
-                                isinstance(stmt_, Store)
+                            has_memory_write = any(
+                                isinstance(stmt_, Store) or has_dirty_memory_write(stmt_)
                                 for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
                             )
-                            if same_inst or not has_store:
+                            if same_inst or not has_memory_write:
                                 # we can propagate this load because either we do not consider memory aliasing problem
                                 # within the same instruction (blocks must be originally lifted with
                                 # CROSS_INSN_OPT=False), or there is no store between its def and use.
@@ -561,6 +587,9 @@ class SPropagator:
 
             for idx in range(start_stmt_idx, end_stmt_idx):
                 stmt = block.statements[idx]
+                if has_dirty_memory_write(stmt):
+                    # A dirty write may alias any guest-memory location.
+                    return True
                 if isinstance(stmt, Store) and isinstance(stmt.addr, Const):
                     store_addr = stmt.addr.value
                     store_size = stmt.size

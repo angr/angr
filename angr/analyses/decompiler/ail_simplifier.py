@@ -40,6 +40,7 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
+from angr.ailment.utils import has_effectful_dirty_expression
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_propagator import SPropagator
 from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
@@ -2170,6 +2171,7 @@ class AILSimplifier(Analysis):
 
         # find dirty vvars and vexccall vvars
         dirty_vvar_ids = set()
+        effectful_dirty_vvar_ids = set()
         for bb in self.func_graph:
             for stmt in bb.statements:
                 # reg/tmp = ccall(...)
@@ -2180,9 +2182,14 @@ class AILSimplifier(Analysis):
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and (stmt.dst.was_reg or stmt.dst.was_tmp)
-                    and isinstance(stmt.src, (DirtyExpression, VEXCCallExpression))
                 ):
-                    dirty_vvar_ids.add(stmt.dst.varid)
+                    if isinstance(stmt.src, VEXCCallExpression):
+                        dirty_vvar_ids.add(stmt.dst.varid)
+                    elif isinstance(stmt.src, DirtyExpression):
+                        if has_effectful_dirty_expression(stmt.src):
+                            effectful_dirty_vvar_ids.add(stmt.dst.varid)
+                        else:
+                            dirty_vvar_ids.add(stmt.dst.varid)
 
         phi_and_dirty_vvar_ids = (rd.phi_vvar_ids | dirty_vvar_ids).difference(dead_vvar_ids)
 
@@ -2213,6 +2220,9 @@ class AILSimplifier(Analysis):
         cyclic_dependent_phi_varids = set()
         for scc in networkx.strongly_connected_components(g):
             if len(scc) == 1:
+                continue
+            if not effectful_dirty_vvar_ids.isdisjoint(scc):
+                # Removing any definition in this cycle could remove or reorder the dirty operation.
                 continue
 
             bail = False
