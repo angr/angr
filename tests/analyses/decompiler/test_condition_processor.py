@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 import archinfo
@@ -13,6 +14,7 @@ from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement, MultiNode
+from tests.common import bin_location
 
 
 def _recover_edge_condition_with_internal_side_exits(
@@ -249,40 +251,11 @@ def test_extract_placeholders_include_semantic_properties():
     assert condition_processor.convert_claripy_bool_ast(byte_be_ast) is extract_byte_be
 
 
-# Exact 134-byte _crt0_entry bodies from the public DecBench ChibiOS binaries. Only PC-relative call offsets differ.
-@pytest.mark.parametrize(
-    ("optimization", "code"),
-    [
-        pytest.param(
-            "O0",
-            bytes.fromhex(
-                "72b6264880f30888254880f30988254825490860022080f31488bff36f8f00f0d5f901f001fd4ff0553020491b4a"
-                "91423cbf41f8040bfae71d49194a91423cbf41f8040bfae71b491b4a1c4b9a423ebf51f8040b42f8040bf8e70020"
-                "1849194a91423cbf41f8040bfae700f0bff900f0b3f9154c154dac4203da54f8041b8847f9e70ff0c7f9"
-            ),
-            id="O0",
-        ),
-        pytest.param(
-            "O2",
-            bytes.fromhex(
-                "72b6264880f30888254880f30988254825490860022080f31488bff36f8f00f0d5f900f0c7fe4ff0553020491b4a"
-                "91423cbf41f8040bfae71d49194a91423cbf41f8040bfae71b491b4a1c4b9a423ebf51f8040b42f8040bf8e70020"
-                "1849194a91423cbf41f8040bfae700f0b5f900f0aff9154c154dac4203da54f8041b8847f9e709f0a9fb"
-            ),
-            id="O2",
-        ),
-        pytest.param(
-            "O2-noinline",
-            bytes.fromhex(
-                "72b6264880f30888254880f30988254825490860022080f31488bff36f8f00f0d5f900f05bff4ff0553020491b4a"
-                "91423cbf41f8040bfae71d49194a91423cbf41f8040bfae71b491b4a1c4b9a423ebf51f8040b42f8040bf8e70020"
-                "1849194a91423cbf41f8040bfae700f0b5f900f0aff9154c154dac4203da54f8041b8847f9e709f08ffb"
-            ),
-            id="O2-noinline",
-        ),
-    ],
-)
-def test_chibios_crt0_entry_convergent_side_exits(optimization, code):
+# Exact _crt0_entry bodies from the public DecBench ChibiOS binaries. Only PC-relative call offsets differ.
+@pytest.mark.parametrize("structurer", ["sailr", "phoenix"])
+@pytest.mark.parametrize("optimization", ["O0", "O2", "O2-noinline"])
+def test_chibios_crt0_entry_convergent_side_exits(structurer, optimization):
+    code = Path(bin_location, "tests", "armel", "chibios_crt0_entry", f"{optimization}.bin").read_bytes()
     project = load_shellcode(code, arch="ARMCortexM", load_address=0x80001E0)
     cfg = project.analyses.CFGFast(
         normalize=True,
@@ -298,6 +271,8 @@ def test_chibios_crt0_entry_convergent_side_exits(optimization, code):
     decompilation = project.analyses[Decompiler].prep(fail_fast=True)(
         function,
         cfg=cfg.model,
+        options=[("structurer_cls", structurer)],
+        preset="full",
         use_cache=False,
     )
 
