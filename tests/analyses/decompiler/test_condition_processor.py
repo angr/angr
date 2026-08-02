@@ -250,6 +250,7 @@ def test_extract_placeholders_include_semantic_properties():
 
 
 # Exact 134-byte _crt0_entry bodies from the public DecBench ChibiOS binaries. Only PC-relative call offsets differ.
+@pytest.mark.parametrize("structurer", ["sailr", "phoenix"])
 @pytest.mark.parametrize(
     ("optimization", "code"),
     [
@@ -282,7 +283,7 @@ def test_extract_placeholders_include_semantic_properties():
         ),
     ],
 )
-def test_chibios_crt0_entry_convergent_side_exits(optimization, code):
+def test_chibios_crt0_entry_convergent_side_exits(structurer, optimization, code):
     project = load_shellcode(code, arch="ARMCortexM", load_address=0x80001E0)
     cfg = project.analyses.CFGFast(
         normalize=True,
@@ -298,6 +299,8 @@ def test_chibios_crt0_entry_convergent_side_exits(optimization, code):
     decompilation = project.analyses[Decompiler].prep(fail_fast=True)(
         function,
         cfg=cfg.model,
+        options=[("structurer_cls", structurer)],
+        preset="full",
         use_cache=False,
     )
 
