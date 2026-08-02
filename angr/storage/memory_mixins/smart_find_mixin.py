@@ -63,7 +63,8 @@ class SmartFindMixin(MemoryMixin):
             else:
                 # the loop terminated, meaning we exhausted some sort of limit instead of finding a concrete answer.
                 if default is None:
-                    constraints.append(claripy.Or(*(c for c, _ in cases)))
+                    clauses = [c for c, _ in cases]
+                    constraints.append(claripy.Or(*clauses) if clauses else claripy.BoolV(False))
         except SimSegfaultException:
             if chunk_size > 1:
                 return self.find(
