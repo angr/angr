@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use clarirs_vsa::cardinality::Cardinality;
 use dashmap::DashMap;
-use num_bigint::{BigInt, BigUint, Sign, ToBigUint};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::Euclid;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::types::{PySlice, PyWeakrefReference};
