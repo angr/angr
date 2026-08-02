@@ -571,7 +571,10 @@ class SimEngineSSARewriting(
         if expr in self.incomplete_defs and expr.offset in self.state.stackvars:
             self.def_to_udef.pop(expr, None)
 
-        vvar = self._expr_to_vvar(expr, True)
+        # A conditionally defined stack slot can be address-taken on a path where it has no reaching definition.
+        # Reuse the existing best-effort external-vvar fallback instead of treating that path as an SSA invariant
+        # failure.
+        vvar = self._expr_to_vvar(expr, True, allow_missing_stack=True)
         refers = UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
         if expr in self.def_to_udef:
             refers.tags["extra_def"] = True
@@ -678,13 +681,20 @@ class SimEngineSSARewriting(
     # Utils
     #
 
-    def _expr_to_vvar(self, expr: Def, def_is_implicit: bool) -> VirtualVariable:
+    def _expr_to_vvar(self, expr: Def, def_is_implicit: bool, *, allow_missing_stack: bool = False) -> VirtualVariable:
+        assert not allow_missing_stack or isinstance(expr, StackBaseOffset)
         # is this a use, not a def?
         if (udef := self.def_to_udef.get(expr, None)) is None:
             # in case of emergency, raise keyerror
             if isinstance(expr, StackBaseOffset):
                 assert isinstance(expr.offset, int)
-                if self._fail_fast or expr.offset in self.state.stackvars:
+                if self._fail_fast:
+                    try:
+                        return self.state.stackvars[expr.offset]
+                    except KeyError:
+                        if not allow_missing_stack:
+                            raise
+                elif expr.offset in self.state.stackvars:
                     return self.state.stackvars[expr.offset]
             elif isinstance(expr, Register):
                 if self._fail_fast or expr.reg_offset in self.state.registers:
@@ -694,7 +704,7 @@ class SimEngineSSARewriting(
 
             # we got here because expr refers to a non-existent stack offset or register offset.
             # raise a KeyError if fail_fast is specified because something else has gone wrong at this point.
-            if self._fail_fast:
+            if self._fail_fast and not allow_missing_stack:
                 raise KeyError(expr)
             # otherwise, we try our best to guesstimate the udef here
             kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
