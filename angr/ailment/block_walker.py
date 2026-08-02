@@ -1142,19 +1142,21 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         operands_in = expr.operands
-        new_operands = [self._handle_expr(0, operand, stmt_idx, stmt, block) for operand in operands_in]
+        new_operands = [
+            self._handle_expr(idx, operand, stmt_idx, stmt, block) for idx, operand in enumerate(operands_in)
+        ]
         changed = any(new is not old for new, old in zip(new_operands, operands_in))
 
         guard_in = expr.guard
         new_guard = guard_in
         if guard_in is not None:
-            new_guard = self._handle_expr(2, guard_in, stmt_idx, stmt, block)
+            new_guard = self._handle_expr(len(operands_in) + 1, guard_in, stmt_idx, stmt, block)
             changed |= new_guard is not guard_in
 
         maddr_in = expr.maddr
         new_maddr = maddr_in
         if maddr_in is not None:
-            new_maddr = self._handle_expr(3, maddr_in, stmt_idx, stmt, block)
+            new_maddr = self._handle_expr(len(operands_in) + 2, maddr_in, stmt_idx, stmt, block)
             changed |= new_maddr is not maddr_in
 
         if changed:

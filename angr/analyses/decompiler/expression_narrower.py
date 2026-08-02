@@ -167,8 +167,14 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
             self._handle_call_args(expr.args, stmt_idx, stmt, block)
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
-        if stmt.expr.args is not None:
-            self._handle_call_args(stmt.expr.args, stmt_idx, stmt, block)
+        # SideEffectStatement expressions are call-shaped here, but the flattened AIL stub exposes Expression.
+        if stmt.expr.args is not None:  # pyright: ignore[reportAttributeAccessIssue]
+            self._handle_call_args(
+                stmt.expr.args,  # pyright: ignore[reportAttributeAccessIssue]
+                stmt_idx,
+                stmt,
+                block,
+            )
 
         if stmt.ret_expr is not None:
             self._handle_expr(0, stmt.ret_expr, stmt_idx, stmt, block)

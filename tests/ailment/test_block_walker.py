@@ -51,6 +51,8 @@ class ConstIncrementingRewriter(AILBlockRewriter):
 
 
 class RegisterRecordingViewer(AILBlockViewer):
+    """Record registers visited by a block viewer."""
+
     def __init__(self):
         super().__init__()
         self.registers = []
@@ -63,8 +65,43 @@ class RegisterRecordingViewer(AILBlockViewer):
 
 
 class ConstIndexRecordingRewriter(AILBlockRewriter):
+    """Record constant values and their expression child indices while rewriting."""
+
     def __init__(self):
         super().__init__(update_block=False)
+        self.const_indices = []
+
+    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self.const_indices.append((expr.value, expr_idx))
+        return super()._handle_Const(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class ConstIndexRecordingWalker(AILBlockWalker[None, None, None]):
+    """Record constant values and their expression child indices while walking."""
+
+    def __init__(self):
+        super().__init__()
+        self.const_indices = []
+
+    def _top(self, expr_idx, expr, stmt_idx, stmt, block):
+        return None
+
+    def _stmt_top(self, stmt_idx, stmt, block):
+        return None
+
+    def _handle_block_end(self, stmt_results, block):
+        return None
+
+    def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self.const_indices.append((expr.value, expr_idx))
+        return super()._handle_Const(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class ConstIndexRecordingViewer(AILBlockViewer):
+    """Record constant values and their expression child indices while viewing."""
+
+    def __init__(self):
+        super().__init__()
         self.const_indices = []
 
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
@@ -184,14 +221,28 @@ def test_block_rewriter_updates_dirty_memory_address_without_changing_other_meta
     assert new_maddr.value == 2
 
 
-def test_block_rewriter_uses_distinct_dirty_guard_and_memory_address_slots():
-    guard = Const(0, 0, 1)
-    maddr = Const(1, 0x4000, 64)
-    dirty = DirtyExpression(2, "helper", [], guard=guard, mfx="Ifx_Read", maddr=maddr, msize=4, bits=32)
-    dst = VirtualVariable(3, 1, 32, VirtualVariableCategory.REGISTER, 16)
-    block = Block(0x400040, 0, statements=[Assignment(4, dst, dirty)])
+def test_block_walkers_use_consistent_dirty_expression_child_slots():
+    for operand_count in (0, 1, 3):
+        operands = [Const(idx, 0x100 + idx, 64) for idx in range(operand_count)]
+        guard = Const(10, 0x200, 1)
+        maddr = Const(11, 0x300, 64)
+        dirty = DirtyExpression(
+            12,
+            "helper",
+            operands,
+            guard=guard,
+            mfx="Ifx_Read",
+            maddr=maddr,
+            msize=4,
+            bits=32,
+        )
+        expected = [
+            *((operand.value, idx) for idx, operand in enumerate(operands)),
+            (guard.value, operand_count + 1),
+            (maddr.value, operand_count + 2),
+        ]
 
-    rewriter = ConstIndexRecordingRewriter()
-    rewriter.walk(block)
-
-    assert rewriter.const_indices == [(0, 2), (0x4000, 3)]
+        for walker_cls in (ConstIndexRecordingWalker, ConstIndexRecordingViewer, ConstIndexRecordingRewriter):
+            walker = walker_cls()
+            walker.walk_expression(dirty)
+            assert walker.const_indices == expected
