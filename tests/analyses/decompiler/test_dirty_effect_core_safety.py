@@ -13,6 +13,7 @@ from angr.ailment.utils import (
     is_effectful_dirty_expression,
 )
 from angr.analyses.decompiler.ail_simplifier import AILSimplifier
+from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.block_walkers import HasCallExprWalker, HasCallNotification
 from angr.analyses.s_propagator import SPropagator
 from angr.analyses.s_reaching_definitions import SRDAModel
@@ -148,6 +149,117 @@ def test_has_call_walker_treats_ifx_none_and_nested_dirty_as_effects():
 
     with pytest.raises(HasCallNotification):
         walker.walk_expression(_dirty(24, None, operands=(_dirty(25, "Ifx_Write"),)))
+
+
+@pytest.mark.parametrize("dst_kind", ("tmp", "register"))
+def test_block_simplifier_preserves_unused_ifx_none_dirty_assignment(dst_kind):
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    dst = ailment.Expr.Tmp(0, 0, 64) if dst_kind == "tmp" else ailment.Expr.Register(0, 16, 64)
+    effect = _dirty(1, "Ifx_None")
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(2, dst, effect, ins_addr=0x1000),
+            ailment.Stmt.Return(3, [], ins_addr=0x1001),
+        ],
+        idx=0,
+    )
+
+    simplified = BlockSimplifier(project, block, manager, peephole_optimizations=[]).result_block
+
+    assert simplified is not None
+    assert any(
+        isinstance(stmt, ailment.Stmt.Assignment)
+        and isinstance(stmt.src, DirtyExpression)
+        and stmt.src.callee == effect.callee
+        for stmt in simplified.statements
+    )
+
+
+def test_block_simplifier_preserves_unused_mse_with_opaque_dirty_statement():
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    opaque_stmt = ailment.Stmt.DirtyStatement(0, _dirty(1, None), ins_addr=0x1000)
+    mse = ailment.Expr.MultiStatementExpression(2, [opaque_stmt], ailment.Expr.Const(3, 0, 64))
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(4, ailment.Expr.Tmp(5, 0, 64), mse, ins_addr=0x1000),
+            ailment.Stmt.Return(6, [], ins_addr=0x1001),
+        ],
+        idx=0,
+    )
+
+    simplified = BlockSimplifier(project, block, manager, peephole_optimizations=[]).result_block
+
+    assert simplified is not None
+    assert any(
+        isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.MultiStatementExpression)
+        for stmt in simplified.statements
+    )
+
+
+def test_block_simplifier_removes_unused_pure_dirty_expression():
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    pure = _dirty(0, None)
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(1, ailment.Expr.Tmp(2, 0, 64), pure, ins_addr=0x1000),
+            ailment.Stmt.Return(3, [], ins_addr=0x1001),
+        ],
+        idx=0,
+    )
+
+    simplified = BlockSimplifier(project, block, manager, peephole_optimizations=[]).result_block
+
+    assert simplified is not None
+    assert not any(
+        isinstance(stmt, ailment.Stmt.Assignment)
+        and isinstance(stmt.src, DirtyExpression)
+        and stmt.src.callee == pure.callee
+        for stmt in simplified.statements
+    )
+
+
+def test_block_simplifier_propagates_pure_dirty_expression():
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    tmp_def = ailment.Expr.Tmp(0, 0, 64)
+    tmp_use = ailment.Expr.Tmp(1, 0, 64)
+    pure = _dirty(2, None)
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(3, tmp_def, pure, ins_addr=0x1000),
+            ailment.Stmt.Assignment(4, ailment.Expr.Register(5, 16, 64), tmp_use, ins_addr=0x1001),
+            ailment.Stmt.Return(6, [], ins_addr=0x1002),
+        ],
+        idx=0,
+    )
+
+    simplified = BlockSimplifier(project, block, manager, peephole_optimizations=[]).result_block
+
+    assert simplified is not None
+    assert not any(
+        isinstance(stmt, ailment.Stmt.Assignment)
+        and isinstance(stmt.dst, ailment.Expr.Tmp)
+        and stmt.dst.tmp_idx == tmp_def.tmp_idx
+        for stmt in simplified.statements
+    )
+    assert any(
+        isinstance(stmt, ailment.Stmt.Assignment)
+        and isinstance(stmt.dst, ailment.Expr.Register)
+        and isinstance(stmt.src, DirtyExpression)
+        and stmt.src.callee == pure.callee
+        for stmt in simplified.statements
+    )
 
 
 @pytest.mark.parametrize("source_kind", ("pure", "nested_dirty", "converted_dirty", "dirty_statement_mse"))
