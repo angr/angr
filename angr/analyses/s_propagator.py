@@ -89,6 +89,10 @@ def _has_memory_write_in_between_stmts(
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
 ) -> bool:
+    use_block = blocks[(useloc.addr, useloc.block_idx)]
+    if has_dirty_memory_write(use_block.statements[useloc.stmt_idx]):
+        # A MultiStatementExpression may perform this write before evaluating the vvar use in its result expression.
+        return True
     return check_in_between_stmts(
         graph,
         blocks,
@@ -357,7 +361,18 @@ class SPropagator:
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         continue
 
-                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs_set) == 2 and not is_phi_assignment(stmt):
+                if (
+                    (vvar.was_reg or vvar.was_stack)
+                    and len(vvar_uselocs_set) == 2
+                    and not is_phi_assignment(stmt)
+                    and (
+                        not isinstance(stmt.src, Load)
+                        or not any(
+                            _has_memory_write_in_between_stmts(self.func_graph, blocks, defloc, useloc)
+                            for useloc in vvar_useloc_to_count
+                        )
+                    )
+                ):
                     # a special case: in a typical switch-case construct, a variable may be used once for comparison
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
@@ -554,11 +569,12 @@ class SPropagator:
                                 block.statements[tmp_def_stmtidx].tags["ins_addr"]
                                 == block.statements[tmp_use_stmtidx].tags["ins_addr"]
                             )
-                            has_memory_write = any(
+                            use_has_dirty_memory_write = has_dirty_memory_write(block.statements[tmp_use_stmtidx])
+                            has_intervening_memory_write = any(
                                 isinstance(stmt_, Store) or has_dirty_memory_write(stmt_)
                                 for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
                             )
-                            if same_inst or not has_memory_write:
+                            if not use_has_dirty_memory_write and (same_inst or not has_intervening_memory_write):
                                 # we can propagate this load because either we do not consider memory aliasing problem
                                 # within the same instruction (blocks must be originally lifted with
                                 # CROSS_INSN_OPT=False), or there is no store between its def and use.
@@ -573,6 +589,9 @@ class SPropagator:
     ) -> bool:
         defblock = block_dict[(defloc.block_addr, defloc.block_idx)]
         useblock = block_dict[(useloc.block_addr, useloc.block_idx)]
+        if has_dirty_memory_write(useblock.statements[useloc.stmt_idx]):
+            # A MultiStatementExpression may perform this write before evaluating the vvar use in its result expression.
+            return True
 
         # traverse a graph slice from the def block to the use block and check if the global variable is updated
         seen = {defblock}

@@ -57,14 +57,20 @@ def _function_propagator(project, block: ailment.Block, manager: ailment.Manager
 
 
 def _intervening_dirty_statement(idx: int, mfx: str | None, addr):
-    if mfx is None:
-        return ailment.Stmt.DirtyStatement(idx, _dirty(idx + 1, None), ins_addr=0x1001)
-    return ailment.Stmt.Assignment(
+    return ailment.Stmt.DirtyStatement(
         idx,
-        ailment.Expr.Tmp(idx + 1, 100 + idx, 64),
-        _dirty(idx + 2, mfx, maddr=addr),
+        _dirty(idx + 1, mfx, maddr=addr if mfx is not None else None),
         ins_addr=0x1001,
     )
+
+
+def _mse_use_with_dirty_write(idx: int, use, addr):
+    write = ailment.Stmt.DirtyStatement(
+        idx,
+        _dirty(idx + 1, "Ifx_Write", maddr=addr),
+        ins_addr=0x1001,
+    )
+    return ailment.Expr.MultiStatementExpression(idx + 2, [write], use)
 
 
 def test_dirty_effect_classification_preserves_vex_semantics():
@@ -91,14 +97,28 @@ def test_dirty_effect_classification_preserves_vex_semantics():
     assert has_dirty_memory_write(modify)
 
     opaque_stmt = ailment.Stmt.DirtyStatement(5, pure)
-    assert has_effectful_dirty_expression(opaque_stmt)
-    assert has_dirty_memory_read(opaque_stmt)
-    assert has_dirty_memory_write(opaque_stmt)
-
     nested_stmt = ailment.Expr.MultiStatementExpression(6, [opaque_stmt], ailment.Expr.Const(7, 0, 64))
     assert has_effectful_dirty_expression(nested_stmt)
     assert has_dirty_memory_read(nested_stmt)
     assert has_dirty_memory_write(nested_stmt)
+
+
+@pytest.mark.parametrize(
+    "mfx, expected_read, expected_write",
+    (
+        (None, True, True),
+        ("Ifx_None", False, False),
+        ("Ifx_Read", True, False),
+        ("Ifx_Write", False, True),
+        ("Ifx_Modify", True, True),
+    ),
+)
+def test_dirty_statement_memory_effect_truth_table(mfx, expected_read, expected_write):
+    stmt = ailment.Stmt.DirtyStatement(8, _dirty(9, mfx))
+
+    assert has_effectful_dirty_expression(stmt)
+    assert has_dirty_memory_read(stmt) is expected_read
+    assert has_dirty_memory_write(stmt) is expected_write
 
 
 def test_dirty_effect_search_recurses_through_nonmatching_dirty_fields():
@@ -130,25 +150,31 @@ def test_has_call_walker_treats_ifx_none_and_nested_dirty_as_effects():
         walker.walk_expression(_dirty(24, None, operands=(_dirty(25, "Ifx_Write"),)))
 
 
-@pytest.mark.parametrize("nested_effectful", (False, True))
-def test_effectful_dirty_definition_protects_entire_cyclic_vvar_component(nested_effectful):
+@pytest.mark.parametrize("source_kind", ("pure", "nested_dirty", "converted_dirty", "dirty_statement_mse"))
+def test_effectful_dirty_definition_protects_entire_cyclic_vvar_component(source_kind):
     project = _project()
     vvar_1_def = VirtualVariable(0, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
     vvar_1_use = VirtualVariable(1, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
     vvar_2_def = VirtualVariable(2, 2, 64, VirtualVariableCategory.REGISTER, oident=24)
     vvar_2_use = VirtualVariable(3, 2, 64, VirtualVariableCategory.REGISTER, oident=24)
 
-    operands = [vvar_2_use]
-    if nested_effectful:
-        operands.append(_dirty(4, "Ifx_None"))
-    dirty = _dirty(5, None, operands=operands)
+    if source_kind == "pure":
+        source = _dirty(4, None, operands=(vvar_2_use,))
+    elif source_kind == "nested_dirty":
+        source = _dirty(5, None, operands=(vvar_2_use, _dirty(6, "Ifx_None")))
+    elif source_kind == "converted_dirty":
+        inner = ailment.Expr.BinaryOp(7, "Add", [vvar_2_use, _dirty(8, "Ifx_None")], bits=64)
+        source = ailment.Expr.Convert(9, 64, 64, False, inner)
+    else:
+        opaque_stmt = ailment.Stmt.DirtyStatement(10, _dirty(11, None))
+        source = ailment.Expr.MultiStatementExpression(12, [opaque_stmt], vvar_2_use)
     phi = ailment.Expr.Phi(6, 64, [((0x1000, 0), vvar_1_use)])
     block = ailment.Block(
         0x1000,
         1,
         statements=[
-            ailment.Stmt.Assignment(7, vvar_1_def, dirty),
-            ailment.Stmt.Assignment(8, vvar_2_def, phi),
+            ailment.Stmt.Assignment(13, vvar_1_def, source),
+            ailment.Stmt.Assignment(14, vvar_2_def, phi),
         ],
         idx=0,
     )
@@ -166,7 +192,7 @@ def test_effectful_dirty_definition_protects_entire_cyclic_vvar_component(nested
     simplifier.func_graph = graph
     removable = simplifier._find_cyclic_dependent_phis_and_dirty_vvars(rd, set())
 
-    assert removable == (set() if nested_effectful else {1, 2})
+    assert removable == ({1, 2} if source_kind == "pure" else set())
 
 
 def test_spropagator_guards_forced_stack_and_independent_vvar_paths():
@@ -216,6 +242,47 @@ def test_spropagator_guards_forced_stack_and_independent_vvar_paths():
     vvar_prop = _function_propagator(project, vvar_block, manager)
     assert not _has_replacement(vvar_prop, (vvar_use_0, vvar_use_1))
     assert vvar_def.varid not in vvar_prop.dead_vvar_ids
+
+
+@pytest.mark.parametrize(
+    "mfx, expected_replacement",
+    (("Ifx_Read", True), ("Ifx_Write", False), (None, False)),
+)
+def test_spropagator_switch_path_does_not_bypass_load_memory_safety(mfx, expected_replacement):
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    addr = ailment.Expr.Const(0, 0x3000, 64)
+    vvar_def = VirtualVariable(1, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
+    vvar_use_0 = VirtualVariable(2, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
+    vvar_use_1 = VirtualVariable(3, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
+    block = ailment.Block(
+        0x2000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(
+                4,
+                vvar_def,
+                ailment.Expr.Load(5, addr, 8, "Iend_LE"),
+                ins_addr=0x2000,
+            ),
+            _intervening_dirty_statement(6, mfx, addr),
+            ailment.Stmt.ConditionalJump(
+                8,
+                vvar_use_0,
+                ailment.Expr.Const(9, 0x2000, 64),
+                ailment.Expr.Const(10, 0x3000, 64),
+                true_target_idx=0,
+                ins_addr=0x2001,
+            ),
+            ailment.Stmt.Jump(11, vvar_use_1, ins_addr=0x2002),
+        ],
+        idx=0,
+    )
+
+    propagator = _function_propagator(project, block, manager)
+    assert _has_replacement(propagator, (vvar_use_0, vvar_use_1)) is expected_replacement
+    if not expected_replacement:
+        assert vvar_def.varid not in propagator.dead_vvar_ids
 
 
 @pytest.mark.parametrize("source_kind", ("ifx_none", "dirty_statement"))
@@ -273,6 +340,32 @@ def test_spropagator_tmp_load_crosses_reads_but_not_dirty_writes(mfx, expected_r
     assert _has_replacement(propagator, (tmp_use,)) is expected_replacement
 
 
+def test_spropagator_does_not_move_tmp_load_past_dirty_write_in_use_mse():
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    addr = ailment.Expr.Const(0, 0x3000, 64)
+    tmp_def = ailment.Expr.Tmp(1, 0, 32)
+    tmp_use = ailment.Expr.Tmp(2, 0, 32)
+    use_mse = _mse_use_with_dirty_write(3, tmp_use, addr)
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(
+                6,
+                tmp_def,
+                ailment.Expr.Load(7, addr, 4, "Iend_LE"),
+                ins_addr=0x1000,
+            ),
+            ailment.Stmt.Assignment(8, ailment.Expr.Register(9, 16, 32), use_mse, ins_addr=0x1001),
+        ],
+        idx=0,
+    )
+
+    propagator = SPropagator(project, subject=block, ail_manager=manager)
+    assert not _has_replacement(propagator, (tmp_use,))
+
+
 @pytest.mark.parametrize("use_count", (1, 3))
 @pytest.mark.parametrize(
     "mfx, expected_replacement",
@@ -303,3 +396,35 @@ def test_spropagator_function_load_crosses_reads_but_not_dirty_writes(mfx, expec
 
     propagator = _function_propagator(project, block, manager)
     assert _has_replacement(propagator, vvar_uses) is expected_replacement
+
+
+@pytest.mark.parametrize("use_count", (1, 3))
+def test_spropagator_does_not_move_function_load_past_dirty_write_in_use_mse(use_count):
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    addr = ailment.Expr.Const(0, 0x3000, 64)
+    vvar_def = VirtualVariable(1, 1, 32, VirtualVariableCategory.REGISTER, oident=16)
+    vvar_uses = [
+        VirtualVariable(idx + 2, 1, 32, VirtualVariableCategory.REGISTER, oident=16) for idx in range(use_count)
+    ]
+    statements = [
+        ailment.Stmt.Assignment(
+            10,
+            vvar_def,
+            ailment.Expr.Load(11, addr, 4, "Iend_LE"),
+            ins_addr=0x1000,
+        )
+    ]
+    statements.extend(
+        ailment.Stmt.Assignment(
+            20 + idx,
+            ailment.Expr.Register(30 + idx, 24 + idx * 4, 32),
+            _mse_use_with_dirty_write(40 + idx * 3, use, addr) if idx == 0 else use,
+            ins_addr=0x1001 + idx,
+        )
+        for idx, use in enumerate(vvar_uses)
+    )
+    block = ailment.Block(0x1000, 1, statements=statements, idx=0)
+
+    propagator = _function_propagator(project, block, manager)
+    assert not _has_replacement(propagator, vvar_uses)

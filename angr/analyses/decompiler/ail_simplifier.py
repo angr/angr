@@ -2183,13 +2183,10 @@ class AILSimplifier(Analysis):
                     and isinstance(stmt.dst, VirtualVariable)
                     and (stmt.dst.was_reg or stmt.dst.was_tmp)
                 ):
-                    if isinstance(stmt.src, VEXCCallExpression):
+                    if has_effectful_dirty_expression(stmt.src):
+                        effectful_dirty_vvar_ids.add(stmt.dst.varid)
+                    elif isinstance(stmt.src, (DirtyExpression, VEXCCallExpression)):
                         dirty_vvar_ids.add(stmt.dst.varid)
-                    elif isinstance(stmt.src, DirtyExpression):
-                        if has_effectful_dirty_expression(stmt.src):
-                            effectful_dirty_vvar_ids.add(stmt.dst.varid)
-                        else:
-                            dirty_vvar_ids.add(stmt.dst.varid)
 
         phi_and_dirty_vvar_ids = (rd.phi_vvar_ids | dirty_vvar_ids).difference(dead_vvar_ids)
 

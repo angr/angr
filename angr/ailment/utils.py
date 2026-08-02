@@ -49,9 +49,14 @@ class _EffectfulDirtyExpressionFinder(AILBlockViewer):
         stmt: DirtyStatement,
         block,  # pylint:disable=unused-argument
     ):
-        # DirtyStatement is the opaque fallback for an unsupported VEX statement. Its placeholder DirtyExpression
-        # has mfx=None, but the missing statement semantics may include both memory and non-memory effects.
-        raise _EffectfulDirtyExpressionFound
+        if not is_effectful_dirty_expression(stmt.dirty):
+            # A DirtyStatement whose placeholder has mfx=None is the opaque fallback for an unsupported VEX statement.
+            # The missing statement semantics may include both memory and non-memory effects.
+            raise _EffectfulDirtyExpressionFound
+
+        # VEX IRDirty statements without a result temporary also use DirtyStatement, but retain their known mfx.
+        # Recurse so effect queries remain true while memory queries classify Ifx_Read/Write/Modify precisely.
+        return super()._handle_DirtyStatement(stmt_idx, stmt, block)
 
 
 def is_effectful_dirty_expression(expr: Expression) -> bool:
