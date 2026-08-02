@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import struct
+from collections.abc import Collection
 
 import archinfo
 
 from angr import ailment
+from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.expression import BinaryOp, Convert, DirtyExpression, Expression, Let, Load
+from angr.ailment.statement import DirtyStatement, Statement
+from angr.rustylib.ailment import Expression as RustExpression
+from angr.rustylib.ailment import Statement as RustStatement
 
 try:
     from claripy.ast import Bits
@@ -17,6 +23,130 @@ except ImportError:
     import hashlib as md5lib
 
 type GetBitsTypeParams = "ailment.expression.Expression"
+
+_DIRTY_MEMORY_READ_EFFECTS = frozenset({"Ifx_Read", "Ifx_Modify"})
+_DIRTY_MEMORY_WRITE_EFFECTS = frozenset({"Ifx_Write", "Ifx_Modify"})
+# Keep these protocol bits synchronized with ``native/angr/src/ailment/ail_expr.rs``.
+_DIRTY_EFFECT = 1 << 0
+_DIRTY_MEMORY_READ = 1 << 1
+_DIRTY_MEMORY_WRITE = 1 << 2
+
+
+class _EffectfulDirtyExpressionFound(Exception):
+    pass
+
+
+class _EffectfulDirtyExpressionFinder(AILBlockViewer):
+    def __init__(self, memory_effects: Collection[str] | None):
+        super().__init__()
+        self._memory_effects = memory_effects
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if is_effectful_dirty_expression(expr) and (self._memory_effects is None or expr.mfx in self._memory_effects):
+            raise _EffectfulDirtyExpressionFound
+
+        # A DirtyExpression whose own effect does not match may contain another
+        # DirtyExpression in an operand, guard, or memory address that does.
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx, expr: Load, stmt_idx, stmt, block):
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+        guard = expr.guard
+        if guard is not None:
+            self._handle_expr(1, guard, stmt_idx, stmt, block)
+        alt = expr.alt
+        if alt is not None:
+            self._handle_expr(2, alt, stmt_idx, stmt, block)
+
+    def _handle_BinaryOp(self, expr_idx, expr: BinaryOp, stmt_idx, stmt, block):
+        super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        rounding_mode = expr.rounding_mode
+        if isinstance(rounding_mode, Expression):
+            self._handle_expr(2, rounding_mode, stmt_idx, stmt, block)
+
+    def _handle_Convert(self, expr_idx, expr: Convert, stmt_idx, stmt, block):
+        super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
+        rounding_mode = expr.rounding_mode
+        if isinstance(rounding_mode, Expression):
+            self._handle_expr(1, rounding_mode, stmt_idx, stmt, block)
+
+    def _handle_Let(self, expr_idx, expr: Let, stmt_idx, stmt, block):
+        for idx, def_stmt in enumerate(expr.defs):
+            self._handle_stmt(idx, def_stmt, None)
+        self._handle_expr(0, expr.src, stmt_idx, stmt, block)
+
+    def _top(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr, Let):
+            # Let is not part of AILBlockViewer's default dispatch table.
+            self._handle_Let(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_DirtyStatement(
+        self,
+        stmt_idx: int,
+        stmt: DirtyStatement,
+        block,  # pylint:disable=unused-argument
+    ):
+        if not is_effectful_dirty_expression(stmt.dirty):
+            # A DirtyStatement whose placeholder has mfx=None is the opaque fallback for an unsupported VEX statement.
+            # The missing statement semantics may include both memory and non-memory effects.
+            raise _EffectfulDirtyExpressionFound
+
+        # VEX IRDirty statements without a result temporary also use DirtyStatement, but retain their known mfx.
+        # Recurse so effect queries remain true while memory queries classify Ifx_Read/Write/Modify precisely.
+        return super()._handle_DirtyStatement(stmt_idx, stmt, block)
+
+
+def is_effectful_dirty_expression(expr: Expression) -> bool:
+    """
+    Return whether ``expr`` directly represents a VEX dirty operation with effects.
+
+    A non-``None`` ``mfx`` marks expressions originating from VEX ``IRDirty``. This includes ``Ifx_None``: it means
+    that VEX declares no guest-memory access, not that the helper is pure. Dirty expressions used as placeholders for
+    unsupported pure arithmetic have ``mfx=None``.
+    """
+    return isinstance(expr, DirtyExpression) and expr.mfx is not None
+
+
+def _contains_effectful_dirty_expression(obj: Expression | Statement, memory_effects: Collection[str] | None) -> bool:
+    if type(obj) is RustExpression or type(obj) is RustStatement:
+        effects = obj._dirty_effects()  # pylint:disable=protected-access
+        if memory_effects is None:
+            return bool(effects & _DIRTY_EFFECT)
+        if memory_effects == _DIRTY_MEMORY_READ_EFFECTS:
+            return bool(effects & _DIRTY_MEMORY_READ)
+        if memory_effects == _DIRTY_MEMORY_WRITE_EFFECTS:
+            return bool(effects & _DIRTY_MEMORY_WRITE)
+
+    finder = _EffectfulDirtyExpressionFinder(memory_effects)
+    try:
+        if type(obj) is RustExpression:
+            finder.walk_expression(obj)
+        elif type(obj) is RustStatement:
+            finder.walk_statement(obj)
+        elif isinstance(obj, Expression):
+            finder.walk_expression(obj)
+        elif isinstance(obj, Statement):
+            finder.walk_statement(obj)
+        else:
+            raise TypeError(type(obj))
+    except _EffectfulDirtyExpressionFound:
+        return True
+    return False
+
+
+def has_effectful_dirty_expression(obj: Expression | Statement) -> bool:
+    """Return whether ``obj`` recursively contains an effectful ``DirtyExpression`` or opaque ``DirtyStatement``."""
+    return _contains_effectful_dirty_expression(obj, None)
+
+
+def has_dirty_memory_read(obj: Expression | Statement) -> bool:
+    """Return whether ``obj`` contains a dirty guest-memory read/modification or opaque ``DirtyStatement``."""
+    return _contains_effectful_dirty_expression(obj, _DIRTY_MEMORY_READ_EFFECTS)
+
+
+def has_dirty_memory_write(obj: Expression | Statement) -> bool:
+    """Return whether ``obj`` contains a dirty guest-memory write/modification or opaque ``DirtyStatement``."""
+    return _contains_effectful_dirty_expression(obj, _DIRTY_MEMORY_WRITE_EFFECTS)
 
 
 def get_bits(expr: GetBitsTypeParams) -> int:

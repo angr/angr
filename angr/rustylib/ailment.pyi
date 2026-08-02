@@ -192,6 +192,8 @@ class Expression:
     def pykind(self) -> int:
         """Cached ``Py<int>`` form of the kind tag. Pre-materialized at construction; access is a single ``clone_ref``."""
     def clear_hash(self) -> None: ...
+    def _dirty_effects(self) -> int:
+        """Recursive bit summary used by ``angr.ailment.utils``."""
     # ``variable`` / ``variable_offset`` are side-channel utility accessors
     # shared across the atom-shaped variants; kept on the base rather than
     # duplicated onto each atom.
@@ -393,6 +395,8 @@ class Statement:
     """True once a peephole-optimization pass has run this statement to fixpoint, letting later passes skip it.
     Runtime-only: never serialized, ignored by ``__eq__``/``__hash__``/``likes()``, and reset on clone."""
     def clear_hash(self) -> None: ...
+    def _dirty_effects(self) -> int:
+        """Recursive bit summary used by ``angr.ailment.utils``."""
     # Utility query available on any statement (true only for Assignments
     # whose source is a ``Phi``); kept on the base.
     @property

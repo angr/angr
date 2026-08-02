@@ -20,7 +20,10 @@ use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 
-use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
+use crate::ailment::ail_expr::{
+    AilExpression, CFGTarget, DIRTY_EFFECT, DIRTY_MEMORY_READ, DIRTY_MEMORY_WRITE, ExprInner,
+    Expression, VariantIdx, next,
+};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
 use crate::ailment::{CachedHash, CmpMode, hash_of};
@@ -247,6 +250,74 @@ impl AilStatement {
 
     pub fn kind_str(&self) -> &'static str {
         self.inner.kind().as_str()
+    }
+
+    /// Summarize effectful VEX dirty operations in every evaluated child.
+    pub fn dirty_effects(&self) -> u8 {
+        let expr_effects = |exprs: &[AilExpression]| {
+            exprs
+                .iter()
+                .fold(0, |effects, expr| effects | expr.dirty_effects())
+        };
+        let opt_effects = |expr: &Option<Arc<AilExpression>>| {
+            expr.as_ref().map_or(0, |expr| expr.dirty_effects())
+        };
+        let target_effects = |target: &CFGTarget| match target {
+            CFGTarget::Expr(expr) => expr.dirty_effects(),
+            CFGTarget::Symbol(_) => 0,
+        };
+        let opt_target_effects = |target: &Option<CFGTarget>| match target {
+            Some(target) => target_effects(target),
+            None => 0,
+        };
+
+        match &self.inner {
+            StmtInner::Assignment { dst, src } | StmtInner::WeakAssignment { dst, src } => {
+                dst.dirty_effects() | src.dirty_effects()
+            }
+            StmtInner::Label { .. } | StmtInner::NoOp => 0,
+            StmtInner::Store {
+                addr, data, guard, ..
+            } => addr.dirty_effects() | data.dirty_effects() | opt_effects(guard),
+            StmtInner::Jump { target, .. } => target_effects(target),
+            StmtInner::ConditionalJump {
+                condition,
+                true_target,
+                false_target,
+                ..
+            } => {
+                condition.dirty_effects()
+                    | opt_target_effects(true_target)
+                    | opt_target_effects(false_target)
+            }
+            StmtInner::SideEffectStatement { expr, .. } => expr.dirty_effects(),
+            StmtInner::Return { ret_exprs } => expr_effects(ret_exprs),
+            StmtInner::CAS {
+                addr,
+                data_lo,
+                data_hi,
+                expd_lo,
+                expd_hi,
+                old_lo,
+                old_hi,
+                ..
+            } => {
+                addr.dirty_effects()
+                    | data_lo.dirty_effects()
+                    | opt_effects(data_hi)
+                    | expd_lo.dirty_effects()
+                    | opt_effects(expd_hi)
+                    | old_lo.dirty_effects()
+                    | opt_effects(old_hi)
+            }
+            StmtInner::DirtyStatement { dirty } => match &dirty.inner {
+                ExprInner::DirtyExpression { mfx, .. } if mfx.is_some() => dirty.dirty_effects(),
+                // A placeholder with no mfx represents an unsupported VEX
+                // statement. Its missing semantics may include guest-memory
+                // reads, writes, and non-memory effects.
+                _ => DIRTY_EFFECT | DIRTY_MEMORY_READ | DIRTY_MEMORY_WRITE,
+            },
+        }
     }
 
     pub fn cached_hash_or_compute(&self) -> i64 {
@@ -1127,6 +1198,11 @@ impl Statement {
 
     fn clear_hash(&self) {
         self.stmt.header.cached_hash.clear();
+    }
+
+    /// Private fast path used by ``angr.ailment.utils``.
+    fn _dirty_effects(&self) -> u8 {
+        self.stmt.dirty_effects()
     }
 
     /// True once a peephole-optimization pass has run this statement to fixpoint, letting later
