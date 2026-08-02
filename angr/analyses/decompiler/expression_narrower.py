@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
-from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
+from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, FunctionLikeMacro, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
@@ -167,7 +167,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
             self._handle_call_args(expr.args, stmt_idx, stmt, block)
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
-        if stmt.expr.args is not None:
+        if isinstance(stmt.expr, (Call, FunctionLikeMacro)) and stmt.expr.args is not None:
             self._handle_call_args(stmt.expr.args, stmt_idx, stmt, block)
 
         if stmt.ret_expr is not None:
@@ -387,7 +387,13 @@ class ExpressionNarrower(AILBlockRewriter):
                 **tags,
             )
             self.replacement_core_vvars[new_ret_expr.varid].append(new_ret_expr)
-            new_stmt.ret_expr = new_ret_expr
+            new_stmt = SideEffectStatement(
+                new_stmt.idx,
+                new_stmt.expr,
+                ret_expr=new_ret_expr,
+                fp_ret_expr=new_stmt.fp_ret_expr,
+                **new_stmt.tags,
+            )
 
         if changed:
             self.narrowed_any = True

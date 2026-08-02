@@ -51,6 +51,8 @@ class ConstIncrementingRewriter(AILBlockRewriter):
 
 
 class RegisterRecordingViewer(AILBlockViewer):
+    """Record registers visited by a block viewer."""
+
     def __init__(self):
         super().__init__()
         self.registers = []
@@ -63,6 +65,8 @@ class RegisterRecordingViewer(AILBlockViewer):
 
 
 class ConstIndexRecordingRewriter(AILBlockRewriter):
+    """Record constant values and their expression child indices."""
+
     def __init__(self):
         super().__init__(update_block=False)
         self.const_indices = []
