@@ -565,19 +565,28 @@ class SPropagator:
                         stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_DIRTY_WHITELIST)
                     ):
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
-                            same_inst = (
-                                block.statements[tmp_def_stmtidx].tags["ins_addr"]
-                                == block.statements[tmp_use_stmtidx].tags["ins_addr"]
-                            )
+                            def_ins_addr = block.statements[tmp_def_stmtidx].tags.get("ins_addr")
+                            same_inst = def_ins_addr is not None and def_ins_addr == block.statements[
+                                tmp_use_stmtidx
+                            ].tags.get("ins_addr")
                             use_has_dirty_memory_write = has_dirty_memory_write(block.statements[tmp_use_stmtidx])
-                            has_intervening_memory_write = any(
-                                isinstance(stmt_, Store) or has_dirty_memory_write(stmt_)
-                                for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
+                            intervening_statements = block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
+                            has_intervening_dirty_memory_write = any(
+                                has_dirty_memory_write(stmt_) for stmt_ in intervening_statements
                             )
-                            if not use_has_dirty_memory_write and (same_inst or not has_intervening_memory_write):
+                            intervening_stores = [stmt_ for stmt_ in intervening_statements if isinstance(stmt_, Store)]
+                            stores_are_same_inst = same_inst and all(
+                                store.tags.get("ins_addr") == def_ins_addr for store in intervening_stores
+                            )
+                            if (
+                                not use_has_dirty_memory_write
+                                and not has_intervening_dirty_memory_write
+                                and (not intervening_stores or stores_are_same_inst)
+                            ):
                                 # we can propagate this load because either we do not consider memory aliasing problem
-                                # within the same instruction (blocks must be originally lifted with
-                                # CROSS_INSN_OPT=False), or there is no store between its def and use.
+                                # for ordinary stores within the same instruction (blocks must be originally lifted
+                                # with CROSS_INSN_OPT=False), or there is no store between its def and use. Dirty writes
+                                # remain barriers because an IRDirty helper may modify memory mid-instruction.
                                 loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
                                 self.replace(replacements, loc, tmp_used, stmt.src)
 

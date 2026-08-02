@@ -6,6 +6,7 @@ import pytest
 import angr
 from angr import ailment
 from angr.ailment.expression import DirtyExpression, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Statement
 from angr.ailment.utils import (
     has_dirty_memory_read,
     has_dirty_memory_write,
@@ -137,6 +138,85 @@ def test_dirty_effect_search_recurses_through_nonmatching_dirty_fields():
     assert not is_effectful_dirty_expression(roots[1])
 
 
+def _dirty_evaluated_slot_roots():
+    addr = ailment.Expr.Const(30, 0x3000, 64)
+    guard = ailment.Expr.Const(31, 1, 1)
+    value = ailment.Expr.Const(32, 0, 32)
+    return (
+        ailment.Expr.Load(
+            33,
+            addr,
+            4,
+            "Iend_LE",
+            guard=_dirty(34, "Ifx_Write", maddr=addr, bits=1),
+            alt=value,
+        ),
+        ailment.Expr.Load(
+            35,
+            addr,
+            4,
+            "Iend_LE",
+            guard=guard,
+            alt=_dirty(36, "Ifx_Write", maddr=addr, bits=32),
+        ),
+        ailment.Expr.BinaryOp(
+            37,
+            "Add",
+            (value, value),
+            bits=32,
+            floating_point=True,
+            rounding_mode=_dirty(38, "Ifx_Write", maddr=addr, bits=32),
+        ),
+        ailment.Expr.Convert(
+            39,
+            32,
+            64,
+            False,
+            value,
+            rounding_mode=_dirty(40, "Ifx_Write", maddr=addr, bits=32),
+        ),
+        ailment.Expr.Let(
+            41,
+            [
+                ailment.Stmt.Assignment(
+                    42,
+                    ailment.Expr.Tmp(43, 0, 32),
+                    _dirty(44, "Ifx_Write", maddr=addr, bits=32),
+                )
+            ],
+            value,
+        ),
+        ailment.Expr.Let(45, [], _dirty(46, "Ifx_Write", maddr=addr, bits=32)),
+    )
+
+
+@pytest.mark.parametrize(
+    "root",
+    _dirty_evaluated_slot_roots(),
+    ids=("load-guard", "load-alt", "binary-rounding", "convert-rounding", "let-def", "let-src"),
+)
+def test_dirty_effect_search_covers_all_evaluated_child_slots(root):
+    assert has_effectful_dirty_expression(root)
+    assert has_dirty_memory_write(root)
+
+    with pytest.raises(HasCallNotification):
+        HasCallExprWalker().walk_expression(root)
+
+
+def test_has_call_walker_covers_evaluated_load_alt():
+    root = ailment.Expr.Load(
+        47,
+        ailment.Expr.Const(48, 0x3000, 64),
+        4,
+        "Iend_LE",
+        guard=ailment.Expr.Const(49, 1, 1),
+        alt=ailment.Expr.Call(50, "fallback", args=[], bits=32),
+    )
+
+    with pytest.raises(HasCallNotification):
+        HasCallExprWalker().walk_expression(root)
+
+
 def test_has_call_walker_treats_ifx_none_and_nested_dirty_as_effects():
     walker = HasCallExprWalker()
     walker.walk_expression(_dirty(20, None))
@@ -149,6 +229,42 @@ def test_has_call_walker_treats_ifx_none_and_nested_dirty_as_effects():
 
     with pytest.raises(HasCallNotification):
         walker.walk_expression(_dirty(24, None, operands=(_dirty(25, "Ifx_Write"),)))
+
+
+def test_lifted_cpuid_and_memory_fence_preserve_converter_effect_metadata():
+    project = angr.load_shellcode(b"\x0f\xa2\xc3", "AMD64", load_address=0x1000)
+    manager = ailment.Manager(arch=project.arch)
+    vex_block = project.factory.block(0x1000, size=2, opt_level=0).vex
+    block = ailment.IRSBConverter.convert(vex_block, manager)
+    dirty_statements = [stmt for stmt in block.statements if isinstance(stmt, ailment.Stmt.DirtyStatement)]
+    dirty_pairs: list[tuple[Statement, DirtyExpression]] = []
+    for stmt in dirty_statements:
+        dirty = stmt.dirty
+        assert isinstance(dirty, DirtyExpression)
+        dirty_pairs.append((stmt, dirty))
+
+    cpuid_stmt, cpuid = next(pair for pair in dirty_pairs if pair[1].callee.startswith("amd64g_dirtyhelper_CPUID"))
+    fence_stmt, fence = next(pair for pair in dirty_pairs if pair[1].callee.startswith("MBusEvent-"))
+    assert cpuid.mfx == "Ifx_None"
+    assert has_effectful_dirty_expression(cpuid_stmt)
+    assert not has_dirty_memory_read(cpuid_stmt)
+    assert not has_dirty_memory_write(cpuid_stmt)
+    assert fence.callee.startswith("MBusEvent-")
+    assert fence.mfx is None
+    assert has_effectful_dirty_expression(fence_stmt)
+    assert has_dirty_memory_read(fence_stmt)
+    assert has_dirty_memory_write(fence_stmt)
+
+    simplified = BlockSimplifier(project, block, manager, peephole_optimizations=[]).result_block
+    assert simplified is not None
+    simplified_effects = set()
+    for stmt in simplified.statements:
+        if isinstance(stmt, ailment.Stmt.DirtyStatement):
+            dirty = stmt.dirty
+            assert isinstance(dirty, DirtyExpression)
+            simplified_effects.add((dirty.callee, dirty.mfx))
+    assert (cpuid.callee, "Ifx_None") in simplified_effects
+    assert (fence.callee, None) in simplified_effects
 
 
 @pytest.mark.parametrize("dst_kind", ("tmp", "register"))
@@ -452,6 +568,130 @@ def test_spropagator_tmp_load_crosses_reads_but_not_dirty_writes(mfx, expected_r
     assert _has_replacement(propagator, (tmp_use,)) is expected_replacement
 
 
+@pytest.mark.parametrize("mfx", ("Ifx_Write", "Ifx_Modify", None))
+def test_spropagator_same_instruction_dirty_write_still_blocks_tmp_load(mfx):
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    addr = ailment.Expr.Const(0, 0x3000, 64)
+    tmp_def = ailment.Expr.Tmp(1, 0, 32)
+    tmp_use = ailment.Expr.Tmp(2, 0, 32)
+    dirty_stmt = ailment.Stmt.DirtyStatement(
+        3,
+        _dirty(4, mfx, maddr=addr if mfx is not None else None),
+        ins_addr=0x1000,
+    )
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(
+                5,
+                tmp_def,
+                ailment.Expr.Load(6, addr, 4, "Iend_LE"),
+                ins_addr=0x1000,
+            ),
+            dirty_stmt,
+            ailment.Stmt.Assignment(7, ailment.Expr.Register(8, 16, 32), tmp_use, ins_addr=0x1000),
+        ],
+        idx=0,
+    )
+
+    propagator = SPropagator(project, subject=block, ail_manager=manager)
+    assert not _has_replacement(propagator, (tmp_use,))
+
+
+def test_spropagator_keeps_same_instruction_store_exemption_for_tmp_load():
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    addr = ailment.Expr.Const(0, 0x3000, 64)
+    tmp_def = ailment.Expr.Tmp(1, 0, 32)
+    tmp_use = ailment.Expr.Tmp(2, 0, 32)
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(
+                3,
+                tmp_def,
+                ailment.Expr.Load(4, addr, 4, "Iend_LE"),
+                ins_addr=0x1000,
+            ),
+            ailment.Stmt.Store(
+                5,
+                addr,
+                ailment.Expr.Const(6, 1, 32),
+                4,
+                "Iend_LE",
+                ins_addr=0x1000,
+            ),
+            ailment.Stmt.Assignment(7, ailment.Expr.Register(8, 16, 32), tmp_use, ins_addr=0x1000),
+        ],
+        idx=0,
+    )
+
+    propagator = SPropagator(project, subject=block, ail_manager=manager)
+    assert _has_replacement(propagator, (tmp_use,))
+
+
+def test_spropagator_propagates_untagged_tmp_load_without_memory_write():
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    addr = ailment.Expr.Const(0, 0x3000, 64)
+    tmp_def = ailment.Expr.Tmp(1, 0, 32)
+    tmp_use = ailment.Expr.Tmp(2, 0, 32)
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(3, tmp_def, ailment.Expr.Load(4, addr, 4, "Iend_LE")),
+            ailment.Stmt.Assignment(5, ailment.Expr.Register(6, 16, 32), tmp_use),
+        ],
+        idx=0,
+    )
+
+    propagator = SPropagator(project, subject=block, ail_manager=manager)
+    assert _has_replacement(propagator, (tmp_use,))
+
+
+@pytest.mark.parametrize(
+    "endpoint_ins_addr, store_ins_addr",
+    ((None, None), (0x1000, None), (0x1000, 0x1001)),
+)
+def test_spropagator_does_not_exempt_untagged_or_different_instruction_store(endpoint_ins_addr, store_ins_addr):
+    project = _project()
+    manager = ailment.Manager(arch=project.arch)
+    addr = ailment.Expr.Const(0, 0x3000, 64)
+    tmp_def = ailment.Expr.Tmp(1, 0, 32)
+    tmp_use = ailment.Expr.Tmp(2, 0, 32)
+    endpoint_tags = {} if endpoint_ins_addr is None else {"ins_addr": endpoint_ins_addr}
+    store_tags = {} if store_ins_addr is None else {"ins_addr": store_ins_addr}
+    block = ailment.Block(
+        0x1000,
+        1,
+        statements=[
+            ailment.Stmt.Assignment(
+                3,
+                tmp_def,
+                ailment.Expr.Load(4, addr, 4, "Iend_LE"),
+                **endpoint_tags,
+            ),
+            ailment.Stmt.Store(
+                5,
+                addr,
+                ailment.Expr.Const(6, 1, 32),
+                4,
+                "Iend_LE",
+                **store_tags,
+            ),
+            ailment.Stmt.Assignment(7, ailment.Expr.Register(8, 16, 32), tmp_use, **endpoint_tags),
+        ],
+        idx=0,
+    )
+
+    propagator = SPropagator(project, subject=block, ail_manager=manager)
+    assert not _has_replacement(propagator, (tmp_use,))
+
+
 def test_spropagator_does_not_move_tmp_load_past_dirty_write_in_use_mse():
     project = _project()
     manager = ailment.Manager(arch=project.arch)
@@ -491,7 +731,7 @@ def test_spropagator_function_load_crosses_reads_but_not_dirty_writes(mfx, expec
     vvar_uses = [
         VirtualVariable(idx + 2, 1, 32, VirtualVariableCategory.REGISTER, oident=16) for idx in range(use_count)
     ]
-    statements = [
+    statements: list[Statement] = [
         ailment.Stmt.Assignment(
             10,
             vvar_def,
@@ -519,7 +759,7 @@ def test_spropagator_does_not_move_function_load_past_dirty_write_in_use_mse(use
     vvar_uses = [
         VirtualVariable(idx + 2, 1, 32, VirtualVariableCategory.REGISTER, oident=16) for idx in range(use_count)
     ]
-    statements = [
+    statements: list[Statement] = [
         ailment.Stmt.Assignment(
             10,
             vvar_def,
