@@ -761,12 +761,12 @@ class ConditionProcessor:
         Check whether every way out of a head-controlled-loop block reaches ``dst_block``.
         """
         terminal_stmt = src_block.statements[-1]
-        dst_is_block = isinstance(dst_block, ailment.Block)
+        dst_is_indexed = isinstance(dst_block, (ailment.Block, MultiNode))
         if (
             not isinstance(terminal_stmt, ailment.Stmt.Jump)
             or not isinstance(terminal_stmt.target, ailment.Expr.Const)
             or terminal_stmt.target.value != dst_block.addr
-            or (dst_is_block and terminal_stmt.target_idx != dst_block.idx)
+            or (dst_is_indexed and terminal_stmt.target_idx != dst_block.idx)
         ):
             return False
 
@@ -782,7 +782,7 @@ class ConditionProcessor:
                 if target is not None and (
                     not isinstance(target, ailment.Expr.Const)
                     or target.value != dst_block.addr
-                    or (dst_is_block and target_idx != dst_block.idx)
+                    or (dst_is_indexed and target_idx != dst_block.idx)
                 ):
                     return False
         return True

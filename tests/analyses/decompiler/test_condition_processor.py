@@ -12,7 +12,7 @@ from angr.ailment.expression import Const, Extract, VirtualVariable, VirtualVari
 from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.decompiler import Decompiler
-from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement, MultiNode
 
 
 def _recover_edge_condition_with_internal_side_exits(
@@ -25,6 +25,7 @@ def _recover_edge_condition_with_internal_side_exits(
     dst_idx: int | None = None,
     internal_jump_target: int | None = None,
     internal_control: Literal["return", "switch"] | None = None,
+    wrap_destination: bool = False,
 ) -> claripy.ast.Bool:
     arch = archinfo.ArchAMD64()
     manager = ailment.Manager(arch=arch)
@@ -120,17 +121,21 @@ def _recover_edge_condition_with_internal_side_exits(
         statements=statements,
     )
     dst = ailment.Block(dst_addr, 4, idx=dst_idx)
+    if wrap_destination:
+        dst = MultiNode([dst])
     graph = networkx.DiGraph([(src, dst)])
 
     return condition_processor.recover_edge_condition(graph, src, dst)
 
 
-def test_internal_side_exit_and_terminal_jump_converge():
+@pytest.mark.parametrize("wrap_destination", [False, True], ids=["block", "multinode"])
+def test_internal_side_exit_and_terminal_jump_converge(wrap_destination: bool):
     predicate = _recover_edge_condition_with_internal_side_exits(
         (0x5000, 0x5000),
         side_exit_target_indices=(1, 1),
         terminal_target_idx=1,
         dst_idx=1,
+        wrap_destination=wrap_destination,
     )
 
     assert claripy.is_true(predicate)
@@ -205,6 +210,18 @@ def test_convergence_requires_matching_terminal_target_idx():
         side_exit_target_indices=(1,),
         terminal_target_idx=2,
         dst_idx=1,
+    )
+
+    assert predicate.symbolic
+
+
+def test_convergence_requires_matching_multinode_target_idx():
+    predicate = _recover_edge_condition_with_internal_side_exits(
+        (0x5000,),
+        side_exit_target_indices=(1,),
+        terminal_target_idx=1,
+        dst_idx=2,
+        wrap_destination=True,
     )
 
     assert predicate.symbolic
