@@ -18,6 +18,9 @@ class HasCallExprWalker(AILBlockViewer):
     def _handle_SideEffectStatement(self, stmt_idx, stmt, block):  # pylint:disable=unused-argument
         raise HasCallNotification
 
+    def _handle_DirtyStatement(self, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+        raise HasCallNotification
+
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
         raise HasCallNotification
 

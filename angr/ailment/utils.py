@@ -8,7 +8,7 @@ import archinfo
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import DirtyExpression, Expression
-from angr.ailment.statement import Statement
+from angr.ailment.statement import DirtyStatement, Statement
 
 try:
     from claripy.ast import Bits
@@ -43,6 +43,16 @@ class _EffectfulDirtyExpressionFinder(AILBlockViewer):
         # DirtyExpression in an operand, guard, or memory address that does.
         return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_DirtyStatement(
+        self,
+        stmt_idx: int,
+        stmt: DirtyStatement,
+        block,  # pylint:disable=unused-argument
+    ):
+        # DirtyStatement is the opaque fallback for an unsupported VEX statement. Its placeholder DirtyExpression
+        # has mfx=None, but the missing statement semantics may include both memory and non-memory effects.
+        raise _EffectfulDirtyExpressionFound
+
 
 def is_effectful_dirty_expression(expr: Expression) -> bool:
     """
@@ -70,17 +80,17 @@ def _contains_effectful_dirty_expression(obj: Expression | Statement, memory_eff
 
 
 def has_effectful_dirty_expression(obj: Expression | Statement) -> bool:
-    """Return whether ``obj`` recursively contains an effectful :class:`DirtyExpression`."""
+    """Return whether ``obj`` recursively contains an effectful ``DirtyExpression`` or opaque ``DirtyStatement``."""
     return _contains_effectful_dirty_expression(obj, None)
 
 
 def has_dirty_memory_read(obj: Expression | Statement) -> bool:
-    """Return whether ``obj`` recursively contains a dirty guest-memory read or modification."""
+    """Return whether ``obj`` contains a dirty guest-memory read/modification or opaque ``DirtyStatement``."""
     return _contains_effectful_dirty_expression(obj, _DIRTY_MEMORY_READ_EFFECTS)
 
 
 def has_dirty_memory_write(obj: Expression | Statement) -> bool:
-    """Return whether ``obj`` recursively contains a dirty guest-memory write or modification."""
+    """Return whether ``obj`` contains a dirty guest-memory write/modification or opaque ``DirtyStatement``."""
     return _contains_effectful_dirty_expression(obj, _DIRTY_MEMORY_WRITE_EFFECTS)
 
 
