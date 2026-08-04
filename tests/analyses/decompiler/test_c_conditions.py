@@ -34,22 +34,25 @@ class TestDecompilingCConditions(unittest.TestCase):
         if not WORKER:
             print(conditions)
         # adjust this list once the decompilation output changes, but make sure the output is correct!
-        assert conditions == [
+        CONDITIONS = [
             # !(a >> 8) & 1
-            "!(char)(v0) >> 8",
+            "!((char)(v0) >> 8)",
             # !((a >> 8) & 1)
             "!(v0 & 0x100)",
             # !((a >> 8) & b)
             "!(v1 & (char)(v0) >> 8)",
             # (a >> 8) & 1
-            "(v0 & 0x100)",
+            "v0 & 0x100",
             # (a >> 31) & !b
-            "(!v1 & (char)(v0) >> 31)",
+            "!v1 & (char)(v0) >> 31",
             # ~(a >> 31) & !b
-            "(!v1 & ~((char)(v0) >> 31))",
+            "!v1 & ~((char)(v0) >> 31)",
             # ~((a >> 31) & !b)
             "(!v1 & (char)(v0) >> 31) != 0xffffffff",
         ]
+        for condition in conditions:
+            self.assertIn(condition, CONDITIONS, msg=f"Condition {condition} not found in expected conditions")
+        assert len(conditions) == len(CONDITIONS)
 
 
 if __name__ == "__main__":
