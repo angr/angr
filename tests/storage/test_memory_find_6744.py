@@ -1,9 +1,5 @@
-from __future__ import annotations
-
 import claripy
-
 import angr
-
 
 def test_memory_find_empty_cases():
     state = angr.SimState(arch="AMD64")
@@ -11,8 +7,7 @@ def test_memory_find_empty_cases():
     addr = claripy.BVV(0x1204F0D, 32)
     target = claripy.BVV(0, 8)
 
-    with open("test_data_6744", "rb") as f:
-        fdata = f.read()
+    fdata = b"POST /deviceService/queryDeviceInfoByNickName.do HTTP/1.1"
 
     state.memory.store(addr, fdata, len(fdata))
 
