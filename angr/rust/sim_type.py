@@ -41,7 +41,7 @@ class RustSimType:
             memo = {}
         return self._with_arch(arch, memo=memo)
 
-    def _with_arch(self, arch, *, memo: dict[str, SimType]) -> Self:
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
         raise NotImplementedError
 
 
