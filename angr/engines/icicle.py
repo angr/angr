@@ -139,12 +139,11 @@ class IcicleEngine(SuccessorsEngine):
         is explicitly unmapped.
         """
         metadata = {}
-        page_size = state.memory.page_size
         for page_num, page in state.memory._pages.items():
             if page is None:
                 metadata[page_num] = None
             else:
-                metadata[page_num] = state.memory.permissions(page_num * page_size).concrete_value
+                metadata[page_num] = page.permission_bits.concrete_value
         return metadata
 
     @staticmethod
