@@ -1,14 +1,8 @@
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::{
-    algorithms::{
-        reconstruct::{rebuild_op, reconstruct_node},
-        walk_post_order,
-    },
+    algorithms::{reconstruct::reconstruct_node, walk_post_order},
     ast::op::AstOp,
-    cache::Cache,
-    context::structural_hash,
     prelude::*,
 };
 
@@ -34,14 +28,27 @@ impl<'c> AstNode<'c> {
 /// (`op(.., ITE(c, t, e), ..) -> ITE(c, op(.., t, ..), op(.., e, ..))`) collapse
 /// into this single routine.
 ///
-/// An `ITE` is already in excavated form, so its branches are left in place;
-/// for any other op we distribute over its first `ITE` child and recurse to
-/// hoist any remaining ones, yielding the fully expanded decision tree.
+/// Exactly one condition is hoisted per node: the one carried by the node's
+/// first `ITE` child. The remaining children are folded into both branches --
+/// taken apart if they are `ITE`s on that same condition (or on its negation),
+/// passed through untouched otherwise. A child that is an `ITE` on some
+/// *unrelated* condition cannot be folded that way, and distributing over it as
+/// well would build the full 2^n decision tree, so the node is left alone
+/// instead. This matches what the reference Python implementation does, and is
+/// what keeps the pass linear in the size of the AST.
+///
+/// An `ITE` is already in excavated form, so its branches are left in place.
 fn excavate_node<'c>(
     ast: &AstRef<'c>,
     children: &[AstRef<'c>],
 ) -> Result<AstRef<'c>, ClarirsError> {
     let ctx = ast.context();
+
+    // Annotated nodes are opaque: rebuilding one through the context would drop
+    // its annotations, so hand it back untouched.
+    if !ast.annotations().is_empty() {
+        return Ok(ast.clone());
+    }
 
     if matches!(ast.op(), AstOp::ITE(..)) {
         return reconstruct_node(ctx, ast, children);
@@ -55,25 +62,36 @@ fn excavate_node<'c>(
         None => return reconstruct_node(ctx, ast, children),
     };
 
-    let op = rebuild_op(ast, children).expect("a node being distributed is not a leaf");
-    let key = structural_hash(op.infer_type(), &op, &BTreeSet::new());
-    if let Some(cached) = ctx.excavate_ite_cache.get(&key) {
-        return Ok(cached);
-    }
-
-    let (cond, then_, else_) = match children[idx].op() {
-        AstOp::ITE(cond, then_, else_) => (cond.clone(), then_.clone(), else_.clone()),
+    let cond = match children[idx].op() {
+        AstOp::ITE(cond, _, _) => cond.clone(),
         _ => unreachable!(),
     };
-    let mut branch = children.to_vec();
-    branch[idx] = then_;
-    let then_branch = excavate_node(ast, &branch)?;
-    branch[idx] = else_;
-    let else_branch = excavate_node(ast, &branch)?;
-    let result = ctx.ite(cond, then_branch, else_branch)?;
+    let not_cond = ctx.not(&cond)?;
 
-    ctx.excavate_ite_cache.insert(key, &result);
-    Ok(result)
+    let mut then_children = Vec::with_capacity(children.len());
+    let mut else_children = Vec::with_capacity(children.len());
+    for child in children {
+        match child.op() {
+            AstOp::ITE(c, then_, else_) if c.hash() == cond.hash() => {
+                then_children.push(then_.clone());
+                else_children.push(else_.clone());
+            }
+            AstOp::ITE(c, then_, else_) if c.hash() == not_cond.hash() => {
+                then_children.push(else_.clone());
+                else_children.push(then_.clone());
+            }
+            // An `ITE` on an unrelated condition: give up rather than expand.
+            AstOp::ITE(..) => return reconstruct_node(ctx, ast, children),
+            _ => {
+                then_children.push(child.clone());
+                else_children.push(child.clone());
+            }
+        }
+    }
+
+    let then_branch = reconstruct_node(ctx, ast, &then_children)?;
+    let else_branch = reconstruct_node(ctx, ast, &else_children)?;
+    ctx.ite(cond, then_branch, else_branch)
 }
 
 #[cfg(test)]
