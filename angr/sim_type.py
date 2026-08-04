@@ -135,9 +135,10 @@ class SimType:
             return self
         if self._arch is not None and self._arch == arch:
             return self
+        memo = memo if memo is not None else {}
         return self._with_arch(arch, memo=memo)
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
         cp = copy.copy(self)
         cp._arch = arch
         return cp
@@ -969,7 +970,7 @@ class SimTypePointer(SimTypeReg):
             raise ValueError("Can't tell my size without an arch!")
         return self._arch.bits
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypePointer(
             self.pts_to.with_arch(arch, memo=memo),
             self.label,
@@ -1039,7 +1040,7 @@ class SimTypeReference(SimTypeReg):
             raise ValueError("Can't tell my size without an arch!")
         return self._arch.bits
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeReference(self.refs.with_arch(arch, memo=memo), label=self.label)
         out._arch = arch
         return out
@@ -1115,7 +1116,7 @@ class SimTypeArray(SimType):
     def alignment(self):
         return self.elem_type.alignment
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeArray(self.elem_type.with_arch(arch, memo=memo), self.length, self.label, qualifier=self.qualifier)
         out._arch = arch
         return out
@@ -1239,7 +1240,7 @@ class SimTypeString(NamedTypeMixin, SimType):
     def alignment(self):
         return 1
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
         return self
 
     def copy(self):
@@ -1324,7 +1325,7 @@ class SimTypeWString(NamedTypeMixin, SimType):
     def alignment(self):
         return 2
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
         return self
 
     def copy(self):
@@ -1403,7 +1404,7 @@ class SimTypeFunction(SimType):
     def size(self):
         return 4096  # ???????????
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeFunction(
             [a.with_arch(arch, memo=memo) for a in self.args],
             self.returnty.with_arch(arch, memo=memo) if self.returnty is not None else None,
@@ -1479,7 +1480,7 @@ class SimTypeCppFunction(SimTypeFunction):
             ", variadic=True" if self.variadic else "",
         )
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeCppFunction(
             [a.with_arch(arch, memo=memo) for a in self.args],
             self.returnty.with_arch(arch, memo=memo) if self.returnty is not None else None,
@@ -1737,9 +1738,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         return SimStructValue(self, values=values)
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
-        if memo is None:
-            memo = {}
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         if self.name in memo:
             return cast(SimStruct, memo[self.name])
 
@@ -2023,7 +2022,7 @@ class SimUnion(NamedTypeMixin, SimType):
     def __str__(self):
         return f"union {self.name}"
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimUnion({name: ty.with_arch(arch, memo=memo) for name, ty in self.members.items()}, self.label)
         out._arch = arch
         return out
@@ -2120,7 +2119,7 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         """
         return self._reverse_members.get(value)
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeEnum(
             members=self.members,
             base_type=self._base_type.with_arch(arch, memo=memo),
@@ -2283,7 +2282,7 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
         """
         return not self.has_unknown_bits(value)
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeBitfield(
             flags=self.flags,
             base_type=self._base_type.with_arch(arch, memo=memo),
@@ -2445,9 +2444,7 @@ class SimCppClass(SimStruct):
             ty = self.fields[field]
             ty.store(state, addr + offset, value[field])
 
-    def _with_arch(self, arch, memo: dict[str, SimType] | None = None) -> SimCppClass:
-        if memo is None:
-            memo = {}
+    def _with_arch(self, arch, *, memo: dict[str, SimType]) -> SimCppClass:
         if self.name in memo:
             return cast(SimCppClass, memo[self.name])
 
