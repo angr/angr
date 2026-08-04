@@ -1574,6 +1574,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             else:
                 self._context_sensitivity_level = 0
 
+        if job.state.globals.get('use_ctf_vpc_finder', False) and self.deobfuscation_start_addr and \
+                addr == self.deobfuscation_start_addr:
+            job.state.globals['start_deobfuscation'] = True
+
 
 
         # if addr in [0x484E04, 0x407c28, 0x4462EE, 0x484DFF, 0x42C074]:
@@ -1623,7 +1627,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         for succ in sim_successors.all_successors:
             succ.history.trim()
 
-        if 'use_vip_finder' in job.state.globals and job.state.globals['use_vip_finder'] and len(sim_successors.all_successors) > 0 and \
+        if job.state.globals.get('use_vip_finder', False) and len(sim_successors.all_successors) > 0 and \
                 block_id.vm_vpc != sim_successors.all_successors[0].globals['cur_vm_vpc']:
             job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
                                             sim_successors.all_successors[0].globals['cur_vm_vpc'])
