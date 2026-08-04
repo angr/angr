@@ -15,7 +15,7 @@ def test_memory_find_empty_cases():
 
     state.memory.store(addr, fdata, len(fdata))
 
-    result, constraints, index = state.memory.find(
+    result = state.memory.find(
         addr,
         target,
         128,
