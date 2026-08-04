@@ -229,7 +229,8 @@ class IcicleEngine(SuccessorsEngine):
         for page_num in translation_data.writable_pages:
             addr = page_num * page_size
             if addr in modified_addrs:
-                state.memory.store(addr, emu.mem_read(addr, page_size))
+                # Disable inspect and actions during writeback.
+                state.memory.store(addr, emu.mem_read(addr, page_size), inspect=False, disable_actions=True)
 
         # 3. Set history
         # 3.1 history.jumpkind
