@@ -2226,7 +2226,7 @@ class CBinaryOp(CExpression):
             elif self.op == "CmpNE":
                 skip_op_and_rhs = True
         # lhs
-        if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
+        if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence and not skip_op_and_rhs:
             paren = CClosingObject("(")
             yield "(", paren
             yield from self._try_c_repr_chunks(self.lhs)
