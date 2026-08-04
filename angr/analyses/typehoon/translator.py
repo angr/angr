@@ -38,6 +38,7 @@ class TypeTranslator:
         "_struct_def_ctr",
         "_struct_sig_cache",
         "arch",
+        "known_structs",
         "memo",
         "named_struct_id_counter",
         "struct_name_to_idx",
@@ -61,6 +62,8 @@ class TypeTranslator:
         self.memo = {}
         self.named_struct_id_counter = count(133337)
         self.struct_name_to_idx = {}
+        # definitions of known structs (library types or user-defined types), keyed by name
+        self.known_structs: dict[str, sim_type.SimStruct] = {}
 
         # will be updated every time .tc2simtype() is called
         self._has_nonexistent_ref = False
@@ -137,6 +140,13 @@ class TypeTranslator:
     def _translate_Struct(self, tc: typeconsts.Struct):
         if tc in self.structs:
             return self.structs[tc]
+
+        if tc.name is not None:
+            known = self.known_structs.get(tc.name)
+            if known is not None:
+                # do not re-derive the fields of a known struct
+                self.structs[tc] = known
+                return known
 
         name = tc.name or self.struct_name()
 
@@ -332,7 +342,8 @@ class TypeTranslator:
 
     def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct | typeconsts.BottomType:
         if st in self.memo:
-            return typeconsts.BottomType()
+            # a recursive reference: point back at the struct that is being translated
+            return self.memo[st]
 
         struct_idx = {}
         if st.name:
@@ -342,16 +353,18 @@ class TypeTranslator:
 
         obj = typeconsts.Struct(fields={}, name=st.name, **struct_idx)
         self.memo[st] = obj
+        self._remember_known_struct(st)
 
         fields = {}
         field_names = {}
         offsets = st.offsets
         for field_name, simtype in st.fields.items():
             if field_name not in offsets:
+                del self.memo[st]
                 return typeconsts.BottomType()
             offset = offsets[field_name]
             fields[offset] = self._simtype2tc(simtype)
-            field_names[offsets[field_name]] = field_name
+            field_names[offset] = field_name
         obj.fields = fields
         obj.field_names = field_names
         del self.memo[st]
@@ -360,7 +373,8 @@ class TypeTranslator:
 
     def _translate_SimCppClass(self, st: sim_type.SimCppClass) -> typeconsts.Struct | typeconsts.BottomType:
         if st in self.memo:
-            return typeconsts.BottomType()
+            # a recursive reference: point back at the class that is being translated
+            return self.memo[st]
 
         struct_idx = {}
         if st.name:
@@ -370,21 +384,27 @@ class TypeTranslator:
 
         obj = typeconsts.Struct(fields={}, name=st.name, is_cppclass=True, **struct_idx)
         self.memo[st] = obj
+        self._remember_known_struct(st)
 
         fields = {}
         field_names = {}
         offsets = st.offsets
         for field_name, simtype in st.fields.items():
             if field_name not in offsets:
+                del self.memo[st]
                 return typeconsts.BottomType()
             offset = offsets[field_name]
             fields[offset] = self._simtype2tc(simtype)
-            field_names[offsets[field_name]] = field_name
+            field_names[offset] = field_name
         obj.fields = fields
         obj.field_names = field_names
         del self.memo[st]
 
         return obj
+
+    def _remember_known_struct(self, st: sim_type.SimStruct) -> None:
+        if st.name and st.name != "<anon>" and not st.anonymous:
+            self.known_structs.setdefault(st.name, st)
 
     def _translate_SimTypeArray(self, st: sim_type.SimTypeArray) -> typeconsts.Array:
         elem_type = self._simtype2tc(st.elem_type)
