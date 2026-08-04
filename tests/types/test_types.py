@@ -453,7 +453,7 @@ class TestTypes(unittest.TestCase):
         assert "a" in st_deref.fields
         assert "b" in st_deref.fields
         assert "a" in st_deref.offsets
-        assert "b" in st_deref.offsets  # this is because st_deref.fields["b"] is a SimTypeRef
+        assert "b" in st_deref.offsets  # this assertion fails because st_deref.fields["b"] is a SimTypeRef
 
 
 if __name__ == "__main__":
