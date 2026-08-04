@@ -1981,6 +1981,9 @@ class SimUnion(NamedTypeMixin, SimType):
         # contains itself not via pointers.
         self._size_memo: set[int] | None = None
 
+        # cached alignment
+        self._alignment: int | None = None
+
     @property
     def size(self):
         if self._arch is None:
@@ -2005,9 +2008,25 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @property
     def alignment(self):
+        if self._alignment is not None:
+            return self._alignment
+
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 1  # bad bad bad
+        self._size_memo.add(id(self))
         if all(val.alignment is NotImplemented for val in self.members.values()):
-            return NotImplemented
-        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.members.values())
+            r = NotImplemented
+        else:
+            r = max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.members.values())
+
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
+
+        self._alignment = r
+        return r
 
     def _refine_dir(self):
         return list(self.members.keys())
