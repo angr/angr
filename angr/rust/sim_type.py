@@ -495,6 +495,11 @@ class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         super(SimTypeNumOffset, self).c_repr(name, full, memo, indent)
 
+    def _with_arch(self, arch, *, memo: dict[str, SimType]) -> RustSimTypeNumOffset:
+        out = RustSimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
+        out._arch = arch
+        return out
+
 
 class RustSimTypeSlice(RustSimStruct, SimType):
     _ident = "rust_slice"
@@ -628,6 +633,9 @@ class RustSimTypeBottom(RustSimType, SimTypeBottom):
 
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         return "BOT"
+
+    def _with_arch(self, arch, *, memo: dict[str, SimType]) -> Self:  # pylint: disable=unused-argument
+        return self
 
 
 class EnumVariant:

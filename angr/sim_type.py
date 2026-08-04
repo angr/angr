@@ -1651,6 +1651,11 @@ class SimStruct(NamedTypeMixin, SimType):
         # An optional, name-independent ordering id assigned by the type translator.
         self._def_order: int | None = def_order
 
+        # A memo that stores the ID of SimStruct and SimUnion instances that have been visited during size or offset
+        # calculation. this is used to avoid infinite recursion in pathological cases where a struct or a union
+        # contains itself not via pointers.
+        self._size_memo: set[int] | None = None
+
     #
     # pack and align are for supporting SimType.from_json and SimType.to_json
     #
@@ -1785,24 +1790,47 @@ class SimStruct(NamedTypeMixin, SimType):
     def size(self):
         if not self.offsets:
             return 0
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 0  # bad bad bad
+        self._size_memo.add(id(self))
         if self._arch is None:
             raise ValueError("Need an arch to compute size")
 
         last_name, last_off = list(self.offsets.items())[-1]
         last_type = self.fields[last_name]
         if isinstance(last_type, SimTypeNumOffset):
+            self._size_memo.remove(id(self))
+            if not self._size_memo:
+                self._size_memo = None
             return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
         if last_type.size is None:
             raise AngrTypeError("Cannot compute the size of a struct with elements with no size")
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
         return last_off * self._arch.byte_width + last_type.size
 
     @property
     def alignment(self):
         if self._align is not None:
             return self._align
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 1  # bad bad bad
+        self._size_memo.add(id(self))
         if all(val.alignment is NotImplemented for val in self.fields.values()):
+            self._size_memo.remove(id(self))
+            if not self._size_memo:
+                self._size_memo = None
             return NotImplemented
-        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.fields.values())
+        max_alignment = max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.fields.values())
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
+        return max_alignment
 
     def _refine_dir(self):
         return list(self.fields.keys())
@@ -1948,16 +1976,32 @@ class SimUnion(NamedTypeMixin, SimType):
         if qualifier:
             self.qualifier = qualifier
 
+        # A memo that stores the ID of SimStruct and SimUnion instances that have been visited during size or offset
+        # calculation. this is used to avoid infinite recursion in pathological cases where a struct or a union
+        # contains itself not via pointers.
+        self._size_memo: set[int] | None = None
+
     @property
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 0  # bad bad bad
+        self._size_memo.add(id(self))
         all_member_sizes: list[int | None] = [
             ty.size for ty in self.members.values() if not isinstance(ty, (SimTypeBottom, SimTypeRef))
         ]
         member_sizes: list[int] = [s for s in all_member_sizes if s is not None]
         # fall back to word size in case all members are SimTypeBottom
-        return max(member_sizes) if member_sizes else self._arch.bytes
+        max_size = max(member_sizes) if member_sizes else self._arch.bytes
+
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
+
+        return max_size
 
     @property
     def alignment(self):

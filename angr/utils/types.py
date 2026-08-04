@@ -121,6 +121,7 @@ def dereference_simtype(
         real_type = t.copy()
         real_type.elem_type = real_elem_type
     elif isinstance(t, SimUnion):
+        memo[t.name] = t
         real_members = {k: dereference_simtype(v, type_collections, memo=memo) for k, v in t.members.items()}
         real_type = t.copy()
         real_type.members = real_members
