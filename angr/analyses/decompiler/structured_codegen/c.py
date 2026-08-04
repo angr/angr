@@ -58,6 +58,7 @@ from angr.sim_type import (
     SimTypeReg,
     SimTypeShort,
     SimTypeWideChar,
+    SimUnion,
     TypeRef,
 )
 from angr.sim_variable import (
@@ -243,6 +244,53 @@ def cextern_sort_key(cextern) -> tuple:
     return (1, str(addr) if addr is not None else "")
 
 
+def _iter_struct_union_member_types(ty):
+    """
+    Yield the member types of a struct or a union, flattening nested unions.
+    """
+    members = ty.members if isinstance(ty, SimUnion) else ty.fields
+    for member in members.values():
+        member = unpack_typeref(member)
+        if isinstance(member, SimUnion):
+            yield from _iter_struct_union_member_types(member)
+        else:
+            yield member
+
+
+def _is_anonymous_struct_or_union(ty) -> bool:
+    """
+    Returns True if ``ty`` is an anonymous struct or union.
+    """
+    if isinstance(ty, SimStruct):
+        return bool(ty.anonymous) or ty.name == "<anon>"
+    return isinstance(ty, SimUnion) and ty.name == "<anon>"
+
+
+def _anonymous_struct_union_to_c_repr_chunks(ty, name, name_type, indent_str: str, indent_delta: int):
+    """
+    Render an anonymous struct or union inline, as ``struct { ... } name``.
+    """
+    yield indent_str, None
+    yield ("union {\n" if isinstance(ty, SimUnion) else "struct {\n"), None
+
+    new_indent_str = (" " * indent_delta) + indent_str
+    members = ty.members if isinstance(ty, SimUnion) else ty.fields
+    for k, v in members.items():
+        yield from type_to_c_repr_chunks(
+            v,
+            name=k,
+            name_type=CStructFieldNameDef(k),
+            full=False,
+            indent_str=new_indent_str,
+            indent_delta=indent_delta,
+        )
+        yield ";\n", None
+
+    yield indent_str, None
+    yield "} ", None
+    yield name, name_type
+
+
 def type_to_c_repr_chunks(
     ty: SimType, name=None, name_type=None, full=False, indent_str="", indent_delta: int = INDENT_DELTA
 ):
@@ -251,7 +299,12 @@ def type_to_c_repr_chunks(
 
     :param indent_delta:    Number of space characters used to indent each struct field one level deeper.
     """
-    if isinstance(ty, SimStruct):
+    if not full and name is not None and _is_anonymous_struct_or_union(ty):
+        # anonymous structs and unions must be output inline
+        yield from _anonymous_struct_union_to_c_repr_chunks(
+            ty, name, name_type, indent_str=indent_str, indent_delta=indent_delta
+        )
+    elif isinstance(ty, SimStruct):
         if full:
             # struct def preamble
             yield indent_str, None
@@ -266,8 +319,14 @@ def type_to_c_repr_chunks(
             # fields should be indented
             new_indent_str = (" " * indent_delta) + indent_str
             for k, v in ty.fields.items():
-                yield new_indent_str, None
-                yield from type_to_c_repr_chunks(v, name=k, name_type=CStructFieldNameDef(k), full=False, indent_str="")
+                yield from type_to_c_repr_chunks(
+                    v,
+                    name=k,
+                    name_type=CStructFieldNameDef(k),
+                    full=False,
+                    indent_str=new_indent_str,
+                    indent_delta=indent_delta,
+                )
                 yield ";\n", None
 
             # struct def postamble
@@ -329,6 +388,9 @@ def _recursively_collect_referenced_structs(ty, out: dict[int, SimStruct], _seen
         out[id(ty)] = ty
         for ftype in ty.fields.values():
             _recursively_collect_referenced_structs(ftype, out, _seen=_seen)
+    elif isinstance(ty, SimUnion):
+        for mtype in ty.members.values():
+            _recursively_collect_referenced_structs(mtype, out, _seen=_seen)
     elif isinstance(ty, SimTypePointer):
         _recursively_collect_referenced_structs(ty.pts_to, out, _seen=_seen)
     elif isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
@@ -691,7 +753,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     name_to_structtypes[ty.name] = ty
-                    for field in ty.fields.values():
+                    for field in _iter_struct_union_member_types(ty):
                         if isinstance(field, SimTypePointer):
                             if isinstance(field.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
                                 field = field.pts_to.elem_type
@@ -719,12 +781,30 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 )
                 return (type_layout_key(ty), tiebreak)
 
+            emitted_struct_names: set[str] = set()
             for ty in sorted(local_types, key=_local_type_sort_key):
-                # drop unreferenced structs
-                if isinstance(ty, SimStruct) and ty.name in referenced_struct_names:
-                    yield from type_to_c_repr_chunks(
-                        ty, full=True, indent_str=indent_str, indent_delta=self.codegen.indent_delta
+                # drop unreferenced structs and anonymous ones
+                if (
+                    not isinstance(ty, SimStruct)
+                    or _is_anonymous_struct_or_union(ty)
+                    or ty.name not in referenced_struct_names
+                ):
+                    continue
+                if ty.name in emitted_struct_names:
+                    # multiple definitions share a name, which is probably because:
+                    # - we incorrectly inferred types of fields of a struct with a library definition;
+                    # - multiple types exist under the same name (from different libraries).
+                    # we will fix them when encountering these cases.
+                    l.warning(
+                        "Multiple definitions of struct %s in function %s. Only the first one is emitted.",
+                        ty.name,
+                        self.name,
                     )
+                    continue
+                emitted_struct_names.add(ty.name)
+                yield from type_to_c_repr_chunks(
+                    ty, full=True, indent_str=indent_str, indent_delta=self.codegen.indent_delta
+                )
 
         if self.codegen.show_externs and self.codegen.cexterns:
             # Emit struct definitions for types used by externs
