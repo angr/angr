@@ -185,17 +185,16 @@ class UltraPage(MemoryObjectMixin, PageBase):
             self.symbolic_bitmap.clear_range(addr, addr + size)
 
             # store
-            arange = range(addr, addr + size)
             ival = data if type(data) is int else data.object.args[0]
-            if endness == "Iend_BE":
-                arange = reversed(arange)
 
             assert memory.state.arch.byte_width == 8
             # TODO: Make UltraPage support architectures with greater byte_widths (but are still multiples of 8)
             concrete_data = self._concrete()
-            for subaddr in arange:
-                concrete_data[subaddr] = ival & 0xFF
-                ival >>= 8
+
+            # Serialize in one step.
+            concrete_data[addr : addr + size] = (ival & ((1 << (size * 8)) - 1)).to_bytes(
+                size, "big" if endness == "Iend_BE" else "little"
+            )
         else:
             # mark range as symbolic
             self.symbolic_bitmap.set_range(addr, addr + size)
