@@ -543,6 +543,47 @@ class TestTypeTranslator(unittest.TestCase):
         assert isinstance(tc.fields[0], Pointer64)
         assert 0 in tc.field_names
         assert tc.field_names[0] == "ptr"
+        # the recursive reference points back at the struct being lifted instead of degrading into BOT
+        assert tc.fields[0].basetype is tc
+
+    @staticmethod
+    def _mutually_recursive_structs(arch):
+        """
+        struct Alpha { struct Beta *beta; int x; }; struct Beta { struct Alpha *alpha; int y; };
+        The shape ``dereference_simtype`` produces for library types such as DRIVER_OBJECT/DEVICE_OBJECT.
+        """
+        alpha = SimStruct({}, name="Alpha")
+        beta = SimStruct({}, name="Beta")
+        alpha.fields = OrderedDict({"beta": SimTypePointer(beta), "x": SimTypeInt()})
+        beta.fields = OrderedDict({"alpha": SimTypePointer(alpha), "y": SimTypeInt()})
+        return alpha.with_arch(arch), beta.with_arch(arch)
+
+    def test_mutually_recursive_structs_keep_their_references(self):
+        arch = archinfo.arch_from_id("amd64")
+        alpha, _ = self._mutually_recursive_structs(arch)
+        tx = TypeTranslator(arch)
+
+        tc = tx.simtype2tc(alpha)
+        assert isinstance(tc, Struct)
+        beta_tc = tc.fields[0].basetype
+        assert isinstance(beta_tc, Struct)
+        assert beta_tc.name == "Beta"
+        # ... and Beta points back at the same Alpha
+        assert beta_tc.fields[0].basetype is tc
+
+    def test_known_struct_fields_are_not_re_inferred(self):
+        arch = archinfo.arch_from_id("amd64")
+        alpha, beta = self._mutually_recursive_structs(arch)
+        tx = TypeTranslator(arch)
+
+        # translating back returns the known definition itself, whichever type is lifted first
+        for lifted in (alpha, beta):
+            restored, _ = tx.tc2simtype(tx.simtype2tc(lifted))
+            assert restored is lifted
+
+        # reaching Beta through Alpha yields the same Beta, not a re-derived copy
+        restored_alpha, _ = tx.tc2simtype(tx.simtype2tc(alpha))
+        assert restored_alpha.fields["beta"].pts_to is beta
 
 
 class TestSimpleSolverLatticeOps(unittest.TestCase):
