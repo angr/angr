@@ -704,6 +704,8 @@ class VMDeobfuscation(Analysis):
             start_state.globals['use_vip_finder'] = True
         elif use_ctf_vpc_finder:
             start_state.globals['use_ctf_vpc_finder'] = True
+            if symbolizer_start_state is not None:
+                symbolizer_start_state.globals['use_ctf_vpc_finder'] = True
         elif use_mem_vpc_finder:
             start_state.globals['use_mem_vpc_finder'] = True
             start_state.globals['mem_vpc_bp_set'] = False
