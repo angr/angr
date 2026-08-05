@@ -177,6 +177,19 @@ class SRDAModel:
             vvar = self.varid_to_vvar[vvar_id]
             yield Definition(atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident), defloc)
 
+    def definition_by_varid(self, varid: int) -> Definition[atoms.VirtualVariable, AILCodeLocation] | None:
+        """
+        The definition of a vvar id, or None if it has none.
+
+        SSA gives each vvar id exactly one definition, so this is the O(1) form of scanning
+        :attr:`all_definitions` for a matching ``atom.varid``.
+        """
+        defloc = self.all_vvar_definitions.get(varid)
+        if defloc is None:
+            return None
+        vvar = self.varid_to_vvar[varid]
+        return Definition(atoms.VirtualVariable(varid, vvar.size, vvar.category, vvar.oident), defloc)
+
     def is_phi_vvar_id(self, idx: int) -> bool:
         return idx in self.phi_vvar_ids
 
