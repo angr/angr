@@ -214,6 +214,72 @@ class StructurerBase(Analysis):
                     case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=None))
 
         # rewrite all _goto switch_end_addr_ to _break_
+        _CONTINUES = 1
+        _OUTER_BREAK = 2
+        _TERMINATES = 4
+        _OTHER_EXIT = 8
+
+        class _CarryNestedSwitchOuterBreakError(Exception):
+            def __init__(self, node: SwitchCaseNode, original_error: TypeError):
+                super().__init__()
+                self.node = node
+                self.original_error = original_error
+
+        def _node_outcomes(node: BaseNode | MultiNode | ailment.Block | None) -> int:
+            if node is None:
+                return _CONTINUES
+
+            if isinstance(node, ailment.Block):
+                if not node.statements:
+                    return _CONTINUES
+                stmt = node.statements[-1]
+                if isinstance(stmt, ailment.Stmt.Return):
+                    return _TERMINATES
+                if isinstance(stmt, ailment.Stmt.Jump):
+                    targets = extract_jump_targets(stmt)
+                    return _TERMINATES if len(targets) == 1 and next(iter(targets)) == switch_end_addr else _OTHER_EXIT
+                return _OTHER_EXIT if isinstance(stmt, ailment.Stmt.ConditionalJump) else _CONTINUES
+
+            if isinstance(node, ConditionalBreakNode):
+                return _OTHER_EXIT
+            if isinstance(node, BreakNode):
+                return _OUTER_BREAK if node.target == switch_end_addr else _OTHER_EXIT
+            if isinstance(node, CodeNode):
+                outcomes = _node_outcomes(node.node)
+                if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
+                    outcomes |= _CONTINUES
+                return outcomes
+            if isinstance(node, (SequenceNode, MultiNode)):
+                outcomes = _CONTINUES
+                for child in node.nodes:
+                    if outcomes & _CONTINUES:
+                        outcomes = (outcomes & ~_CONTINUES) | _node_outcomes(child)
+                return outcomes
+            if isinstance(node, ConditionNode):
+                outcomes = _node_outcomes(node.true_node) | _node_outcomes(node.false_node)
+                if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
+                    outcomes |= _CONTINUES
+                return outcomes
+            if isinstance(node, CascadingConditionNode):
+                outcomes = _node_outcomes(node.else_node)
+                for _, child in node.condition_and_nodes:
+                    outcomes |= _node_outcomes(child)
+                return outcomes
+            return _OTHER_EXIT
+
+        def _switch_outcomes(node: SwitchCaseNode) -> int:
+            outcomes = _node_outcomes(node.default_node)
+            for case in node.cases.values():
+                outcomes |= _node_outcomes(case)
+            return outcomes
+
+        def _needs_outer_break(node: SwitchCaseNode) -> bool:
+            if node.default_node is None:
+                return False
+            outcomes = _switch_outcomes(node)
+            return bool(outcomes & _OUTER_BREAK) and not outcomes & (_CONTINUES | _OTHER_EXIT)
+
+        proven_nested_switches: set[int] = set()
 
         def _rewrite_gotos(block, parent=None, index=0, label=None):
             if block.statements and parent is not None:
@@ -224,7 +290,12 @@ class StructurerBase(Analysis):
                         # add a new a break statement to its parent
                         break_node = BreakNode(stmt.tags["ins_addr"], switch_end_addr)
                         # insert node
-                        insert_node(parent, "after", break_node, index)
+                        try:
+                            insert_node(parent, "after", break_node, index)
+                        except TypeError as exc:
+                            if isinstance(parent, SwitchCaseNode) and _needs_outer_break(parent):
+                                raise _CarryNestedSwitchOuterBreakError(parent, exc) from None
+                            raise
                         # remove the last statement
                         block.statements = block.statements[:-1]
 
@@ -237,11 +308,8 @@ class StructurerBase(Analysis):
             return walker._handle_Loop(node, parent=parent, index=index, label=label)
 
         def _handle_SwitchCase(node: SwitchCaseNode, parent=None, index=0, label=None):
-            # if a node inside this switch-case has a goto that goes to the end of the outer switch-case, we will
-            # convert the goto into a break node, and then add a break node at the end of this switch-case.
-            # of course, this only works if all nodes either end with a return or a goto that goes to the end of the
-            # outer switch-case. we detect it first.
-            # TODO: Implement the above logic
+            if id(node) in proven_nested_switches:
+                return None
             return walker._handle_SwitchCase(node, parent=parent, index=index, label=label)
 
         handlers = {
@@ -251,11 +319,48 @@ class StructurerBase(Analysis):
         }
 
         walker = SequenceWalker(handlers=handlers)
-        for case_node in cases.values():
-            walker.walk(case_node)
+
+        def _wrap_nested_switch(root, nested_switch: SwitchCaseNode):
+            def _handle_nested_switch(node: SwitchCaseNode, parent=None, index=0, label=None):
+                if node is nested_switch:
+                    next_node = (
+                        parent.nodes[index + 1]
+                        if isinstance(parent, (SequenceNode, MultiNode)) and index + 1 < len(parent.nodes)
+                        else None
+                    )
+                    if (
+                        isinstance(next_node, BreakNode)
+                        and type(next_node) is BreakNode
+                        and next_node.target == switch_end_addr
+                    ):
+                        return None
+                    return SequenceNode(node.addr, nodes=[node, BreakNode(node.addr, switch_end_addr)])
+                return wrapper._handle_SwitchCase(node, parent=parent, index=index, label=label)
+
+            wrapper = SequenceWalker(handlers={SwitchCaseNode: _handle_nested_switch})
+            rewritten_root = wrapper.walk(root)
+            return rewritten_root if rewritten_root is not None else root
+
+        def _walk_root(root, can_replace_root: bool):
+            while True:
+                try:
+                    rewritten_root = walker.walk(root)
+                except _CarryNestedSwitchOuterBreakError as exc:
+                    if exc.node is root and not can_replace_root:
+                        raise exc.original_error
+                    # A break inside the nested switch would leave only that switch. All non-returning paths have been
+                    # proven to target the outer switch end, so carry them through the owning scope with an outer break
+                    # while preserving the direct goto that triggered the legacy insertion failure.
+                    proven_nested_switches.add(id(exc.node))
+                    root = _wrap_nested_switch(root, exc.node)
+                    continue
+                return rewritten_root if rewritten_root is not None else root
+
+        for case_addr, case_node in list(cases.items()):
+            cases[case_addr] = _walk_root(case_node, can_replace_root=True)
 
         if default is not None:
-            walker.walk(default)
+            _walk_root(default, can_replace_root=False)
 
     @staticmethod
     def _remove_all_jumps(seq):
