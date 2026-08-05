@@ -7,6 +7,7 @@ from angr.ailment.expression import (
     Array,
     ComboRegister,
     Const,
+    DirtyExpression,
     Expression,
     FunctionLikeMacro,
     Register,
@@ -100,3 +101,29 @@ def test_block_rewriter_rebuilds_rust_ail_expression_containers():
     assert not new_enum.likes(enum)
     assert not new_struct.likes(struct)
     assert new_struct.fields[0].value == 2
+
+
+def test_block_rewriter_updates_dirty_memory_address():
+    addr = Const(0, 1, 64)
+    dirty = DirtyExpression(
+        1,
+        "load_linked_le",
+        [addr],
+        mfx="Ifx_Read",
+        maddr=addr,
+        msize=8,
+        bits=64,
+    )
+    dst = VirtualVariable(2, 1, 64, VirtualVariableCategory.REGISTER, 16)
+    block = Block(0x400020, 0, statements=[Assignment(3, dst, dirty)])
+
+    new_block = ConstIncrementingRewriter(update_block=False).walk(block)
+    new_stmt = new_block.statements[0]
+    assert isinstance(new_stmt, Assignment)
+    assert isinstance(new_stmt.src, DirtyExpression)
+    new_operand = new_stmt.src.operands[0]
+    assert isinstance(new_operand, Const)
+    assert new_operand.value == 2
+    new_maddr = new_stmt.src.maddr
+    assert isinstance(new_maddr, Const)
+    assert new_maddr.value == 2

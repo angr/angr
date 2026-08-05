@@ -544,6 +544,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         io_finder = io_finder or BlockIOFinder(block, self.project)
         curr_idx = block.statements.index(stmt)
         move_up = new_idx < curr_idx
+        if new_idx != curr_idx and curr_idx in io_finder.side_effects_at:
+            return False
 
         # moving a statement up in the statements:
         # we must check if it's defined by anything above it (lower in index)
@@ -551,7 +553,9 @@ class DuplicationReverter(StructuringOptimizationPass):
         if move_up:
             # exclude curr_idx in range
             for mid_idx in range(new_idx, curr_idx):
-                if self._input_defined_by_other_stmt(curr_idx, mid_idx, io_finder):
+                if mid_idx in io_finder.side_effects_at or self._input_defined_by_other_stmt(
+                    curr_idx, mid_idx, io_finder
+                ):
                     can_move = False
                     break
 
@@ -559,7 +563,9 @@ class DuplicationReverter(StructuringOptimizationPass):
         # we much check if it's used by anything below it (greater in index)
         else:
             for mid_idx in range(curr_idx + 1, new_idx + 1):
-                if self._output_used_by_other_stmt(curr_idx, mid_idx, io_finder):
+                if mid_idx in io_finder.side_effects_at or self._output_used_by_other_stmt(
+                    curr_idx, mid_idx, io_finder
+                ):
                     can_move = False
                     break
 

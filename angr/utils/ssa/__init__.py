@@ -28,6 +28,7 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Statement, Store
+from angr.ailment.utils import has_dirty_memory_read, has_dirty_memory_write, has_effectful_dirty_expression
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.rustylib.ailment import ExpressionKind as _EK  # pylint:disable=import-error
@@ -418,6 +419,8 @@ def is_phi_assignment(stmt: Statement) -> bool:
 
 
 def has_load_expr(stmt: Statement, skip_if_contains_vvar: int | None = None) -> bool:
+    if has_dirty_memory_read(stmt):
+        return True
     walker = AILBlacklistExprTypeWalker((Load,), skip_if_contains_vvar=skip_if_contains_vvar)
     walker.walk_statement(stmt)
     return walker.has_blacklisted_exprs
@@ -538,7 +541,13 @@ def has_store_stmt_in_between_stmts(
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
 ) -> bool:
-    return check_in_between_stmts(graph, blocks, defloc, useloc, lambda stmt: isinstance(stmt, Store))
+    return check_in_between_stmts(
+        graph,
+        blocks,
+        defloc,
+        useloc,
+        lambda stmt: isinstance(stmt, Store) or has_dirty_memory_write(stmt),
+    )
 
 
 def has_call_in_between_stmts(
@@ -549,7 +558,7 @@ def has_call_in_between_stmts(
     skip_if_contains_vvar: int | None = None,
 ) -> bool:
     def _contains_call(stmt: Statement) -> bool:
-        if isinstance(stmt, SideEffectStatement):
+        if isinstance(stmt, SideEffectStatement) or has_effectful_dirty_expression(stmt):
             return True
         # walk the statement and check if there is a call expression
         walker = AILBlacklistExprTypeWalker((Call,), skip_if_contains_vvar=skip_if_contains_vvar)

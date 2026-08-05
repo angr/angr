@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import struct
+from collections.abc import Collection
 
 import archinfo
 
 from angr import ailment
+from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.expression import DirtyExpression, Expression
+from angr.ailment.statement import Statement
 
 try:
     from claripy.ast import Bits
@@ -17,6 +21,73 @@ except ImportError:
     import hashlib as md5lib
 
 type GetBitsTypeParams = "ailment.expression.Expression"
+
+_DIRTY_READ_EFFECTS = frozenset({"Ifx_Read", "Ifx_Modify"})
+_DIRTY_WRITE_EFFECTS = frozenset({"Ifx_Write", "Ifx_Modify"})
+
+
+class _EffectfulDirtyExpressionFound(Exception):
+    pass
+
+
+class _EffectfulDirtyExpressionFinder(AILBlockViewer):
+    def __init__(self, memory_effects: Collection[str] | None):
+        super().__init__()
+        self._memory_effects = memory_effects
+
+    def _handle_DirtyExpression(
+        self,
+        expr_idx: int,
+        expr: DirtyExpression,
+        stmt_idx: int,
+        stmt: Statement | None,
+        block,
+    ):
+        if is_effectful_dirty_expression(expr) and (self._memory_effects is None or expr.mfx in self._memory_effects):
+            raise _EffectfulDirtyExpressionFound
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def is_effectful_dirty_expression(expr: Expression) -> bool:
+    """
+    Return whether ``expr`` is an opaque dirty operation with declared effects.
+
+    ``mfx`` is the AIL contract that distinguishes effectful VEX dirty operations
+    from opaque-but-pure expressions used for unsupported arithmetic.
+    """
+    return isinstance(expr, DirtyExpression) and expr.mfx is not None
+
+
+def _contains_effectful_dirty_expression(obj: Expression | Statement, memory_effects: Collection[str] | None) -> bool:
+    if isinstance(obj, DirtyExpression):
+        return is_effectful_dirty_expression(obj) and (memory_effects is None or obj.mfx in memory_effects)
+
+    finder = _EffectfulDirtyExpressionFinder(memory_effects)
+    try:
+        if isinstance(obj, Expression):
+            finder.walk_expression(obj)
+        elif isinstance(obj, Statement):
+            finder.walk_statement(obj)
+        else:
+            raise TypeError(type(obj))
+    except _EffectfulDirtyExpressionFound:
+        return True
+    return False
+
+
+def has_effectful_dirty_expression(obj: Expression | Statement) -> bool:
+    """Return whether an expression or statement contains an effectful ``DirtyExpression``."""
+    return _contains_effectful_dirty_expression(obj, None)
+
+
+def has_dirty_memory_read(obj: Expression | Statement) -> bool:
+    """Return whether an expression or statement contains a dirty memory read or modification."""
+    return _contains_effectful_dirty_expression(obj, _DIRTY_READ_EFFECTS)
+
+
+def has_dirty_memory_write(obj: Expression | Statement) -> bool:
+    """Return whether an expression or statement contains a dirty memory write or modification."""
+    return _contains_effectful_dirty_expression(obj, _DIRTY_WRITE_EFFECTS)
 
 
 def get_bits(expr: GetBitsTypeParams) -> int:
