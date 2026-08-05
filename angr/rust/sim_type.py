@@ -22,10 +22,8 @@ def is_composite_type(ty):
     return isinstance(ty, (RustSimStruct, RustSimEnum))
 
 
-class RustSimType:
-    @property
-    def size(self) -> int:
-        raise NotImplementedError
+class RustSimType(SimType):
+    _ident = "rust"
 
     def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
         raise NotImplementedError
@@ -185,12 +183,17 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):  # pyright: ignore[repo
     def size(self):
         return 4096  # ???????????
 
+    def repr(self, name=None, full=0, memo=None, indent: int | None = 0):
+        if not name:
+            return repr(self)
+        return f"{name}: {self!r}"
+
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
         returnty = None
         if self.returnty is not None:
-            returnty = self.returnty.with_arch(arch, memo=memo)  # pyright: ignore[reportAttributeAccessIssue]
+            returnty = cast(RustSimType, self.returnty.with_arch(arch, memo=memo))
         out = RustSimTypeFunction(
-            [a.with_arch(arch, memo=memo) for a in self.args],  # pyright: ignore[reportAttributeAccessIssue]
+            [cast(RustSimType, a.with_arch(arch, memo=memo)) for a in self.args],
             returnty,
             label=self.label,
             arg_names=self.arg_names,
