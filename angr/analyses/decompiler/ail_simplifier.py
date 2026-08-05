@@ -935,7 +935,8 @@ class AILSimplifier(Analysis):
                 block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads
             )
             replaced |= r
-            self.blocks[block] = new_block
+            if r:
+                self.blocks[block] = new_block
 
         if replaced:
             # blocks have been rebuilt - expression propagation results are no longer reliable
