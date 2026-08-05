@@ -9,6 +9,7 @@ import archinfo
 import claripy
 from archinfo import Endness
 
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import (
     BinaryOp,
     Const,
@@ -21,7 +22,7 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import ConditionalJump, Jump, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Store
 from angr.code_location import CodeLocation
 from angr.engines.light import SimEngineNostmtAIL
 from angr.errors import SimMemoryMissingError
@@ -513,6 +514,71 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_Set = _handle_binop_Default
 
 
+class _StackReadNotification(Exception):
+    """Abort the walk on the first potential stack read."""
+
+
+class _HasStackReadWalker(AILBlockViewer):
+    """
+    Raises ``_StackReadNotification`` on the first expression that InlinedStringTransformationAILEngine could turn
+    into a "load" stack-access record: a Load, or a virtual variable that lives on the stack.
+    """
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+        raise _StackReadNotification
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+        if expr.was_stack:
+            raise _StackReadNotification
+
+
+_HAS_STACK_READ_WALKER = _HasStackReadWalker()
+
+
+def _addr_may_be_stack(addr: Expression) -> bool:
+    """
+    Syntactic over-approximation of the addresses ``InlinedStringTransformationAILEngine._process_address`` can
+    resolve. Anything outside this shape never produces a stack-access record.
+    """
+    if isinstance(addr, (Const, StackBaseOffset)):
+        return True
+    if isinstance(addr, UnaryOp) and addr.op == "Reference":
+        return True
+    return (
+        isinstance(addr, BinaryOp)
+        and addr.op in {"Add", "Sub"}
+        and isinstance(addr.operands[0], (StackBaseOffset, UnaryOp, Const))
+    )
+
+
+def _reads_stack(expr: Expression) -> bool:
+    try:
+        _HAS_STACK_READ_WALKER.walk_expression(expr)
+    except _StackReadNotification:
+        return True
+    return False
+
+
+def _may_transform_stack_bytes(block) -> bool:
+    """
+    A descriptor is only ever built when some statement records a "load" and a "store" stack access at the *same*
+    code location, i.e. a store to the stack whose value is derived from a stack read. Checking that syntactically is
+    far cheaper than symbolically executing the loop, and no statement outside this shape can produce that pair.
+    """
+    for stmt in block.statements:
+        if isinstance(stmt, Store):
+            if _addr_may_be_stack(stmt.addr) and _reads_stack(stmt.data):
+                return True
+        elif (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and _reads_stack(stmt.src)
+        ):
+            return True
+    return False
+
+
 class InlineStringTransformationDescriptor:
     """
     Describes an instance of inline string transformation.
@@ -634,6 +700,10 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
         for loop_node in self_loops:
             pred = next(iter(nn for nn in self._graph.predecessors(loop_node) if nn is not loop_node))
             succ = next(iter(nn for nn in self._graph.successors(loop_node) if nn is not loop_node))
+            if not _may_transform_stack_bytes(loop_node) and not _may_transform_stack_bytes(pred):
+                # no statement here can produce the load-then-store-at-the-same-code-location pair a descriptor
+                # needs; skip the (expensive) symbolic execution entirely
+                continue
             engine = InlinedStringTransformationAILEngine(
                 self.project, {pred.addr: pred, loop_node.addr: loop_node}, pred.addr, succ.addr, 1024
             )
