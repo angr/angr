@@ -305,6 +305,8 @@ class Clinic(Analysis, Serializable):
         self.flavor = flavor
         self.cc_graph: networkx.DiGraph | None = None
         self.unoptimized_graph: networkx.DiGraph | None = None
+        # set by _run_simplification_passes: True if the last batch of passes replaced the graph
+        self._simplification_passes_changed: bool = True
         self.arg_list = None
         self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None
         self.func_args = None
@@ -914,7 +916,7 @@ class Clinic(Analysis, Serializable):
 
         # Simplify the entire function for the first time
         self._update_progress(45.0, text="Simplifying function 1")
-        self._simplify_function(
+        converged = self._simplify_function(
             self._ail_graph,
             remove_dead_memdefs=False,
             unify_variables=False,
@@ -929,15 +931,18 @@ class Clinic(Analysis, Serializable):
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
         )
 
-        self._update_progress(49.0, text="Simplifying blocks 1")
-        self._simplify_function(
-            self._ail_graph,
-            remove_dead_memdefs=False,
-            unify_variables=False,
-            narrow_expressions=False,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=self.arg_vvars,
-        )
+        # If the call above reached a fixed point and no optimization pass has touched the graph since, simplifying
+        # again can only re-prove that fixed point, so skip it.
+        if not converged or self._simplification_passes_changed:
+            self._update_progress(49.0, text="Simplifying blocks 1")
+            self._simplify_function(
+                self._ail_graph,
+                remove_dead_memdefs=False,
+                unify_variables=False,
+                narrow_expressions=False,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+                arg_vvars=self.arg_vvars,
+            )
 
     def _stage_make_function_callsites(self) -> None:
         # Make call-sites
@@ -2005,9 +2010,12 @@ class Clinic(Analysis, Serializable):
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
         simplify_blocks: bool = True,
-    ) -> None:
+    ) -> bool:
         """
         Simplify the entire function until it reaches a fixed point.
+
+        :return:    True if a fixed point was reached, False if the iteration limit was hit first (in which case the
+                    graph may still be simplifiable).
         """
 
         for idx in range(max_iterations):
@@ -2028,7 +2036,8 @@ class Clinic(Analysis, Serializable):
                 simplify_blocks=simplify_blocks,
             )
             if not simplified:
-                break
+                return True
+        return False
 
     @timethis
     def _simplify_function_once(
@@ -2114,6 +2123,10 @@ class Clinic(Analysis, Serializable):
 
         AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
+        # ``out_graph`` is the only channel through which an optimization pass reports a graph change (see
+        # OptimizationPass.analyze), so it also tells callers whether this batch of passes did anything at all.
+        self._simplification_passes_changed = False
+
         # Run each pass
         for pass_ in self._optimization_passes:
             if stage != pass_.STAGE:
@@ -2152,6 +2165,7 @@ class Clinic(Analysis, Serializable):
                 # use the new graph
                 ail_graph = a.out_graph
                 self.vvar_id_start = a.vvar_id_start
+                self._simplification_passes_changed = True
             if stack_items is not None and a.stack_items:
                 stack_items.update(a.stack_items)
 
