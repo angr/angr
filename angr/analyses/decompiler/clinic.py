@@ -991,7 +991,14 @@ class Clinic(Analysis, Serializable):
             arg_vvars=self.arg_vvars,
         )
 
-        # Simplify the entire function for the third time
+        # Simplify the entire function for the third time. This used to be two identical back-to-back calls, because
+        # narrowing only runs on a call's first iteration and a second narrowing round was wanted: the first call
+        # therefore burned a whole iteration proving a fixed point that the second call immediately re-entered. One
+        # loop that narrows on every iteration reaches the same fixed point without the wasted round trip.
+        #
+        # narrow_rounds=2 would be slightly faster still, but it moves the second narrowing round from "after the
+        # previous fixed point" to "iteration 1", which only coincide when the loop converges within two iterations.
+        # Narrowing every iteration keeps the output identical for any convergence depth.
         self._update_progress(70.0, text="Simplifying function 3")
         self._simplify_function(
             self._ail_graph,
@@ -999,19 +1006,7 @@ class Clinic(Analysis, Serializable):
             stackarg_offset_manager=self._stackarg_offset_manager,
             unify_variables=True,
             narrow_expressions=True,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=self.arg_vvars,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-        )
-
-        # Simplify the entire function for the fourth time
-        self._update_progress(78.0, text="Simplifying function 4")
-        self._simplify_function(
-            self._ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
-            stackarg_offset_manager=self._stackarg_offset_manager,
-            unify_variables=True,
-            narrow_expressions=True,
+            narrow_rounds=None,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
@@ -2002,6 +1997,7 @@ class Clinic(Analysis, Serializable):
         unify_variables=False,
         max_iterations: int = 8,
         narrow_expressions=False,
+        narrow_rounds: int | None = 1,
         only_consts=False,
         fold_callexprs_into_conditions=False,
         rewrite_ccalls=True,
@@ -2014,8 +2010,11 @@ class Clinic(Analysis, Serializable):
         """
         Simplify the entire function until it reaches a fixed point.
 
-        :return:    True if a fixed point was reached, False if the iteration limit was hit first (in which case the
-                    graph may still be simplifiable).
+        :param narrow_rounds:   How many leading iterations run expression narrowing, or None to narrow on every
+                                iteration. Narrowing is not part of the fixed point, so a caller that needs more than
+                                one narrowing round asks for it here instead of calling this method twice.
+        :return:                True if a fixed point was reached, False if the iteration limit was hit first (in
+                                which case the graph may still be simplifiable).
         """
 
         for idx in range(max_iterations):
@@ -2024,8 +2023,7 @@ class Clinic(Analysis, Serializable):
                 remove_dead_memdefs=remove_dead_memdefs,
                 unify_variables=unify_variables,
                 stackarg_offset_manager=stackarg_offset_manager,
-                # only narrow once
-                narrow_expressions=narrow_expressions and idx == 0,
+                narrow_expressions=narrow_expressions and (narrow_rounds is None or idx < narrow_rounds),
                 only_consts=only_consts,
                 fold_callexprs_into_conditions=fold_callexprs_into_conditions,
                 rewrite_ccalls=rewrite_ccalls,
