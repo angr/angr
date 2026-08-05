@@ -1,5 +1,6 @@
 use std::cmp::{max, min};
 use std::collections::HashSet;
+use std::ops::Range;
 
 use pyo3::{exceptions::PyStopIteration, prelude::*, types::PyTuple};
 use rangemap::RangeMap;
@@ -67,6 +68,38 @@ impl SegmentList {
             .get_key_value(&address)
             .map(|(range, sort)| (range.start, range.end - range.start, sort.clone()))
     }
+
+    /// The last segment that starts before `before`.
+    ///
+    /// `rangemap` offers no predecessor query, and its `Overlapping` iterator is unbounded above,
+    /// which makes iterating it backwards linear in the number of segments above `before`. Instead,
+    /// grow a search window exponentially until it reaches a segment, then bisect it down to the
+    /// smallest window that still does: that window can only contain the segment we are after.
+    /// Every step is a point query, so this is O(log n * log gap).
+    fn prev_segment(&self, before: u64) -> Option<(&Range<u64>, &Option<String>)> {
+        if before == 0 {
+            return None;
+        }
+        let mut hi = 1u64;
+        while !self.map.overlaps(&(before.saturating_sub(hi)..before)) {
+            if before.saturating_sub(hi) == 0 {
+                return None;
+            }
+            hi = hi.saturating_mul(2);
+        }
+        let mut lo = hi / 2; // does not reach a segment (0 when hi == 1)
+        while hi - lo > 1 {
+            let mid = lo + (hi - lo) / 2;
+            if self.map.overlaps(&(before.saturating_sub(mid)..before)) {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
+        self.map
+            .overlapping(before.saturating_sub(hi)..before)
+            .next()
+    }
 }
 
 #[pymethods]
@@ -111,8 +144,8 @@ impl SegmentList {
             })
     }
 
-    pub fn __iter__(self_: Py<Self>) -> SegmentListIter {
-        SegmentListIter::new(self_)
+    pub fn __iter__(&self) -> SegmentListIter {
+        SegmentListIter::new(self)
     }
 
     #[getter]
@@ -128,12 +161,54 @@ impl SegmentList {
     /// Checks which segment that the address `addr` should belong to,
     /// and returns the offset of that segment.
     /// Note that the address may not actually belong to the block.
+    ///
+    /// This is O(n): an index into the map cannot be computed any faster. Prefer the point-query
+    /// methods (`occupied_by`, `occupied_by_sort`, ...) wherever an index is not strictly needed.
     pub fn search(&self, addr: u64) -> Option<usize> {
         self.map
             .iter()
             .enumerate()
             .find(|(_, (range, _))| range.end >= addr)
             .map(|(index, _)| index)
+    }
+
+    /// The fraction of bytes belonging to segments of sort `sort`, among the last `window_size`
+    /// occupied bytes at or before `addr`.
+    ///
+    /// The walk starts at the segment `search()` would return for `addr` and moves backwards,
+    /// skipping over gaps, until `window_size` bytes have been covered. Returns 0.0 when the
+    /// starting segment has a different sort, or when fewer than `window_size` occupied bytes
+    /// are available.
+    #[pyo3(signature = (addr, window_size, sort))]
+    pub fn sort_ratio_backwards(&self, addr: u64, window_size: u64, sort: Option<String>) -> f64 {
+        // the first segment whose end is >= addr, i.e. what search(addr) points at
+        let Some((mut range, mut seg_sort)) = self
+            .map
+            .overlapping(addr.saturating_sub(1)..u64::MAX)
+            .next()
+        else {
+            return 0.0;
+        };
+        if *seg_sort != sort {
+            return 0.0;
+        }
+
+        let mut total: u64 = 0;
+        let mut matching: u64 = 0;
+        loop {
+            let size = range.end - range.start;
+            if *seg_sort == sort {
+                matching = matching.saturating_add(size);
+            }
+            total = total.saturating_add(size);
+            if total >= window_size {
+                return matching as f64 / total as f64;
+            }
+            match self.prev_segment(range.start) {
+                Some((r, s)) => (range, seg_sort) = (r, s),
+                None => return 0.0,
+            }
+        }
     }
 
     pub fn next_free_pos(&self, address: u64) -> Option<u64> {
@@ -231,17 +306,21 @@ impl SegmentList {
 
 #[pyclass]
 pub struct SegmentListIter {
-    segmentlist: Py<SegmentList>,
-    idx: u64,
+    // snapshot taken up front: walking the map by index would be quadratic over a full iteration
+    segments: std::vec::IntoIter<Segment>,
 }
 
 #[pymethods]
 impl SegmentListIter {
     #[new]
-    fn new(segmentlist: Py<SegmentList>) -> Self {
+    fn new(segmentlist: &SegmentList) -> Self {
         Self {
-            segmentlist,
-            idx: 0,
+            segments: segmentlist
+                .map
+                .iter()
+                .map(|(range, sort)| Segment::new(range.start, range.end, sort.clone()))
+                .collect::<Vec<_>>()
+                .into_iter(),
         }
     }
 
@@ -249,16 +328,10 @@ impl SegmentListIter {
         self_
     }
 
-    fn __next__(&mut self, py: Python<'_>) -> PyResult<Segment> {
-        let segmentlist_ref = self.segmentlist.bind(py).borrow();
-        // Iterate by index: get the (range, sort) pair at position idx
-        // FIXME: This is linear time, should be no more than O(log n)
-        if let Some((range, sort)) = segmentlist_ref.map.iter().nth(self.idx as usize) {
-            self.idx += 1;
-            Ok(Segment::new(range.start, range.end, sort.clone()))
-        } else {
-            Err(PyErr::new::<PyStopIteration, _>(""))
-        }
+    fn __next__(&mut self) -> PyResult<Segment> {
+        self.segments
+            .next()
+            .ok_or_else(|| PyErr::new::<PyStopIteration, _>(""))
     }
 }
 
@@ -273,6 +346,190 @@ pub fn segmentlist(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::SegmentList;
+
+    /// The pre-existing O(n) algorithm: search() for the starting index, then walk backwards
+    /// through the map by index. Used to pin sort_ratio_backwards() to the old behavior.
+    fn ratio_reference(sl: &SegmentList, addr: u64, window_size: u64, sort: Option<&str>) -> f64 {
+        let sort = sort.map(str::to_string);
+        let segments: Vec<_> = sl
+            .map
+            .iter()
+            .map(|(r, s)| (r.end - r.start, s.clone()))
+            .collect();
+        let Some(mut idx) = sl.search(addr) else {
+            return 0.0;
+        };
+        if segments[idx].1 != sort {
+            return 0.0;
+        }
+        let (mut total, mut matching) = (0u64, 0u64);
+        loop {
+            let (size, seg_sort) = &segments[idx];
+            if *seg_sort == sort {
+                matching += size;
+            }
+            total += size;
+            if total >= window_size {
+                break;
+            }
+            if idx == 0 {
+                return 0.0;
+            }
+            idx -= 1;
+        }
+        matching as f64 / total as f64
+    }
+
+    /// A deterministic xorshift, so the randomized cases stay reproducible.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next(&mut self, bound: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % bound
+        }
+    }
+
+    #[test]
+    fn prev_segment_walks_backwards() {
+        let mut sl = SegmentList::new();
+        sl.occupy(10, 5, Some("a".to_string()));
+        sl.occupy(1000, 5, Some("b".to_string()));
+        sl.occupy(1005, 5, Some("c".to_string()));
+
+        assert_eq!(sl.prev_segment(0), None);
+        assert_eq!(sl.prev_segment(10), None);
+        assert_eq!(sl.prev_segment(1005).unwrap().0, &(1000..1005));
+        assert_eq!(sl.prev_segment(1000).unwrap().0, &(10..15));
+        // an address in the middle of a gap
+        assert_eq!(sl.prev_segment(500).unwrap().0, &(10..15));
+        // past the end of every segment
+        assert_eq!(sl.prev_segment(u64::MAX).unwrap().0, &(1005..1010));
+    }
+
+    #[test]
+    fn prev_segment_matches_brute_force() {
+        let mut rng = Rng(0x2545F4914F6CDD1D);
+        for _ in 0..50 {
+            let mut sl = SegmentList::new();
+            let mut addr = 0;
+            for i in 0..40 {
+                addr += rng.next(64);
+                let size = 1 + rng.next(16);
+                sl.occupy(addr, size, Some(format!("s{}", i % 3)));
+                addr += size;
+            }
+            let starts: Vec<u64> = sl.map.iter().map(|(r, _)| r.start).collect();
+            for probe in 0..addr + 8 {
+                let expected = starts.iter().rev().find(|&&s| s < probe);
+                assert_eq!(
+                    sl.prev_segment(probe).map(|(r, _)| r.start).as_ref(),
+                    expected,
+                    "probe {probe:#x}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sort_ratio_backwards_basics() {
+        let mut sl = SegmentList::new();
+        sl.occupy(0, 100, Some("code".to_string()));
+        sl.occupy(100, 100, Some("nodecode".to_string()));
+        sl.occupy(200, 100, Some("code".to_string()));
+        sl.occupy(300, 100, Some("nodecode".to_string()));
+
+        // the walk starts inside the last segment and covers the whole map
+        assert_eq!(
+            sl.sort_ratio_backwards(399, 400, Some("nodecode".into())),
+            0.5
+        );
+        // ... and only the last two segments with a smaller window
+        assert_eq!(
+            sl.sort_ratio_backwards(399, 200, Some("nodecode".into())),
+            0.5
+        );
+        assert_eq!(
+            sl.sort_ratio_backwards(399, 100, Some("nodecode".into())),
+            1.0
+        );
+        // the starting segment has the wrong sort
+        assert_eq!(
+            sl.sort_ratio_backwards(250, 100, Some("nodecode".into())),
+            0.0
+        );
+        // not enough occupied bytes
+        assert_eq!(
+            sl.sort_ratio_backwards(399, 500, Some("nodecode".into())),
+            0.0
+        );
+        // beyond every segment
+        assert_eq!(
+            sl.sort_ratio_backwards(500, 100, Some("nodecode".into())),
+            0.0
+        );
+        // empty list
+        assert_eq!(
+            SegmentList::new().sort_ratio_backwards(0, 100, Some("nodecode".into())),
+            0.0
+        );
+    }
+
+    #[test]
+    fn sort_ratio_backwards_skips_gaps() {
+        let mut sl = SegmentList::new();
+        sl.occupy(0, 40, Some("nodecode".to_string()));
+        sl.occupy(60, 40, Some("code".to_string()));
+        // a 900-byte gap, which the walk steps over without counting it
+        sl.occupy(1000, 40, Some("nodecode".to_string()));
+
+        assert_eq!(
+            sl.sort_ratio_backwards(1039, 40, Some("nodecode".into())),
+            1.0
+        );
+        assert_eq!(
+            sl.sort_ratio_backwards(1039, 80, Some("nodecode".into())),
+            0.5
+        );
+        // the gap contributes nothing, so all three segments fit in a 120-byte window
+        assert_eq!(
+            sl.sort_ratio_backwards(1039, 120, Some("nodecode".into())),
+            2.0 / 3.0
+        );
+        // ... and there is nothing left to cover a larger one
+        assert_eq!(
+            sl.sort_ratio_backwards(1039, 121, Some("nodecode".into())),
+            0.0
+        );
+    }
+
+    #[test]
+    fn sort_ratio_backwards_matches_reference() {
+        let mut rng = Rng(0x9E3779B97F4A7C15);
+        for _ in 0..50 {
+            let mut sl = SegmentList::new();
+            let mut addr = 0;
+            for _ in 0..60 {
+                // gaps and single-byte segments are both common in CFGFast's segment list
+                addr += rng.next(4);
+                let size = 1 + rng.next(8);
+                let sort = if rng.next(2) == 0 { "nodecode" } else { "code" };
+                sl.occupy(addr, size, Some(sort.to_string()));
+                addr += size;
+            }
+            for probe in 0..addr + 4 {
+                for window in [1u64, 7, 32, 4096] {
+                    assert_eq!(
+                        sl.sort_ratio_backwards(probe, window, Some("nodecode".into())),
+                        ratio_reference(&sl, probe, window, Some("nodecode")),
+                        "probe {probe:#x} window {window}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn empty_list() {
