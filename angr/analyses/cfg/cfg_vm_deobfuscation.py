@@ -1628,11 +1628,23 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             succ.history.trim()
 
         if (job.state.globals.get('use_vip_finder', False) or job.state.globals.get('use_ctf_vpc_finder', False)) and \
+                len(sim_successors.all_successors) > 0:
+            successor_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
+            block_update_vpc = successor_vpc
+            if job.state.globals.get('use_ctf_vpc_finder', False) and \
+                    sim_successors.all_successors[0].globals.get('ctf_cur_vpc_kind', None) == 'stack_store_raw_offset' and \
+                    getattr(self.project, "ctf_vpc_stack_raw_preserve_block_entry_vpc", True):
+                block_update_vpc = sim_successors.all_successors[0].globals.get(
+                    "ctf_vpc_block_entry_vpc",
+                    block_id.vm_vpc,
+                )
+
+        if (job.state.globals.get('use_vip_finder', False) or job.state.globals.get('use_ctf_vpc_finder', False)) and \
                 len(sim_successors.all_successors) > 0 and \
-                block_id.vm_vpc != sim_successors.all_successors[0].globals['cur_vm_vpc']:
+                block_id.vm_vpc != block_update_vpc:
             job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
-                                            sim_successors.all_successors[0].globals['cur_vm_vpc'])
-            job.vm_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
+                                            block_update_vpc)
+            job.vm_vpc = block_update_vpc
             self.project.updated_block_id_map[block_id] = job.block_id
 
             block_id = job.block_id
