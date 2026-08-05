@@ -36,14 +36,6 @@ class RustSimType:
         del name_parens, kwargs
         return self.repr(name, full, memo, indent)
 
-    def with_arch(self, arch, memo: dict[str, SimType] | None = None):
-        if memo is None:
-            memo = {}
-        return self._with_arch(arch, memo=memo)
-
-    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
-        raise NotImplementedError
-
 
 class RustSimTypeInt(RustSimType, SimTypeInt):
     _ident = "rust_int"

@@ -43,6 +43,25 @@ def _blank_type_db_loader() -> TypeDBLoader:
 
 
 class TestRustSimType(unittest.TestCase):
+    def test_with_arch_never_strips_an_existing_arch(self):
+        # Function.prototype's setter copies arch-less prototypes, and copy() ends in with_arch(self._arch);
+        # rebuilding there instead of returning self strips the arch off every argument
+        arch = archinfo.ArchAMD64()
+        u64 = RustSimTypeInt(64, signed=False).with_arch(arch)
+        ok_ty = RustSimStruct(OrderedDict({"field_0": u64}), name="struct8", pack=True).with_arch(arch)
+        err_ty = RustSimStruct(OrderedDict({"field_0": u64}), name="struct16", pack=True).with_arch(arch)
+        ref = RustSimTypeReference(RustSimTypeResult(ok_ty, 0, 8, err_ty, 1, 8).with_arch(arch)).with_arch(arch)
+
+        assert ref.with_arch(None) is ref
+        assert ref.with_arch(arch) is ref
+
+        prototype = RustSimTypeFunction([ref, u64], None, is_arg0_retbuf=True)
+        assert prototype._arch is None
+        assert prototype.copy().args[0]._arch == arch
+
+        # every type entering the type solver has to carry an arch
+        RustTypeTranslator(arch).simtype2tc(prototype.copy().args[0])
+
     def test_rust_retbuf_function_normalization(self):
         arch = archinfo.ArchAMD64()
         field_ty = RustSimTypeInt(64, signed=False).with_arch(arch)
