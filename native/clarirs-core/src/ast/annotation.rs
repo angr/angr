@@ -1,3 +1,6 @@
+use std::hash::{Hash, Hasher};
+
+use ahash::AHasher;
 use num_bigint::BigUint;
 use serde::Serialize;
 
@@ -95,5 +98,11 @@ impl Annotation {
 
     pub fn relocatable(&self) -> bool {
         self.relocatable
+    }
+
+    pub fn identity_hash(&self) -> u64 {
+        let mut hasher = AHasher::default();
+        self.hash(&mut hasher);
+        hasher.finish()
     }
 }
