@@ -1,6 +1,6 @@
 use num_bigint::BigUint;
 use pyo3::sync::PyOnceLock;
-use pyo3::types::{PyDict, PyString, PyTuple, PyType};
+use pyo3::types::{PyDict, PyTuple, PyType};
 
 use crate::claripy::prelude::*;
 
@@ -14,6 +14,16 @@ use crate::claripy::prelude::*;
 /// back to reconstructing the annotation from the core value.
 static ORIGINAL_ANNOTATIONS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 
+/// `pickle.dumps`, resolved once instead of repeatedly in function calls
+static PICKLE_DUMPS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+fn pickle_dumps(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError> {
+    let dumps = PICKLE_DUMPS.get_or_try_init(py, || -> Result<Py<PyAny>, ClaripyError> {
+        Ok(py.import("pickle")?.getattr("dumps")?.unbind())
+    })?;
+    Ok(dumps.bind(py).clone())
+}
+
 fn original_annotations(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError> {
     let cache =
         ORIGINAL_ANNOTATIONS.get_or_try_init(py, || -> Result<Py<PyAny>, ClaripyError> {
@@ -26,24 +36,16 @@ fn original_annotations(py: Python<'_>) -> Result<Bound<'_, PyAny>, ClaripyError
     Ok(cache.bind(py).clone())
 }
 
-/// A process-local key identifying an annotation by its content, used to store
-/// and look up the original Python object in [`ORIGINAL_ANNOTATIONS`].
-///
-/// The `Debug` representation is injective over distinct [`Annotation`] values,
-/// and the cache it keys is never persisted (it lives only for the lifetime of
-/// the process), so `Debug` is a sound key here even though it is not a stable
-/// serialization format.
-fn cache_key<'py>(py: Python<'py>, annotation: &Annotation) -> Bound<'py, PyString> {
-    PyString::new(py, &format!("{annotation:?}"))
-}
-
 /// Remember `obj` as the original Python object for `annotation`, so a later
 /// retrieval can hand it back verbatim while it is still alive. Best-effort:
 /// objects that cannot be weakly referenced are simply not cached.
+///
+/// Entries are keyed by [`Annotation::identity_hash`], which agrees with the
+/// annotation's `Eq`, so equal annotations always find each other's entry.
 fn remember_original(annotation: &Annotation, obj: &Bound<'_, PyAnnotation>) {
     let py = obj.py();
     if let Ok(cache) = original_annotations(py) {
-        let _ = cache.set_item(cache_key(py, annotation), obj);
+        let _ = cache.set_item(annotation.identity_hash(), obj);
     }
 }
 
@@ -56,7 +58,7 @@ fn cached_annotation<'py>(
 ) -> Option<Bound<'py, PyAnnotation>> {
     let cache = original_annotations(py).ok()?;
     let obj = cache
-        .call_method1("get", (cache_key(py, annotation),))
+        .call_method1("get", (annotation.identity_hash(),))
         .ok()?;
     if obj.is_none() {
         return None;
@@ -147,8 +149,9 @@ impl PyAnnotation {
                 .getattr("__class__")?
                 .getattr("__name__")?
                 .extract::<String>()?;
-            let pickle_dumps = slf.py().import("pickle")?.getattr("dumps")?;
-            let pickled = pickle_dumps.call1((slf,))?.extract::<Vec<u8>>()?;
+            let pickled = pickle_dumps(slf.py())?
+                .call1((slf,))?
+                .extract::<Vec<u8>>()?;
             // Identify the annotation by the object's hash; the pickled bytes
             // are kept only to reconstruct it.
             let obj_hash = slf.hash()? as i64;
