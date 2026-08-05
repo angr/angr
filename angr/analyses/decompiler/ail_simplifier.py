@@ -1097,10 +1097,7 @@ class AILSimplifier(Analysis):
         # out-of-date
         updated_locs: set[AILCodeLocation] = set()
 
-        # Reverse indices over the reaching-definitions model, built at most once per call and only when a code path
-        # below actually needs them. The model is not invalidated anywhere inside the loop (_clear_cache() only runs
-        # after it), so these stay valid for the whole loop. Without them, each equivalence rescanned all definitions,
-        # which is quadratic in function size: on a 2242-block function that allocated 6.3M Definition objects.
+        # built on-demand
         defs_by_codeloc: dict[AILCodeLocation, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
         stack_defs_by_offset: dict[int, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
 
@@ -1174,8 +1171,7 @@ class AILSimplifier(Analysis):
             rd = self._compute_reaching_definitions()
             the_def = None
             if to_replace_is_def:
-                # SSA gives each vvar id at most one definition, so this is a direct lookup
-                the_def = rd.definition_by_varid(to_replace.varid)
+                the_def = rd.get_definition_by_varid(to_replace.varid)
                 if the_def is None:
                     continue
             else:
@@ -1236,7 +1232,7 @@ class AILSimplifier(Analysis):
                         # Make sure the register is never updated across this function. Only the definition of
                         # the_def's own vvar id can have an equal atom (atom equality is (varid, size)), and SSA gives
                         # that id exactly one definition, so this is a single lookup rather than a full scan.
-                        other_def = rd.definition_by_varid(the_def.atom.varid)
+                        other_def = rd.get_definition_by_varid(the_def.atom.varid)
                         if (
                             other_def is not None
                             and other_def != the_def
