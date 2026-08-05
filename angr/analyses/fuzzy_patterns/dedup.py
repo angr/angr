@@ -69,6 +69,17 @@ class OutlinedRegion:
     consts: list[int] = field(default_factory=list)
     const_bits: list[int] = field(default_factory=list)
     shape: tuple[str, ...] = ()
+    auto_frontier: bool = False
+
+    @property
+    def statements(self) -> int:
+        """Statements actually moved into the callee.
+
+        With a derived frontier this is not the interval length: the Outliner
+        picks its own boundary, so the region it lifts can be smaller (or
+        larger) than the interval that pointed at it.
+        """
+        return sum(len(b.statements) for b in self.child_graph)
 
 
 @dataclass
@@ -94,8 +105,9 @@ class DedupResult:
     skipped: list[tuple[Interval, str]] = field(default_factory=list)
 
     @property
-    def tokens_removed(self) -> int:
-        return sum(len(r.interval) for r in self.outlined)
+    def statements_removed(self) -> int:
+        """Statements actually moved out of the parent."""
+        return sum(r.statements for r in self.outlined)
 
 
 class _ConstCollector(AILBlockViewer):
@@ -150,9 +162,10 @@ def graph_problems(graph: networkx.DiGraph[Block], func_addr: int | None = None)
     Three things go wrong in practice, and all three surface far downstream as
     an unrelated crash, so they are caught here instead:
 
-    * A phi keeps sourcing a block that is gone. The Outliner rewrites the phis
-      of a frontier block when the region it replaced was that block's only
-      removed predecessor, but gives up when several are replaced at once.
+    * A phi keeps sourcing a block that is gone. ``Outliner._update_phi_stmts``
+      handles a single replaced source, and a whole region collapsing into one
+      call block, but not a frontier block reached both from several blocks
+      inside the region and from outside it.
     * Two blocks end up sharing ``(addr, idx)``. ``GraphDephicationVVarMapping``
       keys blocks by that pair in a plain dict, so one silently shadows the
       other and statement-index lookups land in the wrong block.
@@ -227,10 +240,11 @@ def normalize_call_width(graph: networkx.DiGraph[Block], call_loc: Address) -> b
 
 
 def _snapshot_stmt(stmt):
-    """Copy a statement only when the Outliner would mutate it in place.
+    """Rebuild phi assignments so a rollback cannot leave an edited phi behind.
 
-    ``Outliner._update_phi_stmts`` rewrites ``phi.src_and_vvars`` entries
-    directly, so restoring the statement *list* would not undo the edit.
+    ``Outliner._update_phi_stmts`` replaces the statement rather than editing
+    the phi, so restoring the statement list is enough today. Copying anyway
+    keeps the undo correct if any rewriter ever edits a phi's sources in place.
     """
     if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
         phi = stmt.src
@@ -315,6 +329,15 @@ class PatternDeduplicator(Analysis):
     :param granularity:     ``"core"`` (default, always mergeable) or
                             ``"occurrence"`` (maximum bulk removal).
     :param merge:           Fold provably identical callees into one function.
+    :param frontier_mode:   ``"region"`` outlines exactly the discovered
+                            interval; ``"fallback"`` (default) additionally
+                            retries regions that are not single-entry by
+                            letting the Outliner derive its own frontier.
+    :param max_auto_blocks: Bound, as a multiple of the region's block count,
+                            on how large a derived frontier may grow.
+    :param min_auto_ratio:  Smallest fraction of the region a derived frontier
+                            may cover before the outline is judged unrelated
+                            to the pattern and rolled back.
     :param name_prefix:     Prefix for synthesized function names.
     """
 
@@ -333,9 +356,14 @@ class PatternDeduplicator(Analysis):
         const_param_stack_base: int = -0x10000,
         min_group_size: int = 2,
         validate: bool = True,
+        frontier_mode: str = "fallback",
+        max_auto_blocks: int = 3,
+        min_auto_ratio: float = 0.5,
     ):
         if granularity not in ("core", "occurrence"):
             raise ValueError(f"unknown granularity {granularity!r}")
+        if frontier_mode not in ("region", "fallback"):
+            raise ValueError(f"unknown frontier_mode {frontier_mode!r}")
         from angr.analyses.decompiler.clinic import Clinic
 
         self.func = func
@@ -347,6 +375,9 @@ class PatternDeduplicator(Analysis):
         self.block_addr_start = block_addr_start
         self.const_param_stack_base = const_param_stack_base
         self.validate = validate
+        self.frontier_mode = frontier_mode
+        self.max_auto_blocks = max_auto_blocks
+        self.min_auto_ratio = min_auto_ratio
 
         graph = Clinic._copy_graph(ail_graph)
         self.result = DedupResult(graph=graph)
@@ -391,18 +422,32 @@ class PatternDeduplicator(Analysis):
 
         for key, interval in self._targets(patterns):
             region = snap(self.stream, graph, interval, entry_loc=entry_loc)
+
+            # A contiguous token range is not automatically a single-entry
+            # region: reverse post-order interleaves blocks from different
+            # parts of the CFG, so one logical chunk of duplicated code can
+            # still be jumped into from elsewhere. When that is the only
+            # objection, hand the Outliner just the start location and let it
+            # derive the frontier from dominance and liveness, the way a
+            # hand-written outlining call does. Correctness still rests on the
+            # post-outline validation below.
+            auto = False
             if not region.outlinable:
-                self.result.skipped.append((interval, region.reason))
-                continue
+                if self.frontier_mode == "region" or "entered from outside" not in region.reason:
+                    self.result.skipped.append((interval, region.reason))
+                    continue
+                auto = True
+
             snapshot = _snapshot(graph) if self.validate else None
             saved_ids = (self.vvar_id_start, self.block_addr_start)
             try:
-                src_loc, frontier = materialize(graph, self.stream, region, self._next_block_addr)
+                src_loc, frontier = materialize(graph, self.stream, region, self._next_block_addr, split_tail=not auto)
                 outliner = self.project.analyses[Outliner].prep(kb=self.kb)(
                     self.func,
                     graph,
                     src_loc=src_loc,
-                    frontier=frontier,
+                    frontier=None if auto else frontier,
+                    min_step=2 if auto else 1,
                     vvar_id_start=self.vvar_id_start,
                     block_addr_start=self.block_addr_start,
                 )
@@ -417,11 +462,24 @@ class PatternDeduplicator(Analysis):
             self.vvar_id_start = outliner.vvar_id_start
             self.block_addr_start = outliner.block_addr_start
             child_graph = outliner.child_graph
+            reject = None
             if child_graph is None or len(child_graph) == 0:
+                reject = "outliner produced an empty callee"
+            elif auto and len(child_graph) > self.max_auto_blocks * max(1, len(region.block_locs)):
+                # a derived frontier can swallow the rest of the function
+                reject = (
+                    f"auto frontier ran away: {len(child_graph)} blocks for a {len(region.block_locs)}-block region"
+                )
+            elif auto and len(child_graph) < self.min_auto_ratio * len(region.block_locs):
+                # ...or stop so early that it does not extract the pattern at all
+                reject = (
+                    f"auto frontier too small: {len(child_graph)} blocks for a {len(region.block_locs)}-block region"
+                )
+            if reject is not None:
                 if snapshot is not None:
                     _restore(graph, snapshot)
                 self.vvar_id_start, self.block_addr_start = saved_ids
-                self.result.skipped.append((interval, "outliner produced an empty callee"))
+                self.result.skipped.append((interval, reject))
                 continue
 
             normalize_call_width(graph, src_loc)
@@ -447,6 +505,7 @@ class PatternDeduplicator(Analysis):
                     consts=values,
                     const_bits=widths,
                     shape=callee_shape(child_graph),
+                    auto_frontier=auto,
                 )
             )
 
@@ -569,7 +628,7 @@ class PatternDeduplicator(Analysis):
             (
                 f"PatternDeduplicator({self.granularity}): {len(r.outlined)} regions outlined, "
                 f"{len(r.groups)} merge groups, {len(r.skipped)} skipped, "
-                f"{r.tokens_removed} tokens moved out of the parent"
+                f"{r.statements_removed} statements moved out of the parent"
             )
         ]
         for g in r.groups:

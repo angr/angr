@@ -121,11 +121,15 @@ def materialize(
     stream: TokenStream,
     region: Region,
     block_addr_alloc: Callable[[], int],
+    *,
+    split_tail: bool = True,
 ) -> tuple[Address, set[Address]]:
     """Split the boundary blocks in place so ``region`` becomes block-aligned.
 
     Returns the ``(src_loc, frontier)`` pair to hand to the Outliner. ``graph``
-    is mutated.
+    is mutated. With ``split_tail=False`` only the head is split, which is what
+    the caller wants when it intends to let the Outliner derive its own
+    frontier: the tail boundary is then chosen by liveness, not by the interval.
     """
     from angr.analyses.decompiler.known_patterns.block_split import split_ail_block
 
@@ -137,14 +141,16 @@ def materialize(
     head_stmt = stream.locs[region.interval.start].stmt_idx
     tail_stmt = stream.locs[region.interval.end - 1].stmt_idx + 1
 
+    tail_split = region.tail_split if split_tail else 0
+
     if first_loc == last_loc:
-        if region.head_split == 0 and region.tail_split == 0:
+        if region.head_split == 0 and tail_split == 0:
             return src_loc, frontier
         block = nodes[first_loc]
         stmts = list(block.statements)
-        _pre, mid, post = split_ail_block(
-            graph, block, stmts[:head_stmt], stmts[head_stmt:tail_stmt], stmts[tail_stmt:], block_addr_alloc
-        )
+        mid_stmts = stmts[head_stmt:tail_stmt] if split_tail else stmts[head_stmt:]
+        post_stmts = stmts[tail_stmt:] if split_tail else []
+        _pre, mid, post = split_ail_block(graph, block, stmts[:head_stmt], mid_stmts, post_stmts, block_addr_alloc)
         src_loc = (mid.addr, mid.idx)
         if post is not None:
             frontier.add((post.addr, post.idx))
@@ -156,7 +162,7 @@ def materialize(
         _pre, mid, _post = split_ail_block(graph, block, stmts[:head_stmt], stmts[head_stmt:], [], block_addr_alloc)
         src_loc = (mid.addr, mid.idx)
 
-    if region.tail_split > 0:
+    if tail_split > 0:
         block = nodes[last_loc]
         stmts = list(block.statements)
         _pre, _mid, post = split_ail_block(graph, block, [], stmts[:tail_stmt], stmts[tail_stmt:], block_addr_alloc)
