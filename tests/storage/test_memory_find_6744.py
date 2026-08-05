@@ -1,5 +1,8 @@
-import claripy
+from __future__ import annotations
+
 import archinfo
+import claripy
+
 import angr
 
 
