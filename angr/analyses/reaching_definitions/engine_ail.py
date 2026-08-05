@@ -1186,9 +1186,12 @@ class SimEngineRDAIL(
         return self._top(expr.bits)  # TODO
 
     def _handle_expr_DirtyExpression(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
-        if isinstance(expr.dirty_expr, ailment.expression.VEXCCallExpression):
-            for operand in expr.dirty_expr.operands:
-                self._expr(operand)
+        for operand in expr.operands:
+            self._expr(operand)
+        if expr.guard is not None:
+            self._expr(expr.guard)
+        if expr.maddr is not None:
+            self._expr(expr.maddr)
 
         return MultiValues(self.state.top(expr.bits))
 
