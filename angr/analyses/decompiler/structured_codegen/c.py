@@ -2099,11 +2099,14 @@ class CUnaryOp(CExpression):
     #
 
     def _c_repr_chunks_not(self):
-        paren = CClosingObject("(")
         yield "!", self
-        yield "(", paren
-        yield from CExpression._try_c_repr_chunks(self.operand)
-        yield ")", paren
+        if isinstance(self.operand, CBinaryOp):
+            paren = CClosingObject("(")
+            yield "(", paren
+            yield from CExpression._try_c_repr_chunks(self.operand)
+            yield ")", paren
+        else:
+            yield from CExpression._try_c_repr_chunks(self.operand)
 
     def _c_repr_chunks_bitwiseneg(self):
         paren = CClosingObject("(")
@@ -2298,15 +2301,8 @@ class CBinaryOp(CExpression):
     #
 
     def _c_repr_chunks(self, op):
-        skip_op_and_rhs = False
-        if self._cstyle_null_cmp and self._has_const_null_rhs():
-            if self.op == "CmpEQ":
-                skip_op_and_rhs = True
-                yield "!", None
-            elif self.op == "CmpNE":
-                skip_op_and_rhs = True
         # lhs
-        if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence and not skip_op_and_rhs:
+        if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
             paren = CClosingObject("(")
             yield "(", paren
             yield from self._try_c_repr_chunks(self.lhs)
@@ -2314,19 +2310,19 @@ class CBinaryOp(CExpression):
         else:
             yield from self._try_c_repr_chunks(self.lhs)
 
-        if not skip_op_and_rhs:
-            # operator
-            yield op, self
-            # rhs
-            if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
-                1 if self.op in ["Sub", "Div"] else 0
-            ):
-                paren = CClosingObject("(")
-                yield "(", paren
-                yield from self._try_c_repr_chunks(self.rhs)
-                yield ")", paren
-            else:
-                yield from self._try_c_repr_chunks(self.rhs)
+        # operator
+        yield op, self
+
+        # rhs
+        if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
+            1 if self.op in ["Sub", "Div"] else 0
+        ):
+            paren = CClosingObject("(")
+            yield "(", paren
+            yield from self._try_c_repr_chunks(self.rhs)
+            yield ")", paren
+        else:
+            yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_opfirst(self, op):
         yield op, self
@@ -2426,10 +2422,16 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" >= ")
 
     def _c_repr_chunks_cmpeq(self):
-        yield from self._c_repr_chunks(" == ")
+        if self._cstyle_null_cmp and self._has_const_null_rhs():
+            yield from CUnaryOp("Not", self.lhs, codegen=self.codegen).c_repr_chunks()
+        else:
+            yield from self._c_repr_chunks(" == ")
 
     def _c_repr_chunks_cmpne(self):
-        yield from self._c_repr_chunks(" != ")
+        if self._cstyle_null_cmp and self._has_const_null_rhs():
+            yield from self._try_c_repr_chunks(self.lhs)
+        else:
+            yield from self._c_repr_chunks(" != ")
 
     def _c_repr_chunks_concat(self):
         yield from self._c_repr_chunks(" CONCAT ")
