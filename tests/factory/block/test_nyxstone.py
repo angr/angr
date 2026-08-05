@@ -9,11 +9,9 @@ import unittest
 import angr
 from tests.common import bin_location
 
-# pylint: disable=missing-docstring,no-self-use
 
-
-class TestKeyStone(unittest.TestCase):
-    def _run_keystone(self, arch, insn_text):
+class TestNyxstone(unittest.TestCase):
+    def _run_nyxstone(self, arch, insn_text):
         proj_arch = arch
         is_thumb = False
         if arch == "armel_thumb":
@@ -31,6 +29,7 @@ class TestKeyStone(unittest.TestCase):
         if is_thumb:
             addr |= 1
         insn_bytes = p.arch.asm(insn_text, addr=addr, thumb=is_thumb)
+        print(insn_bytes)
         block = p.factory.block(addr, insn_bytes=insn_bytes, thumb=is_thumb).vex
 
         assert block.instructions == 1
@@ -43,22 +42,22 @@ class TestKeyStone(unittest.TestCase):
             assert sm.one_active.solver.eval(sm.one_active.regs.r1) == 0x12
 
     def test_i386(self):
-        self._run_keystone("i386", b"add eax, 0xf")
+        self._run_nyxstone("i386", "add eax, 0xf")
 
     def test_x86_64(self):
-        self._run_keystone("x86_64", b"add rax, 0xf")
+        self._run_nyxstone("x86_64", "add rax, 0xf")
 
     def test_ppc(self):
-        self._run_keystone("ppc", b"addi %r1, %r1, 0xf")
+        self._run_nyxstone("ppc", "addi 1, 1, 15")
 
     def test_armel(self):
-        self._run_keystone("armel", b"add r1, r1, 0xf")
+        self._run_nyxstone("armel", "add r1, r1, #0xf")
 
     def test_armel_thumb(self):
-        self._run_keystone("armel_thumb", b"add.w r1, r1, #0xf")
+        self._run_nyxstone("armel_thumb", "add.w r1, r1, #0xf")
 
     def test_mips(self):
-        self._run_keystone("mips", b"addi $1, $1, 0xf")
+        self._run_nyxstone("mips", ".set noat; addi $1, $1, 0xf")
 
 
 if __name__ == "__main__":
