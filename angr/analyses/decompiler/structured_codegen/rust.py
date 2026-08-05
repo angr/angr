@@ -210,7 +210,7 @@ def _with_arch(ty, arch):
     return ty
 
 
-def type_to_rust_repr_chunks(ty: SimType | RustSimType, name=None, name_type=None, full=False, indent_str=""):
+def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
     """
@@ -2340,8 +2340,8 @@ class RustTypeCast(RustExpression):
 
     def __init__(
         self,
-        src_type: RustSimType | SimType | None,
-        dst_type: RustSimType | SimType,
+        src_type: SimType | None,
+        dst_type: SimType,
         expr: RustExpression,
         tags=None,
         **kwargs,
@@ -4385,7 +4385,7 @@ class RustStructuredCodeWalker:
 
 class MakeTypecastsImplicit(RustStructuredCodeWalker):
     @classmethod
-    def collapse(cls, dst_ty: SimType | RustSimType | None, child: RustExpression) -> RustExpression:
+    def collapse(cls, dst_ty: SimType | None, child: RustExpression) -> RustExpression:
         result = child
         if isinstance(child, RustTypeCast):
             intermediate_ty = child.dst_type

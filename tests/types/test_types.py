@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from typing import cast
 
 import archinfo
 import pydemumble
@@ -431,6 +432,28 @@ class TestTypes(unittest.TestCase):
         t1.fields["a"] = t0
 
         assert t0 == t1  # should not raise RecursionError
+
+    def test_simstruct_arch_memo_cache_leak(self):
+        # regression test: this bug is causing angr management to fail to display complex win32 types during
+        # decompilation.
+        #
+        # during dereference_simtype(), SimStruct._arch_memo may leak to the parent SimStruct, causing with_arch() to
+        # return an incomplete archified SimStruct.
+
+        angr.procedures.definitions.load_win32_type_collections()
+        st = SimStruct({}, name="foobar")
+        # the leak from _arch_memo happens when dereference_simtype() processes st.fields["a"].pts_to, which pollutes
+        # st._arch_memo
+        st.fields["a"] = SimTypePointer(st)
+        st.fields["b"] = SimTypeRef("UNICODE_STRING", SimStruct)
+
+        st = st.with_arch(archinfo.ArchAMD64())
+
+        st_deref = cast(SimStruct, dereference_simtype(st, [angr.SIM_TYPE_COLLECTIONS["win32"]]))
+        assert "a" in st_deref.fields
+        assert "b" in st_deref.fields
+        assert "a" in st_deref.offsets
+        assert "b" in st_deref.offsets  # this assertion fails because st_deref.fields["b"] is a SimTypeRef
 
 
 if __name__ == "__main__":

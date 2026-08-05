@@ -130,14 +130,15 @@ class SimType:
             return self._arch.bytes
         return self.size // self._arch.byte_width
 
-    def with_arch(self, arch: Arch | None):
+    def with_arch(self, arch: Arch | None, memo: dict[str, SimType] | None = None) -> SimType:
         if arch is None:
             return self
         if self._arch is not None and self._arch == arch:
             return self
-        return self._with_arch(arch)
+        memo = memo if memo is not None else {}
+        return self._with_arch(arch, memo=memo)
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
         cp = copy.copy(self)
         cp._arch = arch
         return cp
@@ -307,8 +308,8 @@ class TypeRef(SimType):
     def alignment(self):
         return self.type.alignment
 
-    def with_arch(self, arch):
-        self.type = self.type.with_arch(arch)
+    def with_arch(self, arch, memo: dict[str, SimType] | None = None):
+        self.type = self.type.with_arch(arch, memo=memo)
         self._arch = arch
         return self
 
@@ -969,9 +970,13 @@ class SimTypePointer(SimTypeReg):
             raise ValueError("Can't tell my size without an arch!")
         return self._arch.bits
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypePointer(
-            self.pts_to.with_arch(arch), self.label, self.offset, qualifier=self.qualifier, disposition=self.disposition
+            self.pts_to.with_arch(arch, memo=memo),
+            self.label,
+            self.offset,
+            qualifier=self.qualifier,
+            disposition=self.disposition,
         )
         out._arch = arch
         return out
@@ -1035,8 +1040,8 @@ class SimTypeReference(SimTypeReg):
             raise ValueError("Can't tell my size without an arch!")
         return self._arch.bits
 
-    def _with_arch(self, arch):
-        out = SimTypeReference(self.refs.with_arch(arch), label=self.label)
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
+        out = SimTypeReference(self.refs.with_arch(arch, memo=memo), label=self.label)
         out._arch = arch
         return out
 
@@ -1111,8 +1116,8 @@ class SimTypeArray(SimType):
     def alignment(self):
         return self.elem_type.alignment
 
-    def _with_arch(self, arch):
-        out = SimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
+        out = SimTypeArray(self.elem_type.with_arch(arch, memo=memo), self.length, self.label, qualifier=self.qualifier)
         out._arch = arch
         return out
 
@@ -1235,7 +1240,7 @@ class SimTypeString(NamedTypeMixin, SimType):
     def alignment(self):
         return 1
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
         return self
 
     def copy(self):
@@ -1320,7 +1325,7 @@ class SimTypeWString(NamedTypeMixin, SimType):
     def alignment(self):
         return 2
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):  # pylint: disable=unused-argument
         return self
 
     def copy(self):
@@ -1399,10 +1404,10 @@ class SimTypeFunction(SimType):
     def size(self):
         return 4096  # ???????????
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeFunction(
-            [a.with_arch(arch) for a in self.args],
-            self.returnty.with_arch(arch) if self.returnty is not None else None,
+            [a.with_arch(arch, memo=memo) for a in self.args],
+            self.returnty.with_arch(arch, memo=memo) if self.returnty is not None else None,
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
@@ -1475,10 +1480,10 @@ class SimTypeCppFunction(SimTypeFunction):
             ", variadic=True" if self.variadic else "",
         )
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeCppFunction(
-            [a.with_arch(arch) for a in self.args],
-            self.returnty.with_arch(arch) if self.returnty is not None else None,
+            [a.with_arch(arch, memo=memo) for a in self.args],
+            self.returnty.with_arch(arch, memo=memo) if self.returnty is not None else None,
             label=self.label,
             arg_names=self.arg_names,
             ctor=self.ctor,
@@ -1643,9 +1648,13 @@ class SimStruct(NamedTypeMixin, SimType):
         if self.name == "_Anonymous_e__Struct":
             self.anonymous = True
 
-        self._arch_memo = {}
         # An optional, name-independent ordering id assigned by the type translator.
         self._def_order: int | None = def_order
+
+        # A memo that stores the ID of SimStruct and SimUnion instances that have been visited during size or offset
+        # calculation. this is used to avoid infinite recursion in pathological cases where a struct or a union
+        # contains itself not via pointers.
+        self._size_memo: set[int] | None = None
 
     #
     # pack and align are for supporting SimType.from_json and SimType.to_json
@@ -1734,16 +1743,16 @@ class SimStruct(NamedTypeMixin, SimType):
 
         return SimStructValue(self, values=values)
 
-    def _with_arch(self, arch):
-        if arch.name in self._arch_memo:
-            return self._arch_memo[arch.name]
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
+        if self.name in memo:
+            return cast(SimStruct, memo[self.name])
 
         out = SimStruct({}, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         out._def_order = self._def_order
-        self._arch_memo[arch.name] = out
+        memo[self.name] = out
 
-        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+        out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
@@ -1781,24 +1790,47 @@ class SimStruct(NamedTypeMixin, SimType):
     def size(self):
         if not self.offsets:
             return 0
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 0  # bad bad bad
+        self._size_memo.add(id(self))
         if self._arch is None:
             raise ValueError("Need an arch to compute size")
 
         last_name, last_off = list(self.offsets.items())[-1]
         last_type = self.fields[last_name]
         if isinstance(last_type, SimTypeNumOffset):
+            self._size_memo.remove(id(self))
+            if not self._size_memo:
+                self._size_memo = None
             return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
         if last_type.size is None:
             raise AngrTypeError("Cannot compute the size of a struct with elements with no size")
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
         return last_off * self._arch.byte_width + last_type.size
 
     @property
     def alignment(self):
         if self._align is not None:
             return self._align
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 1  # bad bad bad
+        self._size_memo.add(id(self))
         if all(val.alignment is NotImplemented for val in self.fields.values()):
+            self._size_memo.remove(id(self))
+            if not self._size_memo:
+                self._size_memo = None
             return NotImplemented
-        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.fields.values())
+        max_alignment = max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.fields.values())
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
+        return max_alignment
 
     def _refine_dir(self):
         return list(self.fields.keys())
@@ -1944,22 +1976,57 @@ class SimUnion(NamedTypeMixin, SimType):
         if qualifier:
             self.qualifier = qualifier
 
+        # A memo that stores the ID of SimStruct and SimUnion instances that have been visited during size or offset
+        # calculation. this is used to avoid infinite recursion in pathological cases where a struct or a union
+        # contains itself not via pointers.
+        self._size_memo: set[int] | None = None
+
+        # cached alignment
+        self._alignment: int | None = None
+
     @property
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 0  # bad bad bad
+        self._size_memo.add(id(self))
         all_member_sizes: list[int | None] = [
             ty.size for ty in self.members.values() if not isinstance(ty, (SimTypeBottom, SimTypeRef))
         ]
         member_sizes: list[int] = [s for s in all_member_sizes if s is not None]
         # fall back to word size in case all members are SimTypeBottom
-        return max(member_sizes) if member_sizes else self._arch.bytes
+        max_size = max(member_sizes) if member_sizes else self._arch.bytes
+
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
+
+        return max_size
 
     @property
     def alignment(self):
+        if self._alignment is not None:
+            return self._alignment
+
+        if self._size_memo is None:
+            self._size_memo = set()
+        if id(self) in self._size_memo:
+            return 1  # bad bad bad
+        self._size_memo.add(id(self))
         if all(val.alignment is NotImplemented for val in self.members.values()):
-            return NotImplemented
-        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.members.values())
+            r = NotImplemented
+        else:
+            r = max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.members.values())
+
+        self._size_memo.remove(id(self))
+        if not self._size_memo:
+            self._size_memo = None
+
+        self._alignment = r
+        return r
 
     def _refine_dir(self):
         return list(self.members.keys())
@@ -2018,8 +2085,8 @@ class SimUnion(NamedTypeMixin, SimType):
     def __str__(self):
         return f"union {self.name}"
 
-    def _with_arch(self, arch):
-        out = SimUnion({name: ty.with_arch(arch) for name, ty in self.members.items()}, self.label)
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
+        out = SimUnion({name: ty.with_arch(arch, memo=memo) for name, ty in self.members.items()}, self.label)
         out._arch = arch
         return out
 
@@ -2115,10 +2182,10 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         """
         return self._reverse_members.get(value)
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeEnum(
             members=self.members,
-            base_type=self._base_type.with_arch(arch),
+            base_type=self._base_type.with_arch(arch, memo=memo),
             name=self._name,
             qualifier=self.qualifier,
         )
@@ -2278,10 +2345,10 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
         """
         return not self.has_unknown_bits(value)
 
-    def _with_arch(self, arch):
+    def _with_arch(self, arch, *, memo: dict[str, SimType]):
         out = SimTypeBitfield(
             flags=self.flags,
-            base_type=self._base_type.with_arch(arch),
+            base_type=self._base_type.with_arch(arch, memo=memo),
             name=self._name,
             qualifier=self.qualifier,
         )
@@ -2440,9 +2507,9 @@ class SimCppClass(SimStruct):
             ty = self.fields[field]
             ty.store(state, addr + offset, value[field])
 
-    def _with_arch(self, arch) -> SimCppClass:
-        if arch.name in self._arch_memo:
-            return self._arch_memo[arch.name]
+    def _with_arch(self, arch, *, memo: dict[str, SimType]) -> SimCppClass:
+        if self.name in memo:
+            return cast(SimCppClass, memo[self.name])
 
         out = SimCppClass(
             unique_name=self.unique_name,
@@ -2456,11 +2523,13 @@ class SimCppClass(SimStruct):
         )
         out._arch = arch
         out._def_order = self._def_order
-        self._arch_memo[arch.name] = out
+        memo[self.name] = out
 
-        out.members = OrderedDict((k, v.with_arch(arch)) for k, v in self.members.items())
+        out.members = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.members.items())
         out.function_members = (
-            OrderedDict((k, v.with_arch(arch)) for k, v in self.function_members.items())
+            OrderedDict(
+                (k, cast(SimTypeCppFunction, v.with_arch(arch, memo=memo))) for k, v in self.function_members.items()
+            )
             if self.function_members is not None
             else None
         )
