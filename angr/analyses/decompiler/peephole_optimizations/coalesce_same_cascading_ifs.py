@@ -14,14 +14,15 @@ class CoalesceSameCascadingIfs(PeepholeOptimizationStmtBase):
 
     def optimize(self, stmt: ConditionalJump, stmt_idx: int | None = None, block=None, **kwargs):
         cond = stmt.condition
+        true_target_in = stmt.true_target
 
         # if (cond) {ITE(cond, true_branch, false_branch)} else {} ==> if (cond) {true_branch} else {}
-        if isinstance(stmt.true_target, ITE) and cond == stmt.true_target.cond:
-            new_true_target = stmt.true_target.iftrue
+        if isinstance(true_target_in, ITE) and cond == true_target_in.cond:
+            new_true_target = true_target_in.iftrue
         else:
-            new_true_target = stmt.true_target
+            new_true_target = true_target_in
 
-        if cond is not stmt.condition or new_true_target is not stmt.true_target:
+        if new_true_target != true_target_in:
             # it's updated
             return ConditionalJump(
                 stmt.idx, cond, new_true_target, stmt.false_target, false_target_idx=stmt.false_target_idx, **stmt.tags
