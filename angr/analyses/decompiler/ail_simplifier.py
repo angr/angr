@@ -208,6 +208,11 @@ class AILSimplifier(Analysis):
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
         self._propagator_dead_vvar_ids: set[int] = set()
+        # per-block cache of dirty/ccall-defined vvar IDs, keyed by block key, validated by block identity
+        self._dirty_vvar_scan_cache: dict[tuple[int, int | None], tuple[Block, set[int]]] = {}
+        # set whenever anything _remove_dead_assignments() depends on changes; lets us skip the whole pass when
+        # we already proved there is nothing left to remove
+        self._dead_assignments_dirty: bool = True
 
         self._calls_to_remove: set[AILCodeLocation] = set()
         self._assignments_to_remove: set[AILCodeLocation] = set()
@@ -335,6 +340,7 @@ class AILSimplifier(Analysis):
 
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
+        self._dead_assignments_dirty = True
 
     def _compute_reaching_definitions(self) -> SRDAModel:
         # Computing reaching definitions or return the cached one
@@ -372,6 +378,7 @@ class AILSimplifier(Analysis):
         )
         self._propagator = prop
         self._propagator_dead_vvar_ids = prop.dead_vvar_ids
+        self._dead_assignments_dirty = True
         return prop
 
     @timethis
@@ -1837,6 +1844,14 @@ class AILSimplifier(Analysis):
 
     @timethis
     def _iteratively_remove_dead_assignments(self) -> bool:
+        if (
+            not self._dead_assignments_dirty
+            and not self.blocks
+            and not self._calls_to_remove
+            and not self._assignments_to_remove
+        ):
+            # nothing that _remove_dead_assignments() reads has changed since it last reported nothing to remove
+            return False
         anything_removed = False
         while True:
             r, changed_block_keys = self._remove_dead_assignments()
@@ -1856,6 +1871,8 @@ class AILSimplifier(Analysis):
                     self._verify_incremental_reaching_definitions()
             # propagation results are no longer reliable after removing statements
             self._propagator = None
+
+        self._dead_assignments_dirty = False
 
         # NoOp placeholders are left in the graph and the reaching-definitions cache is kept valid: subsequent
         # simplification steps reuse it instead of rebuilding from scratch. The placeholders are compacted away once,
@@ -2165,21 +2182,33 @@ class AILSimplifier(Analysis):
     def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel, dead_vvar_ids: set[int]) -> set[int]:
         blocks_dict: dict[tuple[int, int | None], Block] = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
-        # find dirty vvars and vexccall vvars
+        # find dirty vvars and vexccall vvars. this scan is repeated on every _remove_dead_assignments() call
+        # while most blocks stay untouched, so results are cached per block and reused while the block object is
+        # unchanged (blocks are replaced, never mutated in place, by every step in this analysis)
         dirty_vvar_ids = set()
+        cache = self._dirty_vvar_scan_cache
         for bb in self.func_graph:
-            for stmt in bb.statements:
-                # reg/tmp = ccall(...)
-                # we see tmps when it's used in a cycle;
-                # see binary ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95 function 0x18001722c
-                # block 0x18001724c
-                if (
-                    isinstance(stmt, Assignment)
-                    and isinstance(stmt.dst, VirtualVariable)
-                    and (stmt.dst.was_reg or stmt.dst.was_tmp)
-                    and isinstance(stmt.src, (DirtyExpression, VEXCCallExpression))
-                ):
-                    dirty_vvar_ids.add(stmt.dst.varid)
+            key = bb.addr, bb.idx
+            entry = cache.get(key)
+            if entry is not None and entry[0] is bb:
+                block_dirty_ids = entry[1]
+            else:
+                block_dirty_ids = set()
+                for stmt in bb.statements:
+                    # reg/tmp = ccall(...)
+                    # we see tmps when it's used in a cycle;
+                    # see binary ddc2b4cbf6ac841524375cdf82b93b9948f8ea09bbf6e8bf3410e6bc410a9d95 function 0x18001722c
+                    # block 0x18001724c
+                    if (
+                        isinstance(stmt, Assignment)
+                        and isinstance(stmt.dst, VirtualVariable)
+                        and (stmt.dst.was_reg or stmt.dst.was_tmp)
+                        and isinstance(stmt.src, (DirtyExpression, VEXCCallExpression))
+                    ):
+                        block_dirty_ids.add(stmt.dst.varid)
+                cache[key] = bb, block_dirty_ids
+            if block_dirty_ids:
+                dirty_vvar_ids |= block_dirty_ids
 
         phi_and_dirty_vvar_ids = (rd.phi_vvar_ids | dirty_vvar_ids).difference(dead_vvar_ids)
 
@@ -2197,18 +2226,24 @@ class AILSimplifier(Analysis):
                     vvar_used_by[used_by_varid].add(var_id)  # probably unnecessary
             vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
 
-        g = networkx.DiGraph()
+        # plain adjacency map instead of a throwaway networkx DiGraph: this is rebuilt on every
+        # _remove_dead_assignments() call, and per-edge networkx bookkeeping dominated the cost
         dummy_vvar_id = -1
+        succs_map: dict[int, set[int]] = {}
         for var_id, used_by_initial in vvar_used_by.items():
-            for u in used_by_initial:
-                if u is None:
-                    # we can't have None in networkx.DiGraph
-                    g.add_edge(var_id, dummy_vvar_id)
-                else:
-                    g.add_edge(var_id, u)
+            if not used_by_initial:
+                continue
+            targets = {dummy_vvar_id if u is None else u for u in used_by_initial}
+            if var_id in succs_map:
+                succs_map[var_id] |= targets
+            else:
+                succs_map[var_id] = set(targets)
+            for target in targets:
+                if target not in succs_map:
+                    succs_map[target] = set()
 
         cyclic_dependent_phi_varids = set()
-        for scc in networkx.strongly_connected_components(g):
+        for scc in strongly_connected_components(succs_map):
             if len(scc) == 1:
                 continue
 
@@ -2219,11 +2254,9 @@ class AILSimplifier(Analysis):
                 if varid in vvar_used_by and None in vvar_used_by[varid]:
                     bail = True
                     break
-                if bail is False:
-                    succs = list(g.successors(varid))
-                    if any(succ_varid not in scc for succ_varid in succs):
-                        bail = True
-                        break
+                if any(succ_varid not in scc for succ_varid in succs_map[varid]):
+                    bail = True
+                    break
             if bail:
                 continue
 
@@ -2399,3 +2432,55 @@ class AILSimplifier(Analysis):
 
 
 AnalysesHub.register_default("AILSimplifier", AILSimplifier)
+
+
+def strongly_connected_components(succs: dict[int, set[int]]):
+    """
+    Iterative Tarjan SCC over a plain adjacency map. Yields sets of node IDs, like
+    networkx.strongly_connected_components().
+    """
+    index_of: dict[int, int] = {}
+    lowlink: dict[int, int] = {}
+    on_stack: set[int] = set()
+    stack: list[int] = []
+    counter = 0
+
+    for root, root_succs in succs.items():
+        if root in index_of:
+            continue
+        work = [(root, iter(root_succs))]
+        index_of[root] = lowlink[root] = counter
+        counter += 1
+        stack.append(root)
+        on_stack.add(root)
+
+        while work:
+            node, it = work[-1]
+            advanced = False
+            for succ in it:
+                if succ not in index_of:
+                    index_of[succ] = lowlink[succ] = counter
+                    counter += 1
+                    stack.append(succ)
+                    on_stack.add(succ)
+                    work.append((succ, iter(succs[succ])))
+                    advanced = True
+                    break
+                if succ in on_stack and index_of[succ] < lowlink[node]:
+                    lowlink[node] = index_of[succ]
+            if advanced:
+                continue
+
+            work.pop()
+            if work:
+                parent = work[-1][0]
+                lowlink[parent] = min(lowlink[parent], lowlink[node])
+            if lowlink[node] == index_of[node]:
+                scc = set()
+                while True:
+                    member = stack.pop()
+                    on_stack.discard(member)
+                    scc.add(member)
+                    if member == node:
+                        break
+                yield scc

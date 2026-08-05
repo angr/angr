@@ -71,6 +71,8 @@ class SLivenessAnalysis(Analysis):
             live_outs[block_key] = set()
 
         live_on_edges: dict[tuple[tuple[int, int | None], tuple[int, int | None]], set[int]] = {}
+        # blocks whose statements have been walked at least once
+        walked: set[tuple[int, int | None]] = set()
 
         worklist = deque(networkx.dfs_postorder_nodes(graph, source=entry))
         worklist_set = set(worklist)
@@ -104,6 +106,11 @@ class SLivenessAnalysis(Analysis):
             if live != live_outs[block_key]:
                 changed = True
                 live_outs[block_key] = live.copy()
+            elif block_key in walked:
+                # the live-out set is what it was the last time this block was walked, and the walk depends on
+                # nothing else, so live_ins and live_on_edges are already up to date for this block
+                continue
+            walked.add(block_key)
 
             if head_controlled_loop:
                 # this is a head-controlled loop block; we start scanning from the first condition jump backwards
