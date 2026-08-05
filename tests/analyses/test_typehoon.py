@@ -8,6 +8,7 @@ import os
 import re
 import unittest
 from collections import OrderedDict
+from typing import cast
 
 import archinfo
 
@@ -552,11 +553,11 @@ class TestTypeTranslator(unittest.TestCase):
         struct Alpha { struct Beta *beta; int x; }; struct Beta { struct Alpha *alpha; int y; };
         The shape ``dereference_simtype`` produces for library types such as DRIVER_OBJECT/DEVICE_OBJECT.
         """
-        alpha = SimStruct({}, name="Alpha")
-        beta = SimStruct({}, name="Beta")
-        alpha.fields = OrderedDict({"beta": SimTypePointer(beta), "x": SimTypeInt()})
-        beta.fields = OrderedDict({"alpha": SimTypePointer(alpha), "y": SimTypeInt()})
-        return alpha.with_arch(arch), beta.with_arch(arch)
+        alpha = cast(SimStruct, SimStruct({}, name="Alpha").with_arch(arch))
+        beta = cast(SimStruct, SimStruct({}, name="Beta").with_arch(arch))
+        alpha.fields = OrderedDict({"beta": SimTypePointer(beta).with_arch(arch), "x": SimTypeInt().with_arch(arch)})
+        beta.fields = OrderedDict({"alpha": SimTypePointer(alpha).with_arch(arch), "y": SimTypeInt().with_arch(arch)})
+        return alpha, beta
 
     def test_mutually_recursive_structs_keep_their_references(self):
         arch = archinfo.arch_from_id("amd64")

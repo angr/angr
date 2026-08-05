@@ -241,7 +241,7 @@ class RustTypeTranslator(TypeTranslator):
     # Utility
     # ----------------------------------------------------------------
 
-    def ctype2rust(self, simtype: sim_type.SimType | RustSimType):
+    def ctype2rust(self, simtype: sim_type.SimType):
         if isinstance(simtype, RustSimType):
             return simtype
         if isinstance(simtype, SimTypeNum):

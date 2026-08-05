@@ -492,14 +492,14 @@ class RustCallingConventionAnalysis(Analysis):
                             some_type,
                             some_discriminant,
                             some_discriminant_size,
-                        )
+                        ).with_arch(self.project.arch)
                     return RustSimTypeOption(
                         none_discriminant,
                         none_discriminant_size,
                         some_type,
                         some_discriminant,
                         some_discriminant_size,
-                    )
+                    ).with_arch(self.project.arch)
                 if None not in discriminants:
                     # Result<T, E> with both discriminants known
                     # Default: sort by discriminant value (smaller = Ok, larger = Err)
@@ -526,7 +526,7 @@ class RustCallingConventionAnalysis(Analysis):
                         err_type,
                         err_discriminant.value,
                         discriminant_size,
-                    )
+                    ).with_arch(self.project.arch)
                 if candidates_and_discriminants[1][1] is None:
                     # Result<T, E> with one discriminant missing (T is larger, discriminant omitted)
                     (err_type, err_discriminant), (ok_type, _) = candidates_and_discriminants
@@ -538,7 +538,7 @@ class RustCallingConventionAnalysis(Analysis):
                         err_type,
                         err_discriminant.value,
                         discriminant_size,
-                    )
+                    ).with_arch(self.project.arch)
 
         if len(candidates_and_discriminants) >= 2:
             structs_by_size = {}
@@ -554,7 +554,7 @@ class RustCallingConventionAnalysis(Analysis):
                     err_type=small_type,
                     err_discriminant=None,
                     err_discriminant_size=0,
-                )
+                ).with_arch(self.project.arch)
             if (
                 len(structs_by_size) > 2
                 and min(structs_by_size) > 16 * self.project.arch.byte_width

@@ -1592,28 +1592,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def _nodecode_bytes_ratio(self, cutoff_addr: int, window_size: int) -> float:
         if cutoff_addr - 1 < 0:
             return 0.0
-        idx = self._seg_list.search(cutoff_addr - 1)
-        if idx is None or idx >= len(self._seg_list):
-            return 0.0
-        segment = self._seg_list[idx]
-        if segment.sort != "nodecode":
-            return 0.0
-
-        total_bytes = 0
-        nodecode_bytes = 0
-        while idx >= 0:
-            segment = self._seg_list[idx]
-            if segment.sort == "nodecode":
-                nodecode_bytes += segment.size
-            total_bytes += segment.size
-            if total_bytes >= window_size:
-                break
-            idx -= 1
-
-        if total_bytes < window_size:
-            return 0.0
-
-        return nodecode_bytes / total_bytes
+        return self._seg_list.sort_ratio_backwards(cutoff_addr - 1, window_size, "nodecode")
 
     def _next_code_addr_smart(self) -> int | None:
         # in the smart scanning mode, if there are more than N consecutive no-decode cases, we skip an entire window of

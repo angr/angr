@@ -1,6 +1,7 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
 
+import logging
 from itertools import count
 from typing import TYPE_CHECKING
 
@@ -12,6 +13,9 @@ from .typeconsts import TypeConstant
 
 if TYPE_CHECKING:
     import archinfo
+
+
+l = logging.getLogger(__name__)
 
 
 class SimTypeTempRef(sim_type.SimType):
@@ -59,7 +63,8 @@ class TypeTranslator:
         self._struct_ctr = count()
         # a name-independent, deterministic per-function ordering id stamped onto each translated struct
         self._struct_def_ctr = count()
-        self.memo = {}
+        # we encode SimStruct, SimCppClass, and SimTypeRef into strings so they can be used as unified keys for memo
+        self.memo: dict[str, typeconsts.Struct] = {}
         self.named_struct_id_counter = count(133337)
         self.struct_name_to_idx = {}
         # definitions of known structs (library types or user-defined types), keyed by name
@@ -74,6 +79,21 @@ class TypeTranslator:
 
     def struct_name(self):
         return f"struct_{next(self._struct_ctr)}"
+
+    @staticmethod
+    def _simstruct_cppclass_to_memo_key(
+        st: sim_type.SimStruct | sim_type.SimCppClass | sim_type.SimTypeRef,
+    ) -> str | None:
+        if isinstance(st, sim_type.SimStruct):
+            return f"struct_{st.name}"
+        if isinstance(st, sim_type.SimCppClass):
+            return f"cppclass_{st.name}"
+        if isinstance(st, sim_type.SimTypeRef):
+            if st.original_type is sim_type.SimStruct:
+                return f"struct_{st.name}"
+            if st.original_type is sim_type.SimCppClass:
+                return f"cppclass_{st.name}"
+        return None
 
     #
     # Type translation
@@ -340,10 +360,35 @@ class TypeTranslator:
     def _translate_SimTypeWideChar(self, st: sim_type.SimTypeWideChar) -> typeconsts.Int16:
         return typeconsts.Int16(name=st.label)
 
+    def _translate_SimTypeRef(self, st: sim_type.SimTypeRef) -> typeconsts.TypeConstant | typeconsts.BottomType:
+        # we really should not get SimTypeRef here, but if we do, we conduct a best-effort translation of SimTypeRef to
+        # a type constant.
+        l.error(
+            "TypeTranslator encountered an unexpected SimTypeRef. You probably forgot to call "
+            "dereference_simtype() to translate a SimTypeRef to a SimType!"
+        )
+        type_key = self._simstruct_cppclass_to_memo_key(st)
+        if type_key is not None and type_key in self.memo:
+            return self.memo[type_key]
+
+        if st.original_type is sim_type.SimStruct:
+            obj = typeconsts.Struct(fields={}, name=st.name)
+            if type_key is not None:
+                self.memo[type_key] = obj
+            return obj
+        if st.original_type is sim_type.SimCppClass:
+            obj = typeconsts.Struct(fields={}, name=st.name, is_cppclass=True)
+            if type_key is not None:
+                self.memo[type_key] = obj
+            return obj
+        return typeconsts.BottomType()
+
     def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct | typeconsts.BottomType:
-        if st in self.memo:
+        type_key = self._simstruct_cppclass_to_memo_key(st)
+        assert type_key is not None
+        if type_key in self.memo:
             # a recursive reference: point back at the struct that is being translated
-            return self.memo[st]
+            return self.memo[type_key]
 
         struct_idx = {}
         if st.name:
@@ -352,7 +397,7 @@ class TypeTranslator:
             struct_idx["idx"] = self.struct_name_to_idx[st.name]
 
         obj = typeconsts.Struct(fields={}, name=st.name, **struct_idx)
-        self.memo[st] = obj
+        self.memo[type_key] = obj
         self._remember_known_struct(st)
 
         fields = {}
@@ -360,21 +405,23 @@ class TypeTranslator:
         offsets = st.offsets
         for field_name, simtype in st.fields.items():
             if field_name not in offsets:
-                del self.memo[st]
+                del self.memo[type_key]
                 return typeconsts.BottomType()
             offset = offsets[field_name]
             fields[offset] = self._simtype2tc(simtype)
             field_names[offset] = field_name
         obj.fields = fields
         obj.field_names = field_names
-        del self.memo[st]
+        del self.memo[type_key]
 
         return obj
 
     def _translate_SimCppClass(self, st: sim_type.SimCppClass) -> typeconsts.Struct | typeconsts.BottomType:
-        if st in self.memo:
+        type_key = self._simstruct_cppclass_to_memo_key(st)
+        assert type_key is not None
+        if type_key in self.memo:
             # a recursive reference: point back at the class that is being translated
-            return self.memo[st]
+            return self.memo[type_key]
 
         struct_idx = {}
         if st.name:
@@ -383,7 +430,7 @@ class TypeTranslator:
             struct_idx["idx"] = self.struct_name_to_idx[st.name]
 
         obj = typeconsts.Struct(fields={}, name=st.name, is_cppclass=True, **struct_idx)
-        self.memo[st] = obj
+        self.memo[type_key] = obj
         self._remember_known_struct(st)
 
         fields = {}
@@ -391,14 +438,14 @@ class TypeTranslator:
         offsets = st.offsets
         for field_name, simtype in st.fields.items():
             if field_name not in offsets:
-                del self.memo[st]
+                del self.memo[type_key]
                 return typeconsts.BottomType()
             offset = offsets[field_name]
             fields[offset] = self._simtype2tc(simtype)
             field_names[offset] = field_name
         obj.fields = fields
         obj.field_names = field_names
-        del self.memo[st]
+        del self.memo[type_key]
 
         return obj
 
@@ -486,4 +533,5 @@ SimTypeHandlers = {
     sim_type.SimTypeEnum: TypeTranslator._translate_SimTypeEnum,
     sim_type.SimCppClass: TypeTranslator._translate_SimCppClass,
     sim_type.SimTypeFd: TypeTranslator._translate_SimTypeFd,
+    sim_type.SimTypeRef: TypeTranslator._translate_SimTypeRef,
 }

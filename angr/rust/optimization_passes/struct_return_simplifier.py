@@ -106,6 +106,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             variant = None
             returnty = prototype.returnty
             if isinstance(returnty, (RustSimTypeResult, RustSimTypeOption)):
+                returnty = returnty.with_arch(self.project.arch)
                 variant = returnty.get_variant(discriminant)
                 if not variant and discriminant is not None:
                     variant = returnty.get_variant(None)
@@ -113,9 +114,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                     new_expr = self._remove_discriminant_from_struct(struct, variant)
                     if len(new_expr.fields) == 1 and 0 in new_expr.fields:
                         new_expr = new_expr.fields[0]
-                    return RustEnum(
-                        self.manager.next_atom(), variant.name, [new_expr], returnty.with_arch(self.project.arch).size
-                    )
+                    return RustEnum(self.manager.next_atom(), variant.name, [new_expr], returnty.size)
         return struct
 
     def collect_ret_expr(self, path):
