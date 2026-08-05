@@ -11,6 +11,7 @@ import angr
 import angr.ailment.utils
 from angr import ailment
 from angr.ailment.block import Block
+from angr.utils.hashing import stable_hash
 
 INDENT_DELTA = 2
 
@@ -462,9 +463,7 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
     __hash__ = ailment.statement.TaggedObject.__hash__
 
     def _hash_core(self):
-        return angr.ailment.utils.stable_hash(
-            (IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str)
-        )
+        return stable_hash((IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str))
 
     def replace(self, old_expr, new_expr):  # pylint:disable=unused-argument
         return self

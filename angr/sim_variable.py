@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Self
 
 import claripy
 
+from angr.utils.hashing import stable_hash
+
 from .protos import variables_pb2 as pb2
 from .serializable import Serializable
 
@@ -141,7 +143,7 @@ class SimConstantVariable(SimVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(("const", self.value, self.ident, self.region, self.ident))
+            self._hash = stable_hash(("const", self.value, self.ident, self.region, self.ident))
         return self._hash
 
     def copy(self) -> SimConstantVariable:
@@ -201,7 +203,7 @@ class SimTemporaryVariable(SimVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(f"tmp_{self.tmp_id}")
+            self._hash = stable_hash(("tmp", self.tmp_id))
         return self._hash
 
     def __eq__(self, other):
@@ -261,7 +263,7 @@ class SimRegisterVariable(SimVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(("reg", self.region, self.reg, self.size, self.ident))
+            self._hash = stable_hash(("reg", self.region, self.reg, self.size, self.ident))
         return self._hash
 
     def __eq__(self, other):
@@ -334,7 +336,7 @@ class SimComboRegisterVariable(SimVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(("combo_reg", self.region, tuple(self.reg_offsets), self.size, self.ident))
+            self._hash = stable_hash(("combo_reg", self.region, tuple(self.reg_offsets), self.size, self.ident))
         return self._hash
 
     def __eq__(self, other):
@@ -413,7 +415,7 @@ class SimMemoryVariable(SimVariable):
         if self._hash is not None:
             return self._hash
 
-        self._hash = hash((hash(self.addr), hash(self.size), self.ident))
+        self._hash = stable_hash((self.addr, self.size, self.ident))
         return self._hash
 
     def __eq__(self, other):
@@ -517,7 +519,7 @@ class SimStackVariable(SimMemoryVariable):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.ident, self.base, self.offset, self.size))
+            self._hash = stable_hash((self.ident, self.base, self.offset, self.size))
         return self._hash
 
     def copy(self) -> SimStackVariable:
