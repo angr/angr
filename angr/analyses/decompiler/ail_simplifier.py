@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from collections.abc import Container, Iterable
+from collections.abc import Iterable
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -1097,6 +1097,9 @@ class AILSimplifier(Analysis):
         # out-of-date
         updated_locs: set[AILCodeLocation] = set()
 
+        # built on-demand
+        stack_defs_by_offset: dict[int, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
+
         for _, atom in sorted_loc_and_atoms:
             eqs = equivalences[atom]
             filtered_eqs: list[tuple[Equivalence, VirtualVariable, bool]] = []
@@ -1167,14 +1170,9 @@ class AILSimplifier(Analysis):
             rd = self._compute_reaching_definitions()
             the_def = None
             if to_replace_is_def:
-                # find defs
-                defs: Container[Definition[atoms.VirtualVariable, AILCodeLocation]] = []
-                for def_ in rd.all_definitions:
-                    if def_.atom.varid == to_replace.varid:
-                        defs.append(def_)
-                if len(defs) != 1:
+                the_def = rd.get_definition_by_varid(to_replace.varid)
+                if the_def is None:
                     continue
-                the_def = defs[0]
             else:
                 # find uses
                 defs = rd.get_uses_by_location(eq.codeloc)
@@ -1200,38 +1198,42 @@ class AILSimplifier(Analysis):
                 # (a) the on-stack or in-register copy of it has never been modified in this function
                 # (b) the function argument register has never been updated.
                 #     TODO: we may loosen requirement (b) once we have real register versioning in AIL.
-                defs = [def_ for def_ in rd.all_definitions if def_.codeloc == eq.codeloc]
+                defs = rd.get_defs_by_location(eq.codeloc)
                 all_uses_with_def = None
                 replace_with = None
                 remove_initial_assignment = None
                 def_eq_rel = DefEqRelation.DEF_IS_FUNCARG
 
-                if defs and len(defs) == 1:
-                    arg_copy_def = defs[0]
+                if len(defs) == 1:
+                    arg_copy_def = next(iter(defs))
                     if (isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack) or (
                         isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_reg
                     ):
                         # found the copied definition (either a stack variable or a register variable)
 
                         # Make sure there is no other write to this stack location if the copy is a stack variable
-                        if (
-                            isinstance(arg_copy_def.atom, atoms.VirtualVariable)
-                            and arg_copy_def.atom.was_stack
-                            and any(
-                                (def_ != arg_copy_def and def_.atom.stack_offset == arg_copy_def.atom.stack_offset)
-                                for def_ in rd.all_definitions
-                                if isinstance(def_.atom, atoms.VirtualVariable) and def_.atom.was_stack
-                            )
-                        ):
-                            continue
+                        if isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack:
+                            if stack_defs_by_offset is None:
+                                stack_defs_by_offset = defaultdict(list)
+                                for def_ in rd.all_definitions:
+                                    if def_.atom.was_stack:
+                                        stack_defs_by_offset[def_.atom.stack_offset].append(def_)
+                            if any(
+                                def_ != arg_copy_def
+                                for def_ in stack_defs_by_offset.get(arg_copy_def.atom.stack_offset, ())
+                            ):
+                                continue
 
-                        # Make sure the register is never updated across this function
-                        if any(
-                            (def_ != the_def and def_.atom == the_def.atom)
-                            for def_ in rd.all_definitions
-                            if isinstance(def_.atom, atoms.VirtualVariable)
-                            and def_.atom.was_reg
-                            and rd.get_vvar_uses(def_.atom)
+                        # Make sure the register is never updated across this function. Only the definition of
+                        # the_def's own vvar id can have an equal atom (atom equality is (varid, size)), and SSA gives
+                        # that id exactly one definition, so this is a single lookup rather than a full scan.
+                        other_def = rd.get_definition_by_varid(the_def.atom.varid)
+                        if (
+                            other_def is not None
+                            and other_def != the_def
+                            and other_def.atom == the_def.atom
+                            and other_def.atom.was_reg
+                            and rd.get_vvar_uses(other_def.atom)
                         ):
                             continue
 
@@ -1267,13 +1269,7 @@ class AILSimplifier(Analysis):
                     def_eq_rel = DefEqRelation.DEF_EQ_SAME_BLOCK
                 else:
                     # the definition is in the predecessor block of the eq
-                    eq_block = next(
-                        iter(
-                            bb
-                            for bb in self.func_graph
-                            if bb.addr == eq.codeloc.block_addr and bb.idx == eq.codeloc.block_idx
-                        )
-                    )
+                    eq_block = addr_and_idx_to_block[(eq.codeloc.block_addr, eq.codeloc.block_idx)]
                     eq_block_preds = set(self.func_graph.predecessors(eq_block))
                     if not any(
                         pred.addr == the_def.codeloc.block_addr and pred.idx == the_def.codeloc.block_idx
