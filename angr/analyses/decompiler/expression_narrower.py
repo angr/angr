@@ -272,11 +272,14 @@ class ExpressionNarrower(AILBlockRewriter):
         return super().walk(block)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment:
-        if isinstance(stmt.src, Phi):
+        src_in = stmt.src
+        dst_in = stmt.dst
+
+        if isinstance(src_in, Phi):
             changed = False
 
             src_and_vvars = []
-            for src, vvar in stmt.src.src_and_vvars:
+            for src, vvar in src_in.src_and_vvars:
                 if vvar is None:
                     src_and_vvars.append((src, None))
                     continue
@@ -298,39 +301,39 @@ class ExpressionNarrower(AILBlockRewriter):
 
                 src_and_vvars.append((src, new_var))
 
-            new_src = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars, **stmt.src.tags)
+            new_src = Phi(src_in.idx, src_in.bits, src_and_vvars, **src_in.tags)
 
         else:
-            new_src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-            changed = new_src is not stmt.src
+            new_src = self._handle_expr(1, src_in, stmt_idx, stmt, block)
+            changed = new_src != src_in
 
-        if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in self.new_vvar_sizes:
+        if isinstance(dst_in, VirtualVariable) and dst_in.varid in self.new_vvar_sizes:
             changed = True
             new_dst = VirtualVariable(
-                stmt.dst.idx,
-                stmt.dst.varid,
-                self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width,
-                category=stmt.dst.category,
-                oident=stmt.dst.oident,
-                **stmt.dst.tags,
+                dst_in.idx,
+                dst_in.varid,
+                self.new_vvar_sizes[dst_in.varid] * self.project.arch.byte_width,
+                category=dst_in.category,
+                oident=dst_in.oident,
+                **dst_in.tags,
             )
 
             self.replacement_core_vvars[new_dst.varid].append(new_dst)
 
             if isinstance(new_src, Phi):
-                new_src.bits = self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width
+                new_src.bits = self.new_vvar_sizes[dst_in.varid] * self.project.arch.byte_width
             else:
                 new_src = Convert(
                     self.manager.next_atom(),
-                    stmt.src.bits,
-                    self.new_vvar_sizes[stmt.dst.varid] * self.project.arch.byte_width,
+                    src_in.bits,
+                    self.new_vvar_sizes[dst_in.varid] * self.project.arch.byte_width,
                     False,
                     new_src,
                     **new_src.tags,
                 )
         else:
-            new_dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-            changed |= new_dst is not stmt.dst
+            new_dst = self._handle_expr(0, dst_in, stmt_idx, stmt, block)
+            changed |= new_dst != dst_in
 
         if changed:
             self.narrowed_any = True
