@@ -46,12 +46,56 @@ class SRDAModel:
         self.phivarid_to_varids_with_unknown: dict[int, set[int | None]] = {}
         self.phivarid_to_varids: dict[int, set[int]] = {}
         self.vvar_uses_by_loc: dict[AILCodeLocation, list[int]] = {}
+        # the inverse index of all_vvar_definitions; a bare int for the common case of a location defining a single
+        # vvar, a set when a statement defines more than one (e.g., a call defining both ret_expr and fp_ret_expr)
+        self.vvar_defs_by_loc: dict[AILCodeLocation, int | set[int]] = {}
 
     def add_vvar_use(self, vvar_id: int, expr: VirtualVariable | None, loc: AILCodeLocation) -> None:
         self.all_vvar_uses[vvar_id].append((expr, loc))
         if loc not in self.vvar_uses_by_loc:
             self.vvar_uses_by_loc[loc] = []
         self.vvar_uses_by_loc[loc].append(vvar_id)
+
+    def add_vvar_def(self, vvar_id: int, loc: AILCodeLocation) -> None:
+        """
+        Record the definition of a vvar id, keeping all_vvar_definitions and vvar_defs_by_loc in sync.
+        """
+        old_loc = self.all_vvar_definitions.get(vvar_id)
+        self.all_vvar_definitions[vvar_id] = loc
+        if old_loc is not None:
+            if old_loc == loc:
+                return
+            self._unlink_vvar_def(vvar_id, old_loc)
+        existing = self.vvar_defs_by_loc.get(loc)
+        if existing is None:
+            self.vvar_defs_by_loc[loc] = vvar_id
+        elif isinstance(existing, int):
+            if existing != vvar_id:
+                self.vvar_defs_by_loc[loc] = {existing, vvar_id}
+        else:
+            existing.add(vvar_id)
+
+    def remove_vvar_def(self, vvar_id: int) -> None:
+        """
+        Drop the definition of a vvar id from both all_vvar_definitions and vvar_defs_by_loc.
+        """
+        loc = self.all_vvar_definitions.pop(vvar_id, None)
+        if loc is not None:
+            self._unlink_vvar_def(vvar_id, loc)
+
+    def _unlink_vvar_def(self, vvar_id: int, loc: AILCodeLocation) -> None:
+        existing = self.vvar_defs_by_loc.get(loc)
+        if existing is None:
+            return
+        if isinstance(existing, int):
+            if existing == vvar_id:
+                del self.vvar_defs_by_loc[loc]
+        else:
+            existing.discard(vvar_id)
+            if len(existing) == 1:
+                self.vvar_defs_by_loc[loc] = next(iter(existing))
+            elif not existing:
+                del self.vvar_defs_by_loc[loc]
 
     def update_after_block_edits(self, edited_blocks) -> None:
         """
@@ -82,7 +126,7 @@ class SRDAModel:
             # this definition no longer exists; keep its uses for now (if the vvar is still used elsewhere it becomes
             # a used-but-undefined extern vvar, reconciled below)
             self.varid_to_vvar.pop(vid, None)
-            self.all_vvar_definitions.pop(vid, None)
+            self.remove_vvar_def(vid)
             self.phi_vvar_ids.discard(vid)
             self.phivarid_to_varids.pop(vid, None)
             self.phivarid_to_varids_with_unknown.pop(vid, None)
@@ -90,7 +134,7 @@ class SRDAModel:
         # surviving defs keep their (index-stable) location; refresh vvar and phi info from the rescan
         for vid, (vvar, defloc) in new_deflocs.items():
             self.varid_to_vvar[vid] = vvar
-            self.all_vvar_definitions[vid] = defloc
+            self.add_vvar_def(vid, defloc)
             if vid in new_phi:
                 src = new_phi[vid]
                 self.phi_vvar_ids.add(vid)
@@ -139,14 +183,14 @@ class SRDAModel:
         for vid, expr in explicit_use_repr.items():
             if vid not in self.all_vvar_definitions:
                 self.varid_to_vvar[vid] = expr
-                self.all_vvar_definitions[vid] = AILCodeLocation.make_extern(vid)
+                self.add_vvar_def(vid, AILCodeLocation.make_extern(vid))
         for vid in [
             vid
             for vid, loc in self.all_vvar_definitions.items()
             if loc.is_extern and vid not in func_arg_ids and vid not in explicit_use_repr
         ]:
             self.varid_to_vvar.pop(vid, None)
-            self.all_vvar_definitions.pop(vid, None)
+            self.remove_vvar_def(vid)
             self.all_vvar_uses.pop(vid, None)
             self.phi_vvar_ids.discard(vid)
             self.phivarid_to_varids.pop(vid, None)
@@ -169,6 +213,10 @@ class SRDAModel:
             {k: frozenset(v) for k, v in self.phivarid_to_varids.items()},
             {k: frozenset(v) for k, v in self.phivarid_to_varids_with_unknown.items()},
             {loc: Counter(vids) for loc, vids in self.vvar_uses_by_loc.items() if vids},
+            {
+                loc: frozenset(vids) if isinstance(vids, set) else frozenset((vids,))
+                for loc, vids in self.vvar_defs_by_loc.items()
+            },
         )
 
     @property
@@ -259,6 +307,29 @@ class SRDAModel:
             )
         return defs
 
+    def get_defs_by_location(self, loc: AILCodeLocation) -> set[Definition[atoms.VirtualVariable, AILCodeLocation]]:
+        """
+        Retrieve all vvar definitions at a given location.
+
+        :param loc:     The code location.
+        :return:        A set of definitions that are defined at the given location.
+        """
+        vvar_ids = self.vvar_defs_by_loc.get(loc)
+        if vvar_ids is None:
+            return set()
+        if isinstance(vvar_ids, int):
+            vvar_ids = (vvar_ids,)  # type: ignore
+        defs: set[Definition[atoms.VirtualVariable, AILCodeLocation]] = set()
+        for vvar_id in vvar_ids:  # type: ignore
+            vvar = self.varid_to_vvar[vvar_id]
+            defs.add(
+                Definition(
+                    atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident),
+                    self.all_vvar_definitions[vvar_id],
+                )
+            )
+        return defs
+
     def get_vvar_uses(self, obj: VirtualVariable | atoms.VirtualVariable) -> set[AILCodeLocation]:
         if obj.varid in self.all_vvar_uses:
             return {loc for _, loc in self.all_vvar_uses[obj.varid]}
@@ -319,7 +390,7 @@ def populate_model(
     # update model
     for vvar_id, (vvar, defloc) in vvar_deflocs.items():
         model.varid_to_vvar[vvar_id] = vvar
-        model.all_vvar_definitions[vvar_id] = defloc
+        model.add_vvar_def(vvar_id, defloc)
         if vvar_id in vvar_uselocs:
             for useloc in vvar_uselocs[vvar_id]:
                 model.add_vvar_use(vvar_id, *useloc)
@@ -339,7 +410,7 @@ def populate_model(
         for vvar_id in undefined_vvarids:
             used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
             model.varid_to_vvar[vvar_id] = used_vvar
-            model.all_vvar_definitions[vvar_id] = AILCodeLocation.make_extern(vvar_id)
+            model.add_vvar_def(vvar_id, AILCodeLocation.make_extern(vvar_id))
             if vvar_id in vvar_uselocs:
                 for vvar_useloc in vvar_uselocs[vvar_id]:
                     model.add_vvar_use(vvar_id, *vvar_useloc)

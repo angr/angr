@@ -1098,7 +1098,6 @@ class AILSimplifier(Analysis):
         updated_locs: set[AILCodeLocation] = set()
 
         # built on-demand
-        defs_by_codeloc: dict[AILCodeLocation, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
         stack_defs_by_offset: dict[int, list[Definition[atoms.VirtualVariable, AILCodeLocation]]] | None = None
 
         for _, atom in sorted_loc_and_atoms:
@@ -1199,18 +1198,14 @@ class AILSimplifier(Analysis):
                 # (a) the on-stack or in-register copy of it has never been modified in this function
                 # (b) the function argument register has never been updated.
                 #     TODO: we may loosen requirement (b) once we have real register versioning in AIL.
-                if defs_by_codeloc is None:
-                    defs_by_codeloc = defaultdict(list)
-                    for def_ in rd.all_definitions:
-                        defs_by_codeloc[def_.codeloc].append(def_)
-                defs = defs_by_codeloc.get(eq.codeloc, [])
+                defs = rd.get_defs_by_location(eq.codeloc)
                 all_uses_with_def = None
                 replace_with = None
                 remove_initial_assignment = None
                 def_eq_rel = DefEqRelation.DEF_IS_FUNCARG
 
-                if defs and len(defs) == 1:
-                    arg_copy_def = defs[0]
+                if len(defs) == 1:
+                    arg_copy_def = next(iter(defs))
                     if (isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_stack) or (
                         isinstance(arg_copy_def.atom, atoms.VirtualVariable) and arg_copy_def.atom.was_reg
                     ):
