@@ -935,11 +935,12 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         return stmt
 
     def _handle_Return(self, stmt_idx: int, stmt: Return, block: Block | None) -> Statement:
-        if stmt.ret_exprs:
+        ret_exprs_in = stmt.ret_exprs
+        if ret_exprs_in:
             new_ret_exprs = [
-                self._handle_expr(idx, expr, stmt_idx, stmt, block) for idx, expr in enumerate(stmt.ret_exprs)
+                self._handle_expr(idx, expr, stmt_idx, stmt, block) for idx, expr in enumerate(ret_exprs_in)
             ]
-            changed = any(old is not new for new, old in zip(new_ret_exprs, stmt.ret_exprs))
+            changed = any(old != new for new, old in zip(new_ret_exprs, ret_exprs_in))
 
             if changed:
                 return Return(stmt.idx, new_ret_exprs, **stmt.tags)
@@ -1114,13 +1115,12 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             super()._handle_Phi(expr_idx, expr, stmt_idx, stmt, block)
             return expr
 
-        changed = False
-
+        src_and_vvars_in = expr.src_and_vvars
         src_and_vvars = [
             (src, self._handle_expr(idx, vvar, stmt_idx, stmt, block) if vvar is not None else None)
-            for idx, (src, vvar) in enumerate(expr.src_and_vvars)
+            for idx, (src, vvar) in enumerate(src_and_vvars_in)
         ]
-        changed = any(new is not old for (_, new), (_, old) in zip(src_and_vvars, expr.src_and_vvars))
+        changed = any(new != old for (_, new), (_, old) in zip(src_and_vvars, src_and_vvars_in))
 
         if changed:
             assert all(vvar is None or isinstance(vvar, VirtualVariable) for _, vvar in src_and_vvars)
@@ -1137,7 +1137,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     ) -> Expression:
         operands_in = expr.operands
         new_operands = [self._handle_expr(0, operand, stmt_idx, stmt, block) for operand in operands_in]
-        changed = any(new is not old for new, old in zip(new_operands, operands_in))
+        changed = any(new != old for new, old in zip(new_operands, operands_in))
 
         new_guard = None
         guard_in = expr.guard

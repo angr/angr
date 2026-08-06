@@ -599,11 +599,12 @@ class ExpressionReplacer(AILBlockRewriter):
             else:
                 new_statements.append(stmt_)
 
-        new_expr = self._handle_expr(0, expr.expr, stmt_idx, stmt, block)
-        if new_expr is not None and new_expr is not expr.expr:
+        inner_in = expr.expr
+        new_expr = self._handle_expr(0, inner_in, stmt_idx, stmt, block)
+        if new_expr is not None and new_expr != inner_in:
             changed = True
         else:
-            new_expr = expr.expr
+            new_expr = inner_in
 
         if changed:
             if not new_statements:
@@ -621,23 +622,26 @@ class ExpressionReplacer(AILBlockRewriter):
         if is_phi_assignment(stmt):
             return stmt
 
-        if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in self._assignments:
+        dst_in = stmt.dst
+        src_in = stmt.src
+
+        if isinstance(dst_in, VirtualVariable) and dst_in.varid in self._assignments:
             return stmt
 
         changed = False
 
-        dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-        if dst is not stmt.dst and not isinstance(dst, (Call, ITE)):
+        dst = self._handle_expr(0, dst_in, stmt_idx, stmt, block)
+        if dst != dst_in and not isinstance(dst, (Call, ITE)):
             changed = True
         else:
-            dst = stmt.dst
+            dst = dst_in
         assert isinstance(dst, Atom)
 
-        src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        if src is not stmt.src:
+        src = self._handle_expr(1, src_in, stmt_idx, stmt, block)
+        if src != src_in:
             changed = True
         else:
-            src = stmt.src
+            src = src_in
 
         if changed:
             return Assignment(stmt.idx, dst, src, **stmt.tags)

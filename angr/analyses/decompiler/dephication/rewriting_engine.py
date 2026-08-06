@@ -236,8 +236,9 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         return None
 
     def _handle_stmt_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
-        dirty = self._expr(stmt.dirty)
-        if dirty is None or dirty is stmt.dirty:
+        dirty_in = stmt.dirty
+        dirty = self._expr(dirty_in)
+        if dirty is None or dirty == dirty_in:
             return None
         assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
@@ -394,19 +395,24 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         return None
 
     def _handle_expr_Extract(self, expr):
-        base = self._expr(expr.base) or expr.base
-        offset = self._expr(expr.offset) or expr.offset
+        base_in = expr.base
+        offset_in = expr.offset
+        base = self._expr(base_in) or base_in
+        offset = self._expr(offset_in) or offset_in
 
-        if base is not expr.base or offset is not expr.offset:
+        if base != base_in or offset != offset_in:
             return Extract(expr.idx, expr.bits, base, offset, expr.endness, **expr.tags)
         return None
 
     def _handle_expr_Insert(self, expr):
-        base = self._expr(expr.base) or expr.base
-        offset = self._expr(expr.offset) or expr.offset
-        value = self._expr(expr.value) or expr.value
+        base_in = expr.base
+        offset_in = expr.offset
+        value_in = expr.value
+        base = self._expr(base_in) or base_in
+        offset = self._expr(offset_in) or offset_in
+        value = self._expr(value_in) or value_in
 
-        if base is not expr.base or offset is not expr.offset or value is not expr.value:
+        if base != base_in or offset != offset_in or value != value_in:
             return Insert(expr.idx, base, offset, value, expr.endness, **expr.tags)
         return None
 
