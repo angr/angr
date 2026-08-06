@@ -7,6 +7,12 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import unittest
 
 import angr
+from angr.ailment import Block, Manager
+from angr.ailment.expression import StackBaseOffset, UnaryOp, VirtualVariable
+from angr.ailment.statement import Return
+from angr.analyses.decompiler.ssailification.rewriting_engine import SimEngineSSARewriting
+from angr.analyses.decompiler.ssailification.rewriting_state import RewritingState
+from angr.code_location import AILCodeLocation
 
 
 class TestSSAAddrTakenStackVar(unittest.TestCase):
@@ -278,6 +284,43 @@ class TestSSAAddrTakenStackVar(unittest.TestCase):
         "45cc5056e8540000005959eb0232c08b4dfc5f5e33cd5be8ba31fcffc9c3"
     )
     BASE = 0x46AD1F
+
+    def test_rewrite_addr_taken_stack_slot_without_reaching_definition(self):
+        project = angr.load_shellcode(b"\xc3", arch="amd64", load_address=0)
+        function = project.kb.functions.function(addr=0, name="synthetic", create=True)
+        manager = Manager(arch=project.arch)
+        stack_addr = StackBaseOffset(manager.next_atom(), 64, -8, ins_addr=0x10)
+        block = Block(
+            0x10,
+            1,
+            statements=[Return(manager.next_atom(), [stack_addr], ins_addr=0x10)],
+            idx=0,
+        )
+        state = RewritingState(
+            AILCodeLocation(block.addr, block.idx, 0, block.addr),
+            project.arch,
+            function,
+            block,
+        )
+        engine = SimEngineSSARewriting(
+            project,
+            ail_manager=manager,
+            def_to_udef={},
+            incomplete_defs=set(),
+            stackvars=True,
+            fail_fast=True,
+        )
+        engine.process(state, block=block)
+
+        assert engine.out_block is not None
+        rewritten_return = engine.out_block.statements[0]
+        assert isinstance(rewritten_return, Return)
+        assert rewritten_return.ret_exprs is not None
+        reference = rewritten_return.ret_exprs[0]
+        assert isinstance(reference, UnaryOp)
+        assert reference.op == "Reference"
+        assert isinstance(reference.operand, VirtualVariable)
+        assert reference.operand.was_stack and reference.operand.stack_offset == -8
 
     def test_addr_taken_stack_slot_without_own_def(self):
         proj = angr.load_shellcode(self.FUNC_BYTES, "X86", load_address=self.BASE, start_offset=0)
