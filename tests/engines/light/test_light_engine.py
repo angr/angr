@@ -45,6 +45,26 @@ class TestLightEngine(TestCase):
         abs_expr = ailment.Expr.UnaryOp(1, "Abs", operand)
         assert engine._handle_expr_UnaryOp(abs_expr) is abs_expr
 
+    def test_ail_int_convert_only_folds_integer_constant(self):
+        arch = archinfo.ArchAMD64()
+        engine = SimplifierAILEngine(SimpleNamespace(arch=arch))  # pyright: ignore[reportArgumentType]
+        float_operand = ailment.Expr.Const(0, 18.0, 32)  # pyright: ignore[reportArgumentType]
+        float_convert = ailment.Expr.Convert(1, 32, 64, False, float_operand)
+
+        float_result = engine._handle_expr_Convert(float_convert)
+
+        assert isinstance(float_result, ailment.Expr.Convert)
+        assert float_result.operand == float_operand
+
+        int_operand = ailment.Expr.Const(2, 0x1_0000_0012, 64)
+        int_convert = ailment.Expr.Convert(3, 64, 32, False, int_operand)
+
+        int_result = engine._handle_expr_Convert(int_convert)
+
+        assert isinstance(int_result, ailment.Expr.Const)
+        assert int_result.value == 0x12
+        assert int_result.bits == 32
+
     def test_inlined_string_abs_visits_operand(self):
         engine: Any = object.__new__(InlinedStringTransformationAILEngine)
         seen = []
