@@ -9,6 +9,7 @@ import unittest
 import angr
 from angr import ailment
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier
+from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -48,7 +49,7 @@ class TestCallsiteMaker(unittest.TestCase):
             ail_block = ailment.IRSBConverter.convert(block.vex, manager)
             simp = BlockSimplifier(project, ail_block, manager, main_func.addr)
 
-            csm = project.analyses.AILCallSiteMaker(simp.result_block, ail_manager=manager)
+            csm = CallSiteMaker(project, simp.result_block, ail_manager=manager)
             if csm.result_block:
                 ail_block = csm.result_block
                 simp = BlockSimplifier(project, ail_block, manager, main_func.addr)
