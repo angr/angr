@@ -2402,9 +2402,8 @@ class Clinic(Analysis, Serializable):
 
         def _handler(block):
             nonlocal stackarg_offset_manager, removed_vvar_ids
-            csm = self.project.analyses[CallSiteMaker].prep(
-                fail_fast=self._fail_fast,
-            )(
+            csm = CallSiteMaker(
+                self.project,
                 block,
                 reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,

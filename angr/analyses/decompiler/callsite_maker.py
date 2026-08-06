@@ -8,7 +8,6 @@ import archinfo
 
 from angr.ailment import Const, Expr, Stmt
 from angr.ailment.manager import Manager
-from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.calling_conventions import (
     SimCC,
@@ -38,19 +37,28 @@ if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel
     from angr.knowledge_plugins.functions import Function
     from angr.knowledge_plugins.key_definitions.definition import Definition
+    from angr.project import Project
 
 
 l = logging.getLogger(name=__name__)
 
 
-class CallSiteMaker(Analysis):
+class CallSiteMaker:
     """
     Add calling convention, declaration, and args to a call site.
     """
 
     def __init__(
-        self, block, *, ail_manager: Manager, reaching_definitions: SRDAModel | None = None, stack_pointer_tracker=None
+        self,
+        project: Project,
+        block,
+        *,
+        ail_manager: Manager,
+        reaching_definitions: SRDAModel | None = None,
+        stack_pointer_tracker=None,
     ):
+        self.project = project
+        self.kb = project.kb
         self.block = block
 
         self._reaching_definitions = reaching_definitions
@@ -652,6 +660,3 @@ class CallSiteMaker(Analysis):
 
     def _atom_idx(self) -> int:
         return self._ail_manager.next_atom()
-
-
-register_analysis(CallSiteMaker, "AILCallSiteMaker")
