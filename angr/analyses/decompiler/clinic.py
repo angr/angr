@@ -989,14 +989,7 @@ class Clinic(Analysis, Serializable):
             arg_vvars=self.arg_vvars,
         )
 
-        # Simplify the entire function for the third time. This used to be two identical back-to-back calls, because
-        # narrowing only runs on a call's first iteration and a second narrowing round was wanted: the first call
-        # therefore burned a whole iteration proving a fixed point that the second call immediately re-entered. One
-        # loop that narrows on every iteration reaches the same fixed point without the wasted round trip.
-        #
-        # narrow_rounds=2 would be slightly faster still, but it moves the second narrowing round from "after the
-        # previous fixed point" to "iteration 1", which only coincide when the loop converges within two iterations.
-        # Narrowing every iteration keeps the output identical for any convergence depth.
+        # Simplify the entire function for the third time.
         self._update_progress(70.0, text="Simplifying function 3")
         self._simplify_function(
             self._ail_graph,
