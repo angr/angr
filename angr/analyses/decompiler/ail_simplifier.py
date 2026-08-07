@@ -80,6 +80,58 @@ _l = logging.getLogger(__name__)
 _VERIFY_INCREMENTAL_RD = os.environ.get("VERIFY_INCREMENTAL_RD", "").lower() not in {"", "0", "no", "false"}
 
 
+def _strongly_connected_components(succs: dict[int, set[int]]):
+    """
+    Iterative Tarjan SCC over a plain adjacency map. Yields sets of node IDs, like
+    networkx.strongly_connected_components().
+    """
+    index_of: dict[int, int] = {}
+    lowlink: dict[int, int] = {}
+    on_stack: set[int] = set()
+    stack: list[int] = []
+    counter = 0
+
+    for root, root_succs in succs.items():
+        if root in index_of:
+            continue
+        work = [(root, iter(root_succs))]
+        index_of[root] = lowlink[root] = counter
+        counter += 1
+        stack.append(root)
+        on_stack.add(root)
+
+        while work:
+            node, it = work[-1]
+            advanced = False
+            for succ in it:
+                if succ not in index_of:
+                    index_of[succ] = lowlink[succ] = counter
+                    counter += 1
+                    stack.append(succ)
+                    on_stack.add(succ)
+                    work.append((succ, iter(succs[succ])))
+                    advanced = True
+                    break
+                if succ in on_stack and index_of[succ] < lowlink[node]:
+                    lowlink[node] = index_of[succ]
+            if advanced:
+                continue
+
+            work.pop()
+            if work:
+                parent = work[-1][0]
+                lowlink[parent] = min(lowlink[parent], lowlink[node])
+            if lowlink[node] == index_of[node]:
+                scc = set()
+                while True:
+                    member = stack.pop()
+                    on_stack.discard(member)
+                    scc.add(member)
+                    if member == node:
+                        break
+                yield scc
+
+
 class HasVVarNotification(Exception):
     """
     Notifies the existence of a VirtualVariable.
@@ -210,9 +262,9 @@ class AILSimplifier(Analysis):
         self._propagator_dead_vvar_ids: set[int] = set()
         # per-block cache of dirty/ccall-defined vvar IDs, keyed by block key, validated by block identity
         self._dirty_vvar_scan_cache: dict[tuple[int, int | None], tuple[Block, set[int]]] = {}
-        # set whenever anything _remove_dead_assignments() depends on changes; lets us skip the whole pass when
-        # we already proved there is nothing left to remove
-        self._dead_assignments_dirty: bool = True
+        # only set to True when any simplification pass has modified the graph or updated any blocks.
+        # skips _remove_dead_assignments if this flag is False.
+        self._should_eliminate_dead_assignments: bool = True
 
         self._calls_to_remove: set[AILCodeLocation] = set()
         self._assignments_to_remove: set[AILCodeLocation] = set()
@@ -340,7 +392,7 @@ class AILSimplifier(Analysis):
 
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
-        self._dead_assignments_dirty = True
+        self._should_eliminate_dead_assignments = True
 
     def _compute_reaching_definitions(self) -> SRDAModel:
         # Computing reaching definitions or return the cached one
@@ -378,7 +430,7 @@ class AILSimplifier(Analysis):
         )
         self._propagator = prop
         self._propagator_dead_vvar_ids = prop.dead_vvar_ids
-        self._dead_assignments_dirty = True
+        self._should_eliminate_dead_assignments = True
         return prop
 
     @timethis
@@ -1845,7 +1897,7 @@ class AILSimplifier(Analysis):
     @timethis
     def _iteratively_remove_dead_assignments(self) -> bool:
         if (
-            not self._dead_assignments_dirty
+            not self._should_eliminate_dead_assignments
             and not self.blocks
             and not self._calls_to_remove
             and not self._assignments_to_remove
@@ -1872,7 +1924,7 @@ class AILSimplifier(Analysis):
             # propagation results are no longer reliable after removing statements
             self._propagator = None
 
-        self._dead_assignments_dirty = False
+        self._should_eliminate_dead_assignments = False
 
         # NoOp placeholders are left in the graph and the reaching-definitions cache is kept valid: subsequent
         # simplification steps reuse it instead of rebuilding from scratch. The placeholders are compacted away once,
@@ -2182,10 +2234,9 @@ class AILSimplifier(Analysis):
     def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel, dead_vvar_ids: set[int]) -> set[int]:
         blocks_dict: dict[tuple[int, int | None], Block] = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
-        # find dirty vvars and vexccall vvars. this scan is repeated on every _remove_dead_assignments() call
-        # while most blocks stay untouched, so results are cached per block and reused while the block object is
-        # unchanged (blocks are replaced, never mutated in place, by every step in this analysis)
         dirty_vvar_ids = set()
+        # cache dirty or ccall vvar IDs per block to avoid re-scanning
+        # TODO: Move this cache to ailment.Block once per-block defs/uses cache lands on master.
         cache = self._dirty_vvar_scan_cache
         for bb in self.func_graph:
             key = bb.addr, bb.idx
@@ -2226,8 +2277,9 @@ class AILSimplifier(Analysis):
                     vvar_used_by[used_by_varid].add(var_id)  # probably unnecessary
             vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
 
-        # plain adjacency map instead of a throwaway networkx DiGraph: this is rebuilt on every
-        # _remove_dead_assignments() call, and per-edge networkx bookkeeping dominated the cost
+        # build a plain adjacency map instead of a throwaway networkx DiGraph for better performance. the performance
+        # improvement is observable on notepad.exe:NPInit
+        # TODO: Investigate if switching to rustworkx eliminates the need for this optimization.
         dummy_vvar_id = -1
         succs_map: dict[int, set[int]] = {}
         for var_id, used_by_initial in vvar_used_by.items():
@@ -2243,7 +2295,7 @@ class AILSimplifier(Analysis):
                     succs_map[target] = set()
 
         cyclic_dependent_phi_varids = set()
-        for scc in strongly_connected_components(succs_map):
+        for scc in _strongly_connected_components(succs_map):
             if len(scc) == 1:
                 continue
 
@@ -2432,55 +2484,3 @@ class AILSimplifier(Analysis):
 
 
 AnalysesHub.register_default("AILSimplifier", AILSimplifier)
-
-
-def strongly_connected_components(succs: dict[int, set[int]]):
-    """
-    Iterative Tarjan SCC over a plain adjacency map. Yields sets of node IDs, like
-    networkx.strongly_connected_components().
-    """
-    index_of: dict[int, int] = {}
-    lowlink: dict[int, int] = {}
-    on_stack: set[int] = set()
-    stack: list[int] = []
-    counter = 0
-
-    for root, root_succs in succs.items():
-        if root in index_of:
-            continue
-        work = [(root, iter(root_succs))]
-        index_of[root] = lowlink[root] = counter
-        counter += 1
-        stack.append(root)
-        on_stack.add(root)
-
-        while work:
-            node, it = work[-1]
-            advanced = False
-            for succ in it:
-                if succ not in index_of:
-                    index_of[succ] = lowlink[succ] = counter
-                    counter += 1
-                    stack.append(succ)
-                    on_stack.add(succ)
-                    work.append((succ, iter(succs[succ])))
-                    advanced = True
-                    break
-                if succ in on_stack and index_of[succ] < lowlink[node]:
-                    lowlink[node] = index_of[succ]
-            if advanced:
-                continue
-
-            work.pop()
-            if work:
-                parent = work[-1][0]
-                lowlink[parent] = min(lowlink[parent], lowlink[node])
-            if lowlink[node] == index_of[node]:
-                scc = set()
-                while True:
-                    member = stack.pop()
-                    on_stack.discard(member)
-                    scc.add(member)
-                    if member == node:
-                        break
-                yield scc
