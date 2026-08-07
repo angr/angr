@@ -29,11 +29,14 @@ from .errors import (
 )
 from .hooks import EditHooks, NullEditHooks
 from .ops import (
+    global_variable_at,
     reflow_types,
     rename_function,
+    rename_global,
     rename_variable,
     set_comment,
     set_function_prototype,
+    set_global_type,
     set_variable_type,
 )
 from .resolve import (
@@ -65,11 +68,13 @@ __all__ = [
     "VariableNotFoundError",
     "concrete_variables",
     "get_cache",
+    "global_variable_at",
     "invalidate",
     "list_variable_names",
     "parse_address",
     "reflow_types",
     "rename_function",
+    "rename_global",
     "rename_variable",
     "require_cache",
     "resolve_function",
@@ -77,6 +82,7 @@ __all__ = [
     "restore_user_edits",
     "set_comment",
     "set_function_prototype",
+    "set_global_type",
     "set_variable_type",
     "snapshot_user_edits",
     "validate_name",

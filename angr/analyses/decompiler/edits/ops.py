@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import parse_signature, parse_type
+from angr.sim_variable import SimMemoryVariable, SimStackVariable
 
 from .cache import DEFAULT_FLAVOR, get_cache, invalidate, require_cache, restore_user_edits, snapshot_user_edits
 from .errors import NameCollisionError, TypeParseError, UnsupportedEditError
@@ -540,4 +541,98 @@ def set_comment(
             "rendered_inline": inline,
             "snapped_from": None if snapped_from is None else hex(snapped_from),
         },
+    )
+
+
+def global_variable_at(kb: KnowledgeBase, addr: int):
+    """The global SimVariable recorded at an address, if variable recovery produced one."""
+    varman = kb.dec_variables["global"]
+    for var in varman.get_variables(sort=None):
+        if isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable) and var.addr == addr:
+            return var
+    return None
+
+
+def _reject_function_entry(kb: KnowledgeBase, addr: int, what: str) -> None:
+    """kb.labels[addr] = name renames the function when addr is a function entry."""
+    if addr in kb.functions:
+        raise UnsupportedEditError(
+            f"{addr:#x} is the entry point of a function; {what} it with the function-level operation instead."
+        )
+
+
+def rename_global(
+    project: Project,
+    addr: int,
+    new_name: str,
+    *,
+    kb: KnowledgeBase | None = None,
+    hooks: EditHooks | None = None,
+    allow_overwrite: bool = True,
+    strict_names: bool = True,
+) -> EditResult:
+    """Rename a global by address, without needing a function whose decompilation shows it."""
+    kb = project.kb if kb is None else kb
+    hooks = coerce_hooks(hooks)
+    validate_name(new_name, strict=strict_names)
+    _reject_function_entry(kb, addr, "rename")
+
+    var = global_variable_at(kb, addr)
+    old_name = var.name if var is not None and var.name else kb.labels.get(addr, "")
+    if old_name == new_name:
+        return EditResult(changed=False, kind="global_name", old=old_name, new=new_name)
+
+    if not allow_overwrite:
+        existing = kb.labels.lookup(new_name, None)
+        if existing is not None and existing != addr:
+            raise NameCollisionError(f"The label {new_name!r} is already bound to {existing:#x}.", existing=existing)
+
+    hooks.before_global_var_renamed(addr, old_name, new_name)
+    kb.labels[addr] = new_name
+    if var is not None:
+        var.name = new_name
+        var.renamed = True
+        var.clear_hash()
+
+    return EditResult(
+        changed=True,
+        kind="global_name",
+        old=old_name,
+        new=new_name,
+        refresh=Refresh(text_stale_all=True, disassembly_dirty=True),
+        detail={"global_address": hex(addr)},
+    )
+
+
+def set_global_type(
+    project: Project,
+    addr: int,
+    c_type: str | SimType,
+    *,
+    kb: KnowledgeBase | None = None,
+    hooks: EditHooks | None = None,
+) -> EditResult:
+    """Set the type of a global by address."""
+    kb = project.kb if kb is None else kb
+    hooks = coerce_hooks(hooks)
+    new_type = _parse_type(c_type, project.arch)
+
+    var = global_variable_at(kb, addr)
+    if var is None:
+        raise UnsupportedEditError(
+            f"No global variable is recorded at {addr:#x}. Decompile a function that references it first."
+        )
+
+    varman = kb.dec_variables["global"]
+    old_type = varman.get_variable_type(var)
+    hooks.before_global_var_retyped(addr, old_type, new_type)
+    varman.set_variable_type(var, new_type, all_unified=False, mark_manual=True)
+
+    return EditResult(
+        changed=True,
+        kind="global_type",
+        old=None if old_type is None else str(old_type),
+        new=str(new_type),
+        refresh=Refresh(text_stale_all=True),
+        detail={"global_address": hex(addr)},
     )
