@@ -4,7 +4,6 @@ import logging
 from typing import TYPE_CHECKING, Self
 
 from angr import claripy
-
 from angr.utils.hashing import stable_hash
 
 from .protos import variables_pb2 as pb2
