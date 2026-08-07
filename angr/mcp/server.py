@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import functools
+import inspect
 import logging
 import re
 import sys
@@ -76,12 +78,43 @@ def _parse_address(address: str | int) -> int:
     return int(address, 16)
 
 
+def _serialized(func):
+    """
+    Hold the project's lock for the duration of a tool call.
+
+    FastMCP dispatches synchronous tools onto worker threads, so two calls can reach one Project at
+    the same time. Applied to every tool, including read-only ones: the decompilation and variable
+    caches spill to LMDB, and a read racing an eviction is the same hazard as a concurrent write.
+    """
+    signature = inspect.signature(func)
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            bound = signature.bind(*args, **kwargs)
+        except TypeError:
+            return func(*args, **kwargs)
+        project_id = bound.arguments.get("project_id")
+        if project_id is None:
+            return func(*args, **kwargs)
+        try:
+            session = get_session_manager().get_session(project_id)
+        except KeyError:
+            # let the tool itself raise the project-not-found error
+            return func(*args, **kwargs)
+        with session.exclusive():
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 # ============================================================================
 # Core Tools
 # ============================================================================
 
 
 @mcp.tool()
+@_serialized
 def load_binary(
     binary_path: str,
     auto_load_libs: bool = False,
@@ -120,6 +153,7 @@ def load_binary(
 
 
 @mcp.tool()
+@_serialized
 def get_cfg(
     project_id: str,
     normalize: bool = True,
@@ -161,6 +195,7 @@ def get_cfg(
 
 
 @mcp.tool()
+@_serialized
 def recover_calling_conventions(
     project_id: str,
     workers: int = 0,
@@ -205,6 +240,7 @@ def recover_calling_conventions(
 
 
 @mcp.tool()
+@_serialized
 def list_functions(
     project_id: str,
     filter_plt: bool | None = None,
@@ -261,6 +297,7 @@ def list_functions(
 
 
 @mcp.tool()
+@_serialized
 def get_function_info(
     project_id: str,
     address: str | None = None,
@@ -308,6 +345,7 @@ def get_function_info(
 
 
 @mcp.tool()
+@_serialized
 def decompile_function(
     project_id: str,
     address: str | None = None,
@@ -367,6 +405,7 @@ def decompile_function(
 
 
 @mcp.tool()
+@_serialized
 def get_xrefs(
     project_id: str,
     address: str,
@@ -411,6 +450,7 @@ def get_xrefs(
 
 
 @mcp.tool()
+@_serialized
 def get_strings(
     project_id: str,
     min_length: int = 4,
@@ -470,6 +510,7 @@ def get_strings(
 
 
 @mcp.tool()
+@_serialized
 def get_imports(project_id: str) -> dict[str, Any]:
     """
     List imported symbols (external functions/variables the binary depends on).
@@ -506,6 +547,7 @@ def get_imports(project_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+@_serialized
 def get_exports(project_id: str) -> dict[str, Any]:
     """
     List exported symbols (functions/variables this binary provides).
@@ -535,6 +577,7 @@ def get_exports(project_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+@_serialized
 def get_basic_blocks(
     project_id: str,
     function_address: str,
@@ -574,6 +617,7 @@ def get_basic_blocks(
 
 
 @mcp.tool()
+@_serialized
 def get_callgraph(
     project_id: str,
     max_depth: int | None = None,
@@ -653,6 +697,7 @@ def get_callgraph(
 
 
 @mcp.tool()
+@_serialized
 def find_functions_by_pattern(
     project_id: str,
     pattern: str,
@@ -706,6 +751,7 @@ def find_functions_by_pattern(
 
 
 @mcp.tool()
+@_serialized
 def list_projects() -> dict[str, Any]:
     """
     List all currently loaded projects/sessions.
@@ -723,6 +769,7 @@ def list_projects() -> dict[str, Any]:
 
 
 @mcp.tool()
+@_serialized
 def close_project(project_id: str) -> dict[str, Any]:
     """
     Close a project and free its resources.
