@@ -116,6 +116,20 @@ l = logging.getLogger(name=__name__)
 BlockCache = namedtuple("BlockCache", ("rd", "prop"))
 
 
+def _pick_var(candidates: set[SimVariable]) -> SimVariable:
+    """
+    Deterministically pick one SimVariable out of a candidate set.
+    """
+    return min(candidates, key=lambda var: str(var.key))
+
+
+def _pick_var_and_offset(candidates: set[tuple[SimVariable, int | None]]) -> tuple[SimVariable, int | None]:
+    """
+    Deterministically pick one (SimVariable, offset) pair out of a candidate set.
+    """
+    return min(candidates, key=lambda var_and_offset: (str(var_and_offset[1]), str(var_and_offset[0].key)))
+
+
 class ClinicMode(enum.Enum):
     """
     Analysis mode for Clinic.
@@ -2697,7 +2711,7 @@ class Clinic(Analysis, Serializable):
                         # global variable?
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
-                            var = next(iter(variables))
+                            var = _pick_var(variables)
                             self._set_store_variable(stmt, var, 0)
                     else:
                         self._link_variables_on_expr(
@@ -2787,13 +2801,13 @@ class Clinic(Analysis, Serializable):
             else:
                 final_reg_vars = reg_vars
             if len(final_reg_vars) >= 1:
-                reg_var, offset = next(iter(final_reg_vars))
+                reg_var, offset = _pick_var_and_offset(final_reg_vars)
                 self._set_expr_variable(expr, reg_var, offset)
 
         elif isinstance(expr, ailment.Expr.VirtualVariable):
             vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(vars_) >= 1:
-                var, offset = next(iter(vars_))
+                var, offset = _pick_var_and_offset(vars_)
                 self._set_expr_variable(expr, var, offset)
 
             if expr.was_combo_reg:
@@ -2836,13 +2850,13 @@ class Clinic(Analysis, Serializable):
                     l.error(
                         "More than one variable are available for atom %s. Consider fixing it using phi nodes.", expr
                     )
-                var, offset = next(iter(variables))
+                var, offset = _pick_var_and_offset(variables)
                 self._set_expr_variable(expr, var, offset)
 
         elif isinstance(expr, ailment.Expr.BinaryOp):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = _pick_var_and_offset(variables)
                 self._set_expr_variable(expr, var, offset)
             else:
                 self._link_variables_on_expr(
@@ -2855,7 +2869,7 @@ class Clinic(Analysis, Serializable):
         elif isinstance(expr, ailment.Expr.UnaryOp):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = _pick_var_and_offset(variables)
                 self._set_expr_variable(expr, var, offset)
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
@@ -2874,7 +2888,7 @@ class Clinic(Analysis, Serializable):
         elif isinstance(expr, ailment.Expr.ITE):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = _pick_var_and_offset(variables)
                 self._set_expr_variable(expr, var, offset)
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.cond)
@@ -2884,7 +2898,7 @@ class Clinic(Analysis, Serializable):
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = _pick_var_and_offset(variables)
                 self._set_expr_variable(expr, var, offset)
 
         elif isinstance(expr, ailment.Expr.Const) and expr.is_int:
@@ -2912,13 +2926,13 @@ class Clinic(Analysis, Serializable):
                             global_variables.add_variable("global", global_var.addr, global_var)
                             global_vars = {global_var}
                 if global_vars:
-                    global_var = next(iter(global_vars))
+                    global_var = _pick_var(global_vars)
                     self._set_reference_variable(expr, global_var, 0)
                 else:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
                     if len(variables) >= 1:
-                        var, offset = next(iter(variables))
+                        var, offset = _pick_var_and_offset(variables)
                         self._set_expr_variable(expr, var, offset)
 
         elif isinstance(expr, ailment.Expr.Call):
