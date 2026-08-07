@@ -28,6 +28,7 @@ from .errors import (
     VariableNotFoundError,
 )
 from .hooks import EditHooks, NullEditHooks
+from .ops import rename_function, rename_variable
 from .resolve import (
     ResolvedVariable,
     concrete_variables,
@@ -37,17 +38,20 @@ from .resolve import (
     resolve_variable,
     validate_name,
 )
+from .results import EditResult, Refresh
 
 __all__ = [
     "DEFAULT_FLAVOR",
     "AmbiguousFunctionError",
     "DecompilationEditError",
     "EditHooks",
+    "EditResult",
     "FunctionNotFoundError",
     "InvalidNameError",
     "NameCollisionError",
     "NotDecompiledError",
     "NullEditHooks",
+    "Refresh",
     "ResolvedVariable",
     "TypeParseError",
     "UnsupportedEditError",
@@ -57,6 +61,8 @@ __all__ = [
     "invalidate",
     "list_variable_names",
     "parse_address",
+    "rename_function",
+    "rename_variable",
     "require_cache",
     "resolve_function",
     "resolve_variable",

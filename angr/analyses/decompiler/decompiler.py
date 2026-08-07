@@ -28,6 +28,7 @@ from .clinic import ClinicStage
 from .condition_processor import ConditionProcessor
 from .decompilation_cache import DecompilationCache
 from .decompilation_options import PARAM_TO_OPTION, DecompilationOption
+from .edits import DecompilationEditError, list_variable_names, rename_function, rename_variable
 from .notes import DecompilationNote
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
@@ -1028,28 +1029,9 @@ class Decompiler(Analysis):
         if not code_text:
             return False
 
-        # collect unified variables
-        varman = self.kb.dec_variables[self.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-
-        # also collect argument variables
-        arg_vars = []
-        if (
-            self.codegen
-            and isinstance(self.codegen, CStructuredCodeGenerator)
-            and self.codegen.cfunc
-            and self.codegen.cfunc.arg_list
-        ):
-            for cvar in self.codegen.cfunc.arg_list:
-                v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                if v not in unified_vars:
-                    arg_vars.append(v)
-
-        all_vars = unified_vars + arg_vars
-        if not all_vars:
+        var_names = list_variable_names(self.codegen, self.kb, self.func.addr)
+        if not var_names:
             return False
-
-        var_names = [v.name or str(v) for v in all_vars]
 
         prompt = (
             "You are a reverse engineering assistant. Given the following decompiled C code, suggest better, "
@@ -1065,27 +1047,27 @@ class Decompiler(Analysis):
         if not result:
             return False
 
-        # build name-to-variable lookup
-        name_to_var = {}
-        for v in all_vars:
-            key = v.name or str(v)
-            name_to_var[key] = v
-
         changed = False
         for rename in result.renames:
-            old_name = rename.old_name
-            new_name = rename.new_name
-            if not new_name:
+            old_name, new_name = rename.old_name, rename.new_name
+            if not new_name or old_name == new_name:
                 continue
-            var = name_to_var.get(old_name)
-            if var is None:
+            try:
+                edit = rename_variable(
+                    self.project,
+                    self.func,
+                    old_name,
+                    new_name,
+                    kb=self.kb,
+                    flavor=self._flavor,
+                    rerender=False,
+                )
+            except DecompilationEditError as ex:
+                l.debug("LLM rename %s -> %s rejected: %s", old_name, new_name, ex)
                 continue
-            if old_name == new_name:
-                continue
-            var.name = new_name
-            var.renamed = True
-            changed = True
-            l.info("LLM renamed variable %s -> %s", old_name, new_name)
+            if edit.changed:
+                changed = True
+                l.info("LLM renamed variable %s -> %s", old_name, new_name)
 
         return changed
 
@@ -1129,13 +1111,15 @@ class Decompiler(Analysis):
         if not new_name or new_name == current_name:
             return False
 
-        l.info("LLM renamed function %s -> %s", current_name, new_name)
-        self.func.name = new_name
-        self.func.is_default_name = False
-        if self.codegen and isinstance(self.codegen, CStructuredCodeGenerator) and self.codegen.cfunc:
-            self.codegen.cfunc.name = new_name
+        try:
+            edit = rename_function(self.project, self.func, new_name, kb=self.kb, flavor=self._flavor, rerender=False)
+        except DecompilationEditError as ex:
+            l.debug("LLM function rename %s -> %s rejected: %s", current_name, new_name, ex)
+            return False
 
-        return True
+        if edit.changed:
+            l.info("LLM renamed function %s -> %s", current_name, new_name)
+        return edit.changed
 
     def llm_suggest_variable_types(
         self, llm_client=None, code_text: str | None = None, raise_exc: bool = False
