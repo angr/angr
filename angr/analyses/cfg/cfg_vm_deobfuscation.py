@@ -1457,6 +1457,180 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     # Job handling
 
+    @staticmethod
+    def _ctf_unwrap_expr(expr):
+        while isinstance(expr, tuple) and len(expr) == 2 and isinstance(expr[1], (frozenset, set)):
+            expr = expr[0]
+
+        return expr
+
+    @staticmethod
+    def _ctf_project_fd_read_pos_mode_enabled(project, setting):
+        mode = getattr(project, "ctf_vpc_fd_read_pos_mode", None)
+        if isinstance(mode, str):
+            modes = {mode}
+        elif isinstance(mode, (tuple, list, set)):
+            modes = set(mode)
+        else:
+            modes = set()
+
+        implied_settings = {
+            "candidate": {"simfile_cursor"},
+            "fast_path": {"simfile_cursor"},
+            "sticky": {"simfile_cursor"},
+            "allow_initial": {"simfile_cursor"},
+        }
+
+        return bool(getattr(project, f"ctf_vpc_fd_read_pos_{setting}", False)) or \
+            bool(modes & implied_settings.get(setting, set()))
+
+    @classmethod
+    def _ctf_eval_state_one(cls, state, expr):
+        expr = cls._ctf_unwrap_expr(expr)
+        if expr is None:
+            return None
+        if isinstance(expr, int):
+            return expr
+
+        try:
+            poss_vals = state.partial_symbolic_constraint_solver.eval_upto(expr, 2)
+            if len(poss_vals) == 1:
+                return poss_vals[0]
+            return None
+        except Exception:
+            pass
+
+        try:
+            poss_vals = state.solver.eval_upto(expr, 2)
+            if len(poss_vals) == 1:
+                return poss_vals[0]
+        except Exception:
+            return None
+
+        return None
+
+    @classmethod
+    def _ctf_state_fd_positions(cls, state):
+        fd_store = getattr(state.posix, "fd", None)
+        if fd_store is None:
+            return {}
+
+        try:
+            fd_items = fd_store.items()
+        except AttributeError:
+            try:
+                fd_items = enumerate(fd_store)
+            except TypeError:
+                return {}
+
+        positions = {}
+        for fd_no, fd in fd_items:
+            if fd is None or not hasattr(fd, "read_pos"):
+                continue
+
+            pos = cls._ctf_eval_state_one(state, fd.read_pos)
+            if pos is None or pos < 0:
+                continue
+
+            positions[fd_no] = pos
+
+        return positions
+
+    def _ctf_fd_read_pos_finder_enabled_for_state(self, state):
+        if not state.globals.get("use_ctf_vpc_finder", False):
+            return False
+
+        if not self._ctf_project_fd_read_pos_mode_enabled(self.project, "candidate"):
+            return False
+
+        if getattr(self.project, "ctf_vpc_require_deobfuscation_start", False):
+            return state.globals.get("start_deobfuscation", False) is True or \
+                getattr(self.project, "start_deobfuscation_immediately", False) is True
+
+        return True
+
+    def _ctf_update_fd_read_pos_successors(self, initial_state, sim_successors):
+        if not self._ctf_fd_read_pos_finder_enabled_for_state(initial_state):
+            return
+
+        before_positions = self._ctf_state_fd_positions(initial_state)
+        for succ in sim_successors.all_successors:
+            after_positions = self._ctf_state_fd_positions(succ)
+            if not after_positions:
+                continue
+
+            cur_source = succ.globals.get("ctf_cur_vpc_source", initial_state.globals.get("ctf_cur_vpc_source", None))
+            cur_kind = succ.globals.get("ctf_cur_vpc_kind", initial_state.globals.get("ctf_cur_vpc_kind", None))
+            history = dict(succ.globals.get("ctf_fd_read_pos_history", initial_state.globals.get("ctf_fd_read_pos_history", {})))
+            changed_sources = set()
+
+            for fd_no, pos in after_positions.items():
+                old = dict(history.get(fd_no, {}))
+                before_pos = before_positions.get(fd_no, old.get("pos", None))
+                if before_pos is not None and before_pos != pos:
+                    changed_sources.add(("fd_read_pos", fd_no))
+                    old["changes"] = min(old.get("changes", 0) + 1, 255)
+                old["pos"] = pos
+                old["seen"] = min(old.get("seen", 0) + 1, 255)
+                history[fd_no] = old
+
+            candidates = []
+            nonzero_positions = [(fd_no, pos) for fd_no, pos in after_positions.items() if pos != 0]
+            for fd_no, pos in after_positions.items():
+                source_id = ("fd_read_pos", fd_no)
+                if pos == 0 and source_id != cur_source:
+                    continue
+
+                hist = history.get(fd_no, {})
+                changed = source_id in changed_sources
+                is_current_source = cur_kind == "fd_read_pos" and source_id == cur_source
+                score = 13 + min(hist.get("changes", 0), 8) * 4
+                if changed:
+                    score += 48
+                elif is_current_source and self._ctf_project_fd_read_pos_mode_enabled(self.project, "sticky"):
+                    score += 16
+                elif is_current_source and getattr(
+                        self.project, "ctf_vpc_fd_read_pos_commit_unchanged_simprocedures", False):
+                    score += 16
+                elif hist.get("changes", 0) == 0 and len(nonzero_positions) == 1 and \
+                        self._ctf_project_fd_read_pos_mode_enabled(self.project, "allow_initial"):
+                    if getattr(self.project, "ctf_vpc_fd_read_pos_initial_requires_namespace", False):
+                        continue
+                    score -= 2
+                else:
+                    continue
+
+                candidates.append((score, source_id, pos))
+
+            if not candidates:
+                succ.globals["ctf_fd_read_pos_history"] = history
+                continue
+
+            if cur_kind == "fd_read_pos" and cur_source is not None and \
+                    self._ctf_project_fd_read_pos_mode_enabled(self.project, "sticky"):
+                current_candidates = [
+                    cand for cand in candidates
+                    if cand[1] == cur_source
+                ]
+                if current_candidates:
+                    candidates = current_candidates
+                elif isinstance(cur_source, tuple) and len(cur_source) == 2 and cur_source[0] == "fd_read_pos":
+                    succ.globals["ctf_fd_read_pos_history"] = history
+                    continue
+
+            _, source_id, value = max(candidates, key=lambda item: item[0])
+            prev_vpc = succ.globals.get("cur_vm_vpc", None)
+            prev_source = succ.globals.get("ctf_cur_vpc_source", None)
+            succ.globals["cur_vm_vpc"] = value
+            succ.globals["vpc"] = value
+            succ.globals["ctf_cur_vpc_source"] = source_id
+            succ.globals["ctf_cur_vpc_kind"] = "fd_read_pos"
+            succ.globals["cur_vm_reg"] = None
+            succ.globals["ctf_fd_read_pos_raw_value"] = value
+            succ.globals["ctf_fd_read_pos_history"] = history
+            if prev_vpc != value or prev_source != source_id:
+                succ.globals["last_change_time"] = 0
+
     def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
         """
         Before processing a CFGJob.
@@ -1621,7 +1795,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # if not (0x07FF74DB5F000 <= addr <= 0x07FF74DB5F000+0x4000) and addr != 0x7ff74daea200:
         #     import ipdb;ipdb.set_trace()
 
+        if job.state.globals.get('use_ctf_vpc_finder', False):
+            job.state.globals["ctf_vpc_block_entry_vpc"] = job.state.globals.get("cur_vm_vpc", None)
+
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+
+        if self.project.is_hooked(addr):
+            self._ctf_update_fd_read_pos_successors(job.state, sim_successors)
 
         #trim history
         for succ in sim_successors.all_successors:
@@ -1631,9 +1811,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 len(sim_successors.all_successors) > 0:
             successor_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
             block_update_vpc = successor_vpc
+            stack_store_entry_vpc_kinds = set()
+            if getattr(self.project, "ctf_vpc_stack_raw_preserve_block_entry_vpc", True):
+                stack_store_entry_vpc_kinds.add('stack_store_raw_offset')
+            if getattr(self.project, "ctf_vpc_stack_store_ptr_preserve_block_entry_vpc", False):
+                stack_store_entry_vpc_kinds.add('stack_store_ptr')
+            if getattr(self.project, "ctf_vpc_fd_read_pos_preserve_block_entry_vpc", False):
+                stack_store_entry_vpc_kinds.add('fd_read_pos')
             if job.state.globals.get('use_ctf_vpc_finder', False) and \
-                    sim_successors.all_successors[0].globals.get('ctf_cur_vpc_kind', None) == 'stack_store_raw_offset' and \
-                    getattr(self.project, "ctf_vpc_stack_raw_preserve_block_entry_vpc", True):
+                    sim_successors.all_successors[0].globals.get('ctf_cur_vpc_kind', None) in \
+                    stack_store_entry_vpc_kinds:
                 block_update_vpc = sim_successors.all_successors[0].globals.get(
                     "ctf_vpc_block_entry_vpc",
                     block_id.vm_vpc,
