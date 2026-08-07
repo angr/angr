@@ -548,7 +548,7 @@ class Clinic(Analysis, Serializable):
 
         # Run simplification passes
         self._update_progress(22.0, text="Optimizing fresh ailment graph")
-        ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
+        _, ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
 
         # Fix "fake" indirect jumps and calls
         self._update_progress(25.0, text="Analyzing simple indirect jumps")
@@ -836,7 +836,7 @@ class Clinic(Analysis, Serializable):
         self._update_progress(30.0, text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
             self._ail_graph = self._make_returns(self._ail_graph)
-        self._ail_graph = self._run_simplification_passes(
+        _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
         )
 
@@ -882,7 +882,7 @@ class Clinic(Analysis, Serializable):
 
         # Run simplification passes
         self._update_progress(49.0, text="Running simplifications 1.5")
-        self._ail_graph = self._run_simplification_passes(
+        _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.AFTER_SSA_LEVEL1_TRANSFORMATION, arg_vvars=self.arg_vvars
         )
 
@@ -908,7 +908,7 @@ class Clinic(Analysis, Serializable):
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
-        self._ail_graph = self._run_simplification_passes(
+        _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph,
             stack_pointer_tracker=self._spt,
             stack_items=self.stack_items,
@@ -928,7 +928,7 @@ class Clinic(Analysis, Serializable):
 
         # Simplify the entire function for the first time
         self._update_progress(45.0, text="Simplifying function 1")
-        self._simplify_function(
+        converged = self._simplify_function(
             self._ail_graph,
             remove_dead_memdefs=False,
             unify_variables=False,
@@ -939,19 +939,22 @@ class Clinic(Analysis, Serializable):
 
         # Run simplification passes
         self._update_progress(47.0, text="Running simplifications 2")
-        self._ail_graph = self._run_simplification_passes(
+        simplified, self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
         )
 
-        self._update_progress(49.0, text="Simplifying blocks 1")
-        self._simplify_function(
-            self._ail_graph,
-            remove_dead_memdefs=False,
-            unify_variables=False,
-            narrow_expressions=False,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=self.arg_vvars,
-        )
+        # If the call above reached a fixed point and no optimization pass has touched the graph since, simplifying
+        # again can only re-prove that fixed point, so skip it.
+        if not converged or simplified:
+            self._update_progress(49.0, text="Simplifying blocks 1")
+            self._simplify_function(
+                self._ail_graph,
+                remove_dead_memdefs=False,
+                unify_variables=False,
+                narrow_expressions=False,
+                fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+                arg_vvars=self.arg_vvars,
+            )
 
     def _stage_make_function_callsites(self) -> None:
         # Make call-sites
@@ -973,7 +976,7 @@ class Clinic(Analysis, Serializable):
 
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2.5")
-        self._ail_graph = self._run_simplification_passes(
+        _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES, arg_vvars=self.arg_vvars
         )
 
@@ -993,14 +996,14 @@ class Clinic(Analysis, Serializable):
 
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3")
-        self._ail_graph = self._run_simplification_passes(
+        _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph,
             stack_items=self.stack_items,
             stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
             arg_vvars=self.arg_vvars,
         )
 
-        # Simplify the entire function for the third time
+        # Simplify the entire function for the third time.
         self._update_progress(70.0, text="Simplifying function 3")
         self._simplify_function(
             self._ail_graph,
@@ -1008,19 +1011,7 @@ class Clinic(Analysis, Serializable):
             stackarg_offset_manager=self._stackarg_offset_manager,
             unify_variables=True,
             narrow_expressions=True,
-            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=self.arg_vvars,
-            preserve_vvar_ids=self._preserve_vvar_ids,
-        )
-
-        # Simplify the entire function for the fourth time
-        self._update_progress(78.0, text="Simplifying function 4")
-        self._simplify_function(
-            self._ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
-            stackarg_offset_manager=self._stackarg_offset_manager,
-            unify_variables=True,
-            narrow_expressions=True,
+            narrow_rounds=None,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
@@ -1031,7 +1022,7 @@ class Clinic(Analysis, Serializable):
         self.copied_var_ids = set()
 
         self._update_progress(79.0, text="Running simplifications 4")
-        self._ail_graph = self._run_simplification_passes(
+        _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph,
             stack_items=self.stack_items,
             stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY,
@@ -1071,7 +1062,7 @@ class Clinic(Analysis, Serializable):
 
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
-        self._ail_graph = self._run_simplification_passes(
+        _, self._ail_graph = self._run_simplification_passes(
             self._ail_graph,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
             avoid_vvar_ids=self.copied_var_ids,
@@ -2011,6 +2002,7 @@ class Clinic(Analysis, Serializable):
         unify_variables=False,
         max_iterations: int = 8,
         narrow_expressions=False,
+        narrow_rounds: int | None = 1,
         only_consts=False,
         fold_callexprs_into_conditions=False,
         rewrite_ccalls=True,
@@ -2019,9 +2011,15 @@ class Clinic(Analysis, Serializable):
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
         simplify_blocks: bool = True,
-    ) -> None:
+    ) -> bool:
         """
         Simplify the entire function until it reaches a fixed point.
+
+        :param narrow_rounds:   How many leading iterations run expression narrowing, or None to narrow on every
+                                iteration. Narrowing is not part of the fixed point, so a caller that needs more than
+                                one narrowing round asks for it here instead of calling this method twice.
+        :return:                True if a fixed point was reached, False if the iteration limit was hit first (in
+                                which case the graph may still be simplifiable).
         """
 
         for idx in range(max_iterations):
@@ -2030,8 +2028,7 @@ class Clinic(Analysis, Serializable):
                 remove_dead_memdefs=remove_dead_memdefs,
                 unify_variables=unify_variables,
                 stackarg_offset_manager=stackarg_offset_manager,
-                # only narrow once
-                narrow_expressions=narrow_expressions and idx == 0,
+                narrow_expressions=narrow_expressions and (narrow_rounds is None or idx < narrow_rounds),
                 only_consts=only_consts,
                 fold_callexprs_into_conditions=fold_callexprs_into_conditions,
                 rewrite_ccalls=rewrite_ccalls,
@@ -2042,7 +2039,8 @@ class Clinic(Analysis, Serializable):
                 simplify_blocks=simplify_blocks,
             )
             if not simplified:
-                break
+                return True
+        return False
 
     @timethis
     def _simplify_function_once(
@@ -2117,7 +2115,11 @@ class Clinic(Analysis, Serializable):
         stack_items: dict[int, StackItem] | None = None,
         stack_pointer_tracker=None,
         **kwargs,
-    ):
+    ) -> tuple[bool, networkx.DiGraph]:
+        """
+        :return: A tuple of (any simplifications were made and the graph was changed, the resulting AIL graph).
+        """
+
         addr_and_idx_to_blocks: dict[ailment.Address, ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
@@ -2127,6 +2129,8 @@ class Clinic(Analysis, Serializable):
             addr_to_blocks[node.addr].add(node)
 
         AILGraphWalker(ail_graph, _updatedict_handler).walk()
+
+        simplified = False
 
         # Run each pass
         for pass_ in self._optimization_passes:
@@ -2166,10 +2170,11 @@ class Clinic(Analysis, Serializable):
                 # use the new graph
                 ail_graph = a.out_graph
                 self.vvar_id_start = a.vvar_id_start
+                simplified = True
             if stack_items is not None and a.stack_items:
                 stack_items.update(a.stack_items)
 
-        return ail_graph
+        return simplified, ail_graph
 
     @timethis
     def _create_function_argument_vvars(self, arg_list) -> dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]]:
