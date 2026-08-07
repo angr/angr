@@ -5865,6 +5865,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 )
                 irsb_string = irsb_string[: irsb.size]
 
+            if (
+                cfg_job.job_type == CFGJobType.COMPLETE_SCANNING
+                and addr == current_function_addr
+                and irsb.jumpkind == "Ijk_NoDecode"
+            ):
+                # linear sweep decided that this block is undecodable. because drop_bad_functions() will remove this
+                # function anyway, we bail out early and mark the whole block as nodecode for performance.
+                self._seg_list.occupy(real_addr, max(irsb.size, 1), "nodecode")
+                return None, None, None, None
+
             # Occupy the block in segment list
             if irsb is not None and irsb.size > 0:
                 self._seg_list.occupy(real_addr, irsb.size, "code")

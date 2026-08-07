@@ -4,8 +4,10 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
+import io
 import logging
 import os
+import random
 import unittest
 
 import archinfo
@@ -999,6 +1001,35 @@ class TestCfgfast(unittest.TestCase):
         ]
         for addr in not_separate_functions:
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
+
+    @staticmethod
+    def _blob_project(data: bytes) -> angr.Project:
+        return angr.Project(
+            io.BytesIO(data),
+            main_opts={"backend": "blob", "arch": "AMD64", "base_addr": 0, "entry_point": 0},
+            auto_load_libs=False,
+            use_sim_procedures=False,
+        )
+
+    def test_smart_scan_marks_decode_error_blocks_as_nodecode(self):
+        # 0x0: xor eax, eax; ret       - a real function
+        # 0x3: inc rax; <bad opcode>   - garbage that the linear sweep lands on and that dies on a decode error
+        proj = self._blob_project(b"\x31\xc0\xc3" + b"\x48\xff\xc0\x0f\x39" + b"\x00" * 16)
+        cfg = proj.analyses.CFGFast(force_smart_scan=True, data_references=True)
+
+        assert 0 in cfg.kb.functions
+        assert 3 not in cfg.kb.functions
+        # the whole block is data, not a run of code followed by a single nodecode byte
+        assert cfg._seg_list.occupied_by_sort(3) == "nodecode"
+
+    def test_smart_scan_does_not_explode_on_random_data(self):
+        # a blob of random bytes has no functions at all, but every address decodes into something, so the smart
+        # scan used to cover it with thousands of one-block functions that drop_bad_functions() threw away again
+        rng = random.Random(0xDEADBEEF)
+        proj = self._blob_project(bytes(rng.getrandbits(8) for _ in range(32768)))
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert len(cfg.kb.functions) < 150, f"32 KB of random data produced {len(cfg.kb.functions)} functions"
 
 
 if __name__ == "__main__":
