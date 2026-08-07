@@ -814,3 +814,8 @@ def close_project(project_id: str) -> dict[str, Any]:
 def create_server() -> FastMCP:
     """Create and return the configured MCP server instance."""
     return mcp
+
+
+# Imported last: edit_tools registers its tools on ``mcp`` and imports the helpers defined above,
+# so it has to come after them.
+from . import edit_tools  # noqa: F401  pylint:disable=wrong-import-position,unused-import
