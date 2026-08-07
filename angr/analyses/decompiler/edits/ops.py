@@ -423,3 +423,121 @@ def set_function_prototype(
         refresh=Refresh(redecompile=frozenset({func.addr}), function_list_dirty=True),
         detail=detail,
     )
+
+
+_ORPHAN_MARKER = "// Orphaned comments"
+
+
+def _snap_comment_addr(codegen, addr: int) -> int:
+    """
+    Snap to the nearest address the codegen tracks, at or below ``addr``.
+
+    stmt_comments is keyed by ins_addr, so an address the codegen never emits cannot match. This
+    only maps an arbitrary in-function address onto a tracked one; whether the result actually
+    renders inline additionally depends on it being the *last* tracked address on its line, which
+    is not derivable from the position maps -- map_addr_to_pos records each address's first
+    position, not its last. :func:`_rendered_inline` reports the real outcome afterwards.
+    """
+    insmap = getattr(codegen, "map_addr_to_pos", None)
+    if insmap is None:
+        return addr
+    rendered = [ins_addr for ins_addr, _ in insmap.items()]
+    if not rendered or addr in set(rendered):
+        return addr
+    below = [a for a in rendered if a < addr]
+    return max(below) if below else addr
+
+
+def _rendered_inline(codegen, comment: str) -> bool:
+    """Whether a comment rendered next to a statement rather than in the orphaned block."""
+    text = getattr(codegen, "text", None) or ""
+    marker = text.find(_ORPHAN_MARKER)
+    return marker == -1 or comment not in text[marker:]
+
+
+def set_comment(
+    project: Project,
+    addr: int,
+    comment: str | None,
+    *,
+    kb: KnowledgeBase | None = None,
+    hooks: EditHooks | None = None,
+    flavor: str = DEFAULT_FLAVOR,
+    mirror_to_pseudocode: bool = True,
+    snap: bool = True,
+    rerender: bool = True,
+) -> EditResult:
+    """
+    Set the comment at an address, or clear it with an empty string or None.
+
+    The comment goes into kb.comments, which the disassembly renders and which the decompiler reads
+    for the function header. Per-statement pseudocode comments live in codegen.stmt_comments
+    instead, so both are written -- except at the function entry, where kb.comments is already what
+    the header renders and mirroring would show the comment twice.
+    """
+    kb = project.kb if kb is None else kb
+    hooks = coerce_hooks(hooks)
+    text = comment or ""
+
+    old = kb.comments.get(addr, "")
+    existed = addr in kb.comments
+
+    hooks.before_comment_changed(addr, old, text, not existed, False)
+    if text:
+        kb.comments[addr] = text
+    elif existed:
+        del kb.comments[addr]
+
+    in_pseudocode = False
+    inline: bool | None = None
+    snapped_from = None
+
+    func = kb.functions.floor_func(addr) if mirror_to_pseudocode else None
+    if func is not None and not (func.addr <= addr < func.addr + max(func.size, 1)):
+        func = None
+
+    if func is not None:
+        cache = get_cache(kb, func.addr, flavor)
+        codegen = cache.codegen if cache is not None else None
+        if codegen is not None:
+            if addr == func.addr:
+                # rendered as the header comment straight from kb.comments; mirroring it into
+                # stmt_comments would show it twice
+                in_pseudocode = bool(text)
+                if rerender:
+                    codegen.regenerate_text()
+            else:
+                target = _snap_comment_addr(codegen, addr) if snap else addr
+                if target != addr:
+                    snapped_from = addr
+                cdict = codegen.stmt_comments
+                prev = cdict.get(target, "")
+                hooks.before_comment_changed(target, prev, text, target not in cdict, True)
+                if text:
+                    cdict[target] = text
+                    in_pseudocode = True
+                elif target in cdict:
+                    del cdict[target]
+                if rerender:
+                    codegen.regenerate_text()
+                    if in_pseudocode:
+                        inline = _rendered_inline(codegen, text)
+
+    return EditResult(
+        changed=old != text,
+        kind="comment",
+        func_addr=None if func is None else func.addr,
+        old=old,
+        new=text,
+        refresh=Refresh(
+            text_stale=frozenset() if func is None else frozenset({func.addr}),
+            disassembly_dirty=True,
+        ),
+        detail={
+            "address": hex(addr),
+            "shown_in_pseudocode": in_pseudocode,
+            # None when not re-rendered here, so the caller cannot yet know
+            "rendered_inline": inline,
+            "snapped_from": None if snapped_from is None else hex(snapped_from),
+        },
+    )

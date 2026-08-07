@@ -32,6 +32,7 @@ from .ops import (
     reflow_types,
     rename_function,
     rename_variable,
+    set_comment,
     set_function_prototype,
     set_variable_type,
 )
@@ -74,6 +75,7 @@ __all__ = [
     "resolve_function",
     "resolve_variable",
     "restore_user_edits",
+    "set_comment",
     "set_function_prototype",
     "set_variable_type",
     "snapshot_user_edits",
