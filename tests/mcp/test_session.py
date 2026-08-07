@@ -1,8 +1,12 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
+from angr.mcp import server
 from angr.mcp.session import (
     get_session_manager,
 )
@@ -146,3 +150,62 @@ class TestGlobalSessionManager:
 
         # Cleanup
         manager.close_session(session.project_id)
+
+
+class TestSessionLocking:
+    """Tests for the per-session lock that serializes concurrent tool calls."""
+
+    def test_exclusive_is_reentrant(self, loaded_session):
+        """Nested helpers must be able to re-acquire without deadlocking."""
+        with loaded_session.exclusive(), loaded_session.exclusive():
+            assert loaded_session.lock._is_owned()  # pylint:disable=protected-access
+
+    def test_exclusive_serializes_threads(self, loaded_session):
+        """Two threads must not be inside the critical section at the same time."""
+        overlaps = []
+        inside = []
+        barrier = threading.Barrier(2)
+
+        def worker():
+            barrier.wait()
+            for _ in range(50):
+                with loaded_session.exclusive():
+                    inside.append(1)
+                    if len(inside) > 1:
+                        overlaps.append(1)
+                    time.sleep(0)
+                    inside.pop()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not overlaps
+
+    def test_tool_call_holds_the_session_lock(self, global_session_manager, binary_path):
+        """Every tool runs under the lock, read-only ones included."""
+        session = global_session_manager.create_session(binary_path)
+        observed = []
+
+        @server._serialized  # pylint:disable=protected-access
+        def probe(project_id: str) -> None:
+            observed.append(session.lock._is_owned())  # pylint:disable=protected-access
+
+        try:
+            probe(session.project_id)
+        finally:
+            global_session_manager.close_session(session.project_id)
+        assert observed == [True]
+
+    def test_tool_call_without_a_known_project_still_runs(self):
+        """An unknown project must reach the tool so it can raise its own error."""
+        ran = []
+
+        @server._serialized  # pylint:disable=protected-access
+        def probe(project_id: str) -> None:
+            ran.append(project_id)
+
+        probe("does-not-exist")
+        assert ran == ["does-not-exist"]
