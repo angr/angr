@@ -28,7 +28,13 @@ from .errors import (
     VariableNotFoundError,
 )
 from .hooks import EditHooks, NullEditHooks
-from .ops import rename_function, rename_variable
+from .ops import (
+    reflow_types,
+    rename_function,
+    rename_variable,
+    set_function_prototype,
+    set_variable_type,
+)
 from .resolve import (
     ResolvedVariable,
     concrete_variables,
@@ -61,12 +67,15 @@ __all__ = [
     "invalidate",
     "list_variable_names",
     "parse_address",
+    "reflow_types",
     "rename_function",
     "rename_variable",
     "require_cache",
     "resolve_function",
     "resolve_variable",
     "restore_user_edits",
+    "set_function_prototype",
+    "set_variable_type",
     "snapshot_user_edits",
     "validate_name",
 ]

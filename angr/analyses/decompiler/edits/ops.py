@@ -10,16 +10,20 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .cache import DEFAULT_FLAVOR, get_cache, require_cache
-from .errors import NameCollisionError, UnsupportedEditError
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import parse_signature, parse_type
+
+from .cache import DEFAULT_FLAVOR, get_cache, invalidate, require_cache, restore_user_edits, snapshot_user_edits
+from .errors import NameCollisionError, TypeParseError, UnsupportedEditError
 from .hooks import coerce_hooks
-from .resolve import list_variable_names, resolve_variable, validate_name
+from .resolve import concrete_variables, list_variable_names, resolve_variable, validate_name
 from .results import EditResult, Refresh
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.functions import Function
     from angr.project import Project
+    from angr.sim_type import SimType, SimTypeFunction
 
     from .hooks import EditHooks
 
@@ -198,4 +202,224 @@ def rename_variable(
             disassembly_dirty=rv.kind == "global",
         ),
         detail=rv.detail(),
+    )
+
+
+def _parse_type(c_type: str | SimType, arch) -> SimType:
+    if not isinstance(c_type, str):
+        return c_type.with_arch(arch)
+    try:
+        return parse_type(c_type).with_arch(arch)
+    except Exception as ex:  # pylint:disable=broad-exception-caught
+        raise TypeParseError(f"Could not parse C type {c_type!r}: {ex}") from ex
+
+
+def _parse_prototype(prototype: str | SimTypeFunction, arch) -> SimTypeFunction:
+    if not isinstance(prototype, str):
+        return prototype.with_arch(arch)
+    try:
+        return parse_signature(prototype).with_arch(arch)
+    except Exception as ex:  # pylint:disable=broad-exception-caught
+        raise TypeParseError(f"Could not parse C prototype {prototype!r}: {ex}") from ex
+
+
+def reflow_types(
+    project: Project,
+    func: Function,
+    *,
+    kb: KnowledgeBase | None = None,
+    flavor: str = DEFAULT_FLAVOR,
+    rerender: bool = True,
+):
+    """
+    Re-run type inference over the cached constraints and refresh the rendered code.
+
+    Separate from :func:`set_variable_type` so a batch can retype many variables and reflow once;
+    per-variable reflow would re-run Typehoon N times.
+
+    This is not a re-decompilation: the AST is untouched, so a retype that should change how an
+    access renders (a struct field, an array index) needs a full re-decompilation instead.
+    """
+    kb = project.kb if kb is None else kb
+
+    dec = project.analyses.Decompiler(func, decompile=False, use_cache=True, flavor=flavor)
+    cache = require_cache(kb, func.addr, flavor)
+    new_codegen = dec.reflow_variable_types(cache)
+    if new_codegen is None:
+        return None
+
+    cache.codegen = new_codegen
+    if rerender:
+        # reflow_variable_types ends at reload_variable_types(), which refreshes CVariable types but
+        # does not re-render; without this the text stays stale
+        new_codegen.regenerate_text()
+    return new_codegen
+
+
+def _set_argument_type(
+    project: Project,
+    func: Function,
+    rv,
+    new_type: SimType,
+    *,
+    hooks: EditHooks,
+) -> EditResult:
+    """Retyping an argument means rewriting the prototype; the variable's own type is not enough."""
+    proto = func.prototype
+    if proto is None or rv.arg_index is None or rv.arg_index >= len(proto.args):
+        raise UnsupportedEditError(
+            f"Cannot retype argument {rv.name!r}: {func.name} has no prototype covering argument "
+            f"index {rv.arg_index}. Set the whole prototype instead."
+        )
+
+    old_type = proto.args[rv.arg_index]
+    hooks.before_func_arg_retyped(func, rv.arg_index, old_type, new_type)
+
+    new_proto = proto.copy()
+    args = list(new_proto.args)
+    args[rv.arg_index] = new_type
+    new_proto.args = tuple(args)
+    func.prototype = new_proto.with_arch(project.arch)
+    func.prototype_source = PrototypeSource.USER
+    func.ran_cca = True
+
+    return EditResult(
+        changed=True,
+        kind="variable_type",
+        func_addr=func.addr,
+        old=str(old_type),
+        new=str(new_type),
+        refresh=Refresh(redecompile=frozenset({func.addr})),
+        detail=rv.detail(),
+    )
+
+
+def set_variable_type(
+    project: Project,
+    func: Function,
+    variable_name: str,
+    c_type: str | SimType,
+    *,
+    kb: KnowledgeBase | None = None,
+    hooks: EditHooks | None = None,
+    flavor: str = DEFAULT_FLAVOR,
+    reflow: bool = True,
+    rerender: bool = True,
+    allow_prototype_change: bool = True,
+    codegen=None,
+) -> EditResult:
+    """
+    Change the type of a local, an argument, or a global.
+
+    Arguments are retyped by rewriting the function prototype, which requires a re-decompilation --
+    the returned Refresh says so. Pass ``allow_prototype_change=False`` to refuse instead.
+    """
+    kb = project.kb if kb is None else kb
+    hooks = coerce_hooks(hooks)
+    new_type = _parse_type(c_type, project.arch)
+
+    cache = require_cache(kb, func.addr, flavor)
+    if codegen is None:
+        codegen = cache.codegen
+
+    rv = resolve_variable(kb, func.addr, variable_name, codegen=codegen, flavor=flavor)
+
+    if rv.kind == "argument":
+        if not allow_prototype_change:
+            raise UnsupportedEditError(
+                f"{variable_name!r} is an argument of {func.name}; change it by setting the whole prototype."
+            )
+        return _set_argument_type(project, func, rv, new_type, hooks=hooks)
+
+    if rv.kind == "global":
+        varman = kb.dec_variables["global"]
+        old_type = varman.get_variable_type(rv.variable)
+        hooks.before_global_var_retyped(rv.global_addr, old_type, new_type)
+        varman.set_variable_type(rv.variable, new_type, all_unified=False, mark_manual=True)
+    else:
+        varman = kb.dec_variables[func.addr]
+        old_type = varman.get_variable_type(rv.variable)
+        if rv.stack_offset is not None:
+            hooks.before_stack_var_retyped(func, rv.stack_offset, old_type, new_type)
+        else:
+            hooks.before_other_var_retyped(rv.variable, old_type, new_type)
+        # mark_manual is what makes the type survive re-inference: reflow reads
+        # variables_with_manual_types as its ground truth
+        for var in concrete_variables(varman, rv):
+            varman.set_variable_type(var, new_type, all_unified=True, mark_manual=True)
+
+    if reflow:
+        reflow_types(project, func, kb=kb, flavor=flavor, rerender=rerender)
+
+    return EditResult(
+        changed=True,
+        kind="variable_type",
+        func_addr=func.addr,
+        old=None if old_type is None else str(old_type),
+        new=str(new_type),
+        refresh=Refresh(text_stale=frozenset({func.addr})),
+        detail=rv.detail(),
+    )
+
+
+def set_function_prototype(
+    project: Project,
+    func: Function,
+    prototype: str | SimTypeFunction,
+    *,
+    kb: KnowledgeBase | None = None,
+    hooks: EditHooks | None = None,
+    flavor: str = DEFAULT_FLAVOR,
+    invalidate_cache: bool = True,
+    preserve_user_edits: bool = True,
+    redecompile: bool = False,
+) -> EditResult:
+    """
+    Set a function's prototype.
+
+    The function name inside the signature is ignored; use :func:`rename_function` to rename.
+
+    Dropping kb.dec_variables is what makes new argument names take effect, but it also discards
+    every rename and manual type for the function. Those are snapshotted and, when this function
+    re-decompiles, restored. Otherwise the snapshot is returned in ``detail["user_edits"]`` so a
+    caller that decompiles asynchronously can restore it once its own job finishes.
+    """
+    kb = project.kb if kb is None else kb
+    hooks = coerce_hooks(hooks)
+    new_proto = _parse_prototype(prototype, project.arch)
+
+    old_proto = func.prototype
+    hooks.before_function_retyped(func, old_proto, new_proto)
+
+    snapshot = snapshot_user_edits(kb, func.addr) if preserve_user_edits else {}
+
+    func.prototype = new_proto
+    func.prototype_source = PrototypeSource.USER
+    # keep CompleteCallingConventions from overwriting a user-supplied prototype
+    func.ran_cca = True
+
+    if invalidate_cache:
+        invalidate(kb, func.addr, flavors=None, drop_variables=True)
+
+    detail: dict = {"user_edits": snapshot}
+    code = None
+    if redecompile:
+        dec = project.analyses.Decompiler(func, flavor=flavor)
+        if snapshot:
+            restored, missing = restore_user_edits(kb, func.addr, snapshot)
+            detail.update({"restored_user_edits": restored, "unrestored_user_edits": missing})
+            detail["user_edits"] = {}
+            if restored and dec.codegen is not None:
+                dec.codegen.regenerate_text()
+        code = dec.codegen.text if dec.codegen is not None else None
+    detail["code"] = code
+
+    return EditResult(
+        changed=True,
+        kind="prototype",
+        func_addr=func.addr,
+        old=None if old_proto is None else str(old_proto),
+        new=str(new_proto),
+        refresh=Refresh(redecompile=frozenset({func.addr}), function_list_dirty=True),
+        detail=detail,
     )
