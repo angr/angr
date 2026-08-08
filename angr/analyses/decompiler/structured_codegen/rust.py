@@ -24,6 +24,7 @@ from angr.ailment.expression import (
     RustEnum as AilRustEnum,
 )
 from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
 from angr.analyses.decompiler.region_identifier import MultiNode
 from angr.analyses.decompiler.structurer_nodes import (
     BreakNode,
@@ -32,6 +33,8 @@ from angr.analyses.decompiler.structurer_nodes import (
     ConditionalBreakNode,
     ConditionNode,
     ContinueNode,
+    IncompleteSwitchCaseHeadStatement,
+    IncompleteSwitchCaseNode,
     LoopNode,
     SequenceNode,
     SwitchCaseNode,
@@ -1606,6 +1609,69 @@ class RustUnsupportedStatement(RustStatement):
         yield "\n", None
 
 
+class RustIncompleteSwitchCase(RustStatement):
+    """
+    An incomplete switch-case construct; only appears in the output when switch-case structuring failed.
+    """
+
+    __slots__ = ("cases", "head", "tags")
+
+    def __init__(self, head, cases, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.head = head
+        self.cases: list[tuple[int, RustStatements]] = cases
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+        paren = RustClosingObject("(")
+        brace = RustClosingObject("{")
+
+        yield from self.head.c_repr_chunks(indent=indent)
+        yield "\n", None
+        yield indent_str, None
+        yield "match ", self
+        yield "(", paren
+        yield "/* incomplete */", None
+        yield ")", paren
+        if self.codegen.braces_on_own_lines:
+            yield "\n", None
+            yield indent_str, None
+        else:
+            yield " ", None
+        yield "{", brace
+        yield "\n", None
+
+        for case_addr, case in self.cases:
+            yield indent_str, None
+            yield f"{case_addr:#x} =>", self
+            yield "\n", None
+            yield from case.c_repr_chunks(indent=indent + self.codegen.indent_delta)
+
+        yield indent_str, None
+        yield "}", brace
+        yield "\n", None
+
+
+class RustDirtyStatement(RustStatement):
+    """
+    A dirty expression used as a statement, i.e. only for its side effects.
+    """
+
+    __slots__ = ("dirty",)
+
+    def __init__(self, dirty, **kwargs):
+        super().__init__(**kwargs)
+        self.dirty = dirty
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        yield self.indent_str(indent=indent), None
+        yield from RustExpression._try_c_repr_chunks(self.dirty)
+        yield ";", None
+        yield "\n", None
+
+
 class RustLabel(RustStatement):
     """
     Represents a label in C code.
@@ -2775,6 +2841,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Block: self._handle_AILBlock,
             BreakNode: self._handle_Break,
             SwitchCaseNode: self._handle_SwitchCase,
+            IncompleteSwitchCaseNode: self._handle_IncompleteSwitchCase,
             ContinueNode: self._handle_Continue,
             PatternMatchNode: self._handle_PatternMatch,
             IfLetNode: self._handle_IfLet,
@@ -2786,6 +2853,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
+            Stmt.WeakAssignment: self._handle_Stmt_Assignment,
+            Stmt.DirtyStatement: self._handle_Stmt_Dirty,
+            Stmt.CAS: self._handle_Stmt_CAS,
+            IncompleteSwitchCaseHeadStatement: self._handle_Stmt_IncompleteSwitchCaseHead,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -2799,6 +2870,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
             Expr.Extract: self._handle_Expr_Extract,
+            Expr.Insert: self._handle_Expr_Insert,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
@@ -3595,6 +3667,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         tags = {"ins_addr": node.addr}
         return RustSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
 
+    def _handle_IncompleteSwitchCase(self, node: IncompleteSwitchCaseNode, **kwargs):
+        head = self._handle(node.head, is_expr=False)
+        cases = [(case.addr, self._handle(case, is_expr=False)) for case in node.cases]
+        return RustIncompleteSwitchCase(head, cases, tags={"ins_addr": node.addr}, codegen=self)
+
     def _get_bound_variable(self, move):
         expr = None
         var = None
@@ -3807,6 +3884,49 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         clabel = RustLabel(stmt.name, ins_addr, block_idx, tags=stmt.tags, codegen=self)
         self.map_addr_to_label[(ins_addr, block_idx)] = clabel
         return clabel
+
+    def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):
+        return RustDirtyStatement(self._handle(stmt.dirty), codegen=self)
+
+    def _handle_Stmt_IncompleteSwitchCaseHead(self, stmt: IncompleteSwitchCaseHeadStatement, **kwargs):
+        # render the dispatch as a cascade of if-gotos rather than dropping every target
+        switch_var = self._handle(stmt.switch_variable)
+        bits = getattr(stmt.switch_variable, "bits", None) or self.project.arch.bits
+        const_type = RustSimTypeInt(size=bits, signed=False).with_arch(self.project.arch)
+        condition_and_nodes = []
+        default_goto = None
+        for _, case_value, target_addr, target_idx, _ in stmt.case_addrs:
+            goto = RustGoto(target_addr, target_idx, tags=stmt.tags, codegen=self)
+            if isinstance(case_value, str):
+                if case_value == "default":
+                    default_goto = goto
+                continue
+            cond = RustBinaryOp(
+                "CmpEQ",
+                switch_var,
+                RustConstant(case_value, const_type, tags=stmt.tags, codegen=self),
+                codegen=self,
+                tags=stmt.tags,
+            )
+            condition_and_nodes.append((cond, goto))
+        if not condition_and_nodes:
+            return default_goto if default_goto is not None else RustUnsupportedStatement(stmt, codegen=self)
+        return RustIfElse(condition_and_nodes, else_node=default_goto, tags=stmt.tags, codegen=self)
+
+    def _handle_Stmt_CAS(self, stmt: Stmt.CAS, **kwargs):
+        # render whatever CASIntrinsics did not rewrite as the same intrinsic call
+        if stmt.old_hi is None:
+            os_name = self.project.simos.name if self.project.simos is not None else None
+            call = Expr.Call(
+                stmt.idx,
+                cas_intrinsic_name(f"cmpxchg{stmt.bits}", os_name),
+                args=[stmt.addr, stmt.data_lo, stmt.expd_lo],
+                bits=stmt.bits,
+                **stmt.tags,
+            )
+            return self._handle(Stmt.Assignment(stmt.idx, stmt.old_lo, call, **stmt.tags), is_expr=False)
+        # a double-width CAS writes two destinations, which no single expression captures
+        return RustUnsupportedStatement(stmt, codegen=self)
 
     #
     # AIL expression handlers
@@ -4192,6 +4312,17 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Dirty(self, expr, **kwargs):
         return RustDirtyExpression(expr, codegen=self)
+
+    def _handle_Expr_Insert(self, expr: Expr.Insert, **kwargs):
+        # should never really be used - should be handled by Assignment
+        return RustFunctionCall(
+            "_INSERT",
+            None,
+            [self._handle(expr.base), self._handle(expr.offset), self._handle(expr.value)],
+            is_expr=True,
+            tags=expr.tags,
+            codegen=self,
+        )
 
     def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):
         return RustITE(
