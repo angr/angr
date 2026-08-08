@@ -13,7 +13,11 @@ concurrency:
 
 env:
   SKIP_SLOW_TESTS: 1
-  RUSTFLAGS: "-C instrument-coverage -C codegen-units=1 -C link-dead-code"
+  # link-arg=-lgcov: CFLAGS below leaks --coverage into C code that the cc
+  # crate compiles inside Rust build dependencies (ring/zstd-sys, used by
+  # z3-sys's build script to download Z3), and rustc links with -nodefaultlibs,
+  # so the gcov runtime must be linked explicitly.
+  RUSTFLAGS: "-C instrument-coverage -C codegen-units=1 -C link-dead-code -C link-arg=-lgcov"
   LLVM_PROFILE_FILE: "%p-%m.profraw"
   CFLAGS: "--coverage -O0 -g"
   LDFLAGS: "--coverage -g"
@@ -106,9 +110,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run tests
+        env:
+          READ_ONLY_GITHUB_TOKEN: ${{ github.token }}
         run: |
-          cargo test --release
-          cargo llvm-cov --lcov --output-path lcov.info
+          cargo test --release --features z3-sys/gh-release
+          cargo llvm-cov --lcov --output-path lcov.info --features z3-sys/gh-release
       - name: Upload results artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

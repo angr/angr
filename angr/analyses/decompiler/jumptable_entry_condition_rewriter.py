@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import claripy
+from angr import claripy
 
 from .sequence_walker import SequenceWalker
 from .structurer_nodes import CodeNode, ConditionNode

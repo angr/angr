@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import claripy
 from pyvex.const import get_type_size
 from pyvex.expr import Binop, IRExpr, Unop, get_op_retty
 
+from angr import claripy
 from angr.block import Block
 from angr.engines.engine import DataType_co
 from angr.engines.light.engine import SimEngineLight, SimEngineLightVEX

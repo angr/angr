@@ -3,9 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
-import claripy
-
-from angr import errors
+from angr import claripy, errors
 from angr import sim_options as o
 from angr.calling_conventions import DEFAULT_CC, SimRegArg, default_cc
 from angr.engines.successors import SimSuccessors, SuccessorsEngine

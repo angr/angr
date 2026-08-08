@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import archinfo
-import claripy
 
 import angr
+from angr import claripy
 
 
 def test_memory_find_empty_cases():

@@ -13,9 +13,9 @@ import operator
 import re
 from functools import partial
 
-import claripy
 import pyvex
 
+from angr import claripy
 from angr.errors import SimOperationError, SimValueError, SimZeroDivisionException, UnsupportedIROpError
 from angr.state_plugins.sim_action_object import SimActionObject
 
@@ -1072,7 +1072,7 @@ class SimIROp:
         # if exponent is large enough, floating points are always integers.
         fsort = claripy.fp.FSort.from_size(args[1].length)
         mantissa_bits = fsort.mantissa - 1  # -1 since FSort has mantissa value 1 higher than the number of bits
-        exp_bits = fsort.exp
+        exp_bits = fsort.exponent
         rounded_fp = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, fsort)
         exp_bv = args[1].raw_to_bv()[exp_bits + mantissa_bits - 1 : mantissa_bits]
         exp_threshold = (2 ** (exp_bits - 1) - 1) + mantissa_bits
