@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment import Const
-from angr.ailment.expression import BinaryOp, Call, Expression, Load, Tmp
+from angr.ailment.expression import ITE, BinaryOp, Call, Expression, Load, Tmp
 from angr.ailment.statement import CAS, Assignment, ConditionalJump, Statement
 
 from .base import PeepholeOptimizationMultiStmtBase
@@ -25,6 +25,16 @@ _INTRINSICS_NAMES = {
     "lock_xadd32": {"Win32": "InterlockedExchangeAdd", "Linux": "atomic_exchange_add"},
     "lock_xadd64": {"Win32": "InterlockedExchangeAdd64", "Linux": "atomic_exchange_add"},
 }
+
+
+def cas_intrinsic_name(mnemonic: str, os_name: str | None) -> str:
+    """
+    Resolve the intrinsic name for a lock-prefixed instruction on the given OS, falling back to Linux naming.
+    """
+    if mnemonic not in _INTRINSICS_NAMES:
+        return mnemonic
+    names = _INTRINSICS_NAMES[mnemonic]
+    return names[os_name] if os_name in names else names["Linux"]
 
 
 class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
@@ -135,7 +145,9 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                 stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type: ignore
                 return [stmt]
 
-        if next_stmt.tags["ins_addr"] <= cas_stmt.tags["ins_addr"]:
+        if next_stmt.tags["ins_addr"] <= cas_stmt.tags["ins_addr"] and not self._is_cas_writeback_ite(
+            cas_stmt, next_stmt
+        ):
             # avoid matching against statements prematurely
             return None
 
@@ -159,17 +171,31 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
 
         return None
 
+    @staticmethod
+    def _is_cas_writeback_ite(cas_stmt: CAS, stmt: Statement) -> bool:
+        """
+        Detect the ITE assignment that models "cmpxchg writes the memory value back into the accumulator". It belongs
+        to the same instruction as the CAS, so the same-instruction guard above would otherwise keep this shape from
+        ever being rewritten. Case 1 cannot apply to it either, because that requires the next statement to be a
+        CasCmpNE conditional jump.
+
+            CAS(addr, expd_lo=X, data_lo=D, old_lo=OLD)
+            vvar = (X == OLD) ? X : OLD
+        """
+        if cas_stmt.old_lo is None or not isinstance(stmt, Assignment) or not isinstance(stmt.src, ITE):
+            return False
+        ite = stmt.src
+        if not (isinstance(ite.cond, BinaryOp) and ite.cond.op == "CmpEQ"):
+            return False
+        expd, old = cas_stmt.expd_lo, cas_stmt.old_lo
+        cond_op0, cond_op1 = ite.cond.operands
+        return ((cond_op0.likes(expd) and cond_op1.likes(old)) or (cond_op0.likes(old) and cond_op1.likes(expd))) and (
+            (ite.iftrue.likes(expd) and ite.iffalse.likes(old)) or (ite.iftrue.likes(old) and ite.iffalse.likes(expd))
+        )
+
     def _get_instrincs_name(self, mnemonic: str) -> str:
-        if mnemonic in _INTRINSICS_NAMES:
-            os = (
-                self.project.simos.name
-                if self.project is not None and self.project.simos is not None and self.project.simos.name is not None
-                else "Linux"
-            )
-            if os not in _INTRINSICS_NAMES[mnemonic]:
-                os = "Linux"
-            return _INTRINSICS_NAMES[mnemonic][os]
-        return mnemonic
+        os_name = self.project.simos.name if self.project is not None and self.project.simos is not None else None
+        return cas_intrinsic_name(mnemonic, os_name)
 
     @staticmethod
     def _resolve_tmp_expr(expr: Expression, block) -> Expression:
