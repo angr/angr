@@ -520,14 +520,9 @@ class StructurerBase(Analysis):
         walker.walk(loop_node)
 
     def _rewrite_jumps_to_continues(self, loop_seq: SequenceNode, loop_node: LoopNode | None = None):
-        continue_node_addr = loop_seq.addr
-        # exception: do-while with a multi-statement condition
-        if (
-            loop_node is not None
-            and loop_node.sort == "do-while"
-            and isinstance(loop_node.condition, ailment.Expr.MultiStatementExpression)
-        ):
-            continue_node_addr = loop_node.condition.tags["ins_addr"]
+        # LoopNode.continue_addr is where a continue lands: the loop header, or -- for a do-while whose latch was
+        # folded into the loop condition -- the latch block that evaluates the condition.
+        continue_node_addr = loop_node.continue_addr if loop_node is not None else loop_seq.addr
 
         def _rewrite_jump_to_continue(node, *, parent, index: int, label=None, **kwargs):
             if not node.statements:

@@ -298,6 +298,7 @@ class LoopNode(BaseNode):
             self.condition,
             self.sequence_node,
             addr=self._addr,
+            continue_addr=self._continue_addr,
             initializer=self.initializer,
             iterator=self.iterator,
         )
