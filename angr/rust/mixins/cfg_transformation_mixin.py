@@ -163,15 +163,31 @@ class CFGTransformationMixin:
                 and last_stmt.true_target.value_int == old_target
                 and last_stmt.true_target_idx == old_target_idx
             ):
-                last_stmt.true_target.value = new_target
-                last_stmt.true_target_idx = new_target_idx
+                old_tgt = last_stmt.true_target
+                block.statements[-1] = ConditionalJump(
+                    last_stmt.idx,
+                    last_stmt.condition,
+                    Const(old_tgt.idx, new_target, old_tgt.bits, **old_tgt.tags),
+                    last_stmt.false_target,
+                    true_target_idx=new_target_idx,
+                    false_target_idx=last_stmt.false_target_idx,
+                    **last_stmt.tags,
+                )
             elif (
                 isinstance(last_stmt.false_target, Const)
                 and last_stmt.false_target.value_int == old_target
                 and last_stmt.false_target_idx == old_target_idx
             ):
-                last_stmt.false_target.value = new_target
-                last_stmt.false_target_idx = new_target_idx
+                old_tgt = last_stmt.false_target
+                block.statements[-1] = ConditionalJump(
+                    last_stmt.idx,
+                    last_stmt.condition,
+                    last_stmt.true_target,
+                    Const(old_tgt.idx, new_target, old_tgt.bits, **old_tgt.tags),
+                    true_target_idx=last_stmt.true_target_idx,
+                    false_target_idx=new_target_idx,
+                    **last_stmt.tags,
+                )
 
         if old_target:
             try:
