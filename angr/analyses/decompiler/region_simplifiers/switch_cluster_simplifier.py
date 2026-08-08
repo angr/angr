@@ -328,6 +328,14 @@ def simplify_switch_clusters(
         if len(default_node_addrs) > 1:
             continue
 
+        # the merged switch-case only keeps one default node. sharing an address is not enough: default-case nodes get
+        # duplicated, and structuring usually leaves the real continuation under one copy and a goto stub under the
+        # others. Dropping the wrong copy silently loses everything below it, so only merge when all switches literally
+        # share the same default node.
+        default_nodes = [r.node.default_node for r in switch_regions if r.node.default_node is not None]
+        if any(dn is not default_nodes[0] for dn in default_nodes[1:]):
+            continue
+
         # ensure cases in each switch do not overlap
         case_ids = set()
         overlaps = False
