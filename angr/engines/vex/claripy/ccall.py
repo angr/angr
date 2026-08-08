@@ -1292,13 +1292,14 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         old_C = r_C
 
         condition = claripy.Or((r_AL & 0xF) > 9, r_A == 1)
+        borrow = claripy.If(r_AL < 6, one, zero)  # test borrow on old AL, pre-subtract
         r_AL = claripy.If(condition, r_AL - 6, old_AL)
-        r_C = claripy.If(condition, claripy.If(r_AL < 6, one, zero), zero)
+        r_C = claripy.If(condition, old_C | borrow, zero)
         r_A = claripy.If(condition, one, zero)
 
         condition = claripy.Or(old_AL > 0x99, old_C == 1)
         r_AL = claripy.If(condition, r_AL - 0x60, r_AL)
-        r_C = claripy.If(condition, one, zero)
+        r_C = claripy.If(condition, one, r_C)  # preserve block-1 CF when cond false
 
         r_AL &= 0xFF
         r_O = zero
