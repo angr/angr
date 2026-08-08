@@ -136,6 +136,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                     # skip it
                     return ()
 
+        if new_dst is not None or new_src is not None:
             return Assignment(stmt.idx, dst, src, **stmt.tags)
         return None
 
