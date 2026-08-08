@@ -589,7 +589,16 @@ class PhoenixStructurer(StructurerBase):
                                 drop_succ = True
 
                             new_node = SequenceNode(node.addr, nodes=[node] if drop_succ else [node, succ])
-                            loop_node = LoopNode("do-while", edge_cond_succhead, new_node, addr=node.addr)
+                            loop_node = LoopNode(
+                                "do-while",
+                                edge_cond_succhead,
+                                new_node,
+                                addr=node.addr,
+                                # when the latch is folded into the loop condition it stops being a node of its own,
+                                # so remember where a continue has to land; otherwise jumps to it become gotos to a
+                                # label that no longer exists
+                                continue_addr=succ.addr if drop_succ else None,
+                            )
 
                             self.replace_nodes_both(
                                 node, loop_node, old_node_1=succ, self_loop=False, drop_refinement_marks=True
