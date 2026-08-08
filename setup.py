@@ -10,16 +10,11 @@ import shutil
 import subprocess
 import sys
 
+import setuptools_rust
 from distutils.command.build import build as st_build
 from setuptools import Command, setup
 from setuptools.command.develop import develop as st_develop
 from setuptools.errors import LibError
-
-# Import setuptools_rust to ensure an error is raised if not installed
-try:
-    _ = importlib.import_module("setuptools_rust")
-except ImportError as err:
-    raise Exception("angr requires setuptools-rust to build") from err
 
 if sys.platform == "darwin":
     library_file = "unicornlib.dylib"
@@ -100,11 +95,16 @@ def clean_unicornlib():
         os.unlink(fname)
 
 
+class build_rust(setuptools_rust.build_rust):
+    def run(self):
+        configure_z3()
+        super().run()
+
+
 class build(st_build):
     def run(self, *args):
         self.execute(build_protos, (), msg="Generating protobuf modules")
         self.execute(build_unicornlib, (), msg="Building unicornlib")
-        self.execute(configure_z3, (), msg="Locating Z3")
         super().run(*args)
 
 
@@ -129,6 +129,7 @@ class develop(st_develop):
 
 cmdclass = {
     "build": build,
+    "build_rust": build_rust,
     "clean_unicornlib": clean,
     "develop": develop,
 }
