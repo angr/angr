@@ -9,9 +9,9 @@ import shutil
 import subprocess
 import sys
 
-from distutils.command.build import build as st_build
-from setuptools import Command, setup
-from setuptools.command.develop import develop as st_develop
+import setuptools
+from distutils.command.clean import clean as distutils_clean
+from setuptools import setup
 from setuptools.errors import LibError
 
 # Import setuptools_rust to ensure an error is raised if not installed
@@ -83,50 +83,22 @@ def clean_unicornlib():
         os.unlink(fname)
 
 
-class build(st_build):
+class build_ext(setuptools.command.build_ext.build_ext):
     def run(self, *args):
         self.execute(build_protos, (), msg="Generating protobuf modules")
         self.execute(build_unicornlib, (), msg="Building unicornlib")
         super().run(*args)
 
 
-class clean(Command):
-    user_options = []
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
+class clean(distutils_clean):
+    def run(self, *args):
         self.execute(clean, (), msg="Cleaning unicornlib")
-
-
-class develop(st_develop):
-    def run(self):
-        self.run_command("build")
-        super().run()
+        super().run(*args)
 
 
 cmdclass = {
-    "build": build,
-    "clean_unicornlib": clean,
-    "develop": develop,
+    "build_ext": build_ext,
+    "clean": clean,
 }
-
-
-try:
-    from setuptools.command.editable_wheel import editable_wheel as st_editable_wheel
-
-    class editable_wheel(st_editable_wheel):
-        def run(self):
-            self.run_command("build")
-            super().run()
-
-    cmdclass["editable_wheel"] = editable_wheel
-except ModuleNotFoundError:
-    pass
-
 
 setup(cmdclass=cmdclass)
