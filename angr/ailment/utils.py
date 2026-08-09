@@ -9,8 +9,12 @@ from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import BinaryOp, Convert, DirtyExpression, Expression, Let, Load
 from angr.ailment.statement import DirtyStatement, Statement
-from angr.rustylib.ailment import Expression as RustExpression
-from angr.rustylib.ailment import Statement as RustStatement
+from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
+    Expression as RustExpression,  # pyright: ignore[reportMissingModuleSource]
+)
+from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
+    Statement as RustStatement,  # pyright: ignore[reportMissingModuleSource]
+)
 
 try:
     from claripy.ast import Bits
@@ -70,7 +74,7 @@ class _EffectfulDirtyExpressionFinder(AILBlockViewer):
         if isinstance(rounding_mode, Expression):
             self._handle_expr(1, rounding_mode, stmt_idx, stmt, block)
 
-    def _handle_Let(self, expr_idx, expr: Let, stmt_idx, stmt, block):
+    def _handle_Let(self, _expr_idx, expr: Let, stmt_idx, stmt, block):
         for idx, def_stmt in enumerate(expr.defs):
             self._handle_stmt(idx, def_stmt, None)
         self._handle_expr(0, expr.src, stmt_idx, stmt, block)

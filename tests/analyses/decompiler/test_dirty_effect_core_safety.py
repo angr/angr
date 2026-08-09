@@ -17,6 +17,7 @@ from angr.ailment.utils import (
 from angr.analyses.decompiler.ail_simplifier import AILSimplifier
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier
 from angr.analyses.decompiler.block_walkers import HasCallExprWalker, HasCallNotification
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.analyses.s_propagator import SPropagator
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.code_location import AILCodeLocation
@@ -421,8 +422,6 @@ def test_native_statement_summary_checks_hidden_evaluated_slots(stmt):
 
 
 def test_dirty_effect_queries_accept_python_statement_subclasses():
-    from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
-
     stmt = IncompleteSwitchCaseHeadStatement(70, ailment.Expr.Const(71, 0, 32), [])
     assert isinstance(stmt, Statement)
     assert not has_effectful_dirty_expression(stmt)
@@ -711,7 +710,7 @@ def test_effectful_dirty_definition_protects_entire_cyclic_vvar_component(source
 
     simplifier = object.__new__(AILSimplifier)
     simplifier.func_graph = graph
-    removable = simplifier._find_cyclic_dependent_phis_and_dirty_vvars(rd, set())
+    removable = simplifier._find_cyclic_dependent_phis_and_dirty_vvars(rd, set())  # pylint:disable=protected-access
 
     assert removable == ({1, 2} if source_kind == "pure" else set())
 

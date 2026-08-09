@@ -108,7 +108,7 @@ def test_effectful_assignment_source_query_is_cached_per_spropagator(monkeypatch
 
     first = _function_propagator(project, block, manager)
     assert calls == 1
-    cached_stmt, cached_result = first._effectful_assignment_src_cache[id(defining_stmt)]
+    cached_stmt, cached_result = first._effectful_assignment_src_cache[id(defining_stmt)]  # pylint:disable=protected-access
     assert cached_stmt is defining_stmt
     assert cached_result is (mfx is not None)
     assert _has_replacement(first, vvar_uses) is expected_replacement
@@ -117,7 +117,7 @@ def test_effectful_assignment_source_query_is_cached_per_spropagator(monkeypatch
 
     second = _function_propagator(project, block, manager)
     assert calls == 2
-    second_cached_stmt, second_cached_result = second._effectful_assignment_src_cache[id(defining_stmt)]
+    second_cached_stmt, second_cached_result = second._effectful_assignment_src_cache[id(defining_stmt)]  # pylint:disable=protected-access
     assert second_cached_stmt is defining_stmt
     assert second_cached_result == cached_result
     assert second.replacements == first.replacements
@@ -144,13 +144,13 @@ def test_dirty_write_statement_query_is_cached_per_spropagator(monkeypatch, mfx,
     assert set(calls_by_id.values()) == {1}
     for stmt in block.statements:
         if id(stmt) in calls_by_id:
-            assert first._dirty_memory_write_cache[id(stmt)][0] is stmt
+            assert first._dirty_memory_write_cache[id(stmt)][0] is stmt  # pylint:disable=protected-access
     assert _has_replacement(first, vvar_uses) is expected_replacement
 
     second = _function_propagator(project, block, manager)
     assert set(calls_by_id.values()) == {2}
     for stmt in block.statements:
         if id(stmt) in calls_by_id:
-            assert second._dirty_memory_write_cache[id(stmt)][0] is stmt
+            assert second._dirty_memory_write_cache[id(stmt)][0] is stmt  # pylint:disable=protected-access
     assert second.replacements == first.replacements
     assert second.dead_vvar_ids == first.dead_vvar_ids

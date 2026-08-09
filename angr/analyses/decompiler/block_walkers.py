@@ -54,7 +54,7 @@ class HasCallExprWalker(AILBlockViewer):
         if isinstance(rounding_mode, Expression):
             self._handle_expr(1, rounding_mode, stmt_idx, stmt, block)
 
-    def _handle_Let(self, expr_idx, expr: Let, stmt_idx, stmt, block):
+    def _handle_Let(self, _expr_idx, expr: Let, stmt_idx, stmt, block):
         for idx, def_stmt in enumerate(expr.defs):
             self._handle_stmt(idx, def_stmt, None)
         self._handle_expr(0, expr.src, stmt_idx, stmt, block)
