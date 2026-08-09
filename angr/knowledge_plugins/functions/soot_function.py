@@ -8,7 +8,7 @@ import networkx
 
 from angr.codenode import BlockNode
 
-from .function import Function, FunctionInfo
+from .function import Function, FunctionInfo, PrototypeSource
 
 
 class SootFunction(Function):
@@ -21,6 +21,11 @@ class SootFunction(Function):
     def __init__(self, function_manager, addr, name=None, syscall=None):
         """
         Function constructor for Soot
+
+        A Soot address is a method descriptor rather than an integer, so this constructor replaces
+        :meth:`Function.__init__` instead of extending it. Because :class:`Function` uses ``__slots__``, every field it
+        declares has to be assigned here too; one left out only shows up as an ``AttributeError`` when something reads
+        it. ``tests/knowledge_plugins/functions/test_soot_function.py`` guards against that drift.
 
         :param addr:            The address of the function.
         :param name:            (Optional) The name of the function.
@@ -68,8 +73,12 @@ class SootFunction(Function):
             binary_name = os.path.basename(self.binary.binary)
 
         self._name = addr.__repr__()
+        # The name is the method signature Soot reports, not a placeholder derived from an address.
+        self.is_default_name = False
         self.binary_name = binary_name
 
+        # Register offsets of those arguments passed in registers
+        self._argument_registers = []
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
@@ -84,6 +93,8 @@ class SootFunction(Function):
 
         # Function prototype
         self._prototype = None
+        self._prototype_libname = None
+        self._prototype_source = PrototypeSource.NONE
 
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -106,6 +117,10 @@ class SootFunction(Function):
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
         self._info = FunctionInfo(self)
+        self._cyclomatic_complexity = None
+        self.ran_cca = False
+        self.meta_only = False
+        self.evicted = False
         self._dirty = False
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
