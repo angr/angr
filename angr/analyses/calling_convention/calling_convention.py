@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+import archinfo
 import capstone
 import networkx
 from pyvex.expr import RdTmp
@@ -16,11 +17,13 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
     SimCC,
+    SimCCGoAMD64ABI0,
     SimCCMicrosoftThiscall,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
-    default_cc,
+    default_cc_for_project,
+    project_language,
 )
 from angr.code_location import ExternalCodeLocation
 from angr.errors import SimTranslationError
@@ -245,14 +248,7 @@ class CallingConventionAnalysis(Analysis):
                         max_analyzing_callsites=1,
                         include_callsite_preds=include_callsite_preds,
                     )
-                    cc_cls = default_cc(
-                        self.project.arch.name,
-                        platform=(
-                            self.project.simos.name
-                            if self.project is not None and self.project.simos is not None
-                            else None
-                        ),
-                    )
+                    cc_cls = default_cc_for_project(self.project)
                     cc = cc_cls(self.project.arch) if cc_cls is not None else None
                     prototype = None
                     if callsite_facts:
@@ -369,12 +365,7 @@ class CallingConventionAnalysis(Analysis):
             if fact is None:
                 continue
             callsite_facts = [fact]
-            cc_cls = default_cc(
-                self.project.arch.name,
-                platform=(
-                    self.project.simos.name if self.project is not None and self.project.simos is not None else None
-                ),
-            )
+            cc_cls = default_cc_for_project(self.project)
             cc = cc_cls(self.project.arch) if cc_cls is not None else None
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
@@ -419,7 +410,7 @@ class CallingConventionAnalysis(Analysis):
 
         if real_func is not None:
             if real_func.calling_convention is None:
-                cc_cls = default_cc(self.project.arch.name)
+                cc_cls = default_cc_for_project(self.project)
                 if cc_cls is None:
                     # can't determine the default calling convention for this architecture
                     return None
@@ -443,7 +434,7 @@ class CallingConventionAnalysis(Analysis):
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
             callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
-            cc_cls = default_cc(self.project.arch.name)
+            cc_cls = default_cc_for_project(self.project)
             if cc_cls is None:
                 # can't determine the default calling convention for this architecture
                 return None
@@ -475,10 +466,28 @@ class CallingConventionAnalysis(Analysis):
         ):
             cc_cls = SimCCMicrosoftThiscall
         else:
-            cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
+            cc_cls = default_cc_for_project(self.project)
             assert cc_cls is not None
         cc = cc_cls(self.project.arch)
         return cc, proto, None
+
+    def _forced_cc_cls(self) -> type[SimCC] | None:
+        """
+        A calling convention that this function is known to use regardless of what its arguments look like.
+
+        The only case so far is Go's legacy all-stack ABI0, which the gc linker marks by suffixing the symbol with
+        ".abi0". ABI0 and ABIInternal are indistinguishable from the arguments alone, since stack arguments are valid
+        under both.
+        """
+        if (
+            self._function is not None
+            and self._function.name is not None
+            and self._function.name.endswith(".abi0")
+            and self.project.is_go_binary
+            and isinstance(self.project.arch, archinfo.ArchAMD64)
+        ):
+            return SimCCGoAMD64ABI0
+        return None
 
     def _analyze_function(self) -> tuple[SimCC, SimTypeFunction] | None:
         """
@@ -515,14 +524,20 @@ class CallingConventionAnalysis(Analysis):
 
         full_input_args = self._consolidate_input_args(input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
-        cc = SimCC.find_cc(
-            self.project.arch,
-            full_input_args_copy,
-            sp_delta,
-            platform=self.project.simos.name,
-            unused_hint=self._unused_args,
-            extra_pop=self._extra_pop,
-        )
+        forced_cc_cls = self._forced_cc_cls()
+        if forced_cc_cls is not None:
+            forced_cc_cls._match(self.project.arch, full_input_args_copy, sp_delta, self._unused_args, self._extra_pop)
+            cc = forced_cc_cls(self.project.arch)
+        else:
+            cc = SimCC.find_cc(
+                self.project.arch,
+                full_input_args_copy,
+                sp_delta,
+                platform=self.project.simos.name,
+                unused_hint=self._unused_args,
+                extra_pop=self._extra_pop,
+                language=project_language(self.project),
+            )
 
         # update input_args according to the difference between full_input_args and full_input_args_copy
         for a in full_input_args:
@@ -726,10 +741,7 @@ class CallingConventionAnalysis(Analysis):
             True,  # by default we treat all return values as used
         )
 
-        default_cc_cls = default_cc(
-            self.project.arch.name,
-            platform=self.project.simos.name if self.project is not None and self.project.simos is not None else None,
-        )
+        default_cc_cls = default_cc_for_project(self.project)
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
             self._analyze_callsite_return_value_uses(cc, caller_block.addr, rda, fact)
@@ -899,10 +911,7 @@ class CallingConventionAnalysis(Analysis):
 
         reg_vars_with_single_access: list[SimRegisterVariable] = []
 
-        def_cc = default_cc(
-            self.project.arch.name,
-            platform=self.project.simos.name if self.project is not None and self.project.simos is not None else None,
-        )
+        def_cc = default_cc_for_project(self.project)
         for variable in variables:
             if isinstance(variable, SimStackVariable):
                 # a stack variable. convert it to a stack argument.
@@ -1193,7 +1202,8 @@ class CallingConventionAnalysis(Analysis):
                 return SimTypeInt()
             if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
-            if self.project.is_rust_binary and 9 <= ret_val_size <= 16:
+            # Go returns two-word values (strings, slices, interfaces, (T, error) pairs) in RAX:RBX
+            if (self.project.is_rust_binary or self.project.is_go_binary) and 9 <= ret_val_size <= 16:
                 return SimTypeInt128()
 
         return SimTypeBottom(label="void")
