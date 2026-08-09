@@ -921,6 +921,10 @@ class Project:
     def is_rust_binary(self) -> bool:
         return "rust" in self.languages()
 
+    @property
+    def is_go_binary(self) -> bool:
+        return "go" in self.languages()
+
     #
     # Cache limit settings
     #
