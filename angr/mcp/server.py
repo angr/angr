@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import functools
+import inspect
 import logging
 import re
 import sys
@@ -10,15 +12,19 @@ from typing import Any
 
 import networkx as nx
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
+from angr.analyses.decompiler.edits import DecompilationEditError, parse_address, resolve_function
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.functions import Function
 from angr.utils.mp import protect_stdio_from_forked_children
 
 from .errors import (
     CFGNotBuiltError,
     DecompilationError,
     FunctionNotFoundError,
+    InvalidArgumentError,
     ProjectNotFoundError,
 )
 from .serializers import (
@@ -70,10 +76,66 @@ def _require_cfg(session: ProjectSession) -> None:
 
 
 def _parse_address(address: str | int) -> int:
-    """Parse an address from hex string or int."""
-    if isinstance(address, int):
-        return address
-    return int(address, 16)
+    """Parse an address given as an int or a string. Accepts 0x-prefixed hex and decimal."""
+    return parse_address(address)
+
+
+def _find_function(session: ProjectSession, address: str | int | None = None, name: str | None = None) -> Function:
+    """Find a function by address or name. Any address inside the function resolves to it."""
+    if address is None and name is None:
+        raise InvalidArgumentError("Must specify either 'address' or 'name'")
+    try:
+        return resolve_function(session.project.kb, address=address, name=name)
+    except DecompilationEditError as e:
+        raise FunctionNotFoundError(str(e)) from e
+
+
+def _as_tool_error(func):
+    """
+    Convert this layer's exceptions into fastmcp ToolErrors.
+
+    FastMCP masks the message of any exception that is not a ToolError, so without this a caller
+    sees a generic failure instead of "no function named 'foo'" or the list of valid variable names.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except DecompilationEditError as ex:
+            raise ToolError(str(ex)) from ex
+
+    return wrapper
+
+
+def _serialized(func):
+    """
+    Hold the project's lock for the duration of a tool call.
+
+    FastMCP dispatches synchronous tools onto worker threads, so two calls can reach one Project at
+    the same time. Applied to every tool, including read-only ones: the decompilation and variable
+    caches spill to LMDB, and a read racing an eviction is the same hazard as a concurrent write.
+    """
+    signature = inspect.signature(func)
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            bound = signature.bind(*args, **kwargs)
+        except TypeError:
+            return func(*args, **kwargs)
+        project_id = bound.arguments.get("project_id")
+        if project_id is None:
+            return func(*args, **kwargs)
+        try:
+            session = get_session_manager().get_session(project_id)
+        except KeyError:
+            # let the tool itself raise the project-not-found error
+            return func(*args, **kwargs)
+        with session.exclusive():
+            return func(*args, **kwargs)
+
+    return wrapper
 
 
 # ============================================================================
@@ -82,6 +144,8 @@ def _parse_address(address: str | int) -> int:
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def load_binary(
     binary_path: str,
     auto_load_libs: bool = False,
@@ -120,6 +184,8 @@ def load_binary(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_cfg(
     project_id: str,
     normalize: bool = True,
@@ -161,6 +227,8 @@ def get_cfg(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def recover_calling_conventions(
     project_id: str,
     workers: int = 0,
@@ -185,7 +253,7 @@ def recover_calling_conventions(
     proj = session.project
 
     if workers < 0:
-        raise ValueError("workers must be >= 0")
+        raise InvalidArgumentError("workers must be >= 0")
 
     analysis = proj.analyses.CompleteCallingConventions(
         cfg=session.cfg,
@@ -205,6 +273,8 @@ def recover_calling_conventions(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def list_functions(
     project_id: str,
     filter_plt: bool | None = None,
@@ -261,6 +331,8 @@ def list_functions(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_function_info(
     project_id: str,
     address: str | None = None,
@@ -284,22 +356,7 @@ def get_function_info(
     session = _get_session(project_id)
     _require_cfg(session)
 
-    if address is None and name is None:
-        raise ValueError("Must specify either 'address' or 'name'")
-
-    func = None
-    if address:
-        addr = _parse_address(address)
-        func = session.project.kb.functions.get(addr)
-    elif name:
-        # Search by name
-        for f in session.project.kb.functions.values():
-            if f.name == name:
-                func = f
-                break
-
-    if func is None:
-        raise FunctionNotFoundError(f"Function not found: address={address}, name={name}")
+    func = _find_function(session, address=address, name=name)
 
     return {
         "project_id": project_id,
@@ -308,6 +365,8 @@ def get_function_info(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def decompile_function(
     project_id: str,
     address: str | None = None,
@@ -330,22 +389,7 @@ def decompile_function(
     _require_cfg(session)
     proj = session.project
 
-    if address is None and name is None:
-        raise ValueError("Must specify either 'address' or 'name'")
-
-    # Find the function
-    func = None
-    if address:
-        addr = _parse_address(address)
-        func = proj.kb.functions.get(addr)
-    elif name:
-        for f in proj.kb.functions.values():
-            if f.name == name:
-                func = f
-                break
-
-    if func is None:
-        raise FunctionNotFoundError(f"Function not found: address={address}, name={name}")
+    func = _find_function(session, address=address, name=name)
 
     # Decompile
     try:
@@ -367,6 +411,8 @@ def decompile_function(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_xrefs(
     project_id: str,
     address: str,
@@ -394,7 +440,7 @@ def get_xrefs(
     elif direction == "from":
         xrefs = list(xref_manager.xrefs_by_ins_addr.get(addr, set()))
     else:
-        raise ValueError(f"Invalid direction: {direction}. Use 'to' or 'from'.")
+        raise InvalidArgumentError(f"Invalid direction: {direction}. Use 'to' or 'from'.")
 
     return {
         "project_id": project_id,
@@ -411,6 +457,8 @@ def get_xrefs(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_strings(
     project_id: str,
     min_length: int = 4,
@@ -470,6 +518,8 @@ def get_strings(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_imports(project_id: str) -> dict[str, Any]:
     """
     List imported symbols (external functions/variables the binary depends on).
@@ -506,6 +556,8 @@ def get_imports(project_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_exports(project_id: str) -> dict[str, Any]:
     """
     List exported symbols (functions/variables this binary provides).
@@ -535,6 +587,8 @@ def get_exports(project_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_basic_blocks(
     project_id: str,
     function_address: str,
@@ -574,6 +628,8 @@ def get_basic_blocks(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def get_callgraph(
     project_id: str,
     max_depth: int | None = None,
@@ -653,6 +709,8 @@ def get_callgraph(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def find_functions_by_pattern(
     project_id: str,
     pattern: str,
@@ -689,9 +747,9 @@ def find_functions_by_pattern(
             try:
                 match = bool(re.search(pattern, func.name, re.IGNORECASE))
             except re.error as e:
-                raise ValueError(f"Invalid regex pattern: {pattern}") from e
+                raise InvalidArgumentError(f"Invalid regex pattern: {pattern}") from e
         else:
-            raise ValueError(f"Invalid search_type: {search_type}")
+            raise InvalidArgumentError(f"Invalid search_type: {search_type}")
 
         if match:
             matches.append(serialize_function_summary(func))
@@ -706,6 +764,8 @@ def find_functions_by_pattern(
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def list_projects() -> dict[str, Any]:
     """
     List all currently loaded projects/sessions.
@@ -723,6 +783,8 @@ def list_projects() -> dict[str, Any]:
 
 
 @mcp.tool()
+@_as_tool_error
+@_serialized
 def close_project(project_id: str) -> dict[str, Any]:
     """
     Close a project and free its resources.
@@ -750,3 +812,8 @@ def close_project(project_id: str) -> dict[str, Any]:
 def create_server() -> FastMCP:
     """Create and return the configured MCP server instance."""
     return mcp
+
+
+# Imported last: edit_tools registers its tools on ``mcp`` and imports the helpers defined above,
+# so it has to come after them.
+from . import edit_tools  # noqa: F401  pylint:disable=wrong-import-position,unused-import

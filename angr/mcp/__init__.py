@@ -22,6 +22,7 @@ Usage:
 Available Tools:
     - load_binary: Load a binary file for analysis
     - get_cfg: Build the control flow graph
+    - recover_calling_conventions: Recover calling conventions and prototypes
     - list_functions: List discovered functions
     - get_function_info: Get detailed function information
     - decompile_function: Decompile to pseudocode
@@ -34,6 +35,11 @@ Available Tools:
     - find_functions_by_pattern: Search functions by name
     - list_projects: List active analysis sessions
     - close_project: Close a project session
+
+Editing Tools (batch; see angr.mcp.edit_tools):
+    - rename: Rename functions, decompilation variables, and globals
+    - set_type: Set variable types, globals, return types, and function prototypes
+    - set_comments: Set or clear comments at addresses
 """
 
 from __future__ import annotations

@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import angr
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from angr.knowledge_plugins.cfg import CFGModel
 
 l = logging.getLogger(__name__)
@@ -24,11 +28,25 @@ class ProjectSession:
     project: angr.Project
     binary_path: str
     cfg: CFGModel | None = None
+    lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
 
     @property
     def has_cfg(self) -> bool:
         """Check if CFG has been built for this project."""
         return self.cfg is not None
+
+    @contextmanager
+    def exclusive(self) -> Iterator[ProjectSession]:
+        """
+        Serialize access to this project.
+
+        FastMCP runs synchronous tools on worker threads, so two calls can reach the same Project
+        and KnowledgeBase at once. Neither is thread-safe, and the decompilation and variable caches
+        spill to LMDB, where a concurrent eviction and reload can hand back a half-imported object.
+        Read-only tools are not exempt: a read racing an eviction is exactly that hazard.
+        """
+        with self.lock:
+            yield self
 
 
 class SessionManager:
@@ -41,6 +59,7 @@ class SessionManager:
 
     def __init__(self) -> None:
         self._sessions: dict[str, ProjectSession] = {}
+        self._lock = threading.Lock()
 
     def create_session(self, binary_path: str, **kwargs: Any) -> ProjectSession:
         """
@@ -72,7 +91,8 @@ class SessionManager:
             binary_path=str(path.resolve()),
         )
 
-        self._sessions[project_id] = session
+        with self._lock:
+            self._sessions[project_id] = session
         l.info("Created session %s for %s", project_id, binary_path)
 
         return session
@@ -85,10 +105,11 @@ class SessionManager:
         :return: The ProjectSession
         :raises KeyError: If no project with that ID exists
         """
-        if project_id not in self._sessions:
-            available = list(self._sessions.keys())
-            raise KeyError(f"No project with ID '{project_id}' found. Available: {available}")
-        return self._sessions[project_id]
+        with self._lock:
+            if project_id not in self._sessions:
+                available = list(self._sessions.keys())
+                raise KeyError(f"No project with ID '{project_id}' found. Available: {available}")
+            return self._sessions[project_id]
 
     def list_sessions(self) -> list[dict[str, Any]]:
         """
@@ -96,6 +117,8 @@ class SessionManager:
 
         :return: List of session metadata dictionaries
         """
+        with self._lock:
+            sessions = list(self._sessions.values())
         return [
             {
                 "project_id": s.project_id,
@@ -103,7 +126,7 @@ class SessionManager:
                 "has_cfg": s.has_cfg,
                 "arch": s.project.arch.name,
             }
-            for s in self._sessions.values()
+            for s in sessions
         ]
 
     def close_session(self, project_id: str) -> bool:
@@ -113,11 +136,12 @@ class SessionManager:
         :param project_id: The project ID to close
         :return: True if closed, False if not found
         """
-        if project_id in self._sessions:
+        with self._lock:
+            if project_id not in self._sessions:
+                return False
             del self._sessions[project_id]
-            l.info("Closed session %s", project_id)
-            return True
-        return False
+        l.info("Closed session %s", project_id)
+        return True
 
 
 # Global session manager instance
