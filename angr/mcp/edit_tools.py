@@ -28,6 +28,7 @@ from angr.analyses.decompiler.edits import (
     set_global_type,
     set_variable_type,
 )
+from angr.analyses.decompiler.edits.ops import _parse_type
 
 from .errors import InvalidArgumentError
 from .server import _as_tool_error, _get_session, _require_cfg, _serialized, mcp
@@ -477,8 +478,6 @@ def set_type(
 
 def _set_return_type(proj, func: Function, type_text: str):
     """Replace only the return type, keeping the argument list."""
-    from angr.analyses.decompiler.edits.ops import _parse_type
-
     proto = func.prototype
     if proto is None:
         raise InvalidArgumentError(f"{func.name} has no prototype to modify.")

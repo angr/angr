@@ -1,4 +1,4 @@
-# pylint:disable=redefined-outer-name,no-self-use
+# pylint:disable=redefined-outer-name,no-self-use,missing-class-docstring
 from __future__ import annotations
 
 import os

@@ -102,10 +102,8 @@ def _as_tool_error(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except ToolError:
-            raise
-        except DecompilationEditError as e:
-            raise ToolError(str(e)) from e
+        except DecompilationEditError as ex:
+            raise ToolError(str(ex)) from ex
 
     return wrapper
 
