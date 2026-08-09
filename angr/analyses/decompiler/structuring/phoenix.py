@@ -3067,6 +3067,10 @@ class PhoenixStructurer(StructurerBase):
                 # this is a head of an incomplete switch-case construct (that we will definitely be structuring later),
                 # so we do not want to remove any edges going out of this block
                 continue
+            if dst in graph and graph.in_degree[dst] == 1 and dst is not head:
+                # dst would be left with no way in, and no schema can reattach an isolated node
+                other_edges.append((src, dst))
+                continue
             src_dominates_dst = dominates_by_intervals(dominance_intervals, src, dst)
             if not src_dominates_dst and not dominates_by_intervals(dominance_intervals, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
