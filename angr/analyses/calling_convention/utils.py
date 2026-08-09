@@ -24,6 +24,10 @@ def is_sane_register_variable(
     :rtype:             bool
     """
 
+    if def_cc is not None and def_cc.ARG_REG_SANITY_FILTER:
+        # this convention does not use the platform-default argument registers; go by its own set
+        return reg_offset in def_cc.arg_reg_offsets(arch)
+
     arch_name = arch.name
     if ":" in arch_name:
         # for pcode architectures, we only leave registers that are known to be used as input arguments

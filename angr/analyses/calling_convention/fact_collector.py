@@ -9,7 +9,7 @@ import pyvex
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
-from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.calling_conventions import SimRegArg, SimStackArg, default_cc_for_project
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
@@ -608,9 +608,7 @@ class FactCollector(Analysis):
         Analyze all endpoints to determine the return value size.
         """
         func_graph = self.function.transition_graph
-        cc_cls = default_cc(
-            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
-        )
+        cc_cls = default_cc_for_project(self.project)
         if cc_cls is None:
             # don't know what the calling convention may be... give up
             return
@@ -620,14 +618,15 @@ class FactCollector(Analysis):
         else:
             return
 
-        # Get the overflow return register offset (e.g., rdx on x64). This is only used to detect
-        # 128-bit return values on Rust binaries; on non-Rust binaries the overflow register is
-        # typically used as a scratch register, and counting writes to it as part of the return
-        # value size incorrectly inflates retval_size and pushes the prototype to void (see
-        # CallingConventionAnalysis._guess_retval_type which only maps 9..16 sizes to a type for
-        # Rust binaries).
+        # Get the overflow return register offset (rdx on x64 System V, rbx under Go's ABIInternal).
+        # This is only used to detect 128-bit return values on Rust and Go binaries, whose ABIs really
+        # do return a second word there; elsewhere the overflow register is typically a scratch
+        # register, and counting writes to it as part of the return value size incorrectly inflates
+        # retval_size and pushes the prototype to void (see
+        # CallingConventionAnalysis._guess_retval_type which only maps 9..16 sizes to a type for those
+        # binaries).
         overflow_retreg_offset: int | None = None
-        if self.project.is_rust_binary and isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
+        if (self.project.is_rust_binary or self.project.is_go_binary) and isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
             overflow_retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
 
         retval_sizes = []
@@ -886,9 +885,7 @@ class FactCollector(Analysis):
         # remove offsets of registers that are caller-saved (including return value registers and argument registers)
         # from callee_restored_regs, since these registers are not callee-saved per the ABI
         caller_saved_offsets = set()
-        cc_cls = default_cc(
-            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
-        )
+        cc_cls = default_cc_for_project(self.project)
         if cc_cls is not None:
             cc = cc_cls(self.project.arch)
             if isinstance(cc.RETURN_VAL, SimRegArg):
@@ -965,12 +962,13 @@ class FactCollector(Analysis):
                 elif self._seen_reg_uses[reg_offset] < 2:
                     unused_hint_offsets.add(reg_offset)
 
+        arg_reg_cc = default_cc_for_project(self.project)
         for state in end_states:
             for offset, size in state.reg_reads.items():
                 if (
                     offset in reg_offset_created
                     or offset == self.project.arch.bp_offset
-                    or not is_sane_register_variable(self.project.arch, offset, size)
+                    or not is_sane_register_variable(self.project.arch, offset, size, def_cc=arg_reg_cc)
                     or offset in callee_saved_regs
                 ):
                     continue
@@ -984,9 +982,7 @@ class FactCollector(Analysis):
         stack_offset_created = set()
         ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
         # handle shadow stack args
-        cc_cls = default_cc(
-            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
-        )
+        cc_cls = default_cc_for_project(self.project)
         stackarg_sp_buff = cc_cls.STACKARG_SP_BUFF if cc_cls is not None else 0
         for state in end_states:
             for offset, size in state.stack_reads.items():
