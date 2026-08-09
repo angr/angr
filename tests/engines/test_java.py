@@ -15,10 +15,12 @@ from archinfo.arch_soot import (
     SootArgument,
     SootMethodDescriptor,
 )
+from cle import Jar
 
 import angr
 from angr.engines.soot.method_dispatcher import resolve_method
 from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
+from angr.simos import SimJavaVM
 from angr.storage.memory_mixins import DefaultMemory, JavaVmMemory, KeyValueMemory
 
 try:
@@ -517,6 +519,38 @@ class TestJava(unittest.TestCase):
         # check if libmixedjava.so was loaded
         loaded_libs = [lib.provides for lib in project.loader.all_elf_objects]
         assert "libmixedjava.so" in loaded_libs
+
+    @unittest.skipUnless(pysoot, "pysoot not available")
+    def test_loading_jni_libs_without_auto_load_libs(self):
+        # JNI libraries reach the loader as dependencies of the JAR, so auto_load_libs=False keeps them out even
+        # though the caller named them. Analysis then has to fall back to the Java bytecode on its own.
+        native_libs_ld_path = os.path.join(self.test_location, "misc", "loading1", "libs")
+        jar_path = os.path.join(self.test_location, "misc", "loading1", "mixedjava.jar")
+        jni_options = {"jni_libs": ["libmixedjava.so"], "jni_libs_ld_path": native_libs_ld_path}
+
+        project = angr.Project(jar_path, main_opts=jni_options, auto_load_libs=False)
+        assert isinstance(project.loader.main_object, Jar)
+        assert project.loader.main_object.jni_support
+        assert not project.loader.all_elf_objects
+        assert isinstance(project.simos, SimJavaVM)
+        assert not project.simos.is_javavm_with_jni_support
+        assert not project.is_java_jni_project
+
+        cfg = project.analyses.CFGFastSoot()
+        # MixedJava.get_version is declared native, so it has no Soot block. Without a JNI library behind it, the
+        # CFG has to end there instead of resolving a native callee.
+        native_method = cfg.kb.functions["MixedJava.get_version()"]
+        native_nodes = [node for node in cfg.graph if node.function_address == native_method.addr]
+        assert len(native_nodes) == 1
+        assert list(cfg.graph.predecessors(native_nodes[0]))
+        assert not list(cfg.graph.successors(native_nodes[0]))
+
+        # Execution reaches the same method. With no native implementation to enter, the invoke is skipped and the
+        # remaining bytecode still runs to the end.
+        simgr = project.factory.simgr(project.factory.entry_state())
+        simgr.run()
+        assert len(simgr.deadended) == 1
+        assert type(simgr.deadended[0].addr) is SootAddressTerminator
 
     #
     # SimStates

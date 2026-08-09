@@ -157,9 +157,13 @@ class CFGFastSoot(CFGFast):
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
 
-        # native method has no soot block
-        if self.support_jni and block is None:
-            return self._native_method_successors(addr, method)
+        if block is None:
+            # A method without a Soot block has no bytecode body, which is what a native method looks like: its
+            # implementation lives in a JNI library. With JNI support we follow the call into the native code;
+            # without it there is nothing left to analyze here.
+            if self.support_jni:
+                return self._native_method_successors(addr, method)
+            return []
 
         block_id = block.idx
 

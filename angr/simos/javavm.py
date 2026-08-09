@@ -32,18 +32,32 @@ class SimJavaVM(SimOS):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, name="JavaVM", **kwargs)
 
-        # is the binary using JNI libraries?
-        self.is_javavm_with_jni_support = self.project.loader.main_object.jni_support
+        # Step 1: find all native libs
+        # CLE pulls JNI libraries in as dependencies of the Soot object, so they are only mapped when the loader
+        # follows dependencies at all.
+        self.native_libs = [
+            obj for obj in self.project.loader.initial_load_objects if not isinstance(obj.arch, ArchSoot)
+        ]
+
+        # JNI entry points exported by those libraries. Without JNI support it stays empty, so a native invoke finds
+        # no implementation and the Soot engine skips it instead of entering code that was never mapped.
+        self.native_symbols = {}
+
+        # JNI support needs the native libraries themselves, not merely a request for them.
+        jni_libs_requested = self.project.loader.main_object.jni_support
+        self.is_javavm_with_jni_support = jni_libs_requested and bool(self.native_libs)
+
+        if jni_libs_requested and not self.native_libs:
+            if self.project.loader.auto_load_libs:
+                # The loader looked for the libraries and came back empty-handed, which is a misconfiguration.
+                raise AngrSimOSError("No JNI lib was loaded. Is the jni_libs_ld_path set correctly?")
+            # The caller asked for no dependencies at all, so analyze the Java side alone instead of failing.
+            l.warning(
+                "No JNI library was loaded because auto_load_libs is disabled. Analyzing the Java bytecode alone; "
+                "enable auto_load_libs to load the native libraries."
+            )
 
         if self.is_javavm_with_jni_support:
-            # Step 1: find all native libs
-            self.native_libs = [
-                obj for obj in self.project.loader.initial_load_objects if not isinstance(obj.arch, ArchSoot)
-            ]
-
-            if len(self.native_libs) == 0:
-                raise AngrSimOSError("No JNI lib was loaded. Is the jni_libs_ld_path set correctly?")
-
             # Step 2: determine and set the native SimOS
 
             # for each native library get the Arch
@@ -66,7 +80,6 @@ class SimJavaVM(SimOS):
                 raise AngrSimOSError("Cannot instantiate SimOS for native libraries: No compatible SimOS found.")
 
             # Step 3: Match static JNI symbols from native libs
-            self.native_symbols = {}
             for lib in self.native_libs:
                 for name, symbol in lib.symbols_by_name.items():
                     if name.startswith("Java"):
