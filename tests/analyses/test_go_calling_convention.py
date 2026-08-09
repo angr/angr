@@ -85,6 +85,19 @@ class TestGoCallingConventionSelection(unittest.TestCase):
         assert isinstance(proj.factory.cc(), SimCCSystemVAMD64)
         assert not isinstance(proj.factory.cc(), SimCCGoAMD64)
 
+    def test_low_confidence_detection_does_not_switch_abi(self):
+        # LanguageDetector calls this C object file Go on the strength of a single "main.end" symbol,
+        # which is nowhere near enough to reinterpret every argument and return value in it
+        proj = angr.Project(
+            os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_load_order.o"),
+            auto_load_libs=False,
+        )
+        assert proj.languages() == ["go"]
+        assert proj.language_confidence != "high"
+        assert not proj.language_is_certain
+        assert not proj.is_go_binary
+        assert isinstance(proj.factory.cc(), SimCCSystemVAMD64)
+
 
 class TestGoArgumentLayout(unittest.TestCase):
     """Go's register assignment algorithm."""

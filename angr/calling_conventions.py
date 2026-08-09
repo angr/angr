@@ -3102,9 +3102,12 @@ def default_cc(
 
 def project_language(project) -> str | None:
     """
-    The detected source language of a project's main binary, or None if it is not known yet.
+    The source language to pick a calling convention for, or None when there is no confident answer.
+
+    A language-specific ABI reinterprets every argument and return value in the binary, so a detection that rests on
+    something as thin as a single matching symbol name is not acted upon.
     """
-    if project is None:
+    if project is None or not project.language_is_certain:
         return None
     languages = project.languages()
     return languages[0] if languages else None
