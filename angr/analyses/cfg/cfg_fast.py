@@ -8,6 +8,7 @@ import re
 import string
 import time
 from collections import OrderedDict, defaultdict
+from collections.abc import Iterator
 from enum import Enum, unique
 from typing import TYPE_CHECKING, Any
 
@@ -61,6 +62,7 @@ from angr.utils.ins_addr_list import InsAddrList
 
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
+from .go_prologue import find_go_stack_check_preambles
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
 from .pe_msvc_eh_structs import (
@@ -2954,10 +2956,21 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         is_arm = is_arm_arch(self.project.arch)
 
         for start_, bytes_ in self._binary.memory.backers():
+            # Preambles that precede a conventional prologue. The prologue match they cover is
+            # discarded in favor of the (earlier) preamble start, which is the real function entry.
+            covered_prologues = set()
+            for preamble_start, preamble_end, _ in self._prologue_preambles(bytes_, start_):
+                mapped_position = AT.from_rva(preamble_start + start_, self._binary).to_mva()
+                if self._addr_in_exec_memory_regions(mapped_position):
+                    unassured_functions.append(mapped_position)
+                    covered_prologues.add(preamble_end + start_)
+
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes_):
                     position = mo.start() + start_
+                    if position in covered_prologues:
+                        continue
                     if (not is_arm and position % self.project.arch.instruction_alignment == 0) or (
                         is_arm and position % 4 == 0
                     ):
@@ -2976,6 +2989,28 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         l.info("Found %d functions with prologue scanning.", len(unassured_functions))
         return unassured_functions
+
+    def _prologue_preambles(self, blob: bytes, blob_rva: int) -> Iterator[tuple[int, int, int]]:
+        """
+        Find toolchain-specific preambles that sit in front of a conventional function prologue, so
+        that prologue scanning can report the start of the preamble instead of the prologue.
+
+        Currently only the Go goroutine stack-growth check on x86-64 is recognized.
+
+        :param blob:        A backer blob.
+        :param blob_rva:    The RVA the blob is loaded at.
+        :return:            An iterator of ``(start, end, branch_target)`` offsets into ``blob``.
+        """
+
+        if self.project.arch.name != "AMD64":
+            return
+
+        for start, end, target in find_go_stack_check_preambles(blob):
+            # a blind byte match may fire on unrelated code: require the stack-growth branch to stay
+            # within an executable region
+            target_mva = AT.from_rva(target + blob_rva, self._binary).to_mva()
+            if self._addr_in_exec_memory_regions(target_mva):
+                yield start, end, target
 
     # Basic block scanning
 
