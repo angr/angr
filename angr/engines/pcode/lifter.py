@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
+from weakref import WeakKeyDictionary
 
 import archinfo
 import cle
@@ -33,6 +34,8 @@ from .behavior import BehaviorFactory
 
 if TYPE_CHECKING:
     from pypcode import Context, PcodeOp
+
+    from angr.project import Project
 
 
 l = logging.getLogger(__name__)
@@ -647,6 +650,7 @@ def lift(
     inner: bool = False,
     skip_stmts: bool = False,
     collect_data_refs: bool = False,
+    block_lifter: PcodeBasicBlockLifter | None = None,
 ) -> IRSB:
     """
     Lift machine code in `data` to a P-code IRSB.
@@ -663,6 +667,8 @@ def lift(
     :param bytes_offset:    The offset into `data` to start lifting at.
     :param opt_level:       Unused by P-Code lifter
     :param traceflags:      Unused by P-Code lifter
+    :param block_lifter:    The basic block lifter, and therefore the Sleigh context, to decode with. A private one is
+                            created when it is not given.
 
     .. note:: Explicitly specifying the number of instructions to lift (`max_inst`) may not always work
               exactly as expected. For example, on MIPS, it is meaningless to lift a branch or jump
@@ -703,9 +709,13 @@ def lift(
         allow_arch_optimizations = False
         opt_level = 0
 
+    if block_lifter is None:
+        # the sub-lifts below are part of the same block, so they must all decode with this context
+        block_lifter = PcodeBasicBlockLifter(arch)
+
     u_data = data
     try:
-        final_irsb = PcodeLifter(arch, addr)._lift(
+        final_irsb = PcodeLifter(arch, addr, block_lifter)._lift(
             u_data,
             bytes_offset,
             max_bytes,
@@ -719,7 +729,7 @@ def lift(
         )
     except SkipStatementsError:
         assert skip_stmts is True
-        final_irsb = PcodeLifter(arch, addr)._lift(
+        final_irsb = PcodeLifter(arch, addr, block_lifter)._lift(
             u_data,
             bytes_offset,
             max_bytes,
@@ -778,6 +788,7 @@ def lift(
                 strict_block_end=strict_block_end,
                 skip_stmts=False,
                 collect_data_refs=collect_data_refs,
+                block_lifter=block_lifter,
             )
 
         next_addr = addr + final_irsb.size
@@ -800,6 +811,7 @@ def lift(
                 inner=True,
                 skip_stmts=False,
                 collect_data_refs=collect_data_refs,
+                block_lifter=block_lifter,
             )
             if more_irsb.size:
                 # Successfully decoded more bytes
@@ -817,6 +829,10 @@ def lift(
 class PcodeBasicBlockLifter:
     """
     Lifts basic blocks to P-code
+
+    Sleigh records context variables per address in the ``pypcode.Context``, so an instance decodes later blocks
+    differently depending on which blocks it decoded before: a branch leaves the delay slot context it sets behind
+    at the following address. An instance must therefore stay with a single binary; see :func:`get_block_lifter`.
     """
 
     context: Context
@@ -963,21 +979,45 @@ class PcodeBasicBlockLifter:
         irsb.jumpkind = next_block[1]
 
 
+_project_block_lifters: WeakKeyDictionary[Project, dict[archinfo.Arch, PcodeBasicBlockLifter]] = WeakKeyDictionary()
+
+
+def get_block_lifter(project: Project | None, arch: archinfo.Arch) -> PcodeBasicBlockLifter:
+    """
+    Get the basic block lifter, and therefore the Sleigh context, that `project` decodes `arch` with.
+
+    A project running the p-code engine keeps its lifters on that engine; any other project keeps them here. A
+    block with no project gets a lifter of its own. See :class:`PcodeBasicBlockLifter`.
+    """
+    if project is None:
+        return PcodeBasicBlockLifter(arch)
+    engine = project.factory.default_engine
+    if isinstance(engine, PcodeLifterEngineMixin):
+        return engine.get_block_lifter(arch)
+    block_lifters = _project_block_lifters.setdefault(project, {})
+    block_lifter = block_lifters.get(arch)
+    if block_lifter is None:
+        block_lifter = block_lifters[arch] = PcodeBasicBlockLifter(arch)
+    return block_lifter
+
+
 class PcodeLifter(Lifter):
     """
     Handles calling into pypcode to lift a block
     """
 
-    _lifter_cache = {}
+    __slots__ = ("block_lifter",)
 
-    @classmethod
-    def get_lifter(cls, arch):
-        if arch not in PcodeLifter._lifter_cache:
-            PcodeLifter._lifter_cache[arch] = PcodeBasicBlockLifter(arch)
-        return PcodeLifter._lifter_cache[arch]
+    block_lifter: PcodeBasicBlockLifter
+
+    def __init__(self, arch: archinfo.Arch, addr: int, block_lifter: PcodeBasicBlockLifter):
+        super().__init__(arch, addr)
+        self.block_lifter = block_lifter
 
     def lift(self) -> None:
-        self.get_lifter(self.arch).lift(
+        assert self.data is not None and not isinstance(self.data, str)
+        assert self.bytes_offset is not None
+        self.block_lifter.lift(
             self.irsb,
             self.addr,
             self.data,
@@ -1029,11 +1069,26 @@ class PcodeLifterEngineMixin(SimEngine):
             else:
                 self.selfmodifying_code = False
 
+        # basic block lifters
+        self._block_lifters: dict[archinfo.Arch, PcodeBasicBlockLifter] = {}
+
         # block cache
         self._block_cache = None
         self._block_cache_hits = 0
         self._block_cache_misses = 0
         self._initialize_block_cache()
+
+    def get_block_lifter(self, arch: archinfo.Arch) -> PcodeBasicBlockLifter:
+        """
+        Get the basic block lifter this engine decodes `arch` with, creating it on first use.
+
+        The factory keeps one engine per project and per thread, so an engine's lifters never decode blocks of
+        more than one binary. See :class:`PcodeBasicBlockLifter`.
+        """
+        block_lifter = self._block_lifters.get(arch)
+        if block_lifter is None:
+            block_lifter = self._block_lifters[arch] = PcodeBasicBlockLifter(arch)
+        return block_lifter
 
     def _initialize_block_cache(self) -> None:
         self._block_cache = LRUCache(maxsize=self._cache_size)
@@ -1149,6 +1204,7 @@ class PcodeLifterEngineMixin(SimEngine):
             raise ValueError("Must provide state or addr!")
         if arch is None:
             arch = clemory._arch if clemory else state.arch
+        assert arch is not None
         if arch.name.startswith("MIPS") and self._single_step:
             l.error("Cannot specify single-stepping on MIPS.")
             self._single_step = False
@@ -1278,6 +1334,7 @@ class PcodeLifterEngineMixin(SimEngine):
                     strict_block_end=strict_block_end,
                     skip_stmts=skip_stmts,
                     collect_data_refs=collect_data_refs,
+                    block_lifter=self.get_block_lifter(arch),
                 )
 
                 if subphase == 0 and irsb.statements is not None:
@@ -1427,6 +1484,9 @@ class PcodeLifterEngineMixin(SimEngine):
         self._single_step = s["_single_step"]
         self._cache_size = s["_cache_size"]
         self.default_strict_block_end = s["default_strict_block_end"]
+
+        # Sleigh contexts do not survive pickling; rebuild them on demand
+        self._block_lifters = {}
 
         # rebuild block cache
         self._initialize_block_cache()
