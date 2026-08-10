@@ -44,6 +44,9 @@ class StackAllocationMixin(PagedMemoryMixin):
         pageno = addr // self.page_size
         if pageno != self._red_pageno:
             raise SimMemoryError("Trying to allocate stack space in a place that isn't the top of the stack")
+        if size > addr + 1:
+            # the loop below would wrap past address 0 and hand out pages at the top of memory instead
+            raise SimMemoryError("Trying to allocate more stack space than exists below the top of the stack")
         num = pageno - ((addr - size + 1) // self.page_size) + 1
 
         result = []
