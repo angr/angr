@@ -254,6 +254,13 @@ class IRSB:
     def exit_statements(self) -> Sequence[tuple[int, int, ExitStatement]]:
         return self._exit_statements
 
+    @property
+    def ops(self) -> Sequence[PcodeOp]:
+        """
+        The p-code operations of this block, in the order they are executed.
+        """
+        return self._ops
+
     def copy(self) -> IRSB:
         """
         Copy by creating an empty IRSB and then filling in the leftover
