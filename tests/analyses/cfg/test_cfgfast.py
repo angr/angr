@@ -8,9 +8,12 @@ import io
 import logging
 import os
 import random
+import struct
+import tempfile
 import unittest
 
 import archinfo
+from elftools.elf.elffile import ELFFile
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
@@ -1062,6 +1065,61 @@ class TestCfgfast(unittest.TestCase):
             (0x4686A0, "_dl_runtime_resolve_xsavec"),
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
+
+    def test_cfgfast_relocatable_object_with_alignment_hole(self):
+        # GitHub issue #6766. A relocatable object has no segments, so cle maps it one section at a time and
+        # aligns each section the way a linker would. That leaves a hole in front of every section whose
+        # alignment reaches past the end of the one before it. The hole sits inside the object's own
+        # min_addr/max_addr span with nothing behind it, so a call that is the last instruction of a section
+        # returns into unmapped memory. CFGFast recorded the hole as that call's return site and later died
+        # turning it into a code snippet: "No bytes in memory for block starting at ...".
+        #
+        # x86_64/decompiler/uname.o from the angr/binaries repository already has that layout, but the call
+        # that ends .text.startup goes to an external symbol, which angr hooks and therefore already knows
+        # returns. Shrinking .text.startup so it stops right after "call print_element" instead -- one field
+        # of one section header, no other byte touched -- reproduces the real shape: a section that ends on a
+        # call to a local function whose returning status is only settled after the scan.
+        section_name = ".text.startup"
+        call_site = 0x400C32
+
+        path = os.path.join(test_location, "x86_64", "decompiler", "uname.o")
+        pristine = angr.Project(path, auto_load_libs=False)
+        section = pristine.loader.main_object.sections_map[section_name]
+        call = pristine.factory.block(call_site)
+        assert call.vex.jumpkind == "Ijk_Call"
+        (callee,) = call.vex.constant_jump_targets
+        assert pristine.loader.main_object.min_addr <= callee < pristine.loader.main_object.max_addr
+
+        with open(path, "rb") as fixture:
+            elf = ELFFile(fixture)
+            index = next(i for i, s in enumerate(elf.iter_sections()) if s.name == section_name)
+            # sh_size is at offset 0x20 of an Elf64_Shdr
+            size_field = elf["e_shoff"] + index * elf["e_shentsize"] + 0x20
+            fixture.seek(0)
+            patched = bytearray(fixture.read())
+        struct.pack_into("<Q", patched, size_field, call.addr + call.size - section.vaddr)
+
+        with tempfile.TemporaryDirectory() as directory:
+            binary = os.path.join(directory, "uname.o")
+            with open(binary, "wb") as fp:
+                fp.write(patched)
+            proj = angr.Project(binary, auto_load_libs=False)
+
+            section = proj.loader.main_object.sections_map[section_name]
+            hole = section.vaddr + section.memsize
+            assert hole == call.addr + call.size
+            assert proj.loader.main_object.min_addr < hole < proj.loader.main_object.max_addr
+            assert hole not in proj.loader.memory
+
+            cfg = proj.analyses.CFGFast(normalize=True)
+
+            call_node = cfg.model.get_any_node(call_site)
+            assert call_node is not None
+            caller = cfg.kb.functions.get_by_addr(call_node.function_address)
+            assert call_site in set(caller.get_call_sites())
+            assert caller.get_call_return(call_site) is None
+            assert cfg.model.get_any_node(hole, anyaddr=True) is None
+            assert all(node.addr != hole for node in caller.transition_graph)
 
 
 if __name__ == "__main__":
