@@ -1003,10 +1003,10 @@ class TestCfgfast(unittest.TestCase):
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
 
     @staticmethod
-    def _blob_project(data: bytes, arch: str | archinfo.Arch = "AMD64") -> angr.Project:
+    def _blob_project(data: bytes, arch: str | archinfo.Arch = "AMD64", base_addr: int = 0) -> angr.Project:
         return angr.Project(
             io.BytesIO(data),
-            main_opts={"backend": "blob", "arch": arch, "base_addr": 0, "entry_point": 0},
+            main_opts={"backend": "blob", "arch": arch, "base_addr": base_addr, "entry_point": 0},
             auto_load_libs=False,
             use_sim_procedures=False,
         )
@@ -1140,6 +1140,23 @@ class TestCfgfast(unittest.TestCase):
         assert block_size(4096, repeating_byte_run_threshold=0) == 99
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
+
+    def test_arm_block_reintroduced_by_an_edge_stays_indexed(self):
+        # lifting this blob invalidates the decoding assumption behind the block at 0x7f, which drops that block from
+        # the CFG; a pending job then adds an edge out of the same block and puts it back into the graph. an edge is
+        # an insertion path like any other, so the block has to stay reachable by address afterwards
+        data = bytes.fromhex(
+            "b04770f24b02d9f2c6522644114048ea4f61700949ea816170220b4351eb01"
+            "60704770f6422292f2c0325e44114048ea4f61300989ea816130220d4351eb"
+            "0160304770f24a424bf2ca129544114048ea4f51f009c9"
+        )
+        proj = self._blob_project(data, arch="ARMEL", base_addr=0x7D)
+        cfg = proj.analyses.CFGFast(normalize=True, resolve_indirect_jumps=True)
+
+        node_addrs = {node.addr for node in cfg.model.nodes() if isinstance(node.addr, int)}
+        assert node_addrs, "CFGFast returned an empty CFG"
+        for addr in node_addrs:
+            assert cfg.model.get_any_node(addr) is not None, f"no CFG node at {addr:#x} in the index"
 
 
 if __name__ == "__main__":
