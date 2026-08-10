@@ -241,6 +241,19 @@ class TestState(unittest.TestCase):
 
         self.assertEqual(state.solver.eval(state.regs.ip), proj.entry)
 
+    def test_unconstrained_fill_is_reported(self):
+        # Filling the slots that dsPIC33F's program counter straddles is warned about one slot at a
+        # time, and the warning names the address execution is at. That address is the program
+        # counter being filled, which a fastpath state cannot evaluate once it holds a symbol.
+        arch = archinfo.ArchPcode("dsPIC33F:LE:24:default")
+        proj = angr.Project(io.BytesIO(b"\x00"), main_opts={"backend": "blob", "arch": arch})
+
+        with self.assertLogs("angr.storage.memory_mixins.default_filler_mixin", "WARNING") as logs:
+            state = proj.factory.blank_state(mode="fastpath")
+
+        self.assertTrue(any("Filling register" in line and "(symbolic)" in line for line in logs.output))
+        self.assertEqual(state.solver.eval(state.regs.ip), proj.entry)
+
     def test_successors_catch_arbitrary_interrupts(self):
         # int 0xd2 should fail on x86/amd64 since it's an unsupported interrupt
         block_bytes = b"\xcd\xd2"
