@@ -1003,10 +1003,10 @@ class TestCfgfast(unittest.TestCase):
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
 
     @staticmethod
-    def _blob_project(data: bytes) -> angr.Project:
+    def _blob_project(data: bytes, arch: str | archinfo.Arch = "AMD64") -> angr.Project:
         return angr.Project(
             io.BytesIO(data),
-            main_opts={"backend": "blob", "arch": "AMD64", "base_addr": 0, "entry_point": 0},
+            main_opts={"backend": "blob", "arch": arch, "base_addr": 0, "entry_point": 0},
             auto_load_libs=False,
             use_sim_procedures=False,
         )
@@ -1062,6 +1062,39 @@ class TestCfgfast(unittest.TestCase):
             (0x4686A0, "_dl_runtime_resolve_xsavec"),
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
+
+    def _check_single_instruction_indirect_jump(self, data: bytes, arch: str | archinfo.Arch) -> None:
+        # a lifter turns an instruction it cannot translate into a trap that leaves through a non-constant
+        # target, so the block is a single instruction long. CFGFast looks for the branch of a delay-slot
+        # block in the instruction before the last one, and used to abort the whole analysis when a block
+        # was too short to have one. See https://github.com/angr/angr/issues/6763.
+        proj = self._blob_project(data, arch=arch)
+        assert proj.arch.branch_delay_slot
+
+        trap_block = proj.factory.block(proj.entry)
+        assert len(trap_block.instruction_addrs) == 1
+        assert not trap_block.vex.constant_jump_targets  # so the scan takes the indirect jump path
+
+        cfg = proj.analyses.CFGFast()
+
+        assert cfg.model.get_any_node(0) is not None
+        assert 4 in cfg.kb.functions
+
+    def test_single_instruction_indirect_jump_on_sparc(self):
+        # 0x0: illtrap 0   - a run of zero bytes, which p-code lifts to a trap and an indirect goto
+        # 0x4: retl; nop   - a real function that the scan must still pick up afterwards
+        self._check_single_instruction_indirect_jump(
+            b"\x00\x00\x00\x00" + b"\x81\xc3\xe0\x08" + b"\x01\x00\x00\x00",
+            archinfo.ArchPcode("sparc:BE:32:default"),
+        )
+
+    def test_single_instruction_indirect_jump_on_mips(self):
+        # 0x0: trunc.l.s $f0, $f0   - an instruction VEX does not implement, so it lifts to Ijk_SigILL
+        # 0x4: jr $ra; nop          - a real function that the scan must still pick up afterwards
+        self._check_single_instruction_indirect_jump(
+            b"\x46\x00\x00\x09" + b"\x03\xe0\x00\x08" + b"\x00\x00\x00\x00",
+            "MIPS64",
+        )
 
 
 if __name__ == "__main__":
