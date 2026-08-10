@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 FAUXWARE_PATH = os.path.join(bin_location, "tests", "x86_64", "fauxware")
 REFLOW_FAUXWARE_PATH = os.path.join(bin_location, "tests", "x86_64", "fauxware_reflow")
+LWIP_TCPECHO_PATH = os.path.join(bin_location, "tests", "armel", "lwip_tcpecho_bm.elf")
 
 
 class TestCfgModel(unittest.TestCase):
@@ -89,6 +90,24 @@ class TestCfgModel(unittest.TestCase):
         addr = 0x4012E6
         func = cfg.model.find_function_for_reflow_into_addr(addr)
         assert func is None
+
+    def test_tidy_data_references_unmapped_data_addr_before_a_section(self):
+        """Test CFGModel::tidy_data_references on a data address that no section or segment covers."""
+        proj = angr.Project(LWIP_TCPECHO_PATH, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()()
+
+        # this firmware image leaves a wide hole between its two loaded regions, and the pointer-array pass keeps
+        # every pointer that lands in the main object's address range, the hole included
+        unmapped_addr = 0x50020
+        assert unmapped_addr in cfg.model.memory_data
+        assert proj.loader.find_section_containing(unmapped_addr) is None
+        assert proj.loader.find_segment_containing(unmapped_addr) is None
+        assert proj.loader.find_section_next_to(unmapped_addr) is not None
+
+        # tidying that address on its own, the way CFGFast tidies each batch of newly found data, leaves the next
+        # section as the only bound in hand for it
+        cfg.model.tidy_data_references(memory_data_addrs=[unmapped_addr])
+        assert cfg.model.memory_data[unmapped_addr].max_size == 0
 
 
 if __name__ == "__main__":
