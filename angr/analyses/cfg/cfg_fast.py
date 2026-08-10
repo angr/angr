@@ -3210,9 +3210,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # default statement
         default_branch_ins_addr = None
         if irsb.instruction_addresses:
-            if self.project.arch.branch_delay_slot:
-                if len(irsb.instruction_addresses) > 1:
-                    default_branch_ins_addr = irsb.instruction_addresses[-2]
+            if self.project.arch.branch_delay_slot and len(irsb.instruction_addresses) > 1:
+                # the last instruction is the delay slot, so the branch is the one before it. a
+                # single-instruction block has no delay slot and is its own branch.
+                default_branch_ins_addr = irsb.instruction_addresses[-2]
             else:
                 default_branch_ins_addr = irsb.instruction_addresses[-1]
 
