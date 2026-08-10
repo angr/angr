@@ -1063,6 +1063,26 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_pcode_arm(self):
+        # p-code ARM languages are named "ARM:LE:32:v4" and friends, and the ARM handling in CFGFast needs an
+        # archinfo ARM architecture: CFGArchOptions is keyed by VEX architecture name, itstate is a VEX register,
+        # and the lowest bit of an address only means THUMB when the lifter reads it that way.
+        path = os.path.join(test_location, "armel", "test_arrays")
+
+        for language in ["ARM:LE:32:v4", "ARM:LE:32:v7"]:
+            with self.subTest(language=language):
+                proj = angr.Project(path, main_opts={"arch": archinfo.ArchPcode(language)}, auto_load_libs=False)
+                cfg = proj.analyses.CFGFast()
+
+                assert proj.entry in cfg.kb.functions
+                assert "main" in cfg.kb.functions
+                # main is recovered properly, not left as a single-block stub
+                assert len(cfg.kb.functions["main"].block_addrs_set) > 1
+                # the p-code lifter decodes whatever address it is handed, so no node may carry a THUMB bit
+                node_addrs = [node.addr for node in cfg.model.nodes()]
+                thumb_addrs = [addr for addr in node_addrs if isinstance(addr, int) and addr % 2 == 1]
+                assert not thumb_addrs, f"nodes flagged as THUMB: {[hex(addr) for addr in thumb_addrs]}"
+
 
 if __name__ == "__main__":
     unittest.main()

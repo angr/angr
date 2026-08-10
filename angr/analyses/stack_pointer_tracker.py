@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import pypcode
 import pyvex
-from archinfo.arch_arm import is_arm_arch
+from archinfo.arch_arm import ArchARM
 
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
@@ -413,7 +413,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             self._reg_value_at_block_start[block_start_addr] = initial_reg_values
 
         self._itstate_regoffset = None
-        if is_arm_arch(self.project.arch):
+        # itstate is part of the VEX guest state, so only an archinfo ARM architecture defines it
+        if isinstance(self.project.arch, ArchARM):
             self._itstate_regoffset = self.project.arch.registers["itstate"][0]
 
         _l.debug("Running on function %r", self._func)

@@ -17,7 +17,7 @@ import cle
 import networkx
 import pyvex
 from archinfo import Endness
-from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
+from archinfo.arch_arm import ArchARM, get_real_address_if_arm
 from archinfo.arch_soot import SootAddressDescriptor
 from cle.address_translator import AT
 from sortedcontainers import SortedDict
@@ -1148,7 +1148,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if sz and len(sz) >= min(min_length_nullterminated, min_length_non_nullterminated):
             # avoid commonly seen ambiguous cases
-            if is_arm_arch(self.project.arch):
+            if isinstance(self.project.arch, ArchARM):
                 # little endian
                 sz_bytes = bytes(sz)
                 if self.project.arch.memory_endness == Endness.LE and b"\x70\x47" in sz_bytes:  # bx lr
@@ -1805,7 +1805,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         pass
 
     def _post_process_successors(self, irsb, successors):
-        if is_arm_arch(self.project.arch):
+        if isinstance(self.project.arch, ArchARM):
             if irsb.addr % 2 == 1:
                 # we are in thumb mode. filter successors
                 successors = self._arm_thumb_filter_jump_successors(
@@ -2371,7 +2371,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             if addr is not None:
                 # if this is ARM and addr % 4 != 0, it has to be THUMB
-                if is_arm_arch(self.project.arch):
+                if isinstance(self.project.arch, ArchARM):
                     if (
                         "has_arm_code" in self._arch_options
                         and self._arch_options["has_arm_code"] is False
@@ -2590,7 +2590,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if self.project.arch.name in ("X86", "AMD64", "MIPS32"):
             self._remove_redundant_overlapping_blocks()
-        elif is_arm_arch(self.project.arch):
+        elif isinstance(self.project.arch, ArchARM):
             self._remove_redundant_overlapping_blocks(function_alignment=4, is_arm=True)
 
         self._updated_nonreturning_functions = set()
@@ -2903,7 +2903,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Construct the binary blob first
         unassured_functions = []
 
-        is_arm = is_arm_arch(self.project.arch)
+        is_arm = isinstance(self.project.arch, ArchARM)
 
         for start_, bytes_ in self._binary.memory.backers():
             for regex in regexes:
@@ -3228,7 +3228,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         successors = self._post_process_successors(irsb, successors)
 
         # Process each successor
-        is_arm = is_arm_arch(self.project.arch)
+        is_arm = isinstance(self.project.arch, ArchARM)
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
@@ -3827,7 +3827,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if assumption is not None:
                     assumption.add_data_seg(ref.data_addr, ref.data_size)
 
-            if ref.data_size == self.project.arch.bytes and is_arm_arch(self.project.arch):
+            if ref.data_size == self.project.arch.bytes and isinstance(self.project.arch, ArchARM):
                 self._process_irsb_data_ref_inlined_data(irsb_addr, ref)
 
     def _process_irsb_data_ref_inlined_data(self, irsb_addr: int, ref):
@@ -3858,7 +3858,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     and not self._seg_list.is_occupied(v)
                     and v % self.project.arch.instruction_alignment == 0
                 ):
-                    if is_arm_arch(self.project.arch) and not self._arch_options.has_arm_code and v % 2 != 1:
+                    if isinstance(self.project.arch, ArchARM) and not self._arch_options.has_arm_code and v % 2 != 1:
                         # no ARM code in this binary!
                         return
 
@@ -3959,7 +3959,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     size = stmt.data.result_size(irsb.tyenv) // 8  # convert to bytes
                     _process(stmt_idx, stmt.data.addr, instr_addr, next_instr_addr, data_size=size, data_type="integer")
                     # if the architecture is ARM and it's loading from a constant, perform the actual load
-                    if is_arm_arch(self.project.arch) and isinstance(stmt.data.addr, pyvex.IRExpr.Const):
+                    if isinstance(self.project.arch, ArchARM) and isinstance(stmt.data.addr, pyvex.IRExpr.Const):
                         read_addr = stmt.data.addr.con.value
                         v = self._fast_memory_load_pointer(read_addr, size)
                         if v is not None:
@@ -3974,7 +3974,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             _process(stmt_idx, loc, instr_addr, next_instr_addr)
                             continue
                         if (
-                            is_arm_arch(self.project.arch)
+                            isinstance(self.project.arch, ArchARM)
                             and isinstance(stmt.data.args[0], pyvex.expr.RdTmp)
                             and stmt.data.args[0].tmp in tmps
                             and type(stmt.data.args[1]) is pyvex.expr.Const
@@ -3997,17 +3997,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         _process(stmt_idx, child_expr, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Get:
-                    if is_arm_arch(self.project.arch) and stmt.data.offset in regs:
+                    if isinstance(self.project.arch, ArchARM) and stmt.data.offset in regs:
                         tmps[stmt.tmp] = regs[stmt.data.offset]
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
-                is_itstate = is_arm_arch(self.project.arch) and stmt.offset == self.project.arch.registers["itstate"][0]
+                is_itstate = (
+                    isinstance(self.project.arch, ArchARM) and stmt.offset == self.project.arch.registers["itstate"][0]
+                )
                 if stmt.offset != self._initial_state.arch.ip_offset and not is_itstate:
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
-                if is_arm_arch(self.project.arch) and not is_itstate:
+                if isinstance(self.project.arch, ArchARM) and not is_itstate:
                     if type(stmt.data) is pyvex.IRExpr.RdTmp and stmt.data.tmp in tmps:
                         regs[stmt.offset] = tmps[stmt.data.tmp]
                     else:
@@ -4104,7 +4106,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         )
         self.kb.xrefs.add_xref(cr)
 
-        if is_arm_arch(self.project.arch) and (
+        if isinstance(self.project.arch, ArchARM) and (
             ((irsb_addr & 1) == 1 and data_addr == (insn_addr & 0xFFFF_FFFF_FFFF_FFFE) + 4)
             or data_addr == insn_addr + 8
         ):
@@ -4481,7 +4483,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         removed_node_keys = set()
 
         a_key = None  # a is always the most recent non-removed node
-        is_arm = is_arm_arch(self.project.arch)
+        is_arm = isinstance(self.project.arch, ArchARM)
 
         for i in range(len(sorted_node_keys)):  # pylint:disable=consider-using-enumerate
             if a_key is None:
@@ -5335,7 +5337,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     def _lifter_register_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
 
-        if self.project.arch.name in {"MIPS64", "MIPS32"} or is_arm_arch(self.project.arch):
+        if self.project.arch.name in {"MIPS64", "MIPS32"} or isinstance(self.project.arch, ArchARM):
             self._ro_region_cdata_cache = []
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and segment.memsize >= 8:
@@ -5452,7 +5454,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             pc_reg_value,
                         )
                     ]
-        elif is_arm_arch(self.project.arch):
+        elif isinstance(self.project.arch, ArchARM):
             if addr != current_function_addr and self.kb.functions.contains_addr(current_function_addr):
                 func = self.kb.functions.get_by_addr(current_function_addr)
                 if "constant_r4" in func.info:
@@ -5503,10 +5505,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             is_x86_x64_arch = self.project.arch.name in ("X86", "AMD64")
 
-            real_addr = addr & ~1 if is_arm_arch(self.project.arch) else addr
+            real_addr = addr & ~1 if isinstance(self.project.arch, ArchARM) else addr
 
             # extra check for ARM
-            if is_arm_arch(self.project.arch) and self._seg_list.occupied_by_sort(addr) == "code":
+            if isinstance(self.project.arch, ArchARM) and self._seg_list.occupied_by_sort(addr) == "code":
                 existing_node = self.model.get_any_node(addr, anyaddr=True)
                 if existing_node is not None and (addr & 1) != (existing_node.addr & 1):
                     # we are trying to break an existing ARM node with a THUMB node, or vice versa
@@ -5567,7 +5569,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     # so we leave enough room for a full instruction
                     next_func_addr_adjustment = 15
                 distance_to_func = (
-                    (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr)
+                    (next_func_addr & (~1) if isinstance(self.project.arch, ArchARM) else next_func_addr)
                     + next_func_addr_adjustment
                     - real_addr
                 )
@@ -5581,7 +5583,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 distance = min(distance, distance_to_noncode_addr)
 
             switch_mode_on_nodecode = False
-            if is_arm_arch(self.project.arch):
+            if isinstance(self.project.arch, ArchARM):
                 switch_mode_on_nodecode = self._arch_options.switch_mode_on_nodecode
                 if real_addr in self._decoding_assumptions:
                     # we have come across this address before
@@ -5660,7 +5662,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 irsb_string = lifted_block_bytes[: irsb.size] if irsb is not None else lifted_block_bytes
 
             # special logic during the complete scanning phase
-            if cfg_job.job_type == CFGJobType.COMPLETE_SCANNING and is_arm_arch(self.project.arch) and irsb is not None:
+            if (
+                cfg_job.job_type == CFGJobType.COMPLETE_SCANNING
+                and isinstance(self.project.arch, ArchARM)
+                and irsb is not None
+            ):
                 # it's way too easy to incorrectly disassemble THUMB code contains 0x4f as ARM code svc?? #????
                 # if we get a single block that getting decoded to svc?? under ARM mode, we treat it as nodecode
                 if (
@@ -5708,11 +5714,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         addr = addr_0
 
             is_thumb = False
-            if is_arm_arch(self.project.arch) and addr % 2 == 1:
+            if isinstance(self.project.arch, ArchARM) and addr % 2 == 1:
                 # thumb mode
                 is_thumb = True
 
-            if is_arm_arch(self.project.arch):
+            if isinstance(self.project.arch, ArchARM):
                 # track decoding assumptions of ARM blocks
                 if cfg_job.src_node is not None:
                     src_node_realaddr = cfg_job.src_node.addr & 0xFFFF_FFFE
@@ -5790,7 +5796,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     valid_ins = True
                     # VEX does not support ud0 or ud1 or ud2 under AMD64. they are not part of the block size.
                     nodecode_size = 2
-                elif is_arm_arch(self.project.arch):
+                elif isinstance(self.project.arch, ArchARM):
                     # check for UND
                     # Ref: https://developer.arm.com/documentation/dui0489/c/arm-and-thumb-instructions/pseudo-instructions/und-pseudo-instruction
                     # load raw bytes
@@ -5834,7 +5840,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         current_function_addr,
                     )
 
-                    if is_arm_arch(self.project.arch):
+                    if isinstance(self.project.arch, ArchARM):
                         if real_addr in self._decoding_assumptions:
                             # remove and re-lift all previous blocks that have the same assumption
                             self._cascading_remove_lifted_blocks(real_addr)
@@ -5860,7 +5866,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 and next_func_addr in irsb.instruction_addresses
             ):
                 # the next function address is not in the middle of an instruction of this block; we gotta shrink it
-                irsb._size = (next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr) - real_addr
+                irsb._size = (
+                    next_func_addr & (~1) if isinstance(self.project.arch, ArchARM) else next_func_addr
+                ) - real_addr
                 irsb._instruction_addresses = tuple(
                     ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
                 )
@@ -5926,7 +5934,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :param func_addr: function address
         :param caller_gp:   The gp register value that the caller function has. MIPS-specific.
         """
-        if is_arm_arch(self.project.arch):
+        if isinstance(self.project.arch, ArchARM):
             if self._arch_options.ret_jumpkind_heuristics:
                 if addr == func_addr:
                     self._arm_track_lr_on_stack(addr, irsb, self.functions[func_addr])
