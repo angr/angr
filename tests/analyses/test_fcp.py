@@ -9,6 +9,7 @@ import unittest
 
 import angr
 from angr.analyses.propagator.vex_vars import VEXReg
+from angr.codenode import HookNode
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -24,6 +25,19 @@ class TestFCP(unittest.TestCase):
         prop = p.analyses.FastConstantPropagation(func)
 
         assert len(prop.replacements) > 0
+
+    def test_hook_nodes_are_not_lifted(self):
+        # every SimProcedure stub is a function whose graph is a single hook node
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+
+        funcs = [func for func in cfg.functions.values() if any(isinstance(node, HookNode) for node in func.graph)]
+        assert funcs
+
+        for func in funcs:
+            prop = p.analyses.FastConstantPropagation(func)
+            assert not prop.replacements
 
     def test_register_propagation_across_calls(self):
         call_targets = [
