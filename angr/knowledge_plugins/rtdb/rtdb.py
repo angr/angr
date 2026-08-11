@@ -138,6 +138,7 @@ class RuntimeDb(KnowledgeBasePlugin):
 
         self._lmdb_path: str | None = lmdb_path
         self._lmdb_env: lmdb.Environment | None = None
+        self._lmdb_unusable: bool = False
         self._lmdb_mapsize: int = 1024 * 1024 * 10
         self._dbnames: defaultdict[str, int] = defaultdict(int)
         self._dbs: dict[str, Any] = {}
@@ -159,7 +160,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         # Spilling dicts flush their data to memory before pickling, so dropping the
         # live LMDB state is safe: a fresh environment will be created lazily on next use.
         state = self.__dict__.copy()
-        for key in ("_lmdb_env", "_dbs", "_dbnames", "_condom", "_lmdb_path", "_pin_fd"):
+        for key in ("_lmdb_env", "_lmdb_unusable", "_dbs", "_dbnames", "_condom", "_lmdb_path", "_pin_fd"):
             state.pop(key, None)
         return state
 
@@ -167,6 +168,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         self.__dict__.update(state)
         self._lmdb_path = None
         self._lmdb_env = None
+        self._lmdb_unusable = False
         self._dbs = {}
         self._dbnames = defaultdict(int)
         self._condom = RuntimeDbForkCondom(self)
@@ -174,6 +176,12 @@ class RuntimeDb(KnowledgeBasePlugin):
         _live_rtdbs[next(_rtdb_counter)] = self
 
     def _init_lmdb(self):
+        if self._lmdb_unusable:
+            raise AngrRuntimeDbError(
+                "The LMDB environment was discarded after a failed map size increase. Everything that was spilled to "
+                "it is gone, so it must not be reopened."
+            )
+
         if self._lmdb_env is not None:
             return
 
@@ -358,14 +366,31 @@ class RuntimeDb(KnowledgeBasePlugin):
         Note that the old database handle *may* no longer be valid after a map size increase. rhelmot could reproduce
         the error "Database handle belongs to another environment." in nix + CPython 3.13.13. Reopening all databases
         after increasing LMDB map size solves this issue.
+
+        A failed increase discards the environment and everything spilled to it, and every later call on this
+        RuntimeDb raises AngrRuntimeDbError. Mapping the file again at the old size would only hand back the map
+        that was already full, which is what we were trying to grow out of.
         """
+        if self._lmdb_unusable:
+            raise AngrRuntimeDbError("The LMDB environment was discarded after an earlier map size increase failed.")
+
         if self._lmdb_env is None:
             return
 
         delta = min(self._lmdb_mapsize, 1024 * 1024 * 256)
         l.debug("Increasing LMDB map size by %d bytes", delta)
         self._lmdb_mapsize += delta
-        self._lmdb_env.set_mapsize(self._lmdb_mapsize)
+        try:
+            self._lmdb_env.set_mapsize(self._lmdb_mapsize)
+        except lmdb.Error:
+            # mdb_env_set_mapsize() unmaps the old region before mapping the larger one and leaves nothing mapped
+            # when the larger mapping fails. The environment then points at addresses the process no longer owns,
+            # where close() is the only operation that does not segfault.
+            self._lmdb_mapsize -= delta
+            self._lmdb_unusable = True
+            self._dbs.clear()
+            self._cleanup_lmdb()
+            raise
         self.reopen_lmdb_databases()
 
     def reopen_lmdb(self):
@@ -374,7 +399,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         """
 
         if self._lmdb_path is None:
-            # we've never opened any LMDB before
+            # we've never opened any LMDB before, or the one we had was discarded
             return
 
         if self._lmdb_env is not None:
@@ -401,14 +426,17 @@ class RuntimeDb(KnowledgeBasePlugin):
         return db_name
 
     def begin_txn(self, db_name: str, write: bool = False):
+        if self._lmdb_env is None:
+            raise AngrRuntimeDbError(f"Cannot open a transaction on {db_name}: there is no LMDB environment.")
         db = self._dbs[db_name]
-        assert self._lmdb_env is not None
         return self._lmdb_env.begin(db=db, write=write)
 
     def drop_db(self, db_name: str) -> None:
-        db = self._dbs[db_name]
+        # every spilling container calls this from its __del__, so it must stay quiet when the environment is gone
         if self._lmdb_env is None:
+            self._dbs.pop(db_name, None)
             return
+        db = self._dbs[db_name]
         with self._lmdb_env.begin(write=True) as txn:
             txn.drop(db)
         del self._dbs[db_name]
