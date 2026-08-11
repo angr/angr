@@ -1002,6 +1002,35 @@ class TestCfgfast(unittest.TestCase):
         for addr in not_separate_functions:
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
 
+    def test_normalize_keeps_blocks_whose_decodings_conflict(self):
+        # 0x16808 holds three ARM instructions that a Thumb decoding of the same bytes overlaps. normalize() used to
+        # break the ARM block two bytes into its first instruction to make room for the Thumb block.
+        path = os.path.join(test_location, "armel", "sha224sum")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        node = cfg.model.get_any_node(0x16808)
+        assert node is not None
+        assert node.size == 12
+        assert list(node.instruction_addrs) == [0x16808, 0x1680C, 0x16810]
+
+        for n in cfg.model.nodes():
+            if n.is_simprocedure or not n.instruction_addrs:
+                continue
+            block = proj.factory.block(n.addr, size=n.size)
+            assert isinstance(block, angr.Block)
+            assert block.instructions == len(n.instruction_addrs), f"{n} ends in the middle of an instruction"
+
+    def test_normalize_reports_unnormalized_cfg_when_blocks_cannot_be_split(self):
+        # the packed code decodes some bytes in more than one way, so normalize() cannot remove every overlap here
+        path = os.path.join(test_location, "i386", "packed_elf32")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        nodes = sorted((n for n in cfg.model.nodes() if not n.is_simprocedure), key=lambda n: n.addr)
+        assert any(a.addr < b.addr < a.addr + a.size for a, b in zip(nodes, nodes[1:]))
+        assert not cfg.normalized
+
     @staticmethod
     def _blob_project(data: bytes) -> angr.Project:
         return angr.Project(
