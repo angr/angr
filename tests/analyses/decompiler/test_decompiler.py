@@ -482,6 +482,39 @@ class TestDecompiler(unittest.TestCase):
         # no unstructured switch head statement leaked into the output
         assert "IncompleteSwitchCaseHeadStatement" not in code
 
+    @structuring_algo("sailr")
+    def test_duplication_reverter_updates_equal_predecessor_keys(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "paste")
+        project = angr.Project(bin_path, auto_load_libs=False)
+
+        function_addr = 0x402A40
+        cfg = project.analyses[CFGFast].prep()(
+            normalize=True,
+            regions=[(function_addr, 0x402E89)],
+            function_starts=[function_addr],
+            start_at_entry=False,
+            force_smart_scan=False,
+            symbols=False,
+        )
+        function = cfg.functions[function_addr]
+        self.assertGreaterEqual(function.size, 0x431)
+        self.assertIn(0x402C7F, {block.addr for block in function.blocks})
+        decompilation = project.analyses[Decompiler].prep(fail_fast=True)(
+            function,
+            cfg=cfg.model,
+            preset="full",
+            options=decompiler_options,
+            use_cache=False,
+            update_cache=False,
+        )
+
+        assert decompilation.codegen is not None
+        code = decompilation.codegen.text
+        assert code is not None
+        self.assertIn("paste_parallel", code)
+        self.assertIn("fwrite_unlocked", code)
+        self.assertIn("xputchar", code)
+
     @for_all_structuring_algos
     def test_decompiling_true_x86_64_0(self, decompiler_options=None):
         # in fact this test case tests if CFGBase._process_jump_table_targeted_functions successfully removes "function"
