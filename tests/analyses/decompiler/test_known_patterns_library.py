@@ -724,6 +724,21 @@ class TestVectorExactDivSize(TestCase):
 
     _SIZES = [6, 12, 20, 24, 40, 48]
 
+    def test_element_sizes_cover_real_record_types(self):
+        # The covered sizes must not be a handful chosen from the fixtures: sizeof(T)
+        # is whatever the program's record happens to be, and an uncovered size leaves
+        # the raw magic multiply in the output. 112 is sizeof(CryptoPP::ECPPoint),
+        # which a hand-picked list missed entirely.
+        from angr.analyses.decompiler.known_patterns import STD_VECTOR_STRUCT_SIZE_TEMPLATES
+
+        names = {t.name for t in STD_VECTOR_STRUCT_SIZE_TEMPLATES}
+        for n in (3, 6, 12, 40, 48, 80, 96, 112, 224, 384):
+            assert f"std_vector_T{n}_size" in names, f"sizeof(T)={n} is not covered"
+        # powers of two divide with a bare shift and need no magic constant; they are
+        # the separately named short/int/long long templates
+        for n in (2, 4, 8, 16, 64, 256):
+            assert f"std_vector_T{n}_size" not in names
+
     def test_exact_div_magic_matches_the_compiler(self):
         from angr.analyses.decompiler.known_patterns import exact_div_magic
 
