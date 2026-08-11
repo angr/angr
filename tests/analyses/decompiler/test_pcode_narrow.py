@@ -13,9 +13,6 @@ def _decompile_shellcode(langid: str, code: bytes, addr: int) -> Decompiler:
         arch,
         load_address=addr,
         start_offset=addr,
-        # the default rebase granularity is larger than a 16-bit address space, so ask for one that fits and let the
-        # extern object pack in behind the shellcode
-        rebase_granularity=0x100,
     )
     cfg = project.analyses.CFGFast(
         normalize=True,
