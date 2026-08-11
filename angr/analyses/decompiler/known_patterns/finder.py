@@ -69,6 +69,11 @@ class KnownPatternMatch:
     anchor statement). For statement-sequence matches, ``stmt_span`` holds the
     ordered matched statement indices (the anchor is the first) and
     ``matched_expr`` is None.
+
+    ``duplicated_stmt_idxs`` holds chased definitions that are *copied* into the
+    outlined region instead of moved: the originals stay where they are (other
+    code still uses them) and the copies make the pattern's captured values the
+    region's live-ins. It is always disjoint from ``consumed_stmt_idxs``.
     """
 
     pattern: KnownPattern
@@ -78,6 +83,8 @@ class KnownPatternMatch:
     consumed_stmt_idxs: frozenset[int]
     captures: dict[str, Expression]
     matched_expr: Expression | None
+    # chased definitions copied into the region, originals left in place
+    duplicated_stmt_idxs: frozenset[int] = frozenset()
     # statement-sequence matches only
     stmt_span: tuple[int, ...] | None = None
     # multi-block (graph) matches only
@@ -150,6 +157,20 @@ def _iter_stmt_subexprs(stmt: Statement) -> Iterator[tuple[ExprPath, Expression]
         yield path, expr
         for step, child in _iter_expr_children(expr):
             stack.append(((*path, step), child))
+
+
+def _iter_subexprs(obj: Statement | Expression) -> Iterator[Expression]:
+    """Every sub-expression of a statement, or of an expression (itself included)."""
+    if isinstance(obj, Statement):
+        for _, expr in _iter_stmt_subexprs(obj):
+            yield expr
+        return
+    stack: list[Expression] = [obj]
+    while stack:
+        expr = stack.pop()
+        yield expr
+        for _, child in _iter_expr_children(expr):
+            stack.append(child)
 
 
 def _stmt_has_side_effects(stmt: Statement) -> bool:
@@ -251,19 +272,23 @@ class KnownPatternFinder(Analysis):
             raw_matches.extend(self._match_block(block))
 
         # deduplicate/greedily select non-overlapping matches. Largest match wins:
-        # for nested expressions that means the one closest to the statement root
-        # (shortest expr_path); for statement-set matches, which all sit at the
-        # root, it means the one covering the most statements — so a superset like
-        # list_del_init beats the RemoveEntryList unlink it contains regardless of
-        # registration order. Registration order only breaks remaining ties.
+        # the one covering the most statements first — so a superset like
+        # list_del_init beats the RemoveEntryList unlink it contains, and an idiom
+        # that reaches back over its operands' definitions beats a sub-pattern
+        # anchored in one of them (std::string::length matches the bare _M_finish
+        # load of every std::vector<T>::size) — then, among matches of the same
+        # size, the one closest to the statement root (shortest expr_path).
+        # Registration order only breaks remaining ties. Matches are positioned at
+        # the first statement they cover rather than at their anchor, so that a
+        # match reaching back over earlier statements is offered first.
         pattern_order = {id(p): i for i, p in enumerate(self._patterns)}
         raw_matches.sort(
             key=lambda m: (
                 m.block_loc[0],
                 -1 if m.block_loc[1] is None else m.block_loc[1],
-                m.anchor_stmt_idx,
-                len(m.expr_path),
+                min(self._stmt_footprint(m)),
                 -len(self._stmt_footprint(m)),
+                len(m.expr_path),
                 pattern_order[id(m.pattern)],
             )
         )
@@ -275,7 +300,15 @@ class KnownPatternFinder(Analysis):
 
     @staticmethod
     def _stmt_footprint(m: KnownPatternMatch) -> frozenset[int]:
-        return m.consumed_stmt_idxs | {m.anchor_stmt_idx} | (frozenset(m.stmt_span) if m.stmt_span else frozenset())
+        """The statements a match covers. Duplicated definitions count: the match
+        reads through them even though it leaves them in place, so a competing
+        match anchored inside one of them describes the same code."""
+        return (
+            m.consumed_stmt_idxs
+            | m.duplicated_stmt_idxs
+            | {m.anchor_stmt_idx}
+            | (frozenset(m.stmt_span) if m.stmt_span else frozenset())
+        )
 
     @staticmethod
     def _blocks_of(m: KnownPatternMatch) -> set[tuple[int, int | None]]:
@@ -299,6 +332,13 @@ class KnownPatternFinder(Analysis):
         if m1.consumed_stmt_idxs & m2.consumed_stmt_idxs:
             return True
         if m1.anchor_stmt_idx in m2.consumed_stmt_idxs or m2.anchor_stmt_idx in m1.consumed_stmt_idxs:
+            return True
+        # a duplicated definition stays where it is, so two matches may both read
+        # through it; but a match anchored *inside* one describes a part of the
+        # other, and the larger one has already been offered first
+        if m1.anchor_stmt_idx in m2.duplicated_stmt_idxs or m2.anchor_stmt_idx in m1.duplicated_stmt_idxs:
+            return True
+        if m1.consumed_stmt_idxs & m2.duplicated_stmt_idxs or m2.consumed_stmt_idxs & m1.duplicated_stmt_idxs:
             return True
         if m1.anchor_stmt_idx != m2.anchor_stmt_idx:
             return False
@@ -620,21 +660,58 @@ class KnownPatternFinder(Analysis):
             return None
 
         matched_stmt_idxs = state.consumed_stmt_idxs | {stmt_idx}
-        # the all-uses-inside rule: every chased definition's vvar must be used
-        # exclusively within the matched statements, otherwise moving the
-        # definition into the outlined callee would break the other uses
-        for varid, _def_stmt_idx in state.chased_defs:
-            if not self._all_uses_within(varid, block, matched_stmt_idxs):
+        # A chased definition can only be *moved* into the outlined callee when
+        # nothing else uses it. In optimized code the intermediate values of an
+        # idiom are routinely reused from other blocks -- that is exactly why the
+        # compiler kept them in registers -- so rejecting the match outright makes
+        # a pattern unreachable on the very code it targets.
+        #
+        # When a chased definition is shared, keep every chased statement where it
+        # is instead and let the synthesized call recompute the value from the
+        # captured pointer. Keeping *all* of them, rather than only the shared
+        # ones, is what makes this safe to do piecemeal: a kept statement may
+        # depend on another chased definition, and consuming that one would leave
+        # a dangling reference behind.
+        #
+        # Recomputation is only sound if the callee re-reads the same memory, so
+        # the span from the earliest chased definition to the anchor must not
+        # write to memory or call anything.
+        shared = [d for varid, d in state.chased_defs if not self._all_uses_within(varid, block, matched_stmt_idxs)]
+        consumed = state.consumed_stmt_idxs
+        duplicated: frozenset[int] = frozenset()
+        if shared:
+            span_start = min([*shared, *consumed]) if consumed else min(shared)
+            for i in range(span_start, stmt_idx):
+                if _stmt_has_side_effects(block.statements[i]):
+                    return None
+            captured = [state.bindings.get(param.capture) for param in pattern.params]
+            if not all(isinstance(cap, VirtualVariable) for cap in captured):
                 return None
+            # Keeping the chased definitions shrinks the outlined region to the
+            # anchor alone, so every value the synthesized call passes must still
+            # be an input of that statement. When a capture is only reachable
+            # *through* a kept definition -- a chained member load, say -- the
+            # region's live-in is the intermediate value instead of the captured
+            # pointer, and the callee interface cannot agree with the declared
+            # parameters. Copy the chased definitions into the region for those:
+            # the statements are pure (the span check above rejects anything
+            # else), so the copies recompute the intermediate value from the
+            # captured pointer while the originals stay behind for their other
+            # users, and the region's live-in becomes the pointer again.
+            anchor_uses = _stmt_uses(block.statements[stmt_idx])
+            if not all(cap.varid in anchor_uses for cap in captured):  # type: ignore[union-attr]
+                duplicated = consumed
+            consumed = frozenset()
 
         return KnownPatternMatch(
             pattern=pattern,
             block_loc=(block.addr, block.idx),
             anchor_stmt_idx=stmt_idx,
             expr_path=path,
-            consumed_stmt_idxs=state.consumed_stmt_idxs,
+            consumed_stmt_idxs=consumed,
             captures=dict(state.bindings),
             matched_expr=target if isinstance(target, Expression) else None,  # type: ignore[arg-type]
+            duplicated_stmt_idxs=duplicated,
         )
 
     def _make_chase_fn(self, block: Block, anchor_stmt_idx: int):
@@ -703,6 +780,9 @@ class KnownPatternFinder(Analysis):
         consumed = sorted(match.consumed_stmt_idxs)
         if any(i >= anchor_idx for i in consumed):
             raise UnsupportedOutlineError("consumed statements must precede the anchor statement")
+        duplicated = sorted(match.duplicated_stmt_idxs)
+        if any(i >= anchor_idx for i in duplicated):
+            raise UnsupportedOutlineError("duplicated definitions must precede the anchor statement")
 
         # moving consumed statements down to the matched span must not cross
         # side-effecting statements
@@ -712,8 +792,26 @@ class KnownPatternFinder(Analysis):
                     raise UnsupportedOutlineError(
                         "side-effecting statements interleave with the matched statement span"
                     )
+        # a duplicated definition is re-executed at the anchor's position, so it
+        # must be pure and nothing in between may write memory or call
+        if duplicated:
+            for i in range(duplicated[0], anchor_idx):
+                if _stmt_has_side_effects(stmts[i]):
+                    raise UnsupportedOutlineError(
+                        "side-effecting statements interleave with the duplicated definitions"
+                    )
 
         ins_addr = anchor.tags.get("ins_addr")
+
+        # copies of the chased definitions, on fresh vvar ids so the SSA form
+        # holds; ``subst`` maps each original vvar id onto its copy's
+        # destination, and is applied to the copies themselves (a later
+        # definition may use an earlier one) and to everything else that moves
+        # into the region and reads them
+        dup_stmts, subst = self._duplicate_defs(stmts, duplicated)
+        moved_stmts = [stmts[i] for i in consumed]
+        for old_varid, new_vvar in subst:
+            moved_stmts = [self._substitute_vvar(s, old_varid, new_vvar) for s in moved_stmts]
 
         # determine the result vvar; lift the matched sub-expression into its
         # own assignment unless the anchor already is one
@@ -724,7 +822,10 @@ class KnownPatternFinder(Analysis):
         )
         if anchor_absorbed:
             result_vvar = anchor.dst
-            mid_stmts = [stmts[i] for i in consumed] + [anchor]
+            region_anchor = anchor
+            for old_varid, new_vvar in subst:
+                region_anchor = self._substitute_vvar(region_anchor, old_varid, new_vvar)
+            mid_stmts = dup_stmts + moved_stmts + [region_anchor]
             post_head: list[Statement] = []
         else:
             vvar_id = self._next_vvar_id()
@@ -736,11 +837,14 @@ class KnownPatternFinder(Analysis):
                 oident=vvar_id,  # TMP-category vvars must carry a tmp idx
                 ins_addr=ins_addr,
             )
-            lifted = Assignment(self._next_idx(), result_vvar, match.matched_expr.copy(), ins_addr=ins_addr)
+            region_expr = match.matched_expr.copy()
+            for old_varid, new_vvar in subst:
+                region_expr = self._substitute_vvar(region_expr, old_varid, new_vvar)
+            lifted = Assignment(self._next_idx(), result_vvar, region_expr, ins_addr=ins_addr)
             replaced, new_anchor = anchor.replace(match.matched_expr, result_vvar.copy())
             if not replaced:
                 raise UnsupportedOutlineError("failed to replace the matched expression in the anchor statement")
-            mid_stmts = [stmts[i] for i in consumed] + [lifted]
+            mid_stmts = dup_stmts + moved_stmts + [lifted]
             post_head = [new_anchor]
 
         pre_stmts = [s for i, s in enumerate(stmts[:anchor_idx]) if i not in match.consumed_stmt_idxs]
@@ -759,6 +863,62 @@ class KnownPatternFinder(Analysis):
             frontier_loc = (succs[0].addr, succs[0].idx)
 
         return self._run_outliner_and_rewrite(g, match, (b_mid.addr, b_mid.idx), frontier_loc, ins_addr)
+
+    def _duplicate_defs(
+        self, stmts: list[Statement], duplicated: list[int]
+    ) -> tuple[list[Statement], list[tuple[int, VirtualVariable]]]:
+        """Copy the chased definitions at ``duplicated`` (ascending) for
+        placement at the head of the outlined region. Each copy defines a fresh
+        vvar -- reusing the original ids would give the same value two
+        definitions and break SSA -- and uses the copies of the definitions
+        before it. Returns the copies and the (original varid, copy's
+        destination) substitutions to apply to the region's anchor."""
+        dup_stmts: list[Statement] = []
+        subst: list[tuple[int, VirtualVariable]] = []
+        for i in duplicated:
+            stmt = stmts[i]
+            if not isinstance(stmt, Assignment) or not isinstance(stmt.dst, VirtualVariable):
+                raise UnsupportedOutlineError("only virtual-variable assignments can be duplicated into the region")
+            src = stmt.src.copy()
+            for old_varid, new_vvar in subst:
+                src = self._substitute_vvar(src, old_varid, new_vvar)
+            vvar_id = self._next_vvar_id()
+            new_dst = VirtualVariable(
+                self._next_idx(),
+                vvar_id,
+                stmt.dst.bits,
+                VirtualVariableCategory.TMP,
+                oident=vvar_id,  # TMP-category vvars must carry a tmp idx
+                **stmt.dst.tags,
+            )
+            dup_stmts.append(Assignment(self._next_idx(), new_dst, src, **stmt.tags))
+            subst.append((stmt.dst.varid, new_dst))
+        return dup_stmts, subst
+
+    def _substitute_vvar(self, obj, old_varid: int, new_vvar: VirtualVariable):
+        """Replace every occurrence of the vvar ``old_varid`` in ``obj`` (a
+        statement or an expression) with a copy of ``new_vvar``."""
+        # ``replace`` matches on __eq__, which is idx-aware, so the occurrence
+        # itself has to be handed in; distinct occurrences of one vvar may carry
+        # distinct indices, hence the loop (each round removes at least the one
+        # occurrence it found).
+        remaining = sum(1 for e in _iter_subexprs(obj) if isinstance(e, VirtualVariable) and e.varid == old_varid)
+        while remaining:
+            occurrence = next(e for e in _iter_subexprs(obj) if isinstance(e, VirtualVariable) and e.varid == old_varid)
+            replacement = VirtualVariable(
+                self._next_idx(),
+                new_vvar.varid,
+                new_vvar.bits,
+                new_vvar.category,
+                oident=new_vvar.oident,
+                **new_vvar.tags,
+            )
+            replaced, obj = obj.replace(occurrence, replacement)
+            left = sum(1 for e in _iter_subexprs(obj) if isinstance(e, VirtualVariable) and e.varid == old_varid)
+            if not replaced or left >= remaining:
+                raise UnsupportedOutlineError(f"failed to substitute vvar {old_varid} in the outlined region")
+            remaining = left
+        return obj
 
     def _outline_stmt_span(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
         """Outline a statement-sequence match: the matched statements (plus any

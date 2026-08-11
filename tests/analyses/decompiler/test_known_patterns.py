@@ -10,7 +10,7 @@ import archinfo
 
 import angr
 from angr.ailment.expression import Load, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import SideEffectStatement
+from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
@@ -26,6 +26,8 @@ from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
 from tests.common import bin_location
 
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
+# std::vector<T>::size() whose chased definitions are still used by other code
+STL3_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl3")
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
 MB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_multiblock")
 # statically-linked, stripped MSVC C++ binary: no msvcp dependency, no mangled
@@ -539,6 +541,58 @@ class TestLargestMatchWins(TestCase):
                 assert [m.pattern.name for m in finder.matches] == ["unlink_and_init"], (
                     f"{order_name}: {[m.pattern.name for m in finder.matches]}"
                 )
+
+
+class TestSharedChasedDefinitions(TestCase):
+    # A chased definition whose value the surrounding code still uses cannot be
+    # moved into the outlined callee, and leaving it behind makes the region's
+    # live-in the intermediate value instead of the captured pointer -- the
+    # callee interface then disagrees with the declared parameters and the match
+    # is lost. Such definitions are copied into the region instead.
+
+    def test_shared_chased_defs_are_duplicated(self):
+        for func_name, n_dup in (("vec_size_shared_diff", 1), ("vec_size_shared_chain", 2)):
+            with self.subTest(func=func_name):
+                proj, cfg, func, dec = _decompile(STL3_BIN, func_name)
+                finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+                matches = [m for m in finder.matches if m.pattern.name == "std_vector_T12_size"]
+                assert len(matches) == 1, [m.pattern.name for m in finder.matches]
+                m = matches[0]
+                # the chased definitions are shared, so none of them is consumed
+                assert not m.consumed_stmt_idxs
+                assert len(m.duplicated_stmt_idxs) == n_dup
+
+                block = next(b for b in dec.ail_graph if (b.addr, b.idx) == m.block_loc)
+                originals = [block.statements[i] for i in sorted(m.duplicated_stmt_idxs)]
+                original_varids = {s.dst.varid for s in originals}
+
+                result = finder.outline(m)
+                # the call takes the vector pointer, not the intermediate value
+                assert [a.varid for a in result.child_funcargs] == [m.captures["v"].varid]
+                # the originals stay in the caller for their other users
+                caller_stmts = [s for b in result.graph for s in b.statements]
+                for original in originals:
+                    assert any(s is original for s in caller_stmts), f"{original} was moved out of the caller"
+                # and the copies inside the callee define fresh vvars
+                child_defs = {
+                    s.dst.varid
+                    for b in result.child_graph
+                    for s in b.statements
+                    if isinstance(s, Assignment) and isinstance(s.dst, VirtualVariable)
+                }
+                assert len(child_defs & original_varids) == 0, "the duplicated definitions reused their vvar ids"
+
+                dec_outer = _redecompile(proj, cfg, func, dec, result.graph)
+                text = dec_outer.codegen.text
+                assert "std::vector<T12>::size(" in text, text
+
+    def test_reaching_match_beats_a_sub_pattern_in_its_chased_def(self):
+        # std::string::length is a bare Load(s + 8), i.e. exactly the _M_finish
+        # load a std::vector<T>::size() reads through; the vector match covers
+        # more of the block and must be the one that is offered.
+        proj, _, func, dec = _decompile(STL3_BIN, "vec_size_shared_chain")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        assert [m.pattern.name for m in finder.matches] == ["std_vector_T12_size"]
 
 
 class TestOutlinedResultIdentity(TestCase):
