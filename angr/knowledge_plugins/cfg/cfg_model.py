@@ -1319,7 +1319,7 @@ class CFGModel(Serializable):
 
     def clear_region_for_reflow(self, addr: int, size: int = 1, kb: KnowledgeBase | None = None) -> None:
         """
-        Remove nodes in the graph intersecting region [addr, addr + size).
+        Remove nodes in the graph and memory data intersecting region [addr, addr + size).
 
         Any functions that intersect the range, and their associated nodes in the CFG, will also be removed from the
         knowledge base for analysis.
@@ -1334,6 +1334,25 @@ class CFGModel(Serializable):
         to_remove = {a for a in self.insn_addr_to_memory_data if addr <= a < (addr + size)}
         for a in to_remove:
             del self.insn_addr_to_memory_data[a]
+
+        # alignment padding covering the region says the bytes are not code, and a later analysis reads it back as a
+        # region it must not decode. Data of any other sort stays: it is either still valid or the caller's own
+        # instruction to treat the region as data, as when a user undefines code.
+        end_addr = addr + size
+        data_to_remove = [
+            data_addr
+            for data_addr in self.memory_data.irange(minimum=addr, maximum=end_addr - 1)
+            if self.memory_data[data_addr].sort == MemoryDataSort.Alignment
+        ]
+        preceding = self.memory_data.bisect_left(addr) - 1
+        if preceding >= 0:
+            # the entry before the region may still reach into it
+            data_addr = self.memory_data.keys()[preceding]
+            data = self.memory_data[data_addr]
+            if data.sort == MemoryDataSort.Alignment and data_addr + (data.size or 1) > addr:
+                data_to_remove.append(data_addr)
+        for data_addr in data_to_remove:
+            del self.memory_data[data_addr]
 
         if kb:
             for func in self.get_intersecting_functions(addr, size, kb):
