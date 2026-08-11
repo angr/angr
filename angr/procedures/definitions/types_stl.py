@@ -64,12 +64,22 @@ typelib.types = {
     ),
 }
 
-# std::vector<T> for an element type known only by its size: the
-# std::vector<T>::size() exact-division patterns (see
-# analyses/decompiler/known_patterns/std_vector_size.py) recover sizeof(T) from
-# the magic constant but not the element type, so each supported size gets an
-# opaque N-byte element class named ``T<N>``.
-for _n in (6, 12, 20, 24, 40, 48):
+#: Element sizes for which an opaque ``std::vector<T<N>>`` class exists.
+#:
+#: The std::vector<T>::size() exact-division patterns (see
+#: analyses/decompiler/known_patterns/std_vector_size.py) recover sizeof(T) from
+#: the compiler's magic constant but not the element type, so each supported size
+#: gets an opaque N-byte element class named ``T<N>``. Only non-power-of-two
+#: sizes are listed: a power-of-two sizeof(T) divides with a bare shift and needs
+#: no magic constant (those are the named std::vector<short/int/long long>
+#: templates). The upper bound is empirical -- real containers of large records
+#: exist (CryptoPP::ECPPoint is 112 bytes, and vectors of 100+ byte structs are
+#: common in C++ code), and covering only a handful of small sizes leaves the
+#: pattern silent on exactly the code where the raw magic multiply is least
+#: readable.
+EXACTDIV_ELEMENT_SIZES = tuple(n for n in range(3, 513) if n & (n - 1))
+
+for _n in EXACTDIV_ELEMENT_SIZES:
     _elt_name = f"T{_n}"
     _elt = SimStruct(OrderedDict([("data", SimTypeArray(SimTypeChar(), _n))]), name=_elt_name)
     _uniq = f"class std::vector<{_elt_name}, class std::allocator<{_elt_name}>>"

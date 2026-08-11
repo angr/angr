@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from angr.procedures.definitions.types_stl import EXACTDIV_ELEMENT_SIZES
+
 from .context import CPP, INTEL, size_t_typename
 from .dsl import PBinOp, PConst, PLoad, PVVar
 from .layouts import vector_begin_offset, vector_end_offset
@@ -120,8 +122,12 @@ def make_std_vector_size_exactdiv_template(elt_name: str, elt_size: int):
     return make_template(call_name, build, arches=INTEL, languages=(CPP,), name=f"std_vector_{slug}_size")
 
 
-# common non-power-of-two struct sizes: 3 shorts, 3/5 ints, 3/5/6 words
-STD_VECTOR_EXACTDIV_SIZES = (6, 12, 20, 24, 40, 48)
+# Every non-power-of-two element size with a registered opaque T<N> class. The
+# list is deliberately wide rather than a handful of common sizes: sizeof(T) is
+# whatever the program's record happens to be (112 for CryptoPP::ECPPoint, say),
+# and a size that is not covered leaves the raw magic multiply in the output --
+# precisely the shape this pattern exists to remove.
+STD_VECTOR_EXACTDIV_SIZES = EXACTDIV_ELEMENT_SIZES
 STD_VECTOR_STRUCT_SIZE_TEMPLATES = [
     make_std_vector_size_exactdiv_template(f"T{n}", n) for n in STD_VECTOR_EXACTDIV_SIZES
 ]
