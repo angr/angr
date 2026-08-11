@@ -72,6 +72,7 @@ class AddressTransformationTypes(int, enum.Enum):
     ShiftRight = 6
     Add = 7
     Load = 8
+    AlignmentMask = 9
 
 
 class AddressTransformation:
@@ -1007,14 +1008,18 @@ class JumpTableResolver(IndirectJumpResolver):
             if not potential_call_table and not is_arm:
                 l.debug("Indirect jump at %#x does not look like a jump table. Skip.", addr)
                 return False, None
-            if (
-                potential_call_table
-                and transformations
-                and next(iter(transformations.values())).op != AddressTransformationTypes.Load
-            ):
-                # targets of call tables must be directly loaded from memory
-                l.debug("Indirect jump/call at %#x does not look like an indirect call from a call table. Skip", addr)
-                return False, None
+            if potential_call_table:
+                # the alignment mask that the lifter puts on the branch target is not part of the address
+                # computation, so it does not say anything about where the target came from
+                addr_trans = [
+                    tran for tran in transformations.values() if tran.op is not AddressTransformationTypes.AlignmentMask
+                ]
+                if addr_trans and addr_trans[0].op != AddressTransformationTypes.Load:
+                    # targets of call tables must be directly loaded from memory
+                    l.debug(
+                        "Indirect jump/call at %#x does not look like an indirect call from a call table. Skip", addr
+                    )
+                    return False, None
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -1478,6 +1483,34 @@ class JumpTableResolver(IndirectJumpResolver):
                             AddressTransformationTypes.ShiftRight, [AddressSingleton, stmt.data.args[1].con.value]
                         )
                         continue
+                    elif (
+                        stmt.data.op.startswith("Iop_And")
+                        and isinstance(stmt, pyvex.stmt.WrTmp)
+                        and isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp)
+                        and isinstance(stmt.data.args[1], pyvex.IRExpr.Const)
+                        and block.tyenv.sizeof(stmt.tmp) == self.project.arch.bits
+                        and stmt.data.args[1].con.value == self._instruction_alignment_mask()
+                    ):
+                        # PowerPC ignores the low two bits of the count and link registers, so the lifter masks the
+                        # target of every bcctr and bclr.
+                        # e.g.
+                        #        IRSB 0x4c6b38
+                        #  + 01 | t17 = GET:I32(gpr30)
+                        #  + 02 | t16 = Add32(t17,0xffffeb8c)
+                        #  + 03 | t18 = LDbe:I32(t16)
+                        #  + 05 | t1 = GET:I32(gpr9)
+                        #  + 06 | t2 = Shl32(t1,0x02)
+                        #  + 09 | t19 = Add32(t18,t2)
+                        #  + 10 | t22 = LDbe:I32(t19)
+                        #  + 13 | t8 = Add32(t22,t18)
+                        #    16 | PUT(ctr) = t8
+                        #  + 18 | t23 = And32(t8,0xfffffffc)
+                        #  + Next: t23
+                        stmts_to_remove.append(stmt_loc)
+                        transformations[(stmt_loc[0], stmt.tmp)] = AddressTransformation(
+                            AddressTransformationTypes.AlignmentMask, [AddressSingleton, stmt.data.args[1].con.value]
+                        )
+                        continue
                 elif isinstance(stmt.data, pyvex.IRExpr.Load):
                     assert isinstance(stmt, pyvex.stmt.WrTmp)
                     # Got it!
@@ -1793,6 +1826,12 @@ class JumpTableResolver(IndirectJumpResolver):
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
         if stride < load_size:
+            if load_size != project.arch.bytes or stmts_adding_base_addr:
+                # A vtable holds pointers that are jumped to as they are. These entries are narrower than a pointer, or
+                # a base address is added to them, so this is an offset table whose address interval came out too
+                # imprecise to tell where the table ends.
+                l.debug("The address of the jump table at %#x is too imprecise to bound the table. Skip.", addr)
+                return None
             stride = load_size
             total_cases = jumptable_addr.cardinality // load_size
             sort = "vtable"  # it's probably a vtable!
@@ -1931,6 +1970,9 @@ class JumpTableResolver(IndirectJumpResolver):
             def handle_or1(a):
                 return a | 1
 
+            def handle_alignment_mask(con, a):
+                return a & con
+
             def handle_lshift(num_bits, a):
                 return a << num_bits
 
@@ -1964,6 +2006,10 @@ class JumpTableResolver(IndirectJumpResolver):
                         raise NotImplementedError("Unsupported truncation operation.")
                 elif tran_op is AddressTransformationTypes.Or1:
                     lam = handle_or1
+                elif tran_op is AddressTransformationTypes.AlignmentMask:
+                    lam = functools.partial(
+                        handle_alignment_mask, next(iter(arg for arg in args if arg is not AddressSingleton))
+                    )
                 elif tran_op is AddressTransformationTypes.ShiftLeft:
                     lam = functools.partial(
                         handle_lshift, next(iter(arg for arg in args if arg is not AddressSingleton))
@@ -2470,6 +2516,18 @@ class JumpTableResolver(IndirectJumpResolver):
         if vex_block.jumpkind == "Ijk_NoDecode":
             return False
         return vex_block.size != 0
+
+    def _instruction_alignment_mask(self) -> int | None:
+        """
+        Build the mask that clears the bits an instruction address cannot use on this architecture.
+
+        :return:    The mask, or None if instructions may start at any byte.
+        """
+
+        alignment = self.project.arch.instruction_alignment
+        if alignment is None or alignment <= 1:
+            return None
+        return ((1 << self.project.arch.bits) - 1) & ~(alignment - 1)
 
     def _is_address_mapped(self, addr: int) -> bool:
         return (
