@@ -850,7 +850,7 @@ class CFGModel(Serializable):
                 else:
                     boundary = min(last_addr, next_data_addr)
 
-                if next_sec_addr is not None:
+                if boundary is not None and next_sec_addr is not None:
                     boundary = min(boundary, next_sec_addr)
 
                 if boundary is not None:
