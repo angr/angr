@@ -13,6 +13,9 @@ Not a unit test: decompiling NPInit alone takes about a minute, and the binary
 is not in the binaries repo. Run it directly:
 
     python tests/analyses/fuzzy_patterns_npinit_demo.py [core|occurrence] [/path/to/notepad.exe]
+
+Both decompilations are written to /tmp for diffing: ``npinit_before.c`` and
+``npinit_after_<granularity>.c``.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ import logging
 import sys
 import time
 from collections import Counter
+from pathlib import Path
 
 import angr
 from angr.analyses.decompiler.clinic import ClinicStage
@@ -32,6 +36,14 @@ NPINIT = 0x140013154
 
 # the big-endian byte gather that opens every Warbird round loop; two per copy
 WARBIRD_GATHER_PREFIX = "Asn(VR,Or(Mul(Or(Mul("
+
+OUT_DIR = Path("/tmp")
+
+
+def dump(path: Path, text: str, label: str) -> None:
+    """Write a decompilation to disk so the two versions can be diffed."""
+    path.write_text(text, encoding="utf-8")
+    print(f"[+] wrote {label} decompilation to {path} ({text.count(chr(10))} lines)")
 
 
 def body_lines(text: str) -> int:
@@ -70,6 +82,7 @@ def main() -> int:
         f"{before.count(chr(10))} lines ({body_lines(before)} of body), "
         f"{len(dec.ail_graph)} blocks, {sum(len(b.statements) for b in dec.ail_graph)} statements"
     )
+    dump(OUT_DIR / "npinit_before.c", before, "pre-outlining")
 
     t2 = time.time()
     finder = proj.analyses[FuzzyPatternFinder](func, dec.ail_graph, params=AlignParams(min_identity=0.45))
@@ -135,6 +148,8 @@ def main() -> int:
         f"({100 * (1 - body_lines(after) / body_lines(before)):.0f}% smaller), "
         f"{len(dedup.result.outlined)} calls to extracted functions"
     )
+    # granularity is in the name because the two modes produce different output
+    dump(OUT_DIR / f"npinit_after_{granularity}.c", after, "post-outlining")
 
     # show one extracted callee: this is the duplicated code, now in one place
     biggest = max(dedup.result.outlined, key=lambda r: r.statements)
