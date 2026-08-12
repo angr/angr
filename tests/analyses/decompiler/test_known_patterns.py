@@ -1182,3 +1182,53 @@ class TestSwapWidthsAndInterleaving(TestCase):
         assert F._commutes_with_region(gap_far, region)
         # [b, +4) does overlap it under that assumption, so the motion is refused
         assert not F._commutes_with_region(gap_near, region)
+
+
+class TestStackFields(TestCase):
+    # A stack container never reaches the matcher as an object: variable recovery
+    # has already split it into one virtual variable per slot, so there is no
+    # `Load(s)` and no `s + 16`. Measured over the benchmark corpus, that is
+    # 40-54% of the std::string accessor sites and 15-35% of std::vector<T>::size.
+    #
+    # PStackField binds the object's *stack offset*, so two fields of one object
+    # unify on it exactly as PField's two displacements do.
+
+    @staticmethod
+    def _slot(varid, off, bits=64):
+        return VirtualVariable(None, varid, bits, VirtualVariableCategory.STACK, oident=off)
+
+    def test_two_fields_unify_on_the_object_offset(self):
+        from angr.ailment.expression import UnaryOp
+        from angr.analyses.decompiler.known_patterns import PStackField
+
+        # libstdc++ std::string at s-112: _M_p at +0, the local buffer at +16
+        data = self._slot(1, -112)
+        localbuf = self._slot(2, -96)
+
+        st = PStackField("s", 0).match(data, MatchState(), MatchCtx())
+        assert st is not None and st.bindings["s"].value == -112
+
+        # `&_M_local_buf` lifts to a Reference, and it is the same object
+        ref = UnaryOp(None, "Reference", localbuf)
+        assert PStackField("s", 16, as_address=True).match(ref, st, MatchCtx()) is not None
+        # ... at any other offset it is not
+        assert PStackField("s", 8, as_address=True).match(ref, st, MatchCtx()) is None
+
+    def test_value_and_address_forms_are_distinct(self):
+        from angr.ailment.expression import UnaryOp
+        from angr.analyses.decompiler.known_patterns import PStackField
+
+        slot = self._slot(1, -96)
+        ref = UnaryOp(None, "Reference", slot)
+        # capacity() needs both: it compares the data pointer against the *address*
+        # of the local buffer and returns the *value* of the same slot
+        assert PStackField("s", 0).match(slot, MatchState(), MatchCtx()) is not None
+        assert PStackField("s", 0).match(ref, MatchState(), MatchCtx()) is None
+        assert PStackField("s", 0, as_address=True).match(ref, MatchState(), MatchCtx()) is not None
+        assert PStackField("s", 0, as_address=True).match(slot, MatchState(), MatchCtx()) is None
+
+    def test_register_slots_are_not_stack_fields(self):
+        from angr.analyses.decompiler.known_patterns import PStackField
+
+        reg = VirtualVariable(None, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
+        assert PStackField("s", 0).match(reg, MatchState(), MatchCtx()) is None

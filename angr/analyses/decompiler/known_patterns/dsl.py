@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING
 
 from angr.ailment.expression import (
     ITE,
@@ -31,12 +30,9 @@ from angr.ailment.expression import (
     Phi,
     UnaryOp,
     VirtualVariable,
+    VirtualVariableCategory,
 )
 from angr.ailment.statement import Assignment, ConditionalJump, Statement, Store
-
-if TYPE_CHECKING:
-    from angr.ailment.expression import VirtualVariableCategory
-
 
 # ops for which operand order is irrelevant; commutative matching tries both orders
 COMMUTATIVE_OPS = frozenset({"Add", "Mul", "And", "Or", "Xor", "CmpEQ", "CmpNE"})
@@ -460,6 +456,66 @@ class PField(PatternExpr):
 
 
 @dataclass(frozen=True)
+class PStackField(PatternExpr):
+    """A field of a container that lives **on the stack**.
+
+    A stack object never reaches the matcher as an object at all: variable
+    recovery has already split it into one virtual variable per slot, so
+    ``std::string s;`` is a handful of independent ``vvar{s-112}``,
+    ``vvar{s-96}`` and there is no ``Load(s)`` to match and no ``s + 16`` to
+    compare against. That is not a rare shape -- measured over the benchmark
+    corpus (`kp-eval/stack_share.py`), stack objects are 40-54% of the DWARF
+    sites for ``std::string::length`` and 15-35% for ``std::vector<T>::size``.
+
+    This node matches the *slot* of the field at ``offset`` and binds ``base`` to
+    the object's own stack offset, so two fields of one object unify on it
+    exactly as :class:`PField`'s two displacements do. ``as_address`` matches the
+    address form (``&slot``, which lifts to ``UnaryOp("Reference", vvar)``) rather
+    than the value form -- ``std::string::capacity`` needs both, since it compares
+    the data pointer against the address of the local buffer.
+
+    The binding is a ``Const`` holding the object's stack offset: a stack offset
+    is a number, not an expression, and making it one keeps unification on the
+    existing ``.likes()`` path.
+
+    **No pattern uses this yet, and matching is only half the problem.** The
+    outlined region for a stack container reads N independent slots, so its
+    live-ins are N values rather than one pointer -- there is nothing for the
+    synthesized call to take. Emitting ``std::string::length(&s)`` needs the
+    outliner to *rewrite* the region into loads through a materialized ``tmp =
+    &s`` before handing it over, which is sound (a stack slot's address is stable)
+    but is a transformation, not a capture. That is the remaining work.
+    """
+
+    base: str
+    offset: int
+    as_address: bool = False
+    size: int | None = None
+    name: str | None = None
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        while ctx.skip_conversions and isinstance(expr, Convert):
+            expr = expr.operand
+        if self.as_address:
+            if not (isinstance(expr, UnaryOp) and expr.op == "Reference"):
+                return None
+            slot = expr.operand
+        else:
+            slot = expr
+        if not isinstance(slot, VirtualVariable) or slot.category != VirtualVariableCategory.STACK:
+            return None
+        if self.size is not None and slot.bits != self.size * 8:
+            return None
+        stack_off = slot.stack_offset
+        if stack_off is None:
+            return None
+        st = state.bind(self.base, Const(None, stack_off - self.offset, 64))
+        if st is None:
+            return None
+        return self._bind_if_named(self.name, expr, st)
+
+
+@dataclass(frozen=True)
 class PPhi(PatternExpr):
     """Matches a Phi expression, capturing it whole (its individual sources are
     not matched). Useful for loop-header blocks, whose statements are phi
@@ -683,6 +739,8 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         # a field address is an Add when the object is not at offset 0 and a bare
         # vvar when it is, so it discriminates nothing on its own
         return None
+    if isinstance(node, PStackField):
+        return ("UnaryOp", "Reference") if node.as_address else ("VirtualVariable", None)
     if isinstance(node, PAssign):
         return ("Assignment", None)
     if isinstance(node, PStore):
