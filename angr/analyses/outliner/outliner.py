@@ -262,7 +262,11 @@ class Outliner(Analysis):
             else:
                 (frontier_node,) = frontier
                 self.parent_graph.add_edge(new_src_node, frontier_node)
-                self._update_phi_stmts(frontier_node)
+                self._update_phi_stmts(
+                    frontier_node,
+                    collapsed_loc=(new_src_node.addr, new_src_node.idx),
+                    ret_vvar=ret_exprs[0] if ret_exprs else None,
+                )
 
         if ret_exprs:
             if len(ret_exprs) > 1:
@@ -271,26 +275,46 @@ class Outliner(Analysis):
 
         return callee_func, subgraph, callee_arg_vvars
 
-    def _update_phi_stmts(self, block: Block):
+    def _update_phi_stmts(self, block: Block, collapsed_loc=None, ret_vvar=None):
         srcs = list(self.parent_graph.predecessors(block))
         src_addrs = [(src.addr, src.idx) for src in srcs]
-        for stmt in block.statements:
-            if is_phi_assignment(stmt):
-                assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
-                all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
-                new_addrs = set(src_addrs) - set(all_stmt_srcs)
-                old_addrs = set(all_stmt_srcs) - set(src_addrs)
-                if len(old_addrs) == 1 and len(new_addrs) == 1:
-                    # only source block is replaced by a new one
-                    old_addr = next(iter(old_addrs))
-                    new_addr = next(iter(new_addrs))
-                    for idx, _ in enumerate(stmt.src.src_and_vvars):
-                        src, vvars = stmt.src.src_and_vvars[idx]
-                        if src == old_addr:
-                            stmt.src.src_and_vvars[idx] = new_addr, vvars
-                else:
-                    # multiple source blocks have been replaced... it's bad
-                    continue
+        for i, stmt in enumerate(block.statements):
+            if not is_phi_assignment(stmt):
+                continue
+            assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
+            # NOTE: Phi.src_and_vvars returns a fresh copy on every read (the AIL is
+            # backed by immutable Rust objects), so in-place mutation is a no-op; the
+            # phi must be rebuilt and the statement replaced.
+            pairs = list(stmt.src.src_and_vvars)
+            all_stmt_srcs = [src for src, _ in pairs]
+            new_addrs = set(src_addrs) - set(all_stmt_srcs)
+            old_addrs = set(all_stmt_srcs) - set(src_addrs)
+            new_pairs = None
+            if len(old_addrs) == 1 and len(new_addrs) == 1:
+                # a single source block was replaced by a single new one (block split)
+                old_addr = next(iter(old_addrs))
+                new_addr = next(iter(new_addrs))
+                new_pairs = [((new_addr if src == old_addr else src), vvar) for src, vvar in pairs]
+            elif (
+                old_addrs
+                and collapsed_loc is not None
+                and set(src_addrs) == {collapsed_loc}
+                and set(all_stmt_srcs) <= (old_addrs | {collapsed_loc})
+            ):
+                # a whole outlined region collapsed into the single new call block:
+                # every phi source now arrives through that one block. If all merged
+                # operands are the same variable it is a pass-through; otherwise the
+                # region *selected* between them (e.g. an SSO ``a ? *p : p``) and the
+                # merged value is exactly what the synthesized call returns.
+                vvars = [vvar for _, vvar in pairs]
+                distinct = {v.varid for v in vvars if v is not None}
+                value = vvars[0] if len(distinct) == 1 else ret_vvar
+                if value is not None:
+                    new_pairs = [(collapsed_loc, value)]
+            # else: multiple distinct source blocks replaced — unsupported, leave as-is
+            if new_pairs is not None:
+                new_phi = Phi(stmt.src.idx, stmt.src.bits, new_pairs, **stmt.src.tags)
+                block.statements[i] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
 
     @staticmethod
     def _node_addr_to_str(addr: tuple[int, int | None]) -> str:
