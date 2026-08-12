@@ -52,6 +52,29 @@ O = DecompilationOption
 DEFAULT_MAX_FUNCTION_BLOCKS = 50_000
 DEFAULT_MAX_AIL_STATEMENTS = 1_000_000
 
+def parse_known_patterns(value) -> str | tuple[str, ...] | None:
+    """Normalize the ``known_patterns`` option value into ``None`` (force-enable
+    nothing), the string ``"all"``, or a tuple of pattern names.
+
+    Both spellings are accepted so that the GUI can offer a single text field
+    (``"all"`` / ``"IsListEmpty, std::string::front"``) while API callers can
+    pass a list. Names are *not* resolved here — that happens against the
+    template registry, which is where an unknown name is reported."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        if value.lower() == "all":
+            return "all"
+        return tuple(n.strip() for n in value.split(",") if n.strip())
+    names = tuple(str(n).strip() for n in value if str(n).strip())
+    if len(names) == 1 and names[0].lower() == "all":
+        return "all"
+    return names or None
+
+
 # Serialization contract for display options (cls="codegen"): to survive Codegen serialization, an option's param
 # must have a matching optional scalar proto field, named identically, in the trailing display-option block of the
 # Codegen message (protos/codegen.proto). Options without such a field are dropped on round-trip.
@@ -386,6 +409,22 @@ options = [
         default_value=DEFAULT_MAX_AIL_STATEMENTS,
         value_range=(0, 100_000_000),
         clears_cache=True,
+    ),
+    O(
+        "Force-enable known code patterns",
+        "Known code patterns (inlined library idioms such as std::string::length() or IsListEmpty()) whose shape is "
+        "too generic to recognize safely on every binary are opt-in: they only run when the user asks for them, or "
+        "when a pattern's own criteria gate opens for this target. Set this option to the names of the patterns to "
+        'force-enable (comma-separated, either the call name or the short name), or to "all" to run every known '
+        "pattern. Expect false positives: these idioms are opt-in precisely because their shapes also occur in "
+        "unrelated code. An unrecognized name is an error.",
+        str,
+        "clinic",
+        "known_patterns",
+        category="Patterns",
+        default_value=None,
+        clears_cache=True,
+        convert=parse_known_patterns,
     ),
 ]
 

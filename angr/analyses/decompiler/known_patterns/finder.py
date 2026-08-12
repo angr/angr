@@ -216,12 +216,23 @@ class KnownPatternFinder(Analysis):
         vvar_id_start: int = 0xBEEF,
         block_addr_start: int = 0xAABB_0000,
         ail_manager=None,
+        force_patterns: str | Iterable[str] | None = None,
     ):
         """``patterns`` may be pattern templates (KnownPatternTemplate) and/or
         already-concrete KnownPatterns; templates are instantiated for this
-        binary's PatternContext. When None, the enabled-by-default templates are
-        used."""
-        from . import ALL_KNOWN_PATTERN_TEMPLATES, patterns_for  # pylint:disable=import-outside-toplevel
+        binary's PatternContext. When None, the registry is used, filtered down
+        to the default-enabled templates plus the ones named by
+        ``force_patterns``.
+
+        ``force_patterns`` is the user's force-enable selection — ``"all"`` or
+        an iterable of template names / call names — and is only consulted when
+        ``patterns`` is None (an explicit pattern list is already a selection).
+        """
+        from . import (  # pylint:disable=import-outside-toplevel
+            ALL_KNOWN_PATTERN_TEMPLATES,
+            patterns_for,
+            resolve_pattern_selection,
+        )
         from .context import PatternContext  # pylint:disable=import-outside-toplevel
         from .templates import KnownPatternTemplate  # pylint:disable=import-outside-toplevel
 
@@ -234,8 +245,11 @@ class KnownPatternFinder(Analysis):
         self.block_addr_start = block_addr_start
 
         ctx = PatternContext.from_project(self.project)
+        self._ctx = ctx
         if patterns is None:
-            self._patterns = patterns_for(ctx, ALL_KNOWN_PATTERN_TEMPLATES, enabled_only=True)
+            forced_ids = {id(t) for t in resolve_pattern_selection(force_patterns)}
+            enabled = [t for t in ALL_KNOWN_PATTERN_TEMPLATES if t.enabled_by_default or id(t) in forced_ids]
+            self._patterns = patterns_for(ctx, enabled)
         else:
             selected = list(patterns)
             templates = [p for p in selected if isinstance(p, KnownPatternTemplate)]
@@ -267,6 +281,9 @@ class KnownPatternFinder(Analysis):
                 .model
             )
 
+        self.matches = self._match_all()
+
+    def _match_all(self) -> list[KnownPatternMatch]:
         raw_matches: list[KnownPatternMatch] = []
         for block in self._graph.nodes:
             raw_matches.extend(self._match_block(block))
@@ -296,7 +313,7 @@ class KnownPatternFinder(Analysis):
         for m in raw_matches:
             if not any(self._conflicts(m, s) for s in selected):
                 selected.append(m)
-        self.matches = selected
+        return selected
 
     @staticmethod
     def _stmt_footprint(m: KnownPatternMatch) -> frozenset[int]:

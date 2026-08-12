@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
-import contextlib
 import os.path
 import unittest
 from unittest import TestCase
@@ -285,41 +284,26 @@ class TestMsvcStringCstr(TestCase):
         assert dec.codegen.text.count("std::string::c_str(") == 3, dec.codegen.text
 
 
-@contextlib.contextmanager
-def _all_patterns_enabled():
-    """Temporarily flip every KnownPattern template to enabled-by-default so the
-    KnownPatternOutliner pass exercises the opt-in ones too."""
-    import dataclasses
-
-    from angr.analyses.decompiler.known_patterns import ALL_KNOWN_PATTERN_TEMPLATES, TEMPLATE_BY_CALL_NAME
-
-    saved = list(ALL_KNOWN_PATTERN_TEMPLATES)
-    saved_map = dict(TEMPLATE_BY_CALL_NAME)
-    enabled = [t if t.enabled_by_default else dataclasses.replace(t, enabled_by_default=True) for t in saved]
-    ALL_KNOWN_PATTERN_TEMPLATES[:] = enabled
-    TEMPLATE_BY_CALL_NAME.update({t.call_name: t for t in enabled})
-    try:
-        yield
-    finally:
-        ALL_KNOWN_PATTERN_TEMPLATES[:] = saved
-        TEMPLATE_BY_CALL_NAME.clear()
-        TEMPLATE_BY_CALL_NAME.update(saved_map)
+#: force-enable every template, opt-in ones included, through the normal decompilation-option machinery
+ALL_PATTERNS_OPTION = [("known_patterns", "all")]
 
 
 def _assert_outlines_during(test, bin_path, targets):
     """Assert each (func-name-or-address, call-fragment) is outlined by the pass
-    during a normal full-preset decompile (not only via a finder afterwards)."""
-    with _all_patterns_enabled():
-        proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True)
-        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
-        for ref, frag in targets:
-            with test.subTest(target=ref):
-                func = cfg.functions.function(name=ref) if isinstance(ref, str) else cfg.functions.function(addr=ref)
-                assert func is not None, ref
-                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-                assert dec.codegen is not None and dec.codegen.text is not None
-                assert frag in dec.codegen.text, f"{ref!r}: {frag!r} not outlined DURING decompilation"
+    during a normal full-preset decompile (not only via a finder afterwards).
+    The opt-in templates are force-enabled with the ``known_patterns`` option."""
+    proj = angr.Project(bin_path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast(normalize=True)
+    proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+    for ref, frag in targets:
+        with test.subTest(target=ref):
+            func = cfg.functions.function(name=ref) if isinstance(ref, str) else cfg.functions.function(addr=ref)
+            assert func is not None, ref
+            dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                func, cfg=cfg.model, preset="full", options=ALL_PATTERNS_OPTION
+            )
+            assert dec.codegen is not None and dec.codegen.text is not None
+            assert frag in dec.codegen.text, f"{ref!r}: {frag!r} not outlined DURING decompilation"
 
 
 class TestPosixMacros(TestCase):

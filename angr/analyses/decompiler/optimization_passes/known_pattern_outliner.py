@@ -26,18 +26,25 @@ class KnownPatternOutliner(OptimizationPass):
 
     MAX_ROUNDS = 8
 
-    def __init__(self, func, manager, **kwargs):
+    def __init__(self, func, manager, known_patterns=None, **kwargs):
+        # the user's force-enable selection ("all", or names of opt-in templates); threaded down from the
+        # ``known_patterns`` decompilation option through Clinic
+        self._known_patterns = known_patterns
         super().__init__(func, manager, **kwargs)
         self.analyze()
 
     def _check(self):
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
+            ALL_KNOWN_PATTERN_TEMPLATES,
             PatternContext,
             patterns_for,
+            resolve_pattern_selection,
         )
 
         ctx = PatternContext.from_project(self.project)
-        return bool(patterns_for(ctx, enabled_only=True)), None
+        forced_ids = {id(t) for t in resolve_pattern_selection(self._known_patterns)}
+        enabled = [t for t in ALL_KNOWN_PATTERN_TEMPLATES if t.enabled_by_default or id(t) in forced_ids]
+        return bool(patterns_for(ctx, enabled)), None
 
     def _analyze(self, cache=None):
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
@@ -59,6 +66,7 @@ class KnownPatternOutliner(OptimizationPass):
                 vvar_id_start=max(self.vvar_id_start, 1),
                 block_addr_start=block_addr_start,
                 ail_manager=self.manager,
+                force_patterns=self._known_patterns,
             )
             if not finder.matches:
                 break

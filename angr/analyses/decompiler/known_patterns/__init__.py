@@ -73,6 +73,15 @@ if TYPE_CHECKING:
 
 ALL_KNOWN_PATTERN_TEMPLATES: list[KnownPatternTemplate] = []
 TEMPLATE_BY_CALL_NAME: dict[str, KnownPatternTemplate] = {}
+TEMPLATE_BY_NAME: dict[str, KnownPatternTemplate] = {}
+
+#: Value of the ``known_patterns`` decompilation option that force-enables every
+#: registered template, opt-in ones included.
+ALL_PATTERNS = "all"
+
+
+class UnknownPatternError(ValueError):
+    """Raised when a pattern selection names a template that is not registered."""
 
 
 def register_pattern_template(template: KnownPatternTemplate) -> None:
@@ -83,6 +92,10 @@ def register_pattern_template(template: KnownPatternTemplate) -> None:
         raise ValueError(f"a pattern template with call name {template.call_name!r} is already registered")
     ALL_KNOWN_PATTERN_TEMPLATES.append(template)
     TEMPLATE_BY_CALL_NAME[template.call_name] = template
+    # a template's human name defaults to its call name; register the second spelling only when it differs and
+    # does not shadow some other template's call name
+    if template.name not in TEMPLATE_BY_CALL_NAME:
+        TEMPLATE_BY_NAME[template.name] = template
 
 
 # STL container accessors
@@ -140,6 +153,49 @@ def patterns_for(
     return out
 
 
+def resolve_pattern_selection(selection: str | Iterable[str] | None) -> list[KnownPatternTemplate]:
+    """Resolve a user's force-enable selection into templates.
+
+    ``selection`` is one of:
+
+    * ``None`` / empty — nothing is force-enabled (returns an empty list);
+    * ``"all"`` — every registered template, opt-in ones included;
+    * an iterable of template ``name``s and/or ``call_name``s (a comma-separated
+      string is accepted too, for the string-valued decompilation option).
+
+    An unrecognized name raises :class:`UnknownPatternError` rather than
+    silently selecting nothing.
+    """
+    if selection is None:
+        return []
+    if isinstance(selection, str):
+        if selection.strip().lower() == ALL_PATTERNS:
+            return list(ALL_KNOWN_PATTERN_TEMPLATES)
+        names = [n.strip() for n in selection.split(",")]
+    else:
+        names = [str(n).strip() for n in selection]
+    names = [n for n in names if n]
+    if not names:
+        return []
+    if len(names) == 1 and names[0].lower() == ALL_PATTERNS:
+        return list(ALL_KNOWN_PATTERN_TEMPLATES)
+
+    out: list[KnownPatternTemplate] = []
+    seen: set[int] = set()
+    for name in names:
+        template = TEMPLATE_BY_CALL_NAME.get(name) or TEMPLATE_BY_NAME.get(name)
+        if template is None:
+            raise UnknownPatternError(
+                f"unknown known-pattern {name!r}. Valid names are the template call names "
+                f"({', '.join(sorted(TEMPLATE_BY_CALL_NAME)[:3])}, ...) or their short names; pass "
+                f'"all" to force-enable every pattern.'
+            )
+        if id(template) not in seen:
+            seen.add(id(template))
+            out.append(template)
+    return out
+
+
 # convenience groupings (templates) for tests and callers
 ALL_STL_TEMPLATES = [
     STD_STRING_LENGTH,
@@ -159,6 +215,7 @@ __all__ = [
     "ALL_KNOWN_PATTERN_TEMPLATES",
     "ALL_LIBM_TEMPLATES",
     "ALL_LINKED_LIST_TEMPLATES",
+    "ALL_PATTERNS",
     "ALL_POSIX_MACRO_TEMPLATES",
     "ALL_PROTOBUF_TEMPLATES",
     "ALL_STL2_TEMPLATES",
@@ -191,6 +248,7 @@ __all__ = [
     "STD_VECTOR_SHORT_SIZE",
     "STD_VECTOR_STRUCT_SIZE_TEMPLATES",
     "TEMPLATE_BY_CALL_NAME",
+    "TEMPLATE_BY_NAME",
     "CppRef",
     "KnownPattern",
     "KnownPatternFinder",
@@ -217,6 +275,7 @@ __all__ = [
     "PatternGenerator",
     "PatternParam",
     "TypeRef",
+    "UnknownPatternError",
     "UnsupportedOutlineError",
     "exact_div_magic",
     "make_std_vector_size_exactdiv_template",
@@ -224,4 +283,5 @@ __all__ = [
     "make_template",
     "patterns_for",
     "register_pattern_template",
+    "resolve_pattern_selection",
 ]

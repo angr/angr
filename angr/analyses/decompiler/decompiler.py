@@ -196,6 +196,7 @@ class Decompiler(Analysis):
         self.options_by_class: defaultdict[str, list[tuple[DecompilationOption, Any]]] = defaultdict(list)
         for o, v in self._options:
             self.options_by_class[o.cls].append((o, v))
+        self._validate_options()
 
         if preset is None and optimization_passes:
             self._optimization_passes = optimization_passes
@@ -369,8 +370,23 @@ class Decompiler(Analysis):
             if isinstance(o, str):
                 # convert to DecompilationOption
                 o = PARAM_TO_OPTION[o]
+            if isinstance(v, list):
+                # option values end up in the hashable _cache_parameters set; normalize sequences to tuples
+                v = tuple(v)
             converted_options.append((o, v))
         return converted_options
+
+    def _validate_options(self) -> None:
+        """Reject bad option values up front.
+
+        The decompilation itself runs under ``_resilience()`` and falls back to the basic preset on any error, so a
+        mistyped pattern name would otherwise be swallowed and silently produce output with no patterns applied at
+        all. Validating here means ``proj.analyses.Decompiler(...)`` raises for the caller instead."""
+        from .known_patterns import resolve_pattern_selection  # pylint:disable=import-outside-toplevel
+
+        for o, v in self._options:
+            if o.param == "known_patterns":
+                resolve_pattern_selection(o.convert(v) if o.convert is not None else v)
 
     def _decompile_with_cache(self):
         with sprop_cache_scope(self._sprop_walker_cache):
