@@ -30,16 +30,32 @@ both are common enough shapes to be opt-in. ``WEXITSTATUS`` / ``WSTOPSIG``
 ``(status & 0xff00) >> 8`` to a single ``movzbl %ah`` and the decompiler renders
 it as a plain byte-sized virtual variable, leaving no shift or mask to match.
 
+**``WIFSIGNALED`` does not match on x86-32, and should not be made to.** There
+the ``(signed char)`` cast lifts to an ``Extract`` rather than a ``Convert``, and
+gcc takes the *inverted* branch, so the AIL reads
+
+    Extract(((status & 0x7f) + 1), 8bits@0) CmpLE 1<8>
+
+The missing ``Extract`` node in the DSL is the smaller half of the problem: that
+expression is ``!WIFSIGNALED(status)``, and a KnownPattern replaces the matched
+expression by the value of its synthesized call, so there is no way to spell the
+negation. A pattern matching this shape and emitting ``WIFSIGNALED(status)``
+would silently swap the two arms of every wait-status branch on 32-bit -- the
+"child was killed by signal N" arm would become the "exited normally" one. The
+x86-32 sites (0 of 13 busybox functions) are therefore a deliberate gap until the
+pattern model can express a negated result.
+
 ``<sys/sysmacros.h>`` ``major()`` is an ``extern __inline`` function that -O2
 inlines; its glibc encoding scatters the major number over bits 8-19 and 32-63::
 
     __major  = ((__dev & 0x00000000000fff00u) >>  8);
     __major |= ((__dev & 0xfffff00000000000u) >> 32);
 
-which gcc reassociates into ``((dev >> 8) & 0xfff) | ((dev >> 32) & 0xfffff000)``.
-That constant quartet is unique enough to enable by default. ``minor()`` and
-``makedev()`` compile to ``Insert``/``Extract`` AIL expressions for which the
-pattern DSL has no node, so they are not defined here.
+which gcc reassociates into ``((dev >> 8) & 0xfff) | ((dev >> 32) & 0xfffff000)``
+on 64-bit targets, and into a funnel-shift pair on 32-bit ones (see
+``_build_major32``). That constant quartet is unique enough to enable by default.
+``minor()`` and ``makedev()`` compile to ``Insert``/``Extract`` AIL expressions
+for which the pattern DSL has no node, so they are not defined here.
 
 Every macro argument is matched as a virtual variable (optionally behind a
 compiler-inserted narrowing Convert), never as a Load: an outlined call's
