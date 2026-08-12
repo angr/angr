@@ -1086,3 +1086,45 @@ class TestMemberContainers(TestCase):
     def test_member_string_back(self):
         _, _, _, dec = _decompile(self.STL4_BIN, "doc_name_back", preset="full")
         assert "std::string::back(" in dec.codegen.text
+
+
+class TestVectorElementSizes(TestCase):
+    # size()/capacity()/operator[] carry sizeof(T) in their divisor or scale, so
+    # each needs a template per element size. Three gaps, each measured against
+    # the benchmark corpus:
+    #   capacity() had only the 4-byte template, and the corpus contains ZERO
+    #     4-byte-element capacity sites -- it could not fire at all;
+    #   operator[] likewise, against 78% of sites being 8-byte elements;
+    #   size() covered powers of two only up to 8, so std::vector<std::string>
+    #     (sizeof == 32) -- the corpus' most common element type -- was missed.
+
+    STL4_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl4")
+
+    def test_capacity_is_generated_per_element_size(self):
+        from angr.analyses.decompiler.known_patterns import STD_VECTOR_CAPACITY_TEMPLATES
+
+        names = {t.call_name for t in STD_VECTOR_CAPACITY_TEMPLATES}
+        assert "std::vector<int>::capacity" in names
+        assert "std::vector<long long>::capacity" in names
+        assert "std::vector<T32>::capacity" in names  # a power of two above 8
+        assert "std::vector<T112>::capacity" in names  # exact-division magic
+
+    def test_member_vector_capacity(self):
+        # 8-byte elements: unrepresentable before, since only int existed
+        _, _, _, dec = _decompile(self.STL4_BIN, "doc_items_capacity", preset="full")
+        assert "std::vector<long long>::capacity(" in dec.codegen.text
+
+    def test_power_of_two_element_above_eight(self):
+        # sizeof(std::string) == 32 -> a bare `>> 5` with no named element type
+        _, _, _, dec = _decompile(self.STL4_BIN, "names_count", preset="full")
+        assert "std::vector<T32>::size(" in dec.codegen.text
+
+    def test_index_with_an_eight_byte_element(self):
+        proj, cfg, func, _ = _decompile(self.STL4_BIN, "items_at", preset="fast")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            cfg=cfg.model,
+            preset="full",
+            options=[("known_patterns", ["std::vector<long long>::operator[]"])],
+        )
+        assert "std::vector<long long>::operator[](" in dec.codegen.text

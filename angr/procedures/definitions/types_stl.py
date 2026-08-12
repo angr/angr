@@ -79,7 +79,19 @@ typelib.types = {
 #: readable.
 EXACTDIV_ELEMENT_SIZES = tuple(n for n in range(3, 513) if n & (n - 1))
 
-for _n in EXACTDIV_ELEMENT_SIZES:
+#: Power-of-two element sizes above 8, which divide with a bare shift but have no
+#: named C++ type of that width (short/int/long long cover 2/4/8).
+#:
+#: Leaving these out was not a small gap: sizeof(std::string) is 32 on libstdc++,
+#: and std::vector<std::string> is the single most common element type in the
+#: benchmark corpus. Without a T32 template its size() read is either unnamed or,
+#: worse, mis-identified by whatever sub-pattern does match.
+SHIFT_ELEMENT_SIZES = (16, 32, 64, 128, 256, 512)
+
+#: Every size with an opaque ``std::vector<T<N>>`` class.
+OPAQUE_ELEMENT_SIZES = tuple(sorted(EXACTDIV_ELEMENT_SIZES + SHIFT_ELEMENT_SIZES))
+
+for _n in OPAQUE_ELEMENT_SIZES:
     _elt_name = f"T{_n}"
     _elt = SimStruct(OrderedDict([("data", SimTypeArray(SimTypeChar(), _n))]), name=_elt_name)
     _uniq = f"class std::vector<{_elt_name}, class std::allocator<{_elt_name}>>"

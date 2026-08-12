@@ -169,6 +169,14 @@ def make_std_vector_back_template(elt_name: str, elt_size: int, returnty: str):
 
 # opt-in: `*(p->field_1 - N)` with N == the load width also describes a
 # header-behind-the-pointer read (allocators, refcounted buffers).
+#
+# Element sizes 1/2/4/8. char and bool together are 20% of the corpus' DWARF
+# sites for this accessor -- more than the 8-byte elements -- but `*(p - 1)` is
+# also the most generic of the four, which is another reason the whole family
+# stays opt-in. The remaining 60% are class elements, where back() returns a
+# reference: the machine code is an address computation with no element load at
+# all, so no template can express them.
+STD_VECTOR_CHAR_BACK = make_std_vector_back_template("char", 1, "char")
 STD_VECTOR_INT_BACK = make_std_vector_back_template("int", 4, "int")
 STD_VECTOR_LONG_LONG_BACK = make_std_vector_back_template("long long", 8, "long long")
 STD_VECTOR_SHORT_BACK = make_std_vector_back_template("short", 2, "short")
@@ -178,6 +186,7 @@ ALL_STL2_TEMPLATES = [
     STD_STRING_CAPACITY,
     STD_STRING_BACK,
     STD_STRING_FRONT,
+    STD_VECTOR_CHAR_BACK,
     STD_VECTOR_SHORT_BACK,
     STD_VECTOR_INT_BACK,
     STD_VECTOR_LONG_LONG_BACK,
