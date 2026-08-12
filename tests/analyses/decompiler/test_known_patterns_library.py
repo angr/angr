@@ -782,10 +782,15 @@ class TestVectorExactDivSize(TestCase):
         names = {t.name for t in STD_VECTOR_STRUCT_SIZE_TEMPLATES}
         for n in (3, 6, 12, 40, 48, 80, 96, 112, 224, 384):
             assert f"std_vector_T{n}_size" in names, f"sizeof(T)={n} is not covered"
-        # powers of two divide with a bare shift and need no magic constant; they are
-        # the separately named short/int/long long templates
-        for n in (2, 4, 8, 16, 64, 256):
+        # powers of two up to 8 divide with a bare shift and have a named element
+        # type (short/int/long long), so they are not in the opaque set
+        for n in (2, 4, 8):
             assert f"std_vector_T{n}_size" not in names
+        # above 8 there is no named type of that width, so they get an opaque
+        # element class too. sizeof(std::string) is 32, and std::vector<std::string>
+        # is the most common element type in the benchmark corpus.
+        for n in (16, 32, 64, 256):
+            assert f"std_vector_T{n}_size" in names, f"sizeof(T)={n} is not covered"
 
     def test_exact_div_magic_matches_the_compiler(self):
         from angr.analyses.decompiler.known_patterns import exact_div_magic
