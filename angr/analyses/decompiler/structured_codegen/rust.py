@@ -2850,7 +2850,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         variable_map: VariableMap | None = None,
         # accepted so that the "codegen" decompilation options apply uniformly to both flavors; the Rust renderer has
         # no C++ STL field accesses to name
-        stl_accessor_calls: bool = True,  # pylint:disable=unused-argument
+        stl_accessor_calls: bool = False,  # pylint:disable=unused-argument
     ):
         super().__init__(
             flavor=flavor,

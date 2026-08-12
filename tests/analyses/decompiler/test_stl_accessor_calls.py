@@ -45,7 +45,8 @@ STL_ACCESSOR_OPTION = next(o for o in dec_options if o.param == "stl_accessor_ca
 
 def _decompile_with_prototype(bin_path: str, func_name: str, arg_types, ret_type):
     """
-    Decompile ``func_name`` after pinning its prototype as user-provided, so that Clinic feeds the argument types to
+    Decompile ``func_name`` with accessor rendering explicitly enabled (the option is off by
+    default) after pinning its prototype as user-provided, so that Clinic feeds the argument types to
     Typehoon as ground truth. This is how a container pointer gets its ``cpp::std`` class type in real binaries too
     -- there it comes from an inlined-accessor KnownPattern that fired somewhere in the same function -- but pinning
     it makes the test independent of which patterns happen to match this fixture.
@@ -59,7 +60,9 @@ def _decompile_with_prototype(bin_path: str, func_name: str, arg_types, ret_type
     arch = proj.arch
     func.prototype = SimTypeFunction([t.with_arch(arch) for t in arg_types], ret_type.with_arch(arch)).with_arch(arch)
     func.prototype_source = PrototypeSource.USER
-    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+        func, cfg=cfg.model, preset="full", options=[(STL_ACCESSOR_OPTION, True)]
+    )
     assert dec.codegen is not None and dec.codegen.text is not None
     return dec
 
