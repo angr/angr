@@ -14,6 +14,34 @@ class Bswap(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp, Convert)
 
     def optimize(self, expr: BinaryOp, **kwargs):
+        # bswap_16, as x86 actually lifts it: a 16-bit value byte-swapped with
+        # `rol $8, %r16` becomes a plain Rol, and the Or spelling is 16 bits wide
+        # so the truncating mask the branch below looks for never exists. Measured
+        # on a corpus of network code, these two shapes are 266 of the residual
+        # byte swaps while the masked form below is 0 -- without them the 16-bit
+        # rewrite never fires on real code, and the value renders as __ROL__().
+        if expr.bits == 16 and isinstance(expr, BinaryOp):
+            core = None
+            if expr.op == "Rol" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 8:
+                core = expr.operands[0]
+            elif expr.op == "Or":
+                a, b = expr.operands
+                for lhs, rhs in ((a, b), (b, a)):
+                    if (
+                        isinstance(lhs, BinaryOp)
+                        and lhs.op in {"Shl", "Mul"}
+                        and get_expr_shift_left_amount(lhs) == 8
+                        and isinstance(rhs, BinaryOp)
+                        and rhs.op == "Shr"
+                        and isinstance(rhs.operands[1], Const)
+                        and rhs.operands[1].value == 8
+                        and lhs.operands[0].likes(rhs.operands[0])
+                    ):
+                        core = lhs.operands[0]
+                        break
+            if core is not None:
+                return Call(expr.idx, "__builtin_bswap16", args=[core], bits=expr.bits, **expr.tags)
+
         # bswap_16
         #   And(
         #     (
@@ -68,11 +96,18 @@ class Bswap(PeepholeOptimizationExprBase):
             if len(or_pieces) == 4:
                 # parse pieces
                 shifts = set()
-                cores = set()
+                # NOTE: collected as a list and compared with .likes(), not as a set.
+                # AIL __eq__ is idx-sensitive, so the four textually identical cores of
+                # a real byte swap -- each a separate occurrence with its own index --
+                # land as four distinct set members and the match is abandoned. The
+                # hand-written fixture happens to reuse one object four times, which is
+                # why this went unnoticed; on real code it made the 32-bit rewrite fire
+                # on 12 of 511 byte-swap instructions.
+                cores = []
                 for piece in or_pieces:
                     if isinstance(piece, BinaryOp):
                         if piece.op in {"Shl", "Mul"} and isinstance(piece.operands[1], Const):
-                            cores.add(piece.operands[0])
+                            cores.append(piece.operands[0])
                             shift_amount = get_expr_shift_left_amount(piece)
                             shifts.add(("<<", shift_amount, 0xFFFFFFFF))
                         elif piece.op == "And" and isinstance(piece.operands[1], Const):
@@ -83,7 +118,7 @@ class Bswap(PeepholeOptimizationExprBase):
                                 and and_core.op in {"Shl", "Mul"}
                                 and isinstance(and_core.operands[1], Const)
                             ):
-                                cores.add(and_core.operands[0])
+                                cores.append(and_core.operands[0])
                                 shift_amount = get_expr_shift_left_amount(and_core)
                                 shifts.add(("<<", shift_amount, and_amount))
                             elif (
@@ -91,16 +126,20 @@ class Bswap(PeepholeOptimizationExprBase):
                                 and and_core.op == "Shr"
                                 and isinstance(and_core.operands[1], Const)
                             ):
-                                cores.add(and_core.operands[0])
+                                cores.append(and_core.operands[0])
                                 shifts.add((">>", and_core.operands[1].value, and_amount))
-                if len(cores) == 1 and shifts == {
-                    ("<<", 0x18, 0xFFFFFFFF),
-                    ("<<", 8, 0xFF0000),
-                    (">>", 0x18, 0xFF),
-                    (">>", 8, 0xFF00),
-                }:
-                    core_expr = next(iter(cores))
-                    return Call(expr.idx, "__builtin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
+                if (
+                    cores
+                    and all(c.likes(cores[0]) for c in cores)
+                    and shifts
+                    == {
+                        ("<<", 0x18, 0xFFFFFFFF),
+                        ("<<", 8, 0xFF0000),
+                        (">>", 0x18, 0xFF),
+                        (">>", 8, 0xFF00),
+                    }
+                ):
+                    return Call(expr.idx, "__builtin_bswap32", args=[cores[0]], bits=expr.bits, **expr.tags)
 
             # bswap_64 (and the SWAR spelling of bswap_32): a recursive
             # divide-and-conquer tree rather than a flat 4-way Or, so the
