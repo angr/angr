@@ -978,3 +978,38 @@ class TestGateObjects(TestCase):
         assert STD_STRING_LENGTH.enabled_by_default
         assert STD_STRING_LENGTH.enabled_for(GateContext(ctx=_AMD64_CTX))
         assert not STD_STRING_FRONT.enabled_for(GateContext(ctx=_AMD64_CTX))
+
+
+class TestUnderscorePrefixedMangling(TestCase):
+    # 32-bit PE and Mach-O prefix every symbol with an underscore, so an
+    # Itanium-mangled name arrives as "__ZNSt...". Matching only "_Z" made
+    # detect_cxx_runtime report "c" for an i386 mingw C++ binary, which silently
+    # declined every languages=("cpp",) template -- reading as a flat 0% recall
+    # for all libstdc++ families on that arm rather than as a detection failure.
+
+    def test_double_underscore_mangling_is_cpp(self):
+        from angr.analyses.decompiler.known_patterns.context import LIBSTDCXX, _mangled_symbol_prefixes
+
+        class _Sym:
+            def __init__(self, name):
+                self.name = name
+
+        class _Obj:
+            deps = []
+
+            def __init__(self, names):
+                self.symbols = [_Sym(n) for n in names]
+
+        assert "_Z" in _mangled_symbol_prefixes(
+            type("P", (), {"loader": type("L", (), {"main_object": _Obj(["__ZNSt6vectorIiE9push_backEi"])})()})()
+        )
+        assert "_Z" in _mangled_symbol_prefixes(
+            type("P", (), {"loader": type("L", (), {"main_object": _Obj(["_ZNSt6vectorIiE9push_backEi"])})()})()
+        )
+        assert LIBSTDCXX == "libstdcxx"
+
+    def test_msvc_x86_binary_still_detects_msvc(self):
+        bin_path = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
+        from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
+
+        assert detect_cxx_runtime(angr.Project(bin_path, auto_load_libs=False)) == MSVC

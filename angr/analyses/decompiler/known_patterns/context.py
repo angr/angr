@@ -54,7 +54,12 @@ def _mangled_symbol_prefixes(project: Project) -> set[str]:
         name = getattr(sym, "name", None)
         if not name:
             continue
-        if name.startswith("_Z"):
+        # 32-bit PE and Mach-O prefix every symbol with an underscore, so an
+        # Itanium-mangled name arrives as "__ZNSt..." there. Matching only "_Z"
+        # made detect_cxx_runtime return "c" for i386 mingw C++ binaries, which
+        # silently declined every languages=("cpp",) template -- 518 of them,
+        # reading as a flat 0% recall for all 17 libstdc++ families on that arm.
+        if name.startswith(("_Z", "__Z")):
             prefixes.add("_Z")
         elif name.startswith("?"):
             prefixes.add("?")

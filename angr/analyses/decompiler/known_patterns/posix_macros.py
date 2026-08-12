@@ -58,11 +58,14 @@ on 64-bit targets, and into a funnel-shift pair on 32-bit ones (see
 for which the pattern DSL has no node, so they are not defined here.
 
 Every macro argument is matched as a virtual variable (optionally behind a
-compiler-inserted narrowing Convert), never as a Load: an outlined call's
-arguments must be the outlined region's live-in virtual variables, so a pattern
-that captured, say, ``st->st_mode`` directly would match but could never be
-outlined. Real callers that keep the mode in a local therefore match; callers
-that read it straight out of a ``struct stat`` field at the point of use do not.
+compiler-inserted narrowing Convert), never as a Load. The consequence is that a
+caller reading the mode straight out of a ``struct stat`` field at the point of
+use does not match at all: ``PVVar.match`` returns None on a Load, so the finder
+never produces a match. (It does *not* reach ``_rewrite_callsite`` and fail
+there -- that error can only occur for patterns whose parameter capture is not a
+bare PVVar.) Measured on real -O2 code this costs less than it sounds: struct
+stat is almost always a stack local, so ``st.st_mode`` is lifted to a stack vvar
+that matches; only pointer dereferences such as ``inode->i_mode`` stay Loads.
 
 Calibrated against tests/x86_64/decompiler/known_patterns_glibc_macros (gcc
 12.2 -O2; re-checked at -O1/-O3, and against glibc 2.36 headers).
