@@ -9,7 +9,7 @@ from unittest import TestCase
 import archinfo
 
 import angr
-from angr.ailment.expression import Load, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Const, Load, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompilation_options import parse_known_patterns
@@ -41,6 +41,9 @@ from tests.common import bin_location
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
 # std::vector<T>::size() whose chased definitions are still used by other code
 STL3_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl3")
+# coreutils mv at -O2: copy_internal keeps `st_mode & S_IFMT` in one register and
+# tests it from a dozen other blocks -- the CSE'd-mask shape
+MV_BIN = os.path.join(bin_location, "tests", "x86_64", "mv_-O2")
 CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_containing_record.exe")
 MB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_multiblock")
 # statically-linked, stripped MSVC C++ binary: no msvcp dependency, no mangled
@@ -611,6 +614,59 @@ class TestSharedChasedDefinitions(TestCase):
         proj, _, func, dec = _decompile(STL3_BIN, "vec_size_shared_chain")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert [m.pattern.name for m in finder.matches] == ["std_vector_T12_size"]
+
+
+class TestRemoteChasedDefinitions(TestCase):
+    # An idiom's intermediate value is routinely computed once and consumed from
+    # several *other* blocks -- the CSE'd `mode & S_IFMT` feeding an if-chain of
+    # S_IS* tests is the canonical case, and on real code it accounts for about
+    # half of all S_IS* misses. The same-block chase cannot see such a definition
+    # at all, so no block contains the whole idiom and every arm of the chain is
+    # lost. Because the computation is pure, the outlined region can recompute it.
+
+    def test_cse_mask_feeding_an_if_chain_is_matched(self):
+        proj, _, func, dec = _decompile(MV_BIN, "copy_internal")
+        with_remote = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        without = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, chase_remote_defs=False)
+        recomputed = [m for m in with_remote.matches if m.recomputed_defs]
+        assert recomputed, "no match reached its operand through a definition in another block"
+        assert len(with_remote.matches) > len(without.matches)
+        assert all(m.pattern.name.startswith("s_is") for m in recomputed)
+
+        # every recomputed definition is the shared mask itself, and it is left
+        # where it is -- nothing is consumed out of the anchor block
+        for m in recomputed:
+            assert not m.consumed_stmt_idxs and not m.duplicated_stmt_idxs
+            for _varid, expr in m.recomputed_defs:
+                assert isinstance(expr, BinaryOp) and expr.op == "And"
+                assert any(isinstance(o, Const) and o.value == 0o170000 for o in expr.operands)
+
+    def test_recomputed_definition_is_outlined_into_the_callee(self):
+        proj, _, func, dec = _decompile(MV_BIN, "copy_internal")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        m = next(m for m in finder.matches if m.recomputed_defs)
+        block = next(b for b in dec.ail_graph if (b.addr, b.idx) == m.block_loc)
+        before = list(block.statements)
+
+        result = finder.outline(m)
+        # the call takes the mode, not the masked intermediate the block sees
+        assert [a.varid for a in result.child_funcargs] == [m.captures["mode"].varid]
+        # the mask is recomputed inside the callee, on a fresh vvar id
+        child_defs = [
+            s
+            for b in result.child_graph
+            for s in b.statements
+            if isinstance(s, Assignment) and isinstance(s.src, BinaryOp)
+        ]
+        assert any(
+            s.src.op == "And" and any(isinstance(o, Const) and o.value == 0o170000 for o in s.src.operands)
+            for s in child_defs
+        )
+        assert all(s.dst.varid != varid for s in child_defs for varid, _ in m.recomputed_defs)
+        # and the anchor block keeps every statement it had apart from the anchor
+        kept = [s for b in result.graph for s in b.statements]
+        for stmt in before[: m.anchor_stmt_idx]:
+            assert any(s is stmt for s in kept), f"{stmt} was moved out of the caller"
 
 
 class TestOutlinedResultIdentity(TestCase):

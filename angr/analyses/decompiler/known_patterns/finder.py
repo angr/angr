@@ -14,12 +14,14 @@ from angr.ailment.expression import (
     ITE,
     BinaryOp,
     Call,
+    Const,
     Convert,
     Expression,
     Extract,
     Insert,
     Load,
     Reinterpret,
+    StackBaseOffset,
     UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
@@ -74,6 +76,10 @@ class KnownPatternMatch:
     outlined region instead of moved: the originals stay where they are (other
     code still uses them) and the copies make the pattern's captured values the
     region's live-ins. It is always disjoint from ``consumed_stmt_idxs``.
+
+    ``recomputed_defs`` does the same for definitions that live in *another*
+    block (a CSE'd value, possibly reaching the anchor through a phi): the
+    expression is pure, so the region recomputes it from the captured operands.
     """
 
     pattern: KnownPattern
@@ -85,6 +91,8 @@ class KnownPatternMatch:
     matched_expr: Expression | None
     # chased definitions copied into the region, originals left in place
     duplicated_stmt_idxs: frozenset[int] = frozenset()
+    # (varid, pure expression) definitions from other blocks, recomputed in the region
+    recomputed_defs: tuple[tuple[int, Expression], ...] = ()
     # statement-sequence matches only
     stmt_span: tuple[int, ...] | None = None
     # multi-block (graph) matches only
@@ -206,12 +214,16 @@ class KnownPatternFinder(Analysis):
     invoking the Outliner analysis on a copy of the graph.
     """
 
+    # how many definitions (phi levels included) a remote chase follows
+    MAX_REMOTE_CHASE_DEPTH = 6
+
     def __init__(
         self,
         func: Function,
         ail_graph: networkx.DiGraph,
         patterns: Iterable[object] | None = None,
         chase_defs: bool = True,
+        chase_remote_defs: bool = True,
         skip_conversions: bool = True,
         vvar_id_start: int = 0xBEEF,
         block_addr_start: int = 0xAABB_0000,
@@ -241,7 +253,11 @@ class KnownPatternFinder(Analysis):
         self._func = func
         self._graph = ail_graph
         self._chase_defs = chase_defs
+        self._chase_remote_defs = chase_defs and chase_remote_defs
         self._skip_conversions = skip_conversions
+        # varid -> the pure expression it can be recomputed from, or None
+        self._remote_def_cache: dict[int, Expression | None] = {}
+        self._blocks_by_loc: dict[tuple[int, int | None], Block] | None = None
         self._ail_manager = ail_manager
         self.vvar_id_start = vvar_id_start
         self.block_addr_start = block_addr_start
@@ -742,6 +758,7 @@ class KnownPatternFinder(Analysis):
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
             chase_fn=self._make_chase_fn(block, stmt_idx) if self._chase_defs else None,
+            remote_chase_fn=self._make_remote_chase_fn(),
         )
         state = pattern.pattern.match(target, MatchState(), ctx)
         if state is None:
@@ -793,6 +810,13 @@ class KnownPatternFinder(Analysis):
                 duplicated = consumed
             consumed = frozenset()
 
+        # a recomputed definition only makes sense if the values the call will pass
+        # are virtual variables the region can take as live-ins
+        if state.remote_defs and not all(
+            isinstance(state.bindings.get(param.capture), VirtualVariable) for param in pattern.params
+        ):
+            return None
+
         return KnownPatternMatch(
             pattern=pattern,
             block_loc=(block.addr, block.idx),
@@ -802,6 +826,7 @@ class KnownPatternFinder(Analysis):
             captures=dict(state.bindings),
             matched_expr=target if isinstance(target, Expression) else None,  # type: ignore[arg-type]
             duplicated_stmt_idxs=duplicated,
+            recomputed_defs=state.remote_defs,
         )
 
     def _make_chase_fn(self, block: Block, anchor_stmt_idx: int):
@@ -821,6 +846,98 @@ class KnownPatternFinder(Analysis):
             return defloc.stmt_idx, def_stmt.src
 
         return chase
+
+    def _make_remote_chase_fn(self):
+        if not self._chase_remote_defs:
+            return None
+        return self._resolve_remote_def
+
+    def _block_at(self, loc: tuple[int, int | None]) -> Block | None:
+        if self._blocks_by_loc is None:
+            self._blocks_by_loc = {(b.addr, b.idx): b for b in self._graph.nodes}
+        return self._blocks_by_loc.get(loc)
+
+    def _resolve_remote_def(self, varid: int, _depth: int = 0, _seen: frozenset[int] | None = None):
+        """The pure expression a vvar defined *elsewhere* can be recomputed from.
+
+        The same-block chase (:meth:`_make_chase_fn`) can only see a definition
+        it is allowed to move or copy within the anchor block. Optimized code
+        routinely computes an idiom's intermediate value once and feeds it to
+        several blocks -- the CSE'd ``mode & S_IFMT`` of an ``S_IS*`` if-chain is
+        the canonical case -- and then no block contains the whole idiom.
+
+        Such a definition cannot be moved (its other users need it) and cannot be
+        copied statement-wise (it is not in this block), but it *can* be
+        recomputed at the use, provided the computation is pure: SSA guarantees a
+        definition dominates its uses, hence so do the definitions of its
+        operands, so re-evaluating the right-hand side at the use yields the same
+        value. "Pure" here means register arithmetic only -- no load, no call, no
+        dirty helper -- so that no intervening store can change the result.
+
+        A phi is resolved by resolving every incoming value and requiring them to
+        agree structurally: that is exactly the shape a CSE'd value takes when the
+        compiler duplicated the computation into two arms of a diamond.
+        """
+        if _depth == 0:
+            cached = self._remote_def_cache.get(varid, False)
+            if cached is not False:
+                return cached
+            out = self._resolve_remote_def(varid, 1, frozenset((varid,)))
+            self._remote_def_cache[varid] = out
+            return out
+        if _depth > self.MAX_REMOTE_CHASE_DEPTH or self._srda_model is None:
+            return None
+
+        defloc = self._srda_model.all_vvar_definitions.get(varid)
+        if defloc is None or defloc.is_extern:
+            return None
+        block = self._block_at((defloc.addr, defloc.block_idx))
+        if block is None or defloc.stmt_idx >= len(block.statements):
+            return None
+        def_stmt = block.statements[defloc.stmt_idx]
+        if not isinstance(def_stmt, Assignment):
+            return None
+
+        if is_phi_assignment(def_stmt):
+            resolved: Expression | None = None
+            seen = _seen if _seen is not None else frozenset()
+            for _, src_vvar in def_stmt.src.src_and_vvars:
+                if src_vvar is None or src_vvar.varid in seen:
+                    return None
+                src_expr = self._resolve_remote_def(src_vvar.varid, _depth + 1, seen | {src_vvar.varid})
+                if src_expr is None or src_expr.bits != def_stmt.dst.bits:
+                    return None
+                if resolved is None:
+                    resolved = src_expr
+                elif not resolved.likes(src_expr):
+                    return None
+            return resolved
+
+        src = def_stmt.src
+        if isinstance(src, VirtualVariable):
+            # a copy: follow it, so a value renamed on the way to the use is still
+            # recognized. Bare vvars are never returned, which keeps the chase in
+            # dsl._prepare from re-entering on the same shape.
+            if src.varid in (_seen or frozenset()):
+                return None
+            return self._resolve_remote_def(src.varid, _depth + 1, (_seen or frozenset()) | {src.varid})
+        if not self._is_recomputable(src):
+            return None
+        return src
+
+    # expression kinds whose value depends only on their operands
+    _PURE_EXPR_TYPES = (BinaryOp, UnaryOp, Convert, Reinterpret, Extract, Insert, ITE)
+
+    @classmethod
+    def _is_recomputable(cls, expr: Expression) -> bool:
+        """True when ``expr`` reads no memory and calls nothing, so evaluating it
+        at any point its operands are live gives the same value."""
+        for sub in _iter_subexprs(expr):
+            if isinstance(sub, (VirtualVariable, Const, StackBaseOffset)):
+                continue
+            if not isinstance(sub, cls._PURE_EXPR_TYPES):
+                return False
+        return True
 
     def _all_uses_within(self, varid: int, block: Block, stmt_idxs: set[int] | frozenset[int]) -> bool:
         assert self._srda_model is not None
@@ -898,7 +1015,10 @@ class KnownPatternFinder(Analysis):
         # destination, and is applied to the copies themselves (a later
         # definition may use an earlier one) and to everything else that moves
         # into the region and reads them
-        dup_stmts, subst = self._duplicate_defs(stmts, duplicated)
+        recomputed_stmts, subst = self._recompute_defs(match.recomputed_defs, ins_addr)
+        dup_stmts, dup_subst = self._duplicate_defs(stmts, duplicated, subst)
+        dup_stmts = recomputed_stmts + dup_stmts
+        subst = subst + dup_subst
         moved_stmts = [stmts[i] for i in consumed]
         for old_varid, new_vvar in subst:
             moved_stmts = [self._substitute_vvar(s, old_varid, new_vvar) for s in moved_stmts]
@@ -954,8 +1074,43 @@ class KnownPatternFinder(Analysis):
 
         return self._run_outliner_and_rewrite(g, match, (b_mid.addr, b_mid.idx), frontier_loc, ins_addr)
 
+    def _recompute_defs(
+        self, recomputed: tuple[tuple[int, Expression], ...], ins_addr: int | None
+    ) -> tuple[list[Statement], list[tuple[int, VirtualVariable]]]:
+        """Build the assignments that re-derive definitions living outside the
+        anchor block, for placement at the head of the outlined region.
+
+        The expressions are pure (:meth:`_is_recomputable`), so re-evaluating
+        them here is value-preserving; the originals are left untouched for their
+        other users. They are emitted innermost-first: the chase records a
+        definition before descending into it, so a later entry may appear inside
+        an earlier one's expression but never the other way round."""
+        stmts: list[Statement] = []
+        subst: list[tuple[int, VirtualVariable]] = []
+        for varid, src_expr in reversed(recomputed):
+            if not self._is_recomputable(src_expr):
+                raise UnsupportedOutlineError("stale match: the recomputed definition is no longer pure")
+            src = src_expr.copy()
+            for old_varid, new_vvar in subst:
+                src = self._substitute_vvar(src, old_varid, new_vvar)
+            vvar_id = self._next_vvar_id()
+            new_dst = VirtualVariable(
+                self._next_idx(),
+                vvar_id,
+                src.bits,
+                VirtualVariableCategory.TMP,
+                oident=vvar_id,  # TMP-category vvars must carry a tmp idx
+                ins_addr=ins_addr,
+            )
+            stmts.append(Assignment(self._next_idx(), new_dst, src, ins_addr=ins_addr))
+            subst.append((varid, new_dst))
+        return stmts, subst
+
     def _duplicate_defs(
-        self, stmts: list[Statement], duplicated: list[int]
+        self,
+        stmts: list[Statement],
+        duplicated: list[int],
+        prior_subst: list[tuple[int, VirtualVariable]] | None = None,
     ) -> tuple[list[Statement], list[tuple[int, VirtualVariable]]]:
         """Copy the chased definitions at ``duplicated`` (ascending) for
         placement at the head of the outlined region. Each copy defines a fresh
@@ -964,7 +1119,8 @@ class KnownPatternFinder(Analysis):
         before it. Returns the copies and the (original varid, copy's
         destination) substitutions to apply to the region's anchor."""
         dup_stmts: list[Statement] = []
-        subst: list[tuple[int, VirtualVariable]] = []
+        subst: list[tuple[int, VirtualVariable]] = list(prior_subst or [])
+        n_prior = len(subst)
         for i in duplicated:
             stmt = stmts[i]
             if not isinstance(stmt, Assignment) or not isinstance(stmt.dst, VirtualVariable):
@@ -983,7 +1139,7 @@ class KnownPatternFinder(Analysis):
             )
             dup_stmts.append(Assignment(self._next_idx(), new_dst, src, **stmt.tags))
             subst.append((stmt.dst.varid, new_dst))
-        return dup_stmts, subst
+        return dup_stmts, subst[n_prior:]
 
     def _substitute_vvar(self, obj, old_varid: int, new_vvar: VirtualVariable):
         """Replace every occurrence of the vvar ``old_varid`` in ``obj`` (a

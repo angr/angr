@@ -50,6 +50,11 @@ class MatchState:
     consumed_stmt_idxs: frozenset[int] = frozenset()
     # (varid, stmt_idx) pairs recorded when a vvar use was chased to its definition
     chased_defs: tuple[tuple[int, int], ...] = ()
+    # (varid, pure expression) pairs recorded when a vvar use was chased to a
+    # definition outside the anchor block (or behind a phi). Those statements
+    # cannot be moved, so the outliner *recomputes* the expression inside the
+    # region instead; see KnownPatternFinder._resolve_remote_def.
+    remote_defs: tuple[tuple[int, Expression], ...] = ()
     # Convert wrappers that were skipped over during structural matching
     skipped_converts: tuple[Convert, ...] = ()
 
@@ -72,6 +77,11 @@ class MatchCtx:
     # when a structural node meets a VirtualVariable, chase its unique non-phi
     # same-block definition; returns (stmt_idx, def_src_expr) or None
     chase_fn: Callable[[int], tuple[int, Expression] | None] | None = None
+    # fallback for when ``chase_fn`` declines: resolve a vvar to a *pure*
+    # expression that can be recomputed wherever the vvar is live -- a CSE'd
+    # definition in a dominating block, possibly behind phis. Returns None when
+    # the definition is not recomputable.
+    remote_chase_fn: Callable[[int], Expression | None] | None = None
 
 
 class PatternNode:
@@ -94,17 +104,23 @@ class PatternExpr(PatternNode):
         while ctx.skip_conversions and isinstance(expr, Convert):
             state = replace(state, skipped_converts=(*state.skipped_converts, expr))
             expr = expr.operand
-        if isinstance(expr, VirtualVariable) and ctx.chase_fn is not None:
-            chased = ctx.chase_fn(expr.varid)
-            if chased is None:
-                return None
-            stmt_idx, def_expr = chased
-            state = replace(
-                state,
-                consumed_stmt_idxs=state.consumed_stmt_idxs | {stmt_idx},
-                chased_defs=(*state.chased_defs, (expr.varid, stmt_idx)),
-            )
-            return self._prepare(def_expr, state, ctx)
+        if isinstance(expr, VirtualVariable) and (ctx.chase_fn is not None or ctx.remote_chase_fn is not None):
+            chased = ctx.chase_fn(expr.varid) if ctx.chase_fn is not None else None
+            if chased is not None:
+                stmt_idx, def_expr = chased
+                state = replace(
+                    state,
+                    consumed_stmt_idxs=state.consumed_stmt_idxs | {stmt_idx},
+                    chased_defs=(*state.chased_defs, (expr.varid, stmt_idx)),
+                )
+                return self._prepare(def_expr, state, ctx)
+            if ctx.remote_chase_fn is not None:
+                remote = ctx.remote_chase_fn(expr.varid)
+                if remote is not None and remote.bits == expr.bits:
+                    if all(varid != expr.varid for varid, _ in state.remote_defs):
+                        state = replace(state, remote_defs=(*state.remote_defs, (expr.varid, remote)))
+                    return self._prepare(remote, state, ctx)
+            return None
         return expr, state
 
     def _bind_if_named(self, name: str | None, expr: Expression, state: MatchState) -> MatchState | None:
