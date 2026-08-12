@@ -402,7 +402,69 @@ class KnownPatternFinder(Analysis):
         for m in raw_matches:
             if not any(self._conflicts(m, s) for s in selected):
                 selected.append(m)
-        return selected
+        return self._collapse_folded_idioms(selected)
+
+    def _collapse_folded_idioms(self, matches: list[KnownPatternMatch]) -> list[KnownPatternMatch]:
+        """Keep one match per ``collapse_capture`` value, the one with the
+        largest ``collapse_max_capture``.
+
+        A compiler folds a pointer adjustment into every displacement that reads
+        through it, so one source-level idiom reaches the matcher as a family of
+        matches on the same base value with different constants -- and each of
+        them names a different, mostly wrong, adjusted pointer. They describe one
+        idiom, and the largest constant is the one that reaches the true base:
+        every field of the record sits at ``base + member``, i.e. at
+        ``p - (off - member)``, so no member can produce an offset larger than
+        the idiom's own.
+
+        Bases that a previous outlining round already named are excluded too --
+        otherwise the rounds simply peel the family off one offset at a time."""
+        claimed = self._collapsed_bases()
+        best: dict[tuple[str, int], tuple[int, KnownPatternMatch]] = {}
+        out: list[KnownPatternMatch] = []
+        for m in matches:
+            pattern = m.pattern
+            if pattern.collapse_capture is None or pattern.collapse_max_capture is None:
+                out.append(m)
+                continue
+            base = m.captures.get(pattern.collapse_capture)
+            const = m.captures.get(pattern.collapse_max_capture)
+            if not isinstance(base, VirtualVariable) or not isinstance(const, Const):
+                out.append(m)
+                continue
+            key = (pattern.name, base.varid)
+            if key in claimed:
+                continue
+            kept = best.get(key)
+            if kept is None or const.value > kept[0]:
+                best[key] = (const.value, m)
+        out.extend(m for _, m in best.values())
+        return out
+
+    def _collapsed_bases(self) -> set[tuple[str, int]]:
+        """``(pattern name, varid)`` of the bases already named by a synthesized
+        call in the graph, for the patterns that collapse per base."""
+        by_call = {p.call_name: p for p in self._patterns if p.collapse_capture is not None}
+        if not by_call:
+            return set()
+        claimed: set[tuple[str, int]] = set()
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                for _, expr in _iter_stmt_subexprs(stmt):
+                    if not isinstance(expr, Call) or not isinstance(expr.target, str) or not expr.args:
+                        continue
+                    pattern = by_call.get(expr.target)
+                    if pattern is None:
+                        continue
+                    idx = next(
+                        (i for i, prm in enumerate(pattern.params) if prm.capture == pattern.collapse_capture), None
+                    )
+                    if idx is None or idx >= len(expr.args):
+                        continue
+                    arg = expr.args[idx]
+                    if isinstance(arg, VirtualVariable):
+                        claimed.add((pattern.name, arg.varid))
+        return claimed
 
     @staticmethod
     def _stmt_footprint(m: KnownPatternMatch) -> frozenset[int]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
 import os.path
+import re
 import unittest
 from unittest import TestCase
 
@@ -429,6 +430,51 @@ class TestSysMacros(TestCase):
         ctx64 = PatternContext.from_project(angr.Project(GLIBC_BIN, auto_load_libs=False))
         assert MAJOR.instantiate(ctx64) is not None
         assert MAJOR.instantiate(dataclasses.replace(ctx64, bits=32, ptr_size=4)) is None
+
+
+class TestContainingRecordPresentation(TestCase):
+    # container_of's *detection* was never the problem (90%+ function-level recall
+    # on real C): its presentation was. No compiler keeps the adjusted pointer
+    # around, it folds the subtraction into every field displacement, so one
+    # source idiom emitted a call per field, each naming a record base wrong by
+    # that field's offset -- and `p - 1` on a loop counter came along for the ride.
+
+    _CALL = re.compile(r"CONTAINING_RECORD\(\s*([^,()]+?)\s*,\s*(\d+)\s*\)")
+
+    def _calls(self, bin_path, ref):
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name=ref) if isinstance(ref, str) else cfg.functions.function(addr=ref)
+        assert func is not None, ref
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, preset="full", options=ALL_PATTERNS_OPTION
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return self._CALL.findall(dec.codegen.text)
+
+    def test_one_call_per_base_pointer(self):
+        # this driver function walks a LIST_ENTRY and reads six fields of the
+        # record through it, so gcc emitted CONTAINING_RECORD(iter, 96/80/64/48/
+        # 32/16) -- six different claims about where the record starts, five of
+        # them wrong. Only the largest survives, and 96 is the true offsetof.
+        calls = self._calls(DRIVER_BIN, 0x140003EC0)
+        by_base: dict[str, set[int]] = {}
+        for base, off in calls:
+            by_base.setdefault(base, set()).add(int(off))
+        assert all(len(offs) == 1 for offs in by_base.values()), calls
+        assert 96 in by_base.get("iter", set()), calls
+
+    def test_small_offsets_are_not_records(self):
+        # `p - 1` is a decrement; a record base is at least a machine word away
+        calls = self._calls(WDK_BIN, "mark_section_writable")
+        assert [int(o) for _, o in calls] == [64], calls
+        assert all(int(o) >= 8 for _, o in self._calls(DRIVER_BIN, 0x140003EC0))
+
+    def test_the_genuine_unfolded_idiom_still_matches(self):
+        # the shape the pattern gets *right* -- the record pointer handed to a
+        # callee rather than folded into a field load -- must survive the above
+        assert self._calls(CR_BIN, "sum_list")
 
 
 class TestKernelListPatterns(TestCase):
