@@ -35,16 +35,17 @@ class KnownPatternOutliner(OptimizationPass):
 
     def _check(self):
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
-            ALL_KNOWN_PATTERN_TEMPLATES,
+            GateContext,
             PatternContext,
+            partition_templates,
             patterns_for,
             resolve_pattern_selection,
         )
 
         ctx = PatternContext.from_project(self.project)
-        forced_ids = {id(t) for t in resolve_pattern_selection(self._known_patterns)}
-        enabled = [t for t in ALL_KNOWN_PATTERN_TEMPLATES if t.enabled_by_default or id(t) in forced_ids]
-        return bool(patterns_for(ctx, enabled)), None
+        forced = resolve_pattern_selection(self._known_patterns)
+        enabled, deferred = partition_templates(GateContext(ctx=ctx, project=self.project), forced)
+        return bool(patterns_for(ctx, enabled + deferred)), None
 
     def _analyze(self, cache=None):
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel

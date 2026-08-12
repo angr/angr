@@ -33,6 +33,20 @@ from .dsl import (
     PVVar,
 )
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
+from .gating import (
+    KERNEL_TARGET,
+    LINUX_KERNEL,
+    WINDOWS_KERNEL_DRIVER,
+    AllOf,
+    AnyOf,
+    CorroboratedBy,
+    GateContext,
+    PatternGate,
+    TargetGate,
+    all_of,
+    any_of,
+    corroborated_by,
+)
 from .generator import PatternGenerationError, PatternGenerator
 from .kernel_err import ALL_KERNEL_ERR_TEMPLATES, IS_ERR, IS_ERR_OR_NULL
 from .libm_bits import ALL_LIBM_TEMPLATES
@@ -196,6 +210,32 @@ def resolve_pattern_selection(selection: str | Iterable[str] | None) -> list[Kno
     return out
 
 
+def partition_templates(
+    gate_ctx: GateContext,
+    forced: Iterable[KnownPatternTemplate] = (),
+    templates: Iterable[KnownPatternTemplate] | None = None,
+) -> tuple[list[KnownPatternTemplate], list[KnownPatternTemplate]]:
+    """Split templates into ``(enabled, deferred)`` for one target.
+
+    ``enabled`` are the templates to match with right away: default-on ones,
+    ones the caller force-enabled, and ones whose gate already opens on target
+    evidence alone. ``deferred`` are the ones whose gate needs per-function
+    evidence (see :class:`~.gating.CorroboratedBy`) and must be re-evaluated by
+    the finder once the first matching stage has run.
+    """
+    if templates is None:
+        templates = ALL_KNOWN_PATTERN_TEMPLATES
+    forced_ids = {id(t) for t in forced}
+    enabled: list[KnownPatternTemplate] = []
+    deferred: list[KnownPatternTemplate] = []
+    for t in templates:
+        if t.enabled_by_default or id(t) in forced_ids or t.enabled_for(gate_ctx):
+            enabled.append(t)
+        elif t.gate is not None and t.gate.requires_evidence:
+            deferred.append(t)
+    return enabled, deferred
+
+
 # convenience groupings (templates) for tests and callers
 ALL_STL_TEMPLATES = [
     STD_STRING_LENGTH,
@@ -230,6 +270,8 @@ __all__ = [
     "IS_ERR",
     "IS_ERR_OR_NULL",
     "IS_LIST_EMPTY",
+    "KERNEL_TARGET",
+    "LINUX_KERNEL",
     "LIST_DEL",
     "LIST_DEL_INIT",
     "MAJOR",
@@ -249,7 +291,12 @@ __all__ = [
     "STD_VECTOR_STRUCT_SIZE_TEMPLATES",
     "TEMPLATE_BY_CALL_NAME",
     "TEMPLATE_BY_NAME",
+    "WINDOWS_KERNEL_DRIVER",
+    "AllOf",
+    "AnyOf",
+    "CorroboratedBy",
     "CppRef",
+    "GateContext",
     "KnownPattern",
     "KnownPatternFinder",
     "KnownPatternMatch",
@@ -271,16 +318,22 @@ __all__ = [
     "PUnaryOp",
     "PVVar",
     "PatternContext",
+    "PatternGate",
     "PatternGenerationError",
     "PatternGenerator",
     "PatternParam",
+    "TargetGate",
     "TypeRef",
     "UnknownPatternError",
     "UnsupportedOutlineError",
+    "all_of",
+    "any_of",
+    "corroborated_by",
     "exact_div_magic",
     "make_std_vector_size_exactdiv_template",
     "make_std_vector_size_template",
     "make_template",
+    "partition_templates",
     "patterns_for",
     "register_pattern_template",
     "resolve_pattern_selection",
