@@ -164,10 +164,9 @@ def _build_wtermsig(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unus
 
 
 def _build_major(ctx: PatternContext) -> KnownPattern | None:
-    # ((dev >> 8) & 0xfff) | ((dev >> 32) & 0xfffff000); the 64-bit dev_t
-    # encoding is fixed, so this only exists on 64-bit targets
+    # ((dev >> 8) & 0xfff) | ((dev >> 32) & 0xfffff000)
     if ctx.bits < 64:
-        return None
+        return _build_major32(ctx)
     return KnownPattern(
         name="gnu_dev_major",
         display_name="major",
@@ -180,6 +179,50 @@ def _build_major(ctx: PatternContext) -> KnownPattern | None:
             ),
         ),
         params=(PatternParam("dev", "unsigned long long"),),
+        returnty="unsigned int",
+    )
+
+
+def _build_major32(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unused-argument
+    # glibc's dev_t is 64 bits on 32-bit targets too (__DEV_T_TYPE is __UQUAD_TYPE
+    # for __WORDSIZE == 32), so the encoding is the same one -- but the value
+    # lives in a register pair, and each half of major() reads a different half
+    # of it:
+    #
+    #     (dev >> 8) & 0xfff       ->  shrd $8, %hi, %lo ; and $0xfff
+    #     (dev >> 32) & 0xfffff000 ->  and $0xfffff000, %hi
+    #
+    # The funnel shift is what makes this recoverable: angr lifts `shrd` back
+    # into a 64-bit shift of the concatenated pair, so the low half still names
+    # *both* registers and the high half must name the same high register. That
+    # repeated capture is the whole guard, and it is why the two halves cannot
+    # be confused with unrelated masking.
+    #
+    # The synthesized call has to take two arguments, since the 64-bit value is
+    # never materialized: they are ordered low-word-first, which is how a
+    # `long long` argument is actually passed on i386.
+    return KnownPattern(
+        name="gnu_dev_major",
+        display_name="major",
+        call_name="major",
+        pattern=PBinOp(
+            "Or",
+            (
+                PBinOp(
+                    "And",
+                    (
+                        PBinOp(
+                            "Shr",
+                            (PBinOp("Concat", (PVVar("dev_hi"), PVVar("dev_lo")), commutative=False), PConst(8)),
+                            commutative=False,
+                        ),
+                        PConst(0xFFF),
+                    ),
+                ),
+                PBinOp("And", (PVVar("dev_hi"), PConst(0xFFFFF000))),
+            ),
+        ),
+        params=(PatternParam("dev_lo", "unsigned int"), PatternParam("dev_hi", "unsigned int")),
         returnty="unsigned int",
     )
 

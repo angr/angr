@@ -420,16 +420,21 @@ class TestSysMacros(TestCase):
         assert [m.pattern.name for m in finder.matches] == ["gnu_dev_major"]
         assert "major(" in _outline_text(proj, cfg, func, dec, finder)
 
-    def test_major_is_64bit_only(self):
-        # the 64-bit dev_t encoding is what the constants encode, so the template
-        # must decline to instantiate on a 32-bit target
+    def test_major_has_a_32bit_form(self):
+        # glibc's dev_t is 64 bits on 32-bit targets too, so the same encoding
+        # applies -- but it lives in a register pair, and each half of major()
+        # reads a different half of the pair. The 32-bit template therefore has a
+        # different shape and takes the two halves as separate arguments.
         import dataclasses
 
         from angr.analyses.decompiler.known_patterns import MAJOR, PatternContext
 
         ctx64 = PatternContext.from_project(angr.Project(GLIBC_BIN, auto_load_libs=False))
-        assert MAJOR.instantiate(ctx64) is not None
-        assert MAJOR.instantiate(dataclasses.replace(ctx64, bits=32, ptr_size=4)) is None
+        p64 = MAJOR.instantiate(ctx64)
+        p32 = MAJOR.instantiate(dataclasses.replace(ctx64, bits=32, ptr_size=4))
+        assert p64 is not None and p32 is not None
+        assert [prm.capture for prm in p64.params] == ["dev"]
+        assert [prm.capture for prm in p32.params] == ["dev_lo", "dev_hi"]
 
 
 class TestContainingRecordPresentation(TestCase):
