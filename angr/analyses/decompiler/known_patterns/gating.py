@@ -32,6 +32,7 @@ A gate can only *open* an opt-in template; it never disables a default-on one.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -169,6 +170,36 @@ def corroborated_by(*witnesses: str) -> CorroboratedBy:
     if not witnesses:
         raise ValueError("corroborated_by() needs at least one witness pattern")
     return CorroboratedBy(frozenset(witnesses))
+
+
+@dataclass(frozen=True)
+class CorroboratedByPattern(PatternGate):
+    """Opens where evidence matching a *regex* was established.
+
+    ``CorroboratedBy`` takes a fixed list of witness names, which no longer
+    scales: families are generated per element size, so "any std::vector<T>::size"
+    is five hundred names. This matches the evidence set instead.
+    """
+
+    regex: str
+
+    def opens(self, gctx: GateContext) -> bool:
+        rx = re.compile(self.regex)
+        return any(rx.match(name) for name in gctx.evidence)
+
+    @property
+    def requires_evidence(self) -> bool:
+        return True
+
+    @property
+    def label(self) -> str:
+        return f"corroborated by /{self.regex}/"
+
+
+def corroborated_by_pattern(regex: str) -> CorroboratedByPattern:
+    """A gate that opens in a function where evidence matching ``regex`` was
+    established."""
+    return CorroboratedByPattern(regex)
 
 
 def any_of(*gates: PatternGate) -> AnyOf:

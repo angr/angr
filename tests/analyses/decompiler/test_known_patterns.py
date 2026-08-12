@@ -1072,7 +1072,16 @@ class TestMemberContainers(TestCase):
         assert "std::vector<long long> *" in text
 
     def test_member_vector_empty(self):
-        _, _, _, dec = _decompile(self.STL4_BIN, "doc_items_empty", preset="full")
+        # empty() is gated on a size/capacity witness (see
+        # TestStlContainerPatterns), and doc_items_empty contains nothing else --
+        # so force it on to test the *base* shape, which is what this class is about
+        proj, cfg, func, _ = _decompile(self.STL4_BIN, "doc_items_empty", preset="fast")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            cfg=cfg.model,
+            preset="full",
+            options=[("known_patterns", ["std::vector<int>::empty"])],
+        )
         assert "std::vector<int>::empty(" in dec.codegen.text
 
     def test_member_string_capacity(self):

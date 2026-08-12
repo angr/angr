@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from .context import CPP, INTEL
 from .dsl import PBinOp, PChoice, PConst, PField, PLoad, PVVar
+from .gating import corroborated_by_pattern
 from .layouts import vector_begin_offset, vector_end_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .std_vector_size import STD_VECTOR_UNIQUE_NAME_TMPL
@@ -94,7 +95,26 @@ def make_std_vector_index_template(elt_name: str, elt_size: int, returnty: str):
     return make_template(call_name, build, arches=INTEL, languages=(CPP,), enabled_by_default=False, name=name)
 
 
-STD_VECTOR_INT_EMPTY = make_template("std::vector<int>::empty", _build_vector_empty, arches=INTEL, languages=(CPP,))
+# Opt-in, gated on a size()/capacity() match for the same kind of object.
+#
+# `Load(v + 8) == Load(v)` is two adjacent pointer fields compared for equality,
+# which describes an enormous amount of code that is not a container. Measured
+# over the benchmark corpus it fired on 164 functions the oracle knows nothing
+# about against 4 it does -- 2.4% precision -- and letting the base float (PField)
+# is what took it there: the same family was 22% precise when the container had
+# to sit at a register's value. Recall bought that way is not worth having.
+#
+# The witness is any std::vector<T>::size or ::capacity match in the same
+# function: those read two fields at a *fixed distance* and divide by a known
+# element size, which is self-guarding in a way that an equality test is not.
+STD_VECTOR_INT_EMPTY = make_template(
+    "std::vector<int>::empty",
+    _build_vector_empty,
+    arches=INTEL,
+    languages=(CPP,),
+    enabled_by_default=False,
+    gate=corroborated_by_pattern(r"std_vector_.*_(size|capacity)$"),
+)
 STD_VECTOR_INDEX_TEMPLATES = [
     make_std_vector_index_template("char", 1, "char"),
     make_std_vector_index_template("short", 2, "short"),

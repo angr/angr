@@ -138,10 +138,18 @@ class TestStlContainerPatterns(TestCase):
     def test_string_index(self):
         self._check("str_index", "std_string_index", "std::string::operator[](")
 
-    def test_empty_capacity_enabled_by_default(self):
+    def test_empty_is_gated_on_a_size_or_capacity_witness(self):
+        # `Load(v + 8) == Load(v)` is two adjacent pointer fields compared for
+        # equality -- 2.4% precision over the benchmark corpus once the base was
+        # allowed to float. It fires only where a size()/capacity() match in the
+        # same function already identified the object.
         proj, _, func, dec = _decompile(STL_BIN, "vec_empty")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
-        assert any(m.pattern.name == "std_vector_int_empty" for m in finder.matches)
+        names = {m.pattern.name for m in finder.matches}
+        if any(n.startswith("std_vector_") and n.endswith(("_size", "_capacity")) for n in names):
+            assert "std_vector_int_empty" in names, names
+        else:
+            assert "std_vector_int_empty" not in names, names
 
 
 class TestProtobufHasBitsPatterns(TestCase):
