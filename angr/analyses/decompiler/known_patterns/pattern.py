@@ -100,6 +100,19 @@ class KnownPattern:
                               lowercased); None = any.
     :ivar where:              Optional cross-capture predicate evaluated on the
                               bindings after a structural match.
+    :ivar collapse_capture:   Optional capture name identifying the idiom that a
+                              match belongs to: within one function, matches
+                              binding it to the same virtual variable all
+                              describe *one* source-level idiom, and only the
+                              one with the largest ``collapse_max_capture``
+                              constant is kept. The compiler folds
+                              CONTAINING_RECORD's subtraction into every field
+                              displacement, so one source idiom otherwise emits
+                              a call per field, each naming a different (and
+                              mostly wrong) record base.
+    :ivar collapse_max_capture: Capture whose constant value orders the
+                              collapsing; required when ``collapse_capture`` is
+                              set.
     :ivar binary_guard:       Optional predicate on the Project; the pattern is
                               only used when it returns True (e.g. require C++
                               evidence for STL patterns to avoid false
@@ -120,6 +133,8 @@ class KnownPattern:
     arches: tuple[str, ...] | None = None
     platforms: tuple[str, ...] | None = None
     where: Callable[[dict[str, Expression]], bool] | None = None
+    collapse_capture: str | None = None
+    collapse_max_capture: str | None = None
     binary_guard: Callable[[Project], bool] | None = None
     enabled_by_default: bool = True
 
