@@ -32,6 +32,43 @@ jobs:
           path: test_durations.json
           key: cov-test-durations-${{ github.sha }}
           restore-keys: cov-test-durations-
+      - name: Resolve referenced sibling pull requests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          config=$RUNNER_TEMP/uv-sources.toml
+          packages=
+          requirements=
+          seen=
+          references=$(printf '%s' "$PR_BODY" |
+            grep -Eo '[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#[0-9]+|github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/pull/[0-9]+' |
+            sed -E -e 's|^github\.com/||' -e 's|/pull/|#|' -e 's|[/#]| |g') || true
+          while read -r owner repo number; do
+            [ -n "$number" ] || continue
+            case " $seen " in *" $owner/$repo "*) continue ;; esac
+            seen="$seen $owner/$repo"
+            package=$(sed -n '/^\[tool\.uv\.sources\]/,/^\[/p' pyproject.toml |
+              grep -F -e "\"https://github.com/$owner/$repo\"" -e "\"https://github.com/$owner/$repo.git\"" |
+              sed -E 's/^ *([^ =]+).*/\1/' |
+              head -n 1) || true
+            [ -n "$package" ] || continue
+            state=$(gh api "repos/$owner/$repo/pulls/$number" --jq .state) || state=unavailable
+            if [ "$state" != open ]; then
+              echo "$owner/$repo#$number is $state, so it is not used"
+              continue
+            fi
+            echo "Installing $package from $owner/$repo#$number"
+            packages="$packages\"$package\","
+            requirements="$requirements\"$package @ git+https://github.com/$owner/$repo@refs/pull/$number/head\","
+          done <<<"$references"
+          if [ -z "$packages" ]; then
+            echo "No sibling pull request is referenced, so every sibling stays on master"
+            exit 0
+          fi
+          printf 'no-sources-package = [%s]\nupgrade-package = [%s]\n' "$packages" "$requirements" | tee "$config"
+          echo "UV_CONFIG_FILE=$config" >>"$GITHUB_ENV"
       - name: Build
         run: uv sync --managed-python -v -p 3.12 --all-groups
       - name: Archive environment
