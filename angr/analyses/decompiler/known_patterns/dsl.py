@@ -413,6 +413,14 @@ class PField(PatternExpr):
         """
         if not isinstance(expr, VirtualVariable) or ctx.peek_fn is None:
             return None
+        # Only when this capture is already bound. Peeking exists to reconcile a
+        # second field with the base the first one established -- with nothing
+        # bound there is nothing to reconcile, and doing it anyway costs a
+        # definition lookup and a synthesized address for every `Load(v)` in the
+        # program times every template in the library, which is minutes per
+        # function on a large binary.
+        if self.base not in state.bindings:
+            return None
         peeked = ctx.peek_fn(expr.varid)
         if peeked is None:
             return None
@@ -589,6 +597,12 @@ class PStmtSeq(PatternStmt):
     stmts: tuple[PatternStmt, ...]
     allow_gaps: bool = True
     ordered: bool = True
+    #: How many unmatched statements may sit between two matched ones. Without a
+    #: bound the scan runs to the end of the block from every statement it could
+    #: start at -- quadratic per block *per template* -- and finds nothing: an
+    #: idiom's statements are adjacent apart from what the scheduler interleaved,
+    #: which is a handful of instructions, not a basic block.
+    max_gap: int = 8
 
 
 @dataclass(frozen=True)

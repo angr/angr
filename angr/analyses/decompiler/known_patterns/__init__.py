@@ -68,7 +68,7 @@ from .posix_macros import ALL_POSIX_MACRO_TEMPLATES, MAJOR
 from .protobuf_hasbits import ALL_PROTOBUF_TEMPLATES
 from .std_string_cstr import STD_STRING_CSTR
 from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
-from .std_swap import STD_SWAP
+from .std_swap import STD_SWAP, STD_SWAP_TEMPLATES
 from .std_vector_size import (
     STD_VECTOR_CAPACITY_TEMPLATES,
     STD_VECTOR_INT_SIZE,
@@ -132,7 +132,8 @@ for _t in STD_VECTOR_INDEX_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_STL2_TEMPLATES:
     register_pattern_template(_t)
-register_pattern_template(STD_SWAP)
+for _t in STD_SWAP_TEMPLATES:
+    register_pattern_template(_t)
 # C macros / kernel / library idioms
 register_pattern_template(CONTAINING_RECORD_PATTERN)
 for _t in ALL_LINKED_LIST_TEMPLATES:
@@ -287,6 +288,7 @@ __all__ = [
     "STD_STRING_INDEX",
     "STD_STRING_LENGTH",
     "STD_SWAP",
+    "STD_SWAP_TEMPLATES",
     "STD_VECTOR_CAPACITY_TEMPLATES",
     "STD_VECTOR_INDEX_TEMPLATES",
     "STD_VECTOR_INT_EMPTY",

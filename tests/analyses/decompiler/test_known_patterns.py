@@ -1128,3 +1128,57 @@ class TestVectorElementSizes(TestCase):
             options=[("known_patterns", ["std::vector<long long>::operator[]"])],
         )
         assert "std::vector<long long>::operator[](" in dec.codegen.text
+
+
+class TestSwapWidthsAndInterleaving(TestCase):
+    # std::swap fired zero times over the whole benchmark corpus, for two
+    # independent reasons:
+    #
+    #   the template was word-sized only, and pointer-sized T is 8% of the
+    #   DWARF records for std::swap<T> (int is 11%, the rest are 1-byte types,
+    #   doubles and small structs);
+    #
+    #   the outliner refused any match with a memory-touching statement between
+    #   its statements -- and an instruction scheduler *always* interleaves the
+    #   next field's load between this field's store and its writeback, so the
+    #   idiom was found and then thrown away. The veto is now a disjointness
+    #   test on (base, offset, size) intervals.
+
+    STL4_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl4")
+
+    def test_both_statement_orders_are_generated(self):
+        # the scheduled order -- both loads hoisted -- is a separate shape, and it
+        # is the one an optimizing compiler actually emits
+        from angr.analyses.decompiler.known_patterns import STD_SWAP_TEMPLATES
+
+        names = {t.name for t in STD_SWAP_TEMPLATES}
+        assert "std_swap_8" in names
+        assert "std_swap_8_scheduled" in names
+        # narrower widths are deliberately absent: a statement pattern is tried at
+        # every statement of every block, so each extra one multiplies a quadratic
+        # term, and a three-statement byte shuffle matches a great deal of code
+        # that is not a swap. See _SWAP_WIDTHS.
+        assert not any(n.startswith(("std_swap_1", "std_swap_2", "std_swap_4")) for n in names)
+
+    def test_interleaved_field_swap(self):
+        _, _, _, dec = _decompile(self.STL4_BIN, "pair_swap", preset="full")
+        assert "std::swap(" in dec.codegen.text, dec.codegen.text
+
+    def test_disjointness_admits_a_nonaliasing_gap(self):
+        # a read of `*(b + 8)` between a write of `*a` and a write of `*b`
+        from angr.ailment.expression import Const, VirtualVariable, VirtualVariableCategory
+        from angr.ailment.statement import Assignment, Store
+        from angr.analyses.decompiler.known_patterns.finder import KnownPatternFinder as F
+
+        a = VirtualVariable(None, 1, 64, VirtualVariableCategory.PARAMETER)
+        b = VirtualVariable(None, 2, 64, VirtualVariableCategory.PARAMETER)
+        t = VirtualVariable(None, 3, 32, VirtualVariableCategory.REGISTER, oident=16)
+        store_a = Store(None, a, VirtualVariable(None, 4, 64, VirtualVariableCategory.REGISTER, oident=8), 8, "Iend_LE")
+        gap_far = Assignment(None, t, Load(None, BinaryOp(None, "Add", [b, Const(None, 8, 64)]), 4, "Iend_LE"))
+        gap_near = Assignment(None, t, Load(None, b, 4, "Iend_LE"))
+
+        region = [F._mem_accesses(store_a)]
+        # [b+8, +4) does not overlap [a, +8) even if a and b are the same object
+        assert F._commutes_with_region(gap_far, region)
+        # [b, +4) does overlap it under that assumption, so the motion is refused
+        assert not F._commutes_with_region(gap_near, region)

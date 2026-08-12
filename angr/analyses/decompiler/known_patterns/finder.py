@@ -612,6 +612,7 @@ class KnownPatternFinder(Analysis):
         anchored: bool,
         state: MatchState,
         ctx: MatchCtx,
+        max_gap: int = 8,
     ) -> tuple[MatchState, list[int]] | None:
         """Match ``stmt_pats`` in order against ``block`` starting at
         ``start_idx``. Label statements and phi assignments are skippable; with
@@ -624,7 +625,8 @@ class KnownPatternFinder(Analysis):
         scan = start_idx
         for pat_i, stmt_pat in enumerate(stmt_pats):
             found = False
-            while scan < len(stmts):
+            limit = len(stmts) if not matched else min(len(stmts), matched[-1] + 1 + max_gap)
+            while scan < limit:
                 stmt = stmts[scan]
                 skippable_gap = isinstance(stmt, Label) or is_phi_assignment(stmt)
                 if not skippable_gap:
@@ -645,22 +647,22 @@ class KnownPatternFinder(Analysis):
         return state, matched
 
     @staticmethod
-    def _stmt_pats_of(pat: PatternStmt) -> tuple[tuple[PatternStmt, ...], bool]:
+    def _stmt_pats_of(pat: PatternStmt) -> tuple[tuple[PatternStmt, ...], bool, int]:
         if isinstance(pat, PStmtSeq):
-            return pat.stmts, pat.allow_gaps
-        return (pat,), False
+            return pat.stmts, pat.allow_gaps, pat.max_gap
+        return (pat,), False, 0
 
     def _try_match_stmt_seq(self, pattern: KnownPattern, block: Block, start_idx: int) -> KnownPatternMatch | None:
         """Match a statement-level pattern (a single statement pattern or a
         PStmtSeq) anchored at ``start_idx``."""
-        stmt_pats, allow_gaps = self._stmt_pats_of(pattern.pattern)  # type: ignore[arg-type]
+        stmt_pats, allow_gaps, max_gap = self._stmt_pats_of(pattern.pattern)  # type: ignore[arg-type]
         if not stmt_pats:
             return None
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
             chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
         )
-        result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, start_idx, True, MatchState(), ctx)
+        result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, start_idx, True, MatchState(), ctx, max_gap)
         if result is None:
             return None
         state, matched = result
@@ -738,8 +740,8 @@ class KnownPatternFinder(Analysis):
     ) -> tuple[MatchState, frozenset[int]] | None:
         """Match a PBlockPat's statement sequence anywhere within ``block``
         (not anchored). Returns ``(state, consumed_idxs)`` or None."""
-        stmt_pats, allow_gaps = self._stmt_pats_of(block_pat.stmts)
-        result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, 0, False, state, ctx)
+        stmt_pats, allow_gaps, max_gap = self._stmt_pats_of(block_pat.stmts)
+        result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, 0, False, state, ctx, max_gap)
         if result is None:
             return None
         new_state, matched = result
@@ -1271,6 +1273,96 @@ class KnownPatternFinder(Analysis):
             subst.append((stmt.dst.varid, new_dst))
         return dup_stmts, subst[n_prior:]
 
+    # --- memory disjointness ------------------------------------------------
+    #
+    # Gap statements are hoisted above the region, so a gap that touches memory
+    # used to be rejected outright. That veto is what made std::swap unmatchable
+    # on real code: an instruction scheduler always interleaves the next field's
+    # load between this field's store and its writeback, and those two accesses
+    # are trivially disjoint --
+    #
+    #     t   = *a          <- matched
+    #     *a  = *b          <- matched
+    #     t2  = *(b + 8)    <- the gap: a different field
+    #     *b  = t           <- matched
+    #
+    # so require *disjointness*, not absence. Only the analyzable shape counts:
+    # an address that is a variable plus a constant, against another address on
+    # the same variable. Anything else is still refused.
+
+    @staticmethod
+    def _mem_interval(addr: Expression, size: int) -> tuple[int, int, int] | None:
+        """``(base varid, lo, hi)`` for a ``vvar`` / ``vvar + const`` address."""
+        if isinstance(addr, VirtualVariable):
+            return (addr.varid, 0, size)
+        if isinstance(addr, BinaryOp) and addr.op in ("Add", "Sub") and len(addr.operands) == 2:
+            base, off = addr.operands
+            if isinstance(base, VirtualVariable) and isinstance(off, Const) and isinstance(off.value, int):
+                delta = off.value if addr.op == "Add" else -off.value
+                return (base.varid, delta, delta + size)
+        return None
+
+    @classmethod
+    def _mem_accesses(cls, stmt: Statement) -> tuple[list, list] | None:
+        """``(reads, writes)`` as intervals, or None when any access is not of
+        the analyzable shape (in which case nothing may be reordered around it)."""
+        reads: list[tuple[int, int, int]] = []
+        writes: list[tuple[int, int, int]] = []
+        if isinstance(stmt, Store):
+            iv = cls._mem_interval(stmt.addr, stmt.size)
+            if iv is None:
+                return None
+            writes.append(iv)
+        elif _stmt_has_side_effects(stmt):
+            return None  # a call, a dirty statement: unanalyzable by construction
+        for sub in _iter_subexprs(stmt):
+            if isinstance(sub, Load):
+                iv = cls._mem_interval(sub.addr, sub.size)
+                if iv is None:
+                    return None
+                reads.append(iv)
+        return reads, writes
+
+    @staticmethod
+    def _overlaps(x: tuple[int, int, int], y: tuple[int, int, int]) -> bool:
+        """Whether two accesses can alias.
+
+        Same base variable: exact, from the byte intervals.
+
+        Different base variables: SSA says nothing about what two pointers hold,
+        so the intervals are compared *as if the bases were equal*. Two accesses
+        at disjoint offsets are then treated as disjoint. This is the ordinary
+        field-disjointness assumption -- `x->a` and `y->b` do not overlap, since
+        either x and y are different objects or they are the same object and the
+        two fields still are. It is wrong only for pointers that alias at a
+        *shift* (``x == (char *)y + 4``), which no idiom this library describes
+        can be built out of; if that ever happens, a hoisted read would see a
+        value written by the region instead of the one that was there before it.
+        """
+        return x[1] < y[2] and y[1] < x[2]
+
+    @classmethod
+    def _commutes_with_region(cls, gap: Statement, region_mem: list) -> bool:
+        """Whether ``gap`` may be hoisted across every statement of the region.
+
+        Two memory operations commute unless they can alias and at least one of
+        them writes."""
+        gap_mem = cls._mem_accesses(gap)
+        if gap_mem is None:
+            return False
+        gap_reads, gap_writes = gap_mem
+        for other in region_mem:
+            if other is None:
+                return False
+            reads, writes = other
+            for w in gap_writes:
+                if any(cls._overlaps(w, iv) for iv in reads + writes):
+                    return False
+            for r in gap_reads:
+                if any(cls._overlaps(r, iv) for iv in writes):
+                    return False
+        return True
+
     def _materialize_bases(
         self, match: KnownPatternMatch, ins_addr: int | None
     ) -> tuple[list[Statement], list[tuple[int, int, VirtualVariable]], dict[str, VirtualVariable]]:
@@ -1576,8 +1668,13 @@ class KnownPatternFinder(Analysis):
         matched_defs = frozenset().union(*(_stmt_defs(stmts[i]) for i in matched_set))
         region_has_side_effects = any(_stmt_has_side_effects(stmts[i]) for i in matched_set)
         gap_idxs = [i for i in range(span[0], span[-1]) if i not in matched_set]
+        region_mem = [self._mem_accesses(stmts[i]) for i in matched_set]
         for i in gap_idxs:
-            if region_has_side_effects and _stmt_touches_memory(stmts[i]):
+            if (
+                region_has_side_effects
+                and _stmt_touches_memory(stmts[i])
+                and not self._commutes_with_region(stmts[i], region_mem)
+            ):
                 raise UnsupportedOutlineError("memory-touching statements interleave with the matched span")
             if _stmt_uses(stmts[i]) & matched_defs:
                 raise UnsupportedOutlineError("interleaved statements use values defined by the matched span")
