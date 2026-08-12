@@ -335,6 +335,18 @@ options = [
         clears_cache=False,
     ),
     O(
+        "Name STL field accesses after their accessors",
+        "Render a read of a field of an already-typed C++ STL container as the equivalent accessor call, e.g. "
+        '"std::string::c_str(s)" instead of "s->m_data". Only applies where type inference already recovered the '
+        "container type, so it cannot fire on unrelated pointers.",
+        bool,
+        "codegen",
+        "stl_accessor_calls",
+        category="Display",
+        default_value=True,
+        clears_cache=False,
+    ),
+    O(
         "Indentation width",
         "Number of space characters per indentation level in the pseudocode.",
         int,

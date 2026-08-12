@@ -16,6 +16,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
 from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.stl_field_accessors import stl_accessor_name
 from angr.analyses.decompiler.structurer_nodes import (
     BreakNode,
     CascadingConditionNode,
@@ -2061,6 +2062,14 @@ class CVariableField(CExpression):
     Represent a field of a variable.
     """
 
+    # When this field read is a recognized accessor of a C++ STL container whose type was recovered by type
+    # inference (e.g. "m_data" of a std::string), the fully qualified accessor name to display it under, e.g.
+    # "std::string::c_str". Set by CStructuredCodeGenerator._access_constant_offset, and only for reads: writing to
+    # (or taking the address of) the field must keep rendering as a field. Declared at class level so that instances
+    # built without __init__ (deserialization) always have the attribute. See
+    # angr.analyses.decompiler.stl_field_accessors.
+    stl_accessor: str | None = None
+
     def __init__(self, variable: CExpression, field: CStructField, var_is_ptr: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.variable = variable
@@ -2075,12 +2084,26 @@ class CVariableField(CExpression):
         if self.collapsed:
             yield "...", self
             return
+        if self.stl_accessor is not None and self.codegen.stl_accessor_calls:
+            yield from self._c_repr_chunks_accessor()
+            return
         yield from self.variable.c_repr_chunks()
         if self.var_is_ptr:
             yield "->", self
         else:
             yield ".", self
         yield from self.field.c_repr_chunks()
+
+    def _c_repr_chunks_accessor(self):
+        """Render the field read as ``std::string::c_str(s)`` rather than ``s->m_data``."""
+        yield self.stl_accessor, self
+        paren = CClosingObject("(")
+        yield "(", paren
+        if not self.var_is_ptr:
+            # ``self.variable`` is the container object itself; the accessor takes a pointer to it
+            yield "&", self
+        yield from CExpression._try_c_repr_chunks(self.variable)
+        yield ")", paren
 
 
 class CUnaryOp(CExpression):
@@ -2987,6 +3010,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         cstyle_void_param: bool = True,
         indent_size: int = 4,
         variable_map: VariableMap | None = None,
+        stl_accessor_calls: bool = True,
     ):
         super().__init__(
             flavor=flavor,
@@ -3084,6 +3108,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
         self.cstyle_void_param = cstyle_void_param
+        self.stl_accessor_calls = stl_accessor_calls
         # Number of space characters per indentation level in the emitted pseudocode.
         self.indent_delta = indent_size
 
@@ -3113,6 +3138,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 self.cstyle_ifs = value
             elif option.param == "cstyle_void_param":
                 self.cstyle_void_param = value
+            elif option.param == "stl_accessor_calls":
+                self.stl_accessor_calls = value
             elif option.param == "indent_size":
                 self.indent_delta = value
 
@@ -3442,7 +3469,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 result = CUnaryOp("Reference", CVariableField(base_expr, field, False, codegen=self), codegen=self)
             else:
                 result = CUnaryOp("Reference", CVariableField(expr, field, True, codegen=self), codegen=self)
-            return self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
+            result = self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
+            if not lvalue:
+                self._tag_stl_accessor(result, base_type, field_name)
+            return result
 
         if isinstance(base_type, (SimTypeFixedSizeArray, SimTypeArray)):
             result = base_expr or expr  # death to C
@@ -3498,6 +3528,25 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             )
         # otherwise, normal cast
         return CTypeCast(base_type, data_type, base_expr, codegen=self)
+
+    def _tag_stl_accessor(self, result: CExpression, base_type: SimStruct, field_name: str) -> None:
+        """
+        Name a read of a field of a recognized ``cpp::std`` class after the accessor it implements, so that it is
+        displayed as e.g. ``std::string::c_str(s)`` instead of ``s->m_data``.
+
+        Unlike the structural KnownPattern matchers, which have to recognize the *code shape* of an inlined accessor
+        before variable recovery, this naming is driven purely by the recovered type: it applies only where type
+        inference already proved the base is an STL container, so it cannot mislabel an unrelated pointer
+        dereference. See :mod:`angr.analyses.decompiler.stl_field_accessors`.
+
+        ``result`` is whatever the field access resolved to; the accessor name is attached only when that is exactly
+        the field access itself (optionally wrapped in a cast), not when the access continued into a sub-field of it.
+        """
+
+        field_access = result.expr if isinstance(result, CTypeCast) else result
+        if not isinstance(field_access, CVariableField) or field_access.field.field != field_name:
+            return
+        field_access.stl_accessor = stl_accessor_name(base_type, field_name)
 
     def _access(
         self,

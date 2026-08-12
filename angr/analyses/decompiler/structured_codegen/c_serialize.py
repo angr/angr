@@ -1119,6 +1119,8 @@ def _ser_cvarfield(node, pb, ctx):
     pb.cvar_field.variable_id = ctx.serialize(node.variable)
     pb.cvar_field.field_id = ctx.serialize(node.field)
     pb.cvar_field.var_is_ptr = node.var_is_ptr
+    if node.stl_accessor is not None:
+        pb.cvar_field.stl_accessor = node.stl_accessor
 
 
 def _parse_cvarfield(pb, ctx):
@@ -1127,6 +1129,7 @@ def _parse_cvarfield(pb, ctx):
     obj.variable = ctx.resolve(body.variable_id)
     obj.field = ctx.resolve(body.field_id)
     obj.var_is_ptr = body.var_is_ptr
+    obj.stl_accessor = body.stl_accessor if body.HasField("stl_accessor") else None
     return obj
 
 
