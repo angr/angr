@@ -436,11 +436,15 @@ class AILMergeGraph:
         return False
 
     def _update_all_split_refs(self, update_map: dict[Block, Block]):
-        for original, updated in update_map.items():
-            for k in list(self.original_split_blocks.keys()):
+
+        def _rekey(mapping: dict, original: Block, updated: Block) -> None:
+            for k in list(mapping.keys()):
                 if k == original:
-                    self.original_split_blocks[updated] = self.original_split_blocks[k]
-                    del self.original_split_blocks[k]
+                    # note that updated might be the same as k
+                    mapping[updated] = mapping.pop(k)
+
+        for original, updated in update_map.items():
+            _rekey(self.original_split_blocks, original, updated)
 
             for v in self.original_split_blocks.values():
                 for sblock in v:
@@ -448,10 +452,7 @@ class AILMergeGraph:
                         if getattr(sblock, attr) == original:
                             setattr(sblock, attr, updated)
 
-            for k in list(self.original_blocks.keys()):
-                if k == original:
-                    self.original_blocks[updated] = self.original_blocks[k]
-                    del self.original_blocks[k]
+            _rekey(self.original_blocks, original, updated)
 
     def _find_merge_block_by_original(self, block: Block):
         for merge_block, originals in self.merge_blocks_to_originals.items():
