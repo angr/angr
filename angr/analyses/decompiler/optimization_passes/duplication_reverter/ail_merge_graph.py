@@ -424,11 +424,19 @@ class AILMergeGraph:
         return False
 
     def _update_all_split_refs(self, update_map: dict[Block, Block]):
-        for original, updated in update_map.items():
-            for k in list(self.original_split_blocks.keys()):
+        # Both dicts are keyed by Block, and Block equality is by content: a clone
+        # that the caller did not have to split is equal to (and hashes like) the
+        # block it replaces. Writing the new key before dropping the old one then
+        # writes and deletes the *same* slot, losing the entry entirely -- and the
+        # caller reads it back one line later, so the whole candidate died with a
+        # KeyError instead of being merged or cleanly rejected. Pop first.
+        def _rekey(mapping: dict, original: Block, updated: Block) -> None:
+            for k in list(mapping.keys()):
                 if k == original:
-                    self.original_split_blocks[updated] = self.original_split_blocks[k]
-                    del self.original_split_blocks[k]
+                    mapping[updated] = mapping.pop(k)
+
+        for original, updated in update_map.items():
+            _rekey(self.original_split_blocks, original, updated)
 
             for v in self.original_split_blocks.values():
                 for sblock in v:
@@ -436,10 +444,7 @@ class AILMergeGraph:
                         if getattr(sblock, attr) == original:
                             setattr(sblock, attr, updated)
 
-            for k in list(self.original_blocks.keys()):
-                if k == original:
-                    self.original_blocks[updated] = self.original_blocks[k]
-                    del self.original_blocks[k]
+            _rekey(self.original_blocks, original, updated)
 
     def _find_merge_block_by_original(self, block: Block):
         for merge_block, originals in self.merge_blocks_to_originals.items():
