@@ -112,9 +112,17 @@ def _make_vector_div_template(accessor: str, minuend: Callable[[PatternContext],
         if is_pow2:
             pattern = PBinOp(frozenset({"Sar", "Shr"}), (diff, PConst(elt_size.bit_length() - 1)))
         else:
-            shift, magic = exact_div_magic(elt_size, ctx.bits)
+            shift = exact_div_magic(elt_size, ctx.bits)[0]
             scaled = diff if shift == 0 else PBinOp(frozenset({"Sar", "Shr"}), (diff, PConst(shift)))
-            pattern = PBinOp("Mul", (scaled, PConst(magic)))
+            # The multiply is as wide as the *result the caller wanted*, not as
+            # wide as the pointer difference: clang narrows to 32 bits whenever
+            # size() feeds an int, emitting `Mul(Conv(64->32, diff >> k), inv32)`
+            # with the 32-bit modular inverse. Accepting only the word-width
+            # magic is most of why this family scored 21% on gcc and 2.8% on
+            # clang. (The Convert itself needs no pattern node -- structural
+            # matching skips Convert wrappers.)
+            magics = {exact_div_magic(elt_size, b)[1] for b in {ctx.bits, 32}}
+            pattern = PBinOp("Mul", (scaled, PConst(pred=magics.__contains__)))
         return KnownPattern(
             name=name,
             display_name=call_name,

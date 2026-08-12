@@ -75,7 +75,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .dsl import PBinOp, PChoice, PConst, PConv, PVVar
+from .dsl import PAny, PBinOp, PChoice, PConst, PConv, PLoad, PVVar
 from .pattern import KnownPattern, PatternParam
 from .templates import make_template
 
@@ -99,10 +99,19 @@ _S_ISTYPES = (
 
 def macro_operand(cap: str) -> PChoice:
     """A macro's scalar argument: a virtual variable, possibly narrowed by the
-    compiler. PVVar does not see through Convert wrappers on its own, and
-    binding the pre-narrowing vvar keeps the synthesized call argument
-    correctly typed."""
-    return PChoice(PVVar(cap), PConv(PVVar(cap)))
+    compiler, or a field read.
+
+    PVVar does not see through Convert wrappers on its own, and binding the
+    pre-narrowing vvar keeps the synthesized call argument correctly typed.
+
+    The ``PLoad`` arm is what makes ``S_ISDIR(inode->i_mode)`` matchable at all.
+    Before the outliner could lift a parameter expression into a temporary, a
+    capture had to *be* a virtual variable, so the same macro was recognized when
+    its argument was a stack local and invisible when it was a field of a struct
+    reached through a pointer -- a split with no meaning to a reader. The mask
+    and the type constant still carry the identification; the argument's shape
+    never did."""
+    return PChoice(PVVar(cap), PConv(PVVar(cap)), PLoad(PAny(), name=cap))
 
 
 def _make_s_istype(name: str, macro: str, ifval: int):
@@ -132,6 +141,24 @@ def _build_wifexited(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unu
     )
 
 
+def _shifted_status() -> PChoice:
+    """``((status & 0x7f) << 24) + 0x1000000`` -- clang's spelling of the
+    ``(signed char)`` cast, with the shift written either way."""
+    masked = PBinOp("And", (macro_operand("status"), PConst(0x7F)))
+    return PChoice(
+        *(
+            PBinOp("Add", (PBinOp(op, (masked, PConst(amount)), commutative=False), PConst(0x1000000)))
+            for op, amount in (("Mul", 0x1000000), ("Shl", 24))
+        )
+    )
+
+
+def _wifsignaled_shifted_arms():
+    """Both operand orders of the shifted comparison against 0x2000000."""
+    yield "CmpLE", (PConst(0x2000000), _shifted_status())
+    yield "CmpGE", (_shifted_status(), PConst(0x2000000))
+
+
 def _signed_cmp(bindings: dict[str, Expression]) -> bool:
     cmp_expr = bindings.get("cmp")
     return cmp_expr is not None and bool(getattr(cmp_expr, "signed", False))
@@ -144,11 +171,27 @@ def _build_wifsignaled(ctx: PatternContext) -> KnownPattern:  # pylint:disable=u
         name="wifsignaled",
         display_name="WIFSIGNALED",
         call_name="WIFSIGNALED",
-        pattern=PBinOp(
-            "CmpGT",
-            (PBinOp("Add", (PBinOp("And", (macro_operand("status"), PConst(0x7F))), PConst(1))), PConst(1)),
-            commutative=False,
-            name="cmp",
+        pattern=PChoice(
+            PBinOp(
+                "CmpGT",
+                (PBinOp("Add", (PBinOp("And", (macro_operand("status"), PConst(0x7F))), PConst(1))), PConst(1)),
+                commutative=False,
+                name="cmp",
+            ),
+            # clang does not fold the cast away; it hoists the byte into the top
+            # of the word and compares there, which keeps the signedness the
+            # (signed char) cast is there for:
+            #     ((status & 0x7f) << 24) + 0x1000000 >= 0x2000000
+            # The shift shows up as a multiply as often as a shift.
+            *(
+                PBinOp(
+                    op,
+                    operands,
+                    commutative=False,
+                    name="cmp",
+                )
+                for op, operands in _wifsignaled_shifted_arms()
+            ),
         ),
         params=(PatternParam("status", "int"),),
         returnty="int",
@@ -193,8 +236,10 @@ def _build_major(ctx: PatternContext) -> KnownPattern | None:
         pattern=PBinOp(
             "Or",
             (
-                PBinOp("And", (PBinOp("Shr", (PVVar("dev"), PConst(8)), commutative=False), PConst(0xFFF))),
-                PBinOp("And", (PBinOp("Shr", (PVVar("dev"), PConst(32)), commutative=False), PConst(0xFFFFF000))),
+                PBinOp("And", (PBinOp("Shr", (macro_operand("dev"), PConst(8)), commutative=False), PConst(0xFFF))),
+                PBinOp(
+                    "And", (PBinOp("Shr", (macro_operand("dev"), PConst(32)), commutative=False), PConst(0xFFFFF000))
+                ),
             ),
         ),
         params=(PatternParam("dev", "unsigned long long"),),

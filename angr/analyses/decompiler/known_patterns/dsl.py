@@ -26,6 +26,7 @@ from angr.ailment.expression import (
     Const,
     Convert,
     Expression,
+    Extract,
     Load,
     Phi,
     UnaryOp,
@@ -57,6 +58,11 @@ class MatchState:
     remote_defs: tuple[tuple[int, Expression], ...] = ()
     # Convert wrappers that were skipped over during structural matching
     skipped_converts: tuple[Convert, ...] = ()
+    # (varid, root varid, displacement) for virtual variables PField resolved to
+    # `root + displacement`. The definition is left exactly where it is; the
+    # outliner only needs to know the value so it can spell the same address
+    # against the object pointer it materializes. See PField._peek_bind.
+    base_aliases: tuple[tuple[int, int, int], ...] = ()
 
     def bind(self, name: str, expr: Expression) -> MatchState | None:
         """Bind ``name`` to ``expr``; on rebind, require ``.likes()`` equality."""
@@ -77,6 +83,10 @@ class MatchCtx:
     # when a structural node meets a VirtualVariable, chase its unique non-phi
     # same-block definition; returns (stmt_idx, def_src_expr) or None
     chase_fn: Callable[[int], tuple[int, Expression] | None] | None = None
+    # read-only definition lookup: what pure expression a vvar equals, without
+    # consuming, moving or recomputing anything. PField uses it to canonicalize an
+    # object address the compiler put in a register of its own.
+    peek_fn: Callable[[int], Expression | None] | None = None
     # fallback for when ``chase_fn`` declines: resolve a vvar to a *pure*
     # expression that can be recomputed wherever the vvar is live -- a CSE'd
     # definition in a dominating block, possibly behind phis. Returns None when
@@ -270,6 +280,39 @@ class PConv(PatternExpr):
 
 
 @dataclass(frozen=True)
+class PExtract(PatternExpr):
+    """Matches an ``Extract`` -- a bit-slice of a wider value.
+
+    This is how a scalar reaches integer code out of a vector register when the
+    128-bit op did not get narrowed away: ``movq %xmm2,%rax`` on a value that
+    came from ``maxsd``/``mulsd`` lifts to ``Extract(vvar_128, 64bits@0)``, not
+    to a Convert. Without a node for it, every libm bit-twiddle whose operand is
+    a *computed* double rather than an incoming argument is unmatchable.
+
+    ``bits``/``offset`` default to unconstrained; ``offset`` is in bits.
+    """
+
+    operand: PatternExpr
+    bits: int | None = None
+    offset: int | None = None
+    name: str | None = None
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        if not isinstance(expr, Extract):
+            return None
+        if self.bits is not None and expr.bits != self.bits:
+            return None
+        if self.offset is not None:
+            off = expr.offset
+            if not (isinstance(off, Const) and isinstance(off.value, int) and off.value == self.offset):
+                return None
+        st = self.operand.match(expr.base, state, ctx)
+        if st is None:
+            return None
+        return self._bind_if_named(self.name, expr, st)
+
+
+@dataclass(frozen=True)
 class PLoad(PatternExpr):
     """Matches a memory Load. ``size`` is in bytes."""
 
@@ -357,6 +400,33 @@ class PField(PatternExpr):
             return None
         return self._bind_if_named(self.name, expr, st)
 
+    def _peek_bind(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        """Canonicalize an address the compiler kept in a register of its own.
+
+        ``lea 0x40(%rcx),%r15`` puts the object's address in a variable, so one
+        field of a pair reaches the matcher as a bare vvar and the other as
+        ``root + displacement``; the two do not unify, and the idiom is missed
+        even though both name the same object. Reading the vvar's definition
+        fixes that without touching it: nothing is moved, copied or recomputed --
+        the alias is recorded so the outliner can spell the same address against
+        the object pointer it materializes.
+        """
+        if not isinstance(expr, VirtualVariable) or ctx.peek_fn is None:
+            return None
+        peeked = ctx.peek_fn(expr.varid)
+        if peeked is None:
+            return None
+        decomposed = self._decompose(peeked)
+        if decomposed is None:
+            return None
+        root, disp = decomposed
+        if not isinstance(root, VirtualVariable) or disp - self.offset < 0:
+            return None
+        st = self._bind(peeked, state, ctx)
+        if st is None:
+            return None
+        return replace(st, base_aliases=(*st.base_aliases, (expr.varid, root.varid, disp)))
+
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
         while ctx.skip_conversions and isinstance(expr, Convert):
             expr = expr.operand
@@ -367,9 +437,11 @@ class PField(PatternExpr):
         st = self._bind(expr, state, ctx)
         if st is not None:
             return st
-        # ...but when the object pointer was computed into a variable of its own
-        # (`p = outer + 6696`, then `Load(p)` next to `Load(outer + 6720)`), only
-        # the chased form agrees with the other field's base.
+        st = self._peek_bind(expr, state, ctx)
+        if st is not None:
+            return st
+        # ...and when the address is a computed value the matcher may move,
+        # the chased form is the one that agrees with the other field's base.
         prepared = self._prepare(expr, state, ctx)
         if prepared is None:
             return None
@@ -585,6 +657,8 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("UnaryOp", node.op if isinstance(node.op, str) else None)
     if isinstance(node, PConv):
         return ("Convert", None)
+    if isinstance(node, PExtract):
+        return ("Extract", None)
     if isinstance(node, PConst):
         return ("Const", None)
     if isinstance(node, PITE):
@@ -624,6 +698,8 @@ def expr_anchor_key(expr: Expression) -> tuple[str, str | None]:
         return ("UnaryOp", expr.op)
     if isinstance(expr, Convert):
         return ("Convert", None)
+    if isinstance(expr, Extract):
+        return ("Extract", None)
     if isinstance(expr, Const):
         return ("Const", None)
     if isinstance(expr, ITE):

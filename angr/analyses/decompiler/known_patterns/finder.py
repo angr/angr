@@ -60,6 +60,9 @@ from .pattern import KnownPattern
 
 BlockLoc = tuple[int, "int | None"]
 
+# expression kinds whose value depends only on their operands
+_PURE_EXPR_TYPES_FWD = (BinaryOp, UnaryOp, Convert, Reinterpret, Extract, Insert, ITE)
+
 _l = logging.getLogger(__name__)
 
 # (field name, element index or None) steps from a statement root down to an expression
@@ -104,6 +107,10 @@ class KnownPatternMatch:
     duplicated_stmt_idxs: frozenset[int] = frozenset()
     # (varid, pure expression) definitions from other blocks, recomputed in the region
     recomputed_defs: tuple[tuple[int, Expression], ...] = ()
+    # (varid, root varid, displacement) for variables that hold `root + displacement`
+    # -- an object address the compiler computed once into a register of its own.
+    # Nothing is moved for these; the outliner only rewrites references to them.
+    base_aliases: tuple[tuple[int, int, int], ...] = ()
     # statement-sequence matches only
     stmt_span: tuple[int, ...] | None = None
     # multi-block (graph) matches only
@@ -674,6 +681,7 @@ class KnownPatternFinder(Analysis):
             captures=dict(state.bindings),
             matched_expr=None,
             stmt_span=tuple(matched),
+            base_aliases=state.base_aliases,
         )
 
     def _try_match_stmt_bag(self, pattern: KnownPattern, block: Block) -> KnownPatternMatch | None:
@@ -689,7 +697,9 @@ class KnownPatternFinder(Analysis):
         candidates = [
             i for i, s in enumerate(block.statements) if not isinstance(s, Label) and not is_phi_assignment(s)
         ]
-        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None)
+        # An unordered bag match does not chase: the statements it consumes are
+        # already the whole idiom. Peeking is read-only and stays available.
+        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None, peek_fn=self._resolve_remote_def)
 
         def assign(pat_i: int, used: frozenset[int], state: MatchState) -> tuple[MatchState, list[int]] | None:
             if pat_i == len(stmt_pats):
@@ -738,7 +748,12 @@ class KnownPatternFinder(Analysis):
     def _try_match_graph(self, pattern: KnownPattern, entry_block: Block) -> KnownPatternMatch | None:
         gpat = pattern.pattern
         assert isinstance(gpat, PGraphPat)
-        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None)
+        # No chasing: a graph match consumes whole blocks, so there is nothing to
+        # move a definition into. Peeking is still fine -- it reads a definition
+        # without disturbing it, which is what lets a region whose object address
+        # was computed into its own register (MSVC c_str, clang's capacity
+        # triangle) match at all.
+        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None, peek_fn=self._resolve_remote_def)
 
         # order internal blocks by BFS from the entry over internal edges, so
         # each block (after entry) is reached from an already-mapped block
@@ -840,6 +855,7 @@ class KnownPatternFinder(Analysis):
             block_map=loc,
             consumed_by_block=consumed_by_block,
             frontier_locs=frozenset(frontier),
+            base_aliases=state.base_aliases,
         )
 
     def _try_match(
@@ -854,6 +870,7 @@ class KnownPatternFinder(Analysis):
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
             chase_fn=self._make_chase_fn(block, stmt_idx) if self._chase_defs else None,
+            peek_fn=self._resolve_remote_def,
             remote_chase_fn=self._make_remote_chase_fn(),
         )
         state = pattern.pattern.match(target, MatchState(), ctx)
@@ -888,7 +905,12 @@ class KnownPatternFinder(Analysis):
                 if _stmt_has_side_effects(block.statements[i]):
                     return None
             captured = [state.bindings.get(param.capture) for param in pattern.params]
-            if not all(isinstance(cap, VirtualVariable) for cap in captured):
+            # A capture that is not already a variable is fine as long as the
+            # outliner can evaluate it into one in front of the region
+            # (_materialize_exprs); anything else -- a call, a side effect -- is not.
+            if not all(
+                isinstance(cap, VirtualVariable) or (cap is not None and self._is_liftable(cap)) for cap in captured
+            ):
                 return None
             # Keeping the chased definitions shrinks the outlined region to the
             # anchor alone, so every value the synthesized call passes must still
@@ -902,7 +924,7 @@ class KnownPatternFinder(Analysis):
             # captured pointer while the originals stay behind for their other
             # users, and the region's live-in becomes the pointer again.
             anchor_uses = _stmt_uses(block.statements[stmt_idx])
-            if not all(cap.varid in anchor_uses for cap in captured):  # type: ignore[union-attr]
+            if not all(isinstance(cap, VirtualVariable) and cap.varid in anchor_uses for cap in captured):
                 duplicated = consumed
             consumed = frozenset()
 
@@ -923,6 +945,7 @@ class KnownPatternFinder(Analysis):
             matched_expr=target if isinstance(target, Expression) else None,  # type: ignore[arg-type]
             duplicated_stmt_idxs=duplicated,
             recomputed_defs=state.remote_defs,
+            base_aliases=state.base_aliases,
         )
 
     def _make_chase_fn(self, block: Block, anchor_stmt_idx: int):
@@ -1021,8 +1044,7 @@ class KnownPatternFinder(Analysis):
             return None
         return src
 
-    # expression kinds whose value depends only on their operands
-    _PURE_EXPR_TYPES = (BinaryOp, UnaryOp, Convert, Reinterpret, Extract, Insert, ITE)
+    _PURE_EXPR_TYPES = _PURE_EXPR_TYPES_FWD
 
     @classmethod
     def _is_recomputable(cls, expr: Expression) -> bool:
@@ -1122,10 +1144,12 @@ class KnownPatternFinder(Analysis):
         # a container reached as a field of another object: compute its address
         # into a variable ahead of the region, and rebase the region onto it
         base_stmts, rebases, base_caps = self._materialize_bases(match, ins_addr)
-        if base_caps:
-            match = dataclass_replace(match, captures={**match.captures, **base_caps})
-            moved_stmts = self._apply_bases(moved_stmts, rebases)
-            dup_stmts = self._apply_bases(dup_stmts, rebases)
+        lift_stmts, lifts, lift_caps = self._materialize_exprs(match, ins_addr)
+        base_stmts = base_stmts + lift_stmts
+        if base_caps or lift_caps:
+            match = dataclass_replace(match, captures={**match.captures, **base_caps, **lift_caps})
+            moved_stmts = self._apply_exprs(self._apply_bases(moved_stmts, rebases, match.base_aliases), lifts)
+            dup_stmts = self._apply_exprs(self._apply_bases(dup_stmts, rebases, match.base_aliases), lifts)
 
         # determine the result vvar; lift the matched sub-expression into its
         # own assignment unless the anchor already is one
@@ -1139,7 +1163,7 @@ class KnownPatternFinder(Analysis):
             region_anchor = anchor
             for old_varid, new_vvar in subst:
                 region_anchor = self._substitute_vvar(region_anchor, old_varid, new_vvar)
-            (region_anchor,) = self._apply_bases([region_anchor], rebases)
+            (region_anchor,) = self._apply_exprs(self._apply_bases([region_anchor], rebases, match.base_aliases), lifts)
             mid_stmts = dup_stmts + moved_stmts + [region_anchor]
             post_head: list[Statement] = []
         else:
@@ -1155,7 +1179,7 @@ class KnownPatternFinder(Analysis):
             region_expr = match.matched_expr.copy()
             for old_varid, new_vvar in subst:
                 region_expr = self._substitute_vvar(region_expr, old_varid, new_vvar)
-            (region_expr,) = self._apply_bases([region_expr], rebases)
+            (region_expr,) = self._apply_exprs(self._apply_bases([region_expr], rebases, match.base_aliases), lifts)
             lifted = Assignment(self._next_idx(), result_vvar, region_expr, ins_addr=ins_addr)
             replaced, new_anchor = anchor.replace(match.matched_expr, result_vvar.copy())
             if not replaced:
@@ -1304,6 +1328,105 @@ class KnownPatternFinder(Analysis):
             new_caps[param.capture] = tmp
         return pre, rewrites, new_caps
 
+    # expression kinds a parameter may be lifted out of the region as
+    _LIFTABLE_EXPR_TYPES = (*_PURE_EXPR_TYPES_FWD, Load)
+
+    @classmethod
+    def _is_liftable(cls, expr: Expression) -> bool:
+        """True when ``expr`` may be evaluated into a temporary immediately before
+        the region: no calls, no side effects. A ``Load`` qualifies -- lifting it
+        does not *move* it, since the temporary lands directly in front of the
+        statement the matched expression came out of, with nothing in between."""
+        for sub in _iter_subexprs(expr):
+            if isinstance(sub, (VirtualVariable, Const, StackBaseOffset)):
+                continue
+            if not isinstance(sub, cls._LIFTABLE_EXPR_TYPES):
+                return False
+        return True
+
+    def _materialize_exprs(
+        self, match: KnownPatternMatch, ins_addr: int | None
+    ) -> tuple[list[Statement], list[tuple[Expression, VirtualVariable]], dict[str, VirtualVariable]]:
+        """Lift parameter captures that are expressions, not variables.
+
+        The Outliner derives the callee's parameters from the region's live-ins,
+        so a capture that is not already a virtual variable cannot become a call
+        argument -- and the patterns compensated by *only matching* variables.
+        That is why ``S_ISDIR(inode->i_mode)`` was invisible while
+        ``S_ISDIR(st.st_mode)`` was not: the same macro, but one argument is a
+        Load and the other is a stack vvar.
+
+        Evaluating the capture into a temporary in front of the region fixes it
+        without moving anything: the temporary is emitted at the end of the
+        pre-region statements, which is exactly where the matched expression was
+        going to be evaluated anyway.
+
+        Expression-level matches only. A statement-sequence or graph match hoists
+        gap statements around the region, so "nothing in between" no longer holds.
+        """
+        pre: list[Statement] = []
+        subs: list[tuple[Expression, VirtualVariable]] = []
+        new_caps: dict[str, VirtualVariable] = {}
+        for param in match.pattern.params:
+            captured = match.captures.get(param.capture)
+            if captured is None or isinstance(captured, VirtualVariable):
+                continue
+            if isinstance(captured, BinaryOp) and captured.op == "Add" and isinstance(captured.operands[1], Const):
+                continue  # an object base; _materialize_bases owns it
+            if not self._is_liftable(captured):
+                continue
+            vvar_id = self._next_vvar_id()
+            tmp = VirtualVariable(
+                self._next_idx(),
+                vvar_id,
+                captured.bits,
+                VirtualVariableCategory.TMP,
+                oident=vvar_id,  # TMP-category vvars must carry a tmp idx
+                ins_addr=ins_addr,
+            )
+            pre.append(Assignment(self._next_idx(), tmp, captured.copy(), ins_addr=ins_addr))
+            subs.append((captured, tmp))
+            new_caps[param.capture] = tmp
+        return pre, subs, new_caps
+
+    def _substitute_expr(self, obj, old_expr: Expression, tmp: VirtualVariable):
+        """Replace every ``.likes()``-equal occurrence of ``old_expr`` in ``obj``."""
+
+        def occurrences(o):
+            return [e for e in _iter_subexprs(o) if e is not o and old_expr.likes(e)]
+
+        remaining = len(occurrences(obj))
+        while remaining:
+            occ = occurrences(obj)[0]
+            repl = VirtualVariable(self._next_idx(), tmp.varid, tmp.bits, tmp.category, oident=tmp.oident, **tmp.tags)
+            replaced, obj = obj.replace(occ, repl)
+            left = len(occurrences(obj))
+            if not replaced or left >= remaining:
+                raise UnsupportedOutlineError("failed to lift a parameter expression out of the region")
+            remaining = left
+        return obj
+
+    def _apply_exprs(self, objs: list, subs: list[tuple[Expression, VirtualVariable]]) -> list:
+        for old_expr, tmp in subs:
+            objs = [self._map_uses(o, lambda x, e=old_expr, t=tmp: self._substitute_expr(x, e, t)) for o in objs]
+        return objs
+
+    @staticmethod
+    def _map_uses(obj, fn):
+        """Apply ``fn`` to the *use* positions of ``obj``.
+
+        An assignment's destination is a definition, not a use: rewriting it
+        would turn `x = p + 16` into `p + 16 = p + 16`, which is not an
+        assignment to anything and asserts inside variable recovery. Filtering
+        the destination out of the walk by identity does not work -- the AIL
+        objects are Rust-backed, so attribute access hands back a fresh Python
+        wrapper each time and `is` never matches -- hence rebuilding the
+        statement around a rewritten source instead."""
+        if isinstance(obj, Assignment):
+            new_src = fn(obj.src)
+            return Assignment(obj.idx, obj.dst, new_src, **obj.tags)
+        return fn(obj)
+
     @staticmethod
     def _rebase_occurrences(obj, root_varid: int, obj_off: int) -> list[BinaryOp]:
         out = []
@@ -1322,13 +1445,25 @@ class KnownPatternFinder(Analysis):
                     break
         return out
 
-    def _rebase(self, obj, root_varid: int, obj_off: int, tmp: VirtualVariable):
+    def _rebase(self, obj, root_varid: int, obj_off: int, tmp: VirtualVariable, aliases=()):
         """Re-express ``root + C`` inside ``obj`` as ``tmp + (C - obj_off)``.
 
         Occurrences of ``root`` that are *not* a field of this object are left
         alone; they keep ``root`` live into the region, which the callee-interface
         check then rejects -- the safe outcome, since the pattern would otherwise
-        name an object it did not actually identify."""
+        name an object it did not actually identify.
+
+        ``aliases`` are variables the matcher established to hold ``root + C``
+        themselves; a reference to one is a reference to that address, so it is
+        rewritten the same way. That is what a `lea` into a register of its own
+        looks like, and leaving it alone would keep it live into the region."""
+        for varid, alias_root, disp in aliases:
+            if alias_root != root_varid or disp < obj_off:
+                continue
+            obj = self._map_uses(obj, lambda o, v=varid, d=disp - obj_off: self._substitute_alias(o, v, d, tmp))
+        return self._map_uses(obj, lambda o: self._rebase_inner(o, root_varid, obj_off, tmp))
+
+    def _rebase_inner(self, obj, root_varid: int, obj_off: int, tmp: VirtualVariable):
         remaining = len(self._rebase_occurrences(obj, root_varid, obj_off))
         while remaining:
             occ = self._rebase_occurrences(obj, root_varid, obj_off)[0]
@@ -1350,9 +1485,35 @@ class KnownPatternFinder(Analysis):
             remaining = left
         return obj
 
-    def _apply_bases(self, objs: list, rewrites: list[tuple[int, int, VirtualVariable]]) -> list:
+    def _substitute_alias(self, obj, varid: int, delta: int, tmp: VirtualVariable):
+        """Replace a variable that holds the object's address by ``tmp + delta``."""
+
+        def occurrences(o):
+            return [e for e in _iter_subexprs(o) if isinstance(e, VirtualVariable) and e.varid == varid]
+
+        remaining = len(occurrences(obj))
+        while remaining:
+            occ = occurrences(obj)[0]
+            new_tmp = VirtualVariable(
+                self._next_idx(), tmp.varid, tmp.bits, tmp.category, oident=tmp.oident, **tmp.tags
+            )
+            repl: Expression = (
+                new_tmp
+                if delta == 0
+                else BinaryOp(
+                    self._next_idx(), "Add", [new_tmp, Const(self._next_idx(), delta, tmp.bits)], False, **occ.tags
+                )
+            )
+            replaced, obj = obj.replace(occ, repl)
+            left = len(occurrences(obj))
+            if not replaced or left >= remaining:
+                raise UnsupportedOutlineError("failed to re-express an aliased object address")
+            remaining = left
+        return obj
+
+    def _apply_bases(self, objs: list, rewrites: list[tuple[int, int, VirtualVariable]], aliases=()) -> list:
         for root_varid, obj_off, tmp in rewrites:
-            objs = [self._rebase(o, root_varid, obj_off, tmp) for o in objs]
+            objs = [self._rebase(o, root_varid, obj_off, tmp, aliases) for o in objs]
         return objs
 
     def _substitute_vvar(self, obj, old_varid: int, new_vvar: VirtualVariable):
@@ -1431,7 +1592,9 @@ class KnownPatternFinder(Analysis):
             + [stmts[i] for i in gap_idxs]
             + base_stmts
         )
-        mid_stmts = self._apply_bases([stmts[i] for i in consumed] + [stmts[i] for i in span], rebases)
+        mid_stmts = self._apply_bases(
+            [stmts[i] for i in consumed] + [stmts[i] for i in span], rebases, match.base_aliases
+        )
         post_stmts = stmts[span[-1] + 1 :]
         _, b_mid, b_post = split_ail_block(g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr)
 
@@ -1504,7 +1667,7 @@ class KnownPatternFinder(Analysis):
                 blk = nodes_dict.get(loc)
                 if blk is None:
                     raise UnsupportedOutlineError("stale match: a matched block is gone from the graph")
-                blk.statements[:] = self._apply_bases(list(blk.statements), rebases)
+                blk.statements[:] = self._apply_bases(list(blk.statements), rebases, match.base_aliases)
 
         src_loc = entry_loc
         if entry_residue or base_stmts:

@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .context import INTEL
-from .dsl import PBinOp, PChoice, PConst, PConv, PUnaryOp, PVVar
+from .dsl import PBinOp, PChoice, PConst, PConv, PExtract, PUnaryOp, PVVar
 from .pattern import KnownPattern, PatternParam
 from .templates import make_template
 
@@ -43,13 +43,20 @@ ABS32 = 0x7FFFFFFF
 
 
 def _sse_operand(cap: str) -> PChoice:
-    """An SSE scalar operand: either a bare vvar (the 128-bit vector op was
-    narrowed away) or a vvar widened into the vector register. The source width
-    of that widening is not pinned: it follows the *recovered prototype*, so a
-    float argument appears as Conv(32->128) when the prototype is known and as
-    Conv(64->128) when it was guessed from the xmm register. The mask constant
-    already discriminates float from double."""
-    return PChoice(PVVar(cap), PConv(PVVar(cap), to_bits=128))
+    """An SSE scalar operand: a bare vvar (the 128-bit vector op was narrowed
+    away), a vvar widened into the vector register, or the low half extracted
+    back out of one.
+
+    The width of the widening is not pinned: it follows the *recovered
+    prototype*, so a float argument appears as Conv(32->128) when the prototype
+    is known and as Conv(64->128) when it was guessed from the xmm register. The
+    mask constant already discriminates float from double.
+
+    The Extract arm is what a *computed* operand looks like -- ``isinf(a * b)``
+    rather than ``isinf(x)``. The product stays in a vector vvar and ``movq
+    %xmm2,%rax`` lifts to ``Extract(vvar_128, 64bits@0)``; without this arm every
+    such site is silent, which is why isinf scored 4%."""
+    return PChoice(PVVar(cap), PConv(PVVar(cap), to_bits=128), PExtract(PVVar(cap), offset=0))
 
 
 def _scalar_mask(value: int) -> PChoice:

@@ -33,7 +33,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .context import CPP, INTEL, LIBSTDCXX, size_t_typename
-from .dsl import PITE, PBinOp, PChoice, PConst, PField, PLoad, PVVar
+from .dsl import (
+    PITE,
+    PAssign,
+    PBinOp,
+    PBlockPat,
+    PChoice,
+    PCondJump,
+    PConst,
+    PField,
+    PGraphPat,
+    PLoad,
+    PStmtSeq,
+    PVVar,
+)
 from .layouts import string_capacity_offset, string_data_offset, string_size_offset, vector_end_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .std_string_length import STD_BASIC_STRING, STRING_WITNESSED
@@ -85,6 +98,60 @@ def _build_string_capacity(ctx: PatternContext) -> KnownPattern:
     )
 
 
+def _build_string_capacity_branch(ctx: PatternContext) -> KnownPattern:
+    """The same SSO select as a *triangle* rather than a diamond.
+
+    clang does not materialize a value in both arms. It seeds the register with
+    the local capacity and overwrites it only on the heap path::
+
+        mov  $0xf,%ecx           ; lc = 15
+        cmp  %r15,%rax           ; _M_p == &_M_local_buf ?
+        je   skip
+        mov  0x40(%rsi),%rcx     ; h = _M_allocated_capacity
+      skip:
+
+    One arm is empty, so ITERegionConverter leaves it alone and no ITE ever
+    forms -- which is why :func:`_build_string_capacity` scored 0% on every clang
+    arm of the benchmark corpus while managing ~25% on gcc. The two spellings
+    cannot share a pattern object: one is an expression, the other a region.
+    """
+    ws = ctx.word_size
+    local_buf = PField("s", string_capacity_offset(ctx))
+    data = _field("s", string_data_offset(ctx), ws)
+    heap_cap = _field("s", string_capacity_offset(ctx), ws)
+    return KnownPattern(
+        name="std_string_capacity",
+        display_name="std::string::capacity",
+        call_name="std::string::capacity",
+        pattern=PGraphPat(
+            blocks={
+                # lc = 15; if (_M_p == &_M_local_buf) fall through, else load the
+                # allocated capacity. Both polarities: the edge set is what the
+                # region match is keyed on, not which successor is the taken one.
+                "entry": PBlockPat(
+                    "entry",
+                    PStmtSeq(
+                        (
+                            PAssign(PVVar("lc"), PConst(_SSO_LOCAL_CAPACITY)),
+                            PCondJump(
+                                PChoice(
+                                    PBinOp("CmpEQ", (data, local_buf)),
+                                    PBinOp("CmpNE", (data, local_buf)),
+                                )
+                            ),
+                        )
+                    ),
+                ),
+                "heap": PBlockPat("heap", PStmtSeq((PAssign(PVVar("h"), heap_cap),))),
+            },
+            edges=[("entry", "heap"), ("entry", "merge"), ("heap", "merge")],
+            entry="entry",
+        ),
+        params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
+        returnty=size_t_typename(ctx.bits),
+    )
+
+
 def _build_string_back(ctx: PatternContext) -> KnownPattern:
     ws = ctx.word_size
     data = _field("s", string_data_offset(ctx), ws)
@@ -119,6 +186,18 @@ STD_STRING_CAPACITY = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_capacity",
+)
+# The triangle spelling is a second template rather than another arm of the
+# first: a PGraphPat is a region, a PITE is an expression, and one KnownPattern
+# holds one pattern object. Both emit the same call name and the same pattern
+# name, so they are one family to everything downstream.
+STD_STRING_CAPACITY_BRANCH = make_template(
+    "std::string::capacity (triangle)",
+    _build_string_capacity_branch,
+    arches=INTEL,
+    languages=(CPP,),
+    runtimes=(LIBSTDCXX,),
+    name="std_string_capacity_branch",
 )
 STD_STRING_BACK = make_template(
     "std::string::back",
@@ -184,6 +263,7 @@ STD_VECTOR_SHORT_BACK = make_std_vector_back_template("short", 2, "short")
 
 ALL_STL2_TEMPLATES = [
     STD_STRING_CAPACITY,
+    STD_STRING_CAPACITY_BRANCH,
     STD_STRING_BACK,
     STD_STRING_FRONT,
     STD_VECTOR_CHAR_BACK,

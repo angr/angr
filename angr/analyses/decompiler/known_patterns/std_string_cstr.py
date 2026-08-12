@@ -36,7 +36,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .context import INTEL
-from .dsl import PAssign, PBinOp, PBlockPat, PCondJump, PConst, PField, PGraphPat, PLoad, PStmtSeq, PVVar
+from .dsl import (
+    PAssign,
+    PBinOp,
+    PBlockPat,
+    PChoice,
+    PCondJump,
+    PConst,
+    PField,
+    PGraphPat,
+    PLoad,
+    PStmtSeq,
+    PVVar,
+)
 from .layouts import string_data_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .std_string_length import STD_BASIC_STRING
@@ -69,8 +81,26 @@ def _build_string_cstr(ctx: PatternContext) -> KnownPattern:
         call_name="std::string::c_str",
         pattern=PGraphPat(
             blocks={
-                # if (s->_Myres < 16) fall through to the merge, else take the heap branch
-                "entry": PBlockPat("entry", PStmtSeq((PCondJump(PBinOp("CmpLT", (cap_load, PConst(_SSO_BUF_SIZE)))),))),
+                # if (s->_Myres < 16) fall through to the merge, else take the heap
+                # branch. Both spellings of that predicate: the lifter produces
+                # `CmpLE(cap, 15)` at least as often as `CmpLT(cap, 16)`, and
+                # accepting only the latter is why this pattern fired zero times
+                # across the corpus.
+                "entry": PBlockPat(
+                    "entry",
+                    PStmtSeq(
+                        (
+                            PCondJump(
+                                PChoice(
+                                    PBinOp("CmpLT", (cap_load, PConst(_SSO_BUF_SIZE))),
+                                    PBinOp("CmpLE", (cap_load, PConst(_SSO_BUF_SIZE - 1))),
+                                    PBinOp("CmpGE", (cap_load, PConst(_SSO_BUF_SIZE))),
+                                    PBinOp("CmpGT", (cap_load, PConst(_SSO_BUF_SIZE - 1))),
+                                )
+                            ),
+                        )
+                    ),
+                ),
                 # h = *(void**)s   (the heap pointer)
                 "heap": PBlockPat("heap", PStmtSeq((PAssign(PVVar("h"), heap_ptr),))),
             },
