@@ -33,7 +33,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .context import CPP, INTEL, LIBSTDCXX, size_t_typename
-from .dsl import PITE, PBinOp, PChoice, PConst, PLoad, PVVar
+from .dsl import PITE, PBinOp, PChoice, PConst, PField, PLoad, PVVar
 from .layouts import string_capacity_offset, string_data_offset, string_size_offset, vector_end_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .std_string_length import STD_BASIC_STRING, STRING_WITNESSED
@@ -48,6 +48,16 @@ _SSO_LOCAL_CAPACITY = 15
 
 
 def _field(cap: str, off: int, size: int) -> PLoad:
+    """A field read of a container identified by *two* of its fields, so the
+    object may sit at a non-zero offset inside another one (see
+    :class:`~.dsl.PField`). capacity() reads _M_p and the local buffer; back()
+    reads _M_p and _M_string_length."""
+    return PLoad(PField(cap, off), size=size)
+
+
+def _field_bare(cap: str, off: int, size: int) -> PLoad:
+    """The single-field form, for accessors with no second displacement to
+    constrain a floating base (front(), vector::back())."""
     addr = PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
     return PLoad(addr, size=size)
 
@@ -57,9 +67,9 @@ def _field(cap: str, off: int, size: int) -> PLoad:
 
 def _build_string_capacity(ctx: PatternContext) -> KnownPattern:
     ws = ctx.word_size
-    local_buf = PBinOp("Add", (PVVar("s"), PConst(string_capacity_offset(ctx))))
-    data_is_local = PLoad(PVVar("s"), size=ws)
-    heap_cap = PLoad(local_buf, size=ws)
+    local_buf = PField("s", string_capacity_offset(ctx))
+    data_is_local = _field("s", string_data_offset(ctx), ws)
+    heap_cap = _field("s", string_capacity_offset(ctx), ws)
     local_cap = PConst(_SSO_LOCAL_CAPACITY)
     return KnownPattern(
         name="std_string_capacity",
@@ -94,7 +104,7 @@ def _build_string_front(ctx: PatternContext) -> KnownPattern:
         name="std_string_front",
         display_name="std::string::front",
         call_name="std::string::front",
-        pattern=PLoad(_field("s", string_data_offset(ctx), ctx.word_size), size=1),
+        pattern=PLoad(_field_bare("s", string_data_offset(ctx), ctx.word_size), size=1),
         params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
         returnty="char",
     )
@@ -142,7 +152,7 @@ def make_std_vector_back_template(elt_name: str, elt_size: int, returnty: str):
     call_name = f"std::vector<{elt_name}>::back"
 
     def build(ctx: PatternContext) -> KnownPattern:
-        end = _field("v", vector_end_offset(ctx), ctx.word_size)
+        end = _field_bare("v", vector_end_offset(ctx), ctx.word_size)
         return KnownPattern(
             name=f"std_vector_{slug}_back",
             display_name=call_name,

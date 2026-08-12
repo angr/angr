@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from dataclasses import replace as dataclass_replace
 
 import networkx
 
@@ -1085,6 +1086,14 @@ class KnownPatternFinder(Analysis):
         for old_varid, new_vvar in subst:
             moved_stmts = [self._substitute_vvar(s, old_varid, new_vvar) for s in moved_stmts]
 
+        # a container reached as a field of another object: compute its address
+        # into a variable ahead of the region, and rebase the region onto it
+        base_stmts, rebases, base_caps = self._materialize_bases(match, ins_addr)
+        if base_caps:
+            match = dataclass_replace(match, captures={**match.captures, **base_caps})
+            moved_stmts = self._apply_bases(moved_stmts, rebases)
+            dup_stmts = self._apply_bases(dup_stmts, rebases)
+
         # determine the result vvar; lift the matched sub-expression into its
         # own assignment unless the anchor already is one
         anchor_absorbed = (
@@ -1097,6 +1106,7 @@ class KnownPatternFinder(Analysis):
             region_anchor = anchor
             for old_varid, new_vvar in subst:
                 region_anchor = self._substitute_vvar(region_anchor, old_varid, new_vvar)
+            (region_anchor,) = self._apply_bases([region_anchor], rebases)
             mid_stmts = dup_stmts + moved_stmts + [region_anchor]
             post_head: list[Statement] = []
         else:
@@ -1112,6 +1122,7 @@ class KnownPatternFinder(Analysis):
             region_expr = match.matched_expr.copy()
             for old_varid, new_vvar in subst:
                 region_expr = self._substitute_vvar(region_expr, old_varid, new_vvar)
+            (region_expr,) = self._apply_bases([region_expr], rebases)
             lifted = Assignment(self._next_idx(), result_vvar, region_expr, ins_addr=ins_addr)
             replaced, new_anchor = anchor.replace(match.matched_expr, result_vvar.copy())
             if not replaced:
@@ -1119,7 +1130,7 @@ class KnownPatternFinder(Analysis):
             mid_stmts = dup_stmts + moved_stmts + [lifted]
             post_head = [new_anchor]
 
-        pre_stmts = [s for i, s in enumerate(stmts[:anchor_idx]) if i not in match.consumed_stmt_idxs]
+        pre_stmts = [s for i, s in enumerate(stmts[:anchor_idx]) if i not in match.consumed_stmt_idxs] + base_stmts
         post_stmts = post_head + stmts[anchor_idx + 1 :]
 
         _, b_mid, b_post = split_ail_block(g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr)
@@ -1203,6 +1214,114 @@ class KnownPatternFinder(Analysis):
             subst.append((stmt.dst.varid, new_dst))
         return dup_stmts, subst[n_prior:]
 
+    def _materialize_bases(
+        self, match: KnownPatternMatch, ins_addr: int | None
+    ) -> tuple[list[Statement], list[tuple[int, int, VirtualVariable]], dict[str, VirtualVariable]]:
+        """Give every parameter capture bound to ``root + K`` a variable of its own.
+
+        A :class:`~.dsl.PField` binds a container that is a *field of something
+        else* to the address expression ``root + K``, which cannot be a call
+        argument: the Outliner derives the callee's parameters from the region's
+        live-ins, and those are always virtual variables. So the object pointer
+        is computed once *ahead* of the region -- ``tmp = root + K`` -- and the
+        region's field addresses are re-expressed against ``tmp``, which makes
+        ``tmp`` the single live-in and gives the synthesized call a variable to
+        pass. It also puts the object's type where it belongs: ``tmp`` is the
+        ``std::vector<T> *``, not the enclosing object's pointer.
+
+        Returns the assignments to place before the region, the rewrite triples
+        ``(root varid, K, tmp)``, and the captures to override.
+        """
+        pre: list[Statement] = []
+        rewrites: list[tuple[int, int, VirtualVariable]] = []
+        new_caps: dict[str, VirtualVariable] = {}
+        for param in match.pattern.params:
+            captured = match.captures.get(param.capture)
+            if captured is None or isinstance(captured, VirtualVariable):
+                continue
+            if not (
+                isinstance(captured, BinaryOp)
+                and captured.op == "Add"
+                and len(captured.operands) == 2
+                and isinstance(captured.operands[0], VirtualVariable)
+                and isinstance(captured.operands[1], Const)
+                and isinstance(captured.operands[1].value, int)
+            ):
+                # not an offset base; _rewrite_callsite will reject it
+                continue
+            root, off = captured.operands
+            vvar_id = self._next_vvar_id()
+            tmp = VirtualVariable(
+                self._next_idx(),
+                vvar_id,
+                root.bits,
+                VirtualVariableCategory.TMP,
+                oident=vvar_id,  # TMP-category vvars must carry a tmp idx
+                ins_addr=ins_addr,
+            )
+            src = BinaryOp(
+                self._next_idx(),
+                "Add",
+                [root.copy(), Const(self._next_idx(), off.value, off.bits)],
+                False,
+                ins_addr=ins_addr,
+            )
+            pre.append(Assignment(self._next_idx(), tmp, src, ins_addr=ins_addr))
+            rewrites.append((root.varid, off.value, tmp))
+            new_caps[param.capture] = tmp
+        return pre, rewrites, new_caps
+
+    @staticmethod
+    def _rebase_occurrences(obj, root_varid: int, obj_off: int) -> list[BinaryOp]:
+        out = []
+        for e in _iter_subexprs(obj):
+            if not (isinstance(e, BinaryOp) and e.op == "Add" and len(e.operands) == 2):
+                continue
+            for var, const in (e.operands, e.operands[::-1]):
+                if (
+                    isinstance(var, VirtualVariable)
+                    and var.varid == root_varid
+                    and isinstance(const, Const)
+                    and isinstance(const.value, int)
+                    and const.value >= obj_off
+                ):
+                    out.append(e)
+                    break
+        return out
+
+    def _rebase(self, obj, root_varid: int, obj_off: int, tmp: VirtualVariable):
+        """Re-express ``root + C`` inside ``obj`` as ``tmp + (C - obj_off)``.
+
+        Occurrences of ``root`` that are *not* a field of this object are left
+        alone; they keep ``root`` live into the region, which the callee-interface
+        check then rejects -- the safe outcome, since the pattern would otherwise
+        name an object it did not actually identify."""
+        remaining = len(self._rebase_occurrences(obj, root_varid, obj_off))
+        while remaining:
+            occ = self._rebase_occurrences(obj, root_varid, obj_off)[0]
+            const = next(o for o in occ.operands if isinstance(o, Const))
+            delta = const.value - obj_off
+            new_tmp = VirtualVariable(
+                self._next_idx(), tmp.varid, tmp.bits, tmp.category, oident=tmp.oident, **tmp.tags
+            )
+            if delta == 0:
+                repl: Expression = new_tmp
+            else:
+                repl = BinaryOp(
+                    self._next_idx(), "Add", [new_tmp, Const(self._next_idx(), delta, const.bits)], False, **occ.tags
+                )
+            replaced, obj = obj.replace(occ, repl)
+            left = len(self._rebase_occurrences(obj, root_varid, obj_off))
+            if not replaced or left >= remaining:
+                raise UnsupportedOutlineError("failed to re-express a field address against the materialized base")
+            remaining = left
+        return obj
+
+    def _apply_bases(self, objs: list, rewrites: list[tuple[int, int, VirtualVariable]]) -> list:
+        for root_varid, obj_off, tmp in rewrites:
+            objs = [self._rebase(o, root_varid, obj_off, tmp) for o in objs]
+        return objs
+
     def _substitute_vvar(self, obj, old_varid: int, new_vvar: VirtualVariable):
         """Replace every occurrence of the vvar ``old_varid`` in ``obj`` (a
         statement or an expression) with a copy of ``new_vvar``."""
@@ -1269,13 +1388,18 @@ class KnownPatternFinder(Analysis):
             if _stmt_uses(stmts[i]) & matched_defs:
                 raise UnsupportedOutlineError("interleaved statements use values defined by the matched span")
 
-        pre_stmts = [s for i, s in enumerate(stmts[: span[0]]) if i not in match.consumed_stmt_idxs] + [
-            stmts[i] for i in gap_idxs
-        ]
-        mid_stmts = [stmts[i] for i in consumed] + [stmts[i] for i in span]
-        post_stmts = stmts[span[-1] + 1 :]
-
         ins_addr = stmts[span[0]].tags.get("ins_addr")
+        base_stmts, rebases, base_caps = self._materialize_bases(match, ins_addr)
+        if base_caps:
+            match = dataclass_replace(match, captures={**match.captures, **base_caps})
+
+        pre_stmts = (
+            [s for i, s in enumerate(stmts[: span[0]]) if i not in match.consumed_stmt_idxs]
+            + [stmts[i] for i in gap_idxs]
+            + base_stmts
+        )
+        mid_stmts = self._apply_bases([stmts[i] for i in consumed] + [stmts[i] for i in span], rebases)
+        post_stmts = stmts[span[-1] + 1 :]
         _, b_mid, b_post = split_ail_block(g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr)
 
         if b_post is not None:
@@ -1335,8 +1459,22 @@ class KnownPatternFinder(Analysis):
             i for i, s in enumerate(entry_block.statements) if i not in entry_consumed and not isinstance(s, Label)
         ]
 
+        ins_addr = entry_block.statements[min(entry_consumed)].tags.get("ins_addr") if entry_consumed else None
+
+        # a container reached as a field of another object (a std::string member,
+        # say): its address is computed into a variable ahead of the region and
+        # every block of the region is rebased onto it
+        base_stmts, rebases, base_caps = self._materialize_bases(match, ins_addr)
+        if base_caps:
+            match = dataclass_replace(match, captures={**match.captures, **base_caps})
+            for loc in match.block_map.values():
+                blk = nodes_dict.get(loc)
+                if blk is None:
+                    raise UnsupportedOutlineError("stale match: a matched block is gone from the graph")
+                blk.statements[:] = self._apply_bases(list(blk.statements), rebases)
+
         src_loc = entry_loc
-        if entry_residue:
+        if entry_residue or base_stmts:
             # the entry has leading residue; it must all precede the consumed
             # part, and the entry must not be re-entered from inside the region
             # (a back-edge into a split entry would corrupt the region)
@@ -1351,12 +1489,11 @@ class KnownPatternFinder(Analysis):
                 raise UnsupportedOutlineError(
                     f"pattern {match.pattern.name}: the entry block is re-entered from within the region"
                 )
-            pre_stmts = [entry_block.statements[i] for i in entry_residue]
+            pre_stmts = [entry_block.statements[i] for i in entry_residue] + base_stmts
             mid_stmts = [s for i, s in enumerate(entry_block.statements) if i not in entry_residue]
             _, b_mid, _ = split_ail_block(g, entry_block, pre_stmts, mid_stmts, [], self._next_block_addr)
             src_loc = (b_mid.addr, b_mid.idx)
 
-        ins_addr = entry_block.statements[min(entry_consumed)].tags.get("ins_addr") if entry_consumed else None
         return self._run_outliner_and_rewrite(g, match, src_loc, frontier_loc, ins_addr)
 
     def _run_outliner_and_rewrite(

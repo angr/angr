@@ -36,7 +36,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .context import INTEL
-from .dsl import PAssign, PBinOp, PBlockPat, PCondJump, PConst, PGraphPat, PLoad, PStmtSeq, PVVar
+from .dsl import PAssign, PBinOp, PBlockPat, PCondJump, PConst, PField, PGraphPat, PLoad, PStmtSeq, PVVar
 from .layouts import string_data_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .std_string_length import STD_BASIC_STRING
@@ -58,8 +58,11 @@ def _build_string_cstr(ctx: PatternContext) -> KnownPattern:
     # hence this template gates on platform, not on the detected runtime).
     cap_off = _SSO_BUF_SIZE + ws
     data_off = string_data_offset(ctx)
-    heap_ptr = PLoad(PVVar("s") if data_off == 0 else PBinOp("Add", (PVVar("s"), PConst(data_off))), size=ws)
-    cap_load = PLoad(PBinOp("Add", (PVVar("s"), PConst(cap_off))), size=ws)
+    # PField: the string is usually a *member* of the object being decompiled, so
+    # both addresses arrive as `outer + K + field_off`. Two fields at a fixed
+    # distance still pin the object down; see :class:`~.dsl.PField`.
+    heap_ptr = PLoad(PField("s", data_off), size=ws)
+    cap_load = PLoad(PField("s", cap_off), size=ws)
     return KnownPattern(
         name="msvc_string_c_str",
         display_name="std::string::c_str",

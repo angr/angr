@@ -293,6 +293,93 @@ class PLoad(PatternExpr):
 
 
 @dataclass(frozen=True)
+class PField(PatternExpr):
+    """The *address* of the field at ``offset`` inside the object bound to ``base``.
+
+    Spelling a container's fields as ``PLoad(PVVar("v"))`` / ``PLoad(PVVar("v") +
+    8)`` requires the object to sit at the very address held in a virtual
+    variable. That is the minority case: measured over the benchmark corpus, only
+    10-25% of the DWARF sites for a ``std::vector`` accessor read the container
+    through a bare pointer -- the rest reach it as a *field of something else*
+    (``this->tokens.size()``), which lifts to ``Load(this + 56)`` /
+    ``Load(this + 64)`` and cannot bind ``v`` at all.
+
+    ``PField`` matches such an address and binds ``base`` to the object's own
+    address: ``root`` when the object is at offset 0, else ``root + K``. Two
+    fields of one object therefore unify on ``K``, which is what keeps the node
+    honest -- it replaces the constraint "this displacement is exactly 8" with
+    "these two displacements differ by exactly 8".
+
+    **Only use it in patterns that reference at least two fields.** With a single
+    field there is no second displacement to constrain, so ``PLoad(PField("s",
+    8))`` degenerates into "any load through a pointer plus a non-negative
+    constant" and matches essentially everything.
+
+    ``root`` must be a virtual variable: the outliner materializes ``tmp = root +
+    K`` ahead of the region so the synthesized call still takes a variable.
+    """
+
+    base: str
+    offset: int
+    name: str | None = None
+
+    @staticmethod
+    def _decompose(expr: Expression) -> tuple[Expression, int] | None:
+        """``expr`` -> ``(root, displacement)``."""
+        if isinstance(expr, BinaryOp) and expr.op == "Add":
+            a, b = expr.operands
+            for root, off in ((a, b), (b, a)):
+                if isinstance(off, Const) and isinstance(off.value, int):
+                    return root, off.value
+            return None
+        return expr, 0
+
+    def _bind(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        decomposed = self._decompose(expr)
+        if decomposed is None:
+            return None
+        root, disp = decomposed
+        if not isinstance(root, VirtualVariable):
+            return None
+        obj_off = disp - self.offset
+        # a negative object offset would mean the pointer we hold points *into*
+        # the object past the field, which no accessor does -- and allowing it
+        # would let a bare `Load(p)` satisfy a field at +8
+        if obj_off < 0:
+            return None
+        base_expr: Expression = (
+            root
+            if obj_off == 0
+            else BinaryOp(None, "Add", [root, Const(None, obj_off, root.bits)], False, bits=root.bits)
+        )
+        st = state.bind(self.base, base_expr)
+        if st is None:
+            return None
+        return self._bind_if_named(self.name, expr, st)
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        while ctx.skip_conversions and isinstance(expr, Convert):
+            expr = expr.operand
+        # Take the address as written first. Chasing is the *fallback*, not the
+        # default: a bare field address is a virtual variable, and _prepare would
+        # helpfully replace it by its definition -- turning `Load(v)` into
+        # `Load(<whatever defined v>)`, which decomposes to no base at all.
+        st = self._bind(expr, state, ctx)
+        if st is not None:
+            return st
+        # ...but when the object pointer was computed into a variable of its own
+        # (`p = outer + 6696`, then `Load(p)` next to `Load(outer + 6720)`), only
+        # the chased form agrees with the other field's base.
+        prepared = self._prepare(expr, state, ctx)
+        if prepared is None:
+            return None
+        chased, state = prepared
+        if chased is expr:
+            return None
+        return self._bind(chased, state, ctx)
+
+
+@dataclass(frozen=True)
 class PPhi(PatternExpr):
     """Matches a Phi expression, capturing it whole (its individual sources are
     not matched). Useful for loop-header blocks, whose statements are phi
@@ -504,6 +591,10 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("ITE", None)
     if isinstance(node, PVVar):
         return ("VirtualVariable", None)
+    if isinstance(node, PField):
+        # a field address is an Add when the object is not at offset 0 and a bare
+        # vvar when it is, so it discriminates nothing on its own
+        return None
     if isinstance(node, PAssign):
         return ("Assignment", None)
     if isinstance(node, PStore):

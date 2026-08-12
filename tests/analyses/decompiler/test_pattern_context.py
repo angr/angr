@@ -57,9 +57,9 @@ class TestPatternContext(TestCase):
         # 64-bit: _M_finish at +8; 32-bit: at +4
         p64 = STD_VECTOR_INT_SIZE.instantiate(_ctx(64, LIBSTDCXX, "linux", "AMD64"))
         p32 = STD_VECTOR_INT_SIZE.instantiate(_ctx(32, LIBSTDCXX, "linux", "X86"))
-        # top node is PBinOp(Sar/Shr, (Sub(Load(v+off), Load(v)), 2))
-        finish64 = p64.pattern.operands[0].operands[0].addr.operands[1].value
-        finish32 = p32.pattern.operands[0].operands[0].addr.operands[1].value
+        # top node is PBinOp(Sar/Shr, (Sub(Load(PField(v, off)), Load(PField(v, 0))), 2))
+        finish64 = p64.pattern.operands[0].operands[0].addr.offset
+        finish32 = p32.pattern.operands[0].operands[0].addr.offset
         assert (finish64, finish32) == (8, 4)
 
 

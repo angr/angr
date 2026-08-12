@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .context import CPP, INTEL, size_t_typename
-from .dsl import PBinOp, PConst, PLoad, PVVar
+from .dsl import PBinOp, PConst, PField, PLoad, PVVar
 from .layouts import vector_begin_offset, vector_cap_offset, vector_end_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .std_vector_size import STD_VECTOR_INT
@@ -25,6 +25,16 @@ _ELT_SIZE = 4  # int
 
 
 def _vfield(cap: str, off: int, size: int) -> PLoad:
+    # PField: empty()/capacity() each read two of the three vector pointers, so
+    # their displacements constrain each other and the container is free to be a
+    # field of another object (see std_vector_size._vfield).
+    return PLoad(PField(cap, off), size=size)
+
+
+def _vfield_bare(cap: str, off: int, size: int) -> PLoad:
+    """The single-field form. operator[] reads only _M_start, so there is no
+    second displacement to constrain a floating base -- ``Load(PField(v, 0) + i*4)``
+    would match every indexed load in the binary."""
     addr = PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
     return PLoad(addr, size=size)
 
@@ -66,7 +76,10 @@ def _build_vector_index(ctx: PatternContext) -> KnownPattern:
         display_name="std::vector<int>::operator[]",
         call_name="std::vector<int>::operator[]",
         pattern=PLoad(
-            PBinOp("Add", (_vfield("v", vector_begin_offset(ctx), ws), PBinOp("Mul", (PVVar("i"), PConst(_ELT_SIZE))))),
+            PBinOp(
+                "Add",
+                (_vfield_bare("v", vector_begin_offset(ctx), ws), PBinOp("Mul", (PVVar("i"), PConst(_ELT_SIZE)))),
+            ),
             size=_ELT_SIZE,
         ),
         params=(PatternParam("v", type=CppRef(STD_VECTOR_INT)), PatternParam("i")),

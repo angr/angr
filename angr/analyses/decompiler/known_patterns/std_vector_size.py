@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from angr.procedures.definitions.types_stl import EXACTDIV_ELEMENT_SIZES
 
 from .context import CPP, INTEL, size_t_typename
-from .dsl import PBinOp, PConst, PLoad, PVVar
+from .dsl import PBinOp, PConst, PField, PLoad
 from .layouts import vector_begin_offset, vector_end_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .templates import make_template
@@ -34,8 +34,12 @@ STD_VECTOR_INT = STD_VECTOR_UNIQUE_NAME_TMPL.format(elt="int")
 
 
 def _vfield(cap: str, off: int, size: int) -> PLoad:
-    addr = PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
-    return PLoad(addr, size=size)
+    # PField, not PVVar+PConst: size() reads _M_start *and* _M_finish, so the two
+    # displacements constrain each other and the vector no longer has to sit at
+    # the address held in a register. A vector that is a member of another object
+    # -- ``this->tokens.size()``, most vectors in real code -- lifts to
+    # Load(this + 56) / Load(this + 64) and could not bind ``v`` at all before.
+    return PLoad(PField(cap, off), size=size)
 
 
 def make_std_vector_size_template(elt_name: str, log2_elt_size: int):

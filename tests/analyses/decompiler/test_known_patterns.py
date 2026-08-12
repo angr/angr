@@ -1013,3 +1013,76 @@ class TestUnderscorePrefixedMangling(TestCase):
         from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
 
         assert detect_cxx_runtime(angr.Project(bin_path, auto_load_libs=False)) == MSVC
+
+
+class TestMemberContainers(TestCase):
+    # PField: a container that is a *field of another object* rather than the
+    # thing a register points at. Templates that spell their fields as
+    # `Load(PVVar("v") + off)` require the object to sit at offset 0, which over
+    # the benchmark corpus is only 10-25% of the DWARF sites for a vector
+    # accessor -- `this->items.size()` lifts to `Load(this + 8)` /
+    # `Load(this + 16)` and could not bind `v` at all.
+    #
+    # The two field displacements still constrain each other, so the pattern is
+    # no less specific; the outliner materializes `tmp = this + K` ahead of the
+    # region so the synthesized call keeps taking a variable, and `tmp` is what
+    # carries the container's type.
+
+    STL4_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl4")
+
+    def test_pfield_binds_the_object_not_the_pointer(self):
+        from angr.ailment.expression import BinaryOp, Const, VirtualVariable, VirtualVariableCategory
+        from angr.analyses.decompiler.known_patterns.dsl import PField
+
+        this = VirtualVariable(None, 7, 64, VirtualVariableCategory.REGISTER, oident=16)
+        addr = BinaryOp(None, "Add", [this, Const(None, 16, 64)], False)
+
+        # a field at +8 reached through `this + 16` means the object is at +8
+        st = PField("v", 8).match(addr, MatchState(), MatchCtx())
+        assert st is not None
+        base = st.bindings["v"]
+        assert isinstance(base, BinaryOp) and base.op == "Add"
+        assert base.operands[1].value == 8
+
+        # the same address as the +16 field pins the object at offset 0
+        st = PField("v", 16).match(addr, MatchState(), MatchCtx())
+        assert st is not None and st.bindings["v"].likes(this)
+
+        # two fields of one object must agree on where the object starts
+        st = PField("v", 0).match(this, MatchState(), MatchCtx())
+        assert st is not None
+        assert PField("v", 8).match(addr, st, MatchCtx()) is None  # would put it at +8
+        assert PField("v", 16).match(addr, st, MatchCtx()) is not None
+
+    def test_pfield_rejects_a_negative_object_offset(self):
+        # without this a bare `Load(p)` would satisfy a field at +8, and
+        # std::string::length would match every one-word load in the binary
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+        from angr.analyses.decompiler.known_patterns.dsl import PField
+
+        p = VirtualVariable(None, 7, 64, VirtualVariableCategory.REGISTER, oident=16)
+        assert PField("v", 8).match(p, MatchState(), MatchCtx()) is None
+
+    def test_member_vector_size(self):
+        _, _, _, dec = _decompile(self.STL4_BIN, "doc_item_count", preset="full")
+        text = dec.codegen.text
+        assert "std::vector<long long>::size(" in text
+        # the object pointer is computed into a variable of its own, and it --
+        # not the enclosing Doc * -- is what carries the container type
+        assert "std::vector<long long> *" in text
+
+    def test_member_vector_empty(self):
+        _, _, _, dec = _decompile(self.STL4_BIN, "doc_items_empty", preset="full")
+        assert "std::vector<int>::empty(" in dec.codegen.text
+
+    def test_member_string_capacity(self):
+        # the SSO select on a member string: _M_p at this+32 tested against the
+        # local buffer at this+48
+        _, _, _, dec = _decompile(self.STL4_BIN, "doc_name_capacity", preset="full")
+        text = dec.codegen.text
+        assert "std::string::capacity(" in text
+        assert "std::string *" in text
+
+    def test_member_string_back(self):
+        _, _, _, dec = _decompile(self.STL4_BIN, "doc_name_back", preset="full")
+        assert "std::string::back(" in dec.codegen.text
