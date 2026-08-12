@@ -3471,7 +3471,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             blocks_ahead.append(self._lift(cfg_job.src_node.addr).vex)
             procedure.project = self.project
             procedure.arch = self.project.arch
-            new_exits = procedure.static_exits(blocks_ahead, cfg=self)
+            try:
+                new_exits = procedure.static_exits(blocks_ahead, cfg=self)
+            except Exception:  # pylint: disable=broad-except
+                # static_exits() is a best-effort heuristic that speculatively
+                # executes blocks CFGFast lifted ahead of the callsite. Those
+                # blocks may not even lie on a path to the call, so any failure
+                # is local to this callsite and must not abort the whole scan.
+                l.warning("Error computing static exits for %s at %#x.", name, cfg_job.src_node.addr, exc_info=True)
+                new_exits = []
 
             for new_exit in new_exits:
                 addr_ = new_exit["address"]
