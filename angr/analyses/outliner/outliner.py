@@ -253,11 +253,20 @@ class Outliner(Analysis):
                     self.parent_graph.add_edge(parent, dispatcher_node)
                     self.parent_graph.add_edge(dispatcher_node, node_dict[jump_target])
 
-                    self._update_phi_stmts(node_dict[jump_target])
+                    self._update_phi_stmts(
+                        node_dict[jump_target],
+                        collapsed_loc=(dispatcher_node.addr, dispatcher_node.idx),
+                        ret_vvar=ret_exprs[0] if ret_exprs else None,
+                    )
 
                     parent = dispatcher_node
 
                 self.parent_graph.add_edge(parent, node_dict[last_retval_to_target_item[1]])
+                self._update_phi_stmts(
+                    node_dict[last_retval_to_target_item[1]],
+                    collapsed_loc=(parent.addr, parent.idx),
+                    ret_vvar=ret_exprs[0] if ret_exprs else None,
+                )
 
             else:
                 (frontier_node,) = frontier

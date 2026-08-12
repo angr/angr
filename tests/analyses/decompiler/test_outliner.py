@@ -7,8 +7,9 @@ import unittest
 from unittest import TestCase
 
 import angr
-from angr.ailment.expression import VirtualVariableCategory
-from angr.analyses.decompiler.clinic import ClinicStage
+from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment
+from angr.analyses.decompiler.clinic import Clinic, ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.outliner import Outliner
 from angr.sim_type import SimStruct, SimTypeArray, SimTypeChar, SimTypeWideChar
@@ -207,3 +208,72 @@ if __name__ == "__main__":
     logging.getLogger("angr.analyses.outliner").setLevel(logging.DEBUG)
     # TestOutliner().test_outlining_authenticate()
     TestOutliner().test_outlining_notepad_npinit()
+
+
+class TestOutlinerSSAInvariants(TestCase):
+    """Outlining rewrites the parent graph; the result must still be valid SSA.
+
+    Every problem below surfaces far downstream -- typically as an
+    AttributeError inside dephication -- so it is checked here instead.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        bin_path = os.path.join(bin_location, "tests", "x86_64", "1after909")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        cls.proj = proj
+        cls.cfg = cfg
+        cls.graphs = {}
+        for name in ("convert", "read_str"):
+            func = proj.kb.functions[name]
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+            assert dec.ail_graph is not None
+            cls.graphs[name] = (func, dec.ail_graph)
+
+    @staticmethod
+    def _ssa_problems(graph) -> set:
+        """Phis naming a block that is not a predecessor, and vvars defined twice."""
+        locs = {(b.addr, b.idx) for b in graph}
+        problems = set()
+        definitions = {}
+        for block in graph:
+            preds = {(p.addr, p.idx) for p in graph.predecessors(block)}
+            for i, stmt in enumerate(block.statements):
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    definitions.setdefault(stmt.dst.varid, []).append((block.addr, block.idx, i))
+                if not isinstance(stmt, Assignment) or not isinstance(stmt.src, Phi):
+                    continue
+                for src, _ in stmt.src.src_and_vvars:
+                    if src not in locs:
+                        problems.add(("phi-sources-removed-block", block.addr, block.idx, i, src))
+                    elif src not in preds:
+                        problems.add(("phi-sources-non-predecessor", block.addr, block.idx, i, src))
+        for varid, locations in definitions.items():
+            if len(locations) > 1:
+                problems.add(("vvar-defined-more-than-once", varid, None, None, None))
+        return problems
+
+    def test_outlining_never_introduces_ssa_problems(self):
+        """Outline at every viable location and check nothing new breaks.
+
+        Compared against the untouched graph rather than against zero: the
+        decompiler itself can emit duplicated blocks that already define the
+        same vvar twice, and that is not the Outliner's doing.
+        """
+        for name, (func, base) in self.graphs.items():
+            baseline = self._ssa_problems(base)
+            for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
+                if base.in_degree[block] == 0 or base.out_degree[block] == 0:
+                    continue
+                graph = Clinic._copy_graph(base)
+                try:
+                    self.proj.analyses[Outliner](func, graph, src_loc=(block.addr, block.idx), min_step=2)
+                except Exception:  # pylint:disable=broad-except
+                    continue
+                introduced = self._ssa_problems(graph) - baseline
+                assert not introduced, (
+                    f"outlining {name} at {block.addr:#x}.{block.idx} introduced "
+                    f"{len(introduced)} SSA problems, e.g. {min(introduced)}"
+                )
