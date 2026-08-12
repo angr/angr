@@ -183,9 +183,18 @@ class Outliner(Analysis):
             self.parent_graph.add_edge(pred, new_src_node)
 
         # build the return statement if needed
-        if self.frontier_vars:
+        # a frontier variable whose definition reaches the frontier from outside the
+        # region is not ours to return; claiming it would define it a second time
+        defined_in_region = {
+            stmt.dst.varid
+            for node in subgraph
+            for stmt in node.statements
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+        }
+        owned_frontier_vars = self.frontier_vars & defined_in_region
+        if owned_frontier_vars:
             srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
-            ret_exprs = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
+            ret_exprs = [srda.varid_to_vvar[idx] for idx in owned_frontier_vars]
         else:
             ret_exprs = []
 
