@@ -295,11 +295,23 @@ class KnownPatternFinder(Analysis):
                 if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
             ]
 
-        # Candidate pruning, bucketed by anchor key rather than scanned. The
-        # library is generated per element size -- one std::vector<T>::size
-        # template for every sizeof(T) -- so it runs to four figures, and a linear
-        # scan that recomputes pattern_anchor_key at every expression of every
-        # block is quadratic in exactly the wrong variable.
+        self._index_patterns()
+        self.matches: list[KnownPatternMatch] = []
+        self._srda_model = None
+        self._analyze()
+
+    def _index_patterns(self) -> None:
+        """Bucket the candidate patterns by anchor key.
+
+        The library is generated per element size -- one std::vector<T>::size
+        template for every sizeof(T) -- so it runs to four figures, and a linear
+        scan that recomputes pattern_anchor_key at every expression of every
+        block is quadratic in exactly the wrong variable.
+
+        Must be re-run whenever ``_patterns`` changes: the corroboration stage
+        enlarges it mid-analysis, and an index built only in __init__ silently
+        ignores every pattern a gate opens.
+        """
         self._expr_patterns_by_key: dict[tuple[str, str | None], list[KnownPattern]] = defaultdict(list)
         self._expr_patterns_any: list[KnownPattern] = []
         self._stmt_patterns: list[KnownPattern] = []
@@ -314,10 +326,6 @@ class KnownPatternFinder(Analysis):
                 self._expr_patterns_any.append(p)
             else:
                 self._expr_patterns_by_key[pkey].append(p)
-
-        self.matches: list[KnownPatternMatch] = []
-        self._srda_model = None
-        self._analyze()
 
     def _expr_candidates(self, key: tuple[str, str | None]) -> list[KnownPattern]:
         """Patterns worth trying at an expression with this anchor key: those
@@ -384,6 +392,7 @@ class KnownPatternFinder(Analysis):
 
         extra_ids = {id(p) for p in extra}
         self._patterns = self._patterns + extra
+        self._index_patterns()
         stage2 = self._match_all()
         surviving = self._evidence_of(m for m in stage2 if id(m.pattern) not in extra_ids) | graph_calls
         gate_ctx = self._gate_ctx.with_evidence(surviving)
@@ -391,6 +400,7 @@ class KnownPatternFinder(Analysis):
             self.matches = stage2
         else:
             self._patterns = [p for p in self._patterns if id(p) not in extra_ids]
+            self._index_patterns()
 
     @staticmethod
     def _evidence_of(matches: Iterable[KnownPatternMatch]) -> set[str]:
