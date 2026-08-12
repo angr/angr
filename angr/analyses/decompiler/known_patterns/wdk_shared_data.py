@@ -62,16 +62,14 @@ class KsudField:
 
 # KUSER_SHARED_DATA fields, WDK ddk/ntddk.h layout. KSYSTEM_TIME fields
 # (InterruptTime/SystemTime/TimeZoneBias/TickCount) are read either as a whole
-# 64-bit quad or as their 32-bit LowPart, so both widths get an entry.
+# 64-bit quad or as one of their three 32-bit halves, so every width gets an
+# entry; see _KSYSTEM_TIME_MEMBERS below for the halves.
 KUSER_SHARED_DATA_FIELDS: tuple[KsudField, ...] = (
     KsudField(0x000, "TickCountLow", 4),  # TickCountLowDeprecated since 5.2
     KsudField(0x004, "TickCountMultiplier", 4),
     KsudField(0x008, "InterruptTime", 8),
-    KsudField(0x008, "InterruptTimeLowPart", 4),
     KsudField(0x014, "SystemTime", 8),
-    KsudField(0x014, "SystemTimeLowPart", 4),
     KsudField(0x020, "TimeZoneBias", 8),
-    KsudField(0x020, "TimeZoneBiasLowPart", 4),
     KsudField(0x02C, "ImageNumberLow", 2),
     KsudField(0x02E, "ImageNumberHigh", 2),
     KsudField(0x240, "TimeZoneId", 4),
@@ -87,13 +85,37 @@ KUSER_SHARED_DATA_FIELDS: tuple[KsudField, ...] = (
     KsudField(0x2EC, "SafeBootMode", 1),
     KsudField(0x2F0, "SharedDataFlags", 4),
     KsudField(0x320, "TickCountQuad", 8),
-    KsudField(0x320, "TickCountLowPart", 4),
     KsudField(0x330, "Cookie", 4),
     # SystemCall sits at 0x300 up to Windows 7 and at 0x308 from Windows 8 on
     # (QpcFrequency took 0x300); neither offset can be named with confidence
     # without knowing the target's Windows version, so both are opt-in.
     KsudField(0x300, "SystemCall_pre_win8", 4, stable=False),
     KsudField(0x308, "SystemCall_win8", 4, stable=False),
+)
+
+# The four KSYSTEM_TIME members and the offset each starts at. KSYSTEM_TIME is
+#
+#     typedef struct _KSYSTEM_TIME { ULONG LowPart; LONG High1Time, High2Time; }
+#
+# i.e. twelve bytes, never eight: the 64-bit value is *not* atomically readable
+# on a 32-bit machine, so the page publishes the high half twice and readers spin
+# until High1Time == High2Time. Consequently a source-level 64-bit read of one of
+# these fields never compiles to a single load on a 32-bit target -- it is always
+# a load of LowPart plus a load of High1Time, twelve bytes apart. Covering only
+# LowPart leaves every such read half-named (`SharedUserData_TickCountLowPart() ...
+# *(int *)0x7ffe0324`), which is strictly worse than naming neither half, so all
+# three words of each member get an accessor.
+_KSYSTEM_TIME_MEMBERS: tuple[tuple[int, str], ...] = (
+    (0x008, "InterruptTime"),
+    (0x014, "SystemTime"),
+    (0x020, "TimeZoneBias"),
+    (0x320, "TickCount"),
+)
+
+KUSER_SHARED_DATA_FIELDS += tuple(
+    KsudField(base + word_off, name + suffix, 4)
+    for base, name in _KSYSTEM_TIME_MEMBERS
+    for word_off, suffix in ((0x0, "LowPart"), (0x4, "High1Time"), (0x8, "High2Time"))
 )
 
 

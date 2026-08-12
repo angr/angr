@@ -697,6 +697,16 @@ class TestWdkSharedDataPatterns(TestCase):
         # both. (32-bit mingw prefixes cdecl symbols with an underscore.)
         assert "SharedUserData_TickCountLow()" in self._full(KSUD_X86_BIN, "_ksud_tick_count_low")
 
+    def test_x86_ksystem_time_high_half(self):
+        # A KSYSTEM_TIME is three words, not two: the 64-bit value is not
+        # atomically readable on a 32-bit machine, so the page publishes the high
+        # half twice. A source-level 64-bit read therefore *never* compiles to one
+        # load on x86 -- it is always LowPart plus High1Time, twelve bytes apart.
+        # Covering only LowPart left every such read half-named.
+        text = self._full(KSUD_X86_BIN, "_ksud_get_tick_count")
+        assert "SharedUserData_TickCountHigh1Time()" in text, text
+        assert "0x7ffe0324" not in text, text
+
     def test_uncovered_offset_stays_raw(self):
         # negative control: offset 0x30 (NtSystemRoot) has no pattern
         text = self._full(KSUD_BIN, "ksud_nt_system_root_first_wchar")
