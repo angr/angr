@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .dsl import PAssign, PBinOp, PBlockPat, PCondJump, PConst, PGraphPat, PLoad, PStmtSeq, PStore, PVVar
+from .gating import KERNEL_TARGET, LINUX_KERNEL
 from .layouts import list_next_offset, list_prev_offset
 from .pattern import KnownPattern, PatternParam
 from .templates import make_template
@@ -253,14 +254,26 @@ def _build_hlist_del(ctx: PatternContext) -> KnownPattern:
     )
 
 
-IS_LIST_EMPTY = make_template("IsListEmpty", _build_is_list_empty, enabled_by_default=False)
-INITIALIZE_LIST_HEAD = make_template("InitializeListHead", _build_initialize_list_head, enabled_by_default=False)
-REMOVE_ENTRY_LIST = make_template("RemoveEntryList", _build_remove_entry_list, enabled_by_default=False)
-INSERT_HEAD_LIST = make_template("InsertHeadList", _build_insert_head_list, enabled_by_default=False)
-INSERT_TAIL_LIST = make_template("InsertTailList", _build_insert_tail_list, enabled_by_default=False)
-LIST_DEL = make_template("list_del", _build_list_del, enabled_by_default=False)
-LIST_DEL_INIT = make_template("list_del_init", _build_list_del_init, enabled_by_default=False)
-HLIST_DEL = make_template("hlist_del", _build_hlist_del, enabled_by_default=False)
+# Opt-in everywhere, but gated on: this binary is a kernel object. `list_head` and `LIST_ENTRY` are what
+# ``struct module``-carrying ELFs and ntoskrnl-importing PEs are built out of, so on those targets the shapes stop
+# being ambiguous C and become the macros they are; on a user-space program they stay ambiguous and stay off. The
+# Linux-only supersets (poisoned unlink, hlist) need only the Linux half of that evidence.
+IS_LIST_EMPTY = make_template("IsListEmpty", _build_is_list_empty, enabled_by_default=False, gate=KERNEL_TARGET)
+INITIALIZE_LIST_HEAD = make_template(
+    "InitializeListHead", _build_initialize_list_head, enabled_by_default=False, gate=KERNEL_TARGET
+)
+REMOVE_ENTRY_LIST = make_template(
+    "RemoveEntryList", _build_remove_entry_list, enabled_by_default=False, gate=KERNEL_TARGET
+)
+INSERT_HEAD_LIST = make_template(
+    "InsertHeadList", _build_insert_head_list, enabled_by_default=False, gate=KERNEL_TARGET
+)
+INSERT_TAIL_LIST = make_template(
+    "InsertTailList", _build_insert_tail_list, enabled_by_default=False, gate=KERNEL_TARGET
+)
+LIST_DEL = make_template("list_del", _build_list_del, enabled_by_default=False, gate=LINUX_KERNEL)
+LIST_DEL_INIT = make_template("list_del_init", _build_list_del_init, enabled_by_default=False, gate=LINUX_KERNEL)
+HLIST_DEL = make_template("hlist_del", _build_hlist_del, enabled_by_default=False, gate=LINUX_KERNEL)
 
 ALL_LINKED_LIST_TEMPLATES = [
     IS_LIST_EMPTY,

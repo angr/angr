@@ -17,10 +17,18 @@ from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_KNOWN_PATTERN_TEMPLATES,
     CONTAINING_RECORD_PATTERN,
+    KERNEL_TARGET,
+    LINUX_KERNEL,
     STD_STRING_LENGTH,
     STD_VECTOR_INT_SIZE,
+    GateContext,
     KnownPatternFinder,
+    TargetGate,
     UnknownPatternError,
+    all_of,
+    any_of,
+    corroborated_by,
+    partition_templates,
     resolve_pattern_selection,
 )
 from angr.analyses.decompiler.known_patterns.context import LIBSTDCXX, MSVC, PatternContext
@@ -38,6 +46,11 @@ MB_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patt
 # statically-linked, stripped MSVC C++ binary: no msvcp dependency, no mangled
 # symbols — its C++-ness is only evident from RTTI type descriptors in data.
 STATIC_MSVC_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_msvc_string_cstr.exe")
+# binary-evidence fixtures for the criteria gates
+KMOD_BIN = os.path.join(bin_location, "tests", "armel", "btrfs.ko")
+DRIVER_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "cancel.sys")
+LIST_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_linux_list")
+WDK_EXE_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_list.exe")
 
 
 def _ctx(bits=64, runtime=LIBSTDCXX, platform="linux", arch="AMD64"):
@@ -830,3 +843,82 @@ class TestForceEnableDuringDecompilation(TestCase):
         # the selection is exact: naming an unrelated opt-in pattern leaves
         # operator[] off
         assert "std::string::operator[](" not in self._text("str_index", [("known_patterns", ["IsListEmpty"])])
+
+
+class TestBinaryEvidence(TestCase):
+    # Feature 2, target evidence: the facts PatternContext derives about what kind
+    # of program this is.
+
+    def test_linux_kernel_module(self):
+        proj = angr.Project(KMOD_BIN, auto_load_libs=False)
+        ctx = PatternContext.from_project(proj)
+        assert ctx.is_linux_kernel_object
+        assert not ctx.is_windows_kernel_driver
+
+    def test_windows_kernel_driver(self):
+        proj = angr.Project(DRIVER_BIN, auto_load_libs=False)
+        ctx = PatternContext.from_project(proj)
+        assert ctx.is_windows_kernel_driver
+        assert not ctx.is_linux_kernel_object
+
+    def test_user_space_binaries_are_neither(self):
+        # a user-space ELF that uses list_head, and a user-space PE that uses
+        # LIST_ENTRY: the idioms are there, the kernel evidence is not
+        for path in (LIST_BIN, WDK_EXE_BIN):
+            with self.subTest(binary=os.path.basename(path)):
+                ctx = PatternContext.from_project(angr.Project(path, auto_load_libs=False))
+                assert not ctx.is_linux_kernel_object
+                assert not ctx.is_windows_kernel_driver
+
+    def _gate_opened(self, path):
+        proj = angr.Project(path, auto_load_libs=False)
+        gctx = GateContext(ctx=PatternContext.from_project(proj), project=proj)
+        enabled, _ = partition_templates(gctx)
+        return {t.call_name for t in enabled if not t.enabled_by_default}
+
+    def test_kernel_gate_opens_the_list_family(self):
+        driver = self._gate_opened(DRIVER_BIN)
+        module = self._gate_opened(KMOD_BIN)
+        assert {"IsListEmpty", "InitializeListHead", "RemoveEntryList"} <= driver
+        # the poisoned-unlink supersets and IS_ERR are Linux-only evidence
+        assert "list_del" not in driver and "IS_ERR" not in driver
+        assert {"list_del", "list_del_init", "hlist_del", "IS_ERR", "IS_ERR_OR_NULL"} <= module
+
+    def test_gates_stay_shut_on_user_space_binaries(self):
+        for path in (LIST_BIN, WDK_EXE_BIN, STL_BIN):
+            with self.subTest(binary=os.path.basename(path)):
+                assert self._gate_opened(path) == set()
+
+
+class TestGateObjects(TestCase):
+    # Feature 2, the gate primitives themselves.
+
+    def test_corroboration_gate(self):
+        gate = corroborated_by("std::string::length", "std::string::capacity")
+        assert gate.requires_evidence
+        ctx = GateContext(ctx=_AMD64_CTX)
+        assert not gate(ctx)
+        assert not gate(ctx.with_evidence({"std::vector<int>::size"}))
+        assert gate(ctx.with_evidence({"std::string::length"}))
+
+    def test_target_gate_needs_no_evidence(self):
+        assert not LINUX_KERNEL.requires_evidence
+        assert not KERNEL_TARGET.requires_evidence
+
+    def test_combinators(self):
+        yes = TargetGate("yes", lambda _: True)
+        no = TargetGate("no", lambda _: False)
+        ctx = GateContext(ctx=_AMD64_CTX)
+        assert any_of(no, yes)(ctx)
+        assert not any_of(no, no)(ctx)
+        assert all_of(yes, yes)(ctx)
+        assert not all_of(yes, no)(ctx)
+        # a combinator needs evidence iff one of its members does
+        assert any_of(no, corroborated_by("x")).requires_evidence
+        assert not any_of(no, yes).requires_evidence
+
+    def test_a_gate_never_disables_a_default_on_template(self):
+        # enabled_for() is only consulted for opt-in templates
+        assert STD_STRING_LENGTH.enabled_by_default
+        assert STD_STRING_LENGTH.enabled_for(GateContext(ctx=_AMD64_CTX))
+        assert not STD_STRING_FRONT.enabled_for(GateContext(ctx=_AMD64_CTX))

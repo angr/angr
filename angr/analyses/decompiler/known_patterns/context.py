@@ -88,6 +88,61 @@ def _rtti_evidence(project: Project) -> str | None:
     return None
 
 
+# Sections every Linux kernel module carries (even fully stripped ones): the
+# modinfo blob and the `struct module` singleton emitted by modpost.
+_LINUX_KMOD_SECTIONS = frozenset({".modinfo", ".gnu.linkonce.this_module"})
+# EXPORT_SYMBOL machinery — present in vmlinux and in modules that export.
+_LINUX_KSYM_PREFIXES = ("__ksymtab", "__kcrctab")
+# Import libraries that only kernel-mode Windows code links against.
+_WINDOWS_KERNEL_IMPORTS = (
+    "ntoskrnl",
+    "hal.dll",
+    "ndis.sys",
+    "wdfldr.sys",
+    "storport.sys",
+    "scsiport.sys",
+    "ks.dll",
+    "ksecdd.sys",
+    "netio.sys",
+    "fltmgr.sys",
+    "wmilib.sys",
+    "videoprt.sys",
+    "usbport.sys",
+    "bootvid.dll",
+    "pshed.dll",
+)
+
+
+def detect_linux_kernel_object(project: Project) -> bool:
+    """Whether the main object is a Linux kernel module or the kernel image.
+
+    Sections are checked first because they are the cheap and decisive signal:
+    modpost emits ``.modinfo`` and ``.gnu.linkonce.this_module`` into every
+    ``.ko``, and they survive stripping. The ``__ksymtab``/``__kcrctab`` symbol
+    scan additionally catches a vmlinux and modules whose section names were
+    renamed."""
+    obj = project.loader.main_object
+    for sec in getattr(obj, "sections", None) or []:
+        if getattr(sec, "name", None) in _LINUX_KMOD_SECTIONS:
+            return True
+    try:
+        symbols = obj.symbols
+    except (AttributeError, TypeError):
+        return False
+    for sym in symbols:
+        name = getattr(sym, "name", None)
+        if name and name.startswith(_LINUX_KSYM_PREFIXES):
+            return True
+    return False
+
+
+def detect_windows_kernel_driver(project: Project) -> bool:
+    """Whether the main object is a Windows kernel-mode driver, i.e. imports the
+    kernel executive / HAL / a kernel-mode port or class library instead of the
+    user-mode Win32 DLLs."""
+    return any(any(k in d for k in _WINDOWS_KERNEL_IMPORTS) for d in _deps(project))
+
+
 def detect_cxx_runtime(project: Project) -> str | None:
     """Identify the C++ standard-library runtime: ``"msvc"``, ``"libstdcxx"``,
     or None. Mirrors the old is_cpp_binary / is_msvc_cpp_binary heuristics:
@@ -110,7 +165,11 @@ def detect_cxx_runtime(project: Project) -> str | None:
 
 @dataclass(frozen=True)
 class PatternContext:
-    """Target facts used to instantiate pattern templates."""
+    """Target facts used to instantiate pattern templates.
+
+    The last two fields are *binary evidence*: facts about what kind of program
+    this is, used by :mod:`.gating` to switch whole pattern families on for
+    targets where the idioms are certain to appear and off everywhere else."""
 
     arch_name: str
     bits: int
@@ -118,6 +177,8 @@ class PatternContext:
     platform: str | None  # "linux" / "windows" / ...
     cxx_runtime: str | None  # LIBSTDCXX / MSVC / None
     is_cpp: bool
+    is_linux_kernel_object: bool = False
+    is_windows_kernel_driver: bool = False
 
     @classmethod
     def from_project(cls, project: Project) -> PatternContext:
@@ -138,6 +199,8 @@ class PatternContext:
             platform=platform,
             cxx_runtime=runtime,
             is_cpp=runtime is not None,
+            is_linux_kernel_object=detect_linux_kernel_object(project),
+            is_windows_kernel_driver=detect_windows_kernel_driver(project),
         )
 
     def word(self, n: int) -> int:

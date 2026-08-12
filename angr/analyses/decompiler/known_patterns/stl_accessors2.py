@@ -36,7 +36,7 @@ from .context import CPP, INTEL, LIBSTDCXX, size_t_typename
 from .dsl import PITE, PBinOp, PChoice, PConst, PLoad, PVVar
 from .layouts import string_capacity_offset, string_data_offset, string_size_offset, vector_end_offset
 from .pattern import CppRef, KnownPattern, PatternParam
-from .std_string_length import STD_BASIC_STRING
+from .std_string_length import STD_BASIC_STRING, STRING_WITNESSED
 from .std_vector_size import STD_VECTOR_UNIQUE_NAME_TMPL
 from .templates import make_template
 
@@ -118,7 +118,8 @@ STD_STRING_BACK = make_template(
     runtimes=(LIBSTDCXX,),
     name="std_string_back",
 )
-# opt-in: `**(char **)p` is one of the most common shapes in any C++ binary
+# opt-in: `**(char **)p` is one of the most common shapes in any C++ binary. Gated on corroboration: in a function
+# where length() or capacity() already pinned the object down as a std::string, the double dereference is front().
 STD_STRING_FRONT = make_template(
     "std::string::front",
     _build_string_front,
@@ -127,6 +128,7 @@ STD_STRING_FRONT = make_template(
     runtimes=(LIBSTDCXX,),
     enabled_by_default=False,
     name="std_string_front",
+    gate=STRING_WITNESSED,
 )
 
 

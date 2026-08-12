@@ -22,7 +22,7 @@ from angr.analyses.decompiler.known_patterns import (
     KnownPatternFinder,
 )
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 WDK_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_list.exe")
 LINUX_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_linux_list")
@@ -39,6 +39,9 @@ LIBM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_pa
 KSUD_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_ksud.exe")
 STL2_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl2")
 KSUD_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_wdk_ksud.exe")
+# criteria-gate fixtures: a real WDK driver, and a real libstdc++
+DRIVER_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "cancel.sys")
+LIBSTDCXX_BIN = os.path.join(bin_location, "tests", "x86_64", "libstdc++.so.6")
 
 _LINKED_LIST_NAMES = {"is_list_empty", "initialize_list_head", "remove_entry_list"}
 _PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_clear_has_field"}
@@ -961,3 +964,98 @@ class TestBswapPeephole(TestCase):
                 text = dec.codegen.text
                 assert expected in text, f"{func_name}: {text}"
                 assert "0xff00ff00ff00ff00" not in text, f"{func_name}: SWAR mask tree survived"
+
+
+class TestKernelTargetGate(TestCase):
+    # A criteria gate turns the intrusive linked-list family on for binaries that
+    # are demonstrably kernel objects, and leaves it off everywhere else. The
+    # negative case is the point: the same idiom, in a user-space program, must
+    # stay raw unless the user asks for it.
+
+    # cancel.sys is the WDK cancel-safe-queue sample; this is its DriverEntry,
+    # where InitializeListHead sits between KeInitializeSemaphore and
+    # IoCsqInitialize -- i.e. an unmistakable true positive.
+    DRIVER_ENTRY = 0x14000D000
+
+    def test_driver_gate_opens_the_list_family(self):
+        proj, cfg = load_project_with_scoped_cfg(
+            DRIVER_BIN, self.DRIVER_ENTRY, window=0x800, project_kwargs={"auto_load_libs": False}
+        )
+        func = cfg.functions.function(addr=self.DRIVER_ENTRY)
+        assert func is not None
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None
+        assert "InitializeListHead(" in dec.codegen.text, dec.codegen.text
+
+    def test_user_space_binary_keeps_the_same_idiom_raw(self):
+        proj = angr.Project(LINUX_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        for func_name, call in (("lx_init", "InitializeListHead("), ("lx_is_empty", "IsListEmpty(")):
+            with self.subTest(func=func_name):
+                func = cfg.functions.function(name=func_name)
+                assert func is not None
+                gated = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+                assert call not in gated.codegen.text, gated.codegen.text
+                # ... and the only reason it stayed raw is the gate: force-enabling brings it back
+                forced = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    func, cfg=cfg.model, preset="full", options=ALL_PATTERNS_OPTION
+                )
+                assert call in forced.codegen.text, forced.codegen.text
+
+
+class TestCorroborationGate(TestCase):
+    # std::string::front() is `**(char **)p`, one of the most common shapes in any
+    # C++ binary. It is enabled only where another, self-guarding string idiom has
+    # already identified the object.
+
+    # libstdc++ basic_string::_M_assign(const basic_string&): reads _M_string_length
+    # (std::string::length) and, on the one-character path, *_M_p (front)
+    ASSIGN = 0x524B90
+
+    def test_corroborated_front_is_outlined_by_default(self):
+        proj, cfg = load_project_with_scoped_cfg(
+            LIBSTDCXX_BIN, self.ASSIGN, window=0x1000, project_kwargs={"auto_load_libs": False}
+        )
+        func = cfg.functions.function(addr=self.ASSIGN)
+        assert func is not None
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None
+        text = dec.codegen.text
+        # the witness is what opens the gate, so both must be present
+        assert "std::string::length(" in text, text
+        assert "std::string::front(" in text, text
+
+    def test_uncorroborated_front_stays_raw(self):
+        # str_front(const std::string &s) { return s.front(); } -- nothing else in
+        # the function says "string", so the gate stays shut
+        proj = angr.Project(STL2_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name="str_front")
+        assert func is not None
+        gated = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert "std::string::front(" not in gated.codegen.text, gated.codegen.text
+        forced = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, preset="full", options=[("known_patterns", ["std::string::front"])]
+        )
+        assert "std::string::front(" in forced.codegen.text, forced.codegen.text
+
+    def test_circular_corroboration_is_rejected(self):
+        # str_empty(const std::string &s) { return s.empty(); } is
+        # `CmpEQ(Load(s + 8), 0)`, and the inner load is the very std::string::length
+        # match that would open the gate. Naming the whole thing `empty` erases that
+        # witness, so the corroboration is circular and must be refused -- the
+        # function keeps the length() reading.
+        proj = angr.Project(STL_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name="str_empty")
+        assert func is not None
+        gated = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert "std::string::empty(" not in gated.codegen.text, gated.codegen.text
+        assert "std::string::length(" in gated.codegen.text, gated.codegen.text
+        forced = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, preset="full", options=ALL_PATTERNS_OPTION
+        )
+        assert "std::string::empty(" in forced.codegen.text, forced.codegen.text

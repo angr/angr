@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from .context import CPP, INTEL, LIBSTDCXX, size_t_typename
 from .dsl import PBinOp, PConst, PLoad, PVVar
+from .gating import corroborated_by
 from .layouts import string_data_offset, string_size_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .templates import make_template
@@ -24,6 +25,13 @@ if TYPE_CHECKING:
     from .context import PatternContext
 
 STD_BASIC_STRING = "class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>"
+
+# The generic std::string accessors are shapes that occur all over any binary — a field-equals-zero test, an indexed
+# byte load, a double dereference. What makes them safe is knowing that the pointer really is a std::string, and the
+# cheapest proof of that is another, self-guarding string idiom in the same function: ``length`` reads the size field
+# at the layout's exact offset, and ``capacity`` is the SSO select that tests the data pointer against the object's
+# own local-buffer address. Where either matched, this object is a std::string and its other accessors can be named.
+STRING_WITNESSED = corroborated_by("std::string::length", "std::string::capacity")
 
 
 def _string_field(cap: str, off: int, size: int) -> PLoad:
@@ -69,9 +77,14 @@ def _build_string_index(ctx: PatternContext) -> KnownPattern:
 
 STD_STRING_LENGTH = make_template("std::string::length", _build_string_length, arches=INTEL, languages=(CPP,))
 
-# opt-in: "field == 0" is generic
+# opt-in: "field == 0" is generic — unless an unambiguous string idiom already identified the object
 STD_STRING_EMPTY = make_template(
-    "std::string::empty", _build_string_empty, arches=INTEL, languages=(CPP,), enabled_by_default=False
+    "std::string::empty",
+    _build_string_empty,
+    arches=INTEL,
+    languages=(CPP,),
+    enabled_by_default=False,
+    gate=STRING_WITNESSED,
 )
 
 # opt-in: overlaps plain char* indexing; libstdc++ only (MSVC has an SSO branch)
@@ -82,4 +95,5 @@ STD_STRING_INDEX = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     enabled_by_default=False,
+    gate=STRING_WITNESSED,
 )

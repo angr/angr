@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .context import PatternContext
+    from .gating import GateContext, PatternGate
     from .pattern import KnownPattern
 
 
@@ -34,6 +35,11 @@ class KnownPatternTemplate:
                               None = any.
     :ivar enabled_by_default: Whether the template is used when the caller does
                               not explicitly select patterns.
+    :ivar gate:               Optional :class:`~.gating.PatternGate` that turns
+                              an opt-in template on for targets (or functions)
+                              where the evidence says the idiom is real — see
+                              :mod:`.gating`. A gate can only open a template,
+                              never close a default-on one.
     """
 
     call_name: str
@@ -45,6 +51,15 @@ class KnownPatternTemplate:
     enabled_by_default: bool = True
     # human label, defaults to call_name
     name: str = ""
+    gate: PatternGate | None = None
+
+    def enabled_for(self, gate_ctx: GateContext) -> bool:
+        """Whether this template is on for the given target/function, taking the
+        default flag and the gate (but not an explicit user selection) into
+        account."""
+        if self.enabled_by_default:
+            return True
+        return self.gate is not None and self.gate(gate_ctx)
 
     def applicable(self, ctx: PatternContext) -> bool:
         if self.arches is not None and ctx.arch_name not in self.arches:
@@ -71,6 +86,7 @@ def make_template(
     platforms: frozenset[str] | tuple[str, ...] | None = None,
     enabled_by_default: bool = True,
     name: str = "",
+    gate: PatternGate | None = None,
 ) -> KnownPatternTemplate:
     def _fs(x):
         return frozenset(x) if x is not None else None
@@ -84,4 +100,5 @@ def make_template(
         platforms=_fs(platforms),
         enabled_by_default=enabled_by_default,
         name=name or call_name,
+        gate=gate,
     )

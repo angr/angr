@@ -221,19 +221,21 @@ class KnownPatternFinder(Analysis):
         """``patterns`` may be pattern templates (KnownPatternTemplate) and/or
         already-concrete KnownPatterns; templates are instantiated for this
         binary's PatternContext. When None, the registry is used, filtered down
-        to the default-enabled templates plus the ones named by
-        ``force_patterns``.
+        to the templates that are enabled for this target: default-on ones, ones
+        named by ``force_patterns``, and ones whose gate opens (see
+        :mod:`.gating`).
 
         ``force_patterns`` is the user's force-enable selection — ``"all"`` or
         an iterable of template names / call names — and is only consulted when
         ``patterns`` is None (an explicit pattern list is already a selection).
         """
         from . import (  # pylint:disable=import-outside-toplevel
-            ALL_KNOWN_PATTERN_TEMPLATES,
+            partition_templates,
             patterns_for,
             resolve_pattern_selection,
         )
         from .context import PatternContext  # pylint:disable=import-outside-toplevel
+        from .gating import GateContext  # pylint:disable=import-outside-toplevel
         from .templates import KnownPatternTemplate  # pylint:disable=import-outside-toplevel
 
         self._func = func
@@ -246,9 +248,12 @@ class KnownPatternFinder(Analysis):
 
         ctx = PatternContext.from_project(self.project)
         self._ctx = ctx
+        self._gate_ctx = GateContext(ctx=ctx, project=self.project)
+        # templates whose gate needs the function's own matches to decide; resolved in a second stage by _analyze
+        self._deferred_templates: list[KnownPatternTemplate] = []
         if patterns is None:
-            forced_ids = {id(t) for t in resolve_pattern_selection(force_patterns)}
-            enabled = [t for t in ALL_KNOWN_PATTERN_TEMPLATES if t.enabled_by_default or id(t) in forced_ids]
+            forced = resolve_pattern_selection(force_patterns)
+            enabled, self._deferred_templates = partition_templates(self._gate_ctx, forced)
             self._patterns = patterns_for(ctx, enabled)
         else:
             selected = list(patterns)
@@ -282,6 +287,74 @@ class KnownPatternFinder(Analysis):
             )
 
         self.matches = self._match_all()
+
+        if self._deferred_templates:
+            self._resolve_corroborated_patterns()
+
+    def _resolve_corroborated_patterns(self) -> None:
+        """Second matching stage for the gates that need per-function evidence.
+
+        The evidence is what the *ungated* first stage established, so a gated
+        pattern can never be its own witness. When a gate opens, the whole
+        function is re-matched with the enlarged pattern set, so the newly
+        enabled patterns take part in the greedy largest-match-wins selection on
+        equal footing rather than being bolted on afterwards.
+
+        The enlarged result is only kept if the gates are *still* open on it.
+        A generic pattern often strictly contains its own witness — ``empty`` is
+        ``CmpEQ(Load(s + size_off), 0)`` and the inner load is exactly the
+        ``length`` match that justified enabling it — and when it swallows the
+        last occurrence of that witness, the corroboration was circular: the
+        function no longer shows the unambiguous idiom the naming rests on. In
+        that case the first stage's matches stand.
+        """
+        from . import patterns_for  # pylint:disable=import-outside-toplevel
+
+        stage1 = self.matches
+        # known-pattern calls already in the graph count as evidence too: an earlier outlining round may have
+        # replaced the corroborating idiom with its call, and the call name is exactly the witness name
+        graph_calls = self._known_pattern_calls()
+        evidence = self._evidence_of(stage1) | graph_calls
+        if not evidence:
+            return
+        gate_ctx = self._gate_ctx.with_evidence(evidence)
+        opened = [t for t in self._deferred_templates if t.gate is not None and t.gate(gate_ctx)]
+        if not opened:
+            return
+        extra = patterns_for(self._ctx, opened)
+        if not extra:
+            return
+
+        extra_ids = {id(p) for p in extra}
+        self._patterns = self._patterns + extra
+        stage2 = self._match_all()
+        surviving = self._evidence_of(m for m in stage2 if id(m.pattern) not in extra_ids) | graph_calls
+        gate_ctx = self._gate_ctx.with_evidence(surviving)
+        if all(t.gate(gate_ctx) for t in opened if t.gate is not None):
+            self.matches = stage2
+        else:
+            self._patterns = [p for p in self._patterns if id(p) not in extra_ids]
+
+    @staticmethod
+    def _evidence_of(matches: Iterable[KnownPatternMatch]) -> set[str]:
+        """Both spellings (short name and call name) of every matched pattern."""
+        evidence: set[str] = set()
+        for m in matches:
+            evidence.add(m.pattern.name)
+            evidence.add(m.pattern.call_name)
+        return evidence
+
+    def _known_pattern_calls(self) -> set[str]:
+        """Call names of the known-pattern calls already present in the graph."""
+        from . import TEMPLATE_BY_CALL_NAME  # pylint:disable=import-outside-toplevel
+
+        out: set[str] = set()
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                for _, expr in _iter_stmt_subexprs(stmt):
+                    if isinstance(expr, Call) and isinstance(expr.target, str) and expr.target in TEMPLATE_BY_CALL_NAME:
+                        out.add(expr.target)
+        return out
 
     def _match_all(self) -> list[KnownPatternMatch]:
         raw_matches: list[KnownPatternMatch] = []
