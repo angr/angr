@@ -338,12 +338,14 @@ options = [
         "Name STL field accesses after their accessors",
         "Render a read of a field of an already-typed C++ STL container as the equivalent accessor call, e.g. "
         '"std::string::c_str(s)" instead of "s->m_data". Only applies where type inference already recovered the '
-        "container type, so it cannot fire on unrelated pointers.",
+        "container type, so it cannot fire on unrelated pointers. Off by default: it reads well for a standalone "
+        "read but poorly when the field is the base of a larger address expression, and writes must stay field "
+        "stores, so enabling it makes the same slot appear in two spellings.",
         bool,
         "codegen",
         "stl_accessor_calls",
         category="Display",
-        default_value=True,
+        default_value=False,
         clears_cache=False,
     ),
     O(

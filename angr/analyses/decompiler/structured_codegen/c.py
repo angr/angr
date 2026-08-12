@@ -3035,7 +3035,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         cstyle_void_param: bool = True,
         indent_size: int = 4,
         variable_map: VariableMap | None = None,
-        stl_accessor_calls: bool = True,
+        stl_accessor_calls: bool = False,
     ):
         super().__init__(
             flavor=flavor,
