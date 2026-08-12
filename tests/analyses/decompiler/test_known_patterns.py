@@ -12,15 +12,20 @@ import angr
 from angr.ailment.expression import Load, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.analyses.decompiler.clinic import ClinicStage
+from angr.analyses.decompiler.decompilation_options import parse_known_patterns
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
+    ALL_KNOWN_PATTERN_TEMPLATES,
     CONTAINING_RECORD_PATTERN,
     STD_STRING_LENGTH,
     STD_VECTOR_INT_SIZE,
     KnownPatternFinder,
+    UnknownPatternError,
+    resolve_pattern_selection,
 )
 from angr.analyses.decompiler.known_patterns.context import LIBSTDCXX, MSVC, PatternContext
 from angr.analyses.decompiler.known_patterns.dsl import MatchCtx, MatchState
+from angr.analyses.decompiler.known_patterns.stl_accessors2 import STD_STRING_FRONT
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
 from tests.common import bin_location
@@ -737,3 +742,91 @@ class TestPITE(TestCase):
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=[pat])
         assert [m.pattern.name for m in finder.matches] == ["sso_capacity"]
+
+
+class TestPatternSelection(TestCase):
+    # Feature 1: the user-facing force-enable selection. Names resolve against the
+    # registry by call name or short name; an unknown name is an error, never a
+    # silent no-op.
+
+    def test_all_selects_every_template(self):
+        assert resolve_pattern_selection("all") == ALL_KNOWN_PATTERN_TEMPLATES
+        assert resolve_pattern_selection(["ALL"]) == ALL_KNOWN_PATTERN_TEMPLATES
+
+    def test_nothing_selects_nothing(self):
+        assert resolve_pattern_selection(None) == []
+        assert resolve_pattern_selection([]) == []
+        assert resolve_pattern_selection("") == []
+
+    def test_names_resolve_by_call_name_or_short_name(self):
+        # std::string::front is registered under call name "std::string::front"
+        # and short name "std_string_front"; both must select it
+        by_call = resolve_pattern_selection(["std::string::front"])
+        by_name = resolve_pattern_selection(["std_string_front"])
+        assert by_call == by_name == [STD_STRING_FRONT]
+
+    def test_comma_separated_string(self):
+        selected = resolve_pattern_selection("IsListEmpty, std::string::front")
+        assert [t.call_name for t in selected] == ["IsListEmpty", "std::string::front"]
+
+    def test_duplicates_are_collapsed(self):
+        assert resolve_pattern_selection(["std::string::front", "std_string_front"]) == [STD_STRING_FRONT]
+
+    def test_unknown_name_raises(self):
+        # hlist_empty was measured at 24 false positives in /bin/ls and never shipped
+        with self.assertRaises(UnknownPatternError) as cm:
+            resolve_pattern_selection(["std::string::front", "hlist_empty"])
+        assert "hlist_empty" in str(cm.exception)
+
+    def test_option_value_normalization(self):
+        assert parse_known_patterns(None) is None
+        assert parse_known_patterns("") is None
+        assert parse_known_patterns("  all ") == "all"
+        assert parse_known_patterns(["all"]) == "all"
+        assert parse_known_patterns("a, b ,c") == ("a", "b", "c")
+        assert parse_known_patterns(["a", "b"]) == ("a", "b")
+
+    def test_decompiler_rejects_an_unknown_name(self):
+        # the decompilation itself runs under _resilience() and retries with the
+        # basic preset, so a bad name has to be rejected before that
+        proj = angr.Project(STL_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = cfg.functions.function(name="str_index")
+        with self.assertRaises(UnknownPatternError):
+            proj.analyses[Decompiler].prep(fail_fast=True)(
+                func, cfg=cfg.model, preset="full", options=[("known_patterns", ["no_such_pattern"])]
+            )
+
+
+class TestForceEnableDuringDecompilation(TestCase):
+    # An opt-in pattern must stay off in a normal full-preset run and fire when
+    # the user force-enables it through the known_patterns option.
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(STL_BIN, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.proj.analyses.CompleteCallingConventions(cfg=cls.cfg.model)
+
+    def _text(self, func_name, options=None):
+        func = self.cfg.functions.function(name=func_name)
+        assert func is not None
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=self.cfg.model, preset="full", options=options
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_string_index_is_opt_in(self):
+        assert "std::string::operator[](" not in self._text("str_index")
+
+    def test_string_index_with_all_patterns(self):
+        assert "std::string::operator[](" in self._text("str_index", [("known_patterns", "all")])
+
+    def test_string_index_by_name(self):
+        assert "std::string::operator[](" in self._text("str_index", [("known_patterns", ["std::string::operator[]"])])
+
+    def test_selecting_another_pattern_does_not_enable_this_one(self):
+        # the selection is exact: naming an unrelated opt-in pattern leaves
+        # operator[] off
+        assert "std::string::operator[](" not in self._text("str_index", [("known_patterns", ["IsListEmpty"])])
