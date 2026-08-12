@@ -18,6 +18,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.utils.graph import GraphUtils
+from angr.utils.ssa.repair import repair_multiple_definitions
 
 from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
 
@@ -418,6 +419,24 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             # the graph is not modified
             self.out_graph = None
             return False
+
+        # Both duplication sites above clone a block together with its assignments, which
+        # gives every virtual variable the block defined one definition per copy. Put the
+        # graph back into SSA before handing it on.
+        entry_block = next(
+            (b for b in graph_copy if (b.addr, b.idx) == self.entry_node_addr),
+            None,
+        )
+        if entry_block is not None:
+            self.vvar_id_start = repair_multiple_definitions(
+                graph_copy,
+                entry_block,
+                self.manager,
+                self.vvar_id_start,
+                variable_map=variable_map_of(self.manager),
+            )
+        else:
+            _l.warning("Cannot locate the entry block; skipping SSA repair after switch lowering.")
         return True
 
     def _find_cascading_switch_variable_comparisons(self):
