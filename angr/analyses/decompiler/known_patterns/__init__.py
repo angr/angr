@@ -69,6 +69,7 @@ from .std_string_cstr import STD_STRING_CSTR
 from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
 from .std_swap import STD_SWAP
 from .std_vector_size import (
+    STD_VECTOR_CAPACITY_TEMPLATES,
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
     STD_VECTOR_SHORT_SIZE,
@@ -78,7 +79,7 @@ from .std_vector_size import (
     make_std_vector_size_template,
 )
 from .stl_accessors2 import ALL_STL2_TEMPLATES
-from .stl_containers import STD_VECTOR_INT_CAPACITY, STD_VECTOR_INT_EMPTY, STD_VECTOR_INT_INDEX
+from .stl_containers import STD_VECTOR_INDEX_TEMPLATES, STD_VECTOR_INT_EMPTY, STD_VECTOR_INT_INDEX
 from .templates import KnownPatternTemplate, make_template
 from .vector_math import ALL_VECTOR_MATH_TEMPLATES
 from .wdk_shared_data import ALL_WDK_TEMPLATES
@@ -124,8 +125,10 @@ register_pattern_template(STD_VECTOR_LONG_LONG_SIZE)
 for _t in STD_VECTOR_STRUCT_SIZE_TEMPLATES:
     register_pattern_template(_t)
 register_pattern_template(STD_VECTOR_INT_EMPTY)
-register_pattern_template(STD_VECTOR_INT_CAPACITY)
-register_pattern_template(STD_VECTOR_INT_INDEX)
+for _t in STD_VECTOR_CAPACITY_TEMPLATES:
+    register_pattern_template(_t)
+for _t in STD_VECTOR_INDEX_TEMPLATES:
+    register_pattern_template(_t)
 for _t in ALL_STL2_TEMPLATES:
     register_pattern_template(_t)
 register_pattern_template(STD_SWAP)
@@ -246,8 +249,8 @@ ALL_STL_TEMPLATES = [
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
     STD_VECTOR_INT_EMPTY,
-    STD_VECTOR_INT_CAPACITY,
     STD_VECTOR_INT_INDEX,
+    *STD_VECTOR_CAPACITY_TEMPLATES,
 ]
 
 
@@ -283,7 +286,8 @@ __all__ = [
     "STD_STRING_INDEX",
     "STD_STRING_LENGTH",
     "STD_SWAP",
-    "STD_VECTOR_INT_CAPACITY",
+    "STD_VECTOR_CAPACITY_TEMPLATES",
+    "STD_VECTOR_INDEX_TEMPLATES",
     "STD_VECTOR_INT_EMPTY",
     "STD_VECTOR_INT_INDEX",
     "STD_VECTOR_INT_SIZE",
