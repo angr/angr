@@ -4,6 +4,7 @@ and outline them into calls via the Outliner analysis."""
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from dataclasses import replace as dataclass_replace
@@ -45,7 +46,16 @@ from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.functions import Function
 from angr.utils.ssa import is_phi_assignment
 
-from .dsl import MatchCtx, MatchState, PatternExpr, PatternStmt, PGraphPat, PStmtSeq, expr_anchor_key
+from .dsl import (
+    MatchCtx,
+    MatchState,
+    PatternExpr,
+    PatternStmt,
+    PGraphPat,
+    PStmtSeq,
+    expr_anchor_key,
+    pattern_anchor_key,
+)
 from .pattern import KnownPattern
 
 BlockLoc = tuple[int, "int | None"]
@@ -285,9 +295,39 @@ class KnownPatternFinder(Analysis):
                 if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
             ]
 
+        # Candidate pruning, bucketed by anchor key rather than scanned. The
+        # library is generated per element size -- one std::vector<T>::size
+        # template for every sizeof(T) -- so it runs to four figures, and a linear
+        # scan that recomputes pattern_anchor_key at every expression of every
+        # block is quadratic in exactly the wrong variable.
+        self._expr_patterns_by_key: dict[tuple[str, str | None], list[KnownPattern]] = defaultdict(list)
+        self._expr_patterns_any: list[KnownPattern] = []
+        self._stmt_patterns: list[KnownPattern] = []
+        for p in self._patterns:
+            if isinstance(p.pattern, PatternStmt):
+                self._stmt_patterns.append(p)
+                continue
+            if not isinstance(p.pattern, PatternExpr):
+                continue
+            pkey = pattern_anchor_key(p.pattern)
+            if pkey is None:
+                self._expr_patterns_any.append(p)
+            else:
+                self._expr_patterns_by_key[pkey].append(p)
+
         self.matches: list[KnownPatternMatch] = []
         self._srda_model = None
         self._analyze()
+
+    def _expr_candidates(self, key: tuple[str, str | None]) -> list[KnownPattern]:
+        """Patterns worth trying at an expression with this anchor key: those
+        that discriminate on it, those that discriminate on its kind but not its
+        op, and those that discriminate on nothing."""
+        return (
+            self._expr_patterns_any
+            + self._expr_patterns_by_key.get(key, [])
+            + (self._expr_patterns_by_key.get((key[0], None), []) if key[1] is not None else [])
+        )
 
     #
     # matching
@@ -533,21 +573,15 @@ class KnownPatternFinder(Analysis):
                 continue
             # statement-level patterns (single statements and ordered sequences)
             if not isinstance(stmt, Label):
-                for pattern in self._patterns:
+                for pattern in self._stmt_patterns:
                     if isinstance(pattern.pattern, PStmtSeq) and not pattern.pattern.ordered:
                         continue
-                    if isinstance(pattern.pattern, PatternStmt):
-                        m = self._try_match_stmt_seq(pattern, block, stmt_idx)
-                        if m is not None:
-                            yield m
+                    m = self._try_match_stmt_seq(pattern, block, stmt_idx)
+                    if m is not None:
+                        yield m
             # expression-level patterns
             for path, expr in _iter_stmt_subexprs(stmt):
-                key = expr_anchor_key(expr)
-                for pattern in self._patterns:
-                    if not isinstance(pattern.pattern, PatternExpr):
-                        continue
-                    if not self._anchor_compatible(pattern.pattern, key):
-                        continue
+                for pattern in self._expr_candidates(expr_anchor_key(expr)):
                     m = self._try_match(pattern, block, stmt_idx, expr, path, stmt)
                     if m is not None:
                         yield m
@@ -797,17 +831,6 @@ class KnownPatternFinder(Analysis):
             consumed_by_block=consumed_by_block,
             frontier_locs=frozenset(frontier),
         )
-
-    @staticmethod
-    def _anchor_compatible(root: PatternExpr, key: tuple[str, str | None]) -> bool:
-        from .dsl import pattern_anchor_key  # pylint:disable=import-outside-toplevel
-
-        pkey = pattern_anchor_key(root)
-        if pkey is None:
-            return True
-        if pkey[0] != key[0]:
-            return False
-        return pkey[1] is None or pkey[1] == key[1]
 
     def _try_match(
         self,
