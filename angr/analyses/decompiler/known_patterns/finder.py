@@ -1422,14 +1422,29 @@ class KnownPatternFinder(Analysis):
 
     # expression kinds a parameter may be lifted out of the region as
     _LIFTABLE_EXPR_TYPES = (*_PURE_EXPR_TYPES_FWD, Load)
+    #: Node budget for a lifted parameter expression -- see _is_liftable.
+    MAX_LIFTED_EXPR_NODES = 8
 
     @classmethod
     def _is_liftable(cls, expr: Expression) -> bool:
         """True when ``expr`` may be evaluated into a temporary immediately before
         the region: no calls, no side effects. A ``Load`` qualifies -- lifting it
         does not *move* it, since the temporary lands directly in front of the
-        statement the matched expression came out of, with nothing in between."""
+        statement the matched expression came out of, with nothing in between.
+
+        Bounded in size, and that bound is doing real work. Rewriting the region
+        to use the temporary has to *find* the occurrences, which means comparing
+        the captured expression against every sub-expression of the statement with
+        ``.likes()`` -- the product of two sizes, on statements that in a large
+        optimized function are enormous. The captures this exists for are a field
+        read or a variable behind a Convert; a whole computed sub-tree is neither
+        cheap to find nor readable as an argument.
+        """
+        n = 0
         for sub in _iter_subexprs(expr):
+            n += 1
+            if n > cls.MAX_LIFTED_EXPR_NODES:
+                return False
             if isinstance(sub, (VirtualVariable, Const, StackBaseOffset)):
                 continue
             if not isinstance(sub, cls._LIFTABLE_EXPR_TYPES):
