@@ -1,6 +1,6 @@
+# pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
-# pylint: disable=missing-class-docstring,no-self-use
 import logging
 import os.path
 import unittest
@@ -211,11 +211,7 @@ if __name__ == "__main__":
 
 
 class TestOutlinerSSAInvariants(TestCase):
-    """Outlining rewrites the parent graph; the result must still be valid SSA.
-
-    Every problem below surfaces far downstream -- typically as an
-    AttributeError inside dephication -- so it is checked here instead.
-    """
+    """Outlining rewrites the parent graph; the result must still be valid SSA."""
 
     @classmethod
     def setUpClass(cls):
@@ -256,12 +252,7 @@ class TestOutlinerSSAInvariants(TestCase):
         return problems
 
     def test_outlining_never_introduces_ssa_problems(self):
-        """Outline at every viable location and check nothing new breaks.
-
-        Compared against the untouched graph rather than against zero: the
-        decompiler itself can emit duplicated blocks that already define the
-        same vvar twice, and that is not the Outliner's doing.
-        """
+        """Outline at every viable location and check nothing new breaks."""
         for name, (func, base) in self.graphs.items():
             baseline = self._ssa_problems(base)
             for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
