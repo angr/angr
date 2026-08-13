@@ -68,6 +68,14 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
 
+    def test_narrow_arithmetic_shift_preserves_operand_width(self):
+        value = Expr.Convert(0, 32, 8, True, Expr.Const(1, 127, 32))
+        masked = Expr.BinaryOp(2, "And", (value, Expr.Const(3, 127, 8)), True, bits=8)
+        incremented = Expr.BinaryOp(4, "Add", (masked, Expr.Const(5, 1, 8)), True, bits=8)
+        shifted = Expr.BinaryOp(6, "Sar", (incremented, Expr.Const(7, 1, 8)), True, bits=8)
+
+        assert self.codegen._handle(shifted).c_repr() == "(char)(((char)127 & 127) + 1) >> 1"
+
 
 class TestGotoRendering(unittest.TestCase):
     @classmethod
