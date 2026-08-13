@@ -94,6 +94,8 @@ class TestX87CallUsedClearing(unittest.TestCase):
 
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "unsupported instruction" not in dec.codegen.text
+        assert func.prototype is not None and isinstance(func.prototype.returnty, angr.sim_type.SimTypeInt)
+        assert func.prototype.returnty.signed is True
 
     def test_only_expected_dirty_statements_are_removed(self):
         proj = angr.Project(openssh_scp, auto_load_libs=False)
