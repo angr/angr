@@ -153,6 +153,20 @@ class TestLightEngine(TestCase):
         engine._handle_expr_Convert(ailment.Expr.Convert(1, 64, 32, False, operand))
         assert not constraints
 
+        constraints.clear()
+        engine._handle_expr_Convert(
+            ailment.Expr.Convert(
+                1,
+                32,
+                64,
+                True,
+                operand,
+                from_type=ailment.Expr.Convert.TYPE_FP,
+                to_type=ailment.Expr.Convert.TYPE_FP,
+            )
+        )
+        assert not constraints
+
     def test_purity_abs_preserves_provenance(self):
         provenance = frozenset((DataSource(function_arg=0),))
         engine: Any = object.__new__(PurityEngineAIL)

@@ -50,6 +50,7 @@ from angr.analyses.typehoon.typeconsts import (
     unsigned_int_type,
 )
 from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.rust.sim_type import RustSimTypeInt
 from angr.sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort
 
 
@@ -259,6 +260,16 @@ class TestTranslator(unittest.TestCase):
         )
         assert isinstance(result, SimTypeChar)
         assert result.signed is True
+
+        inferred_rust = RustSimTypeInt(size=32, signed=False).with_arch(self.arch)
+        result = Clinic._reconcile_function_return_type(
+            inferred_rust,
+            RustSimTypeInt(size=32, signed=True).with_arch(self.arch),
+            PrototypeSource.CCA_LOW,
+            True,
+            flavor="rust",
+        )
+        assert result is inferred_rust
 
     def test_sint32_to_simtype(self):
         """SInt32 should translate to SimTypeInt(signed=True)."""
