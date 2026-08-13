@@ -2371,16 +2371,16 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" << ")
 
     def _c_repr_chunks_sar(self):
-        # Sar is an arithmetic (signed) right shift, but it renders as the C `>>` operator, which only performs an
-        # arithmetic shift when its left operand is signed. If the left operand renders as an unsigned integer, emit
-        # an explicit signed cast; otherwise `>>` would be a logical shift and silently drop the sign bit. The cast is
-        # emitted here at render time because the earlier typecast-collapsing passes treat same-size signed/unsigned
-        # integer casts as redundant and would strip a cast added during code generation.
+        # Sar is a signed shift at the AIL operand width. C requires a signed left operand for an arithmetic shift and
+        # promotes operands narrower than int before evaluating their surrounding arithmetic, so cast the entire left
+        # expression when either rule would change its meaning. This must happen during rendering because earlier
+        # typecast-collapsing passes remove same-size signed/unsigned casts.
         lhs_ty = self.lhs.type
+        int_size = SimTypeInt().with_arch(self.codegen.project.arch).size
         if (
             isinstance(lhs_ty, (SimTypeInt, SimTypeChar, SimTypeNum))
-            and getattr(lhs_ty, "signed", None) is False
             and lhs_ty.size is not None
+            and (getattr(lhs_ty, "signed", None) is False or lhs_ty.size < int_size)
         ):
             signed_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=True)
             paren = CClosingObject("(")
