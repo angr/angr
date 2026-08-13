@@ -10,10 +10,13 @@ import archinfo
 import claripy
 
 from angr import ailment
+from angr.ailment.manager import Manager
 from angr.analyses.decompiler.optimization_passes.engine_base import SimplifierAILEngine
 from angr.analyses.decompiler.optimization_passes.inlined_string_transformation_simplifier import (
     InlinedStringTransformationAILEngine,
 )
+from angr.analyses.decompiler.peephole_optimizations import RemoveCascadingConversions
+from angr.analyses.decompiler.utils import peephole_optimize_expr
 from angr.analyses.purity.engine import DataSource, PurityEngineAIL
 from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
 from angr.analyses.typehoon import typeconsts
@@ -132,6 +135,49 @@ class TestLightEngine(TestCase):
             )
         )
         assert not constraints
+
+    def test_narrowing_adapter_survives_conversion_peepholes(self):
+        manager = Manager(arch=archinfo.ArchAMD64())
+        operand = ailment.Expr.VirtualVariable(
+            manager.next_atom(), 1, 8, ailment.Expr.VirtualVariableCategory.REGISTER, oident=0
+        )
+
+        def optimize_and_recover(expr):
+            optimized = peephole_optimize_expr(expr, [RemoveCascadingConversions(None, None, manager)])
+            assert isinstance(optimized, ailment.Expr.Convert)
+            assert isinstance(optimized.operand, ailment.Expr.Convert)
+
+            operand_typevar = TypeVariable(name="narrowing_adapter_operand")
+            constraints = []
+            engine: Any = object.__new__(SimEngineVRAIL)
+            engine.state = SimpleNamespace(
+                add_type_constraint=constraints.append,
+                top=lambda bits: claripy.BVS("vr_narrowing_adapter_top", bits),
+            )
+            engine.tv_manager = SimpleNamespace(
+                new_dtv_with_merged_labels=lambda typevar, label: typevar,
+            )
+
+            def handle_expr(inner_expr):
+                if isinstance(inner_expr, ailment.Expr.Convert):
+                    return engine._handle_expr_Convert(inner_expr)
+                return RichR(claripy.BVV(0, inner_expr.bits), typevar=operand_typevar)
+
+            engine._expr = handle_expr
+            engine._handle_expr_Convert(optimized)
+            return optimized, constraints
+
+        adapter = ailment.Expr.Convert(manager.next_atom(), 8, 64, False, operand, narrowing_adapter=True)
+        outer = ailment.Expr.Convert(manager.next_atom(), 64, 32, False, adapter)
+        optimized, constraints = optimize_and_recover(outer)
+        assert optimized.operand.tags.get("narrowing_adapter") is True
+        assert not constraints
+
+        genuine_widening = ailment.Expr.Convert(manager.next_atom(), 8, 16, False, operand)
+        adapter = ailment.Expr.Convert(manager.next_atom(), 16, 32, False, genuine_widening, narrowing_adapter=True)
+        optimized, constraints = optimize_and_recover(adapter)
+        assert optimized.tags.get("narrowing_adapter") is True
+        assert any(isinstance(constraint.super_type, typeconsts.UInt8) for constraint in constraints)
 
     def test_purity_abs_preserves_provenance(self):
         provenance = frozenset((DataSource(function_arg=0),))
