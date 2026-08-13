@@ -8,6 +8,8 @@ import unittest
 
 import angr
 from angr.ailment import Expr
+from angr.analyses.decompiler.structured_codegen.c import CBinaryOp, CConstant, CFakeVariable
+from angr.sim_type import SimTypeChar, TypeRef
 
 
 class TestConvertRendering(unittest.TestCase):
@@ -49,6 +51,16 @@ class TestConvertRendering(unittest.TestCase):
         shifted = Expr.BinaryOp(6, "Sar", (incremented, Expr.Const(7, 1, 8)), True, bits=8)
 
         assert self.codegen._handle(shifted).c_repr() == "(char)(((char)127 & 127) + 1) >> 1"
+
+        char_alias = TypeRef("small_int", SimTypeChar(signed=True))
+        aliased_value = CFakeVariable("value", char_alias, codegen=self.codegen)
+        aliased_add = CBinaryOp(
+            "Add", aliased_value, CConstant(1, char_alias, codegen=self.codegen), codegen=self.codegen
+        )
+        aliased_shift = CBinaryOp(
+            "Sar", aliased_add, CConstant(1, SimTypeChar(), codegen=self.codegen), codegen=self.codegen
+        )
+        assert aliased_shift.c_repr() == "(char)(value + 1) >> 1"
 
 
 if __name__ == "__main__":

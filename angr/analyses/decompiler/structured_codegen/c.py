@@ -2375,7 +2375,7 @@ class CBinaryOp(CExpression):
         # promotes operands narrower than int before evaluating their surrounding arithmetic, so cast the entire left
         # expression when either rule would change its meaning. This must happen during rendering because earlier
         # typecast-collapsing passes remove same-size signed/unsigned casts.
-        lhs_ty = self.lhs.type
+        lhs_ty = unpack_typeref(self.lhs.type)
         int_size = SimTypeInt().with_arch(self.codegen.project.arch).size
         if (
             isinstance(lhs_ty, (SimTypeInt, SimTypeChar, SimTypeNum))
