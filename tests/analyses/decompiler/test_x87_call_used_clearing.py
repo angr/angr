@@ -72,6 +72,29 @@ class TestX87CallUsedClearing(unittest.TestCase):
 
                 assert "unsupported instruction" not in dec.codegen.text
 
+    def test_find_brace_full_sailr(self):
+        proj, cfg = load_project_with_scoped_cfg(
+            openssh_scp,
+            0x405A50,
+            window=0x600,
+            expand_call_tree=False,
+            run_ccc=False,
+            project_kwargs={"auto_load_libs": False},
+        )
+        func = proj.kb.functions[0x405A50]
+        assert func.name == "find_brace"
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            cfg=cfg.model,
+            preset="full",
+            options=[("structurer_cls", "sailr")],
+            use_cache=False,
+        )
+
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "unsupported instruction" not in dec.codegen.text
+
     def test_only_expected_dirty_statements_are_removed(self):
         proj = angr.Project(openssh_scp, auto_load_libs=False)
         block = self._globexp2_return_block(proj)
