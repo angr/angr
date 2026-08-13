@@ -142,6 +142,8 @@ pub enum TagKey {
     WriteSize,
     // Arbitrary Python string key.
     Custom(String),
+    // New variants must be appended to preserve postcard enum discriminants.
+    NarrowingAdapter,
 }
 
 /// Declared value type for a known key, used to enforce tag types on write.
@@ -168,6 +170,7 @@ impl TagKey {
             "extra_defs" => TagKey::ExtraDefs,
             "is_prototype_guessed" => TagKey::IsPrototypeGuessed,
             "keep_in_slice" => TagKey::KeepInSlice,
+            "narrowing_adapter" => TagKey::NarrowingAdapter,
             "orig_ins_addr" => TagKey::OrigInsAddr,
             "reg_name" => TagKey::RegName,
             "uninitialized" => TagKey::Uninitialized,
@@ -189,6 +192,7 @@ impl TagKey {
             TagKey::ExtraDefs => "extra_defs",
             TagKey::IsPrototypeGuessed => "is_prototype_guessed",
             TagKey::KeepInSlice => "keep_in_slice",
+            TagKey::NarrowingAdapter => "narrowing_adapter",
             TagKey::OrigInsAddr => "orig_ins_addr",
             TagKey::RegName => "reg_name",
             TagKey::Uninitialized => "uninitialized",
@@ -207,6 +211,7 @@ impl TagKey {
             | TagKey::ExtraDef
             | TagKey::IsPrototypeGuessed
             | TagKey::KeepInSlice
+            | TagKey::NarrowingAdapter
             | TagKey::Uninitialized => TagValueKind::Bool,
             TagKey::RegName => TagValueKind::Str,
             TagKey::ExtraDefs => TagValueKind::IntList,
@@ -728,6 +733,7 @@ mod tests {
             "extra_defs",
             "is_prototype_guessed",
             "keep_in_slice",
+            "narrowing_adapter",
             "orig_ins_addr",
             "reg_name",
             "uninitialized",
@@ -756,6 +762,8 @@ mod tests {
         t.extras
             .insert(TagKey::RegName, TagExtra::Str("rax".into()));
         t.extras.insert(TagKey::Uninitialized, TagExtra::Bool(true));
+        t.extras
+            .insert(TagKey::NarrowingAdapter, TagExtra::Bool(true));
         t.extras
             .insert(TagKey::Custom("mine".into()), TagExtra::Int(99));
 

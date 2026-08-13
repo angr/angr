@@ -2536,12 +2536,16 @@ class Clinic(Analysis, Serializable):
         previous_type: SimType | None,
         previous_source: PrototypeSource,
         inferred_signedness_is_ambiguous: bool,
+        *,
+        flavor: str = "pseudocode",
     ) -> SimType:
-        """Preserve CCA signedness when Typehoon recovered only an integer width."""
+        """Preserve C calling-convention signedness when Typehoon recovered only an integer width."""
         if (
             previous_source is not PrototypeSource.CCA_LOW
+            or flavor == "rust"
             or not isinstance(previous_type, (SimTypeChar, SimTypeInt))
             or not isinstance(inferred_type, (SimTypeChar, SimTypeInt))
+            or type(previous_type) is not type(inferred_type)
             or previous_type.size != inferred_type.size
         ):
             return inferred_type
@@ -2599,16 +2603,15 @@ class Clinic(Analysis, Serializable):
             else:
                 returnty = SimTypeInt()
         else:
-            inferred_signedness_is_ambiguous = (
+            inferred_signedness_is_ambiguous = self.typehoon is not None and (
                 self.typehoon.variable_has_only_generic_integer_solutions(self.func_ret_var)
-                if self.typehoon is not None
-                else False
             )
             returnty = self._reconcile_function_return_type(
                 returnty,
                 previous_prototype.returnty if previous_prototype is not None else None,
                 previous_source,
                 inferred_signedness_is_ambiguous,
+                flavor=self.flavor,
             )
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
