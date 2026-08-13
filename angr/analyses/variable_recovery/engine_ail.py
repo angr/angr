@@ -652,7 +652,8 @@ class SimEngineVRAIL(
                     )
 
         if (
-            expr.from_bits != expr.to_bits
+            expr.from_bits < expr.to_bits
+            and not expr.tags.get("narrowing_adapter", False)
             and r.typevar is not None
             and not isinstance(r.typevar, typeconsts.TypeConstant)
         ):

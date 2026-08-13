@@ -11,6 +11,7 @@ import unittest
 import archinfo
 import networkx
 
+from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.typehoon.simple_solver import (
     BASE_LATTICE_32,
     BASE_LATTICE_64,
@@ -48,6 +49,7 @@ from angr.analyses.typehoon.typeconsts import (
     signed_int_type,
     unsigned_int_type,
 )
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort
 
 
@@ -211,6 +213,52 @@ class TestTranslator(unittest.TestCase):
     def setUp(self):
         self.arch = archinfo.ArchAMD64()
         self.translator = TypeTranslator(self.arch)
+
+    def test_reconcile_ambiguous_function_return_signedness(self):
+        for previous_signed in (False, True):
+            for inferred_signed, inferred_is_ambiguous in ((False, True), (True, False), (False, False)):
+                with self.subTest(
+                    previous_signed=previous_signed,
+                    inferred_signed=inferred_signed,
+                    inferred_is_ambiguous=inferred_is_ambiguous,
+                ):
+                    inferred = SimTypeInt(signed=inferred_signed).with_arch(self.arch)
+                    previous = SimTypeInt(signed=previous_signed).with_arch(self.arch)
+                    result = Clinic._reconcile_function_return_type(
+                        inferred,
+                        previous,
+                        PrototypeSource.CCA_LOW,
+                        inferred_is_ambiguous,
+                    )
+                    expected_signed = previous_signed if inferred_is_ambiguous else inferred_signed
+                    assert result.signed is expected_signed
+                    if not inferred_is_ambiguous:
+                        assert result is inferred
+
+        inferred = SimTypeInt(signed=False).with_arch(self.arch)
+        for previous_source, previous in (
+            (PrototypeSource.USER, SimTypeInt(signed=True).with_arch(self.arch)),
+            (PrototypeSource.CCA_LOW, SimTypeShort(signed=True).with_arch(self.arch)),
+        ):
+            with self.subTest(previous_source=previous_source, previous_type=type(previous).__name__):
+                result = Clinic._reconcile_function_return_type(
+                    inferred,
+                    previous,
+                    previous_source,
+                    True,
+                )
+                assert result is inferred
+
+        inferred_char = SimTypeChar(signed=False).with_arch(self.arch)
+        previous_char = SimTypeChar(signed=True).with_arch(self.arch)
+        result = Clinic._reconcile_function_return_type(
+            inferred_char,
+            previous_char,
+            PrototypeSource.CCA_LOW,
+            True,
+        )
+        assert isinstance(result, SimTypeChar)
+        assert result.signed is True
 
     def test_sint32_to_simtype(self):
         """SInt32 should translate to SimTypeInt(signed=True)."""
