@@ -255,6 +255,7 @@ class CFGBase(Analysis):
                 '"auto_load_libs" disabled, or specify "regions" to limit the scope of CFG recovery.'
             )
 
+        regions_derived_from_objects = regions is None
         if regions is None:
             regions = self._exec_mem_regions
             if not self._skip_unmapped_addrs and not regions:
@@ -283,6 +284,14 @@ class CFGBase(Analysis):
         l.debug("CFG recovery covers %d regions:", len(self._regions))
         for start, end in self._regions.items():
             l.debug("... %#x - %#x", start, end)
+
+        if regions_derived_from_objects and not self._regions_size:
+            l.warning(
+                "CFG recovery has nothing to scan: the regions to analyze cover 0 bytes. If %s does contain code, "
+                'pass the address ranges that hold it in "regions", or set "force_segment" to derive regions from '
+                "segments instead of sections.",
+                self._binary,
+            )
 
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
@@ -324,6 +333,15 @@ class CFGBase(Analysis):
         :rtype: angr.knowledge_plugins.FunctionManager
         """
         return self.kb.functions
+
+    @property
+    def regions(self) -> list[tuple[int, int]]:
+        """
+        The memory regions that this analysis covers. An empty list means it had nothing to scan.
+
+        :return: A sorted list of (start address, end address) tuples.
+        """
+        return list(self._regions.items())
 
     #
     # Methods
@@ -890,6 +908,9 @@ class CFGBase(Analysis):
 
         if not memory_regions and not has_executable:
             memory_regions = [(start, start + len(backer)) for start, backer in self.project.loader.memory.backers()]
+
+        # A section or segment that maps no bytes, such as the empty .text of a data-only relocatable, is not a region.
+        memory_regions = [(start, end) for start, end in memory_regions if end > start]
 
         return sorted(memory_regions, key=lambda x: x[0])
 
