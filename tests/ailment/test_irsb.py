@@ -80,6 +80,30 @@ class TestIrsb(unittest.TestCase):
         assert from_py == from_lift
         assert from_py.statements  # non-empty
 
+    def test_syscall_has_no_floating_point_return(self):
+        arch = archinfo.ArchAMD64()
+        block_bytes = bytes.fromhex("0f05")
+        from_py = VEXIRSBConverter.convert(
+            pyvex.IRSB(block_bytes, 0x1000, arch, opt_level=0),
+            ailment.Manager(arch=arch),  # pyright: ignore[reportArgumentType]
+        )
+        from_lift = VEXIRSBConverter.convert_from_lift(
+            arch,
+            0x1000,
+            block_bytes,
+            ailment.Manager(arch=arch),  # pyright: ignore[reportArgumentType]
+            opt_level=0,
+        )
+        assert from_py == from_lift
+
+        for syscall in (from_py.statements[-1], from_lift.statements[-1]):
+            assert isinstance(syscall, ailment.Stmt.SideEffectStatement)
+            assert isinstance(syscall.expr, ailment.Expr.Call)
+            assert isinstance(syscall.expr.target, ailment.Expr.DirtyExpression)
+            assert syscall.expr.target.callee == "syscall"
+            assert isinstance(syscall.ret_expr, ailment.Expr.Register)
+            assert syscall.fp_ret_expr is None
+
 
 class TestNonConstRoundingMode(unittest.TestCase):
     """VEX sometimes carries the rounding mode in a tmp (e.g. ARM ``vcvtr``

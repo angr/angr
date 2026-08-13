@@ -63,6 +63,8 @@ class TraversalAnalysis:
         self._analyze()
 
         self.def_info = self._engine_ail.def_info
+        self.provisional_call_return_defs = self._engine_ail.provisional_call_return_defs
+        self.used_provisional_call_return_defs = self._engine_ail.used_provisional_call_return_defs
 
     #
     # Main analysis routines

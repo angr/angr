@@ -36,6 +36,7 @@ from angr.calling_conventions import (
     SimRegArg,
     SimStackArg,
     SimStructArg,
+    is_stack_probe,
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
@@ -1761,6 +1762,15 @@ class Clinic(Analysis, Serializable):
             if not self.kb.functions.contains_addr(target):
                 continue
             target_func = self.kb.functions.get_by_addr(target)
+            if is_stack_probe(target_func) and last_stmt.fp_ret_expr is not None:
+                block.statements[-1] = ailment.Stmt.SideEffectStatement(
+                    last_stmt.idx,
+                    last_stmt.expr,
+                    ret_expr=last_stmt.ret_expr,
+                    fp_ret_expr=None,
+                    **last_stmt.tags,
+                )
+                continue
             if target_func.name == "_security_check_cookie" and self.project.arch.name in {"X86", "AMD64"}:
                 arg = SimRegArg("ecx", 32) if self.project.arch.bits == 32 else SimRegArg("rcx", 64)
                 arg_offset, arg_bits = self.project.arch.registers[arg.reg_name]
