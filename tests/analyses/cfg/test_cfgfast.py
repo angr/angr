@@ -1195,6 +1195,15 @@ class TestCfgfast(unittest.TestCase):
         assert node_1 is None  # this overlapping node is currently removed, but maybe we want to keep it?
         # assert node_1.instruction_addrs == [0x21514B690C, 0x21514B690E, 0x21514B690F]
 
+    def test_function_ending_in_an_undefined_instruction_is_kept(self):
+        # rcsbuf_getrevnum.cold is a three-block function whose last block ends in the ud2 that gcc emits after a
+        # call to a noreturn function; drop_bad_functions() used to read that as the function running into data
+        proj = angr.Project(os.path.join(test_location, "x86_64", "cvs"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert 0x404D30 in cfg.kb.functions
+        assert {0x404D30, 0x404D39, 0x404D51} <= cfg.kb.functions[0x404D30].block_addrs_set
+
 
 if __name__ == "__main__":
     unittest.main()
