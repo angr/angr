@@ -183,9 +183,16 @@ class Outliner(Analysis):
             self.parent_graph.add_edge(pred, new_src_node)
 
         # build the return statement if needed
-        if self.frontier_vars:
+        vvars_defined_in_region = {
+            stmt.dst.varid
+            for node in subgraph
+            for stmt in node.statements
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+        }
+        owned_frontier_vars = self.frontier_vars & vvars_defined_in_region
+        if owned_frontier_vars:
             srda = SReachingDefinitions(self.project, self.parent_func, func_graph=self.parent_graph).model
-            ret_exprs = [srda.varid_to_vvar[idx] for idx in self.frontier_vars]
+            ret_exprs = [srda.varid_to_vvar[idx] for idx in owned_frontier_vars]
         else:
             ret_exprs = []
 
@@ -253,16 +260,29 @@ class Outliner(Analysis):
                     self.parent_graph.add_edge(parent, dispatcher_node)
                     self.parent_graph.add_edge(dispatcher_node, node_dict[jump_target])
 
-                    self._update_phi_stmts(node_dict[jump_target])
+                    self._update_phi_stmts(
+                        node_dict[jump_target],
+                        collapsed_loc=(dispatcher_node.addr, dispatcher_node.idx),
+                        ret_vvar=ret_exprs[0] if ret_exprs else None,
+                    )
 
                     parent = dispatcher_node
 
                 self.parent_graph.add_edge(parent, node_dict[last_retval_to_target_item[1]])
+                self._update_phi_stmts(
+                    node_dict[last_retval_to_target_item[1]],
+                    collapsed_loc=(parent.addr, parent.idx),
+                    ret_vvar=ret_exprs[0] if ret_exprs else None,
+                )
 
             else:
                 (frontier_node,) = frontier
                 self.parent_graph.add_edge(new_src_node, frontier_node)
-                self._update_phi_stmts(frontier_node)
+                self._update_phi_stmts(
+                    frontier_node,
+                    collapsed_loc=(new_src_node.addr, new_src_node.idx),
+                    ret_vvar=ret_exprs[0] if ret_exprs else None,
+                )
 
         if ret_exprs:
             if len(ret_exprs) > 1:
@@ -271,26 +291,38 @@ class Outliner(Analysis):
 
         return callee_func, subgraph, callee_arg_vvars
 
-    def _update_phi_stmts(self, block: Block):
+    def _update_phi_stmts(self, block: Block, collapsed_loc=None, ret_vvar=None):
         srcs = list(self.parent_graph.predecessors(block))
         src_addrs = [(src.addr, src.idx) for src in srcs]
-        for stmt in block.statements:
-            if is_phi_assignment(stmt):
-                assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
-                all_stmt_srcs = [src for src, _ in stmt.src.src_and_vvars]
-                new_addrs = set(src_addrs) - set(all_stmt_srcs)
-                old_addrs = set(all_stmt_srcs) - set(src_addrs)
-                if len(old_addrs) == 1 and len(new_addrs) == 1:
-                    # only source block is replaced by a new one
-                    old_addr = next(iter(old_addrs))
-                    new_addr = next(iter(new_addrs))
-                    for idx, _ in enumerate(stmt.src.src_and_vvars):
-                        src, vvars = stmt.src.src_and_vvars[idx]
-                        if src == old_addr:
-                            stmt.src.src_and_vvars[idx] = new_addr, vvars
-                else:
-                    # multiple source blocks have been replaced... it's bad
-                    continue
+        for i, stmt in enumerate(block.statements):
+            if not is_phi_assignment(stmt):
+                continue
+            assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
+            pairs = list(stmt.src.src_and_vvars)
+            all_stmt_srcs = [src for src, _ in pairs]
+            new_addrs = set(src_addrs) - set(all_stmt_srcs)
+            old_addrs = set(all_stmt_srcs) - set(src_addrs)
+            new_src_and_vvars = None
+            if len(old_addrs) == 1 and len(new_addrs) == 1:
+                old_addr = next(iter(old_addrs))
+                new_addr = next(iter(new_addrs))
+                new_src_and_vvars = [((new_addr if src == old_addr else src), vvar) for src, vvar in pairs]
+            elif (
+                old_addrs
+                and collapsed_loc is not None
+                and set(src_addrs) == {collapsed_loc}
+                and set(all_stmt_srcs) <= (old_addrs | {collapsed_loc})
+            ):
+                # an outlined region collapsed into a call, and every phi source vvar arrives through that one block.
+                vvars = [vvar for _, vvar in pairs]
+                distinct = {v.varid for v in vvars if v is not None}
+                value = vvars[0] if len(distinct) == 1 else ret_vvar
+                if value is not None:
+                    new_src_and_vvars = [(collapsed_loc, value)]
+            # else:  multiple source blocks have been replaced... it's bad
+            if new_src_and_vvars is not None:
+                new_phi = Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
+                block.statements[i] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
 
     @staticmethod
     def _node_addr_to_str(addr: tuple[int, int | None]) -> str:
