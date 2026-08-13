@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 """Tests for signed/unsigned integer type inference in the decompiler."""
 
 from __future__ import annotations
@@ -232,6 +232,7 @@ class TestTranslator(unittest.TestCase):
                         inferred_is_ambiguous,
                     )
                     expected_signed = previous_signed if inferred_is_ambiguous else inferred_signed
+                    assert isinstance(result, SimTypeInt)
                     assert result.signed is expected_signed
                     if not inferred_is_ambiguous:
                         assert result is inferred
