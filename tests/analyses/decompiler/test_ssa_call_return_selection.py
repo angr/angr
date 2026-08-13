@@ -499,6 +499,8 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_refresh_progress_meter_uses_floating_point_call_return(self):
         binary = Path(bin_location) / "tests" / "x86_64" / "decompiler" / "openssh_scp_O2_noinline"
+        if not binary.is_file():
+            self.skipTest(f"missing test binary: {binary}")
         project = angr.Project(binary, auto_load_libs=False)
         cfg = project.analyses.CFGFast(
             normalize=True,
