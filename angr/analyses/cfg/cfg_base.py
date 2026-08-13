@@ -1363,7 +1363,7 @@ class CFGBase(Analysis):
                 smallest_node = all_nodes[0]  # take the one that has the highest address
                 other_nodes = all_nodes[1:]
 
-                self._normalize_core(
+                unsplittable_pairs += self._normalize_core(
                     graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addr_to_nodes
                 )
 
@@ -1431,12 +1431,23 @@ class CFGBase(Analysis):
         other_nodes,
         smallest_nodes,
         end_addr_to_nodes,
-    ):
+    ) -> int:
+        smallest_addr = get_real_address_if_arm(self.project.arch, smallest_node.addr)
+        unsplittable_pairs = 0
+        splittable_nodes = []
+        for n in other_nodes:
+            if get_real_address_if_arm(self.project.arch, n.addr) != smallest_addr and _conflicting_decodings(
+                self.project.arch, n, smallest_node
+            ):
+                l.debug("Cannot break %s where %s starts: they decode into different instructions.", n, smallest_node)
+                unsplittable_pairs += 1
+                continue
+            splittable_nodes.append(n)
+        other_nodes = splittable_nodes
+
         # Break other nodes
         for n in other_nodes:
-            new_size = get_real_address_if_arm(self.project.arch, smallest_node.addr) - get_real_address_if_arm(
-                self.project.arch, n.addr
-            )
+            new_size = smallest_addr - get_real_address_if_arm(self.project.arch, n.addr)
             if new_size == 0:
                 # This node has the same size as the smallest one. Don't touch it.
                 continue
@@ -1587,6 +1598,8 @@ class CFGBase(Analysis):
             for n in other_nodes:
                 if n.addr in self.indirect_jumps:
                     del self.indirect_jumps[n.addr]
+
+        return unsplittable_pairs
 
     #
     # Job management

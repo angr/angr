@@ -1051,6 +1051,13 @@ class TestCfgfast(unittest.TestCase):
         proj = angr.Project(path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
 
+        # the block at 0xc0154a ends at 0xc01555, and so does a block starting at 0xc01553, three bytes into the
+        # six-byte instruction at 0xc0154f. normalize() used to break the first block there.
+        node = cfg.model.get_any_node(0xC0154A)
+        assert node is not None
+        assert node.size == 11
+        assert list(node.instruction_addrs) == [0xC0154A, 0xC0154C, 0xC0154F]
+
         nodes = sorted((n for n in cfg.model.nodes() if not n.is_simprocedure), key=lambda n: n.addr)
         assert any(a.addr < b.addr < a.addr + a.size for a, b in zip(nodes, nodes[1:]))
         assert not cfg.normalized
