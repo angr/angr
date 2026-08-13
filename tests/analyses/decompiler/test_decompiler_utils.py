@@ -9,6 +9,8 @@ from angr.analyses.decompiler.utils import to_ail_supergraph
 
 
 class TestDecompilerUtils(unittest.TestCase):
+    """Tests for shared decompiler graph utilities."""
+
     def test_supergraph_preserves_control_flow_order_when_addresses_run_backwards(self):
         predecessor = ailment.Block(
             0x4000,

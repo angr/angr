@@ -8,19 +8,28 @@ import unittest
 
 import angr
 from angr.ailment import Expr
-from angr.analyses.decompiler.structured_codegen.c import CBinaryOp, CConstant, CFakeVariable
+from angr.analyses.decompiler.structured_codegen.c import (
+    CBinaryOp,
+    CConstant,
+    CFakeVariable,
+    CStructuredCodeGenerator,
+)
 from angr.sim_type import SimTypeChar, TypeRef
 
 
 class TestConvertRendering(unittest.TestCase):
     """How CStructuredCodeGenerator renders Convert expressions of assorted widths."""
 
+    codegen: CStructuredCodeGenerator
+
     @classmethod
     def setUpClass(cls):
         # any decompilation will do; all we need is a codegen instance to render expressions with
         proj = angr.load_shellcode(b"\x31\xc0\xc3", arch="AMD64")  # xor eax, eax; ret
         cfg = proj.analyses.CFGFast(normalize=True)
-        cls.codegen = proj.analyses.Decompiler(cfg.functions[0], cfg=cfg).codegen
+        codegen = proj.analyses.Decompiler(cfg.functions[0], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
 
     def _render(self, from_bits: int, to_bits: int, value: int = 0x1234) -> str:
         conv = Expr.Convert(0, from_bits, to_bits, False, Expr.Const(0, value, from_bits))
