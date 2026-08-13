@@ -16,6 +16,7 @@ from angr.analyses.decompiler.optimization_passes.inlined_string_transformation_
 )
 from angr.analyses.purity.engine import DataSource, PurityEngineAIL
 from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
+from angr.analyses.typehoon import typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable
 from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
 from angr.analyses.variable_recovery.engine_base import RichR
@@ -86,6 +87,37 @@ class TestLightEngine(TestCase):
         assert seen == [operand]
         assert result.typevar is operand_typevar
         assert len(result.data) == 32
+
+    def test_variable_recovery_convert_signedness(self):
+        operand_typevar = TypeVariable(name="convert_operand")
+        constraints = []
+        engine: Any = object.__new__(SimEngineVRAIL)
+        engine._expr = lambda expr: RichR(claripy.BVV(0, expr.bits), typevar=operand_typevar)
+        engine.state = SimpleNamespace(
+            add_type_constraint=constraints.append,
+            top=lambda bits: claripy.BVS("vr_convert_top", bits),
+        )
+        engine.tv_manager = SimpleNamespace(
+            new_dtv_with_merged_labels=lambda typevar, label: typevar,
+        )
+        operand = ailment.Expr.VirtualVariable(0, 1, 32, ailment.Expr.VirtualVariableCategory.REGISTER, oident=0)
+
+        for tags, expect_unsigned_constraint in (
+            ({}, True),
+            ({"narrowing_adapter": True}, False),
+        ):
+            with self.subTest(tags=tags):
+                constraints.clear()
+                expr = ailment.Expr.Convert(1, 32, 64, False, operand, **tags)
+                engine._handle_expr_Convert(expr)
+                signedness_constraints = [
+                    constraint for constraint in constraints if isinstance(constraint.super_type, typeconsts.UInt32)
+                ]
+                assert bool(signedness_constraints) is expect_unsigned_constraint
+
+        constraints.clear()
+        engine._handle_expr_Convert(ailment.Expr.Convert(1, 64, 32, False, operand))
+        assert not constraints
 
     def test_purity_abs_preserves_provenance(self):
         provenance = frozenset((DataSource(function_arg=0),))

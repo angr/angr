@@ -11,7 +11,7 @@ from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
 
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Array, Pointer, Struct, TopType, TypeConstant
+from .typeconsts import Array, Int8, Int16, Int32, Int64, Pointer, Struct, TopType, TypeConstant
 from .typevars import DerivedTypeVariable, Equivalence, Subtype, TypeVariable, TypeVariableManager
 
 if TYPE_CHECKING:
@@ -138,6 +138,18 @@ class Typehoon(Analysis):
             self.kb.variables[func_addr].set_variable_type(
                 var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None
             )
+
+    def variable_has_only_generic_integer_solutions(self, variable: SimVariable) -> bool:
+        """Return whether all solved types for a variable encode width but not signedness."""
+        if self._var_mapping is None or self.solution is None:
+            return False
+        solutions = {
+            solution
+            for typevar in self._var_mapping.get(variable, ())
+            if (solution := self.solution.get(typevar)) is not None
+        }
+        generic_int_types = {Int8, Int16, Int32, Int64}
+        return bool(solutions) and all(type(solution) in generic_int_types for solution in solutions)
 
     @staticmethod
     def _flatten_pointer_to_array(ty: SimType, arch) -> SimType:

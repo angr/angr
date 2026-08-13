@@ -2530,8 +2530,33 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    @staticmethod
+    def _reconcile_function_return_type(
+        inferred_type: SimType,
+        previous_type: SimType | None,
+        previous_source: PrototypeSource,
+        inferred_signedness_is_ambiguous: bool,
+    ) -> SimType:
+        """Preserve CCA signedness when Typehoon recovered only an integer width."""
+        if (
+            previous_source is not PrototypeSource.CCA_LOW
+            or not isinstance(previous_type, (SimTypeChar, SimTypeInt))
+            or not isinstance(inferred_type, (SimTypeChar, SimTypeInt))
+            or previous_type.size != inferred_type.size
+        ):
+            return inferred_type
+
+        if not inferred_signedness_is_ambiguous:
+            return inferred_type
+
+        reconciled_type = copy.copy(inferred_type)
+        reconciled_type.signed = previous_type.signed
+        return reconciled_type
+
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
+        previous_prototype = self.function.prototype
+        previous_source = self.function.prototype_source
         if self.function.prototype is not None:
             if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
                 # do not overwrite an existing function prototype
@@ -2573,6 +2598,18 @@ class Clinic(Analysis, Serializable):
                 returnty = self.function.prototype.returnty
             else:
                 returnty = SimTypeInt()
+        else:
+            inferred_signedness_is_ambiguous = (
+                self.typehoon.variable_has_only_generic_integer_solutions(self.func_ret_var)
+                if self.typehoon is not None
+                else False
+            )
+            returnty = self._reconcile_function_return_type(
+                returnty,
+                previous_prototype.returnty if previous_prototype is not None else None,
+                previous_source,
+                inferred_signedness_is_ambiguous,
+            )
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
