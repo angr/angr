@@ -43,11 +43,15 @@ class _RenderedExpression(CExpression):
 class TestConvertRendering(unittest.TestCase):
     """How CStructuredCodeGenerator renders Convert expressions of assorted widths."""
 
+    codegen: CStructuredCodeGenerator
+
     @classmethod
     def setUpClass(cls):
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
-        cls.codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
 
     def _render(self, from_bits: int, to_bits: int, value: int = 0x1234) -> str:
         conv = Expr.Convert(0, from_bits, to_bits, False, Expr.Const(0, value, from_bits))

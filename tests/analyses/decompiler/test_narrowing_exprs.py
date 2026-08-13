@@ -12,7 +12,8 @@ from types import SimpleNamespace
 import archinfo
 
 import angr
-from angr.ailment.expression import BinaryOp, Const, Extract, Insert, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert, VirtualVariable, VirtualVariableCategory
+from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.expression_narrower import EffectiveSizeExtractor, ExpressionNarrower
 from tests.common import WORKER, bin_location, print_decompilation_result
@@ -25,14 +26,14 @@ l = logging.getLogger(__name__)
 class TestNarrowingExpressions(unittest.TestCase):
     def test_restored_width_is_marked_as_a_narrowing_adapter(self):
         project = SimpleNamespace(arch=archinfo.ArchAMD64())
-        manager = angr.ailment.Manager(arch=project.arch)
+        manager = Manager(arch=project.arch)
         narrower = ExpressionNarrower(project, None, manager, [], {}, {})
         narrower.new_vvar_sizes[44] = 4
         original = VirtualVariable(1, 44, 64, VirtualVariableCategory.REGISTER, oident=16)
 
         result = narrower._handle_VirtualVariable(0, original, 0, None, None)
 
-        assert isinstance(result, angr.ailment.Expr.Convert)
+        assert isinstance(result, Convert)
         assert result.from_bits == 32 and result.to_bits == 64
         assert result.tags.get("narrowing_adapter") is True
 

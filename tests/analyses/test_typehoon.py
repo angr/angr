@@ -56,7 +56,7 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypePointer,
 )
-from angr.sim_variable import SimRegisterVariable
+from angr.sim_variable import SimRegisterVariable, SimVariable
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -64,11 +64,12 @@ test_location = os.path.join(bin_location, "tests")
 
 class TestTypehoon(unittest.TestCase):
     def test_generic_integer_solution_detection(self):
-        variable = SimRegisterVariable(0, 4)
+        variable: SimVariable = SimRegisterVariable(0, 4)
         first_typevar = TypeVariable()
         second_typevar = TypeVariable()
         typehoon = object.__new__(Typehoon)
-        typehoon._var_mapping = {variable: {first_typevar, second_typevar}}
+        var_mapping: dict[SimVariable, set[TypeVariable]] = {variable: {first_typevar, second_typevar}}
+        typehoon._var_mapping = var_mapping
 
         for solutions, expected in (
             (None, False),

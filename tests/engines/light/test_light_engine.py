@@ -139,13 +139,12 @@ class TestLightEngine(TestCase):
         )
         operand = ailment.Expr.VirtualVariable(0, 1, 32, ailment.Expr.VirtualVariableCategory.REGISTER, oident=0)
 
-        for tags, expect_unsigned_constraint in (
-            ({}, True),
-            ({"narrowing_adapter": True}, False),
+        for expr, expect_unsigned_constraint in (
+            (ailment.Expr.Convert(1, 32, 64, False, operand), True),
+            (ailment.Expr.Convert(1, 32, 64, False, operand, narrowing_adapter=True), False),
         ):
-            with self.subTest(tags=tags):
+            with self.subTest(narrowing_adapter=expr.tags.get("narrowing_adapter", False)):
                 constraints.clear()
-                expr = ailment.Expr.Convert(1, 32, 64, False, operand, **tags)
                 engine._handle_expr_Convert(expr)
                 signedness_constraints = [
                     constraint for constraint in constraints if isinstance(constraint.super_type, typeconsts.UInt32)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -13,6 +14,7 @@ import angr
 from angr import ailment
 from angr.analyses.decompiler import Decompiler
 from angr.analyses.decompiler.clinic import Clinic
+from angr.sim_type import SimTypeInt
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -21,6 +23,8 @@ openssh_scp = os.path.join(test_location, "x86_64", "decompiler", "openssh_scp_O
 
 @unittest.skipUnless(os.path.isfile(openssh_scp), f"missing test binary: {openssh_scp}")
 class TestX87CallUsedClearing(unittest.TestCase):
+    """Tests for the exact GCC x87 call-used clearing epilogue."""
+
     @staticmethod
     def _convert(block):
         return ailment.IRSBConverter.convert(block.vex, ailment.Manager(arch=block.arch))
@@ -94,8 +98,10 @@ class TestX87CallUsedClearing(unittest.TestCase):
 
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "unsupported instruction" not in dec.codegen.text
-        assert func.prototype is not None and isinstance(func.prototype.returnty, angr.sim_type.SimTypeInt)
-        assert func.prototype.returnty.signed is True
+        assert func.prototype is not None
+        return_type = func.prototype.returnty
+        assert isinstance(return_type, SimTypeInt)
+        assert return_type.signed is True
 
     def test_only_expected_dirty_statements_are_removed(self):
         proj = angr.Project(openssh_scp, auto_load_libs=False)
