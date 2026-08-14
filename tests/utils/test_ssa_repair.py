@@ -13,7 +13,7 @@ from angr.ailment.expression import Const, Phi, VirtualVariable, VirtualVariable
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump
 from angr.utils.ssa import is_phi_assignment
-from angr.utils.ssa.repair import repair_multiple_definitions
+from angr.utils.ssa.repair import repair_multiple_definitions, repair_phi_sources
 
 
 def _vvar(manager, varid, bits=32):
@@ -201,6 +201,79 @@ class TestRepairDuplicatedPhiDefinitions(unittest.TestCase):
         assert len(merge) == 1, f"expected one merge phi at the join, found {len(merge)}"
         use = next(s for s in join.statements if not is_phi_assignment(s))
         assert use.src.varid == merge[0].dst.varid
+
+
+class TestRepairPhiSources(unittest.TestCase):
+    """A block replaced by copies leaves its successors' phis naming a block that is gone."""
+
+    def _replaced_predecessor(self):
+        """head -> {copy0, copy1, other} -> join; join's phi still names the replaced block."""
+        manager = Manager(arch=None)
+        head = Block(0x1000, 1, statements=[_jump(manager, 0x2000)])
+        copy0 = Block(0x2000, 1, statements=[_jump(manager, 0x4000)], idx=0)
+        copy1 = Block(0x2000, 1, statements=[_jump(manager, 0x4000)], idx=1)
+        other = Block(0x3000, 1, statements=[_jump(manager, 0x4000)])
+        value = _vvar(manager, 50)
+        join = Block(
+            0x4000,
+            1,
+            statements=[
+                Assignment(
+                    manager.next_atom(),
+                    _vvar(manager, 100),
+                    # (0x2000, None) is the block the two copies replaced
+                    Phi(manager.next_atom(), 32, [((0x3000, None), _vvar(manager, 10)), ((0x2000, None), value)]),
+                )
+            ],
+        )
+        graph = networkx.DiGraph()
+        graph.add_edge(head, copy0)
+        graph.add_edge(head, copy1)
+        graph.add_edge(head, other)
+        graph.add_edge(copy0, join)
+        graph.add_edge(copy1, join)
+        graph.add_edge(other, join)
+        return manager, graph, join, value
+
+    def test_operand_expands_to_every_copy(self):
+        _manager, graph, join, value = self._replaced_predecessor()
+        repaired = repair_phi_sources(graph)
+
+        assert repaired == 2, f"expected the stale operand to expand into two, got {repaired}"
+        operands = dict(join.statements[0].src.src_and_vvars)
+        assert (0x2000, None) not in operands, "the replaced block must no longer be named"
+        assert {(0x2000, 0), (0x2000, 1)} <= set(operands), "each copy must get its own operand"
+        assert operands[(0x2000, 0)].varid == value.varid
+        assert operands[(0x2000, 1)].varid == value.varid
+
+    def test_every_operand_names_a_predecessor(self):
+        _manager, graph, join, _value = self._replaced_predecessor()
+        repair_phi_sources(graph)
+
+        preds = {(p.addr, p.idx) for p in graph.predecessors(join)}
+        named = {src for src, _ in join.statements[0].src.src_and_vvars}
+        assert named <= preds, f"phi still names non-predecessors: {named - preds}"
+
+    def test_operand_with_no_surviving_block_is_dropped(self):
+        manager, graph, join, _value = self._replaced_predecessor()
+        stmt = join.statements[0]
+        pairs = [*stmt.src.src_and_vvars, ((0xDEAD, None), _vvar(manager, 77))]
+        join.statements[0] = Assignment(
+            stmt.idx, stmt.dst, Phi(stmt.src.idx, stmt.src.bits, pairs, **stmt.src.tags), **stmt.tags
+        )
+
+        repair_phi_sources(graph)
+
+        named = {src for src, _ in join.statements[0].src.src_and_vvars}
+        assert (0xDEAD, None) not in named, "an operand that cannot reach this block must be dropped"
+
+    def test_well_formed_phi_is_left_alone(self):
+        _manager, graph, join, _value = self._replaced_predecessor()
+        repair_phi_sources(graph)
+        before = list(join.statements[0].src.src_and_vvars)
+
+        assert repair_phi_sources(graph) == 0, "a second run must find nothing to do"
+        assert list(join.statements[0].src.src_and_vvars) == before
 
 
 if __name__ == "__main__":

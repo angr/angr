@@ -279,3 +279,51 @@ def _fill_phi_operands(succ, pred, current, versions, phi_owner) -> None:
             succ.statements[stmt_idx] = Assignment(
                 stmt.idx, stmt.dst, Phi(stmt.src.idx, stmt.src.bits, pairs, **stmt.src.tags), **stmt.tags
             )
+
+
+def repair_phi_sources(graph) -> int:
+    """Make every phi operand name a block that is really a predecessor.
+
+    A pass that replaces one block with several copies gives the copies fresh
+    ``(addr, idx)`` identities, but phis in the *successors* keep naming the block
+    that is gone -- ``LoweredSwitchSimplifier`` duplicating a shared case successor
+    is the common case. Since the copies all carry the same value, an operand
+    naming a vanished block expands into one operand per surviving predecessor at
+    that address. An operand with no such predecessor cannot reach this block at
+    all and is dropped.
+
+    :return: how many operands were rewritten or dropped.
+    """
+    repaired = 0
+    for block in graph:
+        preds = {(p.addr, p.idx) for p in graph.predecessors(block)}
+        preds_by_addr: dict[int, list] = defaultdict(list)
+        for pred in preds:
+            preds_by_addr[pred[0]].append(pred)
+
+        for stmt_idx, stmt in enumerate(block.statements):
+            if not is_phi_assignment(stmt):
+                continue
+            pairs = list(stmt.src.src_and_vvars)
+            if all(src in preds for src, _ in pairs):
+                continue
+
+            claimed = {src for src, _ in pairs if src in preds}
+            new_pairs = []
+            for src, vvar in pairs:
+                if src in preds:
+                    new_pairs.append((src, vvar))
+                    continue
+                replacements = [p for p in sorted(preds_by_addr.get(src[0], [])) if p not in claimed]
+                for replacement in replacements:
+                    new_pairs.append((replacement, vvar))
+                    claimed.add(replacement)
+                repaired += max(1, len(replacements))
+
+            block.statements[stmt_idx] = Assignment(
+                stmt.idx,
+                stmt.dst,
+                Phi(stmt.src.idx, stmt.src.bits, new_pairs, **stmt.src.tags),
+                **stmt.tags,
+            )
+    return repaired
