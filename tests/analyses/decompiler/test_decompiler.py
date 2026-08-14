@@ -4564,6 +4564,41 @@ class TestDecompiler(unittest.TestCase):
         # assert text.count("sub_404860") == 1
 
     @structuring_algo("sailr")
+    def test_libbsd_r_sort_a_deduplication_preserves_entry(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "libbsd.so.0.11.7")
+        proj = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+        symbol = proj.loader.find_symbol("r_sort_a")
+        assert symbol is not None
+
+        function_addr = symbol.rebased_addr
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(function_addr, function_addr + symbol.size)],
+            start_at_entry=False,
+            function_starts=[function_addr],
+            symbols=True,
+            force_smart_scan=False,
+        )
+        function = cfg.functions[function_addr]
+        decompilation = proj.analyses[Decompiler].prep(fail_fast=True)(
+            function,
+            cfg=cfg.model,
+            options=decompiler_options,
+            preset=DECOMPILATION_PRESETS["full"],
+            use_cache=False,
+            update_cache=False,
+        )
+
+        assert decompilation.codegen is not None
+        assert decompilation.codegen.text is not None
+        clinic = decompilation.clinic
+        assert clinic is not None
+        self.assertEqual(clinic.entry_node_addr, (function_addr, None))
+        entry_nodes = [node for node in clinic.graph if (node.addr, node.idx) == clinic.entry_node_addr]
+        self.assertEqual(len(entry_nodes), 1)
+        self.assertEqual(clinic.graph.in_degree(entry_nodes[0]), 0)
+
+    @structuring_algo("sailr")
     def test_deduplication_too_sensitive_split_3(self, decompiler_options=None):
         # This tests the deduplicator goto-trigger is not too sensitive. In this binary there is duplicate assignment
         # that was legit written by the programmer. It so happens to be close to a goto, which used to trigger this opt
