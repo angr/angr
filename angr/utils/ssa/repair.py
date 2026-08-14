@@ -281,7 +281,7 @@ def _fill_phi_operands(succ, pred, current, versions, phi_owner) -> None:
             )
 
 
-def repair_phi_sources(graph) -> int:
+def repair_phi_sources(graph, blocks=None) -> int:
     """Make every phi operand name a block that is really a predecessor.
 
     A pass that replaces one block with several copies gives the copies fresh
@@ -292,10 +292,18 @@ def repair_phi_sources(graph) -> int:
     that address. An operand with no such predecessor cannot reach this block at
     all and is dropped.
 
+    :param blocks: Only examine these blocks. A phi can only go stale when its own
+                   block's predecessor set changes, so a caller that knows which
+                   blocks it rewired should say so -- scanning the whole graph means
+                   walking every statement of every block to find the phis, which is
+                   wasted work on a function with thousands of them. ``None`` scans
+                   everything.
     :return: how many operands were rewritten or dropped.
     """
     repaired = 0
-    for block in graph:
+    for block in graph if blocks is None else blocks:
+        if block not in graph:
+            continue
         preds = {(p.addr, p.idx) for p in graph.predecessors(block)}
         preds_by_addr: dict[int, list] = defaultdict(list)
         for pred in preds:
@@ -327,3 +335,23 @@ def repair_phi_sources(graph) -> int:
                 **stmt.tags,
             )
     return repaired
+
+
+def predecessor_snapshot(graph) -> dict:
+    """Record every block's predecessor set, to be handed to :func:`changed_predecessors` later."""
+    return {block: frozenset((p.addr, p.idx) for p in graph.predecessors(block)) for block in graph}
+
+
+def changed_predecessors(graph, snapshot: dict) -> list:
+    """Blocks whose predecessor set differs from ``snapshot``, plus any block that is new.
+
+    Two cheap O(V+E) walks, which is what makes it worth doing: only these blocks can
+    be holding a stale phi, and finding them this way avoids walking the statements of
+    every block in the function just to locate the phis.
+    """
+    changed = []
+    for block in graph:
+        preds = frozenset((p.addr, p.idx) for p in graph.predecessors(block))
+        if snapshot.get(block) != preds:
+            changed.append(block)
+    return changed

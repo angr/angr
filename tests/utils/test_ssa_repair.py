@@ -13,7 +13,12 @@ from angr.ailment.expression import Const, Phi, VirtualVariable, VirtualVariable
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump
 from angr.utils.ssa import is_phi_assignment
-from angr.utils.ssa.repair import repair_multiple_definitions, repair_phi_sources
+from angr.utils.ssa.repair import (
+    changed_predecessors,
+    predecessor_snapshot,
+    repair_multiple_definitions,
+    repair_phi_sources,
+)
 
 
 def _vvar(manager, varid, bits=32):
@@ -274,6 +279,67 @@ class TestRepairPhiSources(unittest.TestCase):
 
         assert repair_phi_sources(graph) == 0, "a second run must find nothing to do"
         assert list(join.statements[0].src.src_and_vvars) == before
+
+
+class TestScopedPhiSourceRepair(unittest.TestCase):
+    """The repair only has to look at blocks whose predecessor set moved."""
+
+    def _rewire(self):
+        manager = Manager(arch=None)
+        head = Block(0x1000, 1, statements=[_jump(manager, 0x2000)])
+        old = Block(0x2000, 1, statements=[_jump(manager, 0x4000)])
+        untouched = Block(0x5000, 1, statements=[_jump(manager, 0x6000)])
+        join = Block(
+            0x4000,
+            1,
+            statements=[
+                Assignment(
+                    manager.next_atom(),
+                    _vvar(manager, 100),
+                    Phi(manager.next_atom(), 32, [((0x2000, None), _vvar(manager, 50))]),
+                )
+            ],
+        )
+        graph = networkx.DiGraph()
+        graph.add_edge(head, old)
+        graph.add_edge(old, join)
+        graph.add_edge(head, untouched)
+        return manager, graph, head, old, join, untouched
+
+    def test_changed_predecessors_finds_only_the_rewired_blocks(self):
+        manager, graph, head, old, join, untouched = self._rewire()
+        snapshot = predecessor_snapshot(graph)
+
+        copy0 = Block(0x2000, 1, statements=[_jump(manager, 0x4000)], idx=0)
+        graph.remove_node(old)
+        graph.add_edge(head, copy0)
+        graph.add_edge(copy0, join)
+
+        changed = changed_predecessors(graph, snapshot)
+        assert join in changed, "the join lost a predecessor and gained another"
+        assert copy0 in changed, "a block that did not exist before counts as changed"
+        assert untouched not in changed, "an untouched block must not be scanned"
+        assert head not in changed
+
+    def test_scoping_matches_a_full_scan(self):
+        manager, graph, head, old, join, _untouched = self._rewire()
+        snapshot = predecessor_snapshot(graph)
+        copy0 = Block(0x2000, 1, statements=[_jump(manager, 0x4000)], idx=0)
+        graph.remove_node(old)
+        graph.add_edge(head, copy0)
+        graph.add_edge(copy0, join)
+
+        scoped = repair_phi_sources(graph, blocks=changed_predecessors(graph, snapshot))
+        operands = {src for src, _ in join.statements[0].src.src_and_vvars}
+
+        assert scoped == 1
+        assert operands == {(0x2000, 0)}
+        assert repair_phi_sources(graph) == 0, "a full scan afterwards must find nothing left"
+
+    def test_blocks_not_in_the_graph_are_ignored(self):
+        _manager, graph, _head, _old, _join, _untouched = self._rewire()
+        stale = Block(0x9999, 1, statements=[])
+        assert repair_phi_sources(graph, blocks=[stale]) == 0
 
 
 if __name__ == "__main__":

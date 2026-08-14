@@ -18,7 +18,12 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.utils.graph import GraphUtils
-from angr.utils.ssa.repair import repair_multiple_definitions, repair_phi_sources
+from angr.utils.ssa.repair import (
+    changed_predecessors,
+    predecessor_snapshot,
+    repair_multiple_definitions,
+    repair_phi_sources,
+)
 
 from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
 
@@ -230,6 +235,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
+        # only a block whose predecessor set changes can end up holding a stale phi
+        preds_before = predecessor_snapshot(graph_copy)
         node_to_heads = defaultdict(set)
         modified = False
 
@@ -425,7 +432,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # graph back into SSA before handing it on.
         # the duplication above hands the copies fresh idx values; their successors'
         # phis still name the block that was replaced
-        repair_phi_sources(graph_copy)
+        repair_phi_sources(graph_copy, blocks=changed_predecessors(graph_copy, preds_before))
 
         entry_block = next(
             (b for b in graph_copy if (b.addr, b.idx) == self.entry_node_addr),
