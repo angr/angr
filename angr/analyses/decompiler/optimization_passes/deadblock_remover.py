@@ -10,6 +10,7 @@ from angr.ailment.expression import Const
 from angr.ailment.statement import Jump
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.utils.graph import to_acyclic_graph
+from angr.utils.ssa.repair import changed_predecessors, predecessor_snapshot, repair_phi_sources
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -76,7 +77,13 @@ class DeadblockRemover(OptimizationPass):
                     **p.statements[-1].tags,
                 )
 
+        # phis in the surviving successors still carry an operand for each block that is
+        # about to disappear; no value can arrive along an edge that no longer exists
+        preds_before = predecessor_snapshot(self._graph)
+
         for n in to_remove:
             self._graph.remove_node(n)
+
+        repair_phi_sources(self._graph, blocks=changed_predecessors(self._graph, preds_before))
 
         self.out_graph = self._graph
