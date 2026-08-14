@@ -74,9 +74,6 @@ class SLivenessAnalysis(Analysis):
         # blocks whose statements have been walked at least once
         walked: set[tuple[int, int | None]] = set()
 
-        successors = {block: list(graph.successors(block)) for block in graph}
-        predecessors = {block: list(graph.predecessors(block)) for block in graph}
-
         order: list[Block] = list(networkx.dfs_postorder_nodes(graph, source=entry))
         worklist = deque(order)
         worklist_set = set(order)
@@ -91,7 +88,7 @@ class SLivenessAnalysis(Analysis):
             head_controlled_loop = is_head_controlled_loop_block(block)
 
             live = set()
-            for succ in successors[block]:
+            for succ in graph.successors(block):
                 succ_key = succ.addr, succ.idx
                 if head_controlled_loop and block_key == succ_key:
                     # this is a head-controlled loop block; we ignore the self-loop edge because all variables defined
@@ -176,7 +173,7 @@ class SLivenessAnalysis(Analysis):
                     changed = True
 
             if changed:
-                for pred in predecessors[block]:
+                for pred in graph.predecessors(block):
                     if pred not in worklist_set:
                         worklist.append(pred)
                         worklist_set.add(pred)
