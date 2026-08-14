@@ -204,6 +204,21 @@ def _rename(graph, entry, children, versions, phis, phi_owner) -> None:
         for stmt_idx in range(len(block_phis), len(block.statements)):
             stmt = block.statements[stmt_idx]
             if is_phi_assignment(stmt):
+                # A duplicated block can carry phis, and then each copy defines the same
+                # phi destination. Version the destination like any other definition; the
+                # operands are per-predecessor and are filled in from the predecessor
+                # side, so they are left alone here.
+                if (
+                    isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.varid in versions
+                    and id(block) in versions[stmt.dst.varid]
+                ):
+                    varid = stmt.dst.varid
+                    new_dst = versions[varid][id(block)]
+                    if new_dst.varid != varid:
+                        block.statements[stmt_idx] = Assignment(stmt.idx, new_dst, stmt.src, **stmt.tags)
+                    pushed.append((varid, current.get(varid)))
+                    current[varid] = new_dst
                 continue
             versioned = (
                 isinstance(stmt, Assignment)

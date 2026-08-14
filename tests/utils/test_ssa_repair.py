@@ -9,7 +9,7 @@ import unittest
 import networkx
 
 from angr.ailment import Block
-from angr.ailment.expression import Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Const, Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump
 from angr.utils.ssa import is_phi_assignment
@@ -124,6 +124,83 @@ class TestRepairMultipleDefinitions(unittest.TestCase):
         assert tail.statements[0].src.varid == right.statements[0].dst.varid, (
             "a use dominated solely by the right arm must read the right arm's version"
         )
+
+
+class TestRepairDuplicatedPhiDefinitions(unittest.TestCase):
+    """Duplicating a block that starts with phis duplicates the phi destinations too."""
+
+    def _diamond_with_phis(self):
+        manager = Manager(arch=None)
+        head = Block(0x1000, 1, statements=[_jump(manager, 0x2000)])
+        # both arms are copies of one block, so both define vvar 100 with a phi
+        left = Block(
+            0x2000,
+            1,
+            statements=[
+                Assignment(
+                    manager.next_atom(),
+                    _vvar(manager, 100),
+                    Phi(manager.next_atom(), 32, [((0x1000, None), _vvar(manager, 10))]),
+                ),
+                _jump(manager, 0x4000),
+            ],
+        )
+        right = Block(
+            0x2000,
+            1,
+            statements=[
+                Assignment(
+                    manager.next_atom(),
+                    _vvar(manager, 100),
+                    Phi(manager.next_atom(), 32, [((0x1000, None), _vvar(manager, 11))]),
+                ),
+                _jump(manager, 0x4000),
+            ],
+            idx=1,
+        )
+        join = Block(
+            0x4000,
+            1,
+            statements=[Assignment(manager.next_atom(), _vvar(manager, 200), _vvar(manager, 100))],
+        )
+        graph = networkx.DiGraph()
+        graph.add_edge(head, left)
+        graph.add_edge(head, right)
+        graph.add_edge(left, join)
+        graph.add_edge(right, join)
+        return manager, graph, head, left, right, join
+
+    def test_phi_destinations_are_versioned(self):
+        manager, graph, head, left, right, _join = self._diamond_with_phis()
+        assert len(_definitions(graph)[100]) == 2, "the fixture must start out broken"
+
+        repair_multiple_definitions(graph, head, manager, 0x9000)
+
+        for varid, blocks in _definitions(graph).items():
+            assert len(blocks) == 1, f"vvar {varid} is still defined in {len(blocks)} blocks"
+        assert left.statements[0].dst.varid != right.statements[0].dst.varid
+        assert is_phi_assignment(left.statements[0]) and is_phi_assignment(right.statements[0]), (
+            "versioning a phi definition must not turn it into something else"
+        )
+
+    def test_phi_operands_are_left_alone(self):
+        """Operands belong to specific predecessors; only the destination is versioned."""
+        manager, graph, head, left, right, _join = self._diamond_with_phis()
+        before = [list(b.statements[0].src.src_and_vvars) for b in (left, right)]
+
+        repair_multiple_definitions(graph, head, manager, 0x9000)
+
+        after = [list(b.statements[0].src.src_and_vvars) for b in (left, right)]
+        assert before == after
+
+    def test_use_after_a_duplicated_phi_reads_the_merge(self):
+        manager, graph, head, _left, _right, join = self._diamond_with_phis()
+        repair_multiple_definitions(graph, head, manager, 0x9000)
+
+        merge = [s for s in join.statements if is_phi_assignment(s)]
+        assert len(merge) == 1, f"expected one merge phi at the join, found {len(merge)}"
+        use = next(s for s in join.statements if not is_phi_assignment(s))
+        assert use.src.varid == merge[0].dst.varid
 
 
 if __name__ == "__main__":
