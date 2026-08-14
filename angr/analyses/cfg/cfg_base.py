@@ -3142,7 +3142,15 @@ class CFGBase(Analysis):
         all_targets = set()
         idx: int
         jump: IndirectJump
-        for idx, jump in enumerate(self._indirect_jumps_to_resolve):
+        # IndirectJump has no __hash__, so the set iterates its members in the order their objects happen to sit
+        # in memory. Resolving one jump occupies bytes and builds blocks that the next resolver reads, so that
+        # order decides the answer. self.indirect_jumps records every jump in the order the scan reached it;
+        # follow that, and fall back to the address for anything not registered there.
+        discovered = {id(ij): order for order, ij in enumerate(self.indirect_jumps.values())}
+        pending = sorted(
+            self._indirect_jumps_to_resolve, key=lambda ij: (discovered.get(id(ij), len(discovered)), ij.addr)
+        )
+        for idx, jump in enumerate(pending):
             if self._low_priority:
                 self._release_gil(idx, 50, 0.000001)
             all_targets |= self._process_one_indirect_jump(jump)
