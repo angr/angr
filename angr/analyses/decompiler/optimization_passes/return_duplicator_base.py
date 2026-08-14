@@ -15,6 +15,7 @@ from angr.analyses.decompiler.region_overlay import RegionOverlay
 from angr.analyses.decompiler.structurer_nodes import ConditionNode, MultiNode
 from angr.analyses.decompiler.utils import calls_in_graph, remove_labels, to_ail_supergraph
 from angr.utils.ail import is_phi_assignment
+from angr.utils.ssa.repair import changed_predecessors, predecessor_snapshot, repair_phi_sources
 
 _l = logging.getLogger(name=__name__)
 
@@ -126,6 +127,9 @@ class ReturnDuplicatorBase:
         The return value is True if the graph was changed.
         """
         graph_changed = False
+        # duplicating a return region rewires predecessors; the phis of the blocks whose
+        # predecessor set moves are repaired at the end
+        preds_before = predecessor_snapshot(graph)
         endnode_regions = self._find_endnode_regions(graph)
 
         if self._minimize_copies_for_regions:
@@ -162,6 +166,9 @@ class ReturnDuplicatorBase:
             if region_head in graph and graph.in_degree(region_head) == 0:
                 graph.remove_nodes_from(region)
                 graph_changed = True
+
+        if graph_changed:
+            repair_phi_sources(graph, blocks=changed_predecessors(graph, preds_before))
 
         return graph_changed
 
