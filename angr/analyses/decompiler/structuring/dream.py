@@ -1157,9 +1157,10 @@ class DreamStructurer(StructurerBase):
                 and node.node in self.cond_proc.guarding_conditions
             ):
                 guarding_condition = self.cond_proc.guarding_conditions[node.node]
-                # the op of guarding condition is always "Or"
                 if (
-                    len(guarding_condition.args) < len(node.reaching_condition.args)
+                    not guarding_condition.is_true()
+                    and not guarding_condition.is_false()
+                    and len(guarding_condition.args) < len(node.reaching_condition.args)
                     and guarding_condition.depth < node.reaching_condition.depth
                 ):
                     node.reaching_condition = guarding_condition
