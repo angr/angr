@@ -3328,15 +3328,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         lvalue: bool,
         renegotiate_type: Callable[[SimType, SimType], SimType] = lambda old, proposed: old,
     ) -> CExpression:
-        def _force_type_cast(src_type_: SimType, dst_type_: SimType, expr_: CExpression) -> CUnaryOp:
+        def _force_type_cast(
+            src_type_: SimType, dst_type_: SimType, expr_: CExpression, take_reference: bool
+        ) -> CUnaryOp:
             src_type_ptr = SimTypePointer(src_type_).with_arch(self.project.arch)
             dst_type_ptr = SimTypePointer(dst_type_).with_arch(self.project.arch)
+            cast_expr = CUnaryOp("Reference", expr_, codegen=self) if take_reference else expr_
             return CUnaryOp(
                 "Dereference",
                 CTypeCast(
                     src_type_ptr,
                     dst_type_ptr,
-                    CUnaryOp("Reference", expr_, codegen=self),
+                    cast_expr,
                     codegen=self,
                 ),
                 codegen=self,
@@ -3369,11 +3372,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 # case 2: we're done because we can never find it and we might as well stop early
                 if base_expr:
                     if not type_equals(base_type, data_type):
-                        return _force_type_cast(base_type, data_type, base_expr)
+                        return _force_type_cast(base_type, data_type, base_expr, True)
                     return base_expr
 
                 if not type_equals(base_type, data_type):
-                    return _force_type_cast(base_type, data_type, expr)
+                    return _force_type_cast(base_type, data_type, expr, False)
                 return CUnaryOp("Dereference", expr, codegen=self)
 
         stride = 1 if base_type.size is None else base_type.size // self.project.arch.byte_width or 1
