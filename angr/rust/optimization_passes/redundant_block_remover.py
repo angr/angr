@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin
 from angr.rust.utils.ail import has_call
 from angr.utils.ssa import VVarUsesCollector
@@ -28,7 +29,9 @@ class RedundantBlockRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
         return self.project.is_rust_binary, None
 
     def _transform_graph_from_ssa(self, graph):
-        dephication = self.project.analyses.GraphDephication(self._func, graph, rewrite=True, kb=self.kb)
+        dephication = self.project.analyses.GraphDephication(
+            self._func, graph, rewrite=True, kb=self.kb, variable_map=variable_map_of(self.manager)
+        )
         return dephication.output
 
     def _remove_redundant_blocks(self, dephicate=False):
