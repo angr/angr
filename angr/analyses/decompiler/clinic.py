@@ -16,7 +16,20 @@ import networkx
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
+from angr.ailment.expression import (
+    Array,
+    Call,
+    Expression,
+    FunctionLikeMacro,
+    Let,
+    RustEnum,
+    Struct,
+    Tmp,
+    VirtualVariable,
+)
+from angr.ailment.expression import (
+    Register as AILRegister,
+)
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
@@ -28,6 +41,7 @@ from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
+from angr.block import Block as VEXBlock
 from angr.calling_conventions import (
     SimCCUsercall,
     SimComboArg,
@@ -243,6 +257,77 @@ class _VLABufferBinder(AILBlockViewer):
         if expr.varid in self._buffer_ids:
             self._variable_map.set_variable(expr, self._variable)
         return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _ITStateDependencyWalker(AILBlockViewer):
+    """Follow local temporary definitions to find a function-entry ITSTATE read."""
+
+    def __init__(self, tmp_definitions: dict[int, Expression], itstate_offset: int, entry_addr: int):
+        super().__init__()
+        self._tmp_definitions = tmp_definitions
+        self._itstate_offset = itstate_offset
+        self._entry_addr = entry_addr
+        self._visiting_tmp_indices: set[int] = set()
+        self.depends_on_itstate = False
+
+    def _handle_Register(
+        self, expr_idx: int, expr: AILRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> None:
+        if expr.reg_offset == self._itstate_offset and expr.tags.get("ins_addr") == self._entry_addr:
+            self.depends_on_itstate = True
+
+    def _handle_Tmp(self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement | None, block: Block | None) -> None:
+        if self.depends_on_itstate or expr.tmp_idx in self._visiting_tmp_indices:
+            return
+        definition = self._tmp_definitions.get(expr.tmp_idx)
+        if definition is None:
+            return
+
+        self._visiting_tmp_indices.add(expr.tmp_idx)
+        self._handle_expr(0, definition, stmt_idx, stmt, block)
+        self._visiting_tmp_indices.remove(expr.tmp_idx)
+
+
+def _remove_thumb_entry_itstate_guard(
+    block: VEXBlock, statements: list[Statement], itstate_offset: int
+) -> list[Statement]:
+    """Remove LibVEX's synthetic guard around the first Thumb instruction, if present."""
+
+    instruction_addrs = block.instruction_addrs
+    if not instruction_addrs or instruction_addrs[0] != block.addr:
+        return statements
+
+    next_instruction_addr = instruction_addrs[1] if len(instruction_addrs) > 1 else block.addr + block.size
+    tmp_definitions = {}
+    new_statements = []
+    for stmt in statements:
+        if (
+            isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.Tmp)
+            and stmt.tags.get("ins_addr") == block.addr
+        ):
+            tmp_definitions[stmt.dst.tmp_idx] = stmt.src
+
+        if (
+            isinstance(stmt, ailment.Stmt.ConditionalJump)
+            and stmt.tags.get("ins_addr") == block.addr
+            and isinstance(stmt.true_target, ailment.Expr.Const)
+            and stmt.true_target.value == next_instruction_addr
+            and (
+                stmt.false_target is None
+                or (
+                    isinstance(stmt.false_target, ailment.Expr.Const)
+                    and stmt.false_target.value == next_instruction_addr
+                )
+            )
+        ):
+            dependency_walker = _ITStateDependencyWalker(tmp_definitions, itstate_offset, block.addr)
+            dependency_walker.walk_expression(stmt.condition, stmt=stmt, block=None)
+            if dependency_walker.depends_on_itstate:
+                continue
+
+        new_statements.append(stmt)
+    return new_statements
 
 
 class Clinic(Analysis, Serializable):
@@ -1563,6 +1648,25 @@ class Clinic(Analysis, Serializable):
                 self._ail_manager.next_atom(), dflag, forward, ins_addr=block.addr
             )
             converted.statements.insert(0, dflag_assignment)
+        elif block.addr == self.function.addr and block.thumb is True and "itstate" in self.project.arch.registers:
+            itstate_offset, itstate_size = self.project.arch.registers["itstate"]
+            # LibVEX may infer stale ITSTATE from bytes before a context-free Thumb lift. Remove only the entry guard
+            # that skips the first instruction; genuine IT blocks later in the function remain untouched.
+            converted.statements = _remove_thumb_entry_itstate_guard(block, converted.statements, itstate_offset)
+
+            itstate = ailment.Expr.Register(
+                self._ail_manager.next_atom(),
+                itstate_offset,
+                itstate_size * self.project.arch.byte_width,
+                ins_addr=block.addr,
+            )
+            cleared = ailment.Expr.Const(
+                self._ail_manager.next_atom(), 0, itstate_size * self.project.arch.byte_width, ins_addr=block.addr
+            )
+            itstate_assignment = ailment.Stmt.Assignment(
+                self._ail_manager.next_atom(), itstate, cleared, ins_addr=block.addr
+            )
+            converted.statements.insert(0, itstate_assignment)
 
         return converted
 
