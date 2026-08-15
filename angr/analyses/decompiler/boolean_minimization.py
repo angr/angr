@@ -2,14 +2,17 @@
 A dependency-free two-level Boolean minimizer based on the Quine-McCluskey algorithm.
 
 Truth tables are Python integers used as bit vectors: bit ``m`` is set iff the formula holds under the assignment where
-atom ``i`` takes the value ``(m >> i) & 1``. Literals are non-zero integers, ``i + 1`` for atom ``i`` and ``-(i + 1)``
-for its negation. An implicant is a ``(value, dashes)`` pair, where ``dashes`` marks the atoms the cube leaves
-unconstrained and the corresponding bits of ``value`` are always zero.
+atom ``i`` takes the value ``(m >> i) & 1``. A formula that does not constrain the high atoms has a table periodic in
+them, so evaluating it against wider columns and masking down with ``full_table()`` matches evaluating it at its own
+width. Literals are non-zero integers, ``i + 1`` for atom ``i`` and ``-(i + 1)`` for its negation. An implicant is a
+``(value, dashes)`` pair, where ``dashes`` marks the atoms the cube leaves unconstrained and those bits of ``value``
+are zero.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
+from functools import lru_cache
 from typing import NamedTuple
 
 _Implicant = tuple[int, int]
@@ -28,13 +31,17 @@ class MinimizedFormula(NamedTuple):
         return sum(len(term) for term in self.terms)
 
 
-def atom_column(atom: int, num_atoms: int) -> int:
-    run = 1 << atom
-    ones = (1 << run) - 1
-    column = 0
-    for start in range(run, 1 << num_atoms, run * 2):
-        column |= ones << start
-    return column
+@lru_cache(maxsize=16)
+def atom_columns(num_atoms: int) -> tuple[int, ...]:
+    columns = []
+    for atom in range(num_atoms):
+        run = 1 << atom
+        ones = (1 << run) - 1
+        column = 0
+        for start in range(run, 1 << num_atoms, run * 2):
+            column |= ones << start
+        columns.append(column)
+    return tuple(columns)
 
 
 def full_table(num_atoms: int) -> int:

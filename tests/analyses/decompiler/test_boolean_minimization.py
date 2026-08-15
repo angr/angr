@@ -4,7 +4,7 @@ import random
 
 import claripy
 
-from angr.analyses.decompiler.boolean_minimization import MinimizedFormula, atom_column, full_table, minimize
+from angr.analyses.decompiler.boolean_minimization import MinimizedFormula, atom_columns, full_table, minimize
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
 
@@ -19,7 +19,7 @@ def _evaluate(formula: bool | MinimizedFormula, num_atoms: int) -> int:
         return 0
 
     all_ones = full_table(num_atoms)
-    columns = [atom_column(atom_id, num_atoms) for atom_id in range(num_atoms)]
+    columns = atom_columns(num_atoms)
 
     def _literal(literal: int) -> int:
         column = columns[abs(literal) - 1]
@@ -43,10 +43,9 @@ def _evaluate(formula: bool | MinimizedFormula, num_atoms: int) -> int:
     return table
 
 
-def test_atom_column():
-    assert atom_column(0, 1) == 0b10
-    assert atom_column(0, 2) == 0b1010
-    assert atom_column(1, 2) == 0b1100
+def test_atom_columns():
+    assert atom_columns(1) == (0b10,)
+    assert atom_columns(2) == (0b1010, 0b1100)
     assert full_table(2) == 0b1111
     assert full_table(3) == 0xFF
 
@@ -70,14 +69,14 @@ def test_minimize_is_correct_for_random_formulas():
 def test_minimize_constants():
     assert minimize(0, 3) is False
     assert minimize(full_table(3), 3) is True
-    a = atom_column(0, 2)
+    a = atom_columns(2)[0]
     assert minimize(a & (full_table(2) & ~a), 2) is False
     assert minimize(a | (full_table(2) & ~a), 2) is True
 
 
 def test_minimize_absorption_and_consensus():
     all_ones = full_table(3)
-    a, b, c = (atom_column(i, 3) for i in range(3))
+    a, b, c = atom_columns(3)
 
     formula = minimize((a & b) | (a & (all_ones & ~b)), 3)
     assert formula.terms == ((1,),)
@@ -135,6 +134,31 @@ class TestSimplifyCondition:
         for i in range(12):
             cond = claripy.And(cond, claripy.BoolS(f"b{i}", explicit_name=True))
         assert ConditionProcessor.simplify_condition(cond) is cond
+
+    @staticmethod
+    def _consensus_over(num_atoms):
+        """
+        ``(a0 & a1) | (!a0 & a2) | (a1 & a2) | a3 | ... | an``, whose consensus term ``a1 & a2`` is redundant, over
+        ``num_atoms`` atoms sharing a single claripy variable. Returns the condition and its minimal form.
+        """
+
+        x = claripy.BVS("x", 32, explicit_name=True)
+        a = [claripy.Extract(i, i, x) == 1 for i in range(num_atoms)]
+        cond = claripy.Or(
+            claripy.And(a[0], a[1]), claripy.And(claripy.Not(a[0]), a[2]), claripy.And(a[1], a[2]), *a[3:]
+        )
+        want = claripy.Or(claripy.And(a[0], a[1]), claripy.And(claripy.Not(a[0]), a[2]), *a[3:])
+        assert cond is not want, "claripy already folded the condition, so this proves nothing"
+        return cond, want
+
+    def test_atom_limit_is_counted_independently_of_variables(self):
+        cond, want = self._consensus_over(8)
+        assert len(cond.variables) == 1
+        assert ConditionProcessor.simplify_condition(cond, depth_limit=99) is want
+
+        cond, _ = self._consensus_over(9)
+        assert len(cond.variables) == 1
+        assert ConditionProcessor.simplify_condition(cond, depth_limit=99) is cond
 
     def test_random_conditions_stay_equivalent(self):
         rand = random.Random(0x1234)

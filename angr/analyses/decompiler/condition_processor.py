@@ -16,7 +16,7 @@ from angr.errors import AngrRuntimeError
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.graph import GraphUtils, dominates, inverted_idoms
 
-from .boolean_minimization import MinimizedFormula, atom_column, full_table, minimize
+from .boolean_minimization import MinimizedFormula, atom_columns, full_table, minimize
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
 from .region_overlay import RegionOverlay
 from .structurer_nodes import (
@@ -69,6 +69,12 @@ _INVERSE_OPERATIONS = {
     "SLE": "SGT",
     "SGT": "SLE",
 }
+
+
+class _TooManyAtoms(Exception):
+    """
+    Raised while walking a condition that turns out to range over more atoms than the minimizer will handle.
+    """
 
 
 class AILExprIdAnnotation(claripy.Annotation):
@@ -1099,73 +1105,11 @@ class ConditionProcessor:
     #
 
     @staticmethod
-    def _lower_condition(cond, atoms: list[claripy.ast.Bool], atom_ids: dict[int, int]):
-        """
-        Lower a claripy Bool AST into a propositional formula of ``("and"|"or", children)``, ``("not", child)`` and
-        ``("atom", index)`` tuples, or a plain bool. Anything that is not And/Or/Not or a Boolean constant becomes an
-        atom, interned in ``atoms`` by AST hash. Comparisons in ``_UNIFIABLE_COMPARISONS`` are rewritten into the
-        negation of their inverse, so that a comparison and its opposite share one atom rather than becoming two
-        unrelated ones; that unification is where most simplification opportunities come from.
-        """
-
-        if cond.op == "And":
-            return ("and", tuple(ConditionProcessor._lower_condition(arg, atoms, atom_ids) for arg in cond.args))
-        if cond.op == "Or":
-            return ("or", tuple(ConditionProcessor._lower_condition(arg, atoms, atom_ids) for arg in cond.args))
-        if cond.op == "Not":
-            return ("not", ConditionProcessor._lower_condition(cond.args[0], atoms, atom_ids))
-        if cond.op == "BoolV":
-            return bool(cond.args[0])
-
-        if cond.op in _UNIFIABLE_COMPARISONS:
-            inverse_op = getattr(cond.args[0], _INVERSE_OPERATIONS[cond.op])
-            return ("not", ConditionProcessor._lower_condition(inverse_op(cond.args[1]), atoms, atom_ids))
-
-        key = cond.hash()
-        atom_id = atom_ids.get(key)
-        if atom_id is None:
-            atom_id = atom_ids[key] = len(atoms)
-            atoms.append(cond)
-        return ("atom", atom_id)
-
-    @staticmethod
-    def _condition_truth_table(formula, num_atoms: int) -> int:
-        """
-        Evaluate a formula produced by :meth:`_lower_condition` over every assignment at once, by representing each atom
-        as a column of the truth table and the connectives as bitwise operations on integers.
-        """
-
-        all_ones = full_table(num_atoms)
-        columns = [atom_column(atom_id, num_atoms) for atom_id in range(num_atoms)]
-
-        def _eval(node) -> int:
-            if node is True:
-                return all_ones
-            if node is False:
-                return 0
-            if node[0] == "atom":
-                return columns[node[1]]
-            if node[0] == "not":
-                return all_ones & ~_eval(node[1])
-            if node[0] == "and":
-                table = all_ones
-                for child in node[1]:
-                    table &= _eval(child)
-                return table
-            if node[0] == "or":
-                table = 0
-                for child in node[1]:
-                    table |= _eval(child)
-                return table
-            raise AngrRuntimeError(f"Unexpected formula node {node[0]}")
-
-        return _eval(formula)
-
-    @staticmethod
     def _lift_formula(formula: bool | MinimizedFormula, atoms: list[claripy.ast.Bool]) -> claripy.ast.Bool:
         """
         Rebuild a claripy AST out of a minimized formula, mapping literals back onto the interned atoms.
         """
+
         if formula is True:
             return claripy.true()
         if formula is False:
@@ -1185,8 +1129,10 @@ class ConditionProcessor:
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
         """
-        Minimize a Boolean condition, treating everything that is not And/Or/Not as an opaque atom. Minimization is
-        exponential in the number of atoms, so conditions that are too deep or that range over more than
+        Minimize a Boolean condition, treating anything that is not And/Or/Not or a Boolean constant as an opaque atom.
+        Comparisons in ``_UNIFIABLE_COMPARISONS`` are evaluated as the negation of their inverse so that a comparison
+        and its opposite share one atom, which is where most simplification opportunities come from. Minimization is
+        exponential in the atom count, so conditions that are too deep or that range over more than
         ``variables_limit`` claripy variables or atoms are returned untouched.
         """
 
@@ -1194,12 +1140,43 @@ class ConditionProcessor:
             return cond
 
         atoms: list[claripy.ast.Bool] = []
-        formula = ConditionProcessor._lower_condition(cond, atoms, {})
-        if len(atoms) > variables_limit:
+        atom_ids: dict[int, int] = {}
+        columns = atom_columns(variables_limit)
+        all_ones = full_table(variables_limit)
+
+        def _table(node) -> int:
+            if node.op == "And":
+                table = all_ones
+                for arg in node.args:
+                    table &= _table(arg)
+                return table
+            if node.op == "Or":
+                table = 0
+                for arg in node.args:
+                    table |= _table(arg)
+                return table
+            if node.op == "Not":
+                return all_ones & ~_table(node.args[0])
+            if node.op == "BoolV":
+                return all_ones if node.args[0] else 0
+            if node.op in _UNIFIABLE_COMPARISONS:
+                inverse_op = getattr(node.args[0], _INVERSE_OPERATIONS[node.op])
+                return all_ones & ~_table(inverse_op(node.args[1]))
+
+            atom_id = atom_ids.get(node.hash())
+            if atom_id is None:
+                if len(atoms) == variables_limit:
+                    raise _TooManyAtoms
+                atom_id = atom_ids[node.hash()] = len(atoms)
+                atoms.append(node)
+            return columns[atom_id]
+
+        try:
+            truth_table = _table(cond)
+        except _TooManyAtoms:
             return cond
 
-        truth_table = ConditionProcessor._condition_truth_table(formula, len(atoms))
-        return ConditionProcessor._lift_formula(minimize(truth_table, len(atoms)), atoms)
+        return ConditionProcessor._lift_formula(minimize(truth_table & full_table(len(atoms)), len(atoms)), atoms)
 
     @staticmethod
     def _simplify_trivial_cases(cond):
