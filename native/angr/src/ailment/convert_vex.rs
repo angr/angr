@@ -1317,7 +1317,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         };
 
         let fp_ret_obj = self.arch.arch.getattr("fp_ret_offset")?;
-        let fp_ret_expr: Option<AilExpression> = if fp_ret_obj.is_none() {
+        let fp_ret_expr: Option<AilExpression> = if jk != "Ijk_Call" || fp_ret_obj.is_none() {
             None
         } else {
             let fp_ret_offset: i64 = fp_ret_obj.extract()?;

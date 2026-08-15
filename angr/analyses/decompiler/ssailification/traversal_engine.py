@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 from angr.ailment.expression import (
     ITE,
+    Call,
     Const,
     Convert,
     DirtyExpression,
@@ -98,6 +99,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.functions = functions
         self.variable_map: VariableMap | None = variable_map
         self.def_info: dict[Def, DefInfo] = {}
+        # VEX lifts ordinary calls with both the integer and floating-point ABI return locations. These are
+        # alternatives until an explicit AIL register read identifies which result the machine code consumes.
+        self.provisional_call_return_defs: set[Def] = set()
+        self.used_provisional_call_return_defs: set[Def] = set()
         # stack offset -> code location, StackBaseOffset expr, set of (offset, size) tuples, required, no_reaching_def
         self.pending_ptr_defines_nonlocal: dict[
             int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool, bool]
@@ -440,6 +445,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             def_as = defs
 
         if def_as is not None:
+            # ``def_ is None`` denotes a conservative ABI probe, not an explicit AIL register read. In particular,
+            # an unknown following call must not select a preceding call's floating-point return merely because XMM0
+            # is a potential argument register.
+            if def_ is not None and self.provisional_call_return_defs:
+                self.used_provisional_call_return_defs.update(def_as & self.provisional_call_return_defs)
             for suboff in range(full_offset, full_offset + full_size):
                 self.state.register_defs[suboff] = def_as
 
@@ -514,12 +524,30 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self.hclb_side_exit_state = self.state.copy()
 
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement):
+        assert isinstance(stmt.expr, Call)
         result = self._handle_expr_Call(stmt.expr)
+
+        target = self._resolve_call_target(stmt.expr)
+        is_syscall = self._is_syscall(stmt.expr, target)
+        if isinstance(stmt.ret_expr, Register) and isinstance(stmt.fp_ret_expr, Register) and not is_syscall:
+            self.provisional_call_return_defs.update((stmt.ret_expr, stmt.fp_ret_expr))
 
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             self.register_set(stmt.ret_expr.reg_offset, stmt.ret_expr.size, result, stmt.ret_expr)
-        if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
+        if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register) and not is_syscall:
             self.register_set(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size, result, stmt.fp_ret_expr)
+
+    def _resolve_call_target(self, expr: Call) -> Function | None:
+        target = expr.target
+        if isinstance(target, Const) and isinstance(target.value, int):
+            target = target.value
+        return self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
+
+    @staticmethod
+    def _is_syscall(expr: Call, target: Function | None = None) -> bool:
+        return (isinstance(expr.target, DirtyExpression) and expr.target.callee == "syscall") or (
+            target is not None and target.is_syscall
+        )
 
     def _handle_expr_Call(self, expr):
         target = expr.target
@@ -536,9 +564,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 def_size = max(def_size_values)[1]
                 def_size_arg = expr.args[2]
 
-        if isinstance(target, Const) and isinstance(target.value, int):
-            target = target.value
-        target = self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
+        target = self._resolve_call_target(expr)
         expr_prototype = self.variable_map.prototype(expr) if self.variable_map is not None else None
         if expr_prototype is not None:
             proto = expr_prototype
@@ -591,13 +617,25 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # kill caller-saved registers
 
         # determine the calling convention of the call
+        is_syscall = self._is_syscall(expr, target)
         expr_cc = self.variable_map.calling_convention(expr) if self.variable_map is not None else None
-        if expr_cc is not None:
+        if is_syscall:
+            cc = default_cc(
+                self.arch.name,
+                platform=self.simos.name if self.simos is not None else None,
+                syscall=True,
+            )
+            assert cc is not None
+            cc = cc(self.arch)
+        elif expr_cc is not None:
             cc = expr_cc
         elif target is not None and target.calling_convention is not None:
             cc = target.calling_convention
         else:
-            cc = default_cc(self.arch.name, platform=self.simos.name if self.simos is not None else None)
+            cc = default_cc(
+                self.arch.name,
+                platform=self.simos.name if self.simos is not None else None,
+            )
             assert cc is not None
             cc = cc(self.arch)
 
