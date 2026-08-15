@@ -165,7 +165,10 @@ impl<'py> IntoPyObject<'py> for &RoundingModeOrExpr {
 /// Layout note: operand subtrees are owned via ``Arc<AilExpression>``
 /// (one heap allocation per subtree). Variable information used to live
 /// on each variant (``variable`` / ``variable_offset``); it now lives in
-/// a side ``VariableMap`` keyed on ``ExprHeader::idx``.
+/// a side ``VariableMap``. Non-``VirtualVariable`` metadata and variable
+/// bindings are keyed by ``.idx``. ``VirtualVariable`` variable/offset
+/// state uses stable ``.varid`` defaults plus occurrence entries keyed by
+/// ``(.varid, .idx)``.
 #[derive(Clone, Debug)]
 pub enum ExprInner {
     Const {
@@ -1692,14 +1695,19 @@ impl AilExpression {
         manager: &Bound<'_, PyAny>,
     ) -> PyResult<AilExpression> {
         let new_idx: i64 = manager.call_method0("next_atom")?.extract()?;
-        // Mirror master's TaggedObject._transfer_varmap: when the
-        // manager carries a VariableMap, copy any side-container entries
-        // (variable, variable_offset, variant, returnty, ...) from the
-        // old idx to the new one so deep-copied atoms keep their
-        // associations.
+        // Mirror master's TaggedObject._transfer_varmap: when the manager carries a VariableMap, copy side-container
+        // entries from the old idx to the new one. VirtualVariables pass their stable varid as an explicit namespace
+        // discriminator because a transformed non-VVar atom may carry the same idx.
         let vmap = manager.getattr("variable_map")?;
         if !vmap.is_none() {
-            vmap.call_method1("transfer", (self.header.idx, new_idx))?;
+            match &self.inner {
+                ExprInner::VirtualVariable { varid, .. } => {
+                    vmap.call_method1("transfer", (self.header.idx, new_idx, *varid))?;
+                }
+                _ => {
+                    vmap.call_method1("transfer", (self.header.idx, new_idx))?;
+                }
+            }
         }
         let new_header = ExprHeader::new(
             new_idx,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use,no-member
+# pylint: disable=missing-class-docstring,no-self-use,no-member,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -7,11 +7,16 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
+import networkx
+
 import angr
-from angr.ailment import Manager
-from angr.ailment.expression import Const, UnaryOp, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment
+from angr.ailment import Block, Manager
+from angr.ailment.expression import Const, Phi, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.dephication.rewriting_engine import SimEngineDephiRewriting
+from angr.analyses.decompiler.variable_map import VariableMap
+from angr.rust.optimization_passes.redundant_block_remover import RedundantBlockRemover
+from angr.sim_variable import SimConstantVariable, SimRegisterVariable
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -25,10 +30,101 @@ class TestDephicationRewriting(unittest.TestCase):
     """
 
     @staticmethod
-    def _engine(mapping):
+    def _engine(mapping, variable_map=None):
         # a project is only needed for the arch; no CFG or analyses required
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
-        return proj, SimEngineDephiRewriting(proj, mapping)
+        return proj, SimEngineDephiRewriting(proj, mapping, variable_map=variable_map)
+
+    def test_remapped_assignment_dst_transfers_occurrence_binding(self):
+        vm = VariableMap()
+        proj, engine = self._engine({11: 21, 12: 22}, vm)
+        m = Manager(arch=proj.arch)
+        src = VirtualVariable(7, 11, 64, VirtualVariableCategory.REGISTER)
+        src_var = SimRegisterVariable(8, 8, ident="reg_src")
+        dst_default = VirtualVariable(70, 21, 64, VirtualVariableCategory.REGISTER)
+        dst_default_var = SimRegisterVariable(16, 8, ident="reg_dst_default")
+        colliding_const = Const(src.idx, 1, 64)
+        colliding_const_var = SimConstantVariable(8, value=1, ident="const_collision")
+        vm.set_variable(src, src_var, 3)
+        vm.set_variable(dst_default, dst_default_var, 4)
+        vm.set_variable(colliding_const, colliding_const_var, 5)
+        vm.set_custom_string(colliding_const)
+        stmt = Assignment(m.next_atom(), src, Const(m.next_atom(), 0, 64))
+
+        out = engine._handle_stmt_Assignment(stmt)
+
+        assert isinstance(out, Assignment)
+        rewritten_dst = out.dst
+        assert isinstance(rewritten_dst, VirtualVariable)
+        self.assertIs(vm.variable(rewritten_dst), src_var)
+        self.assertEqual(vm.variable_offset(rewritten_dst), 3)
+        fresh_wrapper = VirtualVariable(71, 21, 64, VirtualVariableCategory.REGISTER)
+        self.assertIs(vm.variable(fresh_wrapper), dst_default_var)
+        self.assertEqual(vm.variable_offset(fresh_wrapper), 4)
+        self.assertIs(vm.variable(colliding_const), colliding_const_var)
+        self.assertEqual(vm.variable_offset(colliding_const), 5)
+        self.assertTrue(vm.custom_string(colliding_const))
+
+        tombstoned_src = VirtualVariable(17, 12, 64, VirtualVariableCategory.REGISTER)
+        tombstoned_dst_default = VirtualVariable(72, 22, 64, VirtualVariableCategory.REGISTER)
+        tombstoned_dst_default_var = SimRegisterVariable(24, 8, ident="reg_tombstone_default")
+        vm.set_variable(tombstoned_src, src_var, 6)
+        vm.set_variable(tombstoned_src, None)
+        vm.set_variable(tombstoned_dst_default, tombstoned_dst_default_var, 7)
+        tombstoned_stmt = Assignment(m.next_atom(), tombstoned_src, Const(m.next_atom(), 0, 64))
+
+        tombstoned_out = engine._handle_stmt_Assignment(tombstoned_stmt)
+
+        assert isinstance(tombstoned_out, Assignment)
+        rewritten_tombstone = tombstoned_out.dst
+        assert isinstance(rewritten_tombstone, VirtualVariable)
+        self.assertIsNone(vm.variable(rewritten_tombstone))
+        self.assertEqual(vm.variable_offset(rewritten_tombstone), 0)
+        self.assertFalse(vm.has_variable(rewritten_tombstone))
+        fresh_tombstone_wrapper = VirtualVariable(73, 22, 64, VirtualVariableCategory.REGISTER)
+        self.assertIs(vm.variable(fresh_tombstone_wrapper), tombstoned_dst_default_var)
+
+    def test_remapped_vvar_expr_transfers_occurrence_binding(self):
+        vm = VariableMap()
+        _, engine = self._engine({31: 41, 32: 42}, vm)
+        src = VirtualVariable(27, 31, 64, VirtualVariableCategory.REGISTER)
+        src_var = SimRegisterVariable(8, 8, ident="reg_src")
+        dst_default = VirtualVariable(80, 41, 64, VirtualVariableCategory.REGISTER)
+        dst_default_var = SimRegisterVariable(16, 8, ident="reg_dst_default")
+        colliding_const = Const(src.idx, 1, 64)
+        colliding_const_var = SimConstantVariable(8, value=1, ident="const_collision")
+        vm.set_variable(src, src_var, 3)
+        vm.set_variable(dst_default, dst_default_var, 4)
+        vm.set_variable(colliding_const, colliding_const_var, 5)
+        vm.set_custom_string(colliding_const)
+
+        rewritten = engine._handle_expr_VirtualVariable(src)
+
+        assert isinstance(rewritten, VirtualVariable)
+        self.assertIs(vm.variable(rewritten), src_var)
+        self.assertEqual(vm.variable_offset(rewritten), 3)
+        fresh_wrapper = VirtualVariable(81, 41, 64, VirtualVariableCategory.REGISTER)
+        self.assertIs(vm.variable(fresh_wrapper), dst_default_var)
+        self.assertEqual(vm.variable_offset(fresh_wrapper), 4)
+        self.assertIs(vm.variable(colliding_const), colliding_const_var)
+        self.assertEqual(vm.variable_offset(colliding_const), 5)
+        self.assertTrue(vm.custom_string(colliding_const))
+
+        tombstoned_src = VirtualVariable(37, 32, 64, VirtualVariableCategory.REGISTER)
+        tombstoned_dst_default = VirtualVariable(82, 42, 64, VirtualVariableCategory.REGISTER)
+        tombstoned_dst_default_var = SimRegisterVariable(24, 8, ident="reg_tombstone_default")
+        vm.set_variable(tombstoned_src, src_var, 6)
+        vm.set_variable(tombstoned_src, None)
+        vm.set_variable(tombstoned_dst_default, tombstoned_dst_default_var, 7)
+
+        rewritten_tombstone = engine._handle_expr_VirtualVariable(tombstoned_src)
+
+        assert isinstance(rewritten_tombstone, VirtualVariable)
+        self.assertIsNone(vm.variable(rewritten_tombstone))
+        self.assertEqual(vm.variable_offset(rewritten_tombstone), 0)
+        self.assertFalse(vm.has_variable(rewritten_tombstone))
+        fresh_tombstone_wrapper = VirtualVariable(83, 42, 64, VirtualVariableCategory.REGISTER)
+        self.assertIs(vm.variable(fresh_tombstone_wrapper), tombstoned_dst_default_var)
 
     def test_remapped_dst_survives_non_vvar_src(self):
         proj, engine = self._engine({2759: 1330})
@@ -90,6 +186,53 @@ class TestDephicationRewriting(unittest.TestCase):
 
         # None means "unchanged" to the caller, which then keeps the original statement
         assert engine._handle_stmt_Assignment(stmt) is None
+
+    def test_redundant_block_remover_dephication_preserves_occurrence_binding(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        func = proj.kb.functions.function(addr=proj.entry, create=True)
+        assert func is not None
+        vm = VariableMap()
+        manager = Manager(arch=proj.arch)
+        manager.variable_map = vm
+
+        source_for_phi = VirtualVariable(1, 100, 64, VirtualVariableCategory.REGISTER)
+        source_use = VirtualVariable(2, 100, 64, VirtualVariableCategory.REGISTER)
+        phi_dst = VirtualVariable(3, 200, 64, VirtualVariableCategory.REGISTER)
+        block = Block(
+            func.addr,
+            4,
+            statements=[
+                Assignment(4, phi_dst, Phi(5, 64, [((func.addr, None), source_for_phi)])),
+                Return(6, [source_use]),
+            ],
+            idx=None,
+        )
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+
+        source_default = VirtualVariable(10, 100, 64, VirtualVariableCategory.REGISTER)
+        destination_default = VirtualVariable(11, 200, 64, VirtualVariableCategory.REGISTER)
+        source_override_var = SimRegisterVariable(8, 8, ident="reg_source_override")
+        source_default_var = SimRegisterVariable(16, 8, ident="reg_source_default")
+        destination_default_var = SimRegisterVariable(24, 8, ident="reg_destination_default")
+        vm.set_variable(source_use, source_override_var, 3)
+        vm.set_variable(source_default, source_default_var, 4)
+        vm.set_variable(destination_default, destination_default_var, 5)
+
+        remover = RedundantBlockRemover(func, manager, graph=graph)
+        remover._remove_redundant_blocks(dephicate=True)
+
+        rewritten_block = next(iter(remover._graph.nodes))
+        self.assertEqual(len(rewritten_block.statements), 1)
+        rewritten_return = rewritten_block.statements[0]
+        self.assertIsInstance(rewritten_return, Return)
+        rewritten_use = rewritten_return.ret_exprs[0]
+        self.assertIsInstance(rewritten_use, VirtualVariable)
+        self.assertEqual(rewritten_use.varid, phi_dst.varid)
+        self.assertIs(vm.variable(rewritten_use), source_override_var)
+        self.assertEqual(vm.variable_offset(rewritten_use), 3)
+        self.assertIs(vm.variable(destination_default), destination_default_var)
+        self.assertEqual(vm.variable_offset(destination_default), 5)
 
     def test_bbbq_rust_flavor_keeps_string_constants(self):
         """
