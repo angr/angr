@@ -16,6 +16,7 @@ from angr.errors import AngrRuntimeError
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.graph import GraphUtils, dominates, inverted_idoms
 
+from .boolean_minimization import MinimizedFormula, atom_column, full_table, minimize
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
 from .region_overlay import RegionOverlay
 from .structurer_nodes import (
@@ -1098,55 +1099,107 @@ class ConditionProcessor:
     #
 
     @staticmethod
-    def claripy_ast_to_sympy_expr(ast, memo=None):
-        import sympy  # pylint:disable=import-outside-toplevel
+    def _lower_condition(cond, atoms: list[claripy.ast.Bool], atom_ids: dict[int, int]):
+        """
+        Lower a claripy Bool AST into a propositional formula of ``("and"|"or", children)``, ``("not", child)`` and
+        ``("atom", index)`` tuples, or a plain bool. Anything that is not And/Or/Not or a Boolean constant becomes an
+        atom, interned in ``atoms`` by AST hash. Comparisons in ``_UNIFIABLE_COMPARISONS`` are rewritten into the
+        negation of their inverse, so that a comparison and its opposite share one atom rather than becoming two
+        unrelated ones; that unification is where most simplification opportunities come from.
+        """
 
-        if ast.op == "And":
-            return sympy.And(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Or":
-            return sympy.Or(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Not":
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0], memo=memo))
+        if cond.op == "And":
+            return ("and", tuple(ConditionProcessor._lower_condition(arg, atoms, atom_ids) for arg in cond.args))
+        if cond.op == "Or":
+            return ("or", tuple(ConditionProcessor._lower_condition(arg, atoms, atom_ids) for arg in cond.args))
+        if cond.op == "Not":
+            return ("not", ConditionProcessor._lower_condition(cond.args[0], atoms, atom_ids))
+        if cond.op == "BoolV":
+            return bool(cond.args[0])
 
-        if ast.op in _UNIFIABLE_COMPARISONS:
-            # unify comparisons to enable more simplification opportunities without going "deep" in sympy
-            inverse_op = getattr(ast.args[0], _INVERSE_OPERATIONS[ast.op])
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(inverse_op(ast.args[1]), memo=memo))
+        if cond.op in _UNIFIABLE_COMPARISONS:
+            inverse_op = getattr(cond.args[0], _INVERSE_OPERATIONS[cond.op])
+            return ("not", ConditionProcessor._lower_condition(inverse_op(cond.args[1]), atoms, atom_ids))
 
-        if memo is not None and ast in memo:
-            return memo[ast]
-        symbol = sympy.Symbol(str(hash(ast)))
-        if memo is not None:
-            memo[symbol] = ast
-        return symbol
+        key = cond.hash()
+        atom_id = atom_ids.get(key)
+        if atom_id is None:
+            atom_id = atom_ids[key] = len(atoms)
+            atoms.append(cond)
+        return ("atom", atom_id)
 
     @staticmethod
-    def sympy_expr_to_claripy_ast(expr, memo: dict):
-        import sympy  # pylint:disable=import-outside-toplevel
+    def _condition_truth_table(formula, num_atoms: int) -> int:
+        """
+        Evaluate a formula produced by :meth:`_lower_condition` over every assignment at once, by representing each atom
+        as a column of the truth table and the connectives as bitwise operations on integers.
+        """
 
-        if expr.is_Symbol:
-            return memo[expr]
-        if isinstance(expr, sympy.Or):
-            return claripy.Or(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.And):
-            return claripy.And(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.Not):
-            return claripy.Not(ConditionProcessor.sympy_expr_to_claripy_ast(expr.args[0], memo))
-        if isinstance(expr, sympy.logic.boolalg.BooleanTrue):
+        all_ones = full_table(num_atoms)
+        columns = [atom_column(atom_id, num_atoms) for atom_id in range(num_atoms)]
+
+        def _eval(node) -> int:
+            if node is True:
+                return all_ones
+            if node is False:
+                return 0
+            if node[0] == "atom":
+                return columns[node[1]]
+            if node[0] == "not":
+                return all_ones & ~_eval(node[1])
+            if node[0] == "and":
+                table = all_ones
+                for child in node[1]:
+                    table &= _eval(child)
+                return table
+            if node[0] == "or":
+                table = 0
+                for child in node[1]:
+                    table |= _eval(child)
+                return table
+            raise AngrRuntimeError(f"Unexpected formula node {node[0]}")
+
+        return _eval(formula)
+
+    @staticmethod
+    def _lift_formula(formula: bool | MinimizedFormula, atoms: list[claripy.ast.Bool]) -> claripy.ast.Bool:
+        """
+        Rebuild a claripy AST out of a minimized formula, mapping literals back onto the interned atoms.
+        """
+        if formula is True:
             return claripy.true()
-        if isinstance(expr, sympy.logic.boolalg.BooleanFalse):
+        if formula is False:
             return claripy.false()
-        raise AngrRuntimeError("Unreachable reached")
+
+        def _literal(literal: int) -> claripy.ast.Bool:
+            atom = atoms[abs(literal) - 1]
+            return atom if literal > 0 else claripy.Not(atom)
+
+        inner, outer = (claripy.And, claripy.Or) if formula.is_sop else (claripy.Or, claripy.And)
+        terms = [
+            _literal(term[0]) if len(term) == 1 else inner(*(_literal(literal) for literal in term))
+            for term in formula.terms
+        ]
+        return terms[0] if len(terms) == 1 else outer(*terms)
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
-        import sympy  # pylint:disable=import-outside-toplevel
+        """
+        Minimize a Boolean condition, treating everything that is not And/Or/Not as an opaque atom. Minimization is
+        exponential in the number of atoms, so conditions that are too deep or that range over more than
+        ``variables_limit`` claripy variables or atoms are returned untouched.
+        """
 
-        memo = {}
         if cond.depth > depth_limit or len(cond.variables) > variables_limit:
             return cond
-        sympy_expr = ConditionProcessor.claripy_ast_to_sympy_expr(cond, memo=memo)
-        return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr, deep=False), memo)
+
+        atoms: list[claripy.ast.Bool] = []
+        formula = ConditionProcessor._lower_condition(cond, atoms, {})
+        if len(atoms) > variables_limit:
+            return cond
+
+        truth_table = ConditionProcessor._condition_truth_table(formula, len(atoms))
+        return ConditionProcessor._lift_formula(minimize(truth_table, len(atoms)), atoms)
 
     @staticmethod
     def _simplify_trivial_cases(cond):

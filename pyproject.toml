@@ -48,7 +48,6 @@ dependencies = [
     "pyvex==9.3.3.dev0",
     "rich>=13.1.0",
     "sortedcontainers",
-    "sympy",
     "typing-extensions",
     "colorama;platform_system=='Windows'",
 ]
