@@ -14,6 +14,122 @@ class EvalTopMergerMixin(MemoryMixin):
 
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def _state_global(state, key, default=None):
+        try:
+            return state.globals.get(key, default)
+        except Exception:
+            return default
+
+    def _current_vpc_reg(self, all_states):
+        if self._is_symbolizer_merge(all_states):
+            return self._merge_point_vpc_reg(all_states)
+
+        for state in reversed(list(all_states or [])):
+            cur_vm_reg = self._state_global(state, 'cur_vm_reg')
+            if cur_vm_reg is not None:
+                return cur_vm_reg
+
+        cur_vm_reg = self._state_global(self.state, 'cur_vm_reg')
+        if cur_vm_reg is not None:
+            return cur_vm_reg
+
+        return self._merge_point_vpc_reg(all_states)
+
+    def _is_symbolizer_merge(self, all_states):
+        if self._state_global(self.state, 'is_symbolizer', False):
+            return True
+
+        for state in all_states or []:
+            if self._state_global(state, 'is_symbolizer', False):
+                return True
+
+        return False
+
+    def _merge_point_vpc_reg(self, all_states):
+        block_id = self._current_block_id(all_states)
+        if block_id is None:
+            return None
+
+        project = getattr(self.state, 'project', None)
+        return getattr(project, 'vpc_reg_at_merge_points', {}).get(block_id, None)
+
+    def _current_block_id(self, all_states):
+        block_id = self._state_global(self.state, 'cur_block_id')
+        if block_id is not None:
+            return block_id
+
+        for state in reversed(list(all_states or [])):
+            block_id = self._state_global(state, 'cur_block_id')
+            if block_id is not None:
+                return block_id
+
+        return None
+
+    def _is_current_vpc_reg_merge(self, all_states, page_addr, offset, size, merged_size):
+        if self.id != 'reg' or offset is None:
+            return False
+
+        cur_vm_reg = self._current_vpc_reg(all_states)
+        if cur_vm_reg is None:
+            return False
+
+        reg_off, reg_size = cur_vm_reg
+        loc_offsets = [offset]
+        if page_addr is not None:
+            loc_offsets.append(page_addr + offset)
+
+        merge_size = size if size is not None else merged_size
+        return reg_size == merge_size and any(loc_off == reg_off for loc_off in loc_offsets)
+
+    def _latest_value_index(self, values, all_states):
+        states = list(all_states or [])
+        for idx in range(len(values) - 1, -1, -1):
+            state = states[idx] if idx < len(states) else self.state
+            try:
+                state.partial_symbolic_constraint_solver.eval_one(values[idx][0])
+                return idx
+            except Exception:
+                pass
+
+        return len(values) - 1
+
+    def _merge_point_kind(self, all_states):
+        block_id = self._current_block_id(all_states)
+        project = getattr(self.state, 'project', None)
+
+        if block_id in getattr(project, 'loop_start_nodes', set()):
+            return "loop", block_id
+
+        if block_id is not None:
+            return "non-loop", block_id
+
+        return "unknown", block_id
+
+    def _keep_latest_vpc_reg_value(self, values, all_states, page_addr, offset, size, reason):
+        latest_idx = self._latest_value_index(values, all_states)
+        latest_value = values[latest_idx][0]
+        merge_kind, block_id = self._merge_point_kind(all_states)
+        cur_vm_reg = self._current_vpc_reg(all_states)
+
+        print("EvalTopMerger: keeping latest VPC register value instead of merging")
+        print("EvalTopMerger:", {
+            "reason": reason,
+            "merge_kind": merge_kind,
+            "block_id": block_id,
+            "cur_vm_reg": cur_vm_reg,
+            "latest_idx": latest_idx,
+            "page_addr": page_addr,
+            "offset": offset,
+            "size": size,
+        })
+
+        if merge_kind != "loop":
+            print("EvalTopMerger: VPC register merge is not at a loop merge point")
+            import ipdb;ipdb.set_trace()
+
+        return latest_value
+
     def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, all_states=None, page_addr=None, offset=None, size=None, **kwargs):
         if len(all_states) != len(values):
             print("We have a problem!")
@@ -39,6 +155,9 @@ class EvalTopMergerMixin(MemoryMixin):
             conc_addr1 = state1.partial_symbolic_constraint_solver.eval_one(value1)
         except:
             do_check = False
+
+        if self._is_current_vpc_reg_merge(all_states, page_addr, offset, size, merged_size):
+            return self._keep_latest_vpc_reg_value(values, all_states, page_addr, offset, size, "cur_vm_reg")
 
         if state1.globals['last_added_state_split_cond'] is not None and state1.globals['last_added_state_split_cond'] is not state0.globals['last_added_state_split_cond']:
             existing_state_split_var = None
@@ -149,11 +268,9 @@ class EvalTopMergerMixin(MemoryMixin):
 
 
                     if possible_vip_split:
-                        merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
-                        for tm, fv in values:
-                            merged_val = self.state.solver.If(fv, tm, merged_val)
-                        # should we add state constraint as well?
-                        return merged_val
+                        # value1 already covers the old concrete value and the newly discovered VIP.
+                        # Returning it avoids introducing a fake zero branch from an If-chain default.
+                        return value1
 
             except:
                 pass
@@ -170,11 +287,7 @@ class EvalTopMergerMixin(MemoryMixin):
                             break
 
                     if possible_vip_split:
-                        merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)
-                        for tm, fv in values:
-                            merged_val = self.state.solver.If(fv, tm, merged_val)
-                        # should we add state constraint as well?
-                        return merged_val
+                        return value0
 
 
             except:

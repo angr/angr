@@ -1631,6 +1631,41 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             if prev_vpc != value or prev_source != source_id:
                 succ.globals["last_change_time"] = 0
 
+    @staticmethod
+    def _state_cur_vm_reg(state):
+        try:
+            return state.globals.get("cur_vm_reg", None)
+        except Exception:
+            return None
+
+    def _record_vpc_reg_for_merge_point(self, block_id, is_merge_point, states):
+        if block_id is None:
+            return
+
+        is_merge_point = is_merge_point or block_id in getattr(self.project, "loop_start_nodes", set())
+        if not is_merge_point:
+            return
+
+        if not hasattr(self.project, "vpc_reg_at_merge_points"):
+            self.project.vpc_reg_at_merge_points = {}
+
+        for state in states:
+            cur_vm_reg = self._state_cur_vm_reg(state)
+            if cur_vm_reg is None:
+                continue
+
+            existing_reg = self.project.vpc_reg_at_merge_points.get(block_id, None)
+            if existing_reg is None:
+                self.project.vpc_reg_at_merge_points[block_id] = cur_vm_reg
+            elif existing_reg != cur_vm_reg:
+                l.debug(
+                    "Keeping existing VPC register %s for merge point %s instead of %s",
+                    existing_reg,
+                    block_id,
+                    cur_vm_reg,
+                )
+            return
+
     def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
         """
         Before processing a CFGJob.
@@ -1721,6 +1756,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Job List: "+str(self._job_info_queue))
         if block_id.vm_vpc:
             l.debug("Data offset: "+str(hex(block_id.vm_vpc)))
+
+        if addr == 0x7FF61656ED2E and block_id.vm_vpc == 0xFFEC2CAD8C2E:
+            l.debug("Hit manual CFGVMDeobfuscation breakpoint at %s", block_id)
+            import ipdb; ipdb.set_trace()
+
         # Get a SimSuccessors out of current job
 
         if not self.project.is_hooked(addr):
@@ -2238,7 +2278,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # consequently, the `max_steps` limit is not veyr precise - I didn't see a need to make it precise
                 # though.
 
-        if block_id not in self._nodes:
+        block_previously_seen = block_id in self._nodes
+        if not block_previously_seen:
             # Create the CFGNode object
             cfg_node = self._create_cfgnode(sim_successors, job.call_stack, job.vm_vpc, job.func_addr,
                                             block_id=block_id, depth=depth)
@@ -2273,6 +2314,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
             # TODO: should save them all, which, unfortunately, requires some redesigning :-(
             cfg_node.input_state = sim_successors.initial_state
+
+        self._record_vpc_reg_for_merge_point(
+            block_id,
+            block_previously_seen,
+            list(sim_successors.all_successors) + [sim_successors.initial_state, job.state],
+        )
 
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
