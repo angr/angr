@@ -83,6 +83,174 @@ class TestIrsb(unittest.TestCase):
         assert from_py.statements  # non-empty
 
 
+class TestLoadGConversion(unittest.TestCase):
+    _CASES = (
+        ("ILGop_Ident32", "Ity_I32", 32, 32, False, 0xA5C3E17B),
+        ("ILGop_Ident64", "Ity_I64", 64, 64, False, 0x123456789ABCDEF0),
+        ("ILGop_IdentV128", "Ity_V128", 128, 128, False, 0),
+        ("ILGop_8Uto32", "Ity_I32", 8, 32, False, 0xA5C3E17B),
+        ("ILGop_8Sto32", "Ity_I32", 8, 32, True, 0xA5C3E17B),
+        ("ILGop_16Uto32", "Ity_I32", 16, 32, False, 0xA5C3E17B),
+        ("ILGop_16Sto32", "Ity_I32", 16, 32, True, 0xA5C3E17B),
+    )
+
+    @staticmethod
+    def _const(value, bits):
+        const_cls = pyvex.const.V128 if bits == 128 else getattr(pyvex.const, f"U{bits}")
+        return pyvex.IRExpr.Const(const_cls(value))
+
+    @classmethod
+    def _loadg_block(cls, cvt, dst_type, output_bits, alt_value, endness):
+        arch = archinfo.ArchAMD64()
+        tyenv = pyvex.IRTypeEnv(arch)
+        dst = tyenv.add(dst_type)
+        block_addr = 0x400000
+        return pyvex.IRSB.empty_block(
+            arch,
+            block_addr,
+            statements=[
+                pyvex.IRStmt.IMark(block_addr, 1, 0),
+                pyvex.IRStmt.LoadG(
+                    endness,
+                    cvt,
+                    dst,
+                    cls._const(0x401000, 64),
+                    cls._const(alt_value, output_bits),
+                    cls._const(1, 1),
+                ),
+            ],
+            nxt=cls._const(block_addr + 1, 64),
+            tyenv=tyenv,
+            jumpkind="Ijk_Boring",
+            direct_next=True,
+            size=1,
+        )
+
+    def test_loadg_conversion_matrix(self):
+        for cvt, dst_type, load_bits, output_bits, signed, alt_value in self._CASES:
+            for endness in ("Iend_LE", "Iend_BE"):
+                with self.subTest(cvt=cvt, endness=endness):
+                    irsb = self._loadg_block(cvt, dst_type, output_bits, alt_value, endness)
+                    converted = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=irsb.arch))
+                    assignment = converted.statements[0]
+
+                    assert isinstance(assignment, ailment.Stmt.Assignment)
+                    assert isinstance(assignment.dst, ailment.Expr.Tmp)
+                    assert assignment.dst.bits == output_bits
+                    assert isinstance(assignment.src, ailment.Expr.ITE)
+
+                    ite = assignment.src
+                    assert isinstance(ite.cond, ailment.Expr.Const)
+                    assert ite.cond.value == 1 and ite.cond.bits == 1
+                    assert isinstance(ite.iffalse, ailment.Expr.Const)
+                    assert ite.iffalse.value == alt_value
+                    assert ite.iffalse.bits == output_bits
+
+                    true_expr = ite.iftrue
+                    if load_bits == output_bits:
+                        assert isinstance(true_expr, ailment.Expr.Load)
+                        load = true_expr
+                    else:
+                        assert isinstance(true_expr, ailment.Expr.Convert)
+                        assert true_expr.from_bits == load_bits
+                        assert true_expr.to_bits == output_bits
+                        assert true_expr.is_signed is signed
+                        assert isinstance(true_expr.operand, ailment.Expr.Load)
+                        load = true_expr.operand
+
+                    assert load.guard is None and load.alt is None
+                    assert isinstance(load.addr, ailment.Expr.Const)
+                    assert load.addr.value == 0x401000 and load.addr.bits == 64
+                    assert load.size == load_bits // 8
+                    assert load.bits == load_bits
+                    assert load.endness == endness
+                    assert ite.bits == output_bits
+                    assert ite.depth == max(ite.cond.depth, ite.iffalse.depth, ite.iftrue.depth) + 1
+
+                    # The destination, load, and VEX operands keep the historical allocation order. The canonical
+                    # ITE adds one synthesized atom immediately before the Assignment.
+                    assert load.idx == assignment.dst.idx + 1
+                    assert load.addr.idx == load.idx + 1
+                    assert ite.cond.idx == load.addr.idx + 1
+                    assert ite.iffalse.idx == ite.cond.idx + 1
+                    if isinstance(true_expr, ailment.Expr.Convert):
+                        assert true_expr.idx == ite.iffalse.idx + 1
+                        assert ite.idx == true_expr.idx + 1
+                    else:
+                        assert ite.idx == ite.iffalse.idx + 1
+                    assert assignment.idx == ite.idx + 1
+
+                    source_tags = {"ins_addr": 0x400000, "vex_block_addr": 0x400000, "vex_stmt_idx": 1}
+                    assert dict(assignment.tags) == source_tags
+                    assert dict(assignment.dst.tags) == source_tags
+                    assert dict(load.addr.tags) == source_tags
+                    assert dict(ite.cond.tags) == source_tags
+                    assert dict(ite.iffalse.tags) == source_tags
+                    assert not dict(load.tags)
+                    assert not dict(ite.tags)
+                    if isinstance(true_expr, ailment.Expr.Convert):
+                        assert not dict(true_expr.tags)
+
+                    assert pickle.loads(pickle.dumps(converted)) == converted
+
+    def test_real_thumb_loadg_matches_direct_lift(self):
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "binaries",
+            "tests",
+            "armel",
+            "decompiler",
+            "loadg_ite_thumb.elf",
+        )
+        project = angr.Project(path, auto_load_libs=False)
+        symbol = project.loader.main_object.get_symbol("loadg_ite_mask")
+        assert symbol is not None
+
+        block = project.factory.block(symbol.rebased_addr, size=symbol.size, opt_level=1)
+        loadgs = [stmt for stmt in block.vex.statements if isinstance(stmt, pyvex.IRStmt.LoadG)]
+        assert len(loadgs) == 2
+        assert all(stmt.cvt == "ILGop_Ident32" for stmt in loadgs)
+
+        from_python = VEXIRSBConverter.convert(block.vex, ailment.Manager(arch=project.arch))
+        from_lift = VEXIRSBConverter.convert_from_lift(
+            project.arch,
+            symbol.rebased_addr,
+            block.bytes,
+            ailment.Manager(arch=project.arch),
+            opt_level=1,
+            bytes_offset=1,
+        )
+        assert from_python == from_lift
+
+        assignments = {
+            stmt.dst.tmp_idx: stmt
+            for stmt in from_python.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp)
+        }
+        for vex_stmt in loadgs:
+            src = assignments[vex_stmt.dst].src
+            assert isinstance(src, ailment.Expr.ITE)
+            assert isinstance(src.cond, ailment.Expr.Tmp) and src.cond.tmp_idx == vex_stmt.guard.tmp
+            assert isinstance(src.iffalse, ailment.Expr.Tmp) and src.iffalse.tmp_idx == vex_stmt.alt.tmp
+            assert isinstance(src.iftrue, ailment.Expr.Load)
+            assert src.iftrue.guard is None and src.iftrue.alt is None
+
+        first_load = assignments[loadgs[0].dst].src.iftrue
+        second_load = assignments[loadgs[1].dst].src.iftrue
+        assert isinstance(first_load.addr, ailment.Expr.Tmp)
+        assert isinstance(second_load.addr, ailment.Expr.Tmp)
+        second_addr = assignments[second_load.addr.tmp_idx].src
+        assert isinstance(second_addr, ailment.Expr.BinaryOp) and second_addr.op == "Add"
+        assert isinstance(second_addr.operands[0], ailment.Expr.Tmp)
+        assert second_addr.operands[0].tmp_idx == first_load.addr.tmp_idx
+        assert isinstance(second_addr.operands[1], ailment.Expr.Const)
+        assert second_addr.operands[1].value == 4
+        assert pickle.loads(pickle.dumps(from_python)) == from_python
+
+
 class TestNonConstRoundingMode(unittest.TestCase):
     """VEX sometimes carries the rounding mode in a tmp (e.g. ARM ``vcvtr``
     reads it from FPSCR); the converter must pass it through as an AIL
