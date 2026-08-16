@@ -1484,8 +1484,6 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
-                            import ipdb;
-                            ipdb.set_trace()
                             new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                             new_sim_successors.artifacts = sim_successors.artifacts
                             new_sim_successors.engine = sim_successors.engine
