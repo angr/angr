@@ -941,13 +941,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } => {
                 let (load_bits, convert_bits, signed) = loadg_sizes(&cvt)?;
                 let dst_var = self.make_tmp(dst as i64, dst_bits)?;
-                // Python arg eval order: Load(next_atom(), convert(addr), ...,
-                // guard=convert(guard), alt=convert(alt)).
+                // Preserve the historical LoadG operand conversion order: address, guard, then alternative.
                 let lidx = self.next_atom();
                 let a = self.convert_expr(&addr)?;
                 let g = self.convert_expr(&guard)?;
                 let al = self.convert_expr(&alt)?;
-                // Load has NO tags in the Python converter for LoadG.
+                // LoadG is represented as an ITE over an unconditional load. The load, optional conversion, and ITE
+                // are synthesized expressions and therefore have no source tags.
                 let size = (load_bits / 8) as i32;
                 let load = AilExpression {
                     header: ExprHeader::new(
@@ -959,12 +959,11 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     inner: ExprInner::Load {
                         addr: Arc::new(a),
                         endness: end,
-                        guard: Some(Arc::new(g)),
-                        alt: Some(Arc::new(al)),
+                        guard: None,
+                        alt: None,
                     },
                 };
-                let src = if convert_bits != load_bits {
-                    // ... and neither has this Convert.
+                let iftrue = if convert_bits != load_bits {
                     let cidx = self.next_atom();
                     new_convert(
                         cidx,
@@ -979,6 +978,17 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     )
                 } else {
                     load
+                };
+                let iidx = self.next_atom();
+                let depth = g.header.depth.max(al.header.depth).max(iftrue.header.depth) + 1;
+                let bits = iftrue.header.bits;
+                let src = AilExpression {
+                    header: ExprHeader::new(iidx, depth, bits, Tags::default()),
+                    inner: ExprInner::ITE {
+                        cond: Arc::new(g),
+                        iffalse: Arc::new(al),
+                        iftrue: Arc::new(iftrue),
+                    },
                 };
                 let idx = self.next_atom();
                 out.push(new_stmt(

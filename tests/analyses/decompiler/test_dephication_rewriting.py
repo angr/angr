@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use,no-member
+# pylint: disable=missing-class-docstring,no-self-use,no-member,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -9,7 +9,7 @@ import unittest
 
 import angr
 from angr.ailment import Manager
-from angr.ailment.expression import Const, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import ITE, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.dephication.rewriting_engine import SimEngineDephiRewriting
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
@@ -90,6 +90,26 @@ class TestDephicationRewriting(unittest.TestCase):
 
         # None means "unchanged" to the caller, which then keeps the original statement
         assert engine._handle_stmt_Assignment(stmt) is None
+
+    def test_rewritten_ite_keeps_branch_order(self):
+        proj, engine = self._engine({11: 101})
+        m = Manager(arch=proj.arch)
+        expr = ITE(
+            m.next_atom(),
+            Const(m.next_atom(), 1, 1),
+            Const(m.next_atom(), 0x2222, 64),
+            VirtualVariable(m.next_atom(), 11, 64, VirtualVariableCategory.REGISTER),
+            ins_addr=0x400100,
+        )
+
+        out = engine._handle_expr_ITE(expr)
+        assert isinstance(out, ITE)
+        assert isinstance(out.iftrue, VirtualVariable)
+        assert out.iftrue.varid == 101
+        assert isinstance(out.iffalse, Const)
+        assert out.iffalse.value == 0x2222
+        assert out.idx == expr.idx
+        assert dict(out.tags) == dict(expr.tags)
 
     def test_bbbq_rust_flavor_keeps_string_constants(self):
         """
