@@ -165,7 +165,11 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
             elif expr not in cur_abstract_state._replacements[code_loc] and not self.state.solver.symbolic(simp_result) \
                     and not(isinstance(expr, pyvex.expr.Const)):
-                const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
+                expr_type = expr.result_type(self.state.scratch.tyenv)
+                if expr_type == "Ity_INVALID":
+                    cur_abstract_state._replacements[code_loc][expr] = "TOP"
+                    return simp_result
+                const_class = pyvex.const.ty_to_const_class(expr_type)
                 if len(simp_result.args) > 2:
                     print("Hmmm possible need to simplify the expr")
                     import ipdb;ipdb.set_trace()
@@ -1565,8 +1569,53 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             sim_successors.artifacts['irsb_direct_next'] = True
 
                 elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
-                    l.debug("More than one unconstrained successor?!")
-                    import ipdb;ipdb.set_trace()
+                    handled_mixed_successors = False
+
+                    if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 1:
+                        uncon_succ = sim_successors.unconstrained_successors[0]
+                        normal_succ = sim_successors.successors[0]
+                        graph_succ_addrs = {graph_succ.addr for graph_succ in self._graph.successors(node)}
+
+                        matched_successors = []
+                        if normal_succ.addr in graph_succ_addrs:
+                            matched_successors.append((normal_succ, normal_succ.addr))
+
+                        try:
+                            resolved_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
+                            if resolved_target in graph_succ_addrs:
+                                uncon_succ.regs.ip = resolved_target
+                                uncon_succ.scratch.target = resolved_target
+                                matched_successors.append((uncon_succ, resolved_target))
+                        except:
+                            pass
+
+                        if len(matched_successors) != 0:
+                            new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                            new_sim_successors.artifacts = sim_successors.artifacts
+                            new_sim_successors.engine = sim_successors.engine
+                            new_sim_successors.processed = sim_successors.processed
+                            new_sim_successors.description = sim_successors.description
+                            new_sim_successors.sort = sim_successors.sort
+
+                            for matched_succ, target in matched_successors:
+                                new_sim_successors.add_successor(
+                                    matched_succ,
+                                    target,
+                                    matched_succ.scratch.guard,
+                                    matched_succ.history.jumpkind,
+                                    True,
+                                    matched_succ.scratch.exit_stmt_idx,
+                                    matched_succ.scratch.exit_ins_addr,
+                                    matched_succ.scratch.source,
+                                )
+
+                            sim_successors = new_sim_successors
+                            sim_successors.artifacts['irsb_direct_next'] = True
+                            handled_mixed_successors = True
+
+                    if not handled_mixed_successors:
+                        l.debug("More than one unconstrained successor?!")
+                        import ipdb;ipdb.set_trace()
 
                 if not split_same_ip_state:
                     for succ in sim_successors.all_successors:
