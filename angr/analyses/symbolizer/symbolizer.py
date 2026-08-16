@@ -1344,8 +1344,13 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver._replacement(uncon_succ.regs.ip)
                     poss_target = uncon_succ.regs.ip
 
+                    try:
+                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
+                    except:
+                        l.debug("more than one target?, possible going to split states now")
+
                     # if the ip has become top then just replace with successor ip
-                    if PropagatorState.is_top(uncon_succ.regs.ip):
+                    if uncon_succ.solver.symbolic(poss_target) and PropagatorState.is_top(uncon_succ.regs.ip):
                         if len(list(self._graph.successors(node))) == 1:
                             # import ipdb;ipdb.set_trace()
                             uncon_succ.regs.ip = list(self._graph.successors(node))[0].addr
@@ -1356,10 +1361,6 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                     # if it's till symbolic try to eval with the partial constraint solver
                     #if uncon_succ.solver.symbolic(poss_target):
-                    try:
-                        poss_target = uncon_succ.partial_symbolic_constraint_solver.eval_one(uncon_succ.regs.ip)
-                    except:
-                        l.debug("more than one target?, possible going to split states now")
 
                    # poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
 
