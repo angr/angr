@@ -1757,9 +1757,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if block_id.vm_vpc:
             l.debug("Data offset: "+str(hex(block_id.vm_vpc)))
 
-        if addr == 0x7FF61656ED2E and block_id.vm_vpc == 0xFFEC2CAD8C2E:
-            l.debug("Hit manual CFGVMDeobfuscation breakpoint at %s", block_id)
-            import ipdb; ipdb.set_trace()
 
         # Get a SimSuccessors out of current job
 
