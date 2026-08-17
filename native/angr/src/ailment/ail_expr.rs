@@ -601,27 +601,16 @@ impl<'py> IntoPyObject<'py> for &OIdent {
         match self {
             OIdent::None => Ok(py.None().into_bound(py)),
             OIdent::Int(v) => v.into_bound_py_any(py),
-            OIdent::RegList(v) => {
-                let items: Vec<Bound<'py, PyAny>> = v
-                    .iter()
-                    .map(|x| x.into_bound_py_any(py))
-                    .collect::<PyResult<_>>()?;
-                Ok(PyTuple::new(py, items)?.into_any())
-            }
+            OIdent::RegList(v) => Ok(PyTuple::new(py, v)?.into_any()),
             OIdent::Parameter(p) => {
-                let cat_obj = Bound::new(py, p.inner_category())?.into_any();
                 let inner_obj: Bound<'py, PyAny> = match p {
                     ParameterOIdent::Register(off) => off.into_bound_py_any(py)?,
                     ParameterOIdent::Stack(off) => off.into_bound_py_any(py)?,
-                    ParameterOIdent::ComboRegister(offs) => {
-                        let items: Vec<Bound<'py, PyAny>> = offs
-                            .iter()
-                            .map(|x| x.into_bound_py_any(py))
-                            .collect::<PyResult<_>>()?;
-                        PyTuple::new(py, items)?.into_any()
-                    }
+                    ParameterOIdent::ComboRegister(offs) => PyTuple::new(py, offs)?.into_any(),
                 };
-                Ok(PyTuple::new(py, [cat_obj, inner_obj])?.into_any())
+                Ok((p.inner_category(), inner_obj)
+                    .into_pyobject(py)?
+                    .into_any())
             }
         }
     }
@@ -3670,13 +3659,7 @@ impl Expression {
     /// VirtualVariable.reg_offsets (combo register)
     #[getter]
     fn reg_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        let make_tuple = |offs: &[i64]| -> PyResult<Bound<'py, PyTuple>> {
-            let items: Vec<Py<PyAny>> = offs
-                .iter()
-                .map(|x| x.into_py_any(py))
-                .collect::<PyResult<_>>()?;
-            PyTuple::new(py, items)
-        };
+        let make_tuple = |offs: &[i64]| -> PyResult<Bound<'py, PyTuple>> { PyTuple::new(py, offs) };
         if self.was_combo_reg()
             && let ExprInner::VirtualVariable {
                 oident: OIdent::RegList(offs),
@@ -3774,24 +3757,13 @@ impl Expression {
     fn operands<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
             ExprInner::DirtyExpression { operands, .. } => {
-                let l = PyList::empty(py);
-                for o in operands {
-                    let py_o = Py::new(py, Expression::wrap(o.clone()))?;
-                    l.append(py_o)?;
-                }
-                Ok(l.into_any())
+                Ok(PyList::new(py, operands)?.into_any())
             }
             ExprInner::VEXCCallExpression { operands, .. } => {
-                let items: Vec<Py<Expression>> = operands
-                    .iter()
-                    .map(|x| Py::new(py, Expression::wrap(x.clone())))
-                    .collect::<PyResult<Vec<_>>>()?;
-                Ok(PyTuple::new(py, items)?.into_any())
+                Ok(PyTuple::new(py, operands)?.into_any())
             }
             ExprInner::BinaryOp { operands, .. } => {
-                let lhs = Py::new(py, Expression::wrap((*operands[0]).clone()))?;
-                let rhs = Py::new(py, Expression::wrap((*operands[1]).clone()))?;
-                Ok(PyTuple::new(py, [lhs.into_any(), rhs.into_any()])?.into_any())
+                Ok(PyTuple::new(py, [&*operands[0], &*operands[1]])?.into_any())
             }
             ExprInner::UnaryOp { operand, .. }
             | ExprInner::Convert { operand, .. }
@@ -3799,10 +3771,7 @@ impl Expression {
                 // Legacy quirk: per-class pyclass exposed ``operands``
                 // as ``[self.operand]`` so callers doing
                 // ``expr.operands[0]`` could uniformly index.
-                let l = PyList::empty(py);
-                let py_o = Py::new(py, Expression::wrap((**operand).clone()))?;
-                l.append(py_o)?;
-                Ok(l.into_any())
+                Ok(PyList::new(py, [&**operand])?.into_any())
             }
             _ => Err(PyAttributeError::new_err(
                 "no 'operands' on this Expression",
@@ -3910,23 +3879,12 @@ impl Expression {
             ExprInner::Struct { fields, .. } => {
                 let d = PyDict::new(py);
                 for (off, e) in fields {
-                    let val = Py::new(py, Self::wrap((**e).clone()))?;
-                    d.set_item(*off, val)?;
+                    d.set_item(*off, &**e)?;
                 }
                 Ok(d.into_any())
             }
             ExprInner::RustEnum { fields, .. } => {
-                let items: Vec<Bound<'py, PyAny>> = fields
-                    .iter()
-                    .map(|b| {
-                        Ok::<_, PyErr>(
-                            Py::new(py, Self::wrap((**b).clone()))?
-                                .into_bound(py)
-                                .into_any(),
-                        )
-                    })
-                    .collect::<PyResult<_>>()?;
-                Ok(PyList::new(py, items)?.into_any())
+                Ok(PyList::new(py, fields.iter().map(|f| &**f))?.into_any())
             }
             _ => Err(PyAttributeError::new_err("no 'fields' on this Expression")),
         }
@@ -4110,29 +4068,11 @@ impl Expression {
         match &self.expr.inner {
             ExprInner::Call { args, .. } => match args {
                 None => Ok(None),
-                Some(v) => {
-                    let items: Vec<Py<Expression>> = v
-                        .iter()
-                        .map(|x| Py::new(py, Expression::wrap(x.clone())))
-                        .collect::<PyResult<Vec<_>>>()?;
-                    Ok(Some(PyTuple::new(py, items)?.into_any()))
-                }
+                Some(v) => Ok(Some(PyTuple::new(py, v)?.into_any())),
             },
             ExprInner::FunctionLikeMacro { args, .. } => match args {
                 None => Ok(None),
-                Some(v) => {
-                    let items: Vec<Bound<'py, PyAny>> = v
-                        .iter()
-                        .map(|b| {
-                            Ok::<_, PyErr>(
-                                Py::new(py, Expression::wrap((**b).clone()))?
-                                    .into_bound(py)
-                                    .into_any(),
-                            )
-                        })
-                        .collect::<PyResult<_>>()?;
-                    Ok(Some(PyList::new(py, items)?.into_any()))
-                }
+                Some(v) => Ok(Some(PyList::new(py, v.iter().map(|a| &**a))?.into_any())),
             },
             _ => Err(PyAttributeError::new_err("no 'args' on this Expression")),
         }
@@ -4210,13 +4150,7 @@ impl Expression {
         match &self.expr.inner {
             ExprInner::Call { arg_vvars, .. } => match arg_vvars {
                 None => Ok(None),
-                Some(v) => {
-                    let items: Vec<Py<Expression>> = v
-                        .iter()
-                        .map(|x| Py::new(py, Expression::wrap(x.clone())))
-                        .collect::<PyResult<Vec<_>>>()?;
-                    Ok(Some(PyTuple::new(py, items)?))
-                }
+                Some(v) => Ok(Some(PyTuple::new(py, v)?)),
             },
             ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => Ok(None),
             _ => Err(PyAttributeError::new_err(

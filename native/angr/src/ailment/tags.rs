@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyKeyError, PyStopIteration, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyMapping, PyTuple};
+use pyo3::types::{PyDict, PyMapping, PyTuple};
 use pyo3::{Borrowed, Py, PyAny};
 use serde::{Deserialize, Serialize};
 
@@ -545,29 +545,28 @@ impl TagsView {
         self.flush_to_parent(py)
     }
 
-    fn keys<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
-        PyList::new(py, self.inner.keys()).expect("keys list")
+    fn keys(&self) -> Vec<String> {
+        self.inner.keys()
     }
 
-    fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        let list = PyList::empty(py);
-        for k in self.inner.keys() {
-            if let Some(v) = self.inner.get_py(py, &k)? {
-                list.append(v)?;
-            }
-        }
-        Ok(list)
+    fn values<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        self.inner
+            .keys()
+            .iter()
+            .filter_map(|k| self.inner.get_py(py, k).transpose())
+            .collect()
     }
 
-    fn items<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        let list = PyList::empty(py);
-        for k in self.inner.keys() {
-            if let Some(v) = self.inner.get_py(py, &k)? {
-                let tup = PyTuple::new(py, [k.into_bound_py_any(py)?, v])?;
-                list.append(tup)?;
-            }
-        }
-        Ok(list)
+    fn items<'py>(&self, py: Python<'py>) -> PyResult<Vec<(String, Bound<'py, PyAny>)>> {
+        self.inner
+            .keys()
+            .into_iter()
+            .filter_map(|k| match self.inner.get_py(py, &k) {
+                Ok(Some(v)) => Some(Ok((k, v))),
+                Ok(None) => None,
+                Err(e) => Some(Err(e)),
+            })
+            .collect()
     }
 
     fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<TagsKeyIter>> {
