@@ -1149,60 +1149,6 @@ class ConditionProcessor:
         return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr, deep=False), memo)
 
     @staticmethod
-    def _simplify_trivial_cases(cond):
-        if cond.op == "And":
-            new_args = []
-            for arg in cond.args:
-                claripy_simplified = claripy.simplify(arg)
-                if claripy.is_true(claripy_simplified):
-                    continue
-                new_args.append(arg)
-            return claripy.And(*new_args)
-
-        return None
-
-    @staticmethod
-    def _revert_short_circuit_conditions(cond):
-        # revert short-circuit conditions
-        # !A||(A&&!B) ==> !(A&&B)
-
-        if cond.op != "Or":
-            return cond
-
-        if len(cond.args) == 1:
-            # redundant operator. get rid of it
-            return cond.args[0]
-
-        or_arg0, or_arg1 = cond.args[:2]
-        if or_arg1.op == "And":
-            pass
-        elif or_arg0.op == "And":
-            or_arg0, or_arg1 = or_arg1, or_arg0
-        else:
-            return cond
-
-        not_a = or_arg0
-        solver = claripy.SolverCacheless()
-
-        if not_a.variables == or_arg1.args[0].variables:
-            solver.add(not_a == or_arg1.args[0])
-            not_b = or_arg1.args[1]
-        elif not_a.variables == or_arg1.args[1].variables:
-            solver.add(not_a == or_arg1.args[1])
-            not_b = or_arg1.args[0]
-        else:
-            return cond
-
-        if not solver.satisfiable():
-            # found it!
-            b = claripy.Not(not_b)
-            a = claripy.Not(not_a)
-            if len(cond.args) <= 2:
-                return claripy.Not(claripy.And(a, b))
-            return claripy.Or(claripy.Not(claripy.And(a, b)), *cond.args[2:])
-        return cond
-
-    @staticmethod
     def _fold_double_negations(cond):
         # !(!A) ==> A
         # !((!A) && (!B)) ==> A || B
@@ -1313,75 +1259,6 @@ class ConditionProcessor:
         if ast is r1:
             return r1_with
         return ast
-
-    @staticmethod
-    def _remove_redundant_terms(cond):
-        """
-        Extract all terms and test for each term if its truism impacts the truism of the entire condition. If not, the
-        term is redundant and can be replaced with a True.
-        """
-
-        all_terms = set()
-        for term in ConditionProcessor._extract_terms(cond):
-            if term not in all_terms:
-                all_terms.add(term)
-
-        negations = {}
-        to_skip = set()
-        all_terms_without_negs = set()
-        for term in all_terms:
-            if term in to_skip:
-                continue
-            neg = claripy.Not(term)
-            if neg in all_terms:
-                negations[term] = neg
-                to_skip.add(neg)
-                all_terms_without_negs.add(term)
-            else:
-                all_terms_without_negs.add(term)
-
-        solver = claripy.SolverCacheless()
-        for term in all_terms_without_negs:
-            neg = negations.get(term)
-
-            replaced_with_true = ConditionProcessor._replace_term_in_ast(
-                cond, term, claripy.true(), neg, claripy.false()
-            )
-            sat0 = solver.satisfiable(
-                extra_constraints=(
-                    cond,
-                    claripy.Not(replaced_with_true),
-                )
-            )
-            sat1 = solver.satisfiable(
-                extra_constraints=(
-                    claripy.Not(cond),
-                    replaced_with_true,
-                )
-            )
-            if sat0 or sat1:
-                continue
-
-            replaced_with_false = ConditionProcessor._replace_term_in_ast(
-                cond, term, claripy.false(), neg, claripy.true()
-            )
-            sat0 = solver.satisfiable(
-                extra_constraints=(
-                    cond,
-                    claripy.Not(replaced_with_false),
-                )
-            )
-            sat1 = solver.satisfiable(
-                extra_constraints=(
-                    claripy.Not(cond),
-                    replaced_with_false,
-                )
-            )
-            if sat0 or sat1:
-                continue
-
-            # TODO: Finish the implementation
-            print(term, "is redundant")
 
     #
     # Graph processing
