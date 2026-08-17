@@ -116,21 +116,26 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 elif self.state.globals['constant_prop_level'] == 0:
                     if self.state.solver.symbolic(result):
                         skip = False
+                        only_precon_sp_vars = len(result.variables) > 0
                         for var in result.variables:
                             if var.startswith('precon_sp'):
                                 skip = True
-                                break
+                            else:
+                                only_precon_sp_vars = False
 
                         if skip:
                             # do additional simplification and verify that it's not the stack pointer
                             if self.state.globals['is_constant_propagation']:
-                            # we use simplifier for vm protect because there are, mba replacements in the replacement solver, so we cannot use
-                            # a solver without those.
-                                tmp_simp_result = self.state.solver.simplify(result)
-                                if not self.state.solver.symbolic(tmp_simp_result):
-                                    simp_result = tmp_simp_result
-                                else:
+                                if only_precon_sp_vars and result.depth > 100:
                                     simp_result = result
+                                else:
+                                    # we use simplifier for vm protect because there are, mba replacements in the replacement solver, so we cannot use
+                                    # a solver without those.
+                                    tmp_simp_result = self.state.solver.simplify(result)
+                                    if not self.state.solver.symbolic(tmp_simp_result):
+                                        simp_result = tmp_simp_result
+                                    else:
+                                        simp_result = result
 
                             # additional check to see if the eval value is actually a stack pointer or not
                             # only for 1 bit results specifically in a condition check
@@ -882,7 +887,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=1,
                  load_callback=None, stack_pointer_tracker=None, start=None, graph=None, iropt_level=None):
-        graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
+        start = self._resolve_graph_start_node(graph, self.project.entry if start is None else start)
+        graph_visitor = EmulatedCFGVisitor(graph, start)
         self.debug = False
         self.debug_two = False
 
@@ -965,6 +971,63 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     # Main analysis routines
     #
 
+    @staticmethod
+    def _format_graph_start_candidates(candidates):
+        return [
+            (getattr(node, "addr", None), getattr(node, "block_id", None))
+            for node in candidates
+        ]
+
+    @staticmethod
+    def _resolve_graph_start_node(G, start):
+        if G is None or start is None:
+            return start
+
+        try:
+            if start in G:
+                return start
+        except TypeError:
+            pass
+
+        candidates = [node for node in G if getattr(node, "block_id", None) == start]
+        if len(candidates) == 1:
+            return candidates[0]
+        if candidates:
+            raise ValueError(
+                "Ambiguous Symbolizer start block_id %s: %s"
+                % (start, Symbolizer._format_graph_start_candidates(candidates))
+            )
+
+        start_block_id = getattr(start, "block_id", None)
+        if start_block_id is not None:
+            candidates = [node for node in G if getattr(node, "block_id", None) == start_block_id]
+            if len(candidates) == 1:
+                return candidates[0]
+            if candidates:
+                raise ValueError(
+                    "Ambiguous Symbolizer start block_id %s: %s"
+                    % (start_block_id, Symbolizer._format_graph_start_candidates(candidates))
+                )
+
+        start_addr = getattr(start, "addr", start)
+        candidates = [node for node in G if getattr(node, "addr", None) == start_addr]
+        if len(candidates) == 1:
+            return candidates[0]
+        if not candidates:
+            raise ValueError("Symbolizer start %r is not present in the graph" % (start,))
+
+        initialized_candidates = [
+            node for node in candidates
+            if getattr(node, "input_state", None) is not None
+        ]
+        if len(initialized_candidates) == 1:
+            return initialized_candidates[0]
+
+        raise ValueError(
+            "Ambiguous Symbolizer start addr %r: %s"
+            % (start_addr, Symbolizer._format_graph_start_candidates(candidates))
+        )
+
     def back_edges_from_start(self, G, start):
         """
         Find all DFS back edges (u, v) reachable from `start` in a NetworkX DiGraph.
@@ -973,10 +1036,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         """
         WHITE, GRAY, BLACK = 0, 1, 2  # DFS colors
 
-        for node in G:
-            if node.addr == start:
-                start = node
-                break
+        start = self._resolve_graph_start_node(G, start)
 
         color = {n: WHITE for n in G.nodes()}
         on_stack = set()
