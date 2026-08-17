@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any
-from weakref import WeakKeyDictionary
 
 import archinfo
 import cle
@@ -979,22 +978,20 @@ class PcodeBasicBlockLifter:
         irsb.jumpkind = next_block[1]
 
 
-_project_block_lifters: WeakKeyDictionary[Project, dict[archinfo.Arch, PcodeBasicBlockLifter]] = WeakKeyDictionary()
-
-
 def get_block_lifter(project: Project | None, arch: archinfo.Arch) -> PcodeBasicBlockLifter:
     """
     Get the basic block lifter, and therefore the Sleigh context, that `project` decodes `arch` with.
 
-    A project running the p-code engine keeps its lifters on that engine; any other project keeps them here. A
-    block with no project gets a lifter of its own. See :class:`PcodeBasicBlockLifter`.
+    A project running the p-code engine keeps its lifters on that engine, which the factory keeps per thread as
+    well as per project. Any other project keeps them on itself, in ``Project._pcode_block_lifters``. A block with
+    no project gets a lifter of its own. See :class:`PcodeBasicBlockLifter`.
     """
     if project is None:
         return PcodeBasicBlockLifter(arch)
     engine = project.factory.default_engine
     if isinstance(engine, PcodeLifterEngineMixin):
         return engine.get_block_lifter(arch)
-    block_lifters = _project_block_lifters.setdefault(project, {})
+    block_lifters = project._pcode_block_lifters  # pylint:disable=protected-access
     block_lifter = block_lifters.get(arch)
     if block_lifter is None:
         block_lifter = block_lifters[arch] = PcodeBasicBlockLifter(arch)
