@@ -21,7 +21,7 @@ use crate::ailment::CachedHash;
 use crate::ailment::ail_expr::{
     AilExpression, CFGTarget, ExprHeader, ExprInner, RoundingModeOrExpr,
 };
-use crate::ailment::ail_stmt::{AilStatement, Statement, StmtHeader, StmtInner};
+use crate::ailment::ail_stmt::{AilStatement, StmtHeader, StmtInner};
 use crate::ailment::block::Block;
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, RoundingMode};
@@ -260,11 +260,7 @@ impl<'py> ArchCtx<'py> {
         let res = self
             .arch
             .call_method1("translate_register_name", (offset, size))?;
-        let name: Option<String> = if res.is_none() {
-            None
-        } else {
-            Some(res.extract()?)
-        };
+        let name: Option<String> = res.extract()?;
         self.reg_name_memo.insert((offset, size), name.clone());
         Ok(name)
     }
@@ -1150,7 +1146,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
 
     // ---- whole IRSB ----------------------------------------------------
 
-    fn convert_block(&mut self) -> PyResult<Py<PyAny>> {
+    fn convert_block(&mut self) -> PyResult<Block> {
         let mut statements: Vec<AilStatement> = Vec::new();
         let mut addr = self.block_addr;
         // Guarantee every emitted statement carries an ``ins_addr``: seed it
@@ -1284,18 +1280,14 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
 
         // Wrap each statement into its pyclass exactly once and assemble the
         // Block.
-        let py_stmts = PyList::empty(self.py);
-        for st in statements {
-            py_stmts.append(Bound::new(self.py, Statement::wrap(st))?)?;
-        }
-        let block = Block {
+        let py_stmts = PyList::new(self.py, statements)?;
+        Ok(Block {
             addr,
             original_size: self.reader.block_size(),
             statements: py_stmts.unbind(),
             idx: None,
             cached_hash: CachedHash::new(),
-        };
-        Ok(Bound::new(self.py, block)?.into_any().unbind())
+        })
     }
 
     fn emit_call_tail(&mut self, jk: &str, statements: &mut Vec<AilStatement>) -> PyResult<()> {
@@ -1316,11 +1308,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             }
         };
 
-        let fp_ret_obj = self.arch.arch.getattr("fp_ret_offset")?;
-        let fp_ret_expr: Option<AilExpression> = if fp_ret_obj.is_none() {
-            None
-        } else {
-            let fp_ret_offset: i64 = fp_ret_obj.extract()?;
+        let fp_ret_offset: Option<i64> = self.arch.arch.getattr("fp_ret_offset")?.extract()?;
+        let fp_ret_expr: Option<AilExpression> = if let Some(fp_ret_offset) = fp_ret_offset {
             if fp_ret_offset == ret_offset {
                 None
             } else {
@@ -1337,6 +1326,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     },
                 })
             }
+        } else {
+            None
         };
 
         let target = if jk == "Ijk_Call" {
@@ -1989,10 +1980,8 @@ fn vex_arch_int(name: &str) -> Option<u32> {
 
 fn build_archinfo(arch: &Bound<'_, PyAny>) -> PyResult<vex_ffi::VexArchInfo> {
     let vai = arch.getattr("vex_archinfo")?;
-    let geti = |k: &str| -> PyResult<i64> {
-        let v = vai.get_item(k)?;
-        if v.is_none() { Ok(0) } else { v.extract() }
-    };
+    let geti =
+        |k: &str| -> PyResult<i64> { Ok(vai.get_item(k)?.extract::<Option<i64>>()?.unwrap_or(0)) };
     Ok(vex_ffi::VexArchInfo {
         hwcaps: geti("hwcaps")? as u32,
         endness: geti("endness")? as std::ffi::c_int,
@@ -2025,7 +2014,7 @@ impl VEXIRSBConverter {
         block_addr_override: Option<i64>,
         manager: &Bound<'_, Manager>,
         arch: Bound<'_, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Block> {
         // The Manager is touched exactly twice: seed the local atom counter
         // here, and commit it back below -- only on success, so a failing
         // fast path leaves the Manager untouched (idx-identical fallback).
@@ -2076,7 +2065,7 @@ impl VEXIRSBConverter {
         max_inst: u32,
         max_bytes: Option<u32>,
         bytes_offset: u32,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Block> {
         vex_ffi::init_symbols(py);
         let lift = vex_ffi::vex_lift_fn().ok_or_else(|| {
             PyRuntimeError::new_err("libpyvex `vex_lift` symbol not found (is pyvex imported?)")
@@ -2191,7 +2180,7 @@ impl VEXIRSBConverter {
         py: Python<'_>,
         irsb: Bound<'_, PyAny>,
         manager: Bound<'_, Manager>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Block> {
         vex_ffi::init_symbols(py);
         let arch = match &manager.borrow().arch {
             Some(a) => a.bind(py).clone(),
@@ -2339,8 +2328,8 @@ impl<'py> IrReader for PyReader<'py> {
                 }
             }
             "CAS" => {
-                let data_hi = stmt.getattr("dataHi")?;
-                let expd_hi = stmt.getattr("expdHi")?;
+                let data_hi: Option<Py<PyAny>> = stmt.getattr("dataHi")?.extract()?;
+                let expd_hi: Option<Py<PyAny>> = stmt.getattr("expdHi")?.extract()?;
                 let old_lo: u32 = stmt.getattr("oldLo")?.extract()?;
                 let old_hi_raw: u32 = stmt.getattr("oldHi")?.extract()?;
                 let old_lo_bits = self.tyenv.call_method1("sizeof", (old_lo,))?.extract()?;
@@ -2357,17 +2346,9 @@ impl<'py> IrReader for PyReader<'py> {
                 StmtKind::Cas {
                     addr: unbind_any(stmt.getattr("addr")?),
                     data_lo: unbind_any(stmt.getattr("dataLo")?),
-                    data_hi: if data_hi.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(data_hi))
-                    },
+                    data_hi,
                     expd_lo: unbind_any(stmt.getattr("expdLo")?),
-                    expd_hi: if expd_hi.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(expd_hi))
-                    },
+                    expd_hi,
                     old_lo,
                     old_lo_bits,
                     old_hi,
@@ -2385,26 +2366,15 @@ impl<'py> IrReader for PyReader<'py> {
                 } else {
                     (None, 0)
                 };
-                let guard = stmt.getattr("guard")?;
-                let maddr = stmt.getattr("mAddr")?;
-                let mut args = Vec::new();
-                for a in stmt.getattr("args")?.try_iter()? {
-                    args.push(a?.unbind());
-                }
+                let guard: Option<Py<PyAny>> = stmt.getattr("guard")?.extract()?;
+                let maddr: Option<Py<PyAny>> = stmt.getattr("mAddr")?.extract()?;
+                let args: Vec<Py<PyAny>> = stmt.getattr("args")?.extract()?;
                 StmtKind::Dirty {
                     callee: stmt.getattr("cee")?.getattr("name")?.extract()?,
                     args,
-                    guard: if guard.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(guard))
-                    },
+                    guard,
                     mfx: Some(stmt.getattr("mFx")?.extract()?),
-                    maddr: if maddr.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(maddr))
-                    },
+                    maddr,
                     msize: Some(stmt.getattr("mSize")?.extract()?),
                     tmp,
                     tmp_bits,
@@ -2463,11 +2433,7 @@ impl<'py> IrReader for PyReader<'py> {
                 }
             }
             "Triop" => {
-                let args = expr.getattr("args")?;
-                let mut v = Vec::new();
-                for a in args.try_iter()? {
-                    v.push(a?.unbind());
-                }
+                let v: Vec<Py<PyAny>> = expr.getattr("args")?.extract()?;
                 ExprKind::Triop {
                     op: OpRef::Named {
                         name: expr.getattr("op")?.extract::<String>()?,
@@ -2489,10 +2455,7 @@ impl<'py> IrReader for PyReader<'py> {
                 iffalse: unbind_any(expr.getattr("iffalse")?),
             },
             "CCall" => {
-                let mut args = Vec::new();
-                for a in expr.getattr("args")?.try_iter()? {
-                    args.push(a?.unbind());
-                }
+                let args: Vec<Py<PyAny>> = expr.getattr("args")?.extract()?;
                 ExprKind::CCall {
                     callee: expr.getattr("cee")?.getattr("name")?.extract()?,
                     args,

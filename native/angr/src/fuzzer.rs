@@ -21,7 +21,7 @@ use libafl_bolts::{
     tuples::{tuple_list, tuple_list_type},
 };
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::{Py, exceptions::PyTypeError, prelude::*};
+use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::fuzzer::{
     corpus::{DynCorpus, PyInMemoryCorpus, PyOnDiskCorpus},
@@ -157,12 +157,12 @@ impl Fuzzer {
         })
     }
 
-    fn corpus(&self) -> PyResult<Py<PyAny>> {
-        Python::attach(|py| self.fuzzer_state.corpus().to_py(py))
+    fn corpus(&self) -> &C {
+        self.fuzzer_state.corpus()
     }
 
-    fn solutions(&self) -> PyResult<Py<PyAny>> {
-        Python::attach(|py| self.fuzzer_state.solutions().to_py(py))
+    fn solutions(&self) -> &C {
+        self.fuzzer_state.solutions()
     }
 
     #[getter]

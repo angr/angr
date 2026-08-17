@@ -3,10 +3,9 @@
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::Ordering;
 
-use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyList, PyType};
 
 use crate::ailment::ail_stmt::{AilStatement, Statement};
 use crate::ailment::{CachedHash, hash_of};
@@ -20,7 +19,9 @@ use crate::ailment::{CachedHash, hash_of};
 #[derive(Debug)]
 pub struct Block {
     pub addr: i64,
+    #[pyo3(get, set)]
     pub original_size: Option<i64>,
+    #[pyo3(get, set)]
     pub statements: Py<PyList>,
     pub idx: Option<i64>,
     pub cached_hash: CachedHash,
@@ -92,22 +93,6 @@ impl Block {
     fn set_addr(&mut self, value: i64) {
         self.addr = value;
         self.cached_hash.clear();
-    }
-    #[getter]
-    fn original_size(&self) -> Option<i64> {
-        self.original_size
-    }
-    #[setter]
-    fn set_original_size(&mut self, value: Option<i64>) {
-        self.original_size = value;
-    }
-    #[getter]
-    fn statements<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
-        self.statements.bind(py).clone()
-    }
-    #[setter]
-    fn set_statements(&mut self, value: Bound<'_, PyList>) {
-        self.statements = value.unbind();
     }
     #[getter]
     fn idx(&self) -> Option<i64> {
@@ -356,27 +341,17 @@ impl Block {
         )
     }
 
-    fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+    #[allow(clippy::type_complexity)]
+    fn __reduce__<'py>(
+        slf: Bound<'py, Self>,
+    ) -> PyResult<(
+        Bound<'py, PyType>,
+        (i64, Option<i64>, Bound<'py, PyList>, Option<i64>),
+    )> {
         let py = slf.py();
         let cls = slf.get_type();
         let s = slf.borrow();
-        let stmts = s.statements.bind(py);
-        let args = PyTuple::new(
-            py,
-            [
-                s.addr.into_bound_py_any(py)?,
-                s.original_size
-                    .map(|v| v.into_bound_py_any(py))
-                    .unwrap_or_else(|| py.None().into_bound_py_any(py))?,
-                stmts.clone().into_any().into_bound_py_any(py)?,
-                s.idx
-                    .map(|v| v.into_bound_py_any(py))
-                    .unwrap_or_else(|| py.None().into_bound_py_any(py))?,
-            ],
-        )?;
-        PyTuple::new(
-            py,
-            [cls.into_bound_py_any(py)?, args.into_bound_py_any(py)?],
-        )
+        let stmts = s.statements.bind(py).clone();
+        Ok((cls, (s.addr, s.original_size, stmts, s.idx)))
     }
 }

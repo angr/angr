@@ -63,17 +63,27 @@ impl<'py> FromPyObject<'_, 'py> for ConstValue {
     }
 }
 
-impl<'py> IntoPyObject<'py> for ConstValue {
+impl<'py> IntoPyObject<'py> for &ConstValue {
     type Target = PyAny;
     type Output = Bound<'py, Self::Target>;
     type Error = PyErr;
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         match self {
-            Self::Int(v) => v.into_bound_py_any(py),
-            Self::Float(f) => f.into_bound_py_any(py),
-            Self::BigInt(b) => b.into_bound_py_any(py),
+            ConstValue::Int(v) => v.into_bound_py_any(py),
+            ConstValue::Float(f) => f.into_bound_py_any(py),
+            ConstValue::BigInt(b) => b.into_bound_py_any(py),
         }
+    }
+}
+
+impl<'py> IntoPyObject<'py> for ConstValue {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        (&self).into_pyobject(py)
     }
 }
 
