@@ -4827,16 +4827,14 @@ impl Expression {
 
     /// Python ``pickle`` protocol. Routes through ``to_bytes`` /
     /// ``from_bytes`` to preserve the full ``AilExpression`` shape.
-    fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Py<PyAny>> {
+    #[allow(clippy::type_complexity)]
+    fn __reduce__<'py>(
+        slf: Bound<'py, Self>,
+    ) -> PyResult<(Bound<'py, PyAny>, (Bound<'py, PyBytes>,))> {
         let py = slf.py();
         let bytes = slf.borrow().to_bytes(py)?;
         let from_bytes = py.get_type::<Expression>().getattr("from_bytes")?;
-        let args = PyTuple::new(py, [bytes.into_any()])?;
-        let tup = PyTuple::new(
-            py,
-            [from_bytes.unbind().into_any(), args.into_any().unbind()],
-        )?;
-        Ok(tup.into_any().unbind())
+        Ok((from_bytes, (bytes,)))
     }
 
     fn __eq__(slf: Bound<'_, Self>, other: &Bound<'_, PyAny>) -> PyResult<bool> {

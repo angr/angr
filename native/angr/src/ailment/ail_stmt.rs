@@ -1689,16 +1689,14 @@ impl Statement {
 
     /// Python ``pickle`` protocol via ``to_bytes`` / ``from_bytes``.
     /// Same lossy-field caveat as ``Expression.__reduce__``.
-    fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<Py<PyAny>> {
+    #[allow(clippy::type_complexity)]
+    fn __reduce__<'py>(
+        slf: Bound<'py, Self>,
+    ) -> PyResult<(Bound<'py, PyAny>, (Bound<'py, PyBytes>,))> {
         let py = slf.py();
         let bytes = slf.borrow().to_bytes(py)?;
         let from_bytes = py.get_type::<Statement>().getattr("from_bytes")?;
-        let args = pyo3::types::PyTuple::new(py, [bytes.into_any()])?;
-        let tup = pyo3::types::PyTuple::new(
-            py,
-            [from_bytes.unbind().into_any(), args.into_any().unbind()],
-        )?;
-        Ok(tup.into_any().unbind())
+        Ok((from_bytes, (bytes,)))
     }
 
     fn __eq__(slf: Bound<'_, Self>, other: &Bound<'_, PyAny>) -> PyResult<bool> {
