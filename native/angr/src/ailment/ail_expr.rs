@@ -25,6 +25,7 @@ use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
+use crate::ailment::ail_stmt::{AilStatement, Statement};
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVariableCategory};
 use crate::ailment::tags::{Tags, TagsView};
@@ -264,7 +265,7 @@ pub enum ExprInner {
         operands: Vec<AilExpression>,
     },
     MultiStatementExpression {
-        stmts: Vec<crate::ailment::ail_stmt::AilStatement>,
+        stmts: Vec<AilStatement>,
         expr: Arc<AilExpression>,
     },
     Struct {
@@ -295,7 +296,7 @@ pub enum ExprInner {
         /// path use ``Assignment`` / ``Store``). The bound
         /// ``EnumVariant`` itself lives in the ``VariableMap`` side
         /// container keyed by the ``Let`` expression's ``.idx``.
-        defs: Vec<Box<crate::ailment::ail_stmt::AilStatement>>,
+        defs: Vec<Box<AilStatement>>,
         src: Arc<AilExpression>,
     },
     Macro {
@@ -3135,9 +3136,9 @@ impl Expression {
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let tags = Tags::from_kwargs(kwargs)?;
-        let mut stmt_vec: Vec<crate::ailment::ail_stmt::AilStatement> = Vec::new();
+        let mut stmt_vec: Vec<AilStatement> = Vec::new();
         for x in stmts.try_iter()? {
-            stmt_vec.push(x?.extract::<crate::ailment::ail_stmt::AilStatement>()?);
+            stmt_vec.push(x?.extract::<AilStatement>()?);
         }
         let depth = expr.header.depth + 1;
         let bits = expr.header.bits;
@@ -3260,12 +3261,10 @@ impl Expression {
         let tags = Tags::from_kwargs(kwargs)?;
         let depth = src.header.depth + 1;
         let bits = src.header.bits;
-        let mut decoded_defs: Vec<Box<crate::ailment::ail_stmt::AilStatement>> = Vec::new();
+        let mut decoded_defs: Vec<Box<AilStatement>> = Vec::new();
         for x in defs.try_iter()? {
             let x = x?;
-            decoded_defs.push(Box::new(
-                x.extract::<crate::ailment::ail_stmt::AilStatement>()?,
-            ));
+            decoded_defs.push(Box::new(x.extract::<AilStatement>()?));
         }
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
@@ -4021,7 +4020,7 @@ impl Expression {
             ExprInner::MultiStatementExpression { stmts, .. } => {
                 let l = PyList::empty(py);
                 for s in stmts {
-                    let py_s = Py::new(py, crate::ailment::ail_stmt::Statement::wrap(s.clone()))?;
+                    let py_s = Py::new(py, Statement::wrap(s.clone()))?;
                     l.append(py_s)?;
                 }
                 Ok(l)
@@ -4033,7 +4032,7 @@ impl Expression {
     fn set_stmts(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
         let mut v = Vec::new();
         for item in value.try_iter()? {
-            v.push(item?.extract::<crate::ailment::ail_stmt::AilStatement>()?);
+            v.push(item?.extract::<AilStatement>()?);
         }
         match &mut self.expr.inner {
             ExprInner::MultiStatementExpression { stmts, .. } => {
@@ -4253,7 +4252,7 @@ impl Expression {
                     .iter()
                     .map(|b| {
                         Ok::<_, PyErr>(
-                            Py::new(py, crate::ailment::ail_stmt::Statement::wrap((**b).clone()))?
+                            Py::new(py, Statement::wrap((**b).clone()))?
                                 .into_bound(py)
                                 .into_any(),
                         )
@@ -5189,7 +5188,7 @@ impl Expression {
             ExprInner::MultiStatementExpression { stmts, expr } => {
                 let mut parts: Vec<String> = Vec::new();
                 for s in stmts {
-                    parts.push(crate::ailment::ail_stmt::Statement::wrap(s.clone()).render(py)?);
+                    parts.push(Statement::wrap(s.clone()).render(py)?);
                 }
                 parts.push(Expression::wrap((**expr).clone()).__str__(py)?);
                 Ok(format!("({})", parts.join(", ")))
