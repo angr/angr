@@ -260,11 +260,7 @@ impl<'py> ArchCtx<'py> {
         let res = self
             .arch
             .call_method1("translate_register_name", (offset, size))?;
-        let name: Option<String> = if res.is_none() {
-            None
-        } else {
-            Some(res.extract()?)
-        };
+        let name: Option<String> = res.extract()?;
         self.reg_name_memo.insert((offset, size), name.clone());
         Ok(name)
     }
@@ -1312,11 +1308,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             }
         };
 
-        let fp_ret_obj = self.arch.arch.getattr("fp_ret_offset")?;
-        let fp_ret_expr: Option<AilExpression> = if fp_ret_obj.is_none() {
-            None
-        } else {
-            let fp_ret_offset: i64 = fp_ret_obj.extract()?;
+        let fp_ret_offset: Option<i64> = self.arch.arch.getattr("fp_ret_offset")?.extract()?;
+        let fp_ret_expr: Option<AilExpression> = if let Some(fp_ret_offset) = fp_ret_offset {
             if fp_ret_offset == ret_offset {
                 None
             } else {
@@ -1333,6 +1326,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     },
                 })
             }
+        } else {
+            None
         };
 
         let target = if jk == "Ijk_Call" {
@@ -1985,10 +1980,8 @@ fn vex_arch_int(name: &str) -> Option<u32> {
 
 fn build_archinfo(arch: &Bound<'_, PyAny>) -> PyResult<vex_ffi::VexArchInfo> {
     let vai = arch.getattr("vex_archinfo")?;
-    let geti = |k: &str| -> PyResult<i64> {
-        let v = vai.get_item(k)?;
-        if v.is_none() { Ok(0) } else { v.extract() }
-    };
+    let geti =
+        |k: &str| -> PyResult<i64> { Ok(vai.get_item(k)?.extract::<Option<i64>>()?.unwrap_or(0)) };
     Ok(vex_ffi::VexArchInfo {
         hwcaps: geti("hwcaps")? as u32,
         endness: geti("endness")? as std::ffi::c_int,
@@ -2335,8 +2328,8 @@ impl<'py> IrReader for PyReader<'py> {
                 }
             }
             "CAS" => {
-                let data_hi = stmt.getattr("dataHi")?;
-                let expd_hi = stmt.getattr("expdHi")?;
+                let data_hi: Option<Py<PyAny>> = stmt.getattr("dataHi")?.extract()?;
+                let expd_hi: Option<Py<PyAny>> = stmt.getattr("expdHi")?.extract()?;
                 let old_lo: u32 = stmt.getattr("oldLo")?.extract()?;
                 let old_hi_raw: u32 = stmt.getattr("oldHi")?.extract()?;
                 let old_lo_bits = self.tyenv.call_method1("sizeof", (old_lo,))?.extract()?;
@@ -2353,17 +2346,9 @@ impl<'py> IrReader for PyReader<'py> {
                 StmtKind::Cas {
                     addr: unbind_any(stmt.getattr("addr")?),
                     data_lo: unbind_any(stmt.getattr("dataLo")?),
-                    data_hi: if data_hi.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(data_hi))
-                    },
+                    data_hi,
                     expd_lo: unbind_any(stmt.getattr("expdLo")?),
-                    expd_hi: if expd_hi.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(expd_hi))
-                    },
+                    expd_hi,
                     old_lo,
                     old_lo_bits,
                     old_hi,
@@ -2381,8 +2366,8 @@ impl<'py> IrReader for PyReader<'py> {
                 } else {
                     (None, 0)
                 };
-                let guard = stmt.getattr("guard")?;
-                let maddr = stmt.getattr("mAddr")?;
+                let guard: Option<Py<PyAny>> = stmt.getattr("guard")?.extract()?;
+                let maddr: Option<Py<PyAny>> = stmt.getattr("mAddr")?.extract()?;
                 let mut args = Vec::new();
                 for a in stmt.getattr("args")?.try_iter()? {
                     args.push(a?.unbind());
@@ -2390,17 +2375,9 @@ impl<'py> IrReader for PyReader<'py> {
                 StmtKind::Dirty {
                     callee: stmt.getattr("cee")?.getattr("name")?.extract()?,
                     args,
-                    guard: if guard.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(guard))
-                    },
+                    guard,
                     mfx: Some(stmt.getattr("mFx")?.extract()?),
-                    maddr: if maddr.is_none() {
-                        None
-                    } else {
-                        Some(unbind_any(maddr))
-                    },
+                    maddr,
                     msize: Some(stmt.getattr("mSize")?.extract()?),
                     tmp,
                     tmp_bits,

@@ -88,9 +88,10 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                 // the return address via cc.return_addr (works for shellcode where
                 // the apply_fn pushes a return address onto the stack).
                 let globals = copied_state.getattr("globals")?;
-                let user_bps = globals.call_method1("get", ("_fuzzer_breakpoints", py.None()))?;
-                if !user_bps.is_none() {
-                    let bp_list: Vec<u64> = user_bps.extract()?;
+                let user_bps: Option<Vec<u64>> = globals
+                    .call_method1("get", ("_fuzzer_breakpoints",))?
+                    .extract()?;
+                if let Some(bp_list) = user_bps {
                     for bp in bp_list {
                         emulator.call_method1("add_breakpoint", (bp,))?;
                         emulator.call_method1("add_breakpoint", (bp & !1,))?;
