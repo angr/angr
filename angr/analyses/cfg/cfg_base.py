@@ -873,9 +873,12 @@ class CFGBase(Analysis):
                         memory_regions.append((region_addr, region_addr + region_size))
 
             elif isinstance(b, Blob):
-                # a blob is entirely executable
-                tpl = (b.min_addr, b.max_addr + 1)
-                memory_regions.append(tpl)
+                has_executable = True
+                if all(segment.is_executable for segment in b.segments):
+                    # a raw image carries no permissions and every segment answers the permissive default,
+                    # so the blob is entirely executable
+                    tpl = (b.min_addr, b.max_addr + 1)
+                    memory_regions.append(tpl)
 
             elif isinstance(b, NamedRegion):
                 # NamedRegions have no content! Ignore
