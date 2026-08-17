@@ -24,15 +24,6 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
-def _store_ip(state: SimState, addr) -> None:
-    """
-    Point the state at ``addr``, unless its architecture has no program counter register. Dalvik and
-    the p-code DATA languages declare none, and an address is meaningless to such a state.
-    """
-    with contextlib.suppress(TypeError):
-        state.regs.ip = addr
-
-
 class SimOS:
     """
     A class describing OS/arch-level configuration.
@@ -215,7 +206,9 @@ class SimOS:
                 state.registers.store(reg, val)
 
         if addr is None:
-            _store_ip(state, self.project.entry)
+            # Dalvik and the p-code DATA languages have no program counter register to point.
+            with contextlib.suppress(TypeError):
+                state.regs.ip = self.project.entry
 
         thread_name = self.project.loader.main_object.threads[thread_idx] if thread_idx is not None else None
         for reg, val in self.project.loader.main_object.thread_registers(thread_name).items():
@@ -240,7 +233,9 @@ class SimOS:
                 _l.error("What is this register %s I have to translate?", reg)
 
         if addr is not None:
-            _store_ip(state, addr)
+            # Dalvik and the p-code DATA languages have no program counter register to point.
+            with contextlib.suppress(TypeError):
+                state.regs.ip = addr
 
         # set up the "root history" node
         state.scratch.ins_addr = addr
