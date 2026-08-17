@@ -64,6 +64,13 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+# The CLE function hint sources CFGBase takes as function starts on their own. It is an allowlist
+# rather than "every source but .eh_frame" so that a source CLE adds later is left alone until angr
+# has decided what its entries mean: a linker's function-start table records the data atoms a
+# producer placed among its functions, and seeding those puts function heads on data.
+DEFINITE_FUNCTION_HINT_SOURCES = frozenset({FunctionHintSource.EXPORT_TABLE, FunctionHintSource.EXTERNAL_EH_FRAME})
+
+
 class CFGBase(Analysis):
     """
     The base class for control flow graphs.
@@ -237,6 +244,7 @@ class CFGBase(Analysis):
         self._function_addresses_from_symbols = self._load_func_addrs_from_symbols()
         self._function_addresses_from_eh_frame = self._load_func_addrs_from_eh_frame()
         self._function_addr_and_names_from_hints = self._load_func_addr_and_names_from_hints()
+        self._function_addresses_from_function_starts = self._load_func_addrs_from_function_starts()
 
         # Cache if an object has executable sections or not
         self._object_to_executable_sections = {}
@@ -1103,9 +1111,30 @@ class CFGBase(Analysis):
 
         addrs_and_names = set()
         for function_hint in self._binary.function_hints:
-            if function_hint.source != FunctionHintSource.EH_FRAME:
+            if function_hint.source in DEFINITE_FUNCTION_HINT_SOURCES:
                 addrs_and_names.add((function_hint.addr, function_hint.name))
         return addrs_and_names
+
+    def _load_func_addrs_from_function_starts(self) -> set[int]:
+        """
+        Get the addresses that a linker's function-start table records.
+
+        Mach-O's LC_FUNCTION_STARTS names every atom ld64 placed in an executable section. That
+        includes the data atoms a producer emits among its functions - a Haskell closure's info
+        table, a Swift offset table - so these addresses are candidates and not function starts.
+        Mach-O is the only backend that records this table, and asking any other one for it would
+        make every format depend on a Mach-O load command.
+
+        :return:    A set of addresses that may be functions.
+        """
+
+        if not isinstance(self._binary, MachO):
+            return set()
+        return {
+            function_hint.addr
+            for function_hint in self._binary.function_hints
+            if function_hint.source == FunctionHintSource.FUNCTION_STARTS
+        }
 
     #
     # Analyze function features
