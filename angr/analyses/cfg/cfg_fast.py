@@ -1595,8 +1595,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         return self._seg_list.sort_ratio_backwards(cutoff_addr - 1, window_size, "nodecode")
 
     def _next_code_addr_smart(self) -> int | None:
-        # in the smart scanning mode, if there are more than N consecutive no-decode cases, we skip an entire window of
-        # bytes.
+        # In the smart scanning mode, a stretch of bytes that is largely undecodable is skipped past rather than
+        # scanned. The test is a ratio and not a run: _nodecode_bytes_ratio is the fraction of the last
+        # nodecode_window_size *occupied* bytes at or before the scan position that belong to "nodecode" segments, and
+        # the walk behind that position steps over gaps and over segments of every other sort. The undecodable bytes
+        # therefore do not have to be adjacent - a window in which decoded code and small undecodable runs alternate
+        # can reach nodecode_threshold while no run in it is longer than a few dozen bytes. Once it does, every address
+        # below self._next_addr + nodecode_step is occupied as "skip" and is never scanned again.
+        #
+        # That makes nodecode_threshold a precision/recall knob rather than a safety net: lowering it costs coverage
+        # of code that neighbours data, and raising it costs decoding data as code on packed images. Addresses named
+        # by a symbol, an unwind record, or a function hint are seeded before the scan runs and are unaffected either
+        # way.
         nodecode_bytes_ratio = (
             0.0 if self._next_addr is None else self._nodecode_bytes_ratio(self._next_addr, self._nodecode_window_size)
         )
