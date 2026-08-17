@@ -1,5 +1,6 @@
 # stub file for angr.rustylib.icicle
 
+from collections.abc import Buffer
 from typing import override
 
 class VmExit:
@@ -134,11 +135,11 @@ class Icicle:
         :returns: The data read from memory as bytes.
         """
 
-    def mem_write(self, addr: int, data: bytes) -> None:
+    def mem_write(self, addr: int, data: Buffer) -> None:
         """Write data to memory.
 
         :arg addr: The starting address to write to.
-        :arg data: The data to write to memory as bytes.
+        :arg data: The data to write to memory.
         """
 
     def add_breakpoint(self, addr: int) -> bool:
