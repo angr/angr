@@ -6,6 +6,7 @@ use libafl::{
     inputs::BytesInput,
 };
 use pyo3::{
+    IntoPyObjectExt,
     exceptions::{PyRuntimeError, PyTypeError},
     prelude::*,
 };
@@ -384,22 +385,18 @@ impl TryFrom<&PyOnDiskCorpus> for DynCorpus<BytesInput> {
 }
 
 // Converts Rust enum back into python object
-impl DynCorpus<BytesInput> {
-    pub fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Py<PyAny>> {
+impl<'py> IntoPyObject<'py> for &DynCorpus<BytesInput> {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         match self {
-            DynCorpus::InMem(inner) => {
-                let py_inmem = PyInMemoryCorpus::try_from(inner)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-                let obj = Py::new(py, py_inmem)?; // Py<PyInMemoryCorpus>
-                Ok(obj.into_bound(py).into_any().unbind())
+            DynCorpus::InMem(inner) => PyInMemoryCorpus::try_from(inner)?.into_bound_py_any(py),
+            DynCorpus::OnDisk(inner) => PyOnDiskCorpus {
+                inner: inner.clone(),
             }
-            DynCorpus::OnDisk(inner) => {
-                let py_ondisk = PyOnDiskCorpus {
-                    inner: inner.clone(),
-                };
-                let obj = Py::new(py, py_ondisk)?; // Py<PyOnDiskCorpus>
-                Ok(obj.into_bound(py).into_any().unbind())
-            }
+            .into_bound_py_any(py),
         }
     }
 }

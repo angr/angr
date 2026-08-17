@@ -21,7 +21,7 @@ use crate::ailment::CachedHash;
 use crate::ailment::ail_expr::{
     AilExpression, CFGTarget, ExprHeader, ExprInner, RoundingModeOrExpr,
 };
-use crate::ailment::ail_stmt::{AilStatement, Statement, StmtHeader, StmtInner};
+use crate::ailment::ail_stmt::{AilStatement, StmtHeader, StmtInner};
 use crate::ailment::block::Block;
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, RoundingMode};
@@ -1150,7 +1150,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
 
     // ---- whole IRSB ----------------------------------------------------
 
-    fn convert_block(&mut self) -> PyResult<Py<PyAny>> {
+    fn convert_block(&mut self) -> PyResult<Block> {
         let mut statements: Vec<AilStatement> = Vec::new();
         let mut addr = self.block_addr;
         // Guarantee every emitted statement carries an ``ins_addr``: seed it
@@ -1284,18 +1284,14 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
 
         // Wrap each statement into its pyclass exactly once and assemble the
         // Block.
-        let py_stmts = PyList::empty(self.py);
-        for st in statements {
-            py_stmts.append(Bound::new(self.py, Statement::wrap(st))?)?;
-        }
-        let block = Block {
+        let py_stmts = PyList::new(self.py, statements)?;
+        Ok(Block {
             addr,
             original_size: self.reader.block_size(),
             statements: py_stmts.unbind(),
             idx: None,
             cached_hash: CachedHash::new(),
-        };
-        Ok(Bound::new(self.py, block)?.into_any().unbind())
+        })
     }
 
     fn emit_call_tail(&mut self, jk: &str, statements: &mut Vec<AilStatement>) -> PyResult<()> {
@@ -2025,7 +2021,7 @@ impl VEXIRSBConverter {
         block_addr_override: Option<i64>,
         manager: &Bound<'_, Manager>,
         arch: Bound<'_, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Block> {
         // The Manager is touched exactly twice: seed the local atom counter
         // here, and commit it back below -- only on success, so a failing
         // fast path leaves the Manager untouched (idx-identical fallback).
@@ -2076,7 +2072,7 @@ impl VEXIRSBConverter {
         max_inst: u32,
         max_bytes: Option<u32>,
         bytes_offset: u32,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Block> {
         vex_ffi::init_symbols(py);
         let lift = vex_ffi::vex_lift_fn().ok_or_else(|| {
             PyRuntimeError::new_err("libpyvex `vex_lift` symbol not found (is pyvex imported?)")
@@ -2191,7 +2187,7 @@ impl VEXIRSBConverter {
         py: Python<'_>,
         irsb: Bound<'_, PyAny>,
         manager: Bound<'_, Manager>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Block> {
         vex_ffi::init_symbols(py);
         let arch = match &manager.borrow().arch {
             Some(a) => a.bind(py).clone(),

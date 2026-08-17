@@ -3517,8 +3517,7 @@ impl Expression {
     /// Tmp.tmp_idx (i64) / VirtualVariable.tmp_idx (Option<i64>, present
     /// when category is TMP).
     #[getter]
-    fn tmp_idx(&self, py: Python<'_>) -> PyResult<Option<i64>> {
-        let _ = py;
+    fn tmp_idx(&self) -> PyResult<Option<i64>> {
         match &self.expr.inner {
             ExprInner::Tmp { tmp_idx, .. } => Ok(Some(*tmp_idx)),
             ExprInner::VirtualVariable { oident, .. } if self.was_tmp() => match oident {
@@ -3533,8 +3532,7 @@ impl Expression {
     /// Register.reg_offset / VirtualVariable.reg_offset (when category is
     /// REGISTER, or parameter with REGISTER inner category).
     #[getter]
-    fn reg_offset(&self, py: Python<'_>) -> PyResult<i64> {
-        let _ = py;
+    fn reg_offset(&self) -> PyResult<i64> {
         match &self.expr.inner {
             ExprInner::Register { reg_offset, .. } => Ok(*reg_offset),
             ExprInner::VirtualVariable { oident, .. } if self.was_reg() => match oident {
@@ -3553,16 +3551,9 @@ impl Expression {
 
     /// ComboRegister.registers -- list of Register Expression instances.
     #[getter]
-    fn registers(&self, py: Python<'_>) -> PyResult<Py<PyList>> {
+    fn registers(&self) -> PyResult<&[AilExpression]> {
         match &self.expr.inner {
-            ExprInner::ComboRegister { registers, .. } => {
-                let l = PyList::empty(py);
-                for r in registers {
-                    let py_r = Py::new(py, Expression::wrap(r.clone()))?;
-                    l.append(py_r)?;
-                }
-                Ok(l.unbind())
-            }
+            ExprInner::ComboRegister { registers, .. } => Ok(registers),
             _ => Err(PyAttributeError::new_err(
                 "no 'registers' on this Expression",
             )),
@@ -3662,23 +3653,11 @@ impl Expression {
     /// otherwise. Each call mints fresh wrappers around clones of the
     /// inner ``AilExpression`` nodes (same pattern as ``.operands``).
     #[getter]
-    fn reg_vvars<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyList>>> {
+    fn reg_vvars(&self) -> PyResult<Option<Vec<&AilExpression>>> {
         match &self.expr.inner {
             ExprInner::VirtualVariable { reg_vvars, .. } => match reg_vvars {
                 None => Ok(None),
-                Some(vec) => {
-                    let items: Vec<Bound<'py, PyAny>> = vec
-                        .iter()
-                        .map(|b| {
-                            Ok::<_, PyErr>(
-                                Py::new(py, Self::wrap((**b).clone()))?
-                                    .into_bound(py)
-                                    .into_any(),
-                            )
-                        })
-                        .collect::<PyResult<_>>()?;
-                    Ok(Some(PyList::new(py, items)?))
-                }
+                Some(vec) => Ok(Some(vec.iter().map(|b| &**b).collect())),
             },
             _ => Err(PyAttributeError::new_err(
                 "no 'reg_vvars' on this Expression",
@@ -3728,8 +3707,7 @@ impl Expression {
 
     /// VirtualVariable.parameter_category
     #[getter]
-    fn parameter_category(&self, py: Python<'_>) -> PyResult<Option<VirtualVariableCategory>> {
-        let _ = py;
+    fn parameter_category(&self) -> PyResult<Option<VirtualVariableCategory>> {
         match &self.expr.inner {
             ExprInner::VirtualVariable {
                 oident: OIdent::Parameter(p),
@@ -3741,8 +3719,7 @@ impl Expression {
 
     /// VirtualVariable.parameter_reg_offset
     #[getter]
-    fn parameter_reg_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
-        let _ = py;
+    fn parameter_reg_offset(&self) -> PyResult<Option<i64>> {
         match &self.expr.inner {
             ExprInner::VirtualVariable {
                 oident: OIdent::Parameter(ParameterOIdent::Register(v)),
@@ -3754,8 +3731,7 @@ impl Expression {
 
     /// VirtualVariable.parameter_stack_offset
     #[getter]
-    fn parameter_stack_offset(&self, py: Python<'_>) -> PyResult<Option<i64>> {
-        let _ = py;
+    fn parameter_stack_offset(&self) -> PyResult<Option<i64>> {
         match &self.expr.inner {
             ExprInner::VirtualVariable {
                 oident: OIdent::Parameter(ParameterOIdent::Stack(v)),
@@ -3767,8 +3743,7 @@ impl Expression {
 
     /// VirtualVariable.stack_offset
     #[getter]
-    fn stack_offset(&self, py: Python<'_>) -> PyResult<i64> {
-        let _ = py;
+    fn stack_offset(&self) -> PyResult<i64> {
         match &self.expr.inner {
             ExprInner::VirtualVariable {
                 oident: OIdent::Int(v),
@@ -3969,14 +3944,9 @@ impl Expression {
 
     /// DirtyExpression.maddr
     #[getter]
-    fn maddr(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+    fn maddr(&self) -> PyResult<Option<&AilExpression>> {
         match &self.expr.inner {
-            ExprInner::DirtyExpression { maddr, .. } => match maddr {
-                Some(m) => Ok(Some(
-                    Py::new(py, Expression::wrap((**m).clone()))?.into_any(),
-                )),
-                None => Ok(None),
-            },
+            ExprInner::DirtyExpression { maddr, .. } => Ok(maddr.as_deref()),
             _ => Err(PyAttributeError::new_err("no 'maddr' on this Expression")),
         }
     }
@@ -3994,16 +3964,9 @@ impl Expression {
     /// ``list[Statement]`` on each read; setter accepts any iterable
     /// of ``Statement`` instances.
     #[getter]
-    fn stmts<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+    fn stmts(&self) -> PyResult<&[AilStatement]> {
         match &self.expr.inner {
-            ExprInner::MultiStatementExpression { stmts, .. } => {
-                let l = PyList::empty(py);
-                for s in stmts {
-                    let py_s = Py::new(py, Statement::wrap(s.clone()))?;
-                    l.append(py_s)?;
-                }
-                Ok(l)
-            }
+            ExprInner::MultiStatementExpression { stmts, .. } => Ok(stmts),
             _ => Err(PyAttributeError::new_err("no 'stmts' on this Expression")),
         }
     }
@@ -4134,7 +4097,7 @@ impl Expression {
     }
 
     /// Struct.get_field(name) -- dotted-path lookup through nested Structs
-    fn get_field(&self, py: Python<'_>, name: String) -> PyResult<Option<Py<PyAny>>> {
+    fn get_field(&self, name: String) -> PyResult<Option<AilExpression>> {
         let ExprInner::Struct {
             fields,
             field_offsets,
@@ -4153,10 +4116,10 @@ impl Expression {
             return Ok(None);
         };
         if parts.len() == 1 {
-            return Ok(Some(Py::new(py, Self::wrap((**field).clone()))?.into_any()));
+            return Ok(Some((**field).clone()));
         }
         if matches!(field.inner, ExprInner::Struct { .. }) {
-            return Self::wrap((**field).clone()).get_field(py, parts[1..].join("."));
+            return Self::wrap((**field).clone()).get_field(parts[1..].join("."));
         }
         Ok(None)
     }
@@ -4167,21 +4130,9 @@ impl Expression {
     /// ``Vec<Arc<AilExpression>>`` -- each call mints new ``Py<Expression>``
     /// wrappers, matching the wrapper-minting semantics of ``.operands``.
     #[getter]
-    fn elements<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+    fn elements(&self) -> PyResult<Vec<&AilExpression>> {
         match &self.expr.inner {
-            ExprInner::Array { elements } => {
-                let items: Vec<Bound<'py, PyAny>> = elements
-                    .iter()
-                    .map(|b| {
-                        Ok::<_, PyErr>(
-                            Py::new(py, Self::wrap((**b).clone()))?
-                                .into_bound(py)
-                                .into_any(),
-                        )
-                    })
-                    .collect::<PyResult<_>>()?;
-                PyList::new(py, items)
-            }
+            ExprInner::Array { elements } => Ok(elements.iter().map(|b| &**b).collect()),
             _ => Err(PyAttributeError::new_err(
                 "no 'elements' on this Expression",
             )),
@@ -4224,32 +4175,18 @@ impl Expression {
     /// statements, matching the wrapper-minting semantics of
     /// ``.operands`` / ``Array.elements``.
     #[getter]
-    fn defs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+    fn defs(&self) -> PyResult<Vec<&AilStatement>> {
         match &self.expr.inner {
-            ExprInner::Let { defs, .. } => {
-                let items: Vec<Bound<'py, PyAny>> = defs
-                    .iter()
-                    .map(|b| {
-                        Ok::<_, PyErr>(
-                            Py::new(py, Statement::wrap((**b).clone()))?
-                                .into_bound(py)
-                                .into_any(),
-                        )
-                    })
-                    .collect::<PyResult<_>>()?;
-                PyList::new(py, items)
-            }
+            ExprInner::Let { defs, .. } => Ok(defs.iter().map(|b| &**b).collect()),
             _ => Err(PyAttributeError::new_err("no 'defs' on this Expression")),
         }
     }
 
     /// Let.src
     #[getter]
-    fn src(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn src(&self) -> PyResult<&AilExpression> {
         match &self.expr.inner {
-            ExprInner::Let { src, .. } => {
-                Ok(Py::new(py, Expression::wrap((**src).clone()))?.into_any())
-            }
+            ExprInner::Let { src, .. } => Ok(&**src),
             _ => Err(PyAttributeError::new_err("no 'src' on this Expression")),
         }
     }
@@ -4341,11 +4278,9 @@ impl Expression {
 
     /// MultiStatementExpression.expr
     #[getter]
-    fn expr(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn expr(&self) -> PyResult<&AilExpression> {
         match &self.expr.inner {
-            ExprInner::MultiStatementExpression { expr, .. } => {
-                Ok(Py::new(py, Expression::wrap((**expr).clone()))?.into_any())
-            }
+            ExprInner::MultiStatementExpression { expr, .. } => Ok(&**expr),
             _ => Err(PyAttributeError::new_err("no 'expr' on this Expression")),
         }
     }
@@ -4434,14 +4369,11 @@ impl Expression {
 
     /// UnaryOp.operand / Convert.operand / Reinterpret.operand
     #[getter]
-    fn operand(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn operand(&self) -> PyResult<&AilExpression> {
         match &self.expr.inner {
             ExprInner::UnaryOp { operand, .. }
             | ExprInner::Convert { operand, .. }
-            | ExprInner::Reinterpret { operand, .. } => {
-                let inner = Expression::wrap((**operand).clone());
-                Ok(Py::new(py, inner)?.into_any())
-            }
+            | ExprInner::Reinterpret { operand, .. } => Ok(&**operand),
             _ => Err(PyAttributeError::new_err("no 'operand' on this Expression")),
         }
     }
@@ -4575,12 +4507,9 @@ impl Expression {
 
     /// Load.addr
     #[getter]
-    fn addr(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn addr(&self) -> PyResult<&AilExpression> {
         match &self.expr.inner {
-            ExprInner::Load { addr, .. } => {
-                let inner = Expression::wrap((**addr).clone());
-                Ok(Py::new(py, inner)?.into_any())
-            }
+            ExprInner::Load { addr, .. } => Ok(&**addr),
             _ => Err(PyAttributeError::new_err("no 'addr' on this Expression")),
         }
     }
@@ -4610,16 +4539,11 @@ impl Expression {
 
     /// Load.guard / DirtyExpression.guard
     #[getter]
-    fn guard(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+    fn guard(&self) -> PyResult<Option<&AilExpression>> {
         match &self.expr.inner {
-            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => match guard
-            {
-                Some(g) => {
-                    let inner = Expression::wrap((**g).clone());
-                    Ok(Some(Py::new(py, inner)?.into_any()))
-                }
-                None => Ok(None),
-            },
+            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
+                Ok(guard.as_deref())
+            }
             _ => Err(PyAttributeError::new_err("no 'guard' on this Expression")),
         }
     }
@@ -4638,11 +4562,9 @@ impl Expression {
 
     /// ITE.cond
     #[getter]
-    fn cond(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn cond(&self) -> PyResult<&AilExpression> {
         match &self.expr.inner {
-            ExprInner::ITE { cond, .. } => {
-                Ok(Py::new(py, Expression::wrap((**cond).clone()))?.into_any())
-            }
+            ExprInner::ITE { cond, .. } => Ok(&**cond),
             _ => Err(PyAttributeError::new_err("no 'cond' on this Expression")),
         }
     }
@@ -4661,11 +4583,9 @@ impl Expression {
 
     /// ITE.iftrue
     #[getter]
-    fn iftrue(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn iftrue(&self) -> PyResult<&AilExpression> {
         match &self.expr.inner {
-            ExprInner::ITE { iftrue, .. } => {
-                Ok(Py::new(py, Expression::wrap((**iftrue).clone()))?.into_any())
-            }
+            ExprInner::ITE { iftrue, .. } => Ok(&**iftrue),
             _ => Err(PyAttributeError::new_err("no 'iftrue' on this Expression")),
         }
     }
@@ -4684,11 +4604,9 @@ impl Expression {
 
     /// ITE.iffalse
     #[getter]
-    fn iffalse(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn iffalse(&self) -> PyResult<&AilExpression> {
         match &self.expr.inner {
-            ExprInner::ITE { iffalse, .. } => {
-                Ok(Py::new(py, Expression::wrap((**iffalse).clone()))?.into_any())
-            }
+            ExprInner::ITE { iffalse, .. } => Ok(&**iffalse),
             _ => Err(PyAttributeError::new_err("no 'iffalse' on this Expression")),
         }
     }
@@ -4808,15 +4726,9 @@ impl Expression {
 
     /// Load.alt
     #[getter]
-    fn alt(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+    fn alt(&self) -> PyResult<Option<&AilExpression>> {
         match &self.expr.inner {
-            ExprInner::Load { alt, .. } => match alt {
-                Some(a) => {
-                    let inner = Expression::wrap((**a).clone());
-                    Ok(Some(Py::new(py, inner)?.into_any()))
-                }
-                None => Ok(None),
-            },
+            ExprInner::Load { alt, .. } => Ok(alt.as_deref()),
             _ => Err(PyAttributeError::new_err("no 'alt' on this Expression")),
         }
     }
@@ -4886,21 +4798,21 @@ impl Expression {
     /// ``copy()`` -- shallow clone (same ``idx``). Mirrors the legacy
     /// per-class ``copy`` contract: produce a new Python wrapper over
     /// the same AIL tree without re-numbering.
-    fn copy(&self, py: Python<'_>) -> PyResult<Py<Self>> {
-        Py::new(py, self.clone())
+    fn copy(&self) -> Self {
+        self.clone()
     }
 
     /// ``deep_copy(manager)`` -- recursive clone with fresh ``idx``
     /// from ``manager.next_atom()`` at every node. Used by clinic to
     /// re-number atoms when cloning blocks.
-    fn deep_copy(&self, py: Python<'_>, manager: &Bound<'_, PyAny>) -> PyResult<Py<Self>> {
-        let new = self.expr.deep_copy_ail(py, manager)?;
-        Py::new(py, Expression::wrap(new))
+    fn deep_copy(&self, py: Python<'_>, manager: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
+        // Untyped: copy.deepcopy passes _DeepcopyManager, not a Manager.
+        self.expr.deep_copy_ail(py, manager)
     }
 
     /// Python ``copy.copy`` protocol -- delegates to ``copy()``.
-    fn __copy__(&self, py: Python<'_>) -> PyResult<Py<Self>> {
-        self.copy(py)
+    fn __copy__(&self) -> Self {
+        self.copy()
     }
 
     /// Python ``copy.deepcopy`` protocol -- routes through ``deep_copy``
@@ -5009,7 +4921,6 @@ impl Expression {
                 oident,
                 ..
             } => {
-                let _ = py;
                 let size = self.expr.header.bits / 8;
                 let ori_str = match (category, oident) {
                     (VirtualVariableCategory::Register, OIdent::Int(v)) => {
@@ -5134,12 +5045,8 @@ impl Expression {
                 let v = Expression::wrap((**value).clone()).__str__(py)?;
                 Ok(format!("Insert({}, {}, {})", b, o, v))
             }
-            ExprInner::StringLiteral { data } => {
-                let _ = py;
-                Ok(format!("StringLiteral({:?})", data))
-            }
+            ExprInner::StringLiteral { data } => Ok(format!("StringLiteral({:?})", data)),
             ExprInner::BasePointerOffset { base, offset, .. } => {
-                let _ = py;
                 Ok(format!("{}{:+}", base, offset))
             }
             ExprInner::StackBaseOffset { offset } => Ok(format!("sp{:+}", offset)),
@@ -5244,14 +5151,8 @@ impl Expression {
     /// Inverse of ``to_bytes``; the pickle path (``__reduce__``) restores
     /// through this classmethod.
     #[classmethod]
-    fn from_bytes<'py>(
-        _cls: &Bound<'_, pyo3::types::PyType>,
-        py: Python<'py>,
-        data: &[u8],
-    ) -> PyResult<Py<Expression>> {
-        let expr: AilExpression = postcard::from_bytes(data)
-            .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
-        Py::new(py, Expression::wrap(expr))
+    fn from_bytes(_cls: &Bound<'_, pyo3::types::PyType>, data: &[u8]) -> PyResult<AilExpression> {
+        postcard::from_bytes(data).map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))
     }
 }
 
