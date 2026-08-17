@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::PyBytes;
 
 use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
 use crate::ailment::enums::StatementKind;
@@ -881,9 +881,9 @@ impl Statement {
         idx: i64,
         dst: AilExpression,
         src: AilExpression,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Assignment {
@@ -899,9 +899,9 @@ impl Statement {
         idx: i64,
         dst: AilExpression,
         src: AilExpression,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::WeakAssignment {
@@ -913,8 +913,8 @@ impl Statement {
 
     #[staticmethod]
     #[pyo3(signature = (idx, name, **kwargs))]
-    fn _new_label(idx: i64, name: String, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+    fn _new_label(idx: i64, name: String, kwargs: Option<Tags>) -> PyResult<Self> {
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Label { name },
@@ -931,9 +931,9 @@ impl Statement {
         size: i32,
         endness: String,
         guard: Option<AilExpression>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Store {
@@ -952,9 +952,9 @@ impl Statement {
         idx: i64,
         target: CFGTarget,
         target_idx: Option<i64>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::Jump { target, target_idx },
@@ -974,9 +974,9 @@ impl Statement {
         false_target: Option<CFGTarget>,
         true_target_idx: Option<i64>,
         false_target_idx: Option<i64>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::ConditionalJump {
@@ -996,9 +996,9 @@ impl Statement {
         expr: AilExpression,
         ret_expr: Option<AilExpression>,
         fp_ret_expr: Option<AilExpression>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::SideEffectStatement {
@@ -1011,12 +1011,8 @@ impl Statement {
 
     #[staticmethod]
     #[pyo3(signature = (idx, ret_exprs, **kwargs))]
-    fn _new_return(
-        idx: i64,
-        ret_exprs: Bound<'_, PyAny>,
-        kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+    fn _new_return(idx: i64, ret_exprs: Bound<'_, PyAny>, kwargs: Option<Tags>) -> PyResult<Self> {
+        let tags = kwargs.unwrap_or_default();
         let mut v = Vec::new();
         if !ret_exprs.is_none() {
             for item in ret_exprs.try_iter()? {
@@ -1044,9 +1040,9 @@ impl Statement {
         old_lo: AilExpression,
         old_hi: Option<AilExpression>,
         endness: String,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::CAS {
@@ -1067,9 +1063,9 @@ impl Statement {
     fn _new_dirty_statement(
         idx: i64,
         dirty: AilExpression,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::DirtyStatement {
@@ -1080,8 +1076,8 @@ impl Statement {
 
     #[staticmethod]
     #[pyo3(signature = (idx, **kwargs))]
-    fn _new_no_op(idx: i64, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+    fn _new_no_op(idx: i64, kwargs: Option<Tags>) -> PyResult<Self> {
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
             inner: StmtInner::NoOp,

@@ -278,10 +278,6 @@ impl Tags {
         Ok(tags)
     }
 
-    pub fn from_dict(d: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        Self::from_kwargs(d)
-    }
-
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -407,11 +403,11 @@ impl<'py> FromPyObject<'_, 'py> for Tags {
         if obj.is_none() {
             return Ok(Self::default());
         }
+        if let Ok(d) = obj.cast::<PyDict>() {
+            return Self::from_kwargs(Some(&d));
+        }
         if let Ok(view) = obj.extract::<TagsView>() {
             return Ok(view.inner);
-        }
-        if let Ok(d) = obj.cast::<PyDict>() {
-            return Self::from_dict(Some(&d.to_owned()));
         }
         if let Ok(m) = obj.cast::<PyMapping>() {
             let mut tags = Self::default();
@@ -642,9 +638,6 @@ impl TagsView {
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        if let Ok(other_view) = other.extract::<TagsView>() {
-            return Ok(self.inner == other_view.inner);
-        }
         if let Ok(other_tags) = other.extract::<Tags>() {
             return Ok(self.inner == other_tags);
         }

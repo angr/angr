@@ -2595,13 +2595,8 @@ impl Expression {
 
     #[staticmethod]
     #[pyo3(signature = (idx, value, bits, **kwargs))]
-    fn _new_const(
-        idx: i64,
-        value: ConstValue,
-        bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+    fn _new_const(idx: i64, value: ConstValue, bits: u32, kwargs: Option<Tags>) -> PyResult<Self> {
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::Const { value },
@@ -2610,13 +2605,8 @@ impl Expression {
 
     #[staticmethod]
     #[pyo3(signature = (idx, tmp_idx, bits, **kwargs))]
-    fn _new_tmp(
-        idx: i64,
-        tmp_idx: i64,
-        bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+    fn _new_tmp(idx: i64, tmp_idx: i64, bits: u32, kwargs: Option<Tags>) -> PyResult<Self> {
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::Tmp { tmp_idx },
@@ -2633,9 +2623,9 @@ impl Expression {
         category: VirtualVariableCategory,
         oident: Option<Bound<'_, PyAny>>,
         reg_vvars: Option<Bound<'_, PyAny>>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let oident = match oident {
             Some(o) if !o.is_none() => OIdent::from_py(&o, category)?,
             _ => OIdent::None,
@@ -2683,9 +2673,9 @@ impl Expression {
         idx: i64,
         bits: u32,
         src_and_vvars: Bound<'_, PyAny>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let entries = extract_phi_entries(py, &src_and_vvars)?;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
@@ -2700,9 +2690,9 @@ impl Expression {
     fn _new_combo_register(
         idx: i64,
         registers: Bound<'_, PyAny>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         // Each element must be an AIL Register Expression.
         let mut regs: Vec<AilExpression> = Vec::new();
         let mut bits: u32 = 0;
@@ -2725,13 +2715,8 @@ impl Expression {
 
     #[staticmethod]
     #[pyo3(signature = (idx, reg_offset, bits, **kwargs))]
-    fn _new_register(
-        idx: i64,
-        reg_offset: i64,
-        bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+    fn _new_register(idx: i64, reg_offset: i64, bits: u32, kwargs: Option<Tags>) -> PyResult<Self> {
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::Register { reg_offset },
@@ -2745,9 +2730,9 @@ impl Expression {
         op: String,
         operand: AilExpression,
         bits: Option<u32>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = operand.header.depth + 1;
         let final_bits = bits.unwrap_or(operand.header.bits);
         Ok(Self::wrap(AilExpression {
@@ -2775,9 +2760,9 @@ impl Expression {
         from_type: Option<ConvertType>,
         to_type: Option<ConvertType>,
         rounding_mode: Option<RoundingModeOrExpr>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = operand.header.depth + 1;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, to_bits, tags),
@@ -2803,9 +2788,9 @@ impl Expression {
         to_bits: u32,
         to_type: String,
         operand: AilExpression,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = operand.header.depth + 1;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, to_bits, tags),
@@ -2837,9 +2822,9 @@ impl Expression {
         rounding_mode: Option<RoundingModeOrExpr>,
         vector_count: Option<i64>,
         vector_size: Option<i64>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
 
         // Accept any 2-iterable.
         let items: Vec<Bound<'_, PyAny>> = operands.try_iter()?.collect::<PyResult<Vec<_>>>()?;
@@ -2876,9 +2861,9 @@ impl Expression {
         cond: AilExpression,
         iffalse: AilExpression,
         iftrue: AilExpression,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = cond
             .header
             .depth
@@ -2904,9 +2889,9 @@ impl Expression {
         base: AilExpression,
         offset: AilExpression,
         endness: String,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = base.header.depth.max(offset.header.depth) + 1;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
@@ -2926,9 +2911,9 @@ impl Expression {
         offset: AilExpression,
         value: AilExpression,
         endness: String,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = base.header.depth.max(offset.header.depth) + 1;
         let bits = base.header.bits;
         Ok(Self::wrap(AilExpression {
@@ -2948,9 +2933,9 @@ impl Expression {
         idx: i64,
         data: String,
         bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::StringLiteral { data },
@@ -2964,9 +2949,9 @@ impl Expression {
         bits: u8,
         base: String,
         offset: i64,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let off = crate::ailment::to_signed_i(offset as i128, bits as u32);
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits as u32, tags),
@@ -2983,9 +2968,9 @@ impl Expression {
         idx: i64,
         bits: u8,
         offset: i128,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let off = crate::ailment::to_signed_i(offset, bits as u32);
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits as u32, tags),
@@ -3003,9 +2988,9 @@ impl Expression {
         endness: String,
         guard: Option<AilExpression>,
         alt: Option<AilExpression>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = addr.header.depth + 1;
         let bits = (size.wrapping_mul(8)) as u32;
         Ok(Self::wrap(AilExpression {
@@ -3028,9 +3013,9 @@ impl Expression {
         args: Option<Bound<'_, PyAny>>,
         bits: Option<u32>,
         arg_vvars: Option<Bound<'_, PyAny>>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         // target depth +1 -- for expression targets, use the operand's
         // depth; for symbol targets (str), depth = 1.
         let target_depth = match &target {
@@ -3081,9 +3066,9 @@ impl Expression {
         maddr: Option<AilExpression>,
         msize: Option<i64>,
         bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let mut ops = Vec::new();
         for item in operands.try_iter()? {
             ops.push(item?.extract::<AilExpression>()?);
@@ -3108,9 +3093,9 @@ impl Expression {
         callee: String,
         operands: Bound<'_, PyAny>,
         bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let mut ops = Vec::new();
         let mut depth: u32 = 0;
         for item in operands.try_iter()? {
@@ -3133,9 +3118,9 @@ impl Expression {
         idx: i64,
         stmts: Bound<'_, PyAny>,
         expr: AilExpression,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let mut stmt_vec: Vec<AilStatement> = Vec::new();
         for x in stmts.try_iter()? {
             stmt_vec.push(x?.extract::<AilStatement>()?);
@@ -3159,9 +3144,9 @@ impl Expression {
         fields: Bound<'_, PyDict>,
         field_offsets: Bound<'_, PyDict>,
         bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let mut decoded_fields: IndexMap<i64, Arc<AilExpression>> =
             IndexMap::with_capacity(fields.len());
         let mut depth: u32 = 0;
@@ -3205,9 +3190,9 @@ impl Expression {
         name: String,
         fields: Bound<'_, PyAny>,
         bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
         let mut depth: u32 = 0;
         for f in fields.try_iter()? {
@@ -3232,9 +3217,9 @@ impl Expression {
         idx: i64,
         elements: Bound<'_, PyAny>,
         bits: u32,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
         let mut depth: u32 = 0;
         for e in elements.try_iter()? {
@@ -3256,9 +3241,9 @@ impl Expression {
         idx: i64,
         defs: Bound<'_, PyAny>,
         src: AilExpression,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let depth = src.header.depth + 1;
         let bits = src.header.bits;
         let mut decoded_defs: Vec<Box<AilStatement>> = Vec::new();
@@ -3281,9 +3266,9 @@ impl Expression {
         idx: i64,
         name: String,
         delimiter: String,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, 0, tags),
             inner: ExprInner::Macro { name, delimiter },
@@ -3298,9 +3283,9 @@ impl Expression {
         args: Bound<'_, PyAny>,
         bits: Option<u32>,
         delimiter: String,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        kwargs: Option<Tags>,
     ) -> PyResult<Self> {
-        let tags = Tags::from_kwargs(kwargs)?;
+        let tags = kwargs.unwrap_or_default();
         let bits = bits.unwrap_or(0);
         let args_decoded = if args.is_none() {
             None
