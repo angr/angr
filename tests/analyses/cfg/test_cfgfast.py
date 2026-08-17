@@ -1031,6 +1031,22 @@ class TestCfgfast(unittest.TestCase):
 
         assert len(cfg.kb.functions) < 150, f"32 KB of random data produced {len(cfg.kb.functions)} functions"
 
+    def test_function_the_symbol_table_names_is_kept(self):
+        # glibc's EVEX string routines and the AVX-512 PLT resolvers are ordinary code that VEX cannot lift, so
+        # a block in each ends in Ijk_NoDecode and drop_bad_functions() deleted the whole function. The file's
+        # own symbol table gives each of them a name and a size, so the premise of that pass -- that the linear
+        # scan decoded data as code -- does not hold here.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "langdetect_gcc"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for addr, name in (
+            (0x424CC0, "__stpcpy_evex"),
+            (0x430CE0, "__strlen_evex"),
+            (0x45B480, "__memcmp_evex_movbe"),
+            (0x4686A0, "_dl_runtime_resolve_xsavec"),
+        ):
+            assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
+
 
 if __name__ == "__main__":
     unittest.main()
