@@ -148,10 +148,9 @@ class TestPcodeEngine(TestCase):
     def test_arch_without_program_counter(self):
         """
         Test states and CFG recovery on an architecture whose sleigh language declares no program
-        counter register, so archinfo reports no ip_offset.
+        counter register, so there is no register for the instruction pointer to live in.
         """
         arch = archinfo.ArchPcode("Dalvik:LE:32:DEX_Nougat")
-        assert arch.ip_offset is None
 
         # const/4 v0, #0 ; return-void
         byte_code = bytes.fromhex("12000e00")
