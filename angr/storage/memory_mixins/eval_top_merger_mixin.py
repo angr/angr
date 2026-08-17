@@ -70,6 +70,10 @@ class EvalTopMergerMixin(MemoryMixin):
         if self.id != 'reg' or offset is None:
             return False
 
+        merge_kind, _ = self._merge_point_kind(all_states)
+        if merge_kind != "loop":
+            return False
+
         cur_vm_reg = self._current_vpc_reg(all_states)
         if cur_vm_reg is None:
             return False
