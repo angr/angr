@@ -4746,6 +4746,34 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # if node.addr in self.kb.functions.callgraph:
         #    self.kb.functions.callgraph.remove_node(node.addr)
 
+    def _reached_only_by_call_fallthrough(self, cfg_node: CFGNode) -> bool:
+        """
+        Is this block reachable only as the fall-through of a call to a function we recovered?
+
+        Whatever a compiler leaves after a call it treats as non-returning is not executed: MSVC pads with
+        ``int3``, GCC emits the TOC restore after every PowerPC64 ``bl``, and both are followed by the
+        alignment of the next function. CFGFast recovers that block anyway, because the callee's returning
+        status is usually still unknown when the scan reaches the call site. What is beyond such a block says
+        nothing about whether the function it hangs off was decoded out of data.
+
+        The callee has to be a function with blocks of its own. A stray ``int`` or ``syscall`` in decoded data
+        gets a fall-through edge too, and so does a call whose target is not in the image; a block behind one of
+        those is the tail of a decode rather than the padding after a call.
+        """
+        graph = self.model.graph
+        in_edges = list(graph.in_edges(cfg_node, data=True))
+        if not in_edges:
+            return False
+        for src, _, data in in_edges:
+            if data.get("jumpkind") != "Ijk_FakeRet":
+                return False
+            if not any(
+                edge_data.get("jumpkind") == "Ijk_Call" and self.kb.functions.get_func_block_count(dst.addr)
+                for _, dst, edge_data in graph.out_edges(src, data=True)
+            ):
+                return False
+        return True
+
     def drop_bad_functions(self):
         # remove all functions that are bad, i.e., likely the result of decoding data as code
         # - if a function jumps to data, then it's likely bad
@@ -4790,6 +4818,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 cfg_node = self.model.get_any_node(block_addr)
                 if cfg_node is not None and cfg_node.size > 0:
                     out_degree = self.model.graph.out_degree[cfg_node]
+                    if out_degree < 2 and self._reached_only_by_call_fallthrough(cfg_node):
+                        continue
                     # is it jumping to data?
                     if out_degree == 0:
                         # might be size-limited during CFGNode generation; check the location after the end of the block
