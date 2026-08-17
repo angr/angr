@@ -20,7 +20,9 @@ use crate::ailment::{CachedHash, hash_of};
 #[derive(Debug)]
 pub struct Block {
     pub addr: i64,
+    #[pyo3(get, set)]
     pub original_size: Option<i64>,
+    #[pyo3(get, set)]
     pub statements: Py<PyList>,
     pub idx: Option<i64>,
     pub cached_hash: CachedHash,
@@ -92,22 +94,6 @@ impl Block {
     fn set_addr(&mut self, value: i64) {
         self.addr = value;
         self.cached_hash.clear();
-    }
-    #[getter]
-    fn original_size(&self) -> Option<i64> {
-        self.original_size
-    }
-    #[setter]
-    fn set_original_size(&mut self, value: Option<i64>) {
-        self.original_size = value;
-    }
-    #[getter]
-    fn statements<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
-        self.statements.bind(py).clone()
-    }
-    #[setter]
-    fn set_statements(&mut self, value: Bound<'_, PyList>) {
-        self.statements = value.unbind();
     }
     #[getter]
     fn idx(&self) -> Option<i64> {
