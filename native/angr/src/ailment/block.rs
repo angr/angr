@@ -118,14 +118,8 @@ impl Block {
                     l
                 }
             }
-            _ => {
-                // Shallow copy of self.statements
-                let l = PyList::empty(py);
-                for x in self.statements.bind(py).iter() {
-                    l.append(x)?;
-                }
-                l
-            }
+            // Shallow copy of self.statements
+            _ => PyList::new(py, self.statements.bind(py))?,
         };
         Ok(Self {
             addr: self.addr,
@@ -145,7 +139,7 @@ impl Block {
             // their Python ``deep_copy`` method.
             if let Ok(st) = stmt.cast::<Statement>() {
                 let copied = st.borrow().stmt.deep_copy_ail_stmt(py, manager)?;
-                new_list.append(Py::new(py, Statement::wrap(copied))?)?;
+                new_list.append(copied)?;
             } else if stmt.is_none() {
                 new_list.append(&stmt)?;
             } else {
@@ -325,10 +319,7 @@ impl Block {
         let (addr, original_size, idx, stmts): (i64, Option<i64>, Option<i64>, Vec<AilStatement>) =
             postcard::from_bytes(data)
                 .map_err(|e| PyTypeError::new_err(format!("deserialize: {}", e)))?;
-        let list = PyList::empty(py);
-        for st in stmts {
-            list.append(Py::new(py, Statement::wrap(st))?)?;
-        }
+        let list = PyList::new(py, stmts)?;
         Py::new(
             py,
             Self {
