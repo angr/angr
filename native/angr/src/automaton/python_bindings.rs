@@ -4,7 +4,7 @@
 
 use crate::automaton::dfa::DFA;
 use crate::automaton::epsilon_nfa::EpsilonNFA as RustEpsilonNFA;
-use crate::automaton::state::StateId;
+use crate::automaton::state::{StateId, StateSet};
 use crate::automaton::subset_construction::subset_construction;
 use crate::automaton::symbol::{EPSILON, SymbolId};
 use indexmap::IndexMap;
@@ -50,8 +50,8 @@ impl PyState {
     }
 
     #[getter]
-    fn value(&self) -> Py<PyAny> {
-        self.value.clone()
+    fn value(&self) -> &Py<PyAny> {
+        &self.value
     }
 }
 
@@ -93,8 +93,8 @@ impl PySymbol {
     }
 
     #[getter]
-    fn value(&self) -> Py<PyAny> {
-        self.value.clone()
+    fn value(&self) -> &Py<PyAny> {
+        &self.value
     }
 }
 
@@ -286,6 +286,16 @@ impl PyEpsilonNFA {
     }
 }
 
+impl<'py> IntoPyObject<'py> for &StateSet {
+    type Target = PySet;
+    type Output = Bound<'py, PySet>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        PySet::new(py, self.iter())
+    }
+}
+
 /// A Deterministic Finite Automaton.
 #[pyclass(
     name = "DeterministicFiniteAutomaton",
@@ -308,12 +318,8 @@ impl PyDFA {
 
     /// Get the final states as a set of integer indices.
     #[getter]
-    fn final_states(&self, py: Python<'_>) -> PyResult<Py<PySet>> {
-        let set = PySet::empty(py)?;
-        for state in self.dfa.final_states().iter() {
-            set.add(state)?;
-        }
-        Ok(set.unbind())
+    fn final_states(&self) -> &StateSet {
+        self.dfa.final_states()
     }
 
     /// Check if the DFA's language is empty.

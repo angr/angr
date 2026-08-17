@@ -1945,6 +1945,16 @@ impl<'py> IntoPyObject<'py> for AilStatement {
     }
 }
 
+impl<'py> IntoPyObject<'py> for &AilStatement {
+    type Target = Statement;
+    type Output = Bound<'py, Statement>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Bound::new(py, Statement::wrap(self.clone()))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Serialization
 // ---------------------------------------------------------------------------

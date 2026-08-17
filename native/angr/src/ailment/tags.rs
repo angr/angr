@@ -235,6 +235,24 @@ fn extra_from_py(value: &Bound<'_, PyAny>) -> TagExtra {
     }
 }
 
+impl<'py> IntoPyObject<'py> for &TagExtra {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        match self {
+            TagExtra::Bool(b) => b.into_bound_py_any(py),
+            TagExtra::Int(i) => i.into_bound_py_any(py),
+            TagExtra::Float(f) => f.into_bound_py_any(py),
+            TagExtra::Str(s) => s.into_bound_py_any(py),
+            TagExtra::IntList(l) => l.into_bound_py_any(py),
+            TagExtra::StrList(l) => l.into_bound_py_any(py),
+            TagExtra::Opaque(o) => Ok(o.bind(py).clone()),
+        }
+    }
+}
+
 /// Tags storage: the four hot keys as struct fields, everything else in
 /// `extras`. See the module docs.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -322,18 +340,13 @@ impl Tags {
                 .block_idx
                 .map(|v| v.into_bound_py_any(py))
                 .transpose()?,
-            other => match self.extras.get(&other) {
-                None => None,
-                Some(v) => Some(match v {
-                    TagExtra::Bool(b) => b.into_bound_py_any(py)?,
-                    TagExtra::Int(i) => i.into_bound_py_any(py)?,
-                    TagExtra::Float(f) => f.into_bound_py_any(py)?,
-                    TagExtra::Str(s) => s.clone().into_bound_py_any(py)?,
-                    TagExtra::IntList(l) => l.clone().into_bound_py_any(py)?,
-                    TagExtra::StrList(l) => l.clone().into_bound_py_any(py)?,
-                    TagExtra::Opaque(o) => o.bind(py).clone(),
-                }),
-            },
+            // Not `Option`'s `IntoPyObject`: it maps `None` to `py.None()`,
+            // turning "tag absent" into "tag present with value None".
+            other => self
+                .extras
+                .get(&other)
+                .map(|v| v.into_pyobject(py))
+                .transpose()?,
         })
     }
 
@@ -474,9 +487,7 @@ impl TagsView {
                 inner: self.inner.clone(),
                 parent: None,
             };
-            parent
-                .bind(py)
-                .setattr("tags", snapshot.into_pyobject(py)?)?;
+            parent.bind(py).setattr("tags", snapshot)?;
         }
         Ok(())
     }

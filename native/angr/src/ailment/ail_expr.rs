@@ -3403,7 +3403,7 @@ impl Expression {
     #[getter]
     fn value<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
-            ExprInner::Const { value, .. } => Ok(value.clone().into_pyobject(py)?),
+            ExprInner::Const { value, .. } => value.into_pyobject(py),
             ExprInner::Insert { value, .. } => {
                 Ok(Py::new(py, Expression::wrap((**value).clone()))?
                     .into_bound(py)
@@ -3416,7 +3416,7 @@ impl Expression {
     fn set_value(&mut self, new_value: Bound<'_, PyAny>) -> PyResult<()> {
         match &mut self.expr.inner {
             ExprInner::Const { value, .. } => {
-                let new = ConstValue::extract((&new_value).into())?;
+                let new = new_value.extract::<ConstValue>()?;
                 self.expr.header.cached_hash.clear();
                 *value = new;
                 Ok(())
@@ -3451,7 +3451,7 @@ impl Expression {
                         value
                     )));
                 }
-                value.clone().into_bound_py_any(py)
+                value.into_bound_py_any(py)
             }
             _ => Err(PyAttributeError::new_err(
                 "no 'value_int' on this Expression",
@@ -3602,28 +3602,7 @@ impl Expression {
     #[getter]
     fn src_and_vvars<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         match &self.expr.inner {
-            ExprInner::Phi { src_and_vvars, .. } => {
-                let list = PyList::empty(py);
-                for entry in src_and_vvars {
-                    let src_tuple = PyTuple::new(
-                        py,
-                        [
-                            entry.src_addr.into_py_any(py)?,
-                            match entry.src_idx {
-                                Some(v) => v.into_py_any(py)?,
-                                None => py.None(),
-                            },
-                        ],
-                    )?;
-                    let vvar_obj = match &entry.vvar {
-                        Some(v) => Py::new(py, Expression::wrap((**v).clone()))?.into_any(),
-                        None => py.None(),
-                    };
-                    let pair = PyTuple::new(py, [src_tuple.into_any().unbind(), vvar_obj])?;
-                    list.append(pair)?;
-                }
-                Ok(list)
-            }
+            ExprInner::Phi { src_and_vvars, .. } => PyList::new(py, src_and_vvars),
             _ => Err(PyAttributeError::new_err(
                 "no 'src_and_vvars' on this Expression",
             )),
@@ -4523,9 +4502,7 @@ impl Expression {
     fn from_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
             ExprInner::Convert { from_type, .. } => Ok(from_type.into_pyobject(py)?.into_any()),
-            ExprInner::Reinterpret { from_type, .. } => {
-                Ok(from_type.clone().into_bound_py_any(py)?)
-            }
+            ExprInner::Reinterpret { from_type, .. } => from_type.into_bound_py_any(py),
             _ => Err(PyAttributeError::new_err(
                 "no 'from_type' on this Expression",
             )),
@@ -4537,7 +4514,7 @@ impl Expression {
     fn to_type<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
             ExprInner::Convert { to_type, .. } => Ok(to_type.into_pyobject(py)?.into_any()),
-            ExprInner::Reinterpret { to_type, .. } => Ok(to_type.clone().into_bound_py_any(py)?),
+            ExprInner::Reinterpret { to_type, .. } => to_type.into_bound_py_any(py),
             _ => Err(PyAttributeError::new_err("no 'to_type' on this Expression")),
         }
     }
@@ -4546,14 +4523,11 @@ impl Expression {
     /// enum member, an ``Expression`` (unresolved, e.g. a VEX tmp rounding
     /// mode before constant propagation), or ``None``.
     #[getter]
-    fn rounding_mode(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn rounding_mode(&self) -> Option<&RoundingModeOrExpr> {
         match &self.expr.inner {
             ExprInner::Convert { rounding_mode, .. }
-            | ExprInner::BinaryOp { rounding_mode, .. } => match rounding_mode {
-                Some(rm) => Ok(rm.into_pyobject(py)?.unbind()),
-                None => Ok(py.None()),
-            },
-            _ => Ok(py.None()),
+            | ExprInner::BinaryOp { rounding_mode, .. } => rounding_mode.as_ref(),
+            _ => None,
         }
     }
 
@@ -5456,6 +5430,26 @@ impl<'py> IntoPyObject<'py> for AilExpression {
 
     fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         Bound::new(py, Expression::wrap(self))
+    }
+}
+
+impl<'py> IntoPyObject<'py> for &AilExpression {
+    type Target = Expression;
+    type Output = Bound<'py, Expression>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Bound::new(py, Expression::wrap(self.clone()))
+    }
+}
+
+impl<'py> IntoPyObject<'py> for &PhiEntry {
+    type Target = PyTuple;
+    type Output = Bound<'py, PyTuple>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        ((self.src_addr, self.src_idx), self.vvar.as_deref()).into_pyobject(py)
     }
 }
 
