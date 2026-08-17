@@ -772,7 +772,7 @@ class VMDeobfuscation(Analysis):
         cfg = None
         all_symbolic_expr_locations = {}
         import pickle
-        prev_node_count=0
+        prev_node_count = None
         fixed_point = False
         if max_symbolizer_iterations is None:
             max_symbolizer_iterations = 100
@@ -867,11 +867,23 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, self.project_dir / f"{symb_iter}symb_result.svg")
             self.draw_graph_flag=False
 
-            fixed_point = len(new_cfg.nodes()) == prev_node_count
+            pending_symbolizations = 0
+            for by_kind in self.project.to_symbolize.values():
+                for locations in by_kind.values():
+                    pending_symbolizations += len(locations)
+
+            cur_node_count = len(new_cfg.nodes())
+            fixed_point = cur_node_count == prev_node_count and pending_symbolizations == 0
             if fixed_point:
                 break
+            if cur_node_count == prev_node_count and pending_symbolizations:
+                l.info(
+                    "Continuing symbolizer at fixed node count %d because %d symbolic locations are pending.",
+                    cur_node_count,
+                    pending_symbolizations,
+                )
 
-            prev_node_count = max(len(new_cfg.nodes()), prev_node_count)
+            prev_node_count = cur_node_count
 
         if themida_split_branches:
             to_split_nodes = self.split_redundant_branch_themida(new_cfg)
@@ -2523,9 +2535,23 @@ class VMDeobfuscation(Analysis):
         ## annotating and preconstraining the stack pointer
         # self.annotate_and_preconstrain_sp(initial_input_state)
 
-        for node in new_model._nodes_by_addr[start_addr]:
-            if node.addr == start_addr and node.block_id.vm_vpc == vm_vpc:
-                node.input_state = initial_input_state
+        symbolizer_start_nodes = [
+            node for node in new_model._nodes_by_addr[start_addr]
+            if node.addr == start_addr and node.block_id.vm_vpc == vm_vpc
+        ]
+        if len(symbolizer_start_nodes) != 1:
+            raise ValueError(
+                "Expected exactly one Symbolizer start node for addr %#x and vm_vpc %r, got %d: %s"
+                % (
+                    start_addr,
+                    vm_vpc,
+                    len(symbolizer_start_nodes),
+                    [(node.addr, node.block_id) for node in symbolizer_start_nodes],
+                )
+            )
+
+        symbolizer_start_node = symbolizer_start_nodes[0]
+        symbolizer_start_node.input_state = initial_input_state
         ## find the replacements
 
         # replacing the printf hook with unconstrained return just for constant prop, since it get's a symbolic fmt str poitner
@@ -2533,7 +2559,7 @@ class VMDeobfuscation(Analysis):
             proj.unhook(func_addr)
             proj.hook(func_addr, repl_sim_proc)
 
-        prop = proj.analyses.Symbolizer(graph=new_cfg_graph, iropt_level=1, start=start_addr, max_iterations=2)
+        prop = proj.analyses.Symbolizer(graph=new_cfg_graph, iropt_level=1, start=symbolizer_start_node, max_iterations=2)
 
         for func_addr, orig_sim_proc, repl_sim_proc in self.constant_prop_func_replacements:
             proj.unhook(func_addr)
