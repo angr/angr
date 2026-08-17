@@ -8,7 +8,7 @@ import types
 from collections import defaultdict
 from io import BytesIO, IOBase
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import archinfo
 import cle
@@ -23,6 +23,9 @@ from .llm_client import LLMClient
 from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
 from .sim_procedure import SimProcedure
 from .simos import SimOS, os_mapping
+
+if TYPE_CHECKING:
+    from .engines.pcode.lifter import PcodeBasicBlockLifter
 
 l = logging.getLogger(name=__name__)
 
@@ -248,6 +251,10 @@ class Project:
         self.cache_limits = cache_limits if cache_limits is not None else {}
         if not set(self.cache_limits.keys()).issubset(CACHE_CONFIG_KEYS):
             raise ValueError(f"Invalid cache configuration keys: {set(self.cache_limits.keys()) - CACHE_CONFIG_KEYS}")
+
+        # Sleigh records context variables per address, so a basic block lifter decodes later blocks differently
+        # depending on which blocks it decoded before. Blocks of this binary decode with these and no others.
+        self._pcode_block_lifters: dict[archinfo.Arch, PcodeBasicBlockLifter] = {}
 
         self._languages: list[str] | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
@@ -815,6 +822,8 @@ class Project:
                 not in {
                     "analyses",
                     "_llm_client",
+                    # Sleigh contexts do not survive pickling
+                    "_pcode_block_lifters",
                 }
             }
         finally:
@@ -823,6 +832,7 @@ class Project:
     def __setstate__(self, s):
         self.__dict__.update(s)
         self._llm_client = _UNSET
+        self._pcode_block_lifters = {}
         try:
             self._initialize_analyses_hub()
         except AngrNoPluginError:

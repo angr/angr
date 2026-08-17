@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import pickle
 from unittest import TestCase, main
 
 import archinfo
@@ -195,6 +196,10 @@ class TestPcodeEngine(TestCase):
         block_lifter = pcode_lifter.get_block_lifter(first, first.arch)
         assert pcode_lifter.get_block_lifter(first, first.arch) is block_lifter
         assert pcode_lifter.get_block_lifter(second, second.arch) is not block_lifter
+
+        # a Sleigh context cannot be pickled, so the lifters a project keeps must not go into its pickle
+        restored = pickle.loads(pickle.dumps(first))
+        assert [insn.mnemonic for insn in restored.factory.block(0).pcode.insns] == ["nop"] * 4
 
         arch = archinfo.ArchPcode("pa-risc:BE:32:default")
         third = angr.load_shellcode(
