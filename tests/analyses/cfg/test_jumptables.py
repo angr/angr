@@ -3265,6 +3265,45 @@ class TestJumpTableResolver(unittest.TestCase):
         # initialized; only .bss and __libc_freeres_ptrs are uninitialized memory.
         assert self._bss_regions("i386", "bronze_ropchain") == [(0x80DB320, 0xCDC), (0x80DBFFC, 0x14)]
 
+    def test_jump_table_base_in_bss_is_rejected(self):
+        path = os.path.join(test_location, "x86_64", "fpijr_callback_array")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        # .bss is matched by name, so the region set here is the same one the resolver always had.
+        assert JumpTableResolver(proj)._bss_regions == [(0x404020, 0x60)]  # pylint:disable=protected-access
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=False, resolve_indirect_jumps=True)
+
+        # The dispatch at 0x4011d0 indexes a callback array the program fills in at run time. Its base
+        # is a concrete .bss address, so the entries come from the loader's zero fill rather than from
+        # the file, and every one of them is 0.
+        assert 0x4011D0 not in cfg.model.jump_tables
+
+    def test_jump_table_base_in_zero_fill_is_rejected(self):
+        path = os.path.join(test_location, "aarch64", "lynx-2.9.0dev.10_ios_arm64.macho")
+        proj = angr.Project(path, auto_load_libs=False, use_sim_procedures=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=False, resolve_indirect_jumps=True)
+
+        # 0x10001e8fc dispatches through x28. With the zero-fill regions hooked, the resolver's
+        # slice takes the stale adrp/add at 0x10001e788 for the base rather than the adr at
+        # 0x10001e800 that reaches the dispatch, so the base lands in __DATA,__common.
+        assert 0x10001E8FC not in cfg.model.jump_tables
+
+        # A second dispatch reads a real table out of __TEXT,__const and must still resolve, so
+        # that the assertion above cannot pass by the resolver never resolving anything here.
+        jt = cfg.model.jump_tables[0x10009D01C]
+        assert len(jt.jumptables) == 1
+        assert jt.jumptables[0].addr == 0x1001069D3
+        assert jt.jumptables[0].entry_size == 1
+        assert sorted(jt.jumptables[0].entries) == [
+            0x10009D034,
+            0x10009D058,
+            0x10009D074,
+            0x10009D080,
+            0x10009D0D8,
+            0x10009D0E4,
+        ]
+
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """

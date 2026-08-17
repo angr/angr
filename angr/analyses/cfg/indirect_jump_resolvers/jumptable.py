@@ -787,7 +787,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         self.resolve_calls = resolve_calls
 
-        self._bss_regions = None
+        self._bss_regions: list[tuple[int, int]] = []
         # the maximum number of resolved targets. Will be initialized from CFG.
         self._max_targets = 0
 
@@ -1892,6 +1892,16 @@ class JumpTableResolver(IndirectJumpResolver):
         ):
             l.debug(
                 "Jump table %#x might have jump targets outside mapped memory regions. "
+                "Continue to resolve it from the next data source.",
+                addr,
+            )
+            return None
+
+        if any(start <= min_jumptable_addr < start + size for start, size in self._bss_regions):
+            # The bytes there are the loader's zero fill rather than the program's data, so whatever
+            # this reads is an artifact of how the object was loaded.
+            l.debug(
+                "Jump table %#x is read out of memory that is only zero-filled. "
                 "Continue to resolve it from the next data source.",
                 addr,
             )
