@@ -2368,10 +2368,7 @@ impl<'py> IrReader for PyReader<'py> {
                 };
                 let guard: Option<Py<PyAny>> = stmt.getattr("guard")?.extract()?;
                 let maddr: Option<Py<PyAny>> = stmt.getattr("mAddr")?.extract()?;
-                let mut args = Vec::new();
-                for a in stmt.getattr("args")?.try_iter()? {
-                    args.push(a?.unbind());
-                }
+                let args: Vec<Py<PyAny>> = stmt.getattr("args")?.extract()?;
                 StmtKind::Dirty {
                     callee: stmt.getattr("cee")?.getattr("name")?.extract()?,
                     args,
@@ -2436,11 +2433,7 @@ impl<'py> IrReader for PyReader<'py> {
                 }
             }
             "Triop" => {
-                let args = expr.getattr("args")?;
-                let mut v = Vec::new();
-                for a in args.try_iter()? {
-                    v.push(a?.unbind());
-                }
+                let v: Vec<Py<PyAny>> = expr.getattr("args")?.extract()?;
                 ExprKind::Triop {
                     op: OpRef::Named {
                         name: expr.getattr("op")?.extract::<String>()?,
@@ -2462,10 +2455,7 @@ impl<'py> IrReader for PyReader<'py> {
                 iffalse: unbind_any(expr.getattr("iffalse")?),
             },
             "CCall" => {
-                let mut args = Vec::new();
-                for a in expr.getattr("args")?.try_iter()? {
-                    args.push(a?.unbind());
-                }
+                let args: Vec<Py<PyAny>> = expr.getattr("args")?.extract()?;
                 ExprKind::CCall {
                     callee: expr.getattr("cee")?.getattr("name")?.extract()?,
                     args,

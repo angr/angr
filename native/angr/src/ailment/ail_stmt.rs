@@ -1011,17 +1011,17 @@ impl Statement {
 
     #[staticmethod]
     #[pyo3(signature = (idx, ret_exprs, **kwargs))]
-    fn _new_return(idx: i64, ret_exprs: Bound<'_, PyAny>, kwargs: Option<Tags>) -> PyResult<Self> {
+    fn _new_return(
+        idx: i64,
+        ret_exprs: Option<Vec<AilExpression>>,
+        kwargs: Option<Tags>,
+    ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
-        let mut v = Vec::new();
-        if !ret_exprs.is_none() {
-            for item in ret_exprs.try_iter()? {
-                v.push(item?.extract::<AilExpression>()?);
-            }
-        }
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
-            inner: StmtInner::Return { ret_exprs: v },
+            inner: StmtInner::Return {
+                ret_exprs: ret_exprs.unwrap_or_default(),
+            },
         }))
     }
 
@@ -1454,15 +1454,11 @@ impl Statement {
     }
 
     #[setter]
-    fn set_ret_exprs(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+    fn set_ret_exprs(&mut self, value: Vec<AilExpression>) -> PyResult<()> {
         match &mut self.stmt.inner {
             StmtInner::Return { ret_exprs } => {
-                let mut new_vec: Vec<AilExpression> = Vec::new();
-                for item in value.try_iter()? {
-                    new_vec.push(item?.extract::<AilExpression>()?);
-                }
                 self.stmt.header.cached_hash.clear();
-                *ret_exprs = new_vec;
+                *ret_exprs = value;
                 Ok(())
             }
             _ => Err(PyAttributeError::new_err(

@@ -2622,7 +2622,7 @@ impl Expression {
         bits: u32,
         category: VirtualVariableCategory,
         oident: Option<Bound<'_, PyAny>>,
-        reg_vvars: Option<Bound<'_, PyAny>>,
+        reg_vvars: Option<Vec<AilExpression>>,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
@@ -2630,31 +2630,23 @@ impl Expression {
             Some(o) if !o.is_none() => OIdent::from_py(&o, category)?,
             _ => OIdent::None,
         };
-        let reg_vvars = match reg_vvars {
-            Some(o) if !o.is_none() => {
-                let items: Vec<Bound<'_, PyAny>> = o
-                    .try_iter()
-                    .map_err(|_| {
-                        PyTypeError::new_err(
-                            "reg_vvars must be a list of VirtualVariable Expressions or None",
-                        )
-                    })?
-                    .collect::<PyResult<Vec<_>>>()?;
-                let mut decoded: Vec<Arc<AilExpression>> = Vec::with_capacity(items.len());
-                for (i, item) in items.into_iter().enumerate() {
-                    let ail = item.extract::<AilExpression>()?;
-                    if !matches!(ail.inner, ExprInner::VirtualVariable { .. }) {
-                        return Err(PyTypeError::new_err(format!(
-                            "reg_vvars[{}] must be a VirtualVariable Expression",
-                            i
-                        )));
-                    }
-                    decoded.push(Arc::new(ail));
-                }
-                Some(decoded)
-            }
-            _ => None,
-        };
+        let reg_vvars = reg_vvars
+            .map(|items| {
+                items
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, ail)| {
+                        if !matches!(ail.inner, ExprInner::VirtualVariable { .. }) {
+                            return Err(PyTypeError::new_err(format!(
+                                "reg_vvars[{}] must be a VirtualVariable Expression",
+                                i
+                            )));
+                        }
+                        Ok(Arc::new(ail))
+                    })
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .transpose()?;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::VirtualVariable {
@@ -2689,24 +2681,21 @@ impl Expression {
     #[pyo3(signature = (idx, registers, **kwargs))]
     fn _new_combo_register(
         idx: i64,
-        registers: Bound<'_, PyAny>,
+        registers: Vec<AilExpression>,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
         // Each element must be an AIL Register Expression.
-        let mut regs: Vec<AilExpression> = Vec::new();
         let mut bits: u32 = 0;
-        for item in registers.try_iter()? {
-            let item = item?;
-            let ail = item.extract::<AilExpression>()?;
+        for ail in &registers {
             if !matches!(ail.inner, ExprInner::Register { .. }) {
                 return Err(PyTypeError::new_err(
                     "ComboRegister elements must be Register expressions",
                 ));
             }
             bits = bits.saturating_add(ail.header.bits);
-            regs.push(ail);
         }
+        let regs = registers;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::ComboRegister { registers: regs },
@@ -2815,7 +2804,7 @@ impl Expression {
     fn _new_binary_op(
         idx: i64,
         op: String,
-        operands: Bound<'_, PyAny>,
+        operands: [AilExpression; 2],
         signed: bool,
         bits: Option<u32>,
         floating_point: bool,
@@ -2826,16 +2815,7 @@ impl Expression {
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
 
-        // Accept any 2-iterable.
-        let items: Vec<Bound<'_, PyAny>> = operands.try_iter()?.collect::<PyResult<Vec<_>>>()?;
-        if items.len() != 2 {
-            return Err(PyTypeError::new_err(format!(
-                "BinaryOp requires exactly 2 operands, got {}",
-                items.len()
-            )));
-        }
-        let lhs_ail = items[0].extract::<AilExpression>()?;
-        let rhs_ail = items[1].extract::<AilExpression>()?;
+        let [lhs_ail, rhs_ail] = operands;
 
         let depth = lhs_ail.header.depth.max(rhs_ail.header.depth) + 1;
         let final_bits = bits.unwrap_or(lhs_ail.header.bits);
@@ -3010,9 +2990,9 @@ impl Expression {
     fn _new_call(
         idx: i64,
         target: CFGTarget,
-        args: Option<Bound<'_, PyAny>>,
+        args: Option<Vec<AilExpression>>,
         bits: Option<u32>,
-        arg_vvars: Option<Bound<'_, PyAny>>,
+        arg_vvars: Option<Vec<AilExpression>>,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
@@ -3024,26 +3004,8 @@ impl Expression {
         };
         let depth = target_depth + 1;
         let bits = bits.unwrap_or(0);
-        let args_vec = match args {
-            Some(a) if !a.is_none() => {
-                let mut v = Vec::new();
-                for item in a.try_iter()? {
-                    v.push(item?.extract::<AilExpression>()?);
-                }
-                Some(v)
-            }
-            _ => None,
-        };
-        let arg_vvars_vec = match arg_vvars {
-            Some(a) if !a.is_none() => {
-                let mut v = Vec::new();
-                for item in a.try_iter()? {
-                    v.push(item?.extract::<AilExpression>()?);
-                }
-                Some(v)
-            }
-            _ => None,
-        };
+        let args_vec = args;
+        let arg_vvars_vec = arg_vvars;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Call {
@@ -3060,7 +3022,7 @@ impl Expression {
     fn _new_dirty_expression(
         idx: i64,
         callee: String,
-        operands: Bound<'_, PyAny>,
+        operands: Vec<AilExpression>,
         guard: Option<AilExpression>,
         mfx: Option<String>,
         maddr: Option<AilExpression>,
@@ -3069,10 +3031,7 @@ impl Expression {
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
-        let mut ops = Vec::new();
-        for item in operands.try_iter()? {
-            ops.push(item?.extract::<AilExpression>()?);
-        }
+        let ops = operands;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits, tags),
             inner: ExprInner::DirtyExpression {
@@ -3091,18 +3050,13 @@ impl Expression {
     fn _new_vex_ccall_expression(
         idx: i64,
         callee: String,
-        operands: Bound<'_, PyAny>,
+        operands: Vec<AilExpression>,
         bits: u32,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
-        let mut ops = Vec::new();
-        let mut depth: u32 = 0;
-        for item in operands.try_iter()? {
-            let ail = item?.extract::<AilExpression>()?;
-            depth = depth.max(ail.header.depth);
-            ops.push(ail);
-        }
+        let depth = operands.iter().map(|o| o.header.depth).max().unwrap_or(0);
+        let ops = operands;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::VEXCCallExpression {
@@ -3116,15 +3070,12 @@ impl Expression {
     #[pyo3(signature = (idx, stmts, expr, **kwargs))]
     fn _new_multi_statement_expression(
         idx: i64,
-        stmts: Bound<'_, PyAny>,
+        stmts: Vec<AilStatement>,
         expr: AilExpression,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
-        let mut stmt_vec: Vec<AilStatement> = Vec::new();
-        for x in stmts.try_iter()? {
-            stmt_vec.push(x?.extract::<AilStatement>()?);
-        }
+        let stmt_vec = stmts;
         let depth = expr.header.depth + 1;
         let bits = expr.header.bits;
         Ok(Self::wrap(AilExpression {
@@ -3188,20 +3139,13 @@ impl Expression {
     fn _new_rust_enum(
         idx: i64,
         name: String,
-        fields: Bound<'_, PyAny>,
+        fields: Vec<AilExpression>,
         bits: u32,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
-        let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
-        let mut depth: u32 = 0;
-        for f in fields.try_iter()? {
-            let f = f?;
-            let ail = f.extract::<AilExpression>()?;
-            depth = depth.max(ail.header.depth);
-            decoded.push(Arc::new(ail));
-        }
-        depth += 1;
+        let depth = fields.iter().map(|f| f.header.depth).max().unwrap_or(0) + 1;
+        let decoded: Vec<Arc<AilExpression>> = fields.into_iter().map(Arc::new).collect();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::RustEnum {
@@ -3215,20 +3159,13 @@ impl Expression {
     #[pyo3(signature = (idx, elements, bits, **kwargs))]
     fn _new_array(
         idx: i64,
-        elements: Bound<'_, PyAny>,
+        elements: Vec<AilExpression>,
         bits: u32,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
-        let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
-        let mut depth: u32 = 0;
-        for e in elements.try_iter()? {
-            let e = e?;
-            let ail = e.extract::<AilExpression>()?;
-            depth = depth.max(ail.header.depth);
-            decoded.push(Arc::new(ail));
-        }
-        depth += 1;
+        let depth = elements.iter().map(|e| e.header.depth).max().unwrap_or(0) + 1;
+        let decoded: Vec<Arc<AilExpression>> = elements.into_iter().map(Arc::new).collect();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Array { elements: decoded },
@@ -3239,18 +3176,14 @@ impl Expression {
     #[pyo3(signature = (idx, defs, src, **kwargs))]
     fn _new_let(
         idx: i64,
-        defs: Bound<'_, PyAny>,
+        defs: Vec<AilStatement>,
         src: AilExpression,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
         let depth = src.header.depth + 1;
         let bits = src.header.bits;
-        let mut decoded_defs: Vec<Box<AilStatement>> = Vec::new();
-        for x in defs.try_iter()? {
-            let x = x?;
-            decoded_defs.push(Box::new(x.extract::<AilStatement>()?));
-        }
+        let decoded_defs: Vec<Box<AilStatement>> = defs.into_iter().map(Box::new).collect();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Let {
@@ -3280,23 +3213,18 @@ impl Expression {
     fn _new_function_like_macro(
         idx: i64,
         name: String,
-        args: Bound<'_, PyAny>,
+        args: Option<Vec<AilExpression>>,
         bits: Option<u32>,
         delimiter: String,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
         let bits = bits.unwrap_or(0);
-        let args_decoded = if args.is_none() {
-            None
-        } else {
-            let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
-            for x in args.try_iter()? {
-                let x = x?;
-                decoded.push(Arc::new(x.extract::<AilExpression>()?));
-            }
-            Some(decoded)
-        };
+        let args_decoded = args.map(|a| {
+            a.into_iter()
+                .map(Arc::new)
+                .collect::<Vec<Arc<AilExpression>>>()
+        });
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits, tags),
             inner: ExprInner::FunctionLikeMacro {
@@ -3545,18 +3473,15 @@ impl Expression {
         }
     }
     #[setter]
-    fn set_registers(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let mut regs: Vec<AilExpression> = Vec::new();
-        for item in value.try_iter()? {
-            let item = item?;
-            let ail = item.extract::<AilExpression>()?;
+    fn set_registers(&mut self, value: Vec<AilExpression>) -> PyResult<()> {
+        for ail in &value {
             if !matches!(ail.inner, ExprInner::Register { .. }) {
                 return Err(PyTypeError::new_err(
                     "ComboRegister elements must be Register expressions",
                 ));
             }
-            regs.push(ail);
         }
+        let regs = value;
         match &mut self.expr.inner {
             ExprInner::ComboRegister { registers, .. } => {
                 self.expr.header.cached_hash.clear();
@@ -3885,11 +3810,8 @@ impl Expression {
         }
     }
     #[setter]
-    fn set_operands(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let mut v = Vec::new();
-        for item in value.try_iter()? {
-            v.push(item?.extract::<AilExpression>()?);
-        }
+    fn set_operands(&mut self, value: Vec<AilExpression>) -> PyResult<()> {
+        let mut v = value;
         match &mut self.expr.inner {
             ExprInner::DirtyExpression { operands, .. }
             | ExprInner::VEXCCallExpression { operands, .. } => {
@@ -3956,11 +3878,8 @@ impl Expression {
         }
     }
     #[setter]
-    fn set_stmts(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
-        let mut v = Vec::new();
-        for item in value.try_iter()? {
-            v.push(item?.extract::<AilStatement>()?);
-        }
+    fn set_stmts(&mut self, value: Vec<AilStatement>) -> PyResult<()> {
+        let v = value;
         match &mut self.expr.inner {
             ExprInner::MultiStatementExpression { stmts, .. } => {
                 self.expr.header.cached_hash.clear();
@@ -4033,11 +3952,11 @@ impl Expression {
                 Ok(())
             }
             ExprInner::RustEnum { fields, .. } => {
-                let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
-                for f in value.try_iter()? {
-                    let f = f?;
-                    decoded.push(Arc::new(f.extract::<AilExpression>()?));
-                }
+                let decoded: Vec<Arc<AilExpression>> = value
+                    .extract::<Vec<AilExpression>>()?
+                    .into_iter()
+                    .map(Arc::new)
+                    .collect();
                 self.expr.header.cached_hash.clear();
                 *fields = decoded;
                 self.expr.header.depth = self.expr.compute_depth();
@@ -4124,14 +4043,10 @@ impl Expression {
         }
     }
     #[setter]
-    fn set_elements(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
+    fn set_elements(&mut self, value: Vec<AilExpression>) -> PyResult<()> {
         match &mut self.expr.inner {
             ExprInner::Array { elements } => {
-                let mut decoded: Vec<Arc<AilExpression>> = Vec::new();
-                for e in value.try_iter()? {
-                    let e = e?;
-                    decoded.push(Arc::new(e.extract::<AilExpression>()?));
-                }
+                let decoded: Vec<Arc<AilExpression>> = value.into_iter().map(Arc::new).collect();
                 self.expr.header.cached_hash.clear();
                 *elements = decoded;
                 self.expr.header.depth = self.expr.compute_depth();
@@ -4223,35 +4138,16 @@ impl Expression {
         }
     }
     #[setter]
-    fn set_args(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
+    fn set_args(&mut self, value: Option<Vec<AilExpression>>) -> PyResult<()> {
         match &mut self.expr.inner {
             ExprInner::Call { args, .. } => {
-                let new_vec = match value {
-                    Some(v) if !v.is_none() => {
-                        let mut out = Vec::new();
-                        for item in v.try_iter()? {
-                            out.push(item?.extract::<AilExpression>()?);
-                        }
-                        Some(out)
-                    }
-                    _ => None,
-                };
                 self.expr.header.cached_hash.clear();
-                *args = new_vec;
+                *args = value;
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
             ExprInner::FunctionLikeMacro { args, .. } => {
-                let new_vec = match value {
-                    Some(v) if !v.is_none() => {
-                        let mut out = Vec::new();
-                        for item in v.try_iter()? {
-                            out.push(Arc::new(item?.extract::<AilExpression>()?));
-                        }
-                        Some(out)
-                    }
-                    _ => None,
-                };
+                let new_vec = value.map(|v| v.into_iter().map(Arc::new).collect());
                 self.expr.header.cached_hash.clear();
                 *args = new_vec;
                 self.expr.header.depth = self.expr.compute_depth();
@@ -4329,17 +4225,8 @@ impl Expression {
         }
     }
     #[setter]
-    fn set_arg_vvars(&mut self, value: Option<Bound<'_, PyAny>>) -> PyResult<()> {
-        let new_vec = match value {
-            Some(v) if !v.is_none() => {
-                let mut out = Vec::new();
-                for item in v.try_iter()? {
-                    out.push(item?.extract::<AilExpression>()?);
-                }
-                Some(out)
-            }
-            _ => None,
-        };
+    fn set_arg_vvars(&mut self, value: Option<Vec<AilExpression>>) -> PyResult<()> {
+        let new_vec = value;
         match &mut self.expr.inner {
             ExprInner::Call { arg_vvars, .. } => {
                 *arg_vvars = new_vec;
