@@ -6,10 +6,12 @@ import time
 import unittest
 
 import claripy
+from archinfo import ArchAMD64
 from claripy.annotation import UninitializedAnnotation
 
 from angr import SIM_PROCEDURES, SimState
 from angr import options as o
+from angr.errors import SimMemoryError
 from angr.state_plugins import SimLightRegisters, SimSystemPosix
 from angr.storage.file import SimFile
 from angr.storage.memory_mixins import (
@@ -751,6 +753,20 @@ class TestMemory(unittest.TestCase):
 
             state.memory.store(0xFFFFFFFF, symbol)
             assert state.memory.load(0, 1) is symbol[64 - 8 - 1 : 64 - 16]
+
+    def test_allocate_stack_pages_stops_at_address_zero(self):
+        state = SimState(arch=ArchAMD64(), stack_end=0x1000)
+
+        # only one page exists below the top of this stack, so two of them do not fit under it
+        with self.assertRaises(SimMemoryError):
+            state.memory.allocate_stack_pages(0xFFF, 0x2000)
+        # in particular the second one is not handed out at the top of the address space
+        with self.assertRaises(SimMemoryError):
+            state.memory.permissions(0xFFFFFFFFFFFFF000)
+
+        # the one page that does fit is still handed out
+        assert len(state.memory.allocate_stack_pages(0xFFF, 0x1000)) == 1
+        assert state.memory.permissions(0) is not None
 
     def test_underconstrained(self):
         state = SimState(arch="AMD64", add_options={o.UNDER_CONSTRAINED_SYMEXEC})
