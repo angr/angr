@@ -1063,6 +1063,22 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_function_starting_inside_an_instruction_is_the_one_dropped(self):
+        # 0x4249f4 is where the prologue scan landed inside the `mov dword ptr [esp + 0x50], edx` at 0x4249f1,
+        # so drop_bad_functions() collects it. The deletion then ran on the wrong address and took 0x424cc0,
+        # an ordinary `push edi; call ...` entry, with it.
+        path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "50e5f670700243535f8ff558831dbbc314b215092f523355aa7a1c26205ece37",
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert 0x4249F4 not in cfg.kb.functions
+        assert 0x424CC0 in cfg.kb.functions
+
 
 if __name__ == "__main__":
     unittest.main()
