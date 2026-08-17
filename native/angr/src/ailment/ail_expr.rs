@@ -3092,43 +3092,25 @@ impl Expression {
     fn _new_struct(
         idx: i64,
         name: String,
-        fields: Bound<'_, PyDict>,
-        field_offsets: Bound<'_, PyDict>,
+        fields: IndexMap<i64, AilExpression>,
+        field_offsets: IndexMap<String, i64>,
         bits: u32,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
-        let mut decoded_fields: IndexMap<i64, Arc<AilExpression>> =
-            IndexMap::with_capacity(fields.len());
-        let mut depth: u32 = 0;
-        for (k, v) in fields.iter() {
-            let off: i64 = k
-                .extract()
-                .map_err(|_| PyTypeError::new_err("Struct fields keys must be int offsets"))?;
-            let ail = v.extract::<AilExpression>()?;
-            depth = depth.max(ail.header.depth);
-            decoded_fields.insert(off, Arc::new(ail));
-        }
-        depth += 1;
-        let mut decoded_offsets: IndexMap<String, i64> =
-            IndexMap::with_capacity(field_offsets.len());
-        let mut decoded_names: IndexMap<i64, String> = IndexMap::with_capacity(field_offsets.len());
-        for (k, v) in field_offsets.iter() {
-            let name: String = k
-                .extract()
-                .map_err(|_| PyTypeError::new_err("Struct field_offsets keys must be str names"))?;
-            let off: i64 = v.extract().map_err(|_| {
-                PyTypeError::new_err("Struct field_offsets values must be int offsets")
-            })?;
-            decoded_offsets.insert(name.clone(), off);
-            decoded_names.insert(off, name);
-        }
+        let depth = fields.values().map(|f| f.header.depth).max().unwrap_or(0) + 1;
+        let decoded_fields: IndexMap<i64, Arc<AilExpression>> =
+            fields.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
+        let decoded_names: IndexMap<i64, String> = field_offsets
+            .iter()
+            .map(|(name, off)| (*off, name.clone()))
+            .collect();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Struct {
                 name,
                 fields: decoded_fields,
-                field_offsets: decoded_offsets,
+                field_offsets,
                 field_names: decoded_names,
             },
         }))
@@ -3935,17 +3917,11 @@ impl Expression {
     fn set_fields(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
         match &mut self.expr.inner {
             ExprInner::Struct { fields, .. } => {
-                let dict = value
-                    .cast_into::<PyDict>()
-                    .map_err(|_| PyTypeError::new_err("fields must be a dict"))?;
-                let mut decoded: IndexMap<i64, Arc<AilExpression>> =
-                    IndexMap::with_capacity(dict.len());
-                for (k, v) in dict.iter() {
-                    let off: i64 = k.extract().map_err(|_| {
-                        PyTypeError::new_err("Struct fields keys must be int offsets")
-                    })?;
-                    decoded.insert(off, Arc::new(v.extract::<AilExpression>()?));
-                }
+                let decoded: IndexMap<i64, Arc<AilExpression>> = value
+                    .extract::<IndexMap<i64, AilExpression>>()?
+                    .into_iter()
+                    .map(|(k, v)| (k, Arc::new(v)))
+                    .collect();
                 self.expr.header.cached_hash.clear();
                 *fields = decoded;
                 self.expr.header.depth = self.expr.compute_depth();
@@ -3970,13 +3946,7 @@ impl Expression {
     #[getter]
     fn field_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         match &self.expr.inner {
-            ExprInner::Struct { field_offsets, .. } => {
-                let d = PyDict::new(py);
-                for (name, off) in field_offsets {
-                    d.set_item(name, *off)?;
-                }
-                Ok(d)
-            }
+            ExprInner::Struct { field_offsets, .. } => field_offsets.into_pyobject(py),
             _ => Err(PyAttributeError::new_err(
                 "no 'field_offsets' on this Expression",
             )),
@@ -3987,13 +3957,7 @@ impl Expression {
     #[getter]
     fn field_names<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         match &self.expr.inner {
-            ExprInner::Struct { field_names, .. } => {
-                let d = PyDict::new(py);
-                for (off, name) in field_names {
-                    d.set_item(*off, name)?;
-                }
-                Ok(d)
-            }
+            ExprInner::Struct { field_names, .. } => field_names.into_pyobject(py),
             _ => Err(PyAttributeError::new_err(
                 "no 'field_names' on this Expression",
             )),
