@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import logging
+import tempfile
 
 from archinfo.arch_arm import is_arm_arch
 
@@ -9,6 +11,7 @@ from angr.errors import AngrRuntimeError, AngrValueError
 from angr.knowledge_plugins.cfg import MemoryDataSort
 
 from .flirt import MAX_UNIQUE_STRING_LEN
+from .sigserv_client import SigservClient
 
 _l = logging.getLogger(name=__name__)
 
@@ -21,6 +24,11 @@ class SuggestSignatureAnalysis(Analysis):
     binary (as found in the most accurate CFG model) to suggest FLIRT signatures that likely match statically linked
     libraries in the binary. Suggestions whose number of matched constants meets ``min_matches`` are accepted, and,
     when ``apply`` is set, each accepted signature is matched against the binary via FlirtAnalysis.
+
+    The signatures may live in a local directory (``signatures_dir``) or a local database (``db_url``), both of which
+    are served in-process and require the sigserv package to be installed, or on a remote sigserv server
+    (``server_url``), which requires nothing beyond angr itself. Accepted signatures of a remote server are downloaded
+    before they are applied.
 
     Multiple signatures may exist for one library (e.g., libc builds for different distro releases). Suggestions are
     grouped by the concrete library name (the ``library`` field of the signature metadata, falling back to the
@@ -36,6 +44,7 @@ class SuggestSignatureAnalysis(Analysis):
         self,
         signatures_dir: str | None = None,
         db_url: str | None = None,
+        server_url: str | None = None,
         sig_server=None,
         apply: bool = True,
         min_matches: int = 2,
@@ -44,17 +53,20 @@ class SuggestSignatureAnalysis(Analysis):
         platform: str | None = None,
         max_mismatched_bytes: int = 0,
     ):
-        try:
-            import sigserv  # pylint:disable=import-outside-toplevel
-        except ImportError as ex:
-            raise AngrRuntimeError(
-                "sigserv is not installed; install it with pip install sigserv to use SuggestSignature"
-            ) from ex
+        if sum(1 for src in (signatures_dir, db_url, server_url, sig_server) if src is not None) != 1:
+            raise AngrValueError("Exactly one of signatures_dir, db_url, server_url, or sig_server must be provided")
 
-        if sum(1 for src in (signatures_dir, db_url, sig_server) if src is not None) != 1:
-            raise AngrValueError("Exactly one of signatures_dir, db_url, or sig_server must be provided")
-
-        if sig_server is None:
+        if server_url is not None:
+            sig_server = SigservClient(server_url)
+        elif sig_server is None:
+            try:
+                import sigserv  # pylint:disable=import-outside-toplevel
+            except ImportError as ex:
+                raise AngrRuntimeError(
+                    "sigserv is not installed; install it with pip install sigserv to serve a signature directory or "
+                    "a signature database in-process. Alternatively, pass server_url to query a remote sigserv "
+                    "server, which needs no local installation."
+                ) from ex
             sig_server = (
                 sigserv.SigServer(signatures_dir=signatures_dir)
                 if signatures_dir is not None
@@ -98,11 +110,25 @@ class SuggestSignatureAnalysis(Analysis):
 
         self.applied: dict[str, int] = {}
         if apply:
-            for s in self.accepted:
-                sig_path = s["sig_path"]
-                _l.info("Applying suggested FLIRT signature %s (library %s).", sig_path, s["library"])
-                flirt = self.project.analyses.Flirt(sig_path, max_mismatched_bytes=max_mismatched_bytes)
-                self.applied[sig_path] = sum(len(d) for _, d in flirt.matched_suggestions.values())
+            # a remote server only tells us where a signature lives on its own filesystem, so its signatures must be
+            # downloaded before FlirtAnalysis can read them
+            remote = isinstance(self._sig_server, SigservClient)
+            with tempfile.TemporaryDirectory() if remote else contextlib.nullcontext() as download_dir:
+                for s in self.accepted:
+                    sig_path = s["sig_path"]
+                    _l.info("Applying suggested FLIRT signature %s (library %s).", sig_path, s["library"])
+                    local_path = (
+                        self._sig_server.fetch_signature(
+                            s["library_name"],
+                            download_dir,
+                            arch=s["meta"].get("arch"),
+                            platform=s["meta"].get("platform"),
+                        )
+                        if remote
+                        else sig_path
+                    )
+                    flirt = self.project.analyses.Flirt(local_path, max_mismatched_bytes=max_mismatched_bytes)
+                    self.applied[sig_path] = sum(len(d) for _, d in flirt.matched_suggestions.values())
 
     def _collect_strings(self, cfg_model) -> list[str]:
         strings: set[str] = set()
