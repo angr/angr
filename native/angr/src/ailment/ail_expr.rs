@@ -4614,14 +4614,13 @@ impl Expression {
             ExprInner::FunctionLikeMacro { name, args, .. } => {
                 let args_s = match args {
                     Some(v) => {
-                        let parts: Vec<String> = v
+                        let parts = v
                             .iter()
                             .map(|a| {
                                 Py::new(py, Expression::wrap((**a).clone()))
                                     .and_then(|p| Ok(p.bind(py).repr()?.to_string()))
-                                    .unwrap_or_default()
                             })
-                            .collect();
+                            .collect::<PyResult<Vec<String>>>()?;
                         format!("[{}]", parts.join(", "))
                     }
                     None => "None".into(),
@@ -4644,10 +4643,10 @@ impl Expression {
                 Ok(format!("reg{}<{}>", reg_offset, self.expr.header.bits))
             }
             ExprInner::ComboRegister { registers, .. } => {
-                let parts: Vec<String> = registers
+                let parts = registers
                     .iter()
-                    .map(|r| Expression::wrap(r.clone()).__str__(py).unwrap_or_default())
-                    .collect();
+                    .map(|r| Expression::wrap(r.clone()).__str__(py))
+                    .collect::<PyResult<Vec<String>>>()?;
                 Ok(format!("ComboRegister({})", parts.join(", ")))
             }
             ExprInner::Phi { src_and_vvars, .. } => {
@@ -4756,10 +4755,10 @@ impl Expression {
                 let args_str = match args {
                     None => String::new(),
                     Some(v) => {
-                        let parts: Vec<String> = v
+                        let parts = v
                             .iter()
-                            .map(|x| Expression::wrap(x.clone()).__str__(py).unwrap_or_default())
-                            .collect();
+                            .map(|x| Expression::wrap(x.clone()).__str__(py))
+                            .collect::<PyResult<Vec<String>>>()?;
                         format!("({})", parts.join(", "))
                     }
                 };
@@ -4807,17 +4806,17 @@ impl Expression {
             ExprInner::DirtyExpression {
                 callee, operands, ..
             } => {
-                let parts: Vec<String> = operands
+                let parts = operands
                     .iter()
-                    .map(|o| Expression::wrap(o.clone()).__str__(py).unwrap_or_default())
-                    .collect();
+                    .map(|o| Expression::wrap(o.clone()).__str__(py))
+                    .collect::<PyResult<Vec<String>>>()?;
                 Ok(format!("[D] {}({})", callee, parts.join(", ")))
             }
             ExprInner::VEXCCallExpression { callee, operands } => {
-                let parts: Vec<String> = operands
+                let parts = operands
                     .iter()
-                    .map(|o| Expression::wrap(o.clone()).__str__(py).unwrap_or_default())
-                    .collect();
+                    .map(|o| Expression::wrap(o.clone()).__str__(py))
+                    .collect::<PyResult<Vec<String>>>()?;
                 Ok(format!("{}({})", callee, parts.join(", ")))
             }
             ExprInner::MultiStatementExpression { stmts, expr } => {
