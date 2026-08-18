@@ -17,21 +17,18 @@ use pyo3::types::PySet;
     name = "State",
     module = "angr.rustylib.automaton",
     frozen,
-    from_py_object
+    from_py_object,
+    new = "from_fields"
 )]
 #[derive(Clone)]
 pub struct PyState {
     /// The underlying Python value
+    #[pyo3(get)]
     value: Py<PyAny>,
 }
 
 #[pymethods]
 impl PyState {
-    #[new]
-    fn new(value: Py<PyAny>) -> Self {
-        Self { value }
-    }
-
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let repr = self.value.bind(py).repr()?;
         Ok(format!("State({repr})"))
@@ -48,11 +45,6 @@ impl PyState {
     fn __hash__(&self, py: Python<'_>) -> PyResult<isize> {
         self.value.bind(py).hash()
     }
-
-    #[getter]
-    fn value(&self) -> &Py<PyAny> {
-        &self.value
-    }
 }
 
 /// A Symbol wrapper that holds any Python object.
@@ -60,21 +52,18 @@ impl PyState {
     name = "Symbol",
     module = "angr.rustylib.automaton",
     frozen,
-    from_py_object
+    from_py_object,
+    new = "from_fields"
 )]
 #[derive(Clone)]
 pub struct PySymbol {
     /// The underlying Python value
+    #[pyo3(get)]
     value: Py<PyAny>,
 }
 
 #[pymethods]
 impl PySymbol {
-    #[new]
-    fn new(value: Py<PyAny>) -> Self {
-        Self { value }
-    }
-
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let repr = self.value.bind(py).repr()?;
         Ok(format!("Symbol({repr})"))
@@ -90,11 +79,6 @@ impl PySymbol {
 
     fn __hash__(&self, py: Python<'_>) -> PyResult<isize> {
         self.value.bind(py).hash()
-    }
-
-    #[getter]
-    fn value(&self) -> &Py<PyAny> {
-        &self.value
     }
 }
 
