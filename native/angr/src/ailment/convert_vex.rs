@@ -1480,11 +1480,6 @@ fn op_label(op: u32) -> String {
     vexop::op_name(op).unwrap_or("Iop_INVALID").to_string()
 }
 
-/// Higher-ranked `Bound -> Py` helper (avoids closures pinning a lifetime).
-fn unbind_any(o: Bound<'_, PyAny>) -> Py<PyAny> {
-    o.unbind()
-}
-
 // ---------------------------------------------------------------------------
 // Const-value helpers for the Add->Sub rewrite and the rounding-mode
 // extraction. These mirror the Python-side `Const.sign_bit` semantics.
@@ -2280,27 +2275,27 @@ impl<'py> IrReader for PyReader<'py> {
                 let data_bits = self.result_size(&data);
                 StmtKind::WrTmp {
                     tmp: stmt.getattr("tmp")?.extract()?,
-                    data: unbind_any(data),
+                    data: data.unbind(),
                     data_bits,
                 }
             }
             "Put" => StmtKind::Put {
                 offset: stmt.getattr("offset")?.extract()?,
-                data: unbind_any(stmt.getattr("data")?),
+                data: stmt.getattr("data")?.unbind(),
             },
             "Store" => {
                 let data = stmt.getattr("data")?;
                 let size_bytes = (self.result_size(&data) / 8) as i32;
                 StmtKind::Store {
-                    addr: unbind_any(stmt.getattr("addr")?),
-                    data: unbind_any(data),
+                    addr: stmt.getattr("addr")?.unbind(),
+                    data: data.unbind(),
                     size_bytes,
                     endness: stmt.getattr("endness")?.extract()?,
                 }
             }
             "Exit" => StmtKind::Exit {
-                guard: unbind_any(stmt.getattr("guard")?),
-                dst: unbind_any(stmt.getattr("dst")?),
+                guard: stmt.getattr("guard")?.unbind(),
+                dst: stmt.getattr("dst")?.unbind(),
                 jk: stmt.getattr("jumpkind")?.extract()?,
             },
             "LoadG" => {
@@ -2310,9 +2305,9 @@ impl<'py> IrReader for PyReader<'py> {
                     dst,
                     dst_bits,
                     cvt: stmt.getattr("cvt")?.extract()?,
-                    addr: unbind_any(stmt.getattr("addr")?),
-                    alt: unbind_any(stmt.getattr("alt")?),
-                    guard: unbind_any(stmt.getattr("guard")?),
+                    addr: stmt.getattr("addr")?.unbind(),
+                    alt: stmt.getattr("alt")?.unbind(),
+                    guard: stmt.getattr("guard")?.unbind(),
                     end: stmt.getattr("end")?.extract()?,
                 }
             }
@@ -2320,11 +2315,11 @@ impl<'py> IrReader for PyReader<'py> {
                 let data = stmt.getattr("data")?;
                 let size_bytes = (self.result_size(&data) / 8) as i32;
                 StmtKind::StoreG {
-                    addr: unbind_any(stmt.getattr("addr")?),
-                    data: unbind_any(data),
+                    addr: stmt.getattr("addr")?.unbind(),
+                    data: data.unbind(),
                     size_bytes,
                     endness: stmt.getattr("endness")?.extract()?,
-                    guard: unbind_any(stmt.getattr("guard")?),
+                    guard: stmt.getattr("guard")?.unbind(),
                 }
             }
             "CAS" => {
@@ -2344,10 +2339,10 @@ impl<'py> IrReader for PyReader<'py> {
                     (None, 0)
                 };
                 StmtKind::Cas {
-                    addr: unbind_any(stmt.getattr("addr")?),
-                    data_lo: unbind_any(stmt.getattr("dataLo")?),
+                    addr: stmt.getattr("addr")?.unbind(),
+                    data_lo: stmt.getattr("dataLo")?.unbind(),
                     data_hi,
-                    expd_lo: unbind_any(stmt.getattr("expdLo")?),
+                    expd_lo: stmt.getattr("expdLo")?.unbind(),
                     expd_hi,
                     old_lo,
                     old_lo_bits,
@@ -2412,14 +2407,14 @@ impl<'py> IrReader for PyReader<'py> {
             "Load" => ExprKind::Load {
                 end: expr.getattr("end")?.extract()?,
                 bits: self.result_size(expr),
-                addr: unbind_any(expr.getattr("addr")?),
+                addr: expr.getattr("addr")?.unbind(),
             },
             "Unop" => ExprKind::Unop {
                 op: OpRef::Named {
                     name: expr.getattr("op")?.extract::<String>()?,
                     result_bits: self.result_size(expr),
                 },
-                arg: unbind_any(expr.getattr("args")?.get_item(0)?),
+                arg: expr.getattr("args")?.get_item(0)?.unbind(),
             },
             "Binop" => {
                 let args = expr.getattr("args")?;
@@ -2428,8 +2423,8 @@ impl<'py> IrReader for PyReader<'py> {
                         name: expr.getattr("op")?.extract::<String>()?,
                         result_bits: self.result_size(expr),
                     },
-                    arg1: unbind_any(args.get_item(0)?),
-                    arg2: unbind_any(args.get_item(1)?),
+                    arg1: args.get_item(0)?.unbind(),
+                    arg2: args.get_item(1)?.unbind(),
                 }
             }
             "Triop" => {
@@ -2450,9 +2445,9 @@ impl<'py> IrReader for PyReader<'py> {
                 }
             }
             "ITE" => ExprKind::Ite {
-                cond: unbind_any(expr.getattr("cond")?),
-                iftrue: unbind_any(expr.getattr("iftrue")?),
-                iffalse: unbind_any(expr.getattr("iffalse")?),
+                cond: expr.getattr("cond")?.unbind(),
+                iftrue: expr.getattr("iftrue")?.unbind(),
+                iffalse: expr.getattr("iffalse")?.unbind(),
             },
             "CCall" => {
                 let args: Vec<Py<PyAny>> = expr.getattr("args")?.extract()?;

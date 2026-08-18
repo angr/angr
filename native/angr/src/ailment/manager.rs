@@ -7,7 +7,6 @@
 //! atom). The public Python API mirrors the original class exactly.
 
 use pyo3::prelude::*;
-use pyo3::types::PyType;
 
 #[pyclass(name = "Manager", module = "angr.rustylib.ailment", subclass, dict)]
 #[derive(Debug)]
@@ -33,15 +32,6 @@ pub struct Manager {
     pub block_addr: Option<i64>,
 }
 
-impl Manager {
-    /// Native atom allocation used by the in-Rust VEX converter.
-    pub fn next_atom_native(&mut self) -> i64 {
-        let v = self.atom_ctr;
-        self.atom_ctr += 1;
-        v
-    }
-}
-
 #[pymethods]
 impl Manager {
     #[new]
@@ -59,16 +49,13 @@ impl Manager {
         }
     }
 
-    fn next_atom(&mut self) -> i64 {
-        self.next_atom_native()
+    pub fn next_atom(&mut self) -> i64 {
+        let v = self.atom_ctr;
+        self.atom_ctr += 1;
+        v
     }
 
     fn reset(&mut self) {
         self.atom_ctr = 0;
     }
-}
-
-/// Helper so other modules can read the type object if needed.
-pub fn manager_type(py: Python<'_>) -> Bound<'_, PyType> {
-    py.get_type::<Manager>()
 }

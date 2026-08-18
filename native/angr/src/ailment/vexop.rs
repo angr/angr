@@ -452,7 +452,7 @@ fn explicit_attrs(name: &str) -> Option<Attrs> {
 pub(crate) fn vexop_to_simop(op_int: u32) -> Result<SimOpInfo, ()> {
     let name = op_name(op_int).ok_or(())?;
     let output_size_bits = vex_ffi::type_size_bits(vex_ffi::op_result_type(op_int));
-    classify(name, output_size_bits)
+    vexop_to_simop_by_name(name, output_size_bits)
 }
 
 /// Classify an op by *name*, with the output size supplied by the caller.
@@ -464,10 +464,6 @@ pub(crate) fn vexop_to_simop(op_int: u32) -> Result<SimOpInfo, ()> {
 /// read from the pyvex expression's `result_size` instead. Mirrors how angr's
 /// `irop.vexop_to_simop` classifies purely from the op name.
 pub(crate) fn vexop_to_simop_by_name(name: &str, output_size_bits: u32) -> Result<SimOpInfo, ()> {
-    classify(name, output_size_bits)
-}
-
-fn classify(name: &str, output_size_bits: u32) -> Result<SimOpInfo, ()> {
     // make_operations: attrs from explicit_attrs-or-op_attrs; if it builds, it
     // is cached in `operations` and returned directly.
     let primary = explicit_attrs(name).or_else(|| op_attrs(name));

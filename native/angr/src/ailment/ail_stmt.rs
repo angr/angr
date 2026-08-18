@@ -245,10 +245,6 @@ impl AilStatement {
         self.inner.kind()
     }
 
-    pub fn kind_str(&self) -> &'static str {
-        self.inner.kind().as_str()
-    }
-
     pub fn cached_hash_or_compute(&self) -> i64 {
         if let Some(h) = self.header.cached_hash.get() {
             return h;
@@ -858,13 +854,6 @@ impl Statement {
         let pykind = Python::attach(|py| stmt_pykind_for(py, stmt.kind()));
         Self { stmt, pykind }
     }
-
-    /// Public stringifier used by stmt-bearing expressions (e.g.
-    /// MultiStatementExpression's ``__str__``). Same logic as the
-    /// ``#[getter]``-exposed ``__str__``.
-    pub fn render(&self, py: Python<'_>) -> PyResult<String> {
-        self.__str__(py)
-    }
 }
 
 #[pymethods]
@@ -1107,7 +1096,7 @@ impl Statement {
     /// String name of the variant, for repr/debug.
     #[getter]
     fn kind_name(&self) -> &'static str {
-        self.stmt.kind_str()
+        self.stmt.kind().as_str()
     }
 
     /// Cached ``Py<int>`` form of the kind tag. Pre-materialized at
@@ -1705,16 +1694,16 @@ impl Statement {
         self.__str__(py)
     }
 
-    fn __str__(&self, py: Python<'_>) -> PyResult<String> {
+    pub fn __str__(&self, py: Python<'_>) -> PyResult<String> {
         match &self.stmt.inner {
             StmtInner::Assignment { dst, src } => {
-                let d = Expression::wrap((**dst).clone()).render(py)?;
-                let s = Expression::wrap((**src).clone()).render(py)?;
+                let d = Expression::wrap((**dst).clone()).__str__(py)?;
+                let s = Expression::wrap((**src).clone()).__str__(py)?;
                 Ok(format!("{} = {}", d, s))
             }
             StmtInner::WeakAssignment { dst, src } => {
-                let d = Expression::wrap((**dst).clone()).render(py)?;
-                let s = Expression::wrap((**src).clone()).render(py)?;
+                let d = Expression::wrap((**dst).clone()).__str__(py)?;
+                let s = Expression::wrap((**src).clone()).__str__(py)?;
                 Ok(format!("{} =w {}", d, s))
             }
             StmtInner::Label { name } => Ok(format!("Label {}:", name)),
@@ -1726,12 +1715,12 @@ impl Statement {
                 guard,
                 ..
             } => {
-                let a = Expression::wrap((**addr).clone()).render(py)?;
-                let d = Expression::wrap((**data).clone()).render(py)?;
+                let a = Expression::wrap((**addr).clone()).__str__(py)?;
+                let d = Expression::wrap((**data).clone()).__str__(py)?;
                 let g = match guard {
                     Some(gx) => format!(
                         " (guarded by {})",
-                        Expression::wrap((**gx).clone()).render(py)?
+                        Expression::wrap((**gx).clone()).__str__(py)?
                     ),
                     None => String::new(),
                 };
@@ -1742,7 +1731,7 @@ impl Statement {
             }
             StmtInner::Jump { target, .. } => {
                 let s = match target {
-                    CFGTarget::Expr(e) => Expression::wrap((**e).clone()).render(py)?,
+                    CFGTarget::Expr(e) => Expression::wrap((**e).clone()).__str__(py)?,
                     CFGTarget::Symbol(name) => name.clone(),
                 };
                 Ok(format!("Goto({})", s))
@@ -1753,10 +1742,10 @@ impl Statement {
                 false_target,
                 ..
             } => {
-                let c = Expression::wrap((**condition).clone()).render(py)?;
+                let c = Expression::wrap((**condition).clone()).__str__(py)?;
                 let render = |opt: &Option<CFGTarget>| -> PyResult<String> {
                     Ok(match opt {
-                        Some(CFGTarget::Expr(e)) => Expression::wrap((**e).clone()).render(py)?,
+                        Some(CFGTarget::Expr(e)) => Expression::wrap((**e).clone()).__str__(py)?,
                         Some(CFGTarget::Symbol(s)) => s.clone(),
                         None => "None".into(),
                     })
@@ -1766,12 +1755,12 @@ impl Statement {
                 Ok(format!("if ({}) {{ Goto {} }} else {{ Goto {} }}", c, t, f))
             }
             StmtInner::SideEffectStatement { expr, .. } => {
-                Ok(Expression::wrap((**expr).clone()).render(py)?)
+                Ok(Expression::wrap((**expr).clone()).__str__(py)?)
             }
             StmtInner::Return { ret_exprs } => {
                 let parts: Vec<String> = ret_exprs
                     .iter()
-                    .map(|e| Expression::wrap(e.clone()).render(py).unwrap_or_default())
+                    .map(|e| Expression::wrap(e.clone()).__str__(py).unwrap_or_default())
                     .collect();
                 Ok(format!("Return ({})", parts.join(", ")))
             }
@@ -1785,20 +1774,20 @@ impl Statement {
                 old_hi,
                 endness,
             } => {
-                let a = Expression::wrap((**addr).clone()).render(py)?;
-                let dl = Expression::wrap((**data_lo).clone()).render(py)?;
+                let a = Expression::wrap((**addr).clone()).__str__(py)?;
+                let dl = Expression::wrap((**data_lo).clone()).__str__(py)?;
                 let dh = match data_hi {
-                    Some(x) => Expression::wrap((**x).clone()).render(py)?,
+                    Some(x) => Expression::wrap((**x).clone()).__str__(py)?,
                     None => "None".into(),
                 };
-                let el = Expression::wrap((**expd_lo).clone()).render(py)?;
+                let el = Expression::wrap((**expd_lo).clone()).__str__(py)?;
                 let eh = match expd_hi {
-                    Some(x) => Expression::wrap((**x).clone()).render(py)?,
+                    Some(x) => Expression::wrap((**x).clone()).__str__(py)?,
                     None => "None".into(),
                 };
-                let ol = Expression::wrap((**old_lo).clone()).render(py)?;
+                let ol = Expression::wrap((**old_lo).clone()).__str__(py)?;
                 let oh = match old_hi {
-                    Some(x) => Expression::wrap((**x).clone()).render(py)?,
+                    Some(x) => Expression::wrap((**x).clone()).__str__(py)?,
                     None => "None".into(),
                 };
                 Ok(format!(
@@ -1807,7 +1796,7 @@ impl Statement {
                 ))
             }
             StmtInner::DirtyStatement { dirty } => {
-                Ok(Expression::wrap((**dirty).clone()).render(py)?)
+                Ok(Expression::wrap((**dirty).clone()).__str__(py)?)
             }
             StmtInner::NoOp => Ok("NoOp".to_string()),
         }

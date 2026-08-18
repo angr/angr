@@ -1015,10 +1015,6 @@ impl AilExpression {
         self.inner.kind()
     }
 
-    pub fn kind_str(&self) -> &'static str {
-        self.inner.kind().as_str()
-    }
-
     /// Depth of this node recomputed from its *current* children, using
     /// the same per-variant formulas as the ``_new_*`` factories (which
     /// in turn mirror the legacy Python constructors -- including their
@@ -2562,12 +2558,6 @@ impl Expression {
         let pykind = Python::attach(|py| expr_pykind_for(py, expr.kind()));
         Self { expr, pykind }
     }
-
-    /// Public stringifier used by ``Statement``'s ``__str__``
-    /// dispatch. Same logic as the ``#[getter]``-exposed ``__str__``.
-    pub fn render(&self, py: Python<'_>) -> PyResult<String> {
-        self.__str__(py)
-    }
 }
 
 #[pymethods]
@@ -3258,7 +3248,7 @@ impl Expression {
     /// String name of the variant, for repr/debug.
     #[getter]
     fn kind_name(&self) -> &'static str {
-        self.expr.kind_str()
+        self.expr.kind().as_str()
     }
 
     /// Cached ``Py<int>`` form of the kind tag. Pre-materialized at
@@ -4643,7 +4633,7 @@ impl Expression {
         }
     }
 
-    fn __str__(&self, py: Python<'_>) -> PyResult<String> {
+    pub fn __str__(&self, py: Python<'_>) -> PyResult<String> {
         match &self.expr.inner {
             ExprInner::Const { value, .. } => {
                 let v = value.clone().into_pyobject(py)?;
@@ -4833,7 +4823,7 @@ impl Expression {
             ExprInner::MultiStatementExpression { stmts, expr } => {
                 let mut parts: Vec<String> = Vec::new();
                 for s in stmts {
-                    parts.push(Statement::wrap(s.clone()).render(py)?);
+                    parts.push(Statement::wrap(s.clone()).__str__(py)?);
                 }
                 parts.push(Expression::wrap((**expr).clone()).__str__(py)?);
                 Ok(format!("({})", parts.join(", ")))
