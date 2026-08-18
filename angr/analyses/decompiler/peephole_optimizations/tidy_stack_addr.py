@@ -136,7 +136,8 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
 
         return new_expr
 
-    def _optimize_and(self, expr: BinaryOp) -> Expression | None:
+    @staticmethod
+    def _optimize_and(expr: BinaryOp) -> Expression | None:
         op0, op1 = expr.operands
         if isinstance(op0, StackBaseOffset) and isinstance(op1, Const) and is_alignment_mask(op1.value):
             # e.g., sp-0x10 & 0xfffffff8
