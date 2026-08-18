@@ -432,9 +432,8 @@ impl Icicle {
     }
 
     #[setter]
-    pub fn set_pc(&mut self, pc: u64) -> PyResult<()> {
+    pub fn set_pc(&mut self, pc: u64) {
         self.vm.cpu.write_pc(pc);
-        Ok(())
     }
 
     #[getter]
@@ -446,7 +445,7 @@ impl Icicle {
     pub fn set_isa_mode(&mut self, mode: u8) {
         // https://github.com/icicle-emu/icicle-emu/issues/70#issuecomment-2857265222
         self.vm.cpu.set_isa_mode(mode);
-        self.set_pc(self.get_pc()).unwrap();
+        self.set_pc(self.get_pc());
     }
 
     // Execution
