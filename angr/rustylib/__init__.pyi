@@ -16,6 +16,7 @@ class Segment:
         :arg start: Start address.
         :arg end: End address.
         :arg sort: Type of the segment, can be code, data, etc.
+        :raises ValueError: If ``end`` precedes ``start``.
         """
 
     def copy(self) -> Segment:

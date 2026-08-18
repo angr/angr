@@ -2,7 +2,11 @@ use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::ops::Range;
 
-use pyo3::{exceptions::PyStopIteration, prelude::*, types::PyTuple};
+use pyo3::{
+    exceptions::{PyStopIteration, PyValueError},
+    prelude::*,
+    types::PyTuple,
+};
 use rangemap::RangeMap;
 
 #[pyclass(module = "angr.rustylib.segmentlist", from_py_object)]
@@ -19,8 +23,14 @@ pub struct Segment {
 #[pymethods]
 impl Segment {
     #[new]
-    pub fn new(start: u64, end: u64, sort: Option<String>) -> Self {
-        Segment { start, end, sort }
+    #[pyo3(signature = (start, end, sort=None))]
+    pub fn new(start: u64, end: u64, sort: Option<String>) -> PyResult<Self> {
+        if end < start {
+            return Err(PyValueError::new_err(format!(
+                "Segment end {end:#x} precedes start {start:#x}"
+            )));
+        }
+        Ok(Segment { start, end, sort })
     }
 
     pub fn __getnewargs__(&self) -> (u64, u64, Option<String>) {
@@ -138,7 +148,11 @@ impl SegmentList {
         self.map
             .iter()
             .nth(idx)
-            .map(|(r, sort)| Segment::new(r.start, r.end, sort.clone()))
+            .map(|(r, sort)| Segment {
+                start: r.start,
+                end: r.end,
+                sort: sort.clone(),
+            })
             .ok_or_else(|| {
                 PyErr::new::<pyo3::exceptions::PyIndexError, _>(format!("Index {idx} out of range"))
             })
@@ -318,7 +332,11 @@ impl SegmentListIter {
             segments: segmentlist
                 .map
                 .iter()
-                .map(|(range, sort)| Segment::new(range.start, range.end, sort.clone()))
+                .map(|(range, sort)| Segment {
+                    start: range.start,
+                    end: range.end,
+                    sort: sort.clone(),
+                })
                 .collect::<Vec<_>>()
                 .into_iter(),
         }
