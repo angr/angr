@@ -116,26 +116,20 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 elif self.state.globals['constant_prop_level'] == 0:
                     if self.state.solver.symbolic(result):
                         skip = False
-                        only_precon_sp_vars = len(result.variables) > 0
                         for var in result.variables:
                             if var.startswith('precon_sp'):
                                 skip = True
-                            else:
-                                only_precon_sp_vars = False
 
                         if skip:
                             # do additional simplification and verify that it's not the stack pointer
                             if self.state.globals['is_constant_propagation']:
-                                if only_precon_sp_vars and result.depth > 100:
-                                    simp_result = result
+                                #     # we use simplifier for vm protect because there are, mba replacements in the replacement solver, so we cannot use
+                                #     # a solver without those.
+                                tmp_simp_result = self.state.solver.simplify(result)
+                                if not self.state.solver.symbolic(tmp_simp_result):
+                                    simp_result = tmp_simp_result
                                 else:
-                                    # we use simplifier for vm protect because there are, mba replacements in the replacement solver, so we cannot use
-                                    # a solver without those.
-                                    tmp_simp_result = self.state.solver.simplify(result)
-                                    if not self.state.solver.symbolic(tmp_simp_result):
-                                        simp_result = tmp_simp_result
-                                    else:
-                                        simp_result = result
+                                    simp_result = result
 
                             # additional check to see if the eval value is actually a stack pointer or not
                             # only for 1 bit results specifically in a condition check
