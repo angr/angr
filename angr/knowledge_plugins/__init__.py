@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .callsite_prototypes import CallsitePrototypes
 from .cfg import CFGManager
-from .comments import Comments
+from .comments import Comment, CommentKind, Comments
 from .custom_strings import CustomStrings
 from .data import Data
 from .debug_variables import DebugVariableManager
@@ -23,6 +23,8 @@ from .xrefs import XRefManager
 __all__ = (
     "CFGManager",
     "CallsitePrototypes",
+    "Comment",
+    "CommentKind",
     "Comments",
     "CustomStrings",
     "Data",
