@@ -80,7 +80,6 @@ dependencies = [
  "rustc-hash",
  "send_wrapper",
  "serde",
- "serde_bytes",
  "target-lexicon",
  "tempfile",
 ]
@@ -891,15 +890,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "inventory"
-version = "0.3.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
-dependencies = [
- "rustversion",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1418,7 +1408,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4688ddedf473e32662b9b067670129a8afb8c18e351482c70d62ba4a88171e8b"
 dependencies = [
  "indexmap",
- "inventory",
  "libc",
  "num-bigint",
  "num-traits",
@@ -1679,16 +1668,6 @@ dependencies = [
  "rustversion",
  "serde",
  "static_assertions",
-]
-
-[[package]]
-name = "serde_bytes"
-version = "0.11.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8"
-dependencies = [
- "serde",
- "serde_core",
 ]
 
 [[package]]
