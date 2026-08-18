@@ -84,12 +84,14 @@ class SuggestSignatureAnalysis(Analysis):
         for s in accepted:
             by_library.setdefault(s["library"], []).append(s)
         for lib, group in by_library.items():
-            group.sort(key=lambda s: s["score"], reverse=True)
+            # break score ties by name so the selection is reproducible: sigserv returns
+            # equally scored signatures in an arbitrary order
+            group.sort(key=lambda s: (-s["score"], s["library_name"]))
             by_library[lib] = group[:max_signatures_per_library]
         self.accepted_by_library: dict[str, list[dict]] = by_library
 
         accepted = [s for group in by_library.values() for s in group]
-        accepted.sort(key=lambda s: s["score"], reverse=True)
+        accepted.sort(key=lambda s: (-s["score"], s["library_name"]))
         if max_signatures is not None:
             accepted = accepted[:max_signatures]
         self.accepted: list[dict] = accepted
