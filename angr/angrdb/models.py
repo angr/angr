@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BLOB, TEXT, Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import BLOB, TEXT, Boolean, Column, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -48,6 +48,7 @@ class DbKnowledgeBase(Base):
     callgraphs = relationship("DbCallGraph", back_populates="kb")
     xrefs = relationship("DbXRefs", uselist=False, back_populates="kb")
     comments = relationship("DbComment", back_populates="kb")
+    bookmarks = relationship("DbBookmark", back_populates="kb")
     labels = relationship("DbLabel", back_populates="kb")
     var_collections = relationship("DbVariableCollection", back_populates="kb")
     dec_var_collections = relationship("DbDecVariableCollection", back_populates="kb")
@@ -226,7 +227,27 @@ class DbComment(Base):
     kb = relationship("DbKnowledgeBase", uselist=False, back_populates="comments")
     addr = Column(Integer, index=True)
     comment = Column(String)
-    type = Column(Integer)  # not really used for now, but we'd better get it prepared
+    # 0 = no explicit kind (defaults apply); otherwise CommentKind + 1
+    type = Column(Integer)
+
+
+class DbBookmark(Base):
+    """
+    Models a bookmark.
+    """
+
+    __tablename__ = "bookmarks"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="bookmarks")
+    addr = Column(Integer, index=True)
+    label = Column(String)
+    created_at = Column(Float)
 
 
 class DbLabel(Base):
