@@ -16,6 +16,7 @@ pub struct PyExecutorInner<S> {
     observers: OT,
     timeout: Option<Duration>,
     cached_engine: Option<Py<PyAny>>,
+    emulator_cls: Py<PyAny>,
     phantom: std::marker::PhantomData<S>,
 }
 
@@ -31,12 +32,18 @@ impl<S> PyExecutorInner<S> {
                 "Expected a callable function",
             ));
         }
+        let emulator_cls = base_state
+            .py()
+            .import("angr.emulator")?
+            .getattr("Emulator")?
+            .unbind();
         Ok(PyExecutorInner {
             base_state: base_state.unbind(),
             apply_fn: apply_fn.unbind(),
             observers,
             timeout,
             cached_engine: None,
+            emulator_cls,
             phantom: std::marker::PhantomData,
         })
     }
@@ -75,9 +82,9 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     engine
                 };
 
-                let emulator = py
-                    .import("angr.emulator")?
-                    .getattr("Emulator")?
+                let emulator = self
+                    .emulator_cls
+                    .bind(py)
                     .call1((&icicle_engine, &copied_state))?;
 
                 // Step 2.5: Set breakpoints to detect normal returns.
