@@ -138,7 +138,7 @@ impl Block {
             // entries (e.g. IncompleteSwitchCaseHeadStatement) fall back to
             // their Python ``deep_copy`` method.
             if let Ok(st) = stmt.cast::<Statement>() {
-                let copied = st.borrow().stmt.deep_copy_ail_stmt(py, manager)?;
+                let copied = st.borrow().stmt.deep_copy_ail_stmt(manager)?;
                 new_list.append(copied)?;
             } else if stmt.is_none() {
                 new_list.append(&stmt)?;

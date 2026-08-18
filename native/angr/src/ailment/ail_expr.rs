@@ -1676,11 +1676,7 @@ impl AilExpression {
     /// ``manager.next_atom()`` at every node. Used by clinic to
     /// re-number atoms when cloning blocks. Polymorphic Python-typed
     /// fields are cloned via Python ``copy.deepcopy``.
-    pub fn deep_copy_ail(
-        &self,
-        py: Python<'_>,
-        manager: &Bound<'_, PyAny>,
-    ) -> PyResult<AilExpression> {
+    pub fn deep_copy_ail(&self, manager: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
         let new_idx: i64 = manager.call_method0("next_atom")?.extract()?;
         // Mirror master's TaggedObject._transfer_varmap: when the
         // manager carries a VariableMap, copy any side-container entries
@@ -1698,21 +1694,21 @@ impl AilExpression {
             self.header.tags.clone(),
         );
         let recurse = |child: &AilExpression| -> PyResult<Arc<AilExpression>> {
-            Ok(Arc::new(child.deep_copy_ail(py, manager)?))
+            Ok(Arc::new(child.deep_copy_ail(manager)?))
         };
         let recurse_vec = |v: &Vec<AilExpression>| -> PyResult<Vec<AilExpression>> {
-            v.iter().map(|x| x.deep_copy_ail(py, manager)).collect()
+            v.iter().map(|x| x.deep_copy_ail(manager)).collect()
         };
         let recurse_opt = |o: &Option<Arc<AilExpression>>| -> PyResult<Option<Arc<AilExpression>>> {
             match o {
                 None => Ok(None),
-                Some(c) => Ok(Some(Arc::new(c.deep_copy_ail(py, manager)?))),
+                Some(c) => Ok(Some(Arc::new(c.deep_copy_ail(manager)?))),
             }
         };
         // Deep copy a CFGTarget: recursively deep-copy the inner expr.
         let dc_target = |t: &CFGTarget| -> PyResult<CFGTarget> {
             match t {
-                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Arc::new(e.deep_copy_ail(py, manager)?))),
+                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Arc::new(e.deep_copy_ail(manager)?))),
                 CFGTarget::Symbol(s) => Ok(CFGTarget::Symbol(s.clone())),
             }
         };
@@ -1881,7 +1877,7 @@ impl AilExpression {
                 ExprInner::MultiStatementExpression {
                     stmts: stmts
                         .iter()
-                        .map(|s| s.deep_copy_ail_stmt(py, manager))
+                        .map(|s| s.deep_copy_ail_stmt(manager))
                         .collect::<PyResult<Vec<_>>>()?,
                     expr: recurse(expr)?,
                 }
@@ -1916,7 +1912,7 @@ impl AilExpression {
             ExprInner::Let { defs, src } => ExprInner::Let {
                 defs: defs
                     .iter()
-                    .map(|s| Ok::<_, PyErr>(Box::new(s.deep_copy_ail_stmt(py, manager)?)))
+                    .map(|s| Ok::<_, PyErr>(Box::new(s.deep_copy_ail_stmt(manager)?)))
                     .collect::<PyResult<Vec<_>>>()?,
                 src: recurse(src)?,
             },
@@ -4575,9 +4571,9 @@ impl Expression {
     /// ``deep_copy(manager)`` -- recursive clone with fresh ``idx``
     /// from ``manager.next_atom()`` at every node. Used by clinic to
     /// re-number atoms when cloning blocks.
-    fn deep_copy(&self, py: Python<'_>, manager: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
+    fn deep_copy(&self, manager: &Bound<'_, PyAny>) -> PyResult<AilExpression> {
         // Untyped: copy.deepcopy passes _DeepcopyManager, not a Manager.
-        self.expr.deep_copy_ail(py, manager)
+        self.expr.deep_copy_ail(manager)
     }
 
     /// Python ``copy.copy`` protocol -- delegates to ``copy()``.
