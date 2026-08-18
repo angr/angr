@@ -86,6 +86,8 @@ class Fuzzer:
     def run_once(self, progress_callback: Callable[[ClientStats, str, int], None] | None = None) -> int:
         """
         Run the fuzzer for one iteration.
+
+        :raises RuntimeError: If ``progress_callback`` raises.
         """
 
     def run(
@@ -93,4 +95,6 @@ class Fuzzer:
     ) -> None:
         """
         Run the fuzzer in a loop or for a set number of iterations.
+
+        :raises RuntimeError: If ``progress_callback`` raises.
         """

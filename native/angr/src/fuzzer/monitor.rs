@@ -109,8 +109,10 @@ impl Monitor for CallbackMonitor {
             };
             if let Some(self_callback) = &self.callback {
                 self_callback
-                    .call1(py, (stats, event_msg.to_string(), sender_id.0))
-                    .unwrap(); // FIXME: Remove unwrap
+                    .call1(py, (stats, event_msg, sender_id.0))
+                    .map_err(|e| {
+                        libafl::Error::unknown(format!("progress callback raised: {e}"))
+                    })?;
             }
             Ok(())
         })
