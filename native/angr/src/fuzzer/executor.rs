@@ -145,9 +145,11 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
             "BREAKPOINT" => Ok(ExitKind::Ok),
             "NO_SUCCESSORS" => Err(libafl::Error::unknown("No successors found")),
             "MEMORY_ERROR" => Ok(ExitKind::Crash),
-            "FAILURE" => Err(libafl::Error::unknown("Unexpected exit reason")),
+            "FAILURE" => Err(libafl::Error::unknown("Emulator reported a failure")),
             "EXIT" => Ok(ExitKind::Ok),
-            _ => Err(libafl::Error::unknown("Unexpected exit reason")),
+            other => Err(libafl::Error::unknown(format!(
+                "Unrecognized emulator stop reason: {other}"
+            ))),
         };
 
         // Step 4: Copy the edge map from edge_hitmap plugin to the observer to provide feedback
