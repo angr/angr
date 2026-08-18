@@ -54,6 +54,7 @@ from . import (
     engines,
     exploration_techniques,
     knowledge_plugins,
+    sigs,
     sim_options,
 )
 from . import sim_manager as manager
@@ -370,6 +371,7 @@ __all__ = (
     "register_analysis",
     "rust_analyses",
     "rust_knowledge_plugins",
+    "sigs",
     "sim_options",
     "types",
 )

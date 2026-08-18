@@ -18,8 +18,8 @@ import unittest
 import urllib.parse
 
 import angr
-from angr.analyses.flirt.sigserv_client import SIGSERV_PROTOCOL_VERSION, SigservClient
 from angr.errors import AngrRuntimeError, AngrValueError
+from angr.sigs import SIGSERV_PROTOCOL_VERSION, SigservClient
 from tests.common import bin_location
 
 # glibc strings verified to be recovered as String memory data by CFGFast on

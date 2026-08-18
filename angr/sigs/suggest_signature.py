@@ -7,10 +7,10 @@ import tempfile
 from archinfo.arch_arm import is_arm_arch
 
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.flirt.flirt import MAX_UNIQUE_STRING_LEN
 from angr.errors import AngrRuntimeError, AngrValueError
 from angr.knowledge_plugins.cfg import MemoryDataSort
 
-from .flirt import MAX_UNIQUE_STRING_LEN
 from .sigserv_client import SigservClient
 
 _l = logging.getLogger(name=__name__)
