@@ -854,11 +854,13 @@ class CFGBase(Analysis):
                     # Get all executable segments
                     for seg in b.segments:
                         if seg.is_executable:
-                            # Take all sections from this segment (MachO style)
+                            # The whole of __TEXT is r-x, so this segment covers its constant pools and string
+                            # literals as well as its code.
                             for section in seg.sections:
-                                max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
-                                tpl = (section.min_addr, max_mapped_addr)
-                                memory_regions.append(tpl)
+                                if section.is_executable:
+                                    max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                                    tpl = (section.min_addr, max_mapped_addr)
+                                    memory_regions.append(tpl)
 
             elif isinstance(b, (Hex, SRec)):
                 if b.regions:
