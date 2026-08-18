@@ -267,17 +267,6 @@ pub struct Tags {
 }
 
 impl Tags {
-    /// Build a Tags struct from a Python `**kwargs` dict.
-    pub fn from_kwargs(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        let mut tags = Self::default();
-        let Some(d) = kwargs else { return Ok(tags) };
-        for (k, v) in d.iter() {
-            let key: String = k.extract()?;
-            tags.set_from_py(&key, &v)?;
-        }
-        Ok(tags)
-    }
-
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -385,6 +374,37 @@ impl Tags {
         }
     }
 
+    /// Merge `other` into `self`, with `other` winning on conflicts. Keys
+    /// absent from `other` are left alone.
+    pub fn merge(&mut self, py: Python<'_>, other: Tags) {
+        if other.ins_addr.is_some() {
+            self.ins_addr = other.ins_addr;
+        }
+        if other.vex_block_addr.is_some() {
+            self.vex_block_addr = other.vex_block_addr;
+        }
+        if other.vex_stmt_idx.is_some() {
+            self.vex_stmt_idx = other.vex_stmt_idx;
+        }
+        if other.block_idx.is_some() {
+            self.block_idx = other.block_idx;
+        }
+        for (k, v) in other.extras {
+            // A `None` value deletes the key, matching `set_from_py` (and so
+            // `__setitem__`). The only stored value that can be `None` is an
+            // `Opaque`, which `Deserialize` builds for anything that did not
+            // survive serialization.
+            match &v {
+                TagExtra::Opaque(o) if o.is_none(py) => {
+                    self.extras.remove(&k);
+                }
+                _ => {
+                    self.extras.insert(k, v);
+                }
+            }
+        }
+    }
+
     pub fn to_py_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         for k in self.keys() {
@@ -404,7 +424,12 @@ impl<'py> FromPyObject<'_, 'py> for Tags {
             return Ok(Self::default());
         }
         if let Ok(d) = obj.cast::<PyDict>() {
-            return Self::from_kwargs(Some(&d));
+            let mut tags = Self::default();
+            for (k, v) in d.iter() {
+                let key: String = k.extract()?;
+                tags.set_from_py(&key, &v)?;
+            }
+            return Ok(tags);
         }
         if let Ok(view) = obj.extract::<TagsView>() {
             return Ok(view.inner);
@@ -580,15 +605,7 @@ impl TagsView {
     }
 
     fn update(&mut self, py: Python<'_>, other: Tags) -> PyResult<()> {
-        for k in other.keys() {
-            // Re-extract through the dynamic Python path so we cleanly
-            // overwrite the existing value (and so this works even when
-            // 'other' is a dict whose values are typed differently).
-            let v = other.get_py(py, &k)?;
-            if let Some(v) = v {
-                self.inner.set_from_py(&k, &v)?;
-            }
-        }
+        self.inner.merge(py, other);
         self.flush_to_parent(py)
     }
 
@@ -649,29 +666,21 @@ impl TagsView {
 
     /// Implement ``tags | other`` -- returns a new ``TagsView`` whose state is
     /// the merge of ``self`` and ``other``, with ``other`` winning on conflicts.
-    fn __or__(&self, py: Python<'_>, other: Tags) -> PyResult<Self> {
+    fn __or__(&self, py: Python<'_>, other: Tags) -> Self {
         let mut merged = self.inner.clone();
-        for k in other.keys() {
-            if let Some(v) = other.get_py(py, &k)? {
-                merged.set_from_py(&k, &v)?;
-            }
-        }
-        Ok(Self {
+        merged.merge(py, other);
+        Self {
             inner: merged,
             parent: None,
-        })
+        }
     }
 
-    fn __ror__(&self, py: Python<'_>, mut other: Tags) -> PyResult<Self> {
-        for k in self.inner.keys() {
-            if let Some(v) = self.inner.get_py(py, &k)? {
-                other.set_from_py(&k, &v)?;
-            }
-        }
-        Ok(Self {
+    fn __ror__(&self, py: Python<'_>, mut other: Tags) -> Self {
+        other.merge(py, self.inner.clone());
+        Self {
             inner: other,
             parent: None,
-        })
+        }
     }
 
     /// `dict(tags)` works by iterating items; provide a fast path returning
