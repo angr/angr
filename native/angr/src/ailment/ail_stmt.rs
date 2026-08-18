@@ -262,11 +262,7 @@ impl AilStatement {
     /// ``manager.next_atom()``. Mirrors the expression-side helper;
     /// MultiStatementExpression's stmts are walked through this when
     /// the parent Expression's ``deep_copy_ail`` recurses.
-    pub fn deep_copy_ail_stmt(
-        &self,
-        py: Python<'_>,
-        manager: &Bound<'_, PyAny>,
-    ) -> PyResult<AilStatement> {
+    pub fn deep_copy_ail_stmt(&self, manager: &Bound<'_, PyAny>) -> PyResult<AilStatement> {
         let new_idx: i64 = manager.call_method0("next_atom")?.extract()?;
         let vmap = manager.getattr("variable_map")?;
         if !vmap.is_none() {
@@ -274,22 +270,22 @@ impl AilStatement {
         }
         let new_header = StmtHeader::new(new_idx, self.header.tags.clone());
         let recurse = |child: &AilExpression| -> PyResult<Arc<AilExpression>> {
-            Ok(Arc::new(child.deep_copy_ail(py, manager)?))
+            Ok(Arc::new(child.deep_copy_ail(manager)?))
         };
         let recurse_opt = |o: &Option<Arc<AilExpression>>| -> PyResult<Option<Arc<AilExpression>>> {
             match o {
                 None => Ok(None),
-                Some(c) => Ok(Some(Arc::new(c.deep_copy_ail(py, manager)?))),
+                Some(c) => Ok(Some(Arc::new(c.deep_copy_ail(manager)?))),
             }
         };
         let recurse_vec = |v: &Vec<AilExpression>| -> PyResult<Vec<AilExpression>> {
-            v.iter().map(|x| x.deep_copy_ail(py, manager)).collect()
+            v.iter().map(|x| x.deep_copy_ail(manager)).collect()
         };
         // Deep copy a CFGTarget: recursively deep-copy the inner
         // expression for ``Expr``, clone the string for ``Symbol``.
         let dc_target = |t: &CFGTarget| -> PyResult<CFGTarget> {
             match t {
-                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Arc::new(e.deep_copy_ail(py, manager)?))),
+                CFGTarget::Expr(e) => Ok(CFGTarget::Expr(Arc::new(e.deep_copy_ail(manager)?))),
                 CFGTarget::Symbol(s) => Ok(CFGTarget::Symbol(s.clone())),
             }
         };
@@ -1662,9 +1658,9 @@ impl Statement {
     }
 
     /// ``deep_copy(manager)`` -- recursive clone with fresh idx.
-    fn deep_copy(&self, py: Python<'_>, manager: &Bound<'_, PyAny>) -> PyResult<AilStatement> {
+    fn deep_copy(&self, manager: &Bound<'_, PyAny>) -> PyResult<AilStatement> {
         // Untyped: copy.deepcopy passes _DeepcopyManager, not a Manager.
-        self.stmt.deep_copy_ail_stmt(py, manager)
+        self.stmt.deep_copy_ail_stmt(manager)
     }
 
     fn __copy__(&self) -> Self {
