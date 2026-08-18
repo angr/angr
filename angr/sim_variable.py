@@ -157,7 +157,7 @@ class SimConstantVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.ConstantVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+        return pb2.ConstantVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -223,7 +223,7 @@ class SimTemporaryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.TemporaryVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+        return pb2.TemporaryVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -290,7 +290,7 @@ class SimRegisterVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.RegisterVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+        return pb2.RegisterVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -360,7 +360,7 @@ class SimComboRegisterVariable(SimVariable):
     @classmethod
     def _get_cmsg(cls):
         # TODO: Support serialization for SimComboRegisterVariable
-        return pb2.RegisterVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+        return pb2.RegisterVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         # TODO: Support serialization for SimComboRegisterVariable
@@ -437,7 +437,7 @@ class SimMemoryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.MemoryVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+        return pb2.MemoryVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -549,7 +549,7 @@ class SimStackVariable(SimMemoryVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.StackVariable()  # pyright: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+        return pb2.StackVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()

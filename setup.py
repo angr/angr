@@ -66,7 +66,7 @@ def build_unicornlib():
 
 def build_protos():
     proto_files = sorted(glob.glob("angr/protos/*.proto"))
-    cmd = [sys.executable, "-m", "grpc_tools.protoc", "-I.", "--python_out=.", *proto_files]
+    cmd = [sys.executable, "-m", "grpc_tools.protoc", "-I.", "--python_out=.", "--pyi_out=.", *proto_files]
     try:
         subprocess.run(cmd, check=True)
     except (FileNotFoundError, subprocess.CalledProcessError) as err:

@@ -2,7 +2,7 @@
 # build_protos() in setup.py) and are not committed. After editing a .proto, regenerate manually with
 #
 #  $ cd angr  # the repository root
-#  $ python -m grpc_tools.protoc -I. --python_out=. angr/protos/*.proto
+#  $ python -m grpc_tools.protoc -I. --python_out=. --pyi_out=. angr/protos/*.proto
 #
 # (grpcio-tools is a build dependency; installs with --no-build-isolation need it installed in the environment.)
 from __future__ import annotations
