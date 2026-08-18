@@ -947,7 +947,11 @@ class JumpTableResolver(IndirectJumpResolver):
             return False, None
         preds = list(func.transition_graph.predecessors(curr_node))
         pred_endaddrs = {pred.addr + pred.size for pred in preds}  # handle non-normalized CFGs
-        if func_graph_complete and not is_arm and not potential_call_table:
+        # sometimes if the compiler (e.g., LLVM) can prove that the index must be in range, it will not generate any
+        # predecessor block to check the range of the index varaible (common in Rust binaries). in this case, we rely
+        # on the location of the next jump table offset to determine the size of the current jump table.
+        unbounded_jumptable = func_graph_complete and not is_arm and not potential_call_table and not pred_endaddrs
+        if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs:
             # on ARM you can do a single-block jump table...
             if len(pred_endaddrs) == 1:
                 pred_succs = [succ for succ in func.transition_graph.successors(preds[0]) if succ.addr != preds[0].addr]
@@ -1004,7 +1008,10 @@ class JumpTableResolver(IndirectJumpResolver):
                 regs_to_initialize,
             )
         except NotAJumpTableNotification:
-            if not potential_call_table and not is_arm:
+            if unbounded_jumptable:
+                # no bounds check exists to find; keep going and size the table from data
+                l.debug("Indirect jump at %#x has no bounds check; trying data-driven table sizing.", addr)
+            elif not potential_call_table and not is_arm:
                 l.debug("Indirect jump at %#x does not look like a jump table. Skip.", addr)
                 return False, None
             if (
@@ -1088,6 +1095,7 @@ class JumpTableResolver(IndirectJumpResolver):
                         stmts_adding_base_addr,
                         transformations,
                         potential_call_table,
+                        unbounded_jumptable,
                     )
                     if ret is None:
                         # Try the next state
@@ -1697,6 +1705,7 @@ class JumpTableResolver(IndirectJumpResolver):
         stmts_adding_base_addr,
         transformations: dict[tuple[int, int], AddressTransformation],
         potential_call_table: bool = False,
+        unbounded_jumptable: bool = False,
     ):
         """
         Try loading all jump targets from a jump table or a vtable.
@@ -1799,6 +1808,26 @@ class JumpTableResolver(IndirectJumpResolver):
         else:
             total_cases = jumptable_addr.cardinality
             sort = "jumptable"
+
+        if unbounded_jumptable and sort == "jumptable" and total_cases > 1 and jumptable_addr.op != "BVV":
+            # The index is unconstrained because the compiler omitted the bounds check.
+            # Bound the table by the next address referenced by any instruction.
+            table_base = state.solver.min(jumptable_addr)
+            next_ref = cfg.kb.xrefs.get_next_xref_addr_by_dst(table_base + 1)
+            if next_ref is None or next_ref <= table_base:
+                l.debug("Unbounded jump table at %#x: no following data reference to bound it. Skip.", table_base)
+                return None
+            bounded_cases = (next_ref - table_base) // stride
+            if bounded_cases < 2:
+                l.debug("Unbounded jump table at %#x: implausible size %d. Skip.", table_base, bounded_cases)
+                return None
+            l.debug(
+                "Unbounded jump table at %#x: bounded to %d entries by the next referenced address %#x.",
+                table_base,
+                bounded_cases,
+                next_ref,
+            )
+            total_cases = min(total_cases, bounded_cases)
 
         assert self._max_targets is not None
         if total_cases > self._max_targets:
