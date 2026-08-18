@@ -267,17 +267,6 @@ pub struct Tags {
 }
 
 impl Tags {
-    /// Build a Tags struct from a Python `**kwargs` dict.
-    pub fn from_kwargs(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        let mut tags = Self::default();
-        let Some(d) = kwargs else { return Ok(tags) };
-        for (k, v) in d.iter() {
-            let key: String = k.extract()?;
-            tags.set_from_py(&key, &v)?;
-        }
-        Ok(tags)
-    }
-
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -435,7 +424,12 @@ impl<'py> FromPyObject<'_, 'py> for Tags {
             return Ok(Self::default());
         }
         if let Ok(d) = obj.cast::<PyDict>() {
-            return Self::from_kwargs(Some(&d));
+            let mut tags = Self::default();
+            for (k, v) in d.iter() {
+                let key: String = k.extract()?;
+                tags.set_from_py(&key, &v)?;
+            }
+            return Ok(tags);
         }
         if let Ok(view) = obj.extract::<TagsView>() {
             return Ok(view.inner);
