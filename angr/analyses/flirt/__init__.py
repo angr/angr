@@ -3,6 +3,7 @@ from __future__ import annotations
 from .consts import FLIRT_ARCH_TO_ARCHNAME, FLIRT_OS_TO_OSNAME, FlirtAppType, FlirtOSType
 from .flirt import FlirtAnalysis
 from .flirt_sig import FlirtSignature, FlirtSignatureError, FlirtSignatureParsed
+from .sigserv_client import SIGSERV_PROTOCOL_VERSION, SigservClient
 from .suggest_signature import SuggestSignatureAnalysis
 
 
@@ -40,10 +41,12 @@ def flirt_os_type_to_os_name(os_type: int) -> str:
 
 
 __all__ = [
+    "SIGSERV_PROTOCOL_VERSION",
     "FlirtAnalysis",
     "FlirtSignature",
     "FlirtSignatureError",
     "FlirtSignatureParsed",
+    "SigservClient",
     "SuggestSignatureAnalysis",
     "flirt_arch_to_arch_name",
     "flirt_os_type_to_os_name",
