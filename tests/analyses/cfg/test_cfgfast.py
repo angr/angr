@@ -1027,9 +1027,25 @@ class TestCfgfast(unittest.TestCase):
         # scan used to cover it with thousands of one-block functions that drop_bad_functions() threw away again
         rng = random.Random(0xDEADBEEF)
         proj = self._blob_project(bytes(rng.getrandbits(8) for _ in range(32768)))
-        cfg = proj.analyses.CFGFast(normalize=True)
+        cfg = proj.analyses.CFGFast(normalize=True, nodecode_threshold=0.3)
 
         assert len(cfg.kb.functions) < 150, f"32 KB of random data produced {len(cfg.kb.functions)} functions"
+
+    def test_smart_scan_does_not_miss_functions_armel_blob(self):
+        binary_path = os.path.join(test_location, "armel", "chall.bin")
+        proj = angr.Project(binary_path, main_opts={"backend": "blob", "arch": "ARMEL", "base_addr": 0x0})
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func_addrs = [
+            0x81D,
+            0x901,
+            0x9E5,
+            0xAB5,
+            0xB85,
+            0xC55,
+            0xD61,
+        ]
+        for func_addr in func_addrs:
+            assert cfg.kb.functions.contains_addr(func_addr), f"function at {func_addr:#x} was not found"
 
     def test_function_the_symbol_table_names_is_kept(self):
         # glibc's EVEX string routines and the AVX-512 PLT resolvers are ordinary code that VEX cannot lift, so
