@@ -26,6 +26,7 @@ from angr.analyses.decompiler.edits import (
     set_variable_type,
 )
 from angr.analyses.decompiler.edits.errors import AmbiguousFunctionError, InvalidNameError
+from angr.knowledge_plugins import CommentKind
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -287,6 +288,21 @@ class TestComments(unittest.TestCase):
 
         assert func.addr not in proj.kb.comments
         assert "temporary" not in text_of(proj, func)
+
+    def test_comment_kind_set_and_cleared(self):
+        proj, func = load()
+        result = set_comment(proj, func.addr, "the auth check", kind=CommentKind.REPEATABLE)
+        assert result.detail["kind"] == "REPEATABLE"
+        assert proj.kb.comments.kind_of(func.addr) == CommentKind.REPEATABLE
+
+        # editing the text without a kind keeps the existing kind
+        set_comment(proj, func.addr, "still the auth check")
+        assert proj.kb.comments.kind_of(func.addr) == CommentKind.REPEATABLE
+
+        # clearing the comment resets the kind to the default
+        set_comment(proj, func.addr, "")
+        assert func.addr not in proj.kb.comments.kinds
+        assert proj.kb.comments.kind_of(func.addr) == CommentKind.FUNCTION
 
     def test_statement_comment_snaps_and_reports_placement(self):
         proj, func = load()
