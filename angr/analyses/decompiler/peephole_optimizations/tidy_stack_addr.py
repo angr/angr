@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from angr.ailment.expression import BinaryOp, Const, StackBaseOffset, UnaryOp
+from angr.utils.constants import is_alignment_mask
 
 from .base import PeepholeOptimizationExprBase
 
@@ -21,9 +22,13 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp, **kwargs):
-        if expr.op not in ("Add", "Sub"):
-            return None
+        if expr.op in ("Add", "Sub"):
+            return self._optimize_add_sub(expr)
+        if expr.op == "And":
+            return self._optimize_and(expr)
+        return None
 
+    def _optimize_add_sub(self, expr: BinaryOp) -> Expression | None:
         has_binop = any(isinstance(operand, BinaryOp) for operand in expr.operands)
         if not has_binop:
             return None
@@ -93,18 +98,18 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
             return None
 
         # building the final expression
-        expr = None
+        new_expr: Expression | None = None
         while stackbaseoffset_objs:
             sign, obj = stackbaseoffset_objs.pop(0)
-            if expr is None:
-                expr = obj if sign else UnaryOp(self.manager.next_atom(), "Neg", obj, **obj.tags)
+            if new_expr is None:
+                new_expr = obj if sign else UnaryOp(self.manager.next_atom(), "Neg", obj, **obj.tags)
             else:
                 op = "Add" if sign else "Sub"
-                expr = BinaryOp(
+                new_expr = BinaryOp(
                     self.manager.next_atom(),
                     op,
                     [
-                        expr,
+                        new_expr,
                         obj,
                     ],
                     False,
@@ -114,19 +119,26 @@ class TidyStackAddr(PeepholeOptimizationExprBase):
         for positive, obj in all_operands:
             if isinstance(obj, (StackBaseOffset, Const)):
                 continue
-            if expr is None:
-                expr = obj
+            if new_expr is None:
+                new_expr = obj
             else:
                 op = "Add" if positive else "Sub"
-                expr = BinaryOp(
+                new_expr = BinaryOp(
                     self.manager.next_atom(),
                     op,
                     [
-                        expr,
+                        new_expr,
                         obj,
                     ],
                     False,
                     **obj.tags,
                 )
 
-        return expr
+        return new_expr
+
+    def _optimize_and(self, expr: BinaryOp) -> Expression | None:
+        op0, op1 = expr.operands
+        if isinstance(op0, StackBaseOffset) and isinstance(op1, Const) and is_alignment_mask(op1.value):
+            # e.g., sp-0x10 & 0xfffffff8
+            return op0
+        return None
