@@ -28,6 +28,7 @@ from angr.ailment.expression import (
     Extract,
     Load,
     Phi,
+    StackBaseOffset,
     UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
@@ -88,6 +89,11 @@ class MatchCtx:
     # definition in a dominating block, possibly behind phis. Returns None when
     # the definition is not recomputable.
     remote_chase_fn: Callable[[int], Expression | None] | None = None
+    # resolve a virtual variable to the *stack slot* it was copied from, through
+    # any chain of plain copies. A local container's fields are slots, but the
+    # compiler keeps one of them in a register across the accessor, so a stack
+    # idiom reaches the matcher half in slots and half in registers.
+    stack_slot_fn: Callable[[int], VirtualVariable | None] | None = None
 
 
 class PatternNode:
@@ -474,9 +480,9 @@ class PStackField(PatternExpr):
     than the value form -- ``std::string::capacity`` needs both, since it compares
     the data pointer against the address of the local buffer.
 
-    The binding is a ``Const`` holding the object's stack offset: a stack offset
-    is a number, not an expression, and making it one keeps unification on the
-    existing ``.likes()`` path.
+    The binding is a ``StackBaseOffset`` -- the object's own address. That is both
+    the thing two fields must agree on and, directly, the argument the synthesized
+    call takes, so nothing has to be materialized for it.
 
     **No pattern uses this yet, and matching is only half the problem.** The
     outlined region for a stack container reads N independent slots, so its
@@ -502,6 +508,14 @@ class PStackField(PatternExpr):
             slot = expr.operand
         else:
             slot = expr
+        if isinstance(slot, VirtualVariable) and slot.category != VirtualVariableCategory.STACK:
+            # a register holding a copy of the slot: follow it back
+            if ctx.stack_slot_fn is None:
+                return None
+            resolved = ctx.stack_slot_fn(slot.varid)
+            if resolved is None:
+                return None
+            slot = resolved
         if not isinstance(slot, VirtualVariable) or slot.category != VirtualVariableCategory.STACK:
             return None
         if self.size is not None and slot.bits != self.size * 8:
@@ -509,7 +523,7 @@ class PStackField(PatternExpr):
         stack_off = slot.stack_offset
         if stack_off is None:
             return None
-        st = state.bind(self.base, Const(None, stack_off - self.offset, 64))
+        st = state.bind(self.base, StackBaseOffset(None, slot.bits, stack_off - self.offset))
         if st is None:
             return None
         return self._bind_if_named(self.name, expr, st)

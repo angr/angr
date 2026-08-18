@@ -75,6 +75,7 @@ from .std_vector_size import (
     STD_VECTOR_INT_SIZE,
     STD_VECTOR_LONG_LONG_SIZE,
     STD_VECTOR_SHORT_SIZE,
+    STD_VECTOR_STACK_TEMPLATES,
     STD_VECTOR_STRUCT_SIZE_TEMPLATES,
     exact_div_magic,
     make_std_vector_size_exactdiv_template,
@@ -128,6 +129,8 @@ for _t in STD_VECTOR_STRUCT_SIZE_TEMPLATES:
     register_pattern_template(_t)
 register_pattern_template(STD_VECTOR_INT_EMPTY)
 for _t in STD_VECTOR_CAPACITY_TEMPLATES:
+    register_pattern_template(_t)
+for _t in STD_VECTOR_STACK_TEMPLATES:
     register_pattern_template(_t)
 for _t in STD_VECTOR_INDEX_TEMPLATES:
     register_pattern_template(_t)
@@ -297,6 +300,7 @@ __all__ = [
     "STD_VECTOR_INT_SIZE",
     "STD_VECTOR_LONG_LONG_SIZE",
     "STD_VECTOR_SHORT_SIZE",
+    "STD_VECTOR_STACK_TEMPLATES",
     "STD_VECTOR_STRUCT_SIZE_TEMPLATES",
     "TEMPLATE_BY_CALL_NAME",
     "TEMPLATE_BY_NAME",

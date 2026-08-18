@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING
 from angr.procedures.definitions.types_stl import EXACTDIV_ELEMENT_SIZES, SHIFT_ELEMENT_SIZES
 
 from .context import CPP, INTEL, size_t_typename
-from .dsl import PBinOp, PConst, PField, PLoad
+from .dsl import PBinOp, PConst, PField, PLoad, PStackField
 from .layouts import vector_begin_offset, vector_cap_offset, vector_end_offset
 from .pattern import CppRef, KnownPattern, PatternParam
 from .templates import make_template
@@ -57,10 +57,27 @@ def _vfield(cap: str, off: int, size: int) -> PLoad:
     return PLoad(PField(cap, off), size=size)
 
 
+def _sfield(cap: str, off: int) -> PStackField:
+    """The same field, for a container that lives on the stack.
+
+    A local vector is one virtual variable per slot by the time patterns run --
+    no Load, no base pointer. The two slot offsets still have to differ by
+    exactly one word, so the shape is as constrained as the pointer form; what
+    changes is that the object is identified by a stack offset, and the
+    synthesized call takes its address rather than a materialized pointer.
+    Stack containers are 15-35% of this accessor's corpus sites."""
+    return PStackField(cap, off)
+
+
 def _byte_diff(ctx: PatternContext, minuend_offset: int) -> PBinOp:
     """``Load(v + minuend) - Load(v + _M_start)`` -- the byte extent."""
     ws = ctx.word_size
     return PBinOp("Sub", (_vfield("v", minuend_offset, ws), _vfield("v", vector_begin_offset(ctx), ws)))
+
+
+def _byte_diff_stack(ctx: PatternContext, minuend_offset: int) -> PBinOp:
+    """``slot(v + minuend) - slot(v + _M_start)`` for a stack container."""
+    return PBinOp("Sub", (_sfield("v", minuend_offset), _sfield("v", vector_begin_offset(ctx))))
 
 
 # The two accessors, as (name, the offset of the field the difference is taken
@@ -79,7 +96,9 @@ def exact_div_magic(elt_size: int, bits: int) -> tuple[int, int]:
     return shift, pow(elt_size >> shift, -1, 1 << bits)
 
 
-def _make_vector_div_template(accessor: str, minuend: Callable[[PatternContext], int], elt_name: str, elt_size: int):
+def _make_vector_div_template(
+    accessor: str, minuend: Callable[[PatternContext], int], elt_name: str, elt_size: int, on_stack: bool = False
+):
     """A ``std::vector<elt_name>::<accessor>`` template.
 
     Power-of-two ``elt_size`` divides with a bare shift; anything else is the
@@ -104,11 +123,14 @@ def _make_vector_div_template(accessor: str, minuend: Callable[[PatternContext],
     slug = elt_name.replace(" ", "_")
     unique_name = STD_VECTOR_UNIQUE_NAME_TMPL.format(elt=elt_name)
     call_name = f"std::vector<{elt_name}>::{accessor}"
+    # the registry key must be unique; the *emitted* call keeps the plain name so
+    # the two spellings of one idiom are one family everywhere downstream
+    registry_name = call_name + (" (stack)" if on_stack else "")
     name = f"std_vector_{slug}_{accessor}"
     is_pow2 = not (elt_size & (elt_size - 1))
 
     def build(ctx: PatternContext) -> KnownPattern:
-        diff = _byte_diff(ctx, minuend(ctx))
+        diff = _byte_diff_stack(ctx, minuend(ctx)) if on_stack else _byte_diff(ctx, minuend(ctx))
         if is_pow2:
             pattern = PBinOp(frozenset({"Sar", "Shr"}), (diff, PConst(elt_size.bit_length() - 1)))
         else:
@@ -132,7 +154,9 @@ def _make_vector_div_template(accessor: str, minuend: Callable[[PatternContext],
             returnty=size_t_typename(ctx.bits),
         )
 
-    return make_template(call_name, build, arches=INTEL, languages=(CPP,), name=name)
+    return make_template(
+        registry_name, build, arches=INTEL, languages=(CPP,), name=name + ("_stack" if on_stack else "")
+    )
 
 
 def make_std_vector_size_template(elt_name: str, log2_elt_size: int):
@@ -168,6 +192,14 @@ STD_VECTOR_STRUCT_SIZE_TEMPLATES = [
 # capacity(): the same expression against _M_end_of_storage, over the same
 # element sizes. Not opt-in -- like size() it reads two of the three vector
 # pointers at a fixed distance, which is self-guarding.
+#: Stack twins of size(): same shape, slots instead of loads. Only the named
+#: element sizes -- the opaque T<N> set would double a four-figure library for a
+#: shape that is only reachable where the object never escapes to a pointer.
+STD_VECTOR_STACK_TEMPLATES = [
+    _make_vector_div_template("size", vector_end_offset, elt_name, elt_size, on_stack=True)
+    for elt_name, elt_size in _NAMED_ELEMENTS
+]
+
 STD_VECTOR_CAPACITY_TEMPLATES = [
     _make_vector_div_template("capacity", vector_cap_offset, elt_name, elt_size)
     for elt_name, elt_size in _NAMED_ELEMENTS

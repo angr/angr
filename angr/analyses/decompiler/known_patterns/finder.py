@@ -701,7 +701,12 @@ class KnownPatternFinder(Analysis):
         ]
         # An unordered bag match does not chase: the statements it consumes are
         # already the whole idiom. Peeking is read-only and stays available.
-        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None, peek_fn=self._resolve_remote_def)
+        ctx = MatchCtx(
+            skip_conversions=self._skip_conversions,
+            chase_fn=None,
+            peek_fn=self._resolve_remote_def,
+            stack_slot_fn=self._resolve_stack_slot,
+        )
 
         def assign(pat_i: int, used: frozenset[int], state: MatchState) -> tuple[MatchState, list[int]] | None:
             if pat_i == len(stmt_pats):
@@ -755,7 +760,12 @@ class KnownPatternFinder(Analysis):
         # without disturbing it, which is what lets a region whose object address
         # was computed into its own register (MSVC c_str, clang's capacity
         # triangle) match at all.
-        ctx = MatchCtx(skip_conversions=self._skip_conversions, chase_fn=None, peek_fn=self._resolve_remote_def)
+        ctx = MatchCtx(
+            skip_conversions=self._skip_conversions,
+            chase_fn=None,
+            peek_fn=self._resolve_remote_def,
+            stack_slot_fn=self._resolve_stack_slot,
+        )
 
         # order internal blocks by BFS from the entry over internal edges, so
         # each block (after entry) is reached from an already-mapped block
@@ -873,6 +883,7 @@ class KnownPatternFinder(Analysis):
             skip_conversions=self._skip_conversions,
             chase_fn=self._make_chase_fn(block, stmt_idx) if self._chase_defs else None,
             peek_fn=self._resolve_remote_def,
+            stack_slot_fn=self._resolve_stack_slot,
             remote_chase_fn=self._make_remote_chase_fn(),
         )
         state = pattern.pattern.match(target, MatchState(), ctx)
@@ -977,6 +988,52 @@ class KnownPatternFinder(Analysis):
         if self._blocks_by_loc is None:
             self._blocks_by_loc = {(b.addr, b.idx): b for b in self._graph.nodes}
         return self._blocks_by_loc.get(loc)
+
+    def _resolve_stack_slot(self, varid: int, _depth: int = 0) -> VirtualVariable | None:
+        """The stack slot a variable was copied from, through a chain of copies.
+
+        A local container's fields are stack slots, but the compiler routinely
+        keeps one of them in a register across the accessor, so the idiom arrives
+        half in slots and half in registers and the two halves do not look like
+        one object. Following the copy chain puts them back together. Only plain
+        copies are followed -- an arithmetic definition is a different value.
+        """
+        if _depth > self.MAX_REMOTE_CHASE_DEPTH or self._srda_model is None:
+            return None
+        defloc = self._srda_model.all_vvar_definitions.get(varid)
+        if defloc is None or defloc.is_extern:
+            return None
+        block = self._block_at((defloc.addr, defloc.block_idx))
+        if block is None or defloc.stmt_idx >= len(block.statements):
+            return None
+        stmt = block.statements[defloc.stmt_idx]
+        if not isinstance(stmt, Assignment):
+            return None
+        if is_phi_assignment(stmt):
+            # every incoming value must be the same slot -- which is exactly what
+            # a field kept in a register across a branch looks like
+            resolved: VirtualVariable | None = None
+            for _, src_vvar in stmt.src.src_and_vvars:
+                if src_vvar is None:
+                    return None
+                slot = (
+                    src_vvar
+                    if src_vvar.category == VirtualVariableCategory.STACK
+                    else self._resolve_stack_slot(src_vvar.varid, _depth + 1)
+                )
+                if slot is None:
+                    return None
+                if resolved is None:
+                    resolved = slot
+                elif resolved.stack_offset != slot.stack_offset:
+                    return None
+            return resolved
+        if not isinstance(stmt.src, VirtualVariable):
+            return None
+        src = stmt.src
+        if src.category == VirtualVariableCategory.STACK:
+            return src
+        return self._resolve_stack_slot(src.varid, _depth + 1)
 
     def _resolve_remote_def(self, varid: int, _depth: int = 0, _seen: frozenset[int] | None = None):
         """The pure expression a vvar defined *elsewhere* can be recomputed from.
@@ -1088,6 +1145,14 @@ class KnownPatternFinder(Analysis):
         except KeyError as e:
             raise UnsupportedOutlineError(f"block {match.block_loc} is not in the given graph") from e
 
+        # A stack container is *named in place*, not outlined. Its region's inputs
+        # are N independent stack slots rather than one pointer, so there is
+        # nothing for a synthesized callee to take -- and nothing needs to be:
+        # the object's address is a StackBaseOffset the pattern already bound, so
+        # replacing the matched expression by `call(&obj)` is the whole
+        # transformation. See PStackField.
+        if any(isinstance(match.captures.get(p.capture), StackBaseOffset) for p in match.pattern.params):
+            return self._rewrite_in_place(match, g, block)
         if match.block_map is not None:
             return self._outline_graph(match, g)
         if match.stmt_span is not None:
@@ -1647,6 +1712,54 @@ class KnownPatternFinder(Analysis):
                 raise UnsupportedOutlineError(f"failed to substitute vvar {old_varid} in the outlined region")
             remaining = left
         return obj
+
+    def _rewrite_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
+        """Replace the matched expression by the pattern's call, with no callee.
+
+        Outlining exists to discover a region's interface; when every argument is
+        already an expression in hand -- a stack object's address -- there is no
+        interface to discover, and building a callee whose body re-reads slots
+        through a pointer would be a semantic rewrite rather than a renaming.
+        The peephole optimizations synthesize calls exactly this way.
+        """
+        if match.matched_expr is None:
+            raise UnsupportedOutlineError("in-place rewriting needs an expression match")
+        stmts = list(block.statements)
+        if match.anchor_stmt_idx >= len(stmts):
+            raise UnsupportedOutlineError("stale match: the anchor statement is gone from the block")
+        anchor = stmts[match.anchor_stmt_idx]
+
+        args: list[Expression] = []
+        for param in match.pattern.params:
+            captured = match.captures.get(param.capture)
+            if captured is None:
+                raise UnsupportedOutlineError(f"pattern {match.pattern.name}: capture {param.capture!r} is unbound")
+            args.append(captured.copy())
+        for name in match.pattern.extra_args:
+            captured = match.captures.get(name)
+            if captured is None:
+                raise UnsupportedOutlineError(f"pattern {match.pattern.name}: extra arg capture {name!r} is unbound")
+            args.append(captured.copy())
+
+        call = Call(
+            self._next_idx(),
+            match.pattern.call_name,
+            args=args,
+            bits=match.matched_expr.bits,
+            ins_addr=anchor.tags.get("ins_addr"),
+            known_pattern=match.pattern.name,
+            is_prototype_guessed=False,
+        )
+        replaced, new_anchor = anchor.replace(match.matched_expr, call)
+        if not replaced:
+            raise UnsupportedOutlineError("failed to replace the matched expression in the anchor statement")
+        stmts[match.anchor_stmt_idx] = new_anchor
+        new_block = block.copy()
+        new_block.statements = stmts
+        networkx.relabel_nodes(g, {block: new_block}, copy=False)
+        return OutlineResult(
+            graph=g, match=match, call_stmt=new_anchor, child_func=None, child_graph=None, child_funcargs=[]
+        )
 
     def _outline_stmt_span(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
         """Outline a statement-sequence match: the matched statements (plus any

@@ -1215,7 +1215,9 @@ class TestStackFields(TestCase):
         localbuf = self._slot(2, -96)
 
         st = PStackField("s", 0).match(data, MatchState(), MatchCtx())
-        assert st is not None and st.bindings["s"].value == -112
+        # the binding is the object's own address -- which is also, directly, the
+        # argument the synthesized call takes
+        assert st is not None and st.bindings["s"].offset == -112
 
         # `&_M_local_buf` lifts to a Reference, and it is the same object
         ref = UnaryOp(None, "Reference", localbuf)
@@ -1241,3 +1243,29 @@ class TestStackFields(TestCase):
 
         reg = VirtualVariable(None, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
         assert PStackField("s", 0).match(reg, MatchState(), MatchCtx()) is None
+
+
+class TestStackSlotResolution(TestCase):
+    # A local container's fields are stack slots, but the compiler keeps one of
+    # them in a register across the accessor -- often behind a phi, one arm per
+    # branch. The idiom then arrives half in slots and half in registers, and the
+    # two halves do not look like one object until the copies are followed back.
+
+    def test_pstackfield_needs_the_resolver_for_a_register_copy(self):
+        from angr.analyses.decompiler.known_patterns import PStackField
+
+        slot = VirtualVariable(None, 1, 64, VirtualVariableCategory.STACK, oident=-56)
+        reg = VirtualVariable(None, 2, 64, VirtualVariableCategory.REGISTER, oident=16)
+
+        # without a resolver a register is simply not a slot
+        assert PStackField("v", 0).match(reg, MatchState(), MatchCtx()) is None
+        # with one, it resolves to the slot it was copied from and binds that object
+        ctx = MatchCtx(stack_slot_fn=lambda varid: slot if varid == 2 else None)
+        st = PStackField("v", 0).match(reg, MatchState(), ctx)
+        assert st is not None and st.bindings["v"].offset == -56
+        # and the offsets still have to agree with the other field's
+        assert PStackField("v", 8).match(slot, st, ctx) is None
+        st2 = PStackField("v", 8).match(
+            VirtualVariable(None, 3, 64, VirtualVariableCategory.STACK, oident=-48), st, ctx
+        )
+        assert st2 is not None

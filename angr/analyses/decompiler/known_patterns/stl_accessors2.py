@@ -44,6 +44,7 @@ from .dsl import (
     PField,
     PGraphPat,
     PLoad,
+    PStackField,
     PStmtSeq,
     PVVar,
 )
@@ -152,6 +153,37 @@ def _build_string_capacity_branch(ctx: PatternContext) -> KnownPattern:
     )
 
 
+def _build_string_capacity_stack(ctx: PatternContext) -> KnownPattern:
+    """The SSO select on a std::string that lives on the stack.
+
+    A local string is not an object by the time patterns run: variable recovery
+    has split it into one virtual variable per slot, so there is no ``Load(s)``
+    and no ``s + 16``. What survives is the *shape* -- the data slot compared
+    against the address of the slot sixteen bytes along, selecting between 15 and
+    that slot's value -- and that is what :class:`~.dsl.PStackField` matches, on
+    stack offsets instead of displacements.
+
+    Stack objects are 18-56% of this accessor's sites across the benchmark
+    corpus, so this is not an edge case; see kp-eval/stack_share.py.
+    """
+    cap_off = string_capacity_offset(ctx)
+    data = PStackField("s", string_data_offset(ctx))
+    local_buf = PStackField("s", cap_off, as_address=True)
+    heap_cap = PStackField("s", cap_off)
+    local_cap = PConst(_SSO_LOCAL_CAPACITY)
+    return KnownPattern(
+        name="std_string_capacity",
+        display_name="std::string::capacity",
+        call_name="std::string::capacity",
+        pattern=PChoice(
+            PITE(PBinOp("CmpEQ", (data, local_buf)), local_cap, heap_cap),
+            PITE(PBinOp("CmpNE", (data, local_buf)), heap_cap, local_cap),
+        ),
+        params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
+        returnty=size_t_typename(ctx.bits),
+    )
+
+
 def _build_string_back(ctx: PatternContext) -> KnownPattern:
     ws = ctx.word_size
     data = _field("s", string_data_offset(ctx), ws)
@@ -198,6 +230,14 @@ STD_STRING_CAPACITY_BRANCH = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_capacity_branch",
+)
+STD_STRING_CAPACITY_STACK = make_template(
+    "std::string::capacity (stack)",
+    _build_string_capacity_stack,
+    arches=INTEL,
+    languages=(CPP,),
+    runtimes=(LIBSTDCXX,),
+    name="std_string_capacity_stack",
 )
 STD_STRING_BACK = make_template(
     "std::string::back",
@@ -264,6 +304,7 @@ STD_VECTOR_SHORT_BACK = make_std_vector_back_template("short", 2, "short")
 ALL_STL2_TEMPLATES = [
     STD_STRING_CAPACITY,
     STD_STRING_CAPACITY_BRANCH,
+    STD_STRING_CAPACITY_STACK,
     STD_STRING_BACK,
     STD_STRING_FRONT,
     STD_VECTOR_CHAR_BACK,
