@@ -8,27 +8,26 @@
 
 use pyo3::prelude::*;
 
-#[pyclass(name = "Manager", module = "angr.rustylib.ailment", subclass, dict)]
+#[pyclass(
+    name = "Manager",
+    module = "angr.rustylib.ailment",
+    subclass,
+    dict,
+    get_all,
+    set_all
+)]
 #[derive(Debug)]
 pub struct Manager {
-    #[pyo3(get, set)]
     pub name: Option<Py<PyAny>>,
-    #[pyo3(get, set)]
     pub arch: Option<Py<PyAny>>,
     /// Next atom index to hand out (the original used `itertools.count()`).
-    #[pyo3(get, set)]
     pub atom_ctr: i64,
     /// Attached by Clinic so that optimization passes, peephole optimizations,
     /// and region simplifiers can use VariableMap.
-    #[pyo3(get, set)]
     pub variable_map: Option<Py<PyAny>>,
-    #[pyo3(get, set)]
     pub ins_addr: Option<i64>,
-    #[pyo3(get, set)]
     pub vex_stmt_idx: Option<i64>,
-    #[pyo3(get, set)]
     pub tyenv: Option<Py<PyAny>>,
-    #[pyo3(get, set)]
     pub block_addr: Option<i64>,
 }
 

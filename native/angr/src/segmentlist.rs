@@ -9,14 +9,11 @@ use pyo3::{
 };
 use rangemap::RangeMap;
 
-#[pyclass(module = "angr.rustylib.segmentlist", from_py_object)]
+#[pyclass(module = "angr.rustylib.segmentlist", from_py_object, get_all)]
 #[derive(Clone, Debug)]
 pub struct Segment {
-    #[pyo3(get)]
     start: u64,
-    #[pyo3(get)]
     end: u64,
-    #[pyo3(get)]
     sort: Option<String>,
 }
 
