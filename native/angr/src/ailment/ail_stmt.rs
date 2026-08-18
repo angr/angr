@@ -1758,10 +1758,10 @@ impl Statement {
                 Ok(Expression::wrap((**expr).clone()).__str__(py)?)
             }
             StmtInner::Return { ret_exprs } => {
-                let parts: Vec<String> = ret_exprs
+                let parts = ret_exprs
                     .iter()
-                    .map(|e| Expression::wrap(e.clone()).__str__(py).unwrap_or_default())
-                    .collect();
+                    .map(|e| Expression::wrap(e.clone()).__str__(py))
+                    .collect::<PyResult<Vec<String>>>()?;
                 Ok(format!("Return ({})", parts.join(", ")))
             }
             StmtInner::CAS {
