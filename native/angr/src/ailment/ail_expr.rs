@@ -237,7 +237,7 @@ pub enum ExprInner {
     },
     Load {
         addr: Arc<AilExpression>,
-        size: i32,
+        /// The load size lives in ``header.bits`` -- see the ``size`` getter.
         endness: String,
         guard: Option<Arc<AilExpression>>,
         alt: Option<Arc<AilExpression>>,
@@ -860,14 +860,9 @@ impl Hash for AilExpression {
                 floating_point.hash(h);
                 rounding_mode.hash(h);
             }
-            ExprInner::Load {
-                addr,
-                size,
-                endness,
-                ..
-            } => {
+            ExprInner::Load { addr, endness, .. } => {
                 addr.cached_hash_or_compute().hash(h);
-                size.hash(h);
+                bits.hash(h);
                 endness.hash(h);
             }
             ExprInner::DirtyExpression {
@@ -1245,7 +1240,6 @@ impl AilExpression {
             }
             ExprInner::Load {
                 addr,
-                size,
                 endness,
                 guard,
                 alt,
@@ -1260,7 +1254,6 @@ impl AilExpression {
                     true,
                     self.rebuilt(ExprInner::Load {
                         addr: ra,
-                        size: *size,
                         endness: endness.clone(),
                         guard: rg,
                         alt: ral,
@@ -1789,13 +1782,11 @@ impl AilExpression {
             },
             ExprInner::Load {
                 addr,
-                size,
                 endness,
                 guard,
                 alt,
             } => ExprInner::Load {
                 addr: recurse(addr)?,
-                size: *size,
                 endness: endness.clone(),
                 guard: recurse_opt(guard)?,
                 alt: recurse_opt(alt)?,
@@ -2162,17 +2153,19 @@ impl AilExpression {
             (
                 ExprInner::Load {
                     addr: a_addr,
-                    size: a_size,
                     endness: a_end,
                     ..
                 },
                 ExprInner::Load {
                     addr: b_addr,
-                    size: b_size,
                     endness: b_end,
                     ..
                 },
-            ) => a_size == b_size && a_end == b_end && a_addr.cmp_ail::<MODE>(b_addr),
+            ) => {
+                self.header.bits == other.header.bits
+                    && a_end == b_end
+                    && a_addr.cmp_ail::<MODE>(b_addr)
+            }
             (
                 ExprInner::Struct {
                     name: a_n,
@@ -2947,14 +2940,13 @@ impl Expression {
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
         let depth = addr.header.depth + 1;
-        // the bit width lives in an unsigned 32-bit header, so sizes outside [0, 2**32 / 8) do not round-trip
-        // through the ``size`` getter -- see ``angr.ailment.constant.UNDETERMINED_SIZE``
+        // the size is kept as a bit width in an unsigned 32-bit header, so sizes outside [0, 2**32 / 8) do not
+        // round-trip through the ``size`` getter -- see ``angr.ailment.constant.UNDETERMINED_SIZE``
         let bits = (size.wrapping_mul(8)) as u32;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
             inner: ExprInner::Load {
                 addr: Arc::new(addr),
-                size,
                 endness,
                 guard: guard.map(Arc::new),
                 alt: alt.map(Arc::new),
@@ -3212,10 +3204,6 @@ impl Expression {
     #[setter]
     fn set_bits(&mut self, v: u32) {
         self.expr.header.bits = v;
-        // Load keeps its own copy of the width, and that is the one repr, __eq__ and __hash__ are built from
-        if let ExprInner::Load { size, .. } = &mut self.expr.inner {
-            *size = (v / 8) as i32;
-        }
         self.expr.header.cached_hash.clear();
     }
     #[getter]
@@ -4745,16 +4733,13 @@ impl Expression {
                 let rhs = Expression::wrap((*operands[1]).clone()).__str__(py)?;
                 Ok(format!("({} {} {})", lhs, op, rhs))
             }
-            ExprInner::Load {
-                addr,
-                size,
-                endness,
-                ..
-            } => {
+            ExprInner::Load { addr, endness, .. } => {
                 let a = Expression::wrap((**addr).clone()).__str__(py)?;
                 Ok(format!(
                     "Load(addr={}, size={}, endness={})",
-                    a, size, endness
+                    a,
+                    self.size(),
+                    endness
                 ))
             }
             ExprInner::Call { target, args, .. } => {
@@ -5349,14 +5334,12 @@ impl Serialize for ExprInner {
             }
             ExprInner::Load {
                 addr,
-                size,
                 endness,
                 guard,
                 alt,
             } => {
-                let mut tv = s.serialize_tuple_variant("ExprInner", 10, "Load", 5)?;
+                let mut tv = s.serialize_tuple_variant("ExprInner", 10, "Load", 4)?;
                 tv.serialize_field(addr)?;
-                tv.serialize_field(size)?;
                 tv.serialize_field(endness)?;
                 tv.serialize_field(guard)?;
                 tv.serialize_field(alt)?;
@@ -5589,7 +5572,6 @@ impl<'de> Deserialize<'de> for ExprInner {
                     },
                     10 => ExprInner::Load {
                         addr: next(&mut seq)?,
-                        size: next(&mut seq)?,
                         endness: next(&mut seq)?,
                         guard: next(&mut seq)?,
                         alt: next(&mut seq)?,

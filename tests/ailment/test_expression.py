@@ -1,6 +1,7 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+import pickle
 import unittest
 from collections import OrderedDict
 from types import SimpleNamespace
@@ -281,8 +282,8 @@ class TestExpression(unittest.TestCase):
         assert UNDETERMINED_SIZE * 8 != MAX_POINTSTO_BITS
 
     def test_load_bits_setter_updates_size(self):
-        # Load keeps its size next to the bit width in its header, and repr, __eq__ and __hash__ are built from the
-        # former, so setting bits must update both.
+        # a Load's size is its bit width; everything that reports a size -- the getter, repr, __eq__, __hash__ and
+        # serialization -- must follow the bits setter.
         load = Load(0, Const(1, 0x400000, 64), 4, "Iend_LE")
         load.bits = 64
 
@@ -291,6 +292,7 @@ class TestExpression(unittest.TestCase):
         assert load == Load(0, Const(1, 0x400000, 64), 8, "Iend_LE")
         assert hash(load) == hash(Load(0, Const(1, 0x400000, 64), 8, "Iend_LE"))
         assert load != Load(0, Const(1, 0x400000, 64), 4, "Iend_LE")
+        assert pickle.loads(pickle.dumps(load)).size == 8
 
     def test_const_sign_bit(self):
         # ``Const.sign_bit`` is bit ``bits - 1`` of the value's raw (unsigned

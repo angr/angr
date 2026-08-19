@@ -329,7 +329,6 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     header: ExprHeader::new(idx, depth, size.wrapping_mul(8) as u32, self.tags()),
                     inner: ExprInner::Load {
                         addr: Arc::new(addr_e),
-                        size,
                         endness: end,
                         guard: None,
                         alt: None,
@@ -959,7 +958,6 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     ),
                     inner: ExprInner::Load {
                         addr: Arc::new(a),
-                        size,
                         endness: end,
                         guard: Some(Arc::new(g)),
                         alt: Some(Arc::new(al)),
