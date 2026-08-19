@@ -139,6 +139,10 @@ class Decompiler(Analysis):
     stops with an :class:`AngrDecompilationComplexityError` naming the limit and the actual size: with
     ``fail_fast=True`` it is raised, otherwise it is recorded in ``self.errors`` (and in
     ``kb.decompilations[...].errors``) and exposed as :attr:`complexity_error`, and ``codegen`` stays None.
+
+    The optimization passes come from ``preset`` (a name or a DecompilationPreset), or from an explicit
+    ``optimization_passes`` list when no preset is given. ``disable_opts`` drops individual passes from the
+    preset's list, which is how a caller asks for "this preset, minus that one pass" without restating it.
     """
 
     def __init__(
@@ -148,6 +152,7 @@ class Decompiler(Analysis):
         options=None,
         preset: str | DecompilationPreset | None = None,
         optimization_passes=None,
+        disable_opts=None,
         sp_tracker_track_memory=True,
         peephole_optimizations: _PEEPHOLE_OPTIMIZATIONS_TYPE = None,
         vars_must_struct: set[str] | None = None,
@@ -210,7 +215,9 @@ class Decompiler(Analysis):
                 preset = DECOMPILATION_PRESETS["default"]
             if not isinstance(preset, DecompilationPreset):
                 raise TypeError('"preset" must be a DecompilationPreset instance')
-            self._optimization_passes = preset.get_optimization_passes(self.project.arch, self.project.simos.name)
+            self._optimization_passes = preset.get_optimization_passes(
+                self.project.arch, self.project.simos.name, disable_opts=disable_opts
+            )
 
         if self._flavor == "rust":
             self._optimization_passes.extend(get_rust_optimization_passes())
