@@ -4814,9 +4814,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # TODO: Handle Ijk_Privileged in user-space binaries
                 # TODO: Include conditional jumps that jump to data
 
+        shared_block_addrs = self._blocks_owned_by_other_functions(full_funcs_to_remove)
+
         for func_addr in full_funcs_to_remove:
             func = self.kb.functions.get_by_addr(func_addr, meta_only=True)
             for block_addr in list(func.block_addrs_set):
+                if block_addr in shared_block_addrs:
+                    continue
                 cfg_node = self.model.get_any_node(block_addr)
                 if cfg_node is not None:
                     # mark all blocks as data
@@ -4831,6 +4835,35 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self.model.remove_node_and_graph_node(cfg_node)
             if self.kb.functions.contains_addr(node_addr):
                 del self.kb.functions[func_addr]
+
+    def _blocks_owned_by_other_functions(self, func_addrs_to_remove: list[int]) -> set[int]:
+        """
+        Collect the blocks of the given functions that a function outside that set also owns.
+
+        :param func_addrs_to_remove: Addresses of the functions that are about to be removed.
+        :return:                     Addresses of those blocks that a function outside the set also owns.
+        """
+
+        if not func_addrs_to_remove:
+            return set()
+
+        removed_func_addrs = set(func_addrs_to_remove)
+        unclaimed_block_addrs: set[int] = set()
+        for func_addr in removed_func_addrs:
+            unclaimed_block_addrs |= self.kb.functions.get_by_addr(func_addr, meta_only=True).block_addrs_set
+
+        shared_block_addrs: set[int] = set()
+        for func_addr in self.kb.functions:
+            if func_addr in removed_func_addrs:
+                continue
+            func = self.kb.functions.get_by_addr(func_addr, meta_only=True)
+            shared = unclaimed_block_addrs & func.block_addrs_set
+            if shared:
+                shared_block_addrs |= shared
+                unclaimed_block_addrs -= shared
+                if not unclaimed_block_addrs:
+                    break
+        return shared_block_addrs
 
     def _analyze_all_function_features(self, all_funcs_completed=False):
         """
