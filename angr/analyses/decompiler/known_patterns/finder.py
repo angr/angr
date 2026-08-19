@@ -1245,6 +1245,8 @@ class KnownPatternFinder(Analysis):
         if any(isinstance(match.captures.get(p.capture), StackBaseOffset) for p in match.pattern.params):
             if match.block_map is not None:
                 return self._rewrite_graph_in_place(match, g)
+            if match.stmt_span is not None:
+                return self._rewrite_stmts_in_place(match, g, block)
             return self._rewrite_in_place(match, g, block)
         if match.block_map is not None:
             try:
@@ -1261,7 +1263,20 @@ class KnownPatternFinder(Analysis):
                 g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
                 return self._rewrite_graph_in_place(match, g)
         if match.stmt_span is not None:
-            return self._outline_stmt_span(match, g, block)
+            try:
+                return self._outline_stmt_span(match, g, block)
+            except UnsupportedOutlineError:
+                if match.pattern.returnty is not None or match.pattern.returnty_factory is not None:
+                    raise
+                # Same reasoning as for a void region: nothing reads a value out
+                # of it, so there is no interface to discover and the call can
+                # simply take the place of the statements. This is what rescues
+                # an idiom that reads a value the compiler hoisted out of it --
+                # the hoisted definition stays put, so an outlined callee would
+                # take it as an extra argument the pattern never declared.
+                g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
+                block = {(n.addr, n.idx): n for n in g}[match.block_loc]
+                return self._rewrite_stmts_in_place(match, g, block)
 
         stmts = list(block.statements)
         anchor_idx = match.anchor_stmt_idx
@@ -2038,6 +2053,56 @@ class KnownPatternFinder(Analysis):
                 f"pattern {match.pattern.name}: the collapsed entry has {g.out_degree(new_entry)} successors"
             )
 
+        return OutlineResult(
+            graph=g, match=match, call_stmt=call_stmt, child_func=None, child_graph=None, child_funcargs=[]
+        )
+
+    def _rewrite_stmts_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
+        """Replace a matched statement span by the pattern's call, with no callee.
+
+        The statement-span counterpart of :meth:`_rewrite_in_place`. Only the
+        matched statements are removed, and only when nothing sits between them,
+        so the rewrite cannot reorder anything: one statement takes the place of
+        several at the same point in the block.
+        """
+        if match.pattern.returnty is not None or match.pattern.returnty_factory is not None:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: in-place statement rewriting is only defined for void patterns"
+            )
+        span = sorted(match.stmt_span or ())
+        if not span:
+            raise UnsupportedOutlineError(f"pattern {match.pattern.name}: the match has no statement span")
+        if match.consumed_stmt_idxs:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: in-place statement rewriting cannot move chased definitions"
+            )
+        stmts = list(block.statements)
+        if span[-1] >= len(stmts):
+            raise UnsupportedOutlineError("stale match: the statement span is gone from the block")
+        matched = set(span)
+        if any(not isinstance(stmts[i], Label) for i in range(span[0], span[-1] + 1) if i not in matched):
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: unmatched statements interleave with the matched span"
+            )
+
+        args = self._call_args_of(match, [block])
+        ins_addr = stmts[span[0]].tags.get("ins_addr")
+        call = Call(
+            self._next_idx(),
+            match.pattern.call_name,
+            args=args,
+            bits=self.project.arch.bits,
+            ins_addr=ins_addr,
+            known_pattern=match.pattern.name,
+            is_prototype_guessed=False,
+        )
+        call_stmt = SideEffectStatement(self._next_idx(), call, ret_expr=None, fp_ret_expr=None, ins_addr=ins_addr)
+        new_stmts = [
+            call_stmt if i == span[0] else stmt for i, stmt in enumerate(stmts) if i not in matched or i == span[0]
+        ]
+        new_block = block.copy()
+        new_block.statements = new_stmts
+        networkx.relabel_nodes(g, {block: new_block}, copy=False)
         return OutlineResult(
             graph=g, match=match, call_stmt=call_stmt, child_func=None, child_graph=None, child_funcargs=[]
         )

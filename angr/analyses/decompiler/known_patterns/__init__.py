@@ -73,6 +73,7 @@ from .posix_macros import ALL_POSIX_MACRO_TEMPLATES, MAJOR
 from .protobuf_hasbits import ALL_PROTOBUF_TEMPLATES
 from .std_string_cstr import STD_STRING_CSTR
 from .std_string_dtor import ALL_STRING_DTOR_TEMPLATES, OPERATOR_DELETE, STD_STRING_DTOR
+from .std_string_internals import ALL_STRING_INTERNALS_TEMPLATES, STD_STRING_SET_LENGTH
 from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
 from .std_swap import STD_SWAP, STD_SWAP_TEMPLATES
 from .std_vector_size import (
@@ -142,6 +143,8 @@ for _t in STD_VECTOR_INDEX_TEMPLATES:
 for _t in ALL_STL2_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_STRING_DTOR_TEMPLATES:
+    register_pattern_template(_t)
+for _t in ALL_STRING_INTERNALS_TEMPLATES:
     register_pattern_template(_t)
 for _t in STD_SWAP_TEMPLATES:
     register_pattern_template(_t)
@@ -278,6 +281,7 @@ __all__ = [
     "ALL_STL2_TEMPLATES",
     "ALL_STL_TEMPLATES",
     "ALL_STRING_DTOR_TEMPLATES",
+    "ALL_STRING_INTERNALS_TEMPLATES",
     "ALL_VECTOR_MATH_TEMPLATES",
     "ALL_WDK_TEMPLATES",
     "CONTAINING_RECORD_PATTERN",
@@ -301,6 +305,7 @@ __all__ = [
     "STD_STRING_EMPTY",
     "STD_STRING_INDEX",
     "STD_STRING_LENGTH",
+    "STD_STRING_SET_LENGTH",
     "STD_SWAP",
     "STD_SWAP_TEMPLATES",
     "STD_VECTOR_CAPACITY_TEMPLATES",

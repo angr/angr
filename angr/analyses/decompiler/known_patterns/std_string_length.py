@@ -28,10 +28,18 @@ STD_BASIC_STRING = "class std::basic_string<char, struct std::char_traits<char>,
 
 # The generic std::string accessors are shapes that occur all over any binary — a field-equals-zero test, an indexed
 # byte load, a double dereference. What makes them safe is knowing that the pointer really is a std::string, and the
-# cheapest proof of that is another, self-guarding string idiom in the same function: ``length`` reads the size field
-# at the layout's exact offset, and ``capacity`` is the SSO select that tests the data pointer against the object's
-# own local-buffer address. Where either matched, this object is a std::string and its other accessors can be named.
-STRING_WITNESSED = corroborated_by("std::string::length", "std::string::capacity")
+# cheapest proof of that is another, self-guarding string idiom in the same function: ``capacity`` is the SSO select
+# that tests the data pointer against the object's own local-buffer address, and the destructor is that same test
+# guarding a call to ``operator delete`` on the object's own buffer. Where either matched, this object is a
+# std::string and its other accessors can be named.
+#
+# ``length`` is also a witness, and is the weakest of the three: it is a bare one-word load at the layout's size
+# offset, which std::vector's _M_finish shares, so it measures 59.9% precision on the benchmark corpus against 98%+
+# for the self-guarding shapes. It stays in the set because dropping it costs recall on functions that touch a string
+# only through its length; narrowing it is its own piece of work.
+STRING_WITNESSED = corroborated_by(
+    "std::string::length", "std::string::capacity", "std::string::~string", "std_string_dtor"
+)
 
 
 def _string_field(cap: str, off: int, size: int) -> PLoad:
