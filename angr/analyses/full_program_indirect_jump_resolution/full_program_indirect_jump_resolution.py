@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+# smallest value accepted as a pointer into unmapped memory (RAM, memory-mapped peripherals) in a raw image; below
+# this, a constant is far more likely to be a plain integer literal
+_MIN_UNMAPPED_DATA_ADDR = 0x1000
+
 # upper bound on how many entries of a global pointer table are walked when following a run-time index
 _MAX_TABLE_ENTRIES = 256
 
@@ -149,6 +153,10 @@ class FullProgramIndirectJumpResolution(Analysis):
         self._spt_cache: dict[int, Any] = {}
         # cached integer argument-register offsets for the target arch
         self._arg_reg_offsets: set[int] | None = None
+        # a raw image (no section table) needs a different notion of what a data address is
+        main_object = self.project.loader.main_object
+        self._sectionless_image: bool = main_object is not None and not main_object.sections
+        self._recovered_code_cache: dict[int, bool] = {}
 
         self._selected_funcs = self._select_functions(functions)
 
@@ -1110,14 +1118,45 @@ class FullProgramIndirectJumpResolution(Analysis):
     def _is_global_data_addr(self, addr: int) -> bool:
         if self._is_function_start(addr):
             return False
+
         section = self.project.loader.find_section_containing(addr)
-        if section is None:
+        if section is not None:
+            return not section.is_executable
+
+        if not self._sectionless_image:
             # accept known symbols even without a section match
             try:
                 return self.project.loader.find_symbol(addr) is not None
             except Exception:  # pylint:disable=broad-except
                 return False
-        return not section.is_executable
+
+        # A raw flash image (``objcopy -O binary``, firmware dumps) carries no section table at all, so the check
+        # above can never accept anything and no global region is ever formed -- every table, vtable and callback
+        # slot becomes invisible. Fall back to what such an image does tell us.
+        segment = self.project.loader.find_segment_containing(addr)
+        if segment is not None:
+            if not segment.is_executable:
+                return True
+            # The whole image is typically mapped as one executable segment, so permissions cannot separate
+            # read-only data from code. Treat whatever the CFG did not recover as code as data.
+            return not self._is_recovered_code(addr)
+
+        # Not mapped at all: a raw image contains only flash, so RAM and memory-mapped peripherals fall here. Those
+        # addresses still need a region identity for a store and a load of the same location to meet, so accept
+        # values that are plausible pointers rather than small integer literals.
+        return _MIN_UNMAPPED_DATA_ADDR <= addr < (1 << self.project.arch.bits)
+
+    def _is_recovered_code(self, addr: int) -> bool:
+        """
+        Whether the CFG recovered ``addr`` as part of some basic block, i.e. whether it is code rather than data.
+        """
+        if self._cfg_model is None:
+            return False
+        cached = self._recovered_code_cache.get(addr)
+        if cached is None:
+            cached = self._cfg_model.get_any_node(addr, anyaddr=True) is not None
+            self._recovered_code_cache[addr] = cached
+        return cached
 
     def _function_name(self, addr) -> str | None:
         if not isinstance(addr, int):

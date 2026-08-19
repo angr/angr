@@ -139,6 +139,37 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         assert target_names("__ssvfiscanf_r") == {"__ssrefill_r"}
         assert target_names("_scanf_i") == {"_strtol_r", "_strtoul_r"}
 
+    def test_raw_firmware_image(self):
+        # The same firmware as a raw flash image: no ELF header, no sections, no symbols. An image like this maps
+        # only flash, so RAM and memory-mapped peripherals are not mapped at all, yet the callbacks registered into
+        # them at run time still have to be tracked. The recovered targets must match what the ELF gives.
+        binary_path = os.path.join(test_location, "armel", "fpijr_cortexm_console.bin")
+        with open(binary_path, "rb") as fh:
+            entry_point = int.from_bytes(fh.read(8)[4:8], "little")  # reset vector, out of the vector table
+        proj = angr.Project(
+            binary_path,
+            auto_load_libs=False,
+            main_opts={"backend": "blob", "arch": "ARMCortexM", "base_addr": 0, "entry_point": entry_point},
+        )
+        assert not proj.loader.main_object.sections
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        fpijr = proj.analyses.FullProgramIndirectJumpResolution()
+        resolved = fpijr.resolved_indirect_jumps
+
+        # the same sites and targets the unstripped ELF resolves, by address since there are no symbols here:
+        # isr_rtc -> rtc_cb -> _alarm_handler, the UART receive callback, and a callback passed as an argument
+        assert resolved.get(0x29C9) == {0x26F1}
+        assert resolved.get(0x2707) == {0x31E1}
+        assert resolved.get(0x1673) == {0x12B5}
+        assert resolved.get(0x43D3) == {0x6755}
+
+        # nothing bogus may come out of a binary this bare
+        for targets in resolved.values():
+            for target in targets:
+                assert cfg.kb.functions.contains_addr(target)
+
     def test_progress_callback(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
         proj = angr.Project(binary_path, auto_load_libs=False)
