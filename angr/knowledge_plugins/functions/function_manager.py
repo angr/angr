@@ -27,6 +27,7 @@ from angr.utils.smart_cache import SmartLRUCache
 
 from .function import Function
 from .soot_function import SootFunction
+from .spilling_callgraph import SpillingMultiDiGraph
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
@@ -780,7 +781,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self._function_map = FunctionDict(self, key_types=self.function_address_types)
 
         self.function_addrs_set: set = set()
-        self.callgraph: networkx.MultiDiGraph[int] = networkx.MultiDiGraph()
+        self.callgraph: networkx.MultiDiGraph[int] = self._new_callgraph()
 
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
@@ -841,11 +842,26 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 self._old_func_name_to_addrs[old_name].add(func.addr)
             self.function_addrs_set.add(func.addr)
 
+    def _new_callgraph(self) -> networkx.MultiDiGraph:
+        """
+        Create a fresh callgraph. Uses a SpillingMultiDiGraph (LRU + LMDB adjacency spilling) when a cache
+        limit is configured for the current binary, otherwise a plain networkx.MultiDiGraph.
+        """
+        cache_limit = None
+        if self._kb is not None and getattr(self._kb, "_project", None) is not None:
+            cache_limit = self._kb._project.get_callgraph_cache_limit()
+        if cache_limit is None:
+            return networkx.MultiDiGraph()
+        return SpillingMultiDiGraph(rtdb=self._kb.rtdb, cache_limit=cache_limit)
+
     def set_kb(self, kb: KnowledgeBase):
         super().set_kb(kb)
         # If the unpickled function_map is a SpillingFunctionDict, set rtdb properly
         if isinstance(self._function_map, SpillingFunctionDict):
             self._function_map.rtdb = kb.rtdb
+        # re-attach the RuntimeDb to the spilling callgraph after unpickling
+        if isinstance(self.callgraph, SpillingMultiDiGraph):
+            self.callgraph.set_rtdb(kb.rtdb)
 
     def __getstate__(self):
         return {
@@ -866,7 +882,11 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             # to fm.
             fm._function_map[k] = v
         fm._function_map._backref = weakref.proxy(fm)
-        fm.callgraph = networkx.MultiDiGraph(self.callgraph)
+        # rebuild the callgraph into a fresh (possibly spilling) graph of the same kind
+        new_cg = fm._new_callgraph()
+        new_cg.add_nodes_from(self.callgraph.nodes(data=True))
+        new_cg.add_edges_from(self.callgraph.edges(keys=True, data=True))
+        fm.callgraph = new_cg
         fm._arg_registers = self._arg_registers.copy()
         fm.function_addrs_set = self.function_addrs_set.copy()
 
@@ -892,7 +912,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         else:
             self._function_map = FunctionDict(self, key_types=self.function_address_types)
 
-        self.callgraph = networkx.MultiDiGraph()
+        self.callgraph = self._new_callgraph()
         self.function_addrs_set = set()
         # cache
         self._rplt_cache = None
@@ -1439,7 +1459,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             func.dbg_draw(filename)
 
     def rebuild_callgraph(self):
-        self.callgraph = networkx.MultiDiGraph()
+        self.callgraph = self._new_callgraph()
         for func_addr in self._function_map:
             self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
