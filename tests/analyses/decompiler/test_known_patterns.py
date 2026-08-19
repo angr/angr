@@ -9,7 +9,7 @@ from unittest import TestCase
 import archinfo
 
 import angr
-from angr.ailment.expression import BinaryOp, Const, Load, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Call, Const, Load, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompilation_options import parse_known_patterns
@@ -32,7 +32,17 @@ from angr.analyses.decompiler.known_patterns import (
     resolve_pattern_selection,
 )
 from angr.analyses.decompiler.known_patterns.context import LIBSTDCXX, MSVC, PatternContext
-from angr.analyses.decompiler.known_patterns.dsl import MatchCtx, MatchState
+from angr.analyses.decompiler.known_patterns.dsl import (
+    MatchCtx,
+    MatchState,
+    PCall,
+    PCallResult,
+    PCallStmt,
+    PConst,
+    PVVar,
+    expr_anchor_key,
+    pattern_anchor_key,
+)
 from angr.analyses.decompiler.known_patterns.stl_accessors2 import STD_STRING_FRONT
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
@@ -196,6 +206,87 @@ class TestKnownPatternsDsl(TestCase):
         assert _VECSIZE.pattern.match(size_expr(v, v), MatchState(), MatchCtx()) is not None
         # unification: _M_finish and _M_start must be loaded off the same vvar
         assert _VECSIZE.pattern.match(size_expr(v, other), MatchState(), MatchCtx()) is None
+
+
+class TestPCall(TestCase):
+    """The call-matching DSL nodes (PCall / PCallResult / PCallStmt)."""
+
+    OPDEL = frozenset({"_ZdlPv", "_ZdlPvm"})
+
+    @staticmethod
+    def _ctx_with(names_by_addr=None, call_by_varid=None):
+        names_by_addr = names_by_addr or {}
+
+        def target_fn(call):
+            if isinstance(call.target, str):
+                return frozenset((call.target,))
+            return names_by_addr.get(call.target.value, frozenset())
+
+        return MatchCtx(
+            call_target_fn=target_fn,
+            call_def_fn=(call_by_varid or {}).get,
+        )
+
+    def test_pcall_matches_by_any_spelling(self):
+        call = Call(None, Const(None, 0x1000, 64), args=[Const(None, 8, 64)], bits=64)
+        ctx = self._ctx_with({0x1000: frozenset({"_ZdlPvm", "operator delete(void*, unsigned long)"})})
+        assert PCall(self.OPDEL).match(call, MatchState(), ctx) is not None
+        # the demangled spelling is equally usable
+        assert PCall(frozenset({"operator delete(void*, unsigned long)"})).match(call, MatchState(), ctx) is not None
+        assert PCall(frozenset({"_ZdaPv"})).match(call, MatchState(), ctx) is None
+
+    def test_pcall_without_a_resolver_never_matches(self):
+        call = Call(None, Const(None, 0x1000, 64), bits=64)
+        assert PCall(self.OPDEL).match(call, MatchState(), MatchCtx()) is None
+
+    def test_pcall_constrains_arguments(self):
+        p = VirtualVariable(None, 3, 64, VirtualVariableCategory.REGISTER)
+        call = Call(None, Const(None, 0x1000, 64), args=[p, Const(None, 72, 64)], bits=64)
+        ctx = self._ctx_with({0x1000: frozenset({"_ZdlPvm"})})
+        # arity must agree
+        assert PCall(self.OPDEL, args=(PVVar("p"),)).match(call, MatchState(), ctx) is None
+        # a None slot accepts anything, and captures bind
+        state = PCall(self.OPDEL, args=(PVVar("p"), None)).match(call, MatchState(), ctx)
+        assert state is not None and state.bindings["p"].likes(p)
+        # a wrong constant rejects
+        assert PCall(self.OPDEL, args=(None, PConst(8))).match(call, MatchState(), ctx) is None
+
+    def test_pcallresult_reads_the_definition_without_consuming_it(self):
+        tbl = VirtualVariable(None, 11, 64, VirtualVariableCategory.REGISTER)
+        call = Call(None, Const(None, 0x2000, 64), bits=64)
+        ctx = self._ctx_with({0x2000: frozenset({"__ctype_b_loc"})}, {11: call})
+        state = PCallResult(frozenset({"__ctype_b_loc"})).match(tbl, MatchState(), ctx)
+        assert state is not None
+        # nothing is consumed: the call stays where the compiler put it
+        assert not state.consumed_stmt_idxs
+        assert not state.chased_defs
+        assert PCallResult(frozenset({"__errno_location"})).match(tbl, MatchState(), ctx) is None
+
+    def test_pcallresult_matches_an_inline_call(self):
+        call = Call(None, Const(None, 0x2000, 64), bits=64)
+        ctx = self._ctx_with({0x2000: frozenset({"__errno_location"})})
+        assert PCallResult(frozenset({"__errno_location"})).match(call, MatchState(), ctx) is not None
+
+    def test_pcallstmt_matches_both_statement_spellings(self):
+        p = VirtualVariable(None, 3, 64, VirtualVariableCategory.REGISTER)
+        dst = VirtualVariable(None, 4, 64, VirtualVariableCategory.REGISTER)
+        call = Call(None, Const(None, 0x1000, 64), args=[p], bits=64)
+        ctx = self._ctx_with({0x1000: frozenset({"_ZdlPv"})})
+        pat = PCallStmt(PCall(self.OPDEL, args=(PVVar("p"),)))
+        assert pat.match(SideEffectStatement(None, call), MatchState(), ctx) is not None
+        assert pat.match(Assignment(None, dst, call), MatchState(), ctx) is not None
+        # a dst constraint requires the assignment form
+        pat_dst = PCallStmt(PCall(self.OPDEL), dst=PVVar("d"))
+        assert pat_dst.match(SideEffectStatement(None, call), MatchState(), ctx) is None
+        state = pat_dst.match(Assignment(None, dst, call), MatchState(), ctx)
+        assert state is not None and state.bindings["d"].likes(dst)
+
+    def test_anchor_keys(self):
+        assert pattern_anchor_key(PCall(self.OPDEL)) == ("Call", None)
+        assert pattern_anchor_key(PCallStmt(PCall(self.OPDEL))) == ("Call", None)
+        assert expr_anchor_key(Call(None, Const(None, 0x1000, 64), bits=64)) == ("Call", None)
+        # PCallResult matches two different AIL kinds, so it discriminates neither
+        assert pattern_anchor_key(PCallResult(frozenset({"x"}))) is None
 
 
 class TestKnownPatternFinder(TestCase):
