@@ -2,14 +2,11 @@ from __future__ import annotations
 
 DEFAULT_STATEMENT = -2
 SWITCH_MISSING_DEFAULT_NODE_ADDR = 0xFFFF_FFFE
-#: Marker bit width for memory accesses whose size is unknown. Like :data:`angr.ailment.constant.UNDETERMINED_SIZE`, it
-#: is positive so that it survives round-tripping through unsigned bit-width fields, and it is far larger than
-#: :data:`MAX_ACCESS_SIZE` so that it cannot collide with the width of a real access.
 MAX_POINTSTO_BITS = 0x1FFFC0DF * 8
 
-#: The largest memory access size (in bytes) that type inference will take at face value. Anything beyond this is
-#: treated as an access of an unknown size instead of an enormous field.
-MAX_ACCESS_SIZE = 0x100000
+# The largest memory access size (in bytes) that Typehoon will take. Anything beyond this is
+# treated as an access of an unknown size instead of an enormous field.
+MAX_ACCESS_SIZE = 0x10_0000
 
 #: Well-known "magic" constants that are universally recognized in hexadecimal.
 MAGIC_CONSTANTS = frozenset(
