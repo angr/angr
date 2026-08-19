@@ -60,6 +60,15 @@ def build_unicornlib():
     shutil.copy(os.path.join("native/unicornlib", library_file), "angr")
 
 
+def z3_loader():
+    """angr/_z3.py, loaded out of the source tree: importing angr needs the extension we are building."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "angr", "_z3.py")
+    spec = importlib.util.spec_from_file_location("angr_z3_loader", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def configure_z3():
     """Point the Rust build at the libz3 that ships in the z3-solver wheel.
 
@@ -68,12 +77,13 @@ def configure_z3():
     tied to one Z3 release. Windows takes its import library from Z3's own release (see
     native/angr/Cargo.toml) and ignores both of these.
     """
-    spec = importlib.util.find_spec("z3")
-    if spec is None or not spec.submodule_search_locations:
-        raise LibError("You must install z3-solver before building angr")
+    try:
+        library_dir = z3_loader().library_dir()
+    except ImportError as err:
+        raise LibError("You must install z3-solver before building angr") from err
 
     os.environ.setdefault("Z3_NO_PKG_CONFIG", "1")
-    os.environ.setdefault("Z3_LIBRARY_PATH_OVERRIDE", os.path.join(next(iter(spec.submodule_search_locations)), "lib"))
+    os.environ.setdefault("Z3_LIBRARY_PATH_OVERRIDE", str(library_dir))
 
 
 def build_protos():

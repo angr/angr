@@ -20,8 +20,10 @@ Good luck!
 """)
 
 # isort: off
-# rustylib links z3, import z3 first to pre-load the z3 shared library
-import z3  # noqa: F401
+# rustylib links z3, so load the z3 shared library first. See angr._z3.
+from . import _z3
+
+_z3.load()
 
 # claripy is built from the vendored clarirs sources as part of angr.rustylib;
 # its canonical module paths are angr.rustylib.claripy.*. Alias it (and every
