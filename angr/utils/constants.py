@@ -2,7 +2,11 @@ from __future__ import annotations
 
 DEFAULT_STATEMENT = -2
 SWITCH_MISSING_DEFAULT_NODE_ADDR = 0xFFFF_FFFE
-MAX_POINTSTO_BITS = -1330 * 8
+MAX_POINTSTO_BITS = 0x1FFFC0DF * 8
+
+# The largest memory access size (in bytes) that Typehoon will take. Anything beyond this is
+# treated as an access of an unknown size instead of an enormous field.
+MAX_ACCESS_SIZE = 0x10_0000
 
 #: Well-known "magic" constants that are universally recognized in hexadecimal.
 MAGIC_CONSTANTS = frozenset(

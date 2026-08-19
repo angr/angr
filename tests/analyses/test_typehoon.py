@@ -5,16 +5,18 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
+import random
 import re
 import unittest
 from collections import OrderedDict
 from typing import cast
 
 import archinfo
+from sortedcontainers import SortedDict
 
 import angr
 from angr.analyses.decompiler.clinic import Clinic
-from angr.analyses.typehoon.simple_solver import SimpleSolver
+from angr.analyses.typehoon.simple_solver import SimpleSolver, map_offsets_to_bases
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.analyses.typehoon.typeconsts import (
     Array,
@@ -585,6 +587,42 @@ class TestTypeTranslator(unittest.TestCase):
         # reaching Beta through Alpha yields the same Beta, not a re-derived copy
         restored_alpha, _ = tx.tc2simtype(tx.simtype2tc(alpha))
         assert restored_alpha.fields["beta"].pts_to is beta
+
+
+class TestMapOffsetsToBases(unittest.TestCase):
+    """Tests for simple_solver.map_offsets_to_bases, which resolves overlapping field accesses to their bases."""
+
+    @staticmethod
+    def _naive(candidate_bases: SortedDict) -> dict[int, int]:
+        # the original implementation: expand every field one byte at a time
+        offset_to_base = {}
+        for start_offset, sizes in candidate_bases.items():
+            for size in sizes:
+                for i in range(size):
+                    if start_offset + i not in offset_to_base:
+                        offset_to_base[start_offset + i] = start_offset
+        return {offset: offset_to_base[offset] for offset in candidate_bases}
+
+    def test_matches_byte_by_byte_expansion(self):
+        rand = random.Random(0x1337)
+        for _ in range(200):
+            candidate_bases = SortedDict()
+            for _ in range(rand.randint(1, 12)):
+                offset = rand.randrange(0, 64)
+                if offset not in candidate_bases:
+                    candidate_bases[offset] = set()
+                candidate_bases[offset].add(rand.choice([1, 2, 4, 8, 16]))
+            assert dict(map_offsets_to_bases(candidate_bases)) == self._naive(candidate_bases), candidate_bases
+
+    def test_overlapping_fields(self):
+        # 0 covers [0, 8), so the access at 4 belongs to it; 4 covers [4, 12), so the access at 8 belongs to 4
+        candidate_bases = SortedDict({0: {8}, 4: {8}, 8: {1}, 100: {4}})
+        assert dict(map_offsets_to_bases(candidate_bases)) == {0: 0, 4: 0, 8: 4, 100: 100}
+
+    def test_huge_field_is_not_expanded(self):
+        # a bogus field size must not cost time or memory proportional to its size
+        candidate_bases = SortedDict({0: {536821538}, 8: {8}, 0x1000_0000: {4}, 0x2000_0000: {4}})
+        assert dict(map_offsets_to_bases(candidate_bases)) == {0: 0, 8: 0, 0x1000_0000: 0, 0x2000_0000: 0x2000_0000}
 
 
 class TestSimpleSolverLatticeOps(unittest.TestCase):

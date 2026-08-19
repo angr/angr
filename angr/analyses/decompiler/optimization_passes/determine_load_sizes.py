@@ -1,14 +1,42 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
+from angr.ailment import AILBlockRewriter
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import BinaryOp, Const, Load
-from angr.ailment.statement import Assignment, WeakAssignment
+from angr.ailment.expression import Const, Expression, Load
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
+if TYPE_CHECKING:
+    from angr.ailment import Block
+    from angr.ailment.statement import Statement
+    from angr.project import Project
+
 _l = logging.getLogger(name=__name__)
+
+
+class LoadSizeRewriter(AILBlockRewriter):
+    """
+    Rewrite Load expressions whose sizes are undetermined into loads of the strings they point to.
+    """
+
+    def __init__(self, project: Project):
+        super().__init__()
+        self._project = project
+        self.changed = False
+
+    def _handle_Load(  # pylint:disable=arguments-differ
+        self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        if expr.size == UNDETERMINED_SIZE and isinstance(expr.addr, Const) and isinstance(expr.addr.value, int):
+            # probably a string!
+            bs = self._project.loader.memory.load_null_terminated_bytes(expr.addr.value, max_size=4096)
+            if bs:
+                self.changed = True
+                return Load(expr.idx, expr.addr, len(bs), expr.endness, guard=expr.guard, alt=expr.alt, **expr.tags)
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class DetermineLoadSizes(OptimizationPass):
@@ -31,32 +59,9 @@ class DetermineLoadSizes(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-        changed = False
-
+        rewriter = LoadSizeRewriter(self.project)
         for block in self._graph.nodes:
-            for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
-                stmt = block.statements[idx]
-                if isinstance(stmt, (Assignment, WeakAssignment)):
-                    if isinstance(stmt.src, BinaryOp) and stmt.src.op == "Add" and stmt.src.operands:
-                        operands = stmt.src.operands
-                    elif isinstance(stmt.src, Load):
-                        operands = [stmt.src]
-                    else:
-                        continue
+            rewriter.walk(block)
 
-                    for operand in operands:
-                        if (
-                            isinstance(operand, Load)
-                            and isinstance(operand.addr, Const)
-                            and operand.size == UNDETERMINED_SIZE
-                        ):
-                            # probably a string!
-                            bs = self.project.loader.memory.load_null_terminated_bytes(
-                                operand.addr.value, max_size=4096
-                            )
-                            if bs is not None:
-                                operand.bits = len(bs) * 8
-                    changed = True
-
-        if changed:
+        if rewriter.changed:
             self.out_graph = self._graph

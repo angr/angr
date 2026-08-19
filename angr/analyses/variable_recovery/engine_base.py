@@ -23,7 +23,7 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.utils.constants import MAX_POINTSTO_BITS
+from angr.utils.constants import MAX_ACCESS_SIZE, MAX_POINTSTO_BITS
 
 #
 # The base engine used in VariableRecoveryFast
@@ -1331,7 +1331,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 offset -= tv.labels[-1].n
                 tv = tv.type_var if len(tv.labels) == 1 else self.tv_manager.new_dtv(tv.type_var, labels=tv.labels[:-1])
         lbl = Store() if is_store else Load()
-        bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
+        # implausible access sizes (e.g., leaked size markers) are treated as accesses of an unknown size so that type
+        # inference does not end up with a gigantic field
+        bits = (
+            size * self.project.arch.byte_width
+            if size is not None and 0 < size <= MAX_ACCESS_SIZE
+            else MAX_POINTSTO_BITS
+        )
 
         if offset >= 4096:
             if self._likely_pointer(offset):

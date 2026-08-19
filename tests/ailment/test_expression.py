@@ -1,6 +1,7 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+import pickle
 import unittest
 from collections import OrderedDict
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from angr import ailment
+from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import (
     Array,
     BasePointerOffset,
@@ -15,6 +17,7 @@ from angr.ailment.expression import (
     Const,
     FunctionLikeMacro,
     Let,
+    Load,
     Register,
     RustEnum,
     StackBaseOffset,
@@ -26,6 +29,7 @@ from angr.ailment.expression import (
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.sim_type import SimTypeBottom
+from angr.utils.constants import MAX_ACCESS_SIZE, MAX_POINTSTO_BITS
 
 
 class TestExpression(unittest.TestCase):
@@ -260,6 +264,35 @@ class TestExpression(unittest.TestCase):
         assert bpo.offset == -8
         assert BasePointerOffset(0, 32, "bp", -8).offset == -8
         assert BasePointerOffset(0, 32, "bp", 8).offset == 8
+
+    def test_undetermined_load_size_round_trip(self):
+        # Load stores its bit width in an unsigned 32-bit field, so the marker size of a load whose size is not known
+        # yet must survive being multiplied by 8 and read back. It used to be negative, and came back as a 512MB size.
+        load = Load(0, Const(1, 0x400000, 64), UNDETERMINED_SIZE, "Iend_LE")
+        assert load.size == UNDETERMINED_SIZE
+        assert load.bits == UNDETERMINED_SIZE * 8
+
+        # the same must hold for the unknown-access-size marker that type inference uses
+        assert MAX_POINTSTO_BITS // 8 * 8 == MAX_POINTSTO_BITS
+        assert Load(0, Const(1, 0x400000, 64), MAX_POINTSTO_BITS // 8, "Iend_LE").bits == MAX_POINTSTO_BITS
+
+        # neither marker may be mistaken for the width of an access that we take at face value
+        assert UNDETERMINED_SIZE > MAX_ACCESS_SIZE
+        assert MAX_POINTSTO_BITS // 8 > MAX_ACCESS_SIZE
+        assert UNDETERMINED_SIZE * 8 != MAX_POINTSTO_BITS
+
+    def test_load_bits_setter_updates_size(self):
+        # a Load's size is its bit width; everything that reports a size -- the getter, repr, __eq__, __hash__ and
+        # serialization -- must follow the bits setter.
+        load = Load(0, Const(1, 0x400000, 64), 4, "Iend_LE")
+        load.bits = 64
+
+        assert load.size == 8
+        assert "size=8" in repr(load)
+        assert load == Load(0, Const(1, 0x400000, 64), 8, "Iend_LE")
+        assert hash(load) == hash(Load(0, Const(1, 0x400000, 64), 8, "Iend_LE"))
+        assert load != Load(0, Const(1, 0x400000, 64), 4, "Iend_LE")
+        assert pickle.loads(pickle.dumps(load)).size == 8
 
     def test_const_sign_bit(self):
         # ``Const.sign_bit`` is bit ``bits - 1`` of the value's raw (unsigned
