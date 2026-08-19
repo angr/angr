@@ -287,6 +287,9 @@ class DescriptorStore:
     def __init__(self):
         self._parent: dict[MemoryRegion, MemoryRegion] = {}
         self._descriptors: dict[MemoryRegion, PointerShapeDescriptor] = {}
+        # called as on_union(absorbed_region, surviving_region, surviving_descriptor) whenever two regions turn out
+        # to alias. Bookkeeping attached to a region (provenance, for one) has to follow the merge.
+        self.on_union = None
 
     def find(self, region: MemoryRegion) -> MemoryRegion:
         """
@@ -336,6 +339,8 @@ class DescriptorStore:
         desc_b = self._descriptors.pop(rep_b, None)
         if desc_b is not None:
             desc_a.merge(desc_b)
+        if self.on_union is not None:
+            self.on_union(rep_b, rep_a, desc_a)  # pylint:disable=not-callable
         return True
 
     def items(self):

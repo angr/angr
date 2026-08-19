@@ -160,6 +160,9 @@ class FullProgramIndirectJumpResolution(Analysis):
         # provenance: (holder, value) -> {(step, source holder or None)}. A holder is ("vvar", func_addr, varid),
         # ("field", region, offset) or ("site", ins_addr).
         self.provenance: dict[tuple[Any, int], set[tuple[ProvenanceStep, Any]]] = {}
+        # region -> {(field offset, value)} it has provenance recorded for, so a union can migrate those records
+        self._field_provenance_index: dict[MemoryRegion, set[tuple[int, int]]] = {}
+        self.pointer_shapes.on_union = self._on_region_union
         # a raw image (no section table) needs a different notion of what a data address is
         main_object = self.project.loader.main_object
         self._sectionless_image: bool = main_object is not None and not main_object.sections
@@ -923,6 +926,29 @@ class FullProgramIndirectJumpResolution(Analysis):
         if not self._track_provenance:
             return
         self.provenance.setdefault((holder, value), set()).add((step, source))
+        if holder[0] == "field":
+            self._field_provenance_index.setdefault(holder[1], set()).add((holder[2], value))
+
+    def _on_region_union(self, absorbed: MemoryRegion, surviving: MemoryRegion, surviving_desc) -> None:
+        """
+        Two regions turned out to alias, and the absorbed one's descriptor has just been merged into the survivor's.
+        Its provenance records have to move with it, otherwise the values that merge brought along would sit in the
+        surviving field with no recorded history and could not be explained.
+        """
+        if not self._track_provenance:
+            return
+        recorded = self._field_provenance_index.pop(absorbed, None)
+        if not recorded:
+            return
+        moved = self._field_provenance_index.setdefault(surviving, set())
+        for offset, value in recorded:
+            links = self.provenance.pop((("field", absorbed, offset), value), None)
+            if not links:
+                continue
+            # the survivor may fold offsets differently, so re-normalize against its descriptor
+            new_offset = surviving_desc.normalize_offset(offset)
+            self.provenance.setdefault((("field", surviving, new_offset), value), set()).update(links)
+            moved.add((new_offset, value))
 
     def _add_codeptr(self, facts: _FuncFacts, varid: int, value: int, step=None, source=None) -> bool:
         if step is not None:
