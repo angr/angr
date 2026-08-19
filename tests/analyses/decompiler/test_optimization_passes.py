@@ -10,11 +10,11 @@ import unittest
 import networkx
 
 import angr
-from angr.ailment import Assignment, BinaryOp, Block, Const, Register
+from angr.ailment import Block
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import Call, Load, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Call, Const, Load, Register, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
-from angr.ailment.statement import ConditionalJump, Return, Store, WeakAssignment
+from angr.ailment.statement import Assignment, ConditionalJump, Return, Store, WeakAssignment
 from angr.analyses.decompiler.optimization_passes import DetermineLoadSizes, FlipBooleanCmp
 from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
 
@@ -203,7 +203,7 @@ class TestDetermineLoadSizes(unittest.TestCase):
         )
 
         stmt = self._run(func, graph).statements[0]
-        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt, WeakAssignment)
         assert isinstance(stmt.src, Load)
         assert stmt.src.size == len(proj.loader.memory.load_null_terminated_bytes(self.STRING_ADDR))
 
@@ -219,7 +219,7 @@ class TestDetermineLoadSizes(unittest.TestCase):
         )
 
         stmt = self._run(func, graph).statements[0]
-        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt, WeakAssignment)
         assert isinstance(stmt.src, BinaryOp)
         assert isinstance(stmt.src.operands[1], Load)
         assert stmt.src.operands[1].size == len(proj.loader.memory.load_null_terminated_bytes(self.STRING_ADDR))
@@ -234,7 +234,7 @@ class TestDetermineLoadSizes(unittest.TestCase):
         )
 
         stmt = self._run(func, graph).statements[0]
-        assert isinstance(stmt, Assignment)
+        assert isinstance(stmt, WeakAssignment)
         assert isinstance(stmt.src, Load)
         assert stmt.src.size == UNDETERMINED_SIZE
 
