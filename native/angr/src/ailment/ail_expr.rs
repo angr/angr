@@ -3212,6 +3212,10 @@ impl Expression {
     #[setter]
     fn set_bits(&mut self, v: u32) {
         self.expr.header.bits = v;
+        // Load keeps its own copy of the width, and that is the one repr, __eq__ and __hash__ are built from
+        if let ExprInner::Load { size, .. } = &mut self.expr.inner {
+            *size = (v / 8) as i32;
+        }
         self.expr.header.cached_hash.clear();
     }
     #[getter]

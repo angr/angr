@@ -280,6 +280,18 @@ class TestExpression(unittest.TestCase):
         assert MAX_POINTSTO_BITS // 8 > MAX_ACCESS_SIZE
         assert UNDETERMINED_SIZE * 8 != MAX_POINTSTO_BITS
 
+    def test_load_bits_setter_updates_size(self):
+        # Load keeps its size next to the bit width in its header, and repr, __eq__ and __hash__ are built from the
+        # former, so setting bits must update both.
+        load = Load(0, Const(1, 0x400000, 64), 4, "Iend_LE")
+        load.bits = 64
+
+        assert load.size == 8
+        assert "size=8" in repr(load)
+        assert load == Load(0, Const(1, 0x400000, 64), 8, "Iend_LE")
+        assert hash(load) == hash(Load(0, Const(1, 0x400000, 64), 8, "Iend_LE"))
+        assert load != Load(0, Const(1, 0x400000, 64), 4, "Iend_LE")
+
     def test_const_sign_bit(self):
         # ``Const.sign_bit`` is bit ``bits - 1`` of the value's raw (unsigned
         # two's-complement) pattern, regardless of how the value is stored
