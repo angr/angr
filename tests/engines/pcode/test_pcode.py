@@ -182,7 +182,7 @@ class TestPcodeEngine(TestCase):
 
     def test_block_lifter_is_kept_per_project(self):
         """
-        Test that a project decodes with one basic block lifter, and therefore one Sleigh context, per architecture.
+        Test that a project decodes with one basic block lifter, and therefore one Sleigh context.
 
         Block.pcode reads that context, so a project whose engine is not the p-code engine must neither share one
         with another project nor build one for every block.
@@ -197,7 +197,12 @@ class TestPcodeEngine(TestCase):
         assert pcode_lifter.get_block_lifter(first, first.arch) is block_lifter
         assert pcode_lifter.get_block_lifter(second, second.arch) is not block_lifter
 
-        # a Sleigh context cannot be pickled, so the lifters a project keeps must not go into its pickle
+        # a lifter decodes one architecture, so asking for another replaces it rather than decoding with it
+        other_arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+        assert pcode_lifter.get_block_lifter(first, other_arch).arch == other_arch
+        assert pcode_lifter.get_block_lifter(first, first.arch) is not block_lifter
+
+        # a Sleigh context cannot be pickled, so the lifter a project keeps must not go into its pickle
         restored = pickle.loads(pickle.dumps(first))
         assert [insn.mnemonic for insn in restored.factory.block(0).pcode.insns] == ["nop"] * 4
 

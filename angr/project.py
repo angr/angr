@@ -269,8 +269,8 @@ class Project:
             raise ValueError(f"Invalid cache configuration keys: {set(self.cache_limits.keys()) - CACHE_CONFIG_KEYS}")
 
         # Sleigh records context variables per address, so a basic block lifter decodes later blocks differently
-        # depending on which blocks it decoded before. Blocks of this binary decode with these and no others.
-        self._pcode_block_lifters: dict[archinfo.Arch, PcodeBasicBlockLifter] = {}
+        # depending on which blocks it decoded before. Blocks of this binary decode with this one and no other.
+        self._pcode_block_lifter: PcodeBasicBlockLifter | None = None
 
         self._languages: list[str] | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
@@ -839,7 +839,7 @@ class Project:
                     "analyses",
                     "_llm_client",
                     # Sleigh contexts do not survive pickling
-                    "_pcode_block_lifters",
+                    "_pcode_block_lifter",
                 }
             }
         finally:
@@ -848,7 +848,7 @@ class Project:
     def __setstate__(self, s):
         self.__dict__.update(s)
         self._llm_client = _UNSET
-        self._pcode_block_lifters = {}
+        self._pcode_block_lifter = None
         try:
             self._initialize_analyses_hub()
         except AngrNoPluginError:

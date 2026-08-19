@@ -834,10 +834,12 @@ class PcodeBasicBlockLifter:
     at the following address. An instance must therefore stay with a single binary; see :func:`get_block_lifter`.
     """
 
+    arch: archinfo.Arch
     context: Context
     behaviors: BehaviorFactory
 
     def __init__(self, arch: archinfo.Arch):
+        self.arch = arch
         if isinstance(arch, ArchPcode):
             langid = arch.name
         else:
@@ -982,8 +984,8 @@ def get_block_lifter(project: Project | None, arch: archinfo.Arch) -> PcodeBasic
     """
     Get the basic block lifter, and therefore the Sleigh context, that `project` decodes `arch` with.
 
-    A project running the p-code engine keeps its lifters on that engine, which the factory keeps per thread as
-    well as per project. Any other project keeps them on itself, in ``Project._pcode_block_lifters``. A block with
+    A project running the p-code engine keeps its lifter on that engine, which the factory keeps per thread as
+    well as per project. Any other project keeps it on itself, in ``Project._pcode_block_lifter``. A block with
     no project gets a lifter of its own. See :class:`PcodeBasicBlockLifter`.
     """
     if project is None:
@@ -991,10 +993,9 @@ def get_block_lifter(project: Project | None, arch: archinfo.Arch) -> PcodeBasic
     engine = project.factory.default_engine
     if isinstance(engine, PcodeLifterEngineMixin):
         return engine.get_block_lifter(arch)
-    block_lifters = project._pcode_block_lifters  # pylint:disable=protected-access
-    block_lifter = block_lifters.get(arch)
-    if block_lifter is None:
-        block_lifter = block_lifters[arch] = PcodeBasicBlockLifter(arch)
+    block_lifter = project._pcode_block_lifter  # pylint:disable=protected-access
+    if block_lifter is None or block_lifter.arch != arch:
+        block_lifter = project._pcode_block_lifter = PcodeBasicBlockLifter(arch)  # pylint:disable=protected-access
     return block_lifter
 
 
@@ -1066,8 +1067,8 @@ class PcodeLifterEngineMixin(SimEngine):
             else:
                 self.selfmodifying_code = False
 
-        # basic block lifters
-        self._block_lifters: dict[archinfo.Arch, PcodeBasicBlockLifter] = {}
+        # basic block lifter
+        self._block_lifter: PcodeBasicBlockLifter | None = None
 
         # block cache
         self._block_cache = None
@@ -1079,13 +1080,12 @@ class PcodeLifterEngineMixin(SimEngine):
         """
         Get the basic block lifter this engine decodes `arch` with, creating it on first use.
 
-        The factory keeps one engine per project and per thread, so an engine's lifters never decode blocks of
+        The factory keeps one engine per project and per thread, so an engine's lifter never decodes blocks of
         more than one binary. See :class:`PcodeBasicBlockLifter`.
         """
-        block_lifter = self._block_lifters.get(arch)
-        if block_lifter is None:
-            block_lifter = self._block_lifters[arch] = PcodeBasicBlockLifter(arch)
-        return block_lifter
+        if self._block_lifter is None or self._block_lifter.arch != arch:
+            self._block_lifter = PcodeBasicBlockLifter(arch)
+        return self._block_lifter
 
     def _initialize_block_cache(self) -> None:
         self._block_cache = LRUCache(maxsize=self._cache_size)
@@ -1482,8 +1482,8 @@ class PcodeLifterEngineMixin(SimEngine):
         self._cache_size = s["_cache_size"]
         self.default_strict_block_end = s["default_strict_block_end"]
 
-        # Sleigh contexts do not survive pickling; rebuild them on demand
-        self._block_lifters = {}
+        # Sleigh contexts do not survive pickling; rebuild on demand
+        self._block_lifter = None
 
         # rebuild block cache
         self._initialize_block_cache()
