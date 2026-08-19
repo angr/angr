@@ -105,6 +105,16 @@ def analyzed_project() -> angr.Project:
 #
 
 
+def summarize(meta: dict) -> dict:
+    """
+    The metadata sigserv puts in a response: the identifying fields, without the constant lists it matches against.
+    """
+    return {
+        key: meta.get(key, "")
+        for key in ("library", "arch", "platform", "compiler", "compiler_version", "os", "os_version")
+    }
+
+
 def load_libraries(sigs_dir: str) -> list[dict]:
     libraries = []
     for filename in sorted(os.listdir(sigs_dir)):
@@ -152,7 +162,7 @@ def rank(libraries: list[dict], query: dict) -> list[dict]:
             {
                 "library_name": library["name"],
                 "sig_path": library["sig_path"],
-                "meta": meta,
+                "meta": summarize(meta),
                 "score": (2 * len(matched_strings) + len(matched_integers)) / total_inputs,
                 "matched_strings": matched_strings,
                 "matched_integers": matched_integers,
@@ -183,7 +193,7 @@ class FakeSigservHandler(http.server.BaseHTTPRequestHandler):
         elif parsed.path == "/libraries":
             self._send_json(
                 [
-                    {"name": library["name"], "meta": library["meta"], "sig_path_str": library["sig_path"]}
+                    {"name": library["name"], "meta": summarize(library["meta"]), "sig_path_str": library["sig_path"]}
                     for library in self.server.libraries
                 ]
             )
@@ -392,6 +402,8 @@ class TestSigservClient(unittest.TestCase):
         assert [r["library_name"] for r in results] == ["libc_ubuntu_2004", "libc_ubuntu_2004_alt"]
         assert results[0]["score"] > results[1]["score"]
         assert set(results[0]["matched_strings"]) == set(LIBC_STRINGS)
+        # a suggestion carries the identity of its library, never the constants the server matched against
+        assert "unique_strings" not in results[0]["meta"]
         assert client.query() == []
 
     def test_fetch_signature(self):
@@ -530,6 +542,11 @@ class TestSuggestSignatureAgainstRealServer(unittest.TestCase):
         assert client.protocol_version == SIGSERV_PROTOCOL_VERSION
         assert client.library_count() == len(LIBRARY_NAMES)
         assert sorted(client.library_names()) == LIBRARY_NAMES
+
+        # the real server answers with the same trimmed metadata the stand-in above serves
+        suggestions = client.query(strings=LIBC_STRINGS)
+        assert suggestions
+        assert set(suggestions[0]["meta"]) == set(summarize({}))
 
         analysis = self.proj.analyses.SuggestSignature(server_url=self.url, apply=True)
         assert analysis.accepted
