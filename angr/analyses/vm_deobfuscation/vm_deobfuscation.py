@@ -772,7 +772,7 @@ class VMDeobfuscation(Analysis):
         cfg = None
         all_symbolic_expr_locations = {}
         import pickle
-        prev_node_count = None
+        prev_node_count = 0
         fixed_point = False
         if max_symbolizer_iterations is None:
             max_symbolizer_iterations = 100
@@ -867,23 +867,11 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, self.project_dir / f"{symb_iter}symb_result.svg")
             self.draw_graph_flag=False
 
-            pending_symbolizations = 0
-            for by_kind in self.project.to_symbolize.values():
-                for locations in by_kind.values():
-                    pending_symbolizations += len(locations)
-
-            cur_node_count = len(new_cfg.nodes())
-            fixed_point = cur_node_count == prev_node_count and pending_symbolizations == 0
+            fixed_point = len(new_cfg.nodes()) == prev_node_count
             if fixed_point:
                 break
-            if cur_node_count == prev_node_count and pending_symbolizations:
-                l.info(
-                    "Continuing symbolizer at fixed node count %d because %d symbolic locations are pending.",
-                    cur_node_count,
-                    pending_symbolizations,
-                )
 
-            prev_node_count = cur_node_count
+            prev_node_count = max(len(new_cfg.nodes()), prev_node_count)
 
         if themida_split_branches:
             to_split_nodes = self.split_redundant_branch_themida(new_cfg)

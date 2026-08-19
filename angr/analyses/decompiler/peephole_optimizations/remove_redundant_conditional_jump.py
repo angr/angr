@@ -11,6 +11,9 @@ class RemoveRedunCondJump(PeepholeOptimizationStmtBase):
 
     def optimize(self, stmt: ConditionalJump, stmt_idx: int = None, block=None, **kwargs):
 
+        if stmt.false_target is None or stmt.true_target is None:
+            return None
+
         if stmt.false_target.likes(stmt.true_target):
             return Jump(None, stmt.true_target, stmt.true_target_idx, **stmt.tags)
 
