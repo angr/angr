@@ -17,6 +17,7 @@ from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, S
 from angr.sim_type import SimTypeFunction, SimTypePointer
 from angr.sim_variable import SimStackVariable, SimVariable
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.utils.constants import MAX_ACCESS_SIZE
 from angr.utils.types import dereference_simtype_by_lib
 
 from .engine_base import RichR, SimEngineVRBase
@@ -581,7 +582,7 @@ class SimEngineVRAIL(
         addr_r = self._expr_bv(expr.addr)
         size = expr.size
 
-        if size != UNDETERMINED_SIZE:
+        if size != UNDETERMINED_SIZE and 0 < size <= MAX_ACCESS_SIZE:
             return self._load(addr_r, size, expr=expr)
         return self._top(8)
 
