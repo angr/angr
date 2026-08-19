@@ -19,6 +19,8 @@ from angr.analyses.decompiler.known_patterns import (
     CONTAINING_RECORD_PATTERN,
     KERNEL_TARGET,
     LINUX_KERNEL,
+    OPERATOR_DELETE,
+    STD_STRING_DTOR,
     STD_STRING_LENGTH,
     STD_VECTOR_INT_SIZE,
     GateContext,
@@ -39,9 +41,13 @@ from angr.analyses.decompiler.known_patterns.dsl import (
     PCallResult,
     PCallStmt,
     PConst,
+    PDefOf,
     PVVar,
     expr_anchor_key,
     pattern_anchor_key,
+)
+from angr.analyses.decompiler.known_patterns.dsl import (
+    PLoad as PLoadPat,
 )
 from angr.analyses.decompiler.known_patterns.stl_accessors2 import STD_STRING_FRONT
 from angr.knowledge_plugins.functions.function import PrototypeSource
@@ -49,6 +55,8 @@ from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
 from tests.common import bin_location
 
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
+# the inlined std::string destructor, in its member / local / by-pointer shapes
+STL5_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl5")
 # std::vector<T>::size() whose chased definitions are still used by other code
 STL3_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl3")
 # coreutils mv at -O2: copy_internal keeps `st_mode & S_IFMT` in one register and
@@ -214,7 +222,7 @@ class TestPCall(TestCase):
     OPDEL = frozenset({"_ZdlPv", "_ZdlPvm"})
 
     @staticmethod
-    def _ctx_with(names_by_addr=None, call_by_varid=None):
+    def _ctx_with(names_by_addr=None, def_by_varid=None):
         names_by_addr = names_by_addr or {}
 
         def target_fn(call):
@@ -224,7 +232,7 @@ class TestPCall(TestCase):
 
         return MatchCtx(
             call_target_fn=target_fn,
-            call_def_fn=(call_by_varid or {}).get,
+            def_fn=(def_by_varid or {}).get,
         )
 
     def test_pcall_matches_by_any_spelling(self):
@@ -281,12 +289,37 @@ class TestPCall(TestCase):
         state = pat_dst.match(Assignment(None, dst, call), MatchState(), ctx)
         assert state is not None and state.bindings["d"].likes(dst)
 
+    def test_pdefof_reads_a_definition_read_only(self):
+        # `mov (%rdi),%rax; cmp %rdx,%rax`: the compare's operand is the register,
+        # not the load, and PDefOf is what bridges the two
+        s_ = VirtualVariable(None, 1, 64, VirtualVariableCategory.PARAMETER)
+        loaded = VirtualVariable(None, 9, 64, VirtualVariableCategory.REGISTER)
+        load = Load(None, s_, 8, "Iend_LE")
+        ctx = self._ctx_with(def_by_varid={9: load})
+        pat = PDefOf(PLoadPat(PVVar("s"), size=8))
+        # the load itself still matches, unchanged
+        state = pat.match(load, MatchState(), ctx)
+        assert state is not None and state.bindings["s"].likes(s_)
+        # ...and so does the register it was put in
+        state = pat.match(loaded, MatchState(), ctx)
+        assert state is not None and state.bindings["s"].likes(s_)
+        assert not state.consumed_stmt_idxs and not state.chased_defs
+        # a variable defined by something else does not
+        assert (
+            PDefOf(PLoadPat(PVVar("s"), size=8)).match(
+                VirtualVariable(None, 10, 64, VirtualVariableCategory.REGISTER), MatchState(), ctx
+            )
+            is None
+        )
+
     def test_anchor_keys(self):
         assert pattern_anchor_key(PCall(self.OPDEL)) == ("Call", None)
         assert pattern_anchor_key(PCallStmt(PCall(self.OPDEL))) == ("Call", None)
         assert expr_anchor_key(Call(None, Const(None, 0x1000, 64), bits=64)) == ("Call", None)
-        # PCallResult matches two different AIL kinds, so it discriminates neither
+        # PCallResult and PDefOf each match two different AIL kinds, so they
+        # discriminate neither
         assert pattern_anchor_key(PCallResult(frozenset({"x"}))) is None
+        assert pattern_anchor_key(PDefOf(PVVar("x"))) is None
 
 
 class TestKnownPatternFinder(TestCase):
@@ -537,6 +570,78 @@ class TestKnownPatternGraph(TestCase):
         assert "route(" in text
         # the if/else diamond is gone from the caller
         assert "else" not in text
+
+
+class TestStringDestructor(TestCase):
+    """The inlined std::string destructor (std_string_dtor).
+
+    Three shapes, three code paths through the outliner: a member string is a
+    region with one exit and gets a real outlined callee; a local string is
+    stack slots with no interface, so its region is collapsed in place; and a
+    destructor whose arms both end the function has two exits and reaches the
+    in-place path as a fallback.
+    """
+
+    def test_member_strings_are_outlined(self):
+        # Doc has two std::string members: two triangles, the join of the first
+        # being the entry of the second
+        _, _, _, dec = _decompile(STL5_BIN, "doc_free", preset="full")
+        assert dec.codegen.text.count("std::string::~string(") == 2
+
+    def test_default_on(self):
+        # nothing is forced: the pattern's four agreeing constraints (same base
+        # in the compare and both loads, the local-buffer offset as address and
+        # as field, the +1, the callee) earn it a place in the default set
+        assert STD_STRING_DTOR.enabled_by_default
+
+    def test_local_string_is_named_in_place(self):
+        _, _, _, dec = _decompile(STL5_BIN, "local_len", preset="full")
+        text = dec.codegen.text
+        assert text.count("std::string::~string(") == 1
+        # the argument is spelled the way the rest of the output spells a stack
+        # address -- &v, not `stack_base + -56`
+        assert re.search(r"std::string::~string\(&\w+\)", text), text
+        assert "stack_base" not in text
+
+    def test_two_locals(self):
+        _, _, _, dec = _decompile(STL5_BIN, "two_locals", preset="full")
+        assert dec.codegen.text.count("std::string::~string(") == 2
+
+    def test_by_pointer(self):
+        # the arms rejoin: one region exit, the ordinary outlined path
+        _, _, _, dec = _decompile(STL5_BIN, "ptr_free", preset="full")
+        text = dec.codegen.text
+        assert text.count("std::string::~string(") == 1
+        assert "operatordelete" not in text
+
+    def test_by_pointer_with_duplicated_epilogues(self):
+        # every arm ends the function, so gcc duplicates the `return 1` epilogue
+        # and the region has two exits at two addresses. v1 outlining declines;
+        # a void region needs no callee, so it is collapsed in place instead.
+        _, _, _, dec = _decompile(STL5_BIN, "ptr_free_dup", preset="full")
+        text = dec.codegen.text
+        assert text.count("std::string::~string(") == 1
+        assert "operatordelete" not in text
+
+    def test_vector_of_strings_frees_elements_in_a_loop(self):
+        _, _, _, dec = _decompile(STL5_BIN, "vec_free", preset="full")
+        assert "std::string::~string(" in dec.codegen.text
+
+    def test_the_callee_is_what_guards_the_pattern(self):
+        # it is the callee that makes this idiom identifiable rather than a plain
+        # nullable-pointer test, so the call node has to name operator delete
+        proj, _, func, dec = _decompile(STL5_BIN, "ptr_free", preset="fast")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        assert any(m.pattern.name == "std_string_dtor" for m in finder.matches)
+
+        dtor = STD_STRING_DTOR.instantiate(_AMD64_CTX)
+        graph = dtor.pattern
+        free_stmts = graph.blocks["free"].stmts.stmts
+        assert len(free_stmts) == 1
+        call_pat = free_stmts[0].call
+        # operator delete under every spelling the compilers emit
+        assert "_ZdlPvm" in call_pat.names and "??3@YAXPEAX_K@Z" in call_pat.names
+        assert call_pat.names == OPERATOR_DELETE
 
 
 class TestKnownPatternPipeline(TestCase):

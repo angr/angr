@@ -99,11 +99,13 @@ class MatchCtx:
     # binary, its demangled spelling. Supplied by the finder, which holds the
     # Project; a pattern that names a callee is only matchable with it.
     call_target_fn: Callable[[Call], frozenset[str]] | None = None
-    # the Call that defines a virtual variable, followed through plain copies and
-    # through phis whose arms agree. Deliberately *not* ``peek_fn``: that one's
-    # contract is "this expression can be recomputed at the use", which a call
-    # can never satisfy. A call is only ever referred to.
-    call_def_fn: Callable[[int], Call | None] | None = None
+    # the expression that *defined* a virtual variable, followed through plain
+    # copies and through phis whose arms agree. Deliberately *not* ``peek_fn``:
+    # that one's contract is "this expression can be recomputed at the use", so
+    # it refuses loads and calls. This one only answers "what produced this
+    # value", which a load or a call can perfectly well have done -- the answer
+    # is used to *identify* an idiom, never to move or re-evaluate anything.
+    def_fn: Callable[[int], Expression | None] | None = None
 
 
 class PatternNode:
@@ -430,14 +432,55 @@ class PCallResult(PatternExpr):
             expr = expr.operand
         if isinstance(expr, Call):
             return self._bind_if_named(self.name, expr, state) if self._target_matches(expr, ctx) else None
-        if not isinstance(expr, VirtualVariable) or ctx.call_def_fn is None:
+        if not isinstance(expr, VirtualVariable) or ctx.def_fn is None:
             return None
-        call = ctx.call_def_fn(expr.varid)
-        if call is None or not self._target_matches(call, ctx):
+        call = ctx.def_fn(expr.varid)
+        if not isinstance(call, Call) or not self._target_matches(call, ctx):
             return None
         # bind the variable, not the call: it is the value that exists at the
         # match site, and the only spelling the outliner could pass along
         return self._bind_if_named(self.name, expr, state)
+
+
+@dataclass(frozen=True)
+class PDefOf(PatternExpr):
+    """``inner``, or a virtual variable whose reaching definition is ``inner``.
+
+    The compiler is free to compute a value once and use it twice, and it does
+    so exactly where an idiom uses one value twice. ``if (_M_p != &_M_local_buf)
+    operator delete(_M_p, ...)`` reads _M_p in the compare and in the call, so
+    gcc loads it into a register and the pattern sees ``Load(s)`` in neither
+    place -- it sees the same virtual variable in both.
+
+    Reading that variable's definition is read-only. Nothing is consumed, moved
+    or recomputed, and the identification stays accurate even if memory changes
+    afterwards: the variable holds what the load produced *at the definition*,
+    which is what the idiom meant. That is why this is not ``peek_fn``, whose
+    contract ("can be recomputed at the use") a load cannot satisfy.
+
+    The unconsumed definition is left where it was, so a region that matches
+    through this node keeps it as residue -- harmless, and dead-code elimination
+    removes it once the idiom's other uses are gone.
+    """
+
+    inner: PatternExpr
+    name: str | None = None
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        st = self.inner.match(expr, state, ctx)
+        if st is not None:
+            return self._bind_if_named(self.name, expr, st)
+        while ctx.skip_conversions and isinstance(expr, Convert):
+            expr = expr.operand
+        if not isinstance(expr, VirtualVariable) or ctx.def_fn is None:
+            return None
+        definition = ctx.def_fn(expr.varid)
+        if definition is None:
+            return None
+        st = self.inner.match(definition, state, ctx)
+        if st is None:
+            return None
+        return self._bind_if_named(self.name, expr, st)
 
 
 @dataclass(frozen=True)
@@ -587,13 +630,13 @@ class PStackField(PatternExpr):
     the thing two fields must agree on and, directly, the argument the synthesized
     call takes, so nothing has to be materialized for it.
 
-    **No pattern uses this yet, and matching is only half the problem.** The
-    outlined region for a stack container reads N independent slots, so its
-    live-ins are N values rather than one pointer -- there is nothing for the
-    synthesized call to take. Emitting ``std::string::length(&s)`` needs the
-    outliner to *rewrite* the region into loads through a materialized ``tmp =
-    &s`` before handing it over, which is sound (a stack slot's address is stable)
-    but is a transformation, not a capture. That is the remaining work.
+    Matching is only half the problem, and the other half is why a pattern using
+    this node is never *outlined*: the region for a stack container reads N
+    independent slots, so its live-ins are N values rather than one pointer and
+    there is nothing for a synthesized callee to take. Such a match is instead
+    rewritten in place -- the matched expression, or the whole region, is
+    replaced by ``call(&s)``, whose argument the binding already is. See
+    ``KnownPatternFinder._rewrite_in_place`` and ``_rewrite_graph_in_place``.
     """
 
     base: str
@@ -873,6 +916,8 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("Extract", None)
     if isinstance(node, PCall):
         return ("Call", None)
+    if isinstance(node, PDefOf):
+        return None
     if isinstance(node, PCallResult):
         # matches a virtual variable, or the call itself where the result is used
         # at its definition -- two kinds, so it discriminates neither

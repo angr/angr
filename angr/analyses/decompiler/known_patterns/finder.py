@@ -277,8 +277,8 @@ class KnownPatternFinder(Analysis):
         self._remote_def_cache: dict[int, Expression | None] = {}
         # call target address -> every name that callee is known by
         self._call_names_cache: dict[int, frozenset[str]] = {}
-        # varid -> the Call that defines it, or None
-        self._call_def_cache: dict[int, Call | None] = {}
+        # varid -> the expression that defines it, or None
+        self._def_cache: dict[int, Expression | None] = {}
         self._blocks_by_loc: dict[tuple[int, int | None], Block] | None = None
         self._ail_manager = ail_manager
         self.vvar_id_start = vvar_id_start
@@ -666,7 +666,7 @@ class KnownPatternFinder(Analysis):
             skip_conversions=self._skip_conversions,
             chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
             call_target_fn=self._resolve_call_target,
-            call_def_fn=self._resolve_call_def,
+            def_fn=self._resolve_def,
         )
         result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, start_idx, True, MatchState(), ctx, max_gap)
         if result is None:
@@ -713,7 +713,7 @@ class KnownPatternFinder(Analysis):
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
             call_target_fn=self._resolve_call_target,
-            call_def_fn=self._resolve_call_def,
+            def_fn=self._resolve_def,
         )
 
         def assign(pat_i: int, used: frozenset[int], state: MatchState) -> tuple[MatchState, list[int]] | None:
@@ -774,7 +774,7 @@ class KnownPatternFinder(Analysis):
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
             call_target_fn=self._resolve_call_target,
-            call_def_fn=self._resolve_call_def,
+            def_fn=self._resolve_def,
         )
 
         # order internal blocks by BFS from the entry over internal edges, so
@@ -896,7 +896,7 @@ class KnownPatternFinder(Analysis):
             stack_slot_fn=self._resolve_stack_slot,
             remote_chase_fn=self._make_remote_chase_fn(),
             call_target_fn=self._resolve_call_target,
-            call_def_fn=self._resolve_call_def,
+            def_fn=self._resolve_def,
         )
         state = pattern.pattern.match(target, MatchState(), ctx)
         if state is None:
@@ -1075,21 +1075,22 @@ class KnownPatternFinder(Analysis):
         self._call_names_cache[addr] = out
         return out
 
-    def _resolve_call_def(self, varid: int, _depth: int = 0, _seen: frozenset[int] | None = None) -> Call | None:
-        """The Call that defines ``varid``, through copies and agreeing phis.
+    def _resolve_def(self, varid: int, _depth: int = 0, _seen: frozenset[int] | None = None) -> Expression | None:
+        """The expression that defines ``varid``, through copies and agreeing phis.
 
         Read-only, and deliberately separate from :meth:`_resolve_remote_def`:
-        that one answers "what can I recompute here", and refuses calls for
-        exactly the right reason -- re-evaluating a call is not the same as
-        reading its result. This one answers "what produced this value", which a
-        call can perfectly well have done. Nothing is consumed or moved.
+        that one answers "what can I recompute here", and refuses loads and calls
+        for exactly the right reason -- re-evaluating them is not the same as
+        reading their result. This one answers "what produced this value", which
+        a load or a call can perfectly well have done, and the answer is only
+        ever used to *identify* an idiom. Nothing is consumed or moved.
         """
         if _depth == 0:
-            cached = self._call_def_cache.get(varid, False)
+            cached = self._def_cache.get(varid, False)
             if cached is not False:
                 return cached
-            out = self._resolve_call_def(varid, 1, frozenset((varid,)))
-            self._call_def_cache[varid] = out
+            out = self._resolve_def(varid, 1, frozenset((varid,)))
+            self._def_cache[varid] = out
             return out
         if _depth > self.MAX_REMOTE_CHASE_DEPTH or self._srda_model is None:
             return None
@@ -1104,28 +1105,26 @@ class KnownPatternFinder(Analysis):
             return None
         seen = _seen if _seen is not None else frozenset()
         if is_phi_assignment(def_stmt):
-            resolved: Call | None = None
+            resolved: Expression | None = None
             for _, src_vvar in def_stmt.src.src_and_vvars:
                 if src_vvar is None or src_vvar.varid in seen:
                     return None
-                src_call = self._resolve_call_def(src_vvar.varid, _depth + 1, seen | {src_vvar.varid})
-                if src_call is None:
+                src_def = self._resolve_def(src_vvar.varid, _depth + 1, seen | {src_vvar.varid})
+                if src_def is None:
                     return None
                 if resolved is None:
-                    resolved = src_call
-                elif not resolved.likes(src_call):
+                    resolved = src_def
+                elif not resolved.likes(src_def):
                     return None
             return resolved
         src = def_stmt.src
-        if isinstance(src, Convert):
-            src = src.operand
-        if isinstance(src, Call):
-            return src
         if isinstance(src, VirtualVariable):
+            # a bare copy: follow it, and never return one -- a vvar answer would
+            # send the caller straight back into this lookup on the same shape
             if src.varid in seen:
                 return None
-            return self._resolve_call_def(src.varid, _depth + 1, seen | {src.varid})
-        return None
+            return self._resolve_def(src.varid, _depth + 1, seen | {src.varid})
+        return src
 
     def _resolve_remote_def(self, varid: int, _depth: int = 0, _seen: frozenset[int] | None = None):
         """The pure expression a vvar defined *elsewhere* can be recomputed from.
@@ -1244,9 +1243,23 @@ class KnownPatternFinder(Analysis):
         # replacing the matched expression by `call(&obj)` is the whole
         # transformation. See PStackField.
         if any(isinstance(match.captures.get(p.capture), StackBaseOffset) for p in match.pattern.params):
+            if match.block_map is not None:
+                return self._rewrite_graph_in_place(match, g)
             return self._rewrite_in_place(match, g, block)
         if match.block_map is not None:
-            return self._outline_graph(match, g)
+            try:
+                return self._outline_graph(match, g)
+            except UnsupportedOutlineError:
+                if match.pattern.returnty is not None or match.pattern.returnty_factory is not None:
+                    raise
+                # A void region needs no callee -- nothing reads a value out of
+                # it -- so when outlining declines (v1 outlining wants exactly one
+                # region exit, and a destructor whose arms both end the function
+                # has two), collapsing the region into the call in place is the
+                # same program. Re-validated from scratch on a fresh copy, since
+                # _outline_graph edits the graph before it gives up.
+                g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
+                return self._rewrite_graph_in_place(match, g)
         if match.stmt_span is not None:
             return self._outline_stmt_span(match, g, block)
 
@@ -1805,6 +1818,39 @@ class KnownPatternFinder(Analysis):
             remaining = left
         return obj
 
+    def _stack_ref(self, sbo: StackBaseOffset, blocks: Iterable[Block]) -> Expression:
+        """Spell a stack object's address the way the rest of the graph does.
+
+        A bare ``StackBaseOffset`` renders as ``stack_base + -56``: true, but not
+        what a reader wants, and not what the decompiler prints anywhere else.
+        Everything else in the AIL names a stack address as a Reference to the
+        slot's virtual variable, which codegen renders as ``&v0`` and Typehoon
+        gives the object's own type. The slot is in the matched code by
+        construction -- the pattern read it to bind the base -- so we can find it
+        rather than synthesize one.
+        """
+        for blk in blocks:
+            for stmt in blk.statements:
+                for expr in _iter_subexprs(stmt):
+                    if (
+                        isinstance(expr, VirtualVariable)
+                        and expr.category == VirtualVariableCategory.STACK
+                        and expr.stack_offset == sbo.offset
+                    ):
+                        return UnaryOp(self._next_idx(), "Reference", expr.copy(), bits=sbo.bits, **sbo.tags)
+        return sbo.copy()
+
+    def _call_args_of(self, match: KnownPatternMatch, blocks: Iterable[Block]) -> list[Expression]:
+        """The synthesized call's arguments, from the pattern's captures."""
+        blocks = list(blocks)
+        args: list[Expression] = []
+        for name in [p.capture for p in match.pattern.params] + list(match.pattern.extra_args):
+            captured = match.captures.get(name)
+            if captured is None:
+                raise UnsupportedOutlineError(f"pattern {match.pattern.name}: capture {name!r} is unbound")
+            args.append(self._stack_ref(captured, blocks) if isinstance(captured, StackBaseOffset) else captured.copy())
+        return args
+
     def _rewrite_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
         """Replace the matched expression by the pattern's call, with no callee.
 
@@ -1821,17 +1867,7 @@ class KnownPatternFinder(Analysis):
             raise UnsupportedOutlineError("stale match: the anchor statement is gone from the block")
         anchor = stmts[match.anchor_stmt_idx]
 
-        args: list[Expression] = []
-        for param in match.pattern.params:
-            captured = match.captures.get(param.capture)
-            if captured is None:
-                raise UnsupportedOutlineError(f"pattern {match.pattern.name}: capture {param.capture!r} is unbound")
-            args.append(captured.copy())
-        for name in match.pattern.extra_args:
-            captured = match.captures.get(name)
-            if captured is None:
-                raise UnsupportedOutlineError(f"pattern {match.pattern.name}: extra arg capture {name!r} is unbound")
-            args.append(captured.copy())
+        args = self._call_args_of(match, [block])
 
         call = Call(
             self._next_idx(),
@@ -1851,6 +1887,159 @@ class KnownPatternFinder(Analysis):
         networkx.relabel_nodes(g, {block: new_block}, copy=False)
         return OutlineResult(
             graph=g, match=match, call_stmt=new_anchor, child_func=None, child_graph=None, child_funcargs=[]
+        )
+
+    @staticmethod
+    def _skip_empty_blocks(g: networkx.DiGraph, block: Block, limit: int = 4) -> Block:
+        """Follow a chain of empty blocks to the first block that does anything.
+
+        A block holding nothing but a Label is control-flow scaffolding: the arm
+        of a branch that had no work to do. The compiler leaves one behind
+        wherever an ``if`` body falls straight through to the join, so two arms
+        that visibly reach different blocks routinely reach the *same* block one
+        empty hop later.
+        """
+        seen: set[Block] = set()
+        while block not in seen and len(seen) < limit:
+            if any(not isinstance(stmt, (Label, Jump)) for stmt in block.statements):
+                return block
+            seen.add(block)
+            succs = list(g.successors(block))
+            if len(succs) != 1:
+                return block
+            block = succs[0]
+        return block
+
+    @staticmethod
+    def _exits_equivalent(g: networkx.DiGraph, a: Block, b: Block) -> bool:
+        """Whether two exit blocks are interchangeable.
+
+        Beyond identity, two cases, both of which a branch whose arms both end
+        the function produces routinely:
+
+        * *duplicated* blocks -- one copy of the epilogue per arm, same address,
+          same statements, different index;
+        * two distinct ``return`` blocks returning the same expressions. A
+          return is a return wherever it sits, so control arriving at either
+          leaves the function the same way.
+        """
+        if a is b:
+            return True
+        sa = [s for s in a.statements if not isinstance(s, Label)]
+        sb = [s for s in b.statements if not isinstance(s, Label)]
+        if len(sa) != len(sb) or not all(x.likes(y) for x, y in zip(sa, sb)):
+            return False
+        if a.addr == b.addr:
+            return True
+        return all(isinstance(stmt, Return) for stmt in sa) and g.out_degree(a) == 0 and g.out_degree(b) == 0
+
+    def _converged_exit(self, g: networkx.DiGraph, frontier_locs, nodes_dict: dict) -> Block:
+        """The single block every way out of a region reaches, or an error.
+
+        Collapsing a region into one statement drops its branch, so every path
+        that left the region has to end up in the same place -- otherwise the
+        rewrite would skip whatever sat on one of them.
+        """
+        exits: list[Block] = []
+        for loc in frontier_locs:
+            blk = nodes_dict.get(loc)
+            if blk is None:
+                raise UnsupportedOutlineError("stale match: a region exit is gone from the graph")
+            resolved = self._skip_empty_blocks(g, blk)
+            if not any(self._exits_equivalent(g, resolved, seen) for seen in exits):
+                exits.append(resolved)
+        if len(exits) != 1:
+            raise UnsupportedOutlineError(f"region has {len(exits)} exits that do not converge")
+        return exits[0]
+
+    def _rewrite_graph_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph) -> OutlineResult:
+        """Collapse a multi-block match into a single call statement, no callee.
+
+        The region counterpart of :meth:`_rewrite_in_place`, and it exists for
+        the same reason: a container that lives on the stack has no interface for
+        an outlined callee to take. Its region reads N independent slots, and the
+        object's address is a StackBaseOffset the pattern already bound, so the
+        whole transformation is "delete the region, put the call where its entry
+        was". The std::string destructor of a *local* string is this shape, and
+        locals are what most destructors destroy.
+        """
+        assert match.block_map is not None and match.frontier_locs is not None
+        assert match.consumed_by_block is not None
+        if match.pattern.returnty is not None or match.pattern.returnty_factory is not None:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: in-place region rewriting is only defined for void patterns"
+            )
+
+        nodes_dict = {(node.addr, node.idx): node for node in g}
+        entry_loc = match.block_map[match.pattern.pattern.entry]
+        entry_block = nodes_dict.get(entry_loc)
+        if entry_block is None:
+            raise UnsupportedOutlineError("stale match: the entry block is gone from the graph")
+        interior_locs = [loc for loc in match.block_map.values() if loc != entry_loc]
+
+        # every way out has to converge, or dropping the branch changes what runs
+        self._converged_exit(g, match.frontier_locs, nodes_dict)
+
+        region_blocks = {nodes_dict.get(loc) for loc in match.block_map.values()}
+        for loc in interior_locs:
+            blk = nodes_dict.get(loc)
+            if blk is None:
+                raise UnsupportedOutlineError("stale match: a matched block is gone from the graph")
+            consumed = match.consumed_by_block[loc]
+            for i, stmt in enumerate(blk.statements):
+                if i not in consumed and not isinstance(stmt, (Label, Jump)):
+                    raise UnsupportedOutlineError(
+                        f"pattern {match.pattern.name}: interior block {loc} has unmatched statements"
+                    )
+            # the interior is deleted wholesale, so nothing outside may enter it
+            if any(pred not in region_blocks for pred in g.predecessors(blk)):
+                raise UnsupportedOutlineError(
+                    f"pattern {match.pattern.name}: interior block {loc} is entered from outside the region"
+                )
+
+        entry_consumed = match.consumed_by_block[entry_loc]
+        if not entry_consumed:
+            raise UnsupportedOutlineError(f"pattern {match.pattern.name}: the entry block consumed nothing")
+        # the guard is the entry's terminator; anything after it is not ours
+        if any(
+            i > max(entry_consumed) and not isinstance(stmt, (Label, Jump))
+            for i, stmt in enumerate(entry_block.statements)
+        ):
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: the entry block continues past the matched guard"
+            )
+
+        args = self._call_args_of(match, [nodes_dict[loc] for loc in match.block_map.values() if loc in nodes_dict])
+
+        ins_addr = entry_block.statements[min(entry_consumed)].tags.get("ins_addr")
+        call = Call(
+            self._next_idx(),
+            match.pattern.call_name,
+            args=args,
+            bits=self.project.arch.bits,
+            ins_addr=ins_addr,
+            known_pattern=match.pattern.name,
+            is_prototype_guessed=False,
+        )
+        call_stmt = SideEffectStatement(self._next_idx(), call, ret_expr=None, fp_ret_expr=None, ins_addr=ins_addr)
+
+        stmts = [s for i, s in enumerate(entry_block.statements) if i not in entry_consumed]
+        # the guard was the terminator; a leftover Jump would contradict the
+        # single fall-through edge the collapsed region leaves behind
+        stmts = [s for s in stmts if not isinstance(s, Jump)]
+        stmts.append(call_stmt)
+        new_entry = entry_block.copy()
+        new_entry.statements = stmts
+        networkx.relabel_nodes(g, {entry_block: new_entry}, copy=False)
+        for loc in interior_locs:
+            g.remove_node(nodes_dict[loc])
+        if g.out_degree(new_entry) != 1:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: the collapsed entry has {g.out_degree(new_entry)} successors"
+            )
+
+        return OutlineResult(
+            graph=g, match=match, call_stmt=call_stmt, child_func=None, child_graph=None, child_funcargs=[]
         )
 
     def _outline_stmt_span(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
