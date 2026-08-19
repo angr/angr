@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import enum
 import logging
+from bisect import bisect_right
 from collections import defaultdict, deque
 from collections.abc import Collection
 from contextlib import suppress
@@ -605,6 +606,34 @@ class ConstraintGraphNode:
         variance = Variance.CONTRAVARIANT if self.variance == Variance.COVARIANT else Variance.COVARIANT
 
         return ConstraintGraphNode(self.typevar, variance, self.tag, self.forgotten)
+
+
+def map_offsets_to_bases(candidate_bases: SortedDict) -> SortedDict:
+    """
+    Map each candidate field offset to the offset of the lowest field that covers it.
+
+    ``candidate_bases`` maps a field offset to the set of sizes that this field is accessed with; a field at offset
+    ``o`` covers the bytes in ``[o, o + max(sizes))``. Fields may overlap, in which case the lowest one wins.
+
+    We only ever need the bases of offsets that are candidate bases themselves, so the covered ranges are compared
+    directly instead of being expanded byte by byte -- a single field can be hundreds of megabytes wide.
+    """
+    offset_to_base = SortedDict()
+    # offsets that cover the farthest, in ascending order; their reaches are strictly increasing, so the first entry
+    # reaching beyond an offset is also the lowest one covering it
+    farthest_offsets: list[int] = []
+    farthest_reaches: list[int] = []
+
+    for offset, sizes in candidate_bases.items():
+        idx = bisect_right(farthest_reaches, offset)
+        offset_to_base[offset] = farthest_offsets[idx] if idx < len(farthest_offsets) else offset
+
+        reach = offset + max(sizes)
+        if not farthest_reaches or reach > farthest_reaches[-1]:
+            farthest_offsets.append(offset)
+            farthest_reaches.append(reach)
+
+    return offset_to_base
 
 
 #
@@ -2167,13 +2196,7 @@ class SimpleSolver:
                     ptr_offs.add(-last_label.n)
 
             # determine possible bases and map each offset to its base
-            offset_to_base = SortedDict()
-            for start_offset, sizes in candidate_bases.items():
-                for size in sizes:
-                    for i in range(size):
-                        access_off = start_offset + i
-                        if access_off not in offset_to_base:
-                            offset_to_base[access_off] = start_offset
+            offset_to_base = map_offsets_to_bases(candidate_bases)
 
             # determine again the maximum size of each field (at each offset)
             offset_to_maxsize = defaultdict(int)
