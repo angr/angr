@@ -467,20 +467,26 @@ class PDefOf(PatternExpr):
     name: str | None = None
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        # The read-only lookup goes *first*, deliberately. The ordinary
+        # structural match would reach the same definition through ``chase_fn``,
+        # but chasing consumes the defining statement -- it commits the outliner
+        # to moving it -- and a value the compiler hoisted is hoisted precisely
+        # because something else still reads it. The chased match is then thrown
+        # away wholesale, and identifying the idiom fails for a reason that has
+        # nothing to do with the idiom.
+        stripped = expr
+        while ctx.skip_conversions and isinstance(stripped, Convert):
+            stripped = stripped.operand
+        if isinstance(stripped, VirtualVariable) and ctx.def_fn is not None:
+            definition = ctx.def_fn(stripped.varid)
+            if definition is not None:
+                st = self.inner.match(definition, state, ctx)
+                if st is not None:
+                    return self._bind_if_named(self.name, expr, st)
         st = self.inner.match(expr, state, ctx)
         if st is not None:
             return self._bind_if_named(self.name, expr, st)
-        while ctx.skip_conversions and isinstance(expr, Convert):
-            expr = expr.operand
-        if not isinstance(expr, VirtualVariable) or ctx.def_fn is None:
-            return None
-        definition = ctx.def_fn(expr.varid)
-        if definition is None:
-            return None
-        st = self.inner.match(definition, state, ctx)
-        if st is None:
-            return None
-        return self._bind_if_named(self.name, expr, st)
+        return None
 
 
 @dataclass(frozen=True)

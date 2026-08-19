@@ -1227,8 +1227,6 @@ class KnownPatternFinder(Analysis):
         a copy; neither ``self._graph`` nor ``ail_graph`` is mutated."""
         from angr.analyses.decompiler.clinic import Clinic  # pylint:disable=import-outside-toplevel
 
-        from .block_split import split_ail_block  # pylint:disable=import-outside-toplevel
-
         g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
         nodes_dict = {(node.addr, node.idx): node for node in g}
         try:
@@ -1277,6 +1275,25 @@ class KnownPatternFinder(Analysis):
                 g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
                 block = {(n.addr, n.idx): n for n in g}[match.block_loc]
                 return self._rewrite_stmts_in_place(match, g, block)
+
+        try:
+            return self._outline_expr(match, g, block)
+        except UnsupportedOutlineError:
+            # Outlining exists to *discover* a region's interface. When it
+            # cannot, the pattern is not necessarily unusable: every argument
+            # the pattern declared is an expression the matched statement
+            # already had in hand, so the call can simply take the matched
+            # expression's place. That is what rescues an idiom reading a value
+            # the compiler hoisted out of it -- the hoisted definition stays
+            # where it is, so the recovered callee interface carries live-ins
+            # the pattern never declared (every glibc ctype macro is this
+            # shape: one table entry loaded once and masked five times).
+            g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
+            block = {(n.addr, n.idx): n for n in g}[match.block_loc]
+            return self._rewrite_in_place(match, g, block)
+
+    def _outline_expr(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
+        from .block_split import split_ail_block  # pylint:disable=import-outside-toplevel
 
         stmts = list(block.statements)
         anchor_idx = match.anchor_stmt_idx

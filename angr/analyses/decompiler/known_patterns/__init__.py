@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from .containing_record import CONTAINING_RECORD_PATTERN
 from .context import PatternContext
+from .ctype_tables import ALL_CTYPE_TEMPLATES, CTYPE_PREDICATES
 from .dsl import (
     PITE,
     PAny,
@@ -154,6 +155,8 @@ for _t in ALL_LINKED_LIST_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_PROTOBUF_TEMPLATES:
     register_pattern_template(_t)
+for _t in ALL_CTYPE_TEMPLATES:
+    register_pattern_template(_t)
 for _t in ALL_POSIX_MACRO_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_KERNEL_ERR_TEMPLATES:
@@ -271,6 +274,7 @@ ALL_STL_TEMPLATES = [
 
 
 __all__ = [
+    "ALL_CTYPE_TEMPLATES",
     "ALL_KERNEL_ERR_TEMPLATES",
     "ALL_KNOWN_PATTERN_TEMPLATES",
     "ALL_LIBM_TEMPLATES",
@@ -285,6 +289,7 @@ __all__ = [
     "ALL_VECTOR_MATH_TEMPLATES",
     "ALL_WDK_TEMPLATES",
     "CONTAINING_RECORD_PATTERN",
+    "CTYPE_PREDICATES",
     "HLIST_DEL",
     "INITIALIZE_LIST_HEAD",
     "INSERT_HEAD_LIST",

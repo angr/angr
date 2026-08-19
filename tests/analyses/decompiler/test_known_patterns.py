@@ -17,6 +17,7 @@ from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_KNOWN_PATTERN_TEMPLATES,
     CONTAINING_RECORD_PATTERN,
+    CTYPE_PREDICATES,
     KERNEL_TARGET,
     LINUX_KERNEL,
     OPERATOR_DELETE,
@@ -58,6 +59,8 @@ from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
 from tests.common import bin_location
 
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
+# the glibc <ctype.h> table macros
+CTYPE_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_ctype")
 # the inlined std::string destructor, in its member / local / by-pointer shapes
 STL5_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl5")
 # std::vector<T>::size() whose chased definitions are still used by other code
@@ -674,6 +677,50 @@ class TestStringInternals(TestCase):
         # the destructor is the most self-guarding string idiom there is, so it
         # is what opens the generic accessors on the same object
         assert "std::string::~string" in STRING_WITNESSED.witnesses
+
+
+class TestCtypeMacros(TestCase):
+    """The glibc <ctype.h> macros: a call, a table load, a mask."""
+
+    def test_one_predicate(self):
+        _, _, _, dec = _decompile(CTYPE_BIN, "one_space", preset="full")
+        assert "isspace(" in dec.codegen.text
+
+    def test_the_whole_family_over_one_entry(self):
+        # the table pointer is hoisted out of the loop and the entry is loaded
+        # once per character, so every mask applies to a register rather than to
+        # a Load -- which is what PDefOf is for
+        _, _, _, dec = _decompile(CTYPE_BIN, "classify", preset="full")
+        text = dec.codegen.text
+        for macro in ("isspace", "isdigit", "isalpha", "isupper", "isxdigit", "isalnum"):
+            assert f"{macro}(" in text, f"{macro} not named:\n{text}"
+
+    def test_case_maps(self):
+        for func, macro in (("lower_all", "tolower"), ("upper_all", "toupper")):
+            with self.subTest(func=func):
+                _, _, _, dec = _decompile(CTYPE_BIN, func, preset="full")
+                assert f"{macro}(" in dec.codegen.text
+
+    def test_folded_masks_are_not_matched(self):
+        # `isspace(c) || isalnum(c)` is one `& 0x2008` test by the time it
+        # reaches us: gcc merged two predicates into one mask, and no
+        # per-predicate pattern can honestly name that. Asserted so the gap is
+        # recorded rather than discovered later.
+        _, _, _, dec = _decompile(CTYPE_BIN, "space_or_alnum", preset="full")
+        text = dec.codegen.text
+        assert "isspace(" not in text and "isalnum(" not in text
+        assert "8200" in text  # 0x2008: _ISspace | _ISalnum
+
+    def test_the_callee_is_the_guard(self):
+        # what makes a table load identifiable is the function that produced the
+        # table; nothing else calls __ctype_b_loc
+        assert len(CTYPE_PREDICATES) == 12
+        masks = dict(CTYPE_PREDICATES)
+        # glibc's _ISbit(n) = n < 8 ? (1 << n) << 8 : (1 << n) >> 8
+        assert masks["isspace"] == 0x2000 and masks["isalnum"] == 0x0008
+        template = TEMPLATE_BY_CALL_NAME["isspace"]
+        assert template.enabled_by_default
+        assert template.platforms == frozenset({"linux"})
 
 
 class TestKnownPatternPipeline(TestCase):
