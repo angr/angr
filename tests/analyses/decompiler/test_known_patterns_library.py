@@ -22,6 +22,7 @@ from angr.analyses.decompiler.known_patterns import (
     STD_STRING_CSTR,
     KnownPatternFinder,
 )
+from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from tests.common import bin_location, load_project_with_scoped_cfg
 
@@ -50,12 +51,18 @@ _VECMATH_NAMES = {"vec_dot3", "vec_length_sq"}
 
 
 def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = None):
+    # The pattern outliner is disabled here on purpose. These tests decompile a
+    # function and then run KnownPatternFinder over the result by hand, which
+    # only works on a graph where the idioms are still idioms -- once the
+    # outliner has replaced one with a call there is nothing left to match. The
+    # `fast` preset used to be pattern-free and is not any more, so what used to
+    # be implicit has to be said.
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
     proj.analyses.CompleteCallingConventions(cfg=cfg.model)
     func = cfg.functions.function(name=func_name) if func_name is not None else cfg.functions.function(addr=addr)
     assert func is not None
-    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, disable_opts=[KnownPatternOutliner])
     assert dec.codegen is not None and dec.codegen.text is not None
     return proj, cfg, func, dec
 

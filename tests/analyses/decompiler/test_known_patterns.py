@@ -54,6 +54,7 @@ from angr.analyses.decompiler.known_patterns.dsl import (
 )
 from angr.analyses.decompiler.known_patterns.std_string_length import STRING_WITNESSED
 from angr.analyses.decompiler.known_patterns.stl_accessors2 import STD_STRING_FRONT
+from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
 from tests.common import bin_location
@@ -90,13 +91,29 @@ _STRLEN = STD_STRING_LENGTH.instantiate(_AMD64_CTX)
 _VECSIZE = STD_VECTOR_INT_SIZE.instantiate(_AMD64_CTX)
 
 
-def _decompile(bin_path: str, func_name: str, preset: str = "fast"):
+def _decompile(bin_path: str, func_name: str, preset: str = "fast", apply_patterns: bool | None = None):
+    """Decompile one function.
+
+    ``apply_patterns`` defaults to True only for the ``full`` preset. Most tests
+    here decompile and then run KnownPatternFinder over the result by hand,
+    which only works on a graph where the idioms are still idioms -- once the
+    outliner has replaced one with a call there is nothing left to match. The
+    ``fast`` preset used to be pattern-free and is not any more, so what used to
+    be implicit has to be said.
+    """
+    if apply_patterns is None:
+        apply_patterns = preset == "full"
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
     proj.analyses.CompleteCallingConventions(cfg=cfg.model)
     func = cfg.functions.function(name=func_name)
     assert func is not None
-    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset=preset)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+        func,
+        cfg=cfg.model,
+        preset=preset,
+        disable_opts=None if apply_patterns else [KnownPatternOutliner],
+    )
     assert dec.codegen is not None and dec.codegen.text is not None
     return proj, cfg, func, dec
 
@@ -1093,7 +1110,8 @@ class TestPITE(TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(name="str_capacity")
         assert func is not None
-        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        # matched by hand below, so the shipped outliner must not have got there first
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, disable_opts=[KnownPatternOutliner])
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=[pat])
         assert [m.pattern.name for m in finder.matches] == ["sso_capacity"]
 
