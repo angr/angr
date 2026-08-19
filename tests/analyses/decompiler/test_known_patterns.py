@@ -22,7 +22,9 @@ from angr.analyses.decompiler.known_patterns import (
     OPERATOR_DELETE,
     STD_STRING_DTOR,
     STD_STRING_LENGTH,
+    STD_STRING_SET_LENGTH,
     STD_VECTOR_INT_SIZE,
+    TEMPLATE_BY_CALL_NAME,
     GateContext,
     KnownPatternFinder,
     TargetGate,
@@ -49,6 +51,7 @@ from angr.analyses.decompiler.known_patterns.dsl import (
 from angr.analyses.decompiler.known_patterns.dsl import (
     PLoad as PLoadPat,
 )
+from angr.analyses.decompiler.known_patterns.std_string_length import STRING_WITNESSED
 from angr.analyses.decompiler.known_patterns.stl_accessors2 import STD_STRING_FRONT
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimStruct, SimTypeArray, SimTypePointer
@@ -642,6 +645,35 @@ class TestStringDestructor(TestCase):
         # operator delete under every spelling the compilers emit
         assert "_ZdlPvm" in call_pat.names and "??3@YAXPEAX_K@Z" in call_pat.names
         assert call_pat.names == OPERATOR_DELETE
+
+
+class TestStringInternals(TestCase):
+    """std::string::_M_set_length, clear() and _M_is_local."""
+
+    def test_set_length(self):
+        # erase(n) ends with `_M_string_length = n; _M_p[n] = 0`; the same n in
+        # both places is what makes the shape specific enough to be default-on
+        _, _, _, dec = _decompile(STL5_BIN, "str_shrink", preset="full")
+        assert "std::string::_M_set_length(" in dec.codegen.text
+        assert STD_STRING_SET_LENGTH.enabled_by_default
+
+    def test_clear_is_opt_in_and_corroborated(self):
+        # with n == 0 there is no second occurrence of n, so the shape is only
+        # "zero a word at +8 and a byte through the pointer at +0"
+        template = TEMPLATE_BY_CALL_NAME["std::string::clear"]
+        assert not template.enabled_by_default
+        assert template.gate is not None and template.gate.requires_evidence
+
+        proj, _, func, dec = _decompile(STL5_BIN, "str_clear", preset="fast")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        assert not any(m.pattern.name == "std_string_clear" for m in finder.matches)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, force_patterns="all")
+        assert any(m.pattern.name == "std_string_clear" for m in finder.matches)
+
+    def test_the_destructor_is_a_string_witness(self):
+        # the destructor is the most self-guarding string idiom there is, so it
+        # is what opens the generic accessors on the same object
+        assert "std::string::~string" in STRING_WITNESSED.witnesses
 
 
 class TestKnownPatternPipeline(TestCase):
