@@ -41,6 +41,13 @@ DECOY_STRINGS = [
 LIBRARY_NAMES = ["decoy_lib", "libc_ubuntu_2004", "libc_ubuntu_2004_alt"]
 
 
+def setUpModule():  # pylint:disable=invalid-name
+    # everything here is about sigserv, one way or another: the in-process modes need the package itself, and the
+    # rest exercises the client of its REST protocol
+    if importlib.util.find_spec("sigserv") is None:
+        raise unittest.SkipTest("sigserv is not installed")
+
+
 def populate_signatures_dir(sigs_dir: str) -> None:
     """
     Fill a directory with the .sig/.meta pairs the tests query against: a libc signature that matches the test
@@ -258,7 +265,6 @@ class FakeSigserv(http.server.ThreadingHTTPServer):
         self._thread.join(timeout=10)
 
 
-@unittest.skipUnless(importlib.util.find_spec("sigserv") is not None, "sigserv is not installed")
 class TestSuggestSignature(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
