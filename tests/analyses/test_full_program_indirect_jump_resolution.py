@@ -73,6 +73,33 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         targets = self._union_of_resolutions(fpijr, dispatch)
         assert targets == expected
 
+    def test_callback_passed_as_argument(self):
+        # a function pointer passed as an argument and invoked through the callee's parameter
+        _, cfg, fpijr = self._run("fpijr_callback_param")
+        apply_func = cfg.kb.functions["apply"]
+        expected = {cfg.kb.functions[name].addr for name in ("h1", "h2")}
+        targets = self._union_of_resolutions(fpijr, apply_func)
+        assert targets == expected
+
+    def test_callback_array_registered_at_runtime(self):
+        # callbacks registered at run time into a global array of structs and invoked through a run-time index; the
+        # registration writes through a computed base (g_slots[i].cb) while the call site reads a folded constant
+        # address, so both spellings must land in the same descriptor
+        _, cfg, fpijr = self._run("fpijr_callback_array")
+        dispatch = cfg.kb.functions["dispatch"]
+        expected = {cfg.kb.functions[name].addr for name in ("h1", "h2")}
+        targets = self._union_of_resolutions(fpijr, dispatch)
+        assert targets == expected
+
+    def test_static_vtable_chain(self):
+        # devs[i]->drv->read: a chained dereference through statically initialized read-only structures. Every entry
+        # of the device table must be considered, not just the first.
+        _, cfg, fpijr = self._run("fpijr_static_vtable")
+        dispatch = cfg.kb.functions["dispatch"]
+        expected = {cfg.kb.functions[name].addr for name in ("r0", "r1")}
+        targets = self._union_of_resolutions(fpijr, dispatch)
+        assert targets == expected
+
     def test_progress_callback(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
         proj = angr.Project(binary_path, auto_load_libs=False)

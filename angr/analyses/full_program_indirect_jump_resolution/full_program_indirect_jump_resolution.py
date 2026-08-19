@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+# upper bound on how many entries of a global pointer table are walked when following a run-time index
+_MAX_TABLE_ENTRIES = 256
+
 # names of allocation functions whose return value is a fresh heap region
 _ALLOC_FUNCS = {"malloc", "calloc", "realloc", "xmalloc", "xcalloc", "_Znwm", "_Znam"}
 
@@ -423,6 +426,18 @@ class FullProgramIndirectJumpResolution(Analysis):
                 if codeptrs:
                     changed |= self._add_codeptrs(facts, varid, codeptrs)
 
+        # address arithmetic that yields a pointer into a known region, e.g. ``table + idx * elem_size``. Only a
+        # zero constant offset is accepted: a vvar is tracked by region alone, so a pointer into the middle of an
+        # element would make every field recorded through it come out shifted.
+        if isinstance(src, ailment.Expr.BinaryOp):
+            base, base_addr, offset, stride = _decompose_address(src)
+            if offset == 0 and (base is not None or base_addr is not None):
+                region = self._region_of_expr(func, facts, src)
+                if region is not None:
+                    changed |= self._set_region(facts, varid, region)
+                    if stride is not None:
+                        changed |= self.pointer_shapes.descriptor(region).set_stride(stride)
+
         # allocation call results
         if isinstance(src, ailment.Expr.Call) and isinstance(src.target, ailment.Expr.Const):
             callee = self._function_name(src.target.value)
@@ -453,6 +468,7 @@ class FullProgramIndirectJumpResolution(Analysis):
         if region is None:
             return False
 
+        region, offset = self._canonicalize_global(region, offset)
         changed = False
         desc = self.pointer_shapes.descriptor(region)
         if stride is not None:
@@ -607,6 +623,21 @@ class FullProgramIndirectJumpResolution(Analysis):
     # Region / value resolution helpers
     #
 
+    @staticmethod
+    def _canonicalize_global(region: MemoryRegion | None, offset: int):
+        """
+        Fold a constant offset into the address of a global region.
+
+        ``_decompose_address()`` already folds every constant term into the base address when the base is a pure
+        constant, so ``table + idx*16 + 8`` arrives as base ``table+8`` with offset 0. An access written against a
+        symbolic base -- ``p = table + idx*16`` followed by ``p->field`` -- arrives as base ``table`` with offset 8
+        instead. Folding both spellings the same way is what lets a store and a load of the very same location meet
+        in the same descriptor.
+        """
+        if offset and isinstance(region, GlobalRegion):
+            return GlobalRegion(region.addr + offset), 0
+        return region, offset
+
     def _region_and_offset_of_address(self, func: Function, facts: _FuncFacts, addr_expr):
         """
         Resolve a memory address expression to the region it addresses and the raw constant offset into it. The offset
@@ -621,6 +652,7 @@ class FullProgramIndirectJumpResolution(Analysis):
             region = None
         if region is None:
             return None, 0
+        region, offset = self._canonicalize_global(region, offset)
         self.pointer_shapes.descriptor(region)
         return region, offset
 
@@ -662,30 +694,94 @@ class FullProgramIndirectJumpResolution(Analysis):
 
         return None
 
-    def _pointed_region(self, region: MemoryRegion, offset: int) -> MemoryRegion | None:
+    def _pointed_regions(self, region: MemoryRegion, offset: int) -> set[MemoryRegion]:
         """
-        Return the region that the pointer stored at ``region + offset`` points to, or None when unknown.
+        Return the regions that the pointer stored at ``region + offset`` may point to.
 
-        Recorded stores win; when there are several candidates they are unioned, since the field may hold any of them.
-        For a global region with no recorded store, the statically initialized contents of the binary are consulted,
-        which covers pointer tables and driver structs that live in read-only memory.
+        Recorded stores are used when present. For a global region the statically initialized contents of the binary
+        are consulted as well, which covers driver structs and pointer tables living in read-only memory. When the
+        region is an indexed table the whole table is walked, so that an access through a run-time index yields every
+        entry rather than just the first.
         """
+        result: set[MemoryRegion] = set()
+
         desc = self.pointer_shapes.get(region)
         if desc is not None:
             fa = desc.fields.get(desc.normalize_offset(offset))
-            if fa is not None and fa.pointed_regions:
-                candidates = sorted(fa.pointed_regions, key=repr)
-                representative = candidates[0]
-                for other in candidates[1:]:
-                    self.pointer_shapes.union(representative, other)
-                return representative
+            if fa is not None:
+                result |= fa.pointed_regions
 
-        region = self.pointer_shapes.find(region)
-        if isinstance(region, GlobalRegion):
-            word = self._read_word(region.addr + offset, self.project.arch.bytes)
-            if word is not None and self._is_global_data_addr(word):
-                return GlobalRegion(word)
-        return None
+        representative = self.pointer_shapes.find(region)
+        if isinstance(representative, GlobalRegion):
+            ptr_size = self.project.arch.bytes
+            base = representative.addr + offset
+            stride = desc.stride if desc is not None and desc.indexed and desc.stride else None
+            if stride is None:
+                word = self._read_word(base, ptr_size)
+                if word is not None and self._is_global_data_addr(word):
+                    result.add(GlobalRegion(word))
+            else:
+                section = self.project.loader.find_section_containing(base)
+                section_end = (section.vaddr + section.memsize) if section is not None else None
+                addr = base
+                for _ in range(_MAX_TABLE_ENTRIES):
+                    if section_end is not None and addr + ptr_size > section_end:
+                        break
+                    if addr != base and self._symbol_boundary_crossed(base, addr):
+                        break
+                    word = self._read_word(addr, ptr_size)
+                    if word is None or not self._is_global_data_addr(word):
+                        break
+                    result.add(GlobalRegion(word))
+                    addr += stride
+        return result
+
+    def _pointed_region(self, region: MemoryRegion, offset: int) -> MemoryRegion | None:
+        """
+        Single-region view of :meth:`_pointed_regions`, for the region propagation that tracks one region per vvar.
+        Several candidates are unioned, since the field may hold any of them.
+        """
+        candidates = sorted(self._pointed_regions(region, offset), key=repr)
+        if not candidates:
+            return None
+        representative = candidates[0]
+        for other in candidates[1:]:
+            self.pointer_shapes.union(representative, other)
+        return representative
+
+    def _target_base_regions(self, facts: _FuncFacts, expr) -> set[MemoryRegion]:
+        """
+        Resolve the base of an indirect-call target expression to every region it may address. Unlike the propagation
+        path this keeps all candidates, so a call through ``devs[i]->drv->read`` yields the handlers of every device
+        rather than only the first.
+        """
+        expr = _unwrap_copy(expr)
+
+        if isinstance(expr, ailment.Expr.Const) and isinstance(expr.value, int):
+            return {GlobalRegion(expr.value)}
+        if isinstance(expr, ailment.Expr.VirtualVariable):
+            region = facts.vvar_region.get(expr.varid)
+            return {region} if region is not None else set()
+        if isinstance(expr, ailment.Expr.Load):
+            base, base_addr, offset, _stride = _decompose_address(expr.addr)
+            if base_addr is not None:
+                bases = {GlobalRegion(base_addr)}
+            elif base is not None:
+                bases = self._target_base_regions(facts, base)
+            else:
+                bases = set()
+            result: set[MemoryRegion] = set()
+            for candidate in bases:
+                canonical, canonical_offset = self._canonicalize_global(candidate, offset)
+                result |= self._pointed_regions(canonical, canonical_offset)
+            return result
+
+        base, base_addr, _offset, _stride = _decompose_address(expr)
+        if base_addr is not None:
+            return {GlobalRegion(base_addr)}
+        if base is not None and base is not expr:
+            return self._target_base_regions(facts, base)
+        return set()
 
     def _codeptr_values_of(self, facts: _FuncFacts, expr) -> set[int]:
         """
@@ -924,26 +1020,30 @@ class FullProgramIndirectJumpResolution(Analysis):
         # a load from a table/struct field
         if isinstance(target, ailment.Expr.Load):
             base, base_addr, offset, _stride = _decompose_address(target.addr)
-            region = None
-            if base is not None:
-                region = self._region_of_target_base(facts, base)
-            elif base_addr is not None:
-                region = GlobalRegion(base_addr)
-            if region is not None:
+            if base_addr is not None:
+                regions = {GlobalRegion(base_addr)}
+            elif base is not None:
+                regions = self._target_base_regions(facts, base)
+            else:
+                regions = set()
+            for candidate in regions:
+                region, field_offset = self._canonicalize_global(candidate, offset)
+                observed: set[int] = set()
                 desc = self.pointer_shapes.get(region)
                 if desc is not None:
-                    field_off = desc.normalize_offset(offset)
-                    fa = desc.fields.get(field_off)
+                    fa = desc.fields.get(desc.normalize_offset(field_offset))
                     if fa is not None:
-                        result |= fa.stored_values
-                if not result:
-                    # nothing was observed being written here; read the function pointer straight out of the binary,
-                    # which covers vtables and driver structs that live in initialized read-only memory
-                    rep_region = self.pointer_shapes.find(region)
-                    if isinstance(rep_region, GlobalRegion):
-                        word = self._read_word(rep_region.addr + offset, self.project.arch.bytes)
-                        if word is not None and self._is_function_start(word):
-                            result.add(word)
+                        observed |= fa.stored_values
+                if observed:
+                    result |= observed
+                    continue
+                # nothing was observed being written here; read the function pointer straight out of the binary,
+                # which covers vtables and driver structs that live in initialized read-only memory
+                representative = self.pointer_shapes.find(region)
+                if isinstance(representative, GlobalRegion):
+                    word = self._read_word(representative.addr + field_offset, self.project.arch.bytes)
+                    if word is not None and self._is_function_start(word):
+                        result.add(word)
             return result
 
         # ITE / phi of constants directly at the target
