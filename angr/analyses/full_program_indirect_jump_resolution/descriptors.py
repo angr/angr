@@ -71,12 +71,21 @@ class FieldAccess:
     Describes accesses to a single field (constant byte offset) of a memory region.
     """
 
-    __slots__ = ("is_code_pointer", "size", "stored_values")
+    __slots__ = ("is_code_pointer", "pointed_regions", "size", "stored_values")
 
-    def __init__(self, size: int | None = None, is_code_pointer: bool = False, stored_values: set[int] | None = None):
+    def __init__(
+        self,
+        size: int | None = None,
+        is_code_pointer: bool = False,
+        stored_values: set[int] | None = None,
+        pointed_regions: set[MemoryRegion] | None = None,
+    ):
         self.size = size
         self.is_code_pointer = is_code_pointer
         self.stored_values: set[int] = stored_values if stored_values is not None else set()
+        # regions that data pointers stored in this field may point to; this is what makes chained dereferences such
+        # as ``dev->driver->read`` resolvable
+        self.pointed_regions: set[MemoryRegion] = pointed_regions if pointed_regions is not None else set()
 
     def merge(self, other: FieldAccess) -> bool:
         """
@@ -91,6 +100,9 @@ class FieldAccess:
             changed = True
         if not other.stored_values <= self.stored_values:
             self.stored_values |= other.stored_values
+            changed = True
+        if not other.pointed_regions <= self.pointed_regions:
+            self.pointed_regions |= other.pointed_regions
             changed = True
         return changed
 
@@ -180,7 +192,10 @@ class PointerShapeDescriptor:
             existing = self.fields.get(noff)
             if existing is None:
                 self.fields[noff] = FieldAccess(
-                    size=fa.size, is_code_pointer=fa.is_code_pointer, stored_values=set(fa.stored_values)
+                    size=fa.size,
+                    is_code_pointer=fa.is_code_pointer,
+                    stored_values=set(fa.stored_values),
+                    pointed_regions=set(fa.pointed_regions),
                 )
                 changed = True
             else:

@@ -63,6 +63,16 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         targets = self._union_of_resolutions(fpijr, dispatch)
         assert targets == expected
 
+    def test_global_callback_registered_at_runtime(self):
+        # a callback passed to a registration function, stored by it into a global struct field, and invoked from a
+        # third function: resolving it requires propagating the code pointer across all three functions and through
+        # memory
+        _, cfg, fpijr = self._run("fpijr_global_callback")
+        dispatch = cfg.kb.functions["dispatch"]
+        expected = {cfg.kb.functions[name].addr for name in ("h1", "h2")}
+        targets = self._union_of_resolutions(fpijr, dispatch)
+        assert targets == expected
+
     def test_progress_callback(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
         proj = angr.Project(binary_path, auto_load_libs=False)

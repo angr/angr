@@ -36,10 +36,14 @@ class _FuncFacts:
 
     __slots__ = (
         "arg_param_regions",
+        "call_arg_codeptrs",
         "call_bindings",
+        "copy_edges",
         "func_addr",
         "indirect_sites",
+        "load_edges",
         "return_regions",
+        "store_edges",
         "vvar_codeptrs",
         "vvar_region",
     )
@@ -58,6 +62,20 @@ class _FuncFacts:
         self.return_regions: set[MemoryRegion] = set()
         # list of indirect sites: (ins_addr, kind, target_expr)
         self.indirect_sites: list[tuple[int, str, Any]] = []
+        #
+        # Dataflow skeleton. Code-pointer values often only become known after interprocedural propagation (a callback
+        # is passed as an argument, stored into a global by the callee, and invoked from a third function). Re-running
+        # the AIL walk for every fixed-point round would mean holding every function's AIL graph in memory, so the
+        # intra-procedural pass instead records the few edges that matter and the fixed point replays those.
+        #
+        # dst_varid <- src_varid, from copies/conversions/phis/ITEs
+        self.copy_edges: list[tuple[int, int]] = []
+        # dst_varid <- (region, field offset), from ``vvar = Load(...)``
+        self.load_edges: list[tuple[MemoryRegion, int, int]] = []
+        # (region, field offset) <- src_varid, from ``Store(..., data=vvar)``
+        self.store_edges: list[tuple[MemoryRegion, int, int]] = []
+        # (callee_addr, {arg index: (src varid or None, immediately-known code pointers)}) recorded at direct calls
+        self.call_arg_codeptrs: list[tuple[int, dict[int, tuple[int | None, frozenset[int]]]]] = []
 
 
 class FullProgramIndirectJumpResolution(Analysis):
@@ -69,8 +87,17 @@ class FullProgramIndirectJumpResolution(Analysis):
     pointers get stored into which fields of those regions, and the element stride of indexed table accesses. Global
     tables are additionally harvested by reading initialized program memory. Pointer shapes are then propagated
     interprocedurally across the call graph (caller argument regions are unioned with callee parameter regions) to a
-    fixed point. Finally, every indirect jump/call target expression is evaluated against the collected shapes to
-    recover the set of possible target functions.
+    fixed point. Concrete code-pointer values are propagated along the same fixed point: through copies, into and out
+    of the fields of global structs and arrays, and across call arguments into callee parameters. That is what
+    recovers callbacks registered at run time, where a function pointer is passed to a registration function, stored
+    into a global by it, and finally invoked from a third function such as an interrupt handler. Pointers stored in
+    memory are tracked too (a field records which region its pointer points to, falling back to the statically
+    initialized contents of the binary), so chained dereferences like ``dev->driver->read`` can be followed. Finally,
+    every indirect jump/call target expression is evaluated against the collected shapes to recover the set of
+    possible target functions.
+
+    Only entry points of functions are ever reported as targets, so jump tables -- which hold basic-block addresses --
+    are deliberately not resolved here; CFGFast's jump-table resolvers already handle those.
 
     The per-function phase dominates the runtime, so the analysis supports the usual angr responsiveness controls:
     pass ``progress_callback`` and/or ``show_progressbar`` (handled by the base :class:`Analysis`) to observe progress,
@@ -283,9 +310,13 @@ class FullProgramIndirectJumpResolution(Analysis):
 
     def _extract_shapes(self, func: Function, graph, facts: _FuncFacts) -> bool:
         changed = False
-        # reset the site list; it is fully rebuilt each pass
+        # reset the site list and the dataflow skeleton; both are fully rebuilt each pass
         facts.indirect_sites = []
         facts.call_bindings = []
+        facts.copy_edges = []
+        facts.load_edges = []
+        facts.store_edges = []
+        facts.call_arg_codeptrs = []
         for block in graph.nodes():
             for stmt in block.statements:
                 changed |= self._handle_statement(func, facts, stmt)
@@ -355,12 +386,26 @@ class FullProgramIndirectJumpResolution(Analysis):
         # copy / conversion of another vvar
         inner = _unwrap_copy(src)
         if isinstance(inner, ailment.Expr.VirtualVariable):
+            facts.copy_edges.append((varid, inner.varid))
             region = facts.vvar_region.get(inner.varid)
             if region is not None:
                 changed |= self._set_region(facts, varid, region)
             codeptrs = facts.vvar_codeptrs.get(inner.varid)
             if codeptrs:
                 changed |= self._add_codeptrs(facts, varid, codeptrs)
+            return changed
+
+        # a value loaded out of a region field: remember where it came from so that code pointers written into that
+        # field (possibly by another function, and possibly only discovered later) flow into this vvar
+        if isinstance(inner, ailment.Expr.Load):
+            load_region, load_off = self._region_and_offset_of_address(func, facts, inner.addr)
+            if load_region is not None:
+                facts.load_edges.append((load_region, load_off, varid))
+                desc = self.pointer_shapes.get(load_region)
+                if desc is not None:
+                    fa = desc.fields.get(load_off)
+                    if fa is not None and fa.stored_values:
+                        changed |= self._add_codeptrs(facts, varid, fa.stored_values)
             return changed
 
         # phi / ITE of vvars or constants -> union of possibilities
@@ -370,6 +415,7 @@ class FullProgramIndirectJumpResolution(Analysis):
                 if self._is_function_start(unwrapped.value):
                     changed |= self._add_codeptr(facts, varid, unwrapped.value)
             elif isinstance(unwrapped, ailment.Expr.VirtualVariable):
+                facts.copy_edges.append((varid, unwrapped.varid))
                 region = facts.vvar_region.get(unwrapped.varid)
                 if region is not None:
                     changed |= self._set_region(facts, varid, region)
@@ -418,8 +464,18 @@ class FullProgramIndirectJumpResolution(Analysis):
             fa.size = size
             changed = True
 
+        # a store of a data pointer -> remember which region the field points to
+        if store_data is not None:
+            stored_region = self._region_of_expr(func, facts, store_data)
+            if stored_region is not None and stored_region not in fa.pointed_regions:
+                fa.pointed_regions.add(stored_region)
+                changed = True
+
         # a store of a concrete function address -> code pointer field
         if store_data is not None:
+            # remember the vvars feeding this store; their code-pointer sets may only be discovered later
+            for src_varid in _codeptr_source_varids(store_data):
+                facts.store_edges.append((region, offset, src_varid))
             for val in self._codeptr_values_of(facts, store_data):
                 if not fa.is_code_pointer:
                     fa.is_code_pointer = True
@@ -445,10 +501,19 @@ class FullProgramIndirectJumpResolution(Analysis):
 
         # record argument-region bindings for interproc propagation
         arg_regions: list[MemoryRegion | None] = []
+        arg_codeptrs: dict[int, tuple[int | None, frozenset[int]]] = {}
         if call.args:
-            for arg in call.args:
+            for idx, arg in enumerate(call.args):
                 arg_regions.append(self._region_of_expr(func, facts, arg))
+                # a function pointer passed as an argument: record both what we already know and where to look later
+                immediate = frozenset(self._codeptr_values_of(facts, arg))
+                unwrapped = _unwrap_copy(arg)
+                src_varid = unwrapped.varid if isinstance(unwrapped, ailment.Expr.VirtualVariable) else None
+                if immediate or src_varid is not None:
+                    arg_codeptrs[idx] = (src_varid, immediate)
         facts.call_bindings.append((callee_addr, arg_regions))
+        if arg_codeptrs:
+            facts.call_arg_codeptrs.append((callee_addr, arg_codeptrs))
         return changed
 
     def _resolve_register_stack_args(self, func: Function, graph, facts: _FuncFacts) -> None:
@@ -542,6 +607,23 @@ class FullProgramIndirectJumpResolution(Analysis):
     # Region / value resolution helpers
     #
 
+    def _region_and_offset_of_address(self, func: Function, facts: _FuncFacts, addr_expr):
+        """
+        Resolve a memory address expression to the region it addresses and the raw constant offset into it. The offset
+        is returned un-normalized because the region's stride may only be discovered later.
+        """
+        base, base_addr, offset, _stride = _decompose_address(addr_expr)
+        if base is not None:
+            region = self._region_of_expr(func, facts, base)
+        elif base_addr is not None and self._is_global_data_addr(base_addr):
+            region = GlobalRegion(base_addr)
+        else:
+            region = None
+        if region is None:
+            return None, 0
+        self.pointer_shapes.descriptor(region)
+        return region, offset
+
     def _region_of_expr(self, func: Function, facts: _FuncFacts, expr) -> MemoryRegion | None:
         """
         Determine which memory region a pointer expression refers to.
@@ -563,6 +645,14 @@ class FullProgramIndirectJumpResolution(Analysis):
         if stack_off is not None:
             return StackRegion(func.addr, stack_off)
 
+        # a pointer read out of memory: follow the points-to information of the field it was loaded from. This is
+        # what makes chained dereferences such as ``dev->driver->read`` tractable.
+        if isinstance(expr, ailment.Expr.Load):
+            base_region, base_offset = self._region_and_offset_of_address(func, facts, expr.addr)
+            if base_region is not None:
+                return self._pointed_region(base_region, base_offset)
+            return None
+
         # base of an add-with-index: e.g., table + idx*scale
         base, base_addr, _offset, _stride = _decompose_address(expr)
         if base is not None and base is not expr:
@@ -570,6 +660,31 @@ class FullProgramIndirectJumpResolution(Analysis):
         if base_addr is not None and self._is_global_data_addr(base_addr):
             return GlobalRegion(base_addr)
 
+        return None
+
+    def _pointed_region(self, region: MemoryRegion, offset: int) -> MemoryRegion | None:
+        """
+        Return the region that the pointer stored at ``region + offset`` points to, or None when unknown.
+
+        Recorded stores win; when there are several candidates they are unioned, since the field may hold any of them.
+        For a global region with no recorded store, the statically initialized contents of the binary are consulted,
+        which covers pointer tables and driver structs that live in read-only memory.
+        """
+        desc = self.pointer_shapes.get(region)
+        if desc is not None:
+            fa = desc.fields.get(desc.normalize_offset(offset))
+            if fa is not None and fa.pointed_regions:
+                candidates = sorted(fa.pointed_regions, key=repr)
+                representative = candidates[0]
+                for other in candidates[1:]:
+                    self.pointer_shapes.union(representative, other)
+                return representative
+
+        region = self.pointer_shapes.find(region)
+        if isinstance(region, GlobalRegion):
+            word = self._read_word(region.addr + offset, self.project.arch.bytes)
+            if word is not None and self._is_global_data_addr(word):
+                return GlobalRegion(word)
         return None
 
     def _codeptr_values_of(self, facts: _FuncFacts, expr) -> set[int]:
@@ -616,21 +731,96 @@ class FullProgramIndirectJumpResolution(Analysis):
 
     def _propagate_interproc(self) -> None:
         for _ in range(self._max_iterations):
-            changed = False
-            for facts in self._func_facts.values():
-                for callee_addr, arg_regions in facts.call_bindings:
-                    callee_params = self._func_facts.get(callee_addr)
-                    if callee_params is None:
-                        continue
-                    for idx, arg_region in enumerate(arg_regions):
-                        if arg_region is None:
-                            continue
-                        param_region = callee_params.arg_param_regions.get(idx)
-                        if param_region is None:
-                            continue
-                        changed |= self.pointer_shapes.union(arg_region, param_region)
+            changed = self._propagate_regions()
+            changed |= self._propagate_codeptrs()
             if not changed:
                 break
+
+    def _propagate_regions(self) -> bool:
+        """
+        Union each caller argument's region into the corresponding callee parameter's region.
+        """
+        changed = False
+        for facts in self._func_facts.values():
+            for callee_addr, arg_regions in facts.call_bindings:
+                callee_params = self._func_facts.get(callee_addr)
+                if callee_params is None:
+                    continue
+                for idx, arg_region in enumerate(arg_regions):
+                    if arg_region is None:
+                        continue
+                    param_region = callee_params.arg_param_regions.get(idx)
+                    if param_region is None:
+                        continue
+                    changed |= self.pointer_shapes.union(arg_region, param_region)
+        return changed
+
+    def _propagate_codeptrs(self) -> bool:
+        """
+        Propagate concrete code-pointer values through the dataflow skeleton recorded during the intra-procedural pass.
+
+        This is what resolves callbacks that are registered at run time: a caller passes a function pointer as an
+        argument, the callee stores it into a field of a global struct or array, and a third function (typically an
+        interrupt handler) loads that field and calls it. None of those three steps sees a constant function address
+        by itself, so the value has to be threaded across all of them.
+        """
+        changed = False
+
+        # intra-procedural: replay copies, loads and stores until each function is locally stable
+        for facts in self._func_facts.values():
+            for _ in range(self._max_iterations):
+                local_changed = False
+                for dst_varid, src_varid in facts.copy_edges:
+                    values = facts.vvar_codeptrs.get(src_varid)
+                    if values:
+                        local_changed |= self._add_codeptrs(facts, dst_varid, values)
+                for region, offset, dst_varid in facts.load_edges:
+                    desc = self.pointer_shapes.get(region)
+                    if desc is None:
+                        continue
+                    fa = desc.fields.get(desc.normalize_offset(offset))
+                    if fa is not None and fa.stored_values:
+                        local_changed |= self._add_codeptrs(facts, dst_varid, fa.stored_values)
+                for region, offset, src_varid in facts.store_edges:
+                    desc = self.pointer_shapes.descriptor(region)
+                    fa = desc.field(desc.normalize_offset(offset))
+                    stored_region = facts.vvar_region.get(src_varid)
+                    if stored_region is not None and stored_region not in fa.pointed_regions:
+                        fa.pointed_regions.add(stored_region)
+                        local_changed = True
+                    values = facts.vvar_codeptrs.get(src_varid)
+                    if not values:
+                        continue
+                    if not fa.is_code_pointer:
+                        fa.is_code_pointer = True
+                        local_changed = True
+                    if not values <= fa.stored_values:
+                        fa.stored_values |= values
+                        local_changed = True
+                if not local_changed:
+                    break
+                changed = True
+
+        # interprocedural: a code pointer passed as an argument reaches the callee's parameter
+        for facts in self._func_facts.values():
+            for callee_addr, arg_map in facts.call_arg_codeptrs:
+                callee_facts = self._func_facts.get(callee_addr)
+                if callee_facts is None:
+                    continue
+                param_vvars = self._func_arg_vvars.get(callee_addr)
+                if not param_vvars:
+                    continue
+                for idx, (src_varid, immediate) in arg_map.items():
+                    param_vvar = param_vvars.get(idx)
+                    if param_vvar is None:
+                        continue
+                    values = set(immediate)
+                    if src_varid is not None:
+                        values |= facts.vvar_codeptrs.get(src_varid, set())
+                    if values:
+                        changed |= self._add_codeptrs(callee_facts, param_vvar.varid, values)
+
+        return changed
 
     #
     # Phase C: global table harvesting
@@ -746,6 +936,14 @@ class FullProgramIndirectJumpResolution(Analysis):
                     fa = desc.fields.get(field_off)
                     if fa is not None:
                         result |= fa.stored_values
+                if not result:
+                    # nothing was observed being written here; read the function pointer straight out of the binary,
+                    # which covers vtables and driver structs that live in initialized read-only memory
+                    rep_region = self.pointer_shapes.find(region)
+                    if isinstance(rep_region, GlobalRegion):
+                        word = self._read_word(rep_region.addr + offset, self.project.arch.bytes)
+                        if word is not None and self._is_function_start(word):
+                            result.add(word)
             return result
 
         # ITE / phi of constants directly at the target
@@ -766,6 +964,11 @@ class FullProgramIndirectJumpResolution(Analysis):
             return GlobalRegion(base.value)
         if isinstance(base, ailment.Expr.VirtualVariable):
             return facts.vvar_region.get(base.varid)
+        if isinstance(base, ailment.Expr.Load):
+            func = self.kb.functions[facts.func_addr]
+            inner_region, inner_offset = self._region_and_offset_of_address(func, facts, base.addr)
+            if inner_region is not None:
+                return self._pointed_region(inner_region, inner_offset)
         return None
 
     def _codeptrs_from_region(self, region: MemoryRegion) -> set[int]:
@@ -782,13 +985,19 @@ class FullProgramIndirectJumpResolution(Analysis):
     #
 
     def _is_function_start(self, addr: int) -> bool:
+        """
+        Whether ``addr`` is the entry point of a function, i.e. a plausible target of a function pointer.
+
+        This must stay strict: a word that merely points at some basic block is not a function pointer. Accepting any
+        block start would make jump tables (which hold block addresses) look like tables of function pointers.
+        """
         if not isinstance(addr, int):
             return False
         if self.kb.functions.contains_addr(addr):
             return True
         if self._cfg_model is not None:
             node = self._cfg_model.get_any_node(addr)
-            if node is not None and node.addr == addr:
+            if node is not None and node.addr == addr and node.function_address == addr:
                 return True
         return False
 
@@ -1029,6 +1238,20 @@ class _ExprCollector(AILBlockViewer):
         if isinstance(expr, self._expr_cls):
             self.results.append(expr)
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _codeptr_source_varids(expr) -> set[int]:
+    """
+    Collect the ids of the vvars whose code-pointer values could flow into ``expr``.
+    """
+    result: set[int] = set()
+    expr = _unwrap_copy(expr)
+    if isinstance(expr, ailment.Expr.VirtualVariable):
+        result.add(expr.varid)
+    else:
+        for operand in _phi_ite_operands(expr):
+            result |= _codeptr_source_varids(operand)
+    return result
 
 
 def _concrete_alloc_size(call) -> int | None:
