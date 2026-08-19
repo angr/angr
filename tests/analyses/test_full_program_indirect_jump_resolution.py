@@ -100,6 +100,45 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         targets = self._union_of_resolutions(fpijr, dispatch)
         assert targets == expected
 
+    def test_cortexm_firmware_callbacks(self):
+        # A real firmware image: RIOT-OS on an NXP Kinetis Cortex-M MCU, built as Thumb code. Nearly every indirect
+        # call in it goes through a callback that some other function registered at run time into a global struct or
+        # array, so resolving them exercises the whole-program propagation end to end on real code. Function pointers
+        # on this target carry the Thumb bit and are therefore odd addresses.
+        binary_path = os.path.join(test_location, "armel", "fpijr_cortexm_console")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        assert proj.arch.name == "ARMCortexM"
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        fpijr = proj.analyses.FullProgramIndirectJumpResolution()
+
+        def target_names(func_name):
+            resolutions = fpijr.get_resolutions(cfg.kb.functions[func_name])
+            assert resolutions, f"no resolved indirect call site in {func_name}"
+            names = set()
+            for target_set in resolutions.values():
+                names |= {cfg.kb.functions[target].name for target in target_set}
+            return names
+
+        # The RTC interrupt chain, which spans three functions: rtc_set_alarm() hands rtc_cb to rtt_set_alarm(),
+        # which stores it into a global; the interrupt handler loads that global and calls it; rtc_cb in turn calls
+        # the handler that was registered the same way one level up.
+        assert target_names("isr_rtc") == {"rtc_cb"}
+        assert target_names("rtc_cb") == {"_alarm_handler"}
+
+        # A UART receive callback registered at run time into a global array of per-device structs, reached through
+        # a run-time index.
+        assert target_names("irq_handler_uart") == {"isrpipe_write_one"}
+
+        # Function pointers passed as arguments and invoked through the callee's parameter.
+        assert target_names("_fwalk") == {"lflush"}
+        assert target_names("_fwalk_reent") == {"_fflush_r"}
+
+        # A refill callback kept in a struct, and a conditional pair of string-to-integer converters.
+        assert target_names("__ssvfiscanf_r") == {"__ssrefill_r"}
+        assert target_names("_scanf_i") == {"_strtol_r", "_strtoul_r"}
+
     def test_progress_callback(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
         proj = angr.Project(binary_path, auto_load_libs=False)
