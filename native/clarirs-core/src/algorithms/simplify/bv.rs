@@ -611,7 +611,7 @@ pub(crate) fn simplify_bv<'c>(
                     }
                 }
                 (_, AstOp::BVV(v)) if v.is_zero() => Ok(arc.clone()),
-                (lhs_op, rhs_op) if lhs_op == rhs_op => Ok(ctx.bvv(BitVec::zeros(arc.size()))?),
+                (..) if arc == arc1 => Ok(ctx.bvv(BitVec::zeros(arc.size()))?),
                 _ => Ok(ctx.sub(arc, arc1)?),
             }
         }
