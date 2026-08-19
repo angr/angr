@@ -275,6 +275,10 @@ class KnownPatternFinder(Analysis):
         self._skip_conversions = skip_conversions
         # varid -> the pure expression it can be recomputed from, or None
         self._remote_def_cache: dict[int, Expression | None] = {}
+        # call target address -> every name that callee is known by
+        self._call_names_cache: dict[int, frozenset[str]] = {}
+        # varid -> the Call that defines it, or None
+        self._call_def_cache: dict[int, Call | None] = {}
         self._blocks_by_loc: dict[tuple[int, int | None], Block] | None = None
         self._ail_manager = ail_manager
         self.vvar_id_start = vvar_id_start
@@ -661,6 +665,8 @@ class KnownPatternFinder(Analysis):
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
             chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
+            call_target_fn=self._resolve_call_target,
+            call_def_fn=self._resolve_call_def,
         )
         result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, start_idx, True, MatchState(), ctx, max_gap)
         if result is None:
@@ -706,6 +712,8 @@ class KnownPatternFinder(Analysis):
             chase_fn=None,
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
+            call_target_fn=self._resolve_call_target,
+            call_def_fn=self._resolve_call_def,
         )
 
         def assign(pat_i: int, used: frozenset[int], state: MatchState) -> tuple[MatchState, list[int]] | None:
@@ -765,6 +773,8 @@ class KnownPatternFinder(Analysis):
             chase_fn=None,
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
+            call_target_fn=self._resolve_call_target,
+            call_def_fn=self._resolve_call_def,
         )
 
         # order internal blocks by BFS from the entry over internal edges, so
@@ -885,6 +895,8 @@ class KnownPatternFinder(Analysis):
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
             remote_chase_fn=self._make_remote_chase_fn(),
+            call_target_fn=self._resolve_call_target,
+            call_def_fn=self._resolve_call_def,
         )
         state = pattern.pattern.match(target, MatchState(), ctx)
         if state is None:
@@ -1034,6 +1046,86 @@ class KnownPatternFinder(Analysis):
         if src.category == VirtualVariableCategory.STACK:
             return src
         return self._resolve_stack_slot(src.varid, _depth + 1)
+
+    def _resolve_call_target(self, call: Call) -> frozenset[str]:
+        """Every name the callee of ``call`` is known by.
+
+        Both spellings are returned because both are useful: the mangled symbol
+        is exact, and the demangled one is what a reader recognizes. A pattern
+        naming either matches. An indirect call resolves to nothing.
+        """
+        target = call.target
+        if isinstance(target, str):
+            return frozenset((target,))
+        if not isinstance(target, Const) or not isinstance(target.value, int):
+            return frozenset()
+        addr = target.value
+        cached = self._call_names_cache.get(addr)
+        if cached is not None:
+            return cached
+        names: set[str] = set()
+        func = self.kb.functions.get_by_addr(addr) if self.kb.functions.contains_addr(addr) else None
+        if func is not None:
+            if func.name:
+                names.add(func.name)
+            demangled = func.demangled_name
+            if demangled:
+                names.add(demangled)
+        out = frozenset(names)
+        self._call_names_cache[addr] = out
+        return out
+
+    def _resolve_call_def(self, varid: int, _depth: int = 0, _seen: frozenset[int] | None = None) -> Call | None:
+        """The Call that defines ``varid``, through copies and agreeing phis.
+
+        Read-only, and deliberately separate from :meth:`_resolve_remote_def`:
+        that one answers "what can I recompute here", and refuses calls for
+        exactly the right reason -- re-evaluating a call is not the same as
+        reading its result. This one answers "what produced this value", which a
+        call can perfectly well have done. Nothing is consumed or moved.
+        """
+        if _depth == 0:
+            cached = self._call_def_cache.get(varid, False)
+            if cached is not False:
+                return cached
+            out = self._resolve_call_def(varid, 1, frozenset((varid,)))
+            self._call_def_cache[varid] = out
+            return out
+        if _depth > self.MAX_REMOTE_CHASE_DEPTH or self._srda_model is None:
+            return None
+        defloc = self._srda_model.all_vvar_definitions.get(varid)
+        if defloc is None or defloc.is_extern:
+            return None
+        block = self._block_at((defloc.addr, defloc.block_idx))
+        if block is None or defloc.stmt_idx >= len(block.statements):
+            return None
+        def_stmt = block.statements[defloc.stmt_idx]
+        if not isinstance(def_stmt, Assignment):
+            return None
+        seen = _seen if _seen is not None else frozenset()
+        if is_phi_assignment(def_stmt):
+            resolved: Call | None = None
+            for _, src_vvar in def_stmt.src.src_and_vvars:
+                if src_vvar is None or src_vvar.varid in seen:
+                    return None
+                src_call = self._resolve_call_def(src_vvar.varid, _depth + 1, seen | {src_vvar.varid})
+                if src_call is None:
+                    return None
+                if resolved is None:
+                    resolved = src_call
+                elif not resolved.likes(src_call):
+                    return None
+            return resolved
+        src = def_stmt.src
+        if isinstance(src, Convert):
+            src = src.operand
+        if isinstance(src, Call):
+            return src
+        if isinstance(src, VirtualVariable):
+            if src.varid in seen:
+                return None
+            return self._resolve_call_def(src.varid, _depth + 1, seen | {src.varid})
+        return None
 
     def _resolve_remote_def(self, varid: int, _depth: int = 0, _seen: frozenset[int] | None = None):
         """The pure expression a vvar defined *elsewhere* can be recomputed from.

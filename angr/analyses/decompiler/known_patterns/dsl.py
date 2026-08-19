@@ -22,6 +22,7 @@ from dataclasses import dataclass, field, replace
 from angr.ailment.expression import (
     ITE,
     BinaryOp,
+    Call,
     Const,
     Convert,
     Expression,
@@ -33,7 +34,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, ConditionalJump, Statement, Store
+from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement, Statement, Store
 
 # ops for which operand order is irrelevant; commutative matching tries both orders
 COMMUTATIVE_OPS = frozenset({"Add", "Mul", "And", "Or", "Xor", "CmpEQ", "CmpNE"})
@@ -94,6 +95,15 @@ class MatchCtx:
     # compiler keeps one of them in a register across the accessor, so a stack
     # idiom reaches the matcher half in slots and half in registers.
     stack_slot_fn: Callable[[int], VirtualVariable | None] | None = None
+    # every name a Call's callee is known by -- the raw symbol and, for a C++
+    # binary, its demangled spelling. Supplied by the finder, which holds the
+    # Project; a pattern that names a callee is only matchable with it.
+    call_target_fn: Callable[[Call], frozenset[str]] | None = None
+    # the Call that defines a virtual variable, followed through plain copies and
+    # through phis whose arms agree. Deliberately *not* ``peek_fn``: that one's
+    # contract is "this expression can be recomputed at the use", which a call
+    # can never satisfy. A call is only ever referred to.
+    call_def_fn: Callable[[int], Call | None] | None = None
 
 
 class PatternNode:
@@ -335,6 +345,99 @@ class PLoad(PatternExpr):
         if st is None:
             return None
         return self._bind_if_named(self.name, expr, st)
+
+
+@dataclass(frozen=True)
+class PCall(PatternExpr):
+    """Matches a ``Call`` whose callee is one of ``names``.
+
+    The callee is what makes a pattern containing this node self-guarding: an
+    idiom spelled around a named runtime function -- ``operator delete`` in the
+    std::string destructor, ``__ctype_b_loc`` in ``isspace`` -- cannot be
+    confused with arithmetic that happens to look alike, because no other code
+    calls that function to do something else.
+
+    ``names`` is matched against *every* spelling the callee is known by (the
+    raw symbol and its demangled form), so a pattern may name either. Prefer the
+    mangled spelling: it is exact, while a demangled one carries the argument
+    list and varies with the demangler.
+
+    ``args=None`` leaves the arguments unconstrained; a tuple constrains them
+    positionally, with ``None`` in a slot meaning "any expression".
+    """
+
+    names: frozenset[str]
+    args: tuple[PatternExpr | None, ...] | None = None
+    name: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.names, frozenset):
+            object.__setattr__(self, "names", frozenset(self.names))
+        if self.args is not None and not isinstance(self.args, tuple):
+            object.__setattr__(self, "args", tuple(self.args))
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        # deliberately not _prepare: chasing a virtual variable to its definition
+        # marks that definition consumed, which would let the outliner *move* the
+        # call. See PCallResult for the read-only way to reach a call's result.
+        while ctx.skip_conversions and isinstance(expr, Convert):
+            expr = expr.operand
+        if not isinstance(expr, Call) or ctx.call_target_fn is None:
+            return None
+        if not (self.names & ctx.call_target_fn(expr)):
+            return None
+        if self.args is not None:
+            args = expr.args or ()
+            if len(args) != len(self.args):
+                return None
+            for arg_pat, arg in zip(self.args, args):
+                if arg_pat is None:
+                    continue
+                st = arg_pat.match(arg, state, ctx)
+                if st is None:
+                    return None
+                state = st
+        return self._bind_if_named(self.name, expr, state)
+
+
+@dataclass(frozen=True)
+class PCallResult(PatternExpr):
+    """The value a call to one of ``names`` returned.
+
+    A call's result is almost never used where it is produced: the compiler
+    assigns it to a register and reads that register, often in another block --
+    ``__ctype_b_loc()`` is called once per function and its table indexed at
+    every predicate. So this node matches the *virtual variable*, and looks up
+    its definition read-only. Nothing is consumed, moved or recomputed; the call
+    stays exactly where the compiler put it.
+
+    An inline ``Call`` expression is matched too, for the case where the value
+    is used at its definition.
+    """
+
+    names: frozenset[str]
+    name: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.names, frozenset):
+            object.__setattr__(self, "names", frozenset(self.names))
+
+    def _target_matches(self, call: Call, ctx: MatchCtx) -> bool:
+        return ctx.call_target_fn is not None and bool(self.names & ctx.call_target_fn(call))
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        while ctx.skip_conversions and isinstance(expr, Convert):
+            expr = expr.operand
+        if isinstance(expr, Call):
+            return self._bind_if_named(self.name, expr, state) if self._target_matches(expr, ctx) else None
+        if not isinstance(expr, VirtualVariable) or ctx.call_def_fn is None:
+            return None
+        call = ctx.call_def_fn(expr.varid)
+        if call is None or not self._target_matches(call, ctx):
+            return None
+        # bind the variable, not the call: it is the value that exists at the
+        # match site, and the only spelling the outliner could pass along
+        return self._bind_if_named(self.name, expr, state)
 
 
 @dataclass(frozen=True)
@@ -644,6 +747,31 @@ class PStore(PatternStmt):
 
 
 @dataclass(frozen=True)
+class PCallStmt(PatternStmt):
+    """Matches a statement whose effect is a call.
+
+    Ailment has no Call *statement*: a call whose result is discarded is a
+    ``SideEffectStatement`` wrapping the Call expression, and one whose result is
+    kept is an ordinary ``Assignment``. Both spellings are the same idiom, so
+    both match; ``dst``, when given, additionally constrains the assigned
+    destination (and thereby requires the assignment form).
+    """
+
+    call: PCall
+    dst: PatternExpr | None = None
+
+    def match(self, stmt: Statement, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        if isinstance(stmt, SideEffectStatement):
+            return None if self.dst is not None else self.call.match(stmt.expr, state, ctx)
+        if not isinstance(stmt, Assignment):
+            return None
+        st = self.call.match(stmt.src, state, ctx)
+        if st is None:
+            return None
+        return self.dst.match(stmt.dst, st, ctx) if self.dst is not None else st
+
+
+@dataclass(frozen=True)
 class PCondJump(PatternStmt):
     """Matches a ConditionalJump, matching its condition expression."""
 
@@ -743,6 +871,12 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("Convert", None)
     if isinstance(node, PExtract):
         return ("Extract", None)
+    if isinstance(node, PCall):
+        return ("Call", None)
+    if isinstance(node, PCallResult):
+        # matches a virtual variable, or the call itself where the result is used
+        # at its definition -- two kinds, so it discriminates neither
+        return None
     if isinstance(node, PConst):
         return ("Const", None)
     if isinstance(node, PITE):
@@ -759,6 +893,8 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("Assignment", None)
     if isinstance(node, PStore):
         return ("Store", None)
+    if isinstance(node, PCallStmt):
+        return ("Call", None)
     if isinstance(node, PCondJump):
         return ("ConditionalJump", None)
     if isinstance(node, PChoice):
@@ -786,6 +922,8 @@ def expr_anchor_key(expr: Expression) -> tuple[str, str | None]:
         return ("Convert", None)
     if isinstance(expr, Extract):
         return ("Extract", None)
+    if isinstance(expr, Call):
+        return ("Call", None)
     if isinstance(expr, Const):
         return ("Const", None)
     if isinstance(expr, ITE):
