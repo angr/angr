@@ -317,7 +317,7 @@ pub(crate) fn simplify_bool<'c>(
                 let early_rhs = state.get_child_available(1);
 
                 match (early_lhs.op(), early_rhs.op()) {
-                    (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
+                    (..) if early_lhs == early_rhs => Ok(ctx.true_()?),
                     (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc == arc1)?),
 
                     // Equality is commutative, so canonicalize a lone constant onto the
@@ -511,7 +511,7 @@ pub(crate) fn simplify_bool<'c>(
 
                 match (early_lhs.op(), early_rhs.op()) {
                     (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc != arc1)?),
-                    (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
+                    (..) if early_lhs == early_rhs => Ok(ctx.false_()?),
 
                     // Disequality is commutative, so canonicalize a lone constant onto the
                     // right, the way commutative arithmetic ops already order their args.
@@ -658,7 +658,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
+                (..) if arc == arc1 => Ok(ctx.false_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc < arc1)?),
 
                 // If on one side there is an AND where one of the operands is a mask, and on the
@@ -869,7 +869,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
+                (..) if arc == arc1 => Ok(ctx.true_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc <= arc1)?),
 
                 // If on one side there is an AND where one of the operands is a mask, and on the
@@ -1075,7 +1075,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
+                (..) if arc == arc1 => Ok(ctx.false_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc > arc1)?),
 
                 // If on one side there is an AND where one of the operands is a mask, and on the
@@ -1280,7 +1280,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
+                (..) if arc == arc1 => Ok(ctx.true_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc >= arc1)?),
 
                 // If on one side there is an AND where one of the operands is a mask, and on the
@@ -1491,7 +1491,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
+                (..) if arc == arc1 => Ok(ctx.false_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_lt(arc1)?)?),
                 _ => Ok(ctx.slt(arc, arc1)?),
             }
@@ -1502,7 +1502,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
+                (..) if arc == arc1 => Ok(ctx.true_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_le(arc1)?)?),
                 _ => Ok(ctx.sle(arc, arc1)?),
             }
@@ -1513,7 +1513,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.false_()?),
+                (..) if arc == arc1 => Ok(ctx.false_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_gt(arc1)?)?),
                 _ => Ok(ctx.sgt(arc, arc1)?),
             }
@@ -1524,7 +1524,7 @@ pub(crate) fn simplify_bool<'c>(
                 state.get_child_simplified(1)?,
             );
             match (arc.op(), arc1.op()) {
-                (lhs, rhs) if lhs == rhs => Ok(ctx.true_()?),
+                (..) if arc == arc1 => Ok(ctx.true_()?),
                 (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc.signed_ge(arc1)?)?),
                 _ => Ok(ctx.sge(arc, arc1)?),
             }
