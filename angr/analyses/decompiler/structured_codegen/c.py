@@ -4165,7 +4165,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             expr_size = expr.size
             expr_bits = expr.bits
 
-        if expr.size > 100 and isinstance(expr.addr, Expr.Const):
+        if expr_size > 100 and isinstance(expr.addr, Expr.Const):
             return self._handle_Expr_Const(expr.addr, type_=SimTypePointer(SimTypeChar()).with_arch(self.project.arch))
 
         ty = self.default_simtype_from_bits(expr_bits)

@@ -86,7 +86,7 @@ pub enum StmtInner {
     Store {
         addr: Arc<AilExpression>,
         data: Arc<AilExpression>,
-        /// Signed to accommodate the ``UNDETERMINED_SIZE = -0xC0DE`` sentinel.
+        /// Signed so that callers passing a negative size get a faithful value back.
         size: i32,
         endness: String,
         guard: Option<Arc<AilExpression>>,

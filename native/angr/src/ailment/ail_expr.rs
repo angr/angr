@@ -2947,6 +2947,8 @@ impl Expression {
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
         let depth = addr.header.depth + 1;
+        // the bit width lives in an unsigned 32-bit header, so sizes outside [0, 2**32 / 8) do not round-trip
+        // through the ``size`` getter -- see ``angr.ailment.constant.UNDETERMINED_SIZE``
         let bits = (size.wrapping_mul(8)) as u32;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
