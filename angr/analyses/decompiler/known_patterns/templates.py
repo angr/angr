@@ -11,7 +11,7 @@ libstdc++ and MSVC, and so on.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -52,6 +52,14 @@ class KnownPatternTemplate:
     # human label, defaults to call_name
     name: str = ""
     gate: PatternGate | None = None
+    #: Per-context memo of :meth:`instantiate`. Building the library costs ~9 ms
+    #: on a C++ target -- four figures of templates, most of them the generated
+    #: std::vector set -- and it was rebuilt for every function, twice (the
+    #: optimization pass's applicability check and the finder itself) and again
+    #: for every extra matching round. The memo lives on the template rather
+    #: than in a lookup keyed by name, because names are not unique among
+    #: templates built on the fly.
+    _cache: dict = field(default_factory=dict, compare=False, repr=False, hash=False)
 
     def enabled_for(self, gate_ctx: GateContext) -> bool:
         """Whether this template is on for the given target/function, taking the
@@ -71,9 +79,15 @@ class KnownPatternTemplate:
         return not (self.platforms is not None and (ctx.platform is None or ctx.platform not in self.platforms))
 
     def instantiate(self, ctx: PatternContext) -> KnownPattern | None:
+        """The concrete pattern for ``ctx``, or None if this template does not
+        apply there. Memoized: a KnownPattern is a frozen tree that depends on
+        nothing but the context, and callers treat it read-only."""
         if not self.applicable(ctx):
             return None
-        return self.build(ctx)
+        cached = self._cache.get(ctx, False)
+        if cached is False:
+            cached = self._cache[ctx] = self.build(ctx)
+        return cached
 
 
 def make_template(
