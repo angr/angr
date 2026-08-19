@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
 from typing import TYPE_CHECKING, Any
 
 from angr import ailment
@@ -14,6 +15,7 @@ from .descriptors import (
     HeapRegion,
     MemoryRegion,
     PointerShapeDescriptor,
+    ProvenanceStep,
     StackRegion,
     UnknownRegion,
 )
@@ -75,14 +77,14 @@ class _FuncFacts:
         # the AIL walk for every fixed-point round would mean holding every function's AIL graph in memory, so the
         # intra-procedural pass instead records the few edges that matter and the fixed point replays those.
         #
-        # dst_varid <- src_varid, from copies/conversions/phis/ITEs
-        self.copy_edges: list[tuple[int, int]] = []
-        # dst_varid <- (region, field offset), from ``vvar = Load(...)``
-        self.load_edges: list[tuple[MemoryRegion, int, int]] = []
-        # (region, field offset) <- src_varid, from ``Store(..., data=vvar)``
-        self.store_edges: list[tuple[MemoryRegion, int, int]] = []
-        # (callee_addr, {arg index: (src varid or None, immediately-known code pointers)}) recorded at direct calls
-        self.call_arg_codeptrs: list[tuple[int, dict[int, tuple[int | None, frozenset[int]]]]] = []
+        # (dst_varid, src_varid, ins_addr), from copies/conversions/phis/ITEs
+        self.copy_edges: list[tuple[int, int, int | None]] = []
+        # (region, field offset, dst_varid, ins_addr), from ``vvar = Load(...)``
+        self.load_edges: list[tuple[MemoryRegion, int, int, int | None]] = []
+        # (region, field offset, src_varid, ins_addr), from ``Store(..., data=vvar)``
+        self.store_edges: list[tuple[MemoryRegion, int, int, int | None]] = []
+        # (callee_addr, ins_addr, {arg index: (src varid or None, immediately-known code pointers)})
+        self.call_arg_codeptrs: list[tuple[int, int | None, dict[int, tuple[int | None, frozenset[int]]]]] = []
 
 
 class FullProgramIndirectJumpResolution(Analysis):
@@ -129,7 +131,9 @@ class FullProgramIndirectJumpResolution(Analysis):
         fail_fast: bool = False,
         max_iterations: int = 8,
         low_priority: bool = False,
+        track_provenance: bool = True,
     ):
+        self._track_provenance = track_provenance
         self._fail_fast_flag = fail_fast
         self._max_iterations = max_iterations
         self._low_priority = low_priority
@@ -153,6 +157,9 @@ class FullProgramIndirectJumpResolution(Analysis):
         self._spt_cache: dict[int, Any] = {}
         # cached integer argument-register offsets for the target arch
         self._arg_reg_offsets: set[int] | None = None
+        # provenance: (holder, value) -> {(step, source holder or None)}. A holder is ("vvar", func_addr, varid),
+        # ("field", region, offset) or ("site", ins_addr).
+        self.provenance: dict[tuple[Any, int], set[tuple[ProvenanceStep, Any]]] = {}
         # a raw image (no section table) needs a different notion of what a data address is
         main_object = self.project.loader.main_object
         self._sectionless_image: bool = main_object is not None and not main_object.sections
@@ -180,6 +187,74 @@ class FullProgramIndirectJumpResolution(Analysis):
         collected so far, so ``resolved_indirect_jumps`` remains valid (though possibly incomplete) afterwards.
         """
         self._should_abort = True
+
+    def get_provenance(self, site_addr: int, target: int) -> list[ProvenanceStep]:
+        """
+        Explain why an indirect jump or call at ``site_addr`` may go to ``target``.
+
+        Returns the shortest chain of steps that carried the code pointer from wherever it entered the program to the
+        site, oldest step first: typically a constant or a word in initialized memory, then the copies, stores, loads
+        and argument passes that moved it, and finally the read at the site itself. An empty list means the value was
+        not tracked, either because provenance recording was switched off or because the site was not resolved.
+
+        :param site_addr: Instruction address of the indirect jump or call, as used in ``resolved_indirect_jumps``.
+        :param target:    One of the resolved target addresses of that site.
+        """
+        start = ("site", site_addr)
+        if (start, target) not in self.provenance:
+            return []
+        queue = deque([(start, [])])
+        seen = {start}
+        while queue:
+            holder, path = queue.popleft()
+            links = self.provenance.get((holder, target))
+            if not links:
+                continue
+            for step, source in sorted(links, key=repr):
+                chain = [step, *path]
+                if source is None:
+                    return chain
+                if source not in seen:
+                    seen.add(source)
+                    queue.append((source, chain))
+        return []
+
+    def describe_provenance(self, site_addr: int, target: int) -> list[str]:
+        """
+        Human-readable form of :meth:`get_provenance`, with function names filled in where they are known.
+        """
+        lines = []
+        for step in self.get_provenance(site_addr, target):
+            where = ""
+            if step.func_addr is not None:
+                name = self._function_name(step.func_addr)
+                where = f" in {name}" if name else f" in {step.func_addr:#x}"
+            at = f" at {step.ins_addr:#x}" if step.ins_addr is not None else ""
+            field = ""
+            if step.region is not None:
+                field = f" {step.region!r}+{step.offset:#x}" if step.offset else f" {step.region!r}"
+            if step.kind == "constant":
+                lines.append(f"constant {self._target_label(target)}{at}{where}")
+            elif step.kind == "static":
+                lines.append(f"read {self._target_label(target)} from initialized memory at {step.addr:#x}{field}")
+            elif step.kind == "argument":
+                callee = self._function_name(step.callee_addr) or f"{step.callee_addr:#x}"
+                lines.append(f"passed as argument {step.arg_index} to {callee}{at}{where}")
+            elif step.kind == "store":
+                lines.append(f"stored to{field}{at}{where}")
+            elif step.kind == "load":
+                lines.append(f"loaded from{field}{at}{where}")
+            elif step.kind == "copy":
+                lines.append(f"copied{at}{where}")
+            elif step.kind == "read":
+                lines.append(f"used as the indirect target{field}{at}{where}")
+            else:
+                lines.append(repr(step))
+        return lines
+
+    def _target_label(self, addr: int) -> str:
+        name = self._function_name(addr)
+        return f"{addr:#x} ({name})" if name else f"{addr:#x}"
 
     def get_resolutions(self, func) -> dict[int, set[int]]:
         """
@@ -335,19 +410,20 @@ class FullProgramIndirectJumpResolution(Analysis):
 
     def _handle_statement(self, func: Function, facts: _FuncFacts, stmt) -> bool:
         changed = False
+        ins_addr = _ins_addr_of(stmt)
 
         # vvar definitions
         if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.VirtualVariable):
-            changed |= self._handle_definition(func, facts, stmt.dst.varid, stmt.src)
+            changed |= self._handle_definition(func, facts, stmt.dst.varid, stmt.src, ins_addr)
 
         # stores: record field accesses and stored code pointers
         if isinstance(stmt, ailment.Stmt.Store):
-            changed |= self._handle_memory_access(func, facts, stmt.addr, stmt.size, store_data=stmt.data)
+            changed |= self._handle_memory_access(func, facts, stmt.addr, stmt.size, stmt.data, ins_addr)
 
         # loads embedded anywhere in the statement: record field accesses
         loads = _collect_loads(stmt)
         for load in loads:
-            changed |= self._handle_memory_access(func, facts, load.addr, load.size, store_data=None)
+            changed |= self._handle_memory_access(func, facts, load.addr, load.size, None, ins_addr)
 
         # calls (both bare SideEffectStatements and call expressions embedded in returns/assignments)
         for call, call_ins in _collect_calls(stmt):
@@ -369,7 +445,9 @@ class FullProgramIndirectJumpResolution(Analysis):
 
         return changed
 
-    def _handle_definition(self, func: Function, facts: _FuncFacts, varid: int, src) -> bool:
+    def _handle_definition(
+        self, func: Function, facts: _FuncFacts, varid: int, src, ins_addr: int | None = None
+    ) -> bool:
         """
         Track what a vvar was defined as: a pointer to a region, or a direct code-pointer value.
         """
@@ -380,7 +458,7 @@ class FullProgramIndirectJumpResolution(Analysis):
             val = src.value
             if isinstance(val, int):
                 if self._is_function_start(val):
-                    changed |= self._add_codeptr(facts, varid, val)
+                    changed |= self._add_codeptr(facts, varid, val, ProvenanceStep("constant", func.addr, ins_addr))
                 elif self._is_global_data_addr(val):
                     changed |= self._set_region(facts, varid, GlobalRegion(val))
             return changed
@@ -397,13 +475,19 @@ class FullProgramIndirectJumpResolution(Analysis):
         # copy / conversion of another vvar
         inner = _unwrap_copy(src)
         if isinstance(inner, ailment.Expr.VirtualVariable):
-            facts.copy_edges.append((varid, inner.varid))
+            facts.copy_edges.append((varid, inner.varid, ins_addr))
             region = facts.vvar_region.get(inner.varid)
             if region is not None:
                 changed |= self._set_region(facts, varid, region)
             codeptrs = facts.vvar_codeptrs.get(inner.varid)
             if codeptrs:
-                changed |= self._add_codeptrs(facts, varid, codeptrs)
+                changed |= self._add_codeptrs(
+                    facts,
+                    varid,
+                    codeptrs,
+                    ProvenanceStep("copy", func.addr, ins_addr),
+                    ("vvar", facts.func_addr, inner.varid),
+                )
             return changed
 
         # a value loaded out of a region field: remember where it came from so that code pointers written into that
@@ -411,12 +495,19 @@ class FullProgramIndirectJumpResolution(Analysis):
         if isinstance(inner, ailment.Expr.Load):
             load_region, load_off = self._region_and_offset_of_address(func, facts, inner.addr)
             if load_region is not None:
-                facts.load_edges.append((load_region, load_off, varid))
+                facts.load_edges.append((load_region, load_off, varid, ins_addr))
                 desc = self.pointer_shapes.get(load_region)
                 if desc is not None:
-                    fa = desc.fields.get(load_off)
+                    normalized = desc.normalize_offset(load_off)
+                    fa = desc.fields.get(normalized)
                     if fa is not None and fa.stored_values:
-                        changed |= self._add_codeptrs(facts, varid, fa.stored_values)
+                        changed |= self._add_codeptrs(
+                            facts,
+                            varid,
+                            fa.stored_values,
+                            ProvenanceStep("load", func.addr, ins_addr, load_region, normalized),
+                            ("field", self.pointer_shapes.find(load_region), normalized),
+                        )
             return changed
 
         # phi / ITE of vvars or constants -> union of possibilities
@@ -424,15 +515,23 @@ class FullProgramIndirectJumpResolution(Analysis):
             unwrapped = _unwrap_copy(operand)
             if isinstance(unwrapped, ailment.Expr.Const) and isinstance(unwrapped.value, int):
                 if self._is_function_start(unwrapped.value):
-                    changed |= self._add_codeptr(facts, varid, unwrapped.value)
+                    changed |= self._add_codeptr(
+                        facts, varid, unwrapped.value, ProvenanceStep("constant", func.addr, ins_addr)
+                    )
             elif isinstance(unwrapped, ailment.Expr.VirtualVariable):
-                facts.copy_edges.append((varid, unwrapped.varid))
+                facts.copy_edges.append((varid, unwrapped.varid, ins_addr))
                 region = facts.vvar_region.get(unwrapped.varid)
                 if region is not None:
                     changed |= self._set_region(facts, varid, region)
                 codeptrs = facts.vvar_codeptrs.get(unwrapped.varid)
                 if codeptrs:
-                    changed |= self._add_codeptrs(facts, varid, codeptrs)
+                    changed |= self._add_codeptrs(
+                        facts,
+                        varid,
+                        codeptrs,
+                        ProvenanceStep("copy", func.addr, ins_addr),
+                        ("vvar", facts.func_addr, unwrapped.varid),
+                    )
 
         # address arithmetic that yields a pointer into a known region, e.g. ``table + idx * elem_size``. Only a
         # zero constant offset is accepted: a vvar is tracked by region alone, so a pointer into the middle of an
@@ -462,7 +561,9 @@ class FullProgramIndirectJumpResolution(Analysis):
 
         return changed
 
-    def _handle_memory_access(self, func: Function, facts: _FuncFacts, addr_expr, size, store_data) -> bool:
+    def _handle_memory_access(
+        self, func: Function, facts: _FuncFacts, addr_expr, size, store_data, ins_addr: int | None = None
+    ) -> bool:
         """
         Decompose a Load/Store address into (base region, constant offset, stride) and record a field access.
         """
@@ -498,15 +599,16 @@ class FullProgramIndirectJumpResolution(Analysis):
         # a store of a concrete function address -> code pointer field
         if store_data is not None:
             # remember the vvars feeding this store; their code-pointer sets may only be discovered later
-            for src_varid in _codeptr_source_varids(store_data):
-                facts.store_edges.append((region, offset, src_varid))
-            for val in self._codeptr_values_of(facts, store_data):
-                if not fa.is_code_pointer:
-                    fa.is_code_pointer = True
-                    changed = True
-                if val not in fa.stored_values:
-                    fa.stored_values.add(val)
-                    changed = True
+            source_varids = _codeptr_source_varids(store_data)
+            for src_varid in source_varids:
+                facts.store_edges.append((region, offset, src_varid, ins_addr))
+            values = self._codeptr_values_of(facts, store_data)
+            if values:
+                # a literal function address stored here has no earlier holder; one coming through a vvar does
+                source = ("vvar", facts.func_addr, next(iter(source_varids))) if len(source_varids) == 1 else None
+                changed |= self._add_field_codeptrs(
+                    region, offset, values, ProvenanceStep("store", func.addr, ins_addr, region, field_off), source
+                )
 
         return changed
 
@@ -537,7 +639,7 @@ class FullProgramIndirectJumpResolution(Analysis):
                     arg_codeptrs[idx] = (src_varid, immediate)
         facts.call_bindings.append((callee_addr, arg_regions))
         if arg_codeptrs:
-            facts.call_arg_codeptrs.append((callee_addr, arg_codeptrs))
+            facts.call_arg_codeptrs.append((callee_addr, call_ins, arg_codeptrs))
         return changed
 
     def _resolve_register_stack_args(self, func: Function, graph, facts: _FuncFacts) -> None:
@@ -813,21 +915,53 @@ class FullProgramIndirectJumpResolution(Analysis):
         self.pointer_shapes.descriptor(region)
         return True
 
-    @staticmethod
-    def _add_codeptr(facts: _FuncFacts, varid: int, value: int) -> bool:
+    def _record(self, holder, value: int, step: ProvenanceStep, source=None) -> None:
+        """
+        Note that ``value`` reached ``holder`` by ``step``, coming from ``source`` (None when the value originates
+        here, e.g. a literal in the code or a word read out of the binary).
+        """
+        if not self._track_provenance:
+            return
+        self.provenance.setdefault((holder, value), set()).add((step, source))
+
+    def _add_codeptr(self, facts: _FuncFacts, varid: int, value: int, step=None, source=None) -> bool:
+        if step is not None:
+            self._record(("vvar", facts.func_addr, varid), value, step, source)
         s = facts.vvar_codeptrs.setdefault(varid, set())
         if value in s:
             return False
         s.add(value)
         return True
 
-    @staticmethod
-    def _add_codeptrs(facts: _FuncFacts, varid: int, values: set[int]) -> bool:
+    def _add_codeptrs(self, facts: _FuncFacts, varid: int, values: set[int], step=None, source=None) -> bool:
+        if step is not None:
+            holder = ("vvar", facts.func_addr, varid)
+            for value in values:
+                self._record(holder, value, step, source)
         s = facts.vvar_codeptrs.setdefault(varid, set())
         if values <= s:
             return False
         s |= values
         return True
+
+    def _add_field_codeptrs(self, region: MemoryRegion, offset: int, values, step: ProvenanceStep, source=None):
+        """
+        Publish code pointers into a region field, recording how they got there.
+        """
+        desc = self.pointer_shapes.descriptor(region)
+        field_offset = desc.normalize_offset(offset)
+        fa = desc.field(field_offset)
+        changed = False
+        if not fa.is_code_pointer:
+            fa.is_code_pointer = True
+            changed = True
+        holder = ("field", self.pointer_shapes.find(region), field_offset)
+        for value in values:
+            self._record(holder, value, step, source)
+            if value not in fa.stored_values:
+                fa.stored_values.add(value)
+                changed = True
+        return changed
 
     #
     # Phase B: interprocedural propagation
@@ -874,20 +1008,34 @@ class FullProgramIndirectJumpResolution(Analysis):
         for facts in self._func_facts.values():
             for _ in range(self._max_iterations):
                 local_changed = False
-                for dst_varid, src_varid in facts.copy_edges:
+                for dst_varid, src_varid, ins_addr in facts.copy_edges:
                     values = facts.vvar_codeptrs.get(src_varid)
                     if values:
-                        local_changed |= self._add_codeptrs(facts, dst_varid, values)
-                for region, offset, dst_varid in facts.load_edges:
+                        local_changed |= self._add_codeptrs(
+                            facts,
+                            dst_varid,
+                            values,
+                            ProvenanceStep("copy", facts.func_addr, ins_addr),
+                            ("vvar", facts.func_addr, src_varid),
+                        )
+                for region, offset, dst_varid, ins_addr in facts.load_edges:
                     desc = self.pointer_shapes.get(region)
                     if desc is None:
                         continue
-                    fa = desc.fields.get(desc.normalize_offset(offset))
+                    normalized = desc.normalize_offset(offset)
+                    fa = desc.fields.get(normalized)
                     if fa is not None and fa.stored_values:
-                        local_changed |= self._add_codeptrs(facts, dst_varid, fa.stored_values)
-                for region, offset, src_varid in facts.store_edges:
+                        local_changed |= self._add_codeptrs(
+                            facts,
+                            dst_varid,
+                            fa.stored_values,
+                            ProvenanceStep("load", facts.func_addr, ins_addr, region, normalized),
+                            ("field", self.pointer_shapes.find(region), normalized),
+                        )
+                for region, offset, src_varid, ins_addr in facts.store_edges:
                     desc = self.pointer_shapes.descriptor(region)
-                    fa = desc.field(desc.normalize_offset(offset))
+                    normalized = desc.normalize_offset(offset)
+                    fa = desc.field(normalized)
                     stored_region = facts.vvar_region.get(src_varid)
                     if stored_region is not None and stored_region not in fa.pointed_regions:
                         fa.pointed_regions.add(stored_region)
@@ -895,19 +1043,20 @@ class FullProgramIndirectJumpResolution(Analysis):
                     values = facts.vvar_codeptrs.get(src_varid)
                     if not values:
                         continue
-                    if not fa.is_code_pointer:
-                        fa.is_code_pointer = True
-                        local_changed = True
-                    if not values <= fa.stored_values:
-                        fa.stored_values |= values
-                        local_changed = True
+                    local_changed |= self._add_field_codeptrs(
+                        region,
+                        offset,
+                        values,
+                        ProvenanceStep("store", facts.func_addr, ins_addr, region, normalized),
+                        ("vvar", facts.func_addr, src_varid),
+                    )
                 if not local_changed:
                     break
                 changed = True
 
         # interprocedural: a code pointer passed as an argument reaches the callee's parameter
         for facts in self._func_facts.values():
-            for callee_addr, arg_map in facts.call_arg_codeptrs:
+            for callee_addr, call_ins, arg_map in facts.call_arg_codeptrs:
                 callee_facts = self._func_facts.get(callee_addr)
                 if callee_facts is None:
                     continue
@@ -922,7 +1071,15 @@ class FullProgramIndirectJumpResolution(Analysis):
                     if src_varid is not None:
                         values |= facts.vvar_codeptrs.get(src_varid, set())
                     if values:
-                        changed |= self._add_codeptrs(callee_facts, param_vvar.varid, values)
+                        changed |= self._add_codeptrs(
+                            callee_facts,
+                            param_vvar.varid,
+                            values,
+                            ProvenanceStep(
+                                "argument", facts.func_addr, call_ins, arg_index=idx, callee_addr=callee_addr
+                            ),
+                            ("vvar", facts.func_addr, src_varid) if src_varid is not None else None,
+                        )
 
         return changed
 
@@ -968,6 +1125,11 @@ class FullProgramIndirectJumpResolution(Analysis):
                         break
                     fa.is_code_pointer = True
                     fa.stored_values.add(word)
+                    self._record(
+                        ("field", self.pointer_shapes.find(region), field_off),
+                        word,
+                        ProvenanceStep("static", region=region, offset=field_off, addr=addr),
+                    )
                     k += 1
             else:
                 # single fixed-offset global function pointer
@@ -978,6 +1140,11 @@ class FullProgramIndirectJumpResolution(Analysis):
                 if word is not None and self._is_function_start(word):
                     fa.is_code_pointer = True
                     fa.stored_values.add(word)
+                    self._record(
+                        ("field", self.pointer_shapes.find(region), field_off),
+                        word,
+                        ProvenanceStep("static", region=region, offset=field_off, addr=addr),
+                    )
 
     def _symbol_boundary_crossed(self, base: int, addr: int) -> bool:
         """
@@ -1004,13 +1171,13 @@ class FullProgramIndirectJumpResolution(Analysis):
     def _resolve_sites(self) -> None:
         for func_addr, facts in self._func_facts.items():
             for ins_addr, _kind, target in facts.indirect_sites:
-                targets = self._evaluate_target(facts, target)
+                targets = self._evaluate_target(facts, target, ins_addr)
                 targets = {t for t in targets if self._is_valid_target(t)}
                 if targets:
                     self.resolved_indirect_jumps.setdefault(ins_addr, set()).update(targets)
                     self._site_to_func[ins_addr] = func_addr
 
-    def _evaluate_target(self, facts: _FuncFacts, target) -> set[int]:
+    def _evaluate_target(self, facts: _FuncFacts, target, site_addr: int | None = None) -> set[int]:
         target = _unwrap_copy(target)
 
         # ITE / phi of constants (scenario 4) or vvars carrying code pointers
@@ -1018,10 +1185,24 @@ class FullProgramIndirectJumpResolution(Analysis):
 
         # a vvar directly carrying code pointers
         if isinstance(target, ailment.Expr.VirtualVariable):
-            result |= facts.vvar_codeptrs.get(target.varid, set())
+            direct = facts.vvar_codeptrs.get(target.varid, set())
+            result |= direct
+            self._record_site(site_addr, facts, direct, ("vvar", facts.func_addr, target.varid))
             region = facts.vvar_region.get(target.varid)
             if region is not None:
-                result |= self._codeptrs_from_region(region)
+                from_region = self._codeptrs_from_region(region)
+                result |= from_region
+                desc = self.pointer_shapes.get(region)
+                if desc is not None:
+                    for field_offset, fa in desc.fields.items():
+                        self._record_site(
+                            site_addr,
+                            facts,
+                            fa.stored_values,
+                            ("field", self.pointer_shapes.find(region), field_offset),
+                            region,
+                            field_offset,
+                        )
             if result:
                 return result
 
@@ -1044,6 +1225,14 @@ class FullProgramIndirectJumpResolution(Analysis):
                         observed |= fa.stored_values
                 if observed:
                     result |= observed
+                    self._record_site(
+                        site_addr,
+                        facts,
+                        observed,
+                        ("field", self.pointer_shapes.find(region), desc.normalize_offset(field_offset)),
+                        region,
+                        field_offset,
+                    )
                     continue
                 # nothing was observed being written here; read the function pointer straight out of the binary,
                 # which covers vtables and driver structs that live in initialized read-only memory
@@ -1052,19 +1241,44 @@ class FullProgramIndirectJumpResolution(Analysis):
                     word = self._read_word(representative.addr + field_offset, self.project.arch.bytes)
                     if word is not None and self._is_function_start(word):
                         result.add(word)
+                        if site_addr is not None:
+                            self._record(
+                                ("site", site_addr),
+                                word,
+                                ProvenanceStep(
+                                    "static",
+                                    facts.func_addr,
+                                    site_addr,
+                                    region,
+                                    field_offset,
+                                    addr=representative.addr + field_offset,
+                                ),
+                            )
             return result
 
         # ITE / phi of constants directly at the target
         for operand in _phi_ite_operands(target):
-            result |= self._evaluate_target(facts, operand)
+            result |= self._evaluate_target(facts, operand, site_addr)
         if (
             isinstance(target, ailment.Expr.Const)
             and isinstance(target.value, int)
             and self._is_function_start(target.value)
         ):
             result.add(target.value)
+            if site_addr is not None:
+                self._record(("site", site_addr), target.value, ProvenanceStep("constant", facts.func_addr, site_addr))
 
         return result
+
+    def _record_site(self, site_addr, facts: _FuncFacts, values, source, region=None, offset=None) -> None:
+        """
+        Note that the indirect site read ``values`` out of ``source``.
+        """
+        if site_addr is None or not values:
+            return
+        step = ProvenanceStep("read", facts.func_addr, site_addr, region, offset)
+        for value in values:
+            self._record(("site", site_addr), value, step, source)
 
     def _region_of_target_base(self, facts: _FuncFacts, base) -> MemoryRegion | None:
         base = _unwrap_copy(base)

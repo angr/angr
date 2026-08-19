@@ -170,6 +170,64 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
             for target in targets:
                 assert cfg.kb.functions.contains_addr(target)
 
+    def test_provenance(self):
+        # every resolved target should come with the chain that carried the code pointer to the site
+        _, cfg, fpijr = self._run("fpijr_global_callback")
+        dispatch = cfg.kb.functions["dispatch"]
+        site = next(iter(fpijr.get_resolutions(dispatch)))
+        h1 = cfg.kb.functions["h1"].addr
+
+        chain = fpijr.get_provenance(site, h1)
+        kinds = [step.kind for step in chain]
+        # main hands the pointer to register_cb, which stores it into the global that dispatch reads
+        assert "argument" in kinds
+        assert "store" in kinds
+        assert kinds[-1] == "read"
+        assert chain[-1].ins_addr == site
+        # the argument step names the callee it was passed to
+        argument_step = next(step for step in chain if step.kind == "argument")
+        assert argument_step.callee_addr == cfg.kb.functions["register_cb"].addr
+
+        # nothing resolved should be left unexplained
+        for resolved_site, targets in fpijr.resolved_indirect_jumps.items():
+            for target in targets:
+                assert fpijr.get_provenance(resolved_site, target), f"no provenance for {resolved_site:#x}"
+
+        described = fpijr.describe_provenance(site, h1)
+        assert len(described) == len(chain)
+        assert all(isinstance(line, str) and line for line in described)
+
+    def test_provenance_of_a_static_table(self):
+        # a target harvested out of initialized memory should say so, and name the address it came from
+        _, cfg, fpijr = self._run("fpijr_global_table")
+        dispatch = cfg.kb.functions["dispatch"]
+        site = next(iter(fpijr.get_resolutions(dispatch)))
+        f2 = cfg.kb.functions["f2"].addr
+        chain = fpijr.get_provenance(site, f2)
+        assert [step.kind for step in chain] == ["static", "read"]
+        assert chain[0].addr is not None
+        assert self._read_pointer(cfg, chain[0].addr) == f2
+
+    @staticmethod
+    def _read_pointer(cfg, addr):
+        return cfg.project.loader.memory.unpack_word(addr, cfg.project.arch.bytes)
+
+    def test_provenance_can_be_disabled(self):
+        binary_path = os.path.join(test_location, "x86_64", "fpijr_global_callback")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        with_tracking = proj.analyses.FullProgramIndirectJumpResolution()
+        without_tracking = proj.analyses.FullProgramIndirectJumpResolution(track_provenance=False)
+
+        # switching it off changes nothing about the answers, only about being able to explain them
+        assert without_tracking.resolved_indirect_jumps == with_tracking.resolved_indirect_jumps
+        assert not without_tracking.provenance
+        site = next(iter(without_tracking.get_resolutions(cfg.kb.functions["dispatch"])))
+        target = next(iter(without_tracking.resolved_indirect_jumps[site]))
+        assert without_tracking.get_provenance(site, target) == []
+
     def test_progress_callback(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
         proj = angr.Project(binary_path, auto_load_libs=False)

@@ -66,6 +66,49 @@ class UnknownRegion(MemoryRegion):
         return f"Unknown({self.func_addr:#x}, {self.token})"
 
 
+@dataclass(frozen=True)
+class ProvenanceStep:
+    """
+    One step of the chain that put a code pointer where an indirect jump could read it.
+
+    :ivar kind:        What happened. ``constant`` (a function address appeared literally in the code), ``static``
+                       (the value was read out of the initialized contents of the binary), ``copy``, ``load``,
+                       ``store``, ``argument`` (passed to a callee), or ``read`` (consumed at the indirect site).
+    :ivar func_addr:   The function the step happened in, when it happened in code.
+    :ivar ins_addr:    The instruction the step happened at, when known.
+    :ivar region:      The memory region involved, for loads and stores.
+    :ivar offset:      The field offset within that region.
+    :ivar arg_index:   Which argument carried the value, for ``argument`` steps.
+    :ivar callee_addr: The function the value was passed to, for ``argument`` steps.
+    :ivar addr:        The address the value was read from, for ``static`` steps.
+    """
+
+    kind: str
+    func_addr: int | None = None
+    ins_addr: int | None = None
+    region: MemoryRegion | None = None
+    offset: int | None = None
+    arg_index: int | None = None
+    callee_addr: int | None = None
+    addr: int | None = None
+
+    def __repr__(self):
+        parts = [self.kind]
+        if self.region is not None:
+            parts.append(f"{self.region!r}+{self.offset:#x}" if self.offset else f"{self.region!r}")
+        if self.arg_index is not None:
+            parts.append(f"arg{self.arg_index}")
+        if self.callee_addr is not None:
+            parts.append(f"-> {self.callee_addr:#x}")
+        if self.addr is not None:
+            parts.append(f"@{self.addr:#x}")
+        if self.ins_addr is not None:
+            parts.append(f"at {self.ins_addr:#x}")
+        if self.func_addr is not None:
+            parts.append(f"in {self.func_addr:#x}")
+        return f"<{' '.join(parts)}>"
+
+
 class FieldAccess:
     """
     Describes accesses to a single field (constant byte offset) of a memory region.
