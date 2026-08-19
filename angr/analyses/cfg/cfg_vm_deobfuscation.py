@@ -1923,11 +1923,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             job.state.globals['cur_vm_vpc'] = None
 
         # curl bp
-        if addr == 0x1400f5ae1 and job.block_id.vm_vpc == 5369227282:
-            import ipdb;ipdb.set_trace()
-
-        if addr == 0x1800cfa28 and job.block_id.vm_vpc == 6442902574:
-            import ipdb;ipdb.set_trace()
+        # if addr == 0x1400f5ae1 and job.block_id.vm_vpc == 5369227282:
+        #     import ipdb;ipdb.set_trace()
+        #
+        # if addr == 0x1800cfa28 and job.block_id.vm_vpc == 6442902574:
+        #     import ipdb;ipdb.set_trace()
 
         VMP_branch = False
         if self.data_sensitive:
