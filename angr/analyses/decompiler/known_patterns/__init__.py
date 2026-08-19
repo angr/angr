@@ -27,6 +27,7 @@ from .dsl import (
     PCondJump,
     PConst,
     PConv,
+    PDefOf,
     PExtract,
     PField,
     PGraphPat,
@@ -71,6 +72,7 @@ from .pattern import CppRef, KnownPattern, PatternParam, TypeRef
 from .posix_macros import ALL_POSIX_MACRO_TEMPLATES, MAJOR
 from .protobuf_hasbits import ALL_PROTOBUF_TEMPLATES
 from .std_string_cstr import STD_STRING_CSTR
+from .std_string_dtor import ALL_STRING_DTOR_TEMPLATES, OPERATOR_DELETE, STD_STRING_DTOR
 from .std_string_length import STD_STRING_EMPTY, STD_STRING_INDEX, STD_STRING_LENGTH
 from .std_swap import STD_SWAP, STD_SWAP_TEMPLATES
 from .std_vector_size import (
@@ -138,6 +140,8 @@ for _t in STD_VECTOR_STACK_TEMPLATES:
 for _t in STD_VECTOR_INDEX_TEMPLATES:
     register_pattern_template(_t)
 for _t in ALL_STL2_TEMPLATES:
+    register_pattern_template(_t)
+for _t in ALL_STRING_DTOR_TEMPLATES:
     register_pattern_template(_t)
 for _t in STD_SWAP_TEMPLATES:
     register_pattern_template(_t)
@@ -273,6 +277,7 @@ __all__ = [
     "ALL_PROTOBUF_TEMPLATES",
     "ALL_STL2_TEMPLATES",
     "ALL_STL_TEMPLATES",
+    "ALL_STRING_DTOR_TEMPLATES",
     "ALL_VECTOR_MATH_TEMPLATES",
     "ALL_WDK_TEMPLATES",
     "CONTAINING_RECORD_PATTERN",
@@ -288,9 +293,11 @@ __all__ = [
     "LIST_DEL",
     "LIST_DEL_INIT",
     "MAJOR",
+    "OPERATOR_DELETE",
     "PITE",
     "REMOVE_ENTRY_LIST",
     "STD_STRING_CSTR",
+    "STD_STRING_DTOR",
     "STD_STRING_EMPTY",
     "STD_STRING_INDEX",
     "STD_STRING_LENGTH",
@@ -329,6 +336,7 @@ __all__ = [
     "PCondJump",
     "PConst",
     "PConv",
+    "PDefOf",
     "PExtract",
     "PField",
     "PGraphPat",
