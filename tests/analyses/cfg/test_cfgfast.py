@@ -1063,6 +1063,42 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_function_whose_only_exit_is_a_noreturn_call_does_not_return(self):
+        # pthread_exit and __pthread_unwind_next are each one block ending in a call to
+        # __pthread_unwind, whose own only way out reaches a SimProcedure that declares NO_RET.
+        # Neither has a ret. While the CFG is recovered the call sites are walked past before the
+        # callee is settled, so both pick up the blocks that follow and are recorded as returning;
+        # make_functions() takes those blocks away again but keeps the recorded status.
+        proj = angr.Project(os.path.join(test_location, "i386", "libpthread.so.0"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for addr in (0x408020, 0x40D800):
+            func = cfg.kb.functions[addr]
+            assert not func.ret_sites
+            assert func.returning is False, f"{func.name} should not return"
+
+        # correcting the status must not move a block or invent a function. 0x40c3c6 is one byte
+        # of hlt behind __pthread_once's call to __pthread_unwind_next, inside __pthread_once's
+        # .eh_frame range 0x40c2e0..0x40c3c7, and it stays where both ground truths put it.
+        once = cfg.kb.functions[0x40C2E0]
+        assert 0x40C3C6 in once.block_addrs_set
+        assert 0x40C3C6 not in cfg.kb.functions
+        assert max(block.addr + block.size for block in once.blocks) - once.addr == 0xE7
+
+    def test_callee_whose_exit_was_never_recovered_does_not_make_its_callers_nonreturning(self):
+        # __aeabi_read_tp jumps into the ARM kuser helper page at 0xffff0fe0, which the kernel
+        # provides and CLE never maps, so angr recovers no exit for it and reads it, and
+        # __errno_location and strtol and vfprintf above it, as non-returning. That is a failure
+        # to recover rather than evidence about the callee, and it must not reach the callers:
+        # printf, fprintf and atoi all return, and each one's only recovered way out is a call to
+        # a function in that chain.
+        proj = angr.Project(os.path.join(test_location, "armel", "libc.so.6"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for addr in (0x4469C0, 0x446990, 0x42EC3C):
+            func = cfg.kb.functions[addr]
+            assert func.returning is True, f"{func.name} should still return"
+
 
 if __name__ == "__main__":
     unittest.main()
