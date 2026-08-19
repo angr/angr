@@ -475,7 +475,7 @@ class ConditionProcessor:
                     if not networkx.has_path(_g, succ, the_node):
                         nodes_do_not_reach_the_node.add(succ)
 
-            diverging_conditions = []
+            diverging_path_conditions = []
 
             for node_ in nodes_do_not_reach_the_node:
                 preds_ = list(_g.predecessors(node_))
@@ -486,11 +486,13 @@ class ConditionProcessor:
                     edge_ = pred_, node_
                     edge_condition = edge_conditions.get(edge_, None)
                     if edge_condition is not None:
-                        diverging_conditions.append(edge_condition)
+                        pred_reaching_condition = reaching_conditions.get(pred_, claripy.true())
+                        diverging_path_conditions.append(claripy.And(pred_reaching_condition, edge_condition))
 
-            if diverging_conditions:
-                # the negation of the union of diverging conditions is the guarding condition for this node
-                cond = claripy.Or(*map(claripy.Not, diverging_conditions))  # pylint:disable=bad-builtin
+            if diverging_path_conditions:
+                # the negation of the union of diverging path conditions is the guarding condition for this node
+                cond = claripy.Not(claripy.Or(*diverging_path_conditions))
+                cond = self.simplify_condition(cond) if simplify_conditions else cond
                 guarding_conditions[the_node] = cond
 
         self.reaching_conditions = reaching_conditions
