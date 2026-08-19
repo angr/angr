@@ -711,6 +711,16 @@ class TestCtypeMacros(TestCase):
         assert "isspace(" not in text and "isalnum(" not in text
         assert "8200" in text  # 0x2008: _ISspace | _ISalnum
 
+    def test_errno_is_rendered_as_a_name(self):
+        # errno is not a KnownPattern: it expands to *(__errno_location()),
+        # which puts it in a Store's *address* position where no value-producing
+        # call can go. It is a codegen rule, and it has to follow the pointer
+        # through the register the compiler kept it in.
+        _, _, _, dec = _decompile(CTYPE_BIN, "errno_rw", preset="full")
+        text = dec.codegen.text
+        assert "errno = 22;" in text, text
+        assert "return errno;" in text, text
+
     def test_the_callee_is_the_guard(self):
         # what makes a table load identifiable is the function that produced the
         # table; nothing else calls __ctype_b_loc

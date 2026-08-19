@@ -22,9 +22,13 @@ loops and indexes the table from every predicate in the function.
 
 **Two byte lanes.** glibc's ``_ISbit(n)`` is ``n < 8 ? (1 << n) << 8 : (1 << n) >> 8``,
 so eight of the twelve masks live in the high byte of the table entry and four in
-the low byte. gcc tests the high ones with ``test $0x20,%ah`` -- an 8-bit slice
-at byte offset 1 -- rather than masking the full 16-bit word, so each predicate
-needs both spellings.
+the low byte, and gcc tests a byte rather than the 16-bit word. Hence three
+spellings per predicate rather than one: the mask as written against the whole
+entry, and -- for a high mask -- an 8-bit slice at byte 1 against the mask's high
+byte (``test $0x20,%ah``) or that byte loaded on its own
+(``testb $0x20,1(%rax,%rdx,2)``); for a low mask, an 8-bit slice at byte 0. The
+slice spellings are not interchangeable with the first: structural matching skips
+a Convert and does not skip an Extract.
 
 Calibrated against tests/x86_64/decompiler/known_patterns_ctype (gcc 12.2.0 -O2).
 """

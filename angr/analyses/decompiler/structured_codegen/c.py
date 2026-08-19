@@ -3089,6 +3089,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
         self.ail_graph = ail_graph
+        self._errno_vvars: frozenset[int] | None = None
         self.simplify_else_scope = simplify_else_scope
         self.cstyle_ifs = cstyle_ifs
         self.omit_func_header = omit_func_header
@@ -3937,6 +3938,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 return proposed_ty
             return old_ty
 
+        if self._is_errno_location(stmt.addr):
+            return CAssignment(self._errno_variable(), cdata, tags=stmt.tags, codegen=self)
+
         stmt_var = self._variable_map.variable(stmt)
         if stmt_var is not None and cdata.type is not None:
             cvar = self._variable(stmt_var, stmt.size)
@@ -4287,6 +4291,71 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
         return CRegister(expr, tags=expr.tags, codegen=self)
 
+    #: The libc functions that return ``&errno``. ``errno`` is a macro that
+    #: dereferences one of them, so it never survives into a binary as a symbol;
+    #: what reaches decompilation is ``*(__errno_location())``, which is both
+    #: correct and unreadable.
+    ERRNO_LOCATION_FUNCS = frozenset(
+        {
+            "__errno_location",  # glibc
+            "__error",  # BSD, macOS
+            "__errno",  # musl, bionic
+            "_errno",  # MSVC
+        }
+    )
+
+    def _is_errno_call(self, expr) -> bool:
+        """Whether ``expr`` is a call to one of :attr:`ERRNO_LOCATION_FUNCS`."""
+        if not isinstance(expr, Expr.Call):
+            return False
+        target = expr.target
+        if isinstance(target, str):
+            return target in self.ERRNO_LOCATION_FUNCS
+        if not isinstance(target, Expr.Const) or not isinstance(target.value, int):
+            return False
+        func = self.kb.functions.function(addr=target.value)
+        return func is not None and func.name in self.ERRNO_LOCATION_FUNCS
+
+    def _errno_vvar_ids(self) -> frozenset[int]:
+        """Virtual variables that hold ``&errno``.
+
+        ``errno`` expands per use, but the compiler calls the location function
+        once and keeps the pointer in a register, so most uses reach codegen as
+        a read through a variable rather than as the call itself. Copies of that
+        variable count too, hence the fixpoint.
+        """
+        if self._errno_vvars is not None:
+            return self._errno_vvars
+        found: set[int] = set()
+        if self.ail_graph is not None:
+            changed = True
+            while changed:
+                changed = False
+                for block in self.ail_graph.nodes():
+                    for stmt in block.statements:
+                        if not isinstance(stmt, Stmt.Assignment) or not isinstance(stmt.dst, Expr.VirtualVariable):
+                            continue
+                        if stmt.dst.varid in found:
+                            continue
+                        src = stmt.src
+                        if self._is_errno_call(src) or (isinstance(src, Expr.VirtualVariable) and src.varid in found):
+                            found.add(stmt.dst.varid)
+                            changed = True
+        self._errno_vvars = frozenset(found)
+        return self._errno_vvars
+
+    def _is_errno_location(self, expr) -> bool:
+        """Whether ``expr`` evaluates to ``&errno``."""
+        if self._is_errno_call(expr):
+            return True
+        return isinstance(expr, Expr.VirtualVariable) and expr.varid in self._errno_vvar_ids()
+
+    def _errno_variable(self):
+        """``errno`` as a plain name. A CFakeVariable rather than a CVariable
+        because there is no address to point at: the thread-local slot is
+        wherever the libc function said it was."""
+        return CFakeVariable("errno", SimTypeInt().with_arch(self.project.arch), codegen=self)
+
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
         if expr.size == UNDETERMINED_SIZE:
             # the size is undetermined; we force it to 1
@@ -4310,6 +4379,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             ):
                 return proposed_ty
             return old_ty
+
+        if self._is_errno_location(expr.addr):
+            return self._errno_variable()
 
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
