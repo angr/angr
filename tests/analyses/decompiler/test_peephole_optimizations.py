@@ -35,7 +35,9 @@ from angr.analyses.decompiler.peephole_optimizations import (
     ConcatSimplifier,
     ConstantDereferences,
     EagerEvaluation,
+    EvaluateConstConversions,
     OptimizedDivisionSimplifier,
+    RemoveNoopConversions,
     RemoveRedundantShifts,
     SarToSignedDiv,
     SimplifyBitwiseInserts,
@@ -536,6 +538,53 @@ class TestPeepholeOptimizations(unittest.TestCase):
             Register(manager.next_atom(), 0, 8)
         )
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 44570 and out.operands[1].bits == 64
+
+
+class TestExtractOffsetIsNotATruncation(unittest.TestCase):
+    """An Extract at a non-zero offset is a slice, not a truncation.
+
+    On x86 ``test $0x20,%ah`` lifts to an 8-bit Extract at byte offset 1 of the
+    full register. Rules written for truncating Converts used to be applied to
+    it with the offset dropped, so the test came out as one of ``%al`` -- which
+    is how every glibc ctype macro compiled by gcc (isspace, isdigit, isalpha,
+    ...) decompiled to the wrong bit, with no diagnostic anywhere.
+    """
+
+    def _proj(self):
+        return angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+
+    def test_remove_noop_conversions_keeps_a_high_slice(self):
+        proj = self._proj()
+        manager = Manager()
+        # Extract(8 bits @ byte 1, Conv(16->64, x)) -- the shape `movzwl; test %ah` makes
+        inner = Convert(
+            manager.next_atom(),
+            16,
+            64,
+            False,
+            VirtualVariable(manager.next_atom(), 1, 16, VirtualVariableCategory.REGISTER),
+        )
+        opt = RemoveNoopConversions(proj, proj.kb, manager, 0)
+
+        high = Extract(manager.next_atom(), 8, inner, Const(manager.next_atom(), 1, 64), archinfo.Endness.LE)
+        assert opt.optimize(high) is None, "an Extract at byte 1 is not a truncation"
+
+        # the least-significant slice still simplifies, as before
+        low = Extract(manager.next_atom(), 8, inner, Const(manager.next_atom(), 0, 64), archinfo.Endness.LE)
+        assert opt.optimize(low) is not None
+
+    def test_const_conversions_keep_a_high_slice(self):
+        proj = self._proj()
+        manager = Manager()
+        base = Const(manager.next_atom(), 0x2000, 64)
+        opt = EvaluateConstConversions(proj, proj.kb, manager, 0)
+
+        high = Extract(manager.next_atom(), 8, base, Const(manager.next_atom(), 1, 64), archinfo.Endness.LE)
+        assert opt.optimize(high) is None, "0x2000 sliced at byte 1 is 0x20, not 0x00"
+
+        low = Extract(manager.next_atom(), 8, base, Const(manager.next_atom(), 0, 64), archinfo.Endness.LE)
+        optimized = opt.optimize(low)
+        assert isinstance(optimized, Const) and optimized.value == 0
 
 
 class TestPeepholeBlockContextFixpoint(unittest.TestCase):

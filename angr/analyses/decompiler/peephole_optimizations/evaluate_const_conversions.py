@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Const, Convert, Extract
+from angr.ailment.utils import is_lsb_extract
 
 from .base import PeepholeOptimizationExprBase
 
@@ -19,6 +20,10 @@ class EvaluateConstConversions(PeepholeOptimizationExprBase):
             signed = expr.is_signed
             ints = expr.from_type == expr.to_type == Convert.TYPE_INT
         else:
+            # same caveat as RemoveNoopConversions: the truncating evaluation
+            # below is only right for the least-significant slice
+            if not is_lsb_extract(expr):
+                return None
             inner = expr.base
             signed = False
             ints = True
