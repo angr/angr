@@ -11,10 +11,11 @@ import networkx as nx
 
 import angr
 from angr.ailment import Assignment, BinaryOp, Block, Const, Register
-from angr.ailment.expression import Call
+from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.ailment.expression import Call, Load, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
-from angr.ailment.statement import ConditionalJump, Return, Store
-from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
+from angr.ailment.statement import ConditionalJump, Return, Store, WeakAssignment
+from angr.analyses.decompiler.optimization_passes import DetermineLoadSizes, FlipBooleanCmp
 from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
 
 log = logging.getLogger(__name__)
@@ -173,6 +174,56 @@ class TestFlipBooleanCmp(unittest.TestCase):
         log.debug("After:\n%s", post_transform_seq_repr)
 
         assert pre_transform_seq_repr == post_transform_seq_repr
+
+
+class TestDetermineLoadSizes(unittest.TestCase):
+    """
+    Test DetermineLoadSizes optimization pass.
+    """
+
+    STRING_ADDR = 0x400000
+
+    def _make_project_and_func(self):
+        proj = angr.load_shellcode(b"hello\x00", "AMD64", load_address=self.STRING_ADDR)
+        return proj, proj.kb.functions.function(addr=self.STRING_ADDR, create=True)
+
+    @staticmethod
+    def _run(func, graph) -> Block:
+        DetermineLoadSizes(func, Manager(), graph=graph)
+        return next(iter(graph.nodes))
+
+    def test_string_load_size_is_determined(self):
+        # v0 =w *(0x400000) with an undetermined size is the string at 0x400000
+        proj, func = self._make_project_and_func()
+        vvar = VirtualVariable(0, 0, 64, VirtualVariableCategory.REGISTER, oident=16)
+        load = Load(1, Const(2, self.STRING_ADDR, 64), UNDETERMINED_SIZE, "Iend_LE")
+        graph = nx.DiGraph()
+        graph.add_node(Block(self.STRING_ADDR, 1, [WeakAssignment(0, vvar, load, ins_addr=self.STRING_ADDR)]))
+
+        stmt = self._run(func, graph).statements[0]
+        assert stmt.src.size == len(proj.loader.memory.load_null_terminated_bytes(self.STRING_ADDR))
+
+    def test_string_load_size_is_determined_in_addition(self):
+        # the C++ operator+ rewrite puts the load inside an addition
+        proj, func = self._make_project_and_func()
+        vvar = VirtualVariable(0, 0, 64, VirtualVariableCategory.REGISTER, oident=16)
+        load = Load(1, Const(2, self.STRING_ADDR, 64), UNDETERMINED_SIZE, "Iend_LE")
+        addition = BinaryOp(3, "Add", [vvar, load], False)
+        graph = nx.DiGraph()
+        graph.add_node(Block(self.STRING_ADDR, 1, [WeakAssignment(0, vvar, addition, ins_addr=self.STRING_ADDR)]))
+
+        stmt = self._run(func, graph).statements[0]
+        assert stmt.src.operands[1].size == len(proj.loader.memory.load_null_terminated_bytes(self.STRING_ADDR))
+
+    def test_load_from_unmapped_address_is_left_alone(self):
+        _, func = self._make_project_and_func()
+        vvar = VirtualVariable(0, 0, 64, VirtualVariableCategory.REGISTER, oident=16)
+        load = Load(1, Const(2, 0x800000, 64), UNDETERMINED_SIZE, "Iend_LE")
+        graph = nx.DiGraph()
+        graph.add_node(Block(self.STRING_ADDR, 1, [WeakAssignment(0, vvar, load, ins_addr=self.STRING_ADDR)]))
+
+        stmt = self._run(func, graph).statements[0]
+        assert stmt.src.size == UNDETERMINED_SIZE
 
 
 if __name__ == "__main__":
