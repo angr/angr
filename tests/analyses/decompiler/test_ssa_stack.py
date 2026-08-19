@@ -50,6 +50,22 @@ class TestSSAStack(unittest.TestCase):
         lines = dec.codegen.text.splitlines()
         assert len(lines) >= 100
 
+    def test_removing_arm_stack_pointer_alignments(self):
+        bin_path = os.path.join(
+            test_location,
+            "armel",
+            "chall.bin",
+        )
+        proj = angr.Project(bin_path, main_opts={"backend": "blob", "arch": "ARMEL", "base_addr": 0x0})
+        cfg = proj.analyses.CFG(normalize=True, show_progressbar=not WORKER)
+
+        func = cfg.functions[0x35D]
+        dec = proj.analyses.Decompiler(func, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert "0xfffffffc" not in dec.codegen.text  # the stack pointer alignment mask should be simplified away
+
 
 if __name__ == "__main__":
     unittest.main()
