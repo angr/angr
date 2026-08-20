@@ -64,7 +64,10 @@ def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):
         if len(children) == 1:
             blocks += children
         elif len(children) == 2:
-            if_stmt: ConditionalJump = source.statements[-1]
+            if not isinstance(last_src_stmt, ConditionalJump):
+                stmt_type = getattr(last_src_stmt, "kind_name", None) or type(last_src_stmt).__name__
+                raise UnsupportedAILNodeError(f"Block {source.addr:#x} has two successors but ends in {stmt_type}")
+            if_stmt: ConditionalJump = last_src_stmt
             if children[0].addr == if_stmt.true_target.value:
                 blocks += [children[0], children[1]]
             else:
