@@ -368,6 +368,13 @@ class CFGBase(Analysis):
                 if not self.project.is_hooked(f.addr):
                     f.normalize()
 
+        # Publish what we know about each indirect jump site. kb.indirect_jumps has always carried the bare
+        # block-address-to-targets mapping and the set of block addresses that stayed unresolved; the records
+        # themselves - which function the site sits in, whether it is a call or a jump, the instruction address, and
+        # any jump table behind it - lived only on this analysis and were lost with it. Publishing them here, after
+        # normalization, means the addresses these records are keyed by are the final block addresses.
+        self.kb.indirect_jumps.update(self.indirect_jumps)
+
         # drop all propagation results that start with "cfg_intermediate"
         self.kb.propagations.discard_by_prefix("cfg_intermediate")
 

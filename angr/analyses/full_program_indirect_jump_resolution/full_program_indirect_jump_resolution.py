@@ -467,10 +467,11 @@ class FullProgramIndirectJumpResolution(Analysis):
             if fresh:
                 indirect_jumps.update_resolved_addrs(block_addr, sorted(fresh))
             indirect_jumps.unresolved.discard(block_addr)
-            # keep any IndirectJump record the CFG left behind in agreement with what we found
+            # keep the IndirectJump record control-flow recovery published for this site in agreement with what we
+            # found
             existing = indirect_jumps.get(block_addr)
             if existing is not None and hasattr(existing, "resolved_targets"):
-                existing.resolved_targets |= targets
+                existing.resolved_targets = set(existing.resolved_targets) | targets
             published += 1
         if published:
             l.info("Published %d resolved indirect jump sites to kb.indirect_jumps.", published)

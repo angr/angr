@@ -4214,7 +4214,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         )
                         self._memory_data[jumptable_info.addr] = memory_data
 
-        jump.resolved_targets = targets
+        # a set, as everywhere else that assigns this attribute and as IndirectJump itself builds it; these records
+        # are published to kb.indirect_jumps, so consumers must not have to handle both types
+        jump.resolved_targets = set(targets)
         all_targets = set(targets)
         for addr in all_targets:
             to_outside = (
