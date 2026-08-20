@@ -416,6 +416,7 @@ class Clinic(Analysis, Serializable):
         variable_map: VariableMap | None = None,
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
+        recognize_known_patterns: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -525,6 +526,7 @@ class Clinic(Analysis, Serializable):
         self._save_unoptimized_graph = save_unoptimized_graph
         # the user's KnownPattern force-enable selection; consumed by the KnownPatternOutliner optimization pass
         self._known_patterns = known_patterns
+        self._recognize_known_patterns = recognize_known_patterns
 
         self._new_block_addrs: set[int] = set()
 
@@ -2337,6 +2339,7 @@ class Clinic(Analysis, Serializable):
                 static_vvars=self.static_vvars,
                 static_buffers=self.static_buffers,
                 known_patterns=self._known_patterns,
+                recognize_known_patterns=self._recognize_known_patterns,
                 **kwargs,
             )
             if a.out_graph:
@@ -4953,6 +4956,7 @@ class Clinic(Analysis, Serializable):
         clinic.optimization_scratch = {}
         # the pattern selection is an input to the optimization passes, which a deserialized clinic never re-runs
         clinic._known_patterns = None
+        clinic._recognize_known_patterns = True
 
         # AIL-typed slots consumed by the cache-reuse path and by post-decompilation consumers.
         clinic.cc_graph = parse_graph(msg.cc_graph, msg.block_pool) if msg.HasField("cc_graph") else None

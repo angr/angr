@@ -26,14 +26,20 @@ class KnownPatternOutliner(OptimizationPass):
 
     MAX_ROUNDS = 8
 
-    def __init__(self, func, manager, known_patterns=None, **kwargs):
+    def __init__(self, func, manager, known_patterns=None, recognize_known_patterns=True, **kwargs):
         # the user's force-enable selection ("all", or names of opt-in templates); threaded down from the
         # ``known_patterns`` decompilation option through Clinic
         self._known_patterns = known_patterns
+        # the on/off switch, from the ``recognize_known_patterns`` option. Off means the idioms decompile as the
+        # arithmetic they are.
+        self._recognize_known_patterns = recognize_known_patterns
         super().__init__(func, manager, **kwargs)
         self.analyze()
 
     def _check(self):
+        if not self._recognize_known_patterns:
+            return False, None
+
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
             GateContext,
             PatternContext,

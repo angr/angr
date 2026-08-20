@@ -425,6 +425,18 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Recognize known code patterns",
+        "Replace inlined library idioms with a call naming them: std::string::~string() for the SSO destructor "
+        "triangle, isspace() for a glibc ctype table lookup, std::swap() for a three-move exchange, and so on. "
+        "Turning this off decompiles the idioms as the arithmetic they are, which is what you want when you are "
+        "reading the machine code rather than the program.",
+        bool,
+        "clinic",
+        "recognize_known_patterns",
+        category="Patterns",
+        default_value=True,
+    ),
+    O(
         "Force-enable known code patterns",
         "Known code patterns (inlined library idioms such as std::string::length() or IsListEmpty()) whose shape is "
         "too generic to recognize safely on every binary are opt-in: they only run when the user asks for them, or "

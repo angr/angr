@@ -14,7 +14,7 @@ from angr.ailment.expression import BinaryOp, Call, Const, Load, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.analyses.decompiler import known_patterns as known_patterns_pkg
 from angr.analyses.decompiler.clinic import ClinicStage
-from angr.analyses.decompiler.decompilation_options import parse_known_patterns
+from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION, parse_known_patterns
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_KNOWN_PATTERN_TEMPLATES,
@@ -345,6 +345,45 @@ class TestPCall(TestCase):
         # discriminate neither
         assert pattern_anchor_key(PCallResult(frozenset({"x"}))) is None
         assert pattern_anchor_key(PDefOf(PVVar("x"))) is None
+
+
+class TestRecognizeKnownPatternsOption(TestCase):
+    """The on/off switch, separate from the force-enable selection."""
+
+    STL4_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl4")
+
+    @staticmethod
+    def _swaps(options):
+        proj = angr.Project(TestRecognizeKnownPatternsOption.STL4_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name="pair_swap")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full", options=options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text.count("std::swap(")
+
+    def test_option_is_declared_and_defaults_on(self):
+        opt = PARAM_TO_OPTION["recognize_known_patterns"]
+        assert opt.value_type is bool
+        assert opt.default_value is True
+        assert opt.category == "Patterns"
+        # changing it changes the decompilation, so a cached result is not reusable
+        assert opt.clears_cache
+
+    def test_on_and_off(self):
+        opt = PARAM_TO_OPTION["recognize_known_patterns"]
+        assert self._swaps([(opt, True)]) == 3
+        assert self._swaps([(opt, False)]) == 0
+        # ...and on is what you get without saying anything
+        assert self._swaps(None) == 3
+
+    def test_off_beats_the_force_enable_selection(self):
+        # the two options answer different questions -- "run pattern matching at
+        # all" and "also run the opt-in ones" -- and off wins
+        off = (PARAM_TO_OPTION["recognize_known_patterns"], False)
+        force_all = (PARAM_TO_OPTION["known_patterns"], "all")
+        assert self._swaps([force_all]) == 3
+        assert self._swaps([off, force_all]) == 0
 
 
 class TestAilIndicesAreReal(TestCase):
