@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard
 
 import capstone
 import networkx
+from archinfo.arch_arm import is_arm_arch
 
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
@@ -25,7 +26,7 @@ from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pa
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
-from angr.analyses.stack_pointer_tracker import OffsetVal, Register
+from angr.analyses.stack_pointer_tracker import TOP, OffsetVal, Register
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.calling_conventions import (
@@ -39,7 +40,7 @@ from angr.calling_conventions import (
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
-from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
+from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -1458,7 +1459,7 @@ class Clinic(Analysis, Serializable):
             return self._cross_insn_opt_for_large_blocks and block_size >= self._cross_insn_opt_min_block_size
 
         regs = {self.project.arch.sp_offset}
-        initial_reg_values = {
+        initial_reg_values: dict[int | None, OffsetVal | None] = {
             self.project.arch.sp_offset: OffsetVal(
                 Register(self.project.arch.sp_offset, self.project.arch.bits), self._sp_shift
             )
@@ -1470,7 +1471,14 @@ class Clinic(Analysis, Serializable):
             )
 
         regs |= self._find_regs_compared_against_sp(self._func_graph)
-        regs |= self._find_regs_saving_sp(self._func_graph)
+        if is_arm_arch(self.project.arch):
+            # StackPointerTracker normalizes a copy of an unnormalized function before traversing it. Do not prove
+            # saved-SP provenance against a different graph in that case.
+            saved_sp_regs = self._find_regs_saving_sp(self.function.graph) if self.function.normalized else set()
+            initial_reg_values.update(dict.fromkeys(saved_sp_regs, TOP))
+        else:
+            saved_sp_regs = self._find_regs_saving_sp(self._func_graph)
+        regs |= saved_sp_regs
 
         spt = self.project.analyses.StackPointerTracker(
             self.function,
@@ -4066,7 +4074,192 @@ class Clinic(Analysis, Serializable):
         # Unless that register is tracked, the tracker cannot resolve sp after the restore and reports
         # the whole function as inconsistent, leaking raw sp virtual variables into the output. Track
         # any register that both receives a copy of sp and is later used to restore it.
-        # TODO: Implement this function for architectures beyond amd64
+        if is_arm_arch(self.project.arch):
+            if not self.project.arch.capstone_support:
+                return set()
+
+            entry_nodes = [
+                node for node in func_graph if (node.addr, getattr(node, "idx", None)) == self.entry_node_addr
+            ]
+            if len(entry_nodes) != 1:
+                return set()
+
+            entry_node = entry_nodes[0]
+            if func_graph.in_degree(entry_node) != 0:
+                return set()
+
+            reachable_nodes = networkx.descendants(func_graph, entry_node) | {entry_node}
+            if len(reachable_nodes) != func_graph.number_of_nodes():
+                return set()
+
+            endpoint_nodes = {node for node in reachable_nodes if func_graph.out_degree(node) == 0}
+            if not endpoint_nodes:
+                return set()
+            nodes_reaching_endpoints = endpoint_nodes.copy()
+            endpoint_worklist = list(endpoint_nodes)
+            while endpoint_worklist:
+                node = endpoint_worklist.pop()
+                for predecessor in func_graph.predecessors(node):
+                    if predecessor not in nodes_reaching_endpoints:
+                        nodes_reaching_endpoints.add(predecessor)
+                        endpoint_worklist.append(predecessor)
+            if nodes_reaching_endpoints != reachable_nodes:
+                return set()
+
+            copies_by_node = defaultdict(list)
+            writes_by_node = defaultdict(list)
+            affine_adjustments_by_node = defaultdict(set)
+            for node in reachable_nodes:
+                if not isinstance(node, BlockNode):
+                    return set()
+
+                try:
+                    block = self.project.factory.block(
+                        node.addr, size=node.size, thumb=node.thumb, cross_insn_opt=False
+                    )
+                    capstone_block = block.capstone
+                except (AttributeError, capstone.CsError, SimTranslationError):
+                    return set()
+                if node.size and (
+                    not capstone_block.insns or sum(insn.size for insn in capstone_block.insns) != node.size
+                ):
+                    return set()
+                # Per-block Thumb decoding cannot reconstruct IT state inherited from a predecessor.
+                if any(insn.id == capstone.arm.ARM_INS_IT for insn in capstone_block.insns):
+                    return set()
+
+                try:
+                    vex_block = block.vex
+                except (AttributeError, SimTranslationError):
+                    return set()
+                capstone_insn_addrs = tuple(insn.address for insn in capstone_block.insns)
+                if (
+                    vex_block.instructions != len(capstone_block.insns)
+                    or tuple(vex_block.instruction_addresses) != capstone_insn_addrs
+                    or vex_block.size != node.size
+                    or vex_block.jumpkind == "Ijk_NoDecode"
+                ):
+                    return set()
+
+                for insn_idx, insn in enumerate(capstone_block.insns):
+                    try:
+                        read_regs, written_regs = insn.regs_access()
+                    except (AttributeError, capstone.CsError):
+                        return set()
+                    read_regs = set(read_regs)
+                    written_regs = set(written_regs)
+                    writes_by_node[node].append((insn_idx, written_regs))
+
+                    if insn.cc != capstone.arm.ARM_CC_AL:
+                        continue
+                    operands = insn.operands
+
+                    # ARM epilogues may adjust a frame pointer immediately before copying it back into sp. Only admit
+                    # the exact two-operand ADDS-immediate form used by the real supported epilogue.
+                    # Restricting their placement to endpoint blocks is handled by the candidate proof below.
+                    if (
+                        insn.id == capstone.arm.ARM_INS_ADD
+                        and insn.update_flags
+                        and not insn.writeback
+                        and len(operands) == 2
+                    ):
+                        adjusted_reg = None
+                        if operands[0].type == capstone.arm.ARM_OP_REG and operands[1].type == capstone.arm.ARM_OP_IMM:
+                            adjusted_reg = operands[0].reg
+
+                        if (
+                            adjusted_reg is not None
+                            and adjusted_reg in read_regs
+                            and adjusted_reg in written_regs
+                            and all(
+                                operand.shift.type == capstone.arm.ARM_SFT_INVALID
+                                for operand in operands
+                                if operand.type == capstone.arm.ARM_OP_REG
+                            )
+                        ):
+                            affine_adjustments_by_node[node].add((insn_idx, adjusted_reg))
+
+                    if insn.id == capstone.arm.ARM_INS_MOV and len(operands) == 2:
+                        dst, src = operands
+                    elif (
+                        insn.id == capstone.arm.ARM_INS_ADD
+                        and len(operands) == 3
+                        and operands[2].type == capstone.arm.ARM_OP_IMM
+                        and operands[2].imm == 0
+                    ):
+                        dst, src, _ = operands
+                    else:
+                        continue
+
+                    if dst.type != capstone.arm.ARM_OP_REG or src.type != capstone.arm.ARM_OP_REG:
+                        continue
+                    if any(operand.shift.type != capstone.arm.ARM_SFT_INVALID for operand in (dst, src)):
+                        continue
+                    if dst.reg not in written_regs:
+                        continue
+                    copies_by_node[node].append((insn_idx, dst.reg, src.reg))
+
+            candidate_regs = {
+                capstone.arm.ARM_REG_R4: "r4",
+                capstone.arm.ARM_REG_R5: "r5",
+                capstone.arm.ARM_REG_R6: "r6",
+                capstone.arm.ARM_REG_R7: "r7",
+                capstone.arm.ARM_REG_R8: "r8",
+                capstone.arm.ARM_REG_R9: "r9",
+                capstone.arm.ARM_REG_R10: "r10",
+                capstone.arm.ARM_REG_R11: "r11",
+            }
+            sp_reg = capstone.arm.ARM_REG_SP
+            saves_by_reg = defaultdict(list)
+            restores_by_reg_and_node = defaultdict(lambda: defaultdict(list))
+            for node, copies in copies_by_node.items():
+                for insn_idx, dst_reg, src_reg in copies:
+                    if src_reg == sp_reg:
+                        saves_by_reg[dst_reg].append((node, insn_idx))
+                    if dst_reg == sp_reg:
+                        restores_by_reg_and_node[src_reg][node].append(insn_idx)
+
+            saved_sp_regs = set()
+            for candidate_reg, reg_name in candidate_regs.items():
+                saves = saves_by_reg[candidate_reg]
+                if len(saves) != 1 or saves[0][0] is not entry_node:
+                    continue
+
+                restores_by_node = restores_by_reg_and_node[candidate_reg]
+                if set(restores_by_node) != endpoint_nodes or any(
+                    len(insn_indices) != 1 for insn_indices in restores_by_node.values()
+                ):
+                    continue
+
+                save_idx = saves[0][1]
+                restore_by_endpoint = {node: insn_indices[0] for node, insn_indices in restores_by_node.items()}
+                if entry_node in endpoint_nodes and save_idx >= restore_by_endpoint[entry_node]:
+                    continue
+
+                clobbered = False
+                for node, writes in writes_by_node.items():
+                    for insn_idx, written_regs in writes:
+                        if candidate_reg not in written_regs:
+                            continue
+                        if node is entry_node and insn_idx <= save_idx:
+                            continue
+                        if node in endpoint_nodes and insn_idx >= restore_by_endpoint[node]:
+                            continue
+                        if node in endpoint_nodes and (insn_idx, candidate_reg) in affine_adjustments_by_node[node]:
+                            continue
+                        clobbered = True
+                        break
+                    if clobbered:
+                        break
+                if clobbered:
+                    continue
+
+                if reg_name in self.project.arch.registers:
+                    saved_sp_regs.add(self.project.arch.registers[reg_name][0])
+
+            return saved_sp_regs
+
+        # TODO: Implement this function for architectures beyond amd64 and ARM
         if self.project.arch.name != "AMD64":
             return set()
 
