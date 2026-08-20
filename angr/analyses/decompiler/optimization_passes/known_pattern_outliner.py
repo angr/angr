@@ -50,7 +50,6 @@ class KnownPatternOutliner(OptimizationPass):
     def _analyze(self, cache=None):
         from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
             KnownPatternFinder,
-            UnsupportedOutlineError,
         )
         from angr.analyses.decompiler.known_patterns.apply import (  # pylint:disable=import-outside-toplevel
             apply_call_info_to_graph,
@@ -71,16 +70,9 @@ class KnownPatternOutliner(OptimizationPass):
             )
             if not finder.matches:
                 break
-            progressed = False
-            for match in finder.matches:
-                try:
-                    result = finder.outline(match, ail_graph=graph)
-                except UnsupportedOutlineError as ex:
-                    _l.debug("Cannot outline %r: %s", match, ex)
-                    continue
-                graph = result.graph
-                progressed = True
-                changed = True
+            graph, applied = finder.apply_matches(finder.matches, graph)
+            progressed = bool(applied)
+            changed = changed or progressed
             self.vvar_id_start = finder.vvar_id_start
             block_addr_start = finder.block_addr_start
             self._new_block_addrs.add(block_addr_start)
