@@ -111,7 +111,23 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions()
+
+        indirect_jumps = proj.kb.indirect_jumps
+        unresolved_before = set(indirect_jumps.unresolved)
+
         fpijr = proj.analyses.FullProgramIndirectJumpResolution()
+
+        # what was resolved has to reach the knowledge base, keyed by block address as that plugin is, and those
+        # sites must no longer count as unresolved
+        assert fpijr.resolved_indirect_jumps
+        for site, targets in fpijr.resolved_indirect_jumps.items():
+            node = cfg.model.get_any_node(site, anyaddr=True)
+            assert node is not None
+            assert targets <= set(indirect_jumps.resolved.get(node.addr, ()))
+            assert node.addr not in indirect_jumps.unresolved
+        assert len(indirect_jumps.unresolved) < len(unresolved_before)
+        # this is the set Function consults when it decides whether its control flow is complete
+        assert proj.kb.unresolved_indirect_jumps is indirect_jumps.unresolved
 
         def target_names(func_name):
             resolutions = fpijr.get_resolutions(cfg.kb.functions[func_name])
@@ -227,6 +243,30 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         site = next(iter(without_tracking.get_resolutions(cfg.kb.functions["dispatch"])))
         target = next(iter(without_tracking.resolved_indirect_jumps[site]))
         assert without_tracking.get_provenance(site, target) == []
+
+    def test_knowledge_base_update_can_be_disabled(self):
+        binary_path = os.path.join(test_location, "x86_64", "fpijr_global_callback")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        indirect_jumps = proj.kb.indirect_jumps
+        resolved_before = {addr: list(targets) for addr, targets in indirect_jumps.resolved.items()}
+
+        untouched = proj.analyses.FullProgramIndirectJumpResolution(update_kb=False)
+        assert untouched.resolved_indirect_jumps
+        assert {addr: list(targets) for addr, targets in indirect_jumps.resolved.items()} == resolved_before
+
+        # and with the default the same results do land in the knowledge base
+        published = proj.analyses.FullProgramIndirectJumpResolution()
+        for site, targets in published.resolved_indirect_jumps.items():
+            node = cfg.model.get_any_node(site, anyaddr=True)
+            assert targets <= set(indirect_jumps.resolved.get(node.addr, ()))
+
+        # publishing twice must not pile the same targets up again
+        counts = {addr: len(targets) for addr, targets in indirect_jumps.resolved.items()}
+        proj.analyses.FullProgramIndirectJumpResolution()
+        assert {addr: len(targets) for addr, targets in indirect_jumps.resolved.items()} == counts
 
     def test_progress_callback(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")

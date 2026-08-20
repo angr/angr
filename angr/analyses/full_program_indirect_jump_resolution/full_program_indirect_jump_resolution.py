@@ -115,6 +115,10 @@ class FullProgramIndirectJumpResolution(Analysis):
     running instance and call :meth:`abort` on it (or do so from another thread). An aborted run still finalizes the
     partial results collected so far, leaving ``resolved_indirect_jumps`` valid.
 
+    Whatever is resolved is also written back to ``kb.indirect_jumps`` (keyed by block address, as that plugin is),
+    and those sites are removed from the unresolved set, so the rest of angr sees the results. Pass ``update_kb=False``
+    to leave the knowledge base alone.
+
     :ivar resolved_indirect_jumps: mapping from the instruction address of an indirect jump/call to the set of
                                    resolved target function addresses.
     :ivar pointer_shapes:          the descriptor store, exposed for debugging and inspection.
@@ -123,6 +127,8 @@ class FullProgramIndirectJumpResolution(Analysis):
     :param fail_fast:      Re-raise per-function exceptions instead of skipping the offending function.
     :param max_iterations: Cap on the interprocedural propagation fixed-point iterations.
     :param low_priority:   Periodically release the GIL during the per-function phase to stay responsive.
+    :param track_provenance: Record how each resolved target reached its site; see :meth:`get_provenance`.
+    :param update_kb:      Write the results back to ``kb.indirect_jumps``.
     """
 
     def __init__(
@@ -132,7 +138,9 @@ class FullProgramIndirectJumpResolution(Analysis):
         max_iterations: int = 8,
         low_priority: bool = False,
         track_provenance: bool = True,
+        update_kb: bool = True,
     ):
+        self._update_kb_flag = update_kb
         self._track_provenance = track_provenance
         self._fail_fast_flag = fail_fast
         self._max_iterations = max_iterations
@@ -348,7 +356,51 @@ class FullProgramIndirectJumpResolution(Analysis):
         self._update_progress(98.0, text="Resolving indirect jumps", analysis=self)
         self._resolve_sites()
 
+        if self._update_kb_flag:
+            self._publish_to_kb()
+
         self._finish_progress()
+
+    def _publish_to_kb(self) -> None:
+        """
+        Record what was resolved in ``kb.indirect_jumps`` so that the rest of angr sees it.
+
+        That plugin is keyed by the address of the block the jump ends, while this analysis works in instruction
+        addresses, so each site is mapped back onto its block first. A site that is now resolved is also dropped from
+        the unresolved set, which is what ``kb.unresolved_indirect_jumps`` exposes and what Function consults when it
+        decides whether its control flow is complete.
+        """
+        indirect_jumps = self.kb.indirect_jumps
+        published = 0
+        for ins_addr, targets in self.resolved_indirect_jumps.items():
+            block_addr = self._block_addr_of(ins_addr)
+            if block_addr is None:
+                l.debug("Cannot map indirect jump site %#x back to a block; not publishing it.", ins_addr)
+                continue
+            known = set(indirect_jumps.resolved.get(block_addr, ()))
+            fresh = targets - known
+            if fresh:
+                indirect_jumps.update_resolved_addrs(block_addr, sorted(fresh))
+            indirect_jumps.unresolved.discard(block_addr)
+            # keep any IndirectJump record the CFG left behind in agreement with what we found
+            existing = indirect_jumps.get(block_addr)
+            if existing is not None and hasattr(existing, "resolved_targets"):
+                existing.resolved_targets |= targets
+            published += 1
+        if published:
+            l.info("Published %d resolved indirect jump sites to kb.indirect_jumps.", published)
+
+    def _block_addr_of(self, ins_addr: int) -> int | None:
+        """
+        Map the address of an instruction onto the address of the block that contains it.
+        """
+        if self._cfg_model is None:
+            return None
+        try:
+            node = self._cfg_model.get_any_node(ins_addr, anyaddr=True)
+        except Exception:  # pylint:disable=broad-except
+            return None
+        return node.addr if node is not None else None
 
     #
     # Phase A: intra-procedural extraction
