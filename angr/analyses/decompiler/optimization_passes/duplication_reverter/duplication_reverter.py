@@ -25,7 +25,6 @@ from .similarity import longest_ail_graph_subseq
 from .utils import (
     copy_graph_and_nodes,
     correct_jump_targets,
-    deepcopy_ail_anyjump,
     find_block_in_successors_by_addr,
     replace_node_in_graph,
 )
@@ -321,8 +320,8 @@ class DuplicationReverter(StructuringOptimizationPass):
 
                 self.write_graph.add_edge(orig_pred, new_succ)
 
-        self.write_graph = self._correct_all_broken_jumps(self.write_graph)
-        self.write_graph = self._uniquify_addrs(self.write_graph)
+        if not self._finalize_graph_after_reinsertion():
+            return False
         _l.info("Candidate merge successful on blocks: %s", candidate)
         return True
 
@@ -330,112 +329,190 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Helpers
     #
 
-    def _uniquify_addrs(self, graph):
-        new_graph = nx.DiGraph()
-        new_nodes = {}
+    def _finalize_graph_after_reinsertion(self) -> bool:
+        entry_nodes = [
+            node
+            for node in self.write_graph
+            if isinstance(node, Block) and (node.addr, node.idx) == self.entry_node_addr
+        ]
+        if len(entry_nodes) != 1:
+            _l.debug(
+                "Expected exactly one entry block at %s after reinserting a candidate, but found %d",
+                self.entry_node_addr,
+                len(entry_nodes),
+            )
+            self.write_graph = self.read_graph.copy()
+            return False
+
+        rebuilt_graph = self._uniquify_addrs(self.write_graph, entry_nodes[0])
+        if rebuilt_graph is None:
+            _l.debug("Could not unambiguously map every terminator to its outgoing edges")
+            self.write_graph = self.read_graph.copy()
+            return False
+
+        self.write_graph = rebuilt_graph
+        return True
+
+    @staticmethod
+    def _resolve_conditional_successors(statement: ConditionalJump, successors):
+        if (
+            len(successors) != 2
+            or not isinstance(statement.true_target, Const)
+            or not isinstance(statement.false_target, Const)
+        ):
+            return None
+
+        target_pairs = (
+            (statement.true_target.value, statement.true_target_idx),
+            (statement.false_target.value, statement.false_target_idx),
+        )
+        successor_a, successor_b = successors
+        assignments = ((successor_a, successor_b), (successor_b, successor_a))
+        scored_assignments = []
+        for assignment in assignments:
+            exact_matches = sum(
+                target_pair == (successor.addr, successor.idx)
+                for target_pair, successor in zip(target_pairs, assignment, strict=True)
+            )
+            address_matches = sum(
+                target_pair[0] == successor.addr
+                for target_pair, successor in zip(target_pairs, assignment, strict=True)
+            )
+            scored_assignments.append(((exact_matches, address_matches), assignment))
+
+        best_score = max(score for score, _ in scored_assignments)
+        best_assignments = [assignment for score, assignment in scored_assignments if score == best_score]
+        if best_score == (0, 0) or len(best_assignments) != 1:
+            return None
+        return best_assignments[0]
+
+    def _uniquify_addrs(self, graph, entry_node: Block) -> nx.DiGraph | None:
+        terminator_successors = {}
+        for node in graph.nodes:
+            successors = tuple(graph.successors(node))
+            if not successors:
+                continue
+
+            last_stmt = node.statements[-1] if node.statements else None
+            if len(successors) == 1:
+                if isinstance(last_stmt, ConditionalJump) or (
+                    isinstance(last_stmt, Jump) and not isinstance(last_stmt.target, Const)
+                ):
+                    return None
+                terminator_successors[node] = successors
+                continue
+
+            if len(successors) == 2 and isinstance(last_stmt, ConditionalJump):
+                resolved_successors = self._resolve_conditional_successors(last_stmt, successors)
+                if resolved_successors is None:
+                    return None
+                terminator_successors[node] = resolved_successors
+                continue
+
+            return None
+
         nodes_by_addr = defaultdict(list)
         for node in graph.nodes:
             nodes_by_addr[node.addr].append(node)
 
+        nodes_to_readdress = []
         for nodes in nodes_by_addr.values():
             if len(nodes) == 1:
                 continue
 
-            # we have multiple nodes with the same address
-            duplicate_addr_nodes = sorted(nodes, reverse=True)
-            for duplicate_node in duplicate_addr_nodes:
-                new_node = duplicate_node.copy()
-                new_node.idx = None
-                new_addr = self.new_block_addr()
-                new_node.addr = new_addr
-                for i, stmt in enumerate(new_node.statements):
-                    if stmt.tags and "ins_addr" in stmt.tags:
-                        if "orig_ins_addr" not in stmt.tags:
-                            stmt.tags["orig_ins_addr"] = stmt.tags["ins_addr"]
-                        stmt.tags["ins_addr"] = new_addr + i + 1
+            nodes_to_readdress.extend(sorted((node for node in nodes if node is not entry_node), reverse=True))
 
-                new_nodes[duplicate_node] = new_node
+        new_addrs = {}
+        if nodes_to_readdress:
+            next_new_addr = max(self._new_block_addrs) + 1 if self._new_block_addrs else max(self.blocks_by_addr) + 2048
+            reserved_addrs = {node.addr for node in graph} | self._new_block_addrs
+            for node in nodes_to_readdress:
+                while next_new_addr in reserved_addrs:
+                    next_new_addr += 1
+                new_addrs[node] = next_new_addr
+                reserved_addrs.add(next_new_addr)
+                next_new_addr += 1
 
-        # reset the idx for all of them since they are unique now, also fix the jump targets idx
-        for node in graph.nodes:
-            new_node = new_nodes[node] if node in new_nodes else node.copy()
-            new_node.idx = None
-            if new_node.statements and isinstance(new_node.statements[-1], Jump):
-                new_node.statements[-1].target_idx = None
-
-            new_nodes[node] = new_node
-
-        # fixup every single jump target (before adding them to the graph)
-        for src, dst in graph.edges():
-            new_src = new_nodes[src]
-            new_dst = new_nodes[dst]
-            if new_dst is not dst:
-                new_new_src = new_src.copy()
-                new_new_src.statements[-1] = correct_jump_targets(new_new_src.statements[-1], {dst.addr: new_dst.addr})
-                new_nodes[src] = new_new_src
-
-        # add all the nodes in the same order back to the graph
-        for node in graph.nodes:
-            new_graph.add_node(new_nodes[node])
-        for src, dst, data in graph.edges(data=True):
-            new_graph.add_edge(new_nodes[src], new_nodes[dst], **data)
-
-        return new_graph
-
-    def _correct_all_broken_jumps(self, graph):
-        new_graph = nx.DiGraph()
         new_nodes = {}
         for node in graph.nodes:
-            # correct the last statement of the node for single-successor nodes
-            new_node = node
-            if graph.out_degree(node) == 1:
-                last_stmt = node.statements[-1]
-                successor = next(iter(graph.successors(node)))
-                if isinstance(last_stmt, Jump):
-                    if last_stmt.target.value != successor.addr:
-                        new_last_stmt = deepcopy_ail_anyjump(last_stmt, idx=last_stmt.idx)
-                        last_stmt.target_idx = successor.idx
-                        new_last_stmt.target = Const(self.manager.next_atom(), successor.addr, self.project.arch.bits)
-                        new_node = node.copy()
-                        new_node.statements[-1] = new_last_stmt
-                # the last statement is not a jump, but this node should have one, so add it
-                else:
-                    new_node = node.copy()
-                    new_last_stmt = Jump(
-                        self.manager.next_atom(),
-                        Const(self.manager.next_atom(), successor.addr, self.project.arch.bits),
-                        target_idx=successor.idx,
-                    )
-                    # TODO: improve addressing here
-                    new_last_stmt.tags["ins_addr"] = new_node.addr + 1
-                    new_node.statements.append(new_last_stmt)
+            new_node = node.copy()
+            new_node.statements = list(node.statements)
+            if node is not entry_node:
+                new_node.idx = None
 
-            elif graph.out_degree(node) == 2:
-                last_stmt = node.statements[-1]
-                if isinstance(last_stmt, ConditionalJump):
-                    real_successor_addrs = [_n.addr for _n in graph.successors(node)]
-                    addr_map = {}
-                    unmapped_addrs = []
-                    for target in (last_stmt.true_target, last_stmt.false_target):
-                        if target.value in real_successor_addrs:
-                            addr_map[target.value] = target.value
-                            real_successor_addrs.remove(target.value)
-                        else:
-                            unmapped_addrs.append(target.value)
-
-                    # right now we can only correct cases where one edge is incorrect
-                    if len(real_successor_addrs) == 1 and len(unmapped_addrs) == 1:
-                        addr_map[unmapped_addrs[0]] = real_successor_addrs[0]
-                        new_last_stmt = correct_jump_targets(last_stmt, addr_map, new_stmt=True)
-                        new_node = node.copy()
-                        new_node.statements[-1] = new_last_stmt
+            if node in new_addrs:
+                new_node.addr = new_addrs[node]
+                for statement_index, statement in enumerate(new_node.statements):
+                    if statement.tags and "ins_addr" in statement.tags:
+                        copy_statement = getattr(statement, "copy", None)
+                        if copy_statement is None:
+                            return None
+                        new_statement = copy_statement()
+                        if "orig_ins_addr" not in new_statement.tags:
+                            new_statement.tags["orig_ins_addr"] = new_statement.tags["ins_addr"]
+                        new_statement.tags["ins_addr"] = new_node.addr + statement_index + 1
+                        new_node.statements[statement_index] = new_statement
 
             new_nodes[node] = new_node
-            new_graph.add_node(new_node)
 
+        for source, destinations in terminator_successors.items():
+            new_source = new_nodes[source]
+            if len(destinations) == 1:
+                new_destination = new_nodes[destinations[0]]
+                if new_source.statements and isinstance(new_source.statements[-1], Jump):
+                    new_jump = new_source.statements[-1]
+                    if new_jump is source.statements[-1]:
+                        new_jump = new_jump.copy()
+                        new_source.statements[-1] = new_jump
+                    target = new_jump.target
+                    assert isinstance(target, Const)
+                    new_jump.target = Const(target.idx, new_destination.addr, target.bits, **target.tags)
+                    new_jump.target_idx = new_destination.idx
+                else:
+                    new_source.statements.append(
+                        Jump(
+                            self.manager.next_atom(),
+                            Const(self.manager.next_atom(), new_destination.addr, self.project.arch.bits),
+                            target_idx=new_destination.idx,
+                            ins_addr=new_source.addr + 1,
+                        )
+                    )
+                continue
+
+            new_true_destination = new_nodes[destinations[0]]
+            new_false_destination = new_nodes[destinations[1]]
+            new_conditional_jump = new_source.statements[-1]
+            assert isinstance(new_conditional_jump, ConditionalJump)
+            if new_conditional_jump is source.statements[-1]:
+                new_conditional_jump = new_conditional_jump.copy()
+                new_source.statements[-1] = new_conditional_jump
+            true_target = new_conditional_jump.true_target
+            false_target = new_conditional_jump.false_target
+            assert isinstance(true_target, Const)
+            assert isinstance(false_target, Const)
+            new_conditional_jump.true_target = Const(
+                true_target.idx,
+                new_true_destination.addr,
+                true_target.bits,
+                **true_target.tags,
+            )
+            new_conditional_jump.true_target_idx = new_true_destination.idx
+            new_conditional_jump.false_target = Const(
+                false_target.idx,
+                new_false_destination.addr,
+                false_target.bits,
+                **false_target.tags,
+            )
+            new_conditional_jump.false_target_idx = new_false_destination.idx
+
+        new_graph = nx.DiGraph()
+        new_graph.graph.update(graph.graph)
+        for node in graph.nodes:
+            new_graph.add_node(new_nodes[node], **graph.nodes[node])
         for src, dst, data in graph.edges(data=True):
             new_graph.add_edge(new_nodes[src], new_nodes[dst], **data)
 
+        self._new_block_addrs.update(new_addrs.values())
         return new_graph
 
     def _construct_best_condition_block_for_merge(self, blocks, graph) -> tuple[Block, Block]:
@@ -705,11 +782,24 @@ class DuplicationReverter(StructuringOptimizationPass):
             other_successor = next(iter(graph.successors(blocks[1])))
             conditional_block, true_target = self._construct_best_condition_block_for_merge(blocks, graph)
             if true_target == blocks[0]:
-                conditional_block.statements[-1].true_target.value = base_successor.addr
-                conditional_block.statements[-1].false_target.value = other_successor.addr
+                true_successor, false_successor = base_successor, other_successor
             else:
-                conditional_block.statements[-1].true_target.value = other_successor.addr
-                conditional_block.statements[-1].false_target.value = base_successor.addr
+                true_successor, false_successor = other_successor, base_successor
+
+            conditional_jump = conditional_block.statements[-1]
+            assert isinstance(conditional_jump, ConditionalJump)
+            true_target_expr = conditional_jump.true_target
+            false_target_expr = conditional_jump.false_target
+            assert isinstance(true_target_expr, Const)
+            assert isinstance(false_target_expr, Const)
+            conditional_jump.true_target = Const(
+                true_target_expr.idx, true_successor.addr, true_target_expr.bits, **true_target_expr.tags
+            )
+            conditional_jump.true_target_idx = true_successor.idx
+            conditional_jump.false_target = Const(
+                false_target_expr.idx, false_successor.addr, false_target_expr.bits, **false_target_expr.tags
+            )
+            conditional_jump.false_target_idx = false_successor.idx
 
             ail_merge_graph.graph.add_edge(new_node, conditional_block)
             return ail_merge_graph
