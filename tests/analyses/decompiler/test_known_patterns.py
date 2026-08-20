@@ -483,12 +483,11 @@ class TestKnownPatternStmtSeq(TestCase):
 
         # a void call: rendered as a bare statement, not an assignment
         assert isinstance(result.call_stmt, SideEffectStatement)
-        assert len(result.child_funcargs) == 2
-        # the child contains the two stores
-        from angr.ailment.statement import Store
-
-        child_stmts = [s for b in result.child_graph for s in b.statements]
-        assert sum(1 for s in child_stmts if isinstance(s, Store)) == 2
+        # ...and no callee. A void statement span has no interface for one to
+        # discover, and outlining it would split the block -- which loses every
+        # other idiom interleaved with it, as three consecutive field swaps are.
+        assert result.child_func is None
+        assert len(result.call_stmt.expr.args) == 2
 
         dec_outer = _redecompile(proj, cfg, func, dec, result.graph)
         text = dec_outer.codegen.text
@@ -1458,23 +1457,38 @@ class TestSwapWidthsAndInterleaving(TestCase):
 
     STL4_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl4")
 
-    def test_both_statement_orders_are_generated(self):
-        # the scheduled order -- both loads hoisted -- is a separate shape, and it
-        # is the one an optimizing compiler actually emits
+    def test_all_statement_orders_and_widths_are_generated(self):
+        # Three statement orders, because all three occur: the value read inline,
+        # and both loads hoisted with the stores either way round. Four widths,
+        # affordable since the matcher prunes statement patterns by their first
+        # statement's key -- which for these is "an assignment whose source is a
+        # load of exactly this width".
         from angr.analyses.decompiler.known_patterns import STD_SWAP_TEMPLATES
 
         names = {t.name for t in STD_SWAP_TEMPLATES}
-        assert "std_swap_8" in names
-        assert "std_swap_8_scheduled" in names
-        # narrower widths are deliberately absent: a statement pattern is tried at
-        # every statement of every block, so each extra one multiplies a quadratic
-        # term, and a three-statement byte shuffle matches a great deal of code
-        # that is not a swap. See _SWAP_WIDTHS.
-        assert not any(n.startswith(("std_swap_1", "std_swap_2", "std_swap_4")) for n in names)
+        assert len(STD_SWAP_TEMPLATES) == 12
+        for width in (1, 2, 4, 8):
+            assert {f"std_swap_{width}", f"std_swap_{width}_scheduled", f"std_swap_{width}_scheduled_rev"} <= names
 
     def test_interleaved_field_swap(self):
+        # Pair's three fields are 8, 4 and 1 bytes and gcc interleaves the three
+        # swaps -- the next field's load lands between this one's store and its
+        # writeback. All three have to be named; asserting only that *a*
+        # std::swap appears passed while two of the three were still raw
+        # load/store shuffles.
         _, _, _, dec = _decompile(self.STL4_BIN, "pair_swap", preset="full")
-        assert "std::swap(" in dec.codegen.text, dec.codegen.text
+        text = dec.codegen.text
+        assert text.count("std::swap(") == 3, text
+        # ...and they are three different swaps, one per field, not one call
+        # reported three times
+        args = re.findall(r"std::swap\(([^)]*)\)", text)
+        assert len(args) == 3 and len(set(args)) == 3, text
+
+    def test_narrow_widths_are_matched_on_their_own(self):
+        for func in ("swap_ints", "swap_chars"):
+            with self.subTest(func=func):
+                _, _, _, dec = _decompile(self.STL4_BIN, func, preset="full")
+                assert dec.codegen.text.count("std::swap(") == 1, dec.codegen.text
 
     def test_disjointness_admits_a_nonaliasing_gap(self):
         # a read of `*(b + 8)` between a write of `*a` and a write of `*b`
