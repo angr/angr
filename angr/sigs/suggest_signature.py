@@ -23,7 +23,8 @@ def collect_query_strings(project, cfg_model) -> list[str]:
     Collect the string constants of a binary to query a signature server with.
 
     Strings are truncated to ``MAX_UNIQUE_STRING_LEN`` because that is how signature metadata stores them, and a
-    server matches a query string as a substring of what it stored.
+    server matches a query string as a substring of what it stored. Each string also ends at its first NUL, so that
+    data recovered past a terminator is not queried with.
 
     :param project:     The project the strings are recovered from.
     :param cfg_model:   The CFG model holding the recovered memory data.
@@ -45,7 +46,10 @@ def collect_query_strings(project, cfg_model) -> list[str]:
                 s = content.decode("ascii", errors="ignore")
         except (UnicodeDecodeError, AttributeError):
             continue
-        s = s.rstrip("\x00")
+        # A recovered string ends at its first NUL. Whatever follows belongs to the next string, or is not text at
+        # all: decoding UTF-16 data past the terminator in particular yields runs of nonsense characters, and querying
+        # with those can only produce spurious matches.
+        s = s.split("\x00", 1)[0]
         if len(s) < MIN_STRING_LEN:
             continue
         strings.add(s[:MAX_UNIQUE_STRING_LEN])
