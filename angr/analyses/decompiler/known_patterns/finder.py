@@ -11,6 +11,7 @@ from dataclasses import replace as dataclass_replace
 
 import networkx
 
+from angr.ailment import Manager as AILManager
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     ITE,
@@ -282,7 +283,7 @@ class KnownPatternFinder(Analysis):
         # varid -> the expression that defines it, or None
         self._def_cache: dict[int, Expression | None] = {}
         self._blocks_by_loc: dict[tuple[int, int | None], Block] | None = None
-        self._ail_manager = ail_manager
+        self._ail_manager = ail_manager if ail_manager is not None else self._fallback_ail_manager(ail_graph)
         self.vvar_id_start = vvar_id_start
         self.block_addr_start = block_addr_start
 
@@ -312,6 +313,25 @@ class KnownPatternFinder(Analysis):
         self.matches: list[KnownPatternMatch] = []
         self._srda_model = None
         self._analyze()
+
+    def _fallback_ail_manager(self, ail_graph: networkx.DiGraph) -> AILManager:
+        """An index allocator for callers that did not bring one.
+
+        The decompiler pipeline hands the finder Clinic's AIL manager; a direct
+        caller (a test, ``outline_at``) may not. Indices still have to be real
+        and still have to be unique, so a private manager is seeded past
+        everything already in the graph rather than starting from zero, where it
+        would hand out indices that existing expressions already hold.
+        """
+        highest = -1
+        for block in ail_graph:
+            for stmt in block.statements:
+                highest = max(highest, stmt.idx or 0)
+                for expr in _iter_subexprs(stmt):
+                    highest = max(highest, expr.idx or 0)
+        manager = AILManager()
+        manager.atom_ctr = highest + 1
+        return manager
 
     def _index_patterns(self) -> None:
         """Bucket the candidate patterns by anchor key.
@@ -711,6 +731,7 @@ class KnownPatternFinder(Analysis):
             return None
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
+            next_idx=self._next_idx,
             chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
             call_target_fn=self._resolve_call_target,
             def_fn=self._resolve_def,
@@ -756,6 +777,7 @@ class KnownPatternFinder(Analysis):
         # already the whole idiom. Peeking is read-only and stays available.
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
+            next_idx=self._next_idx,
             chase_fn=None,
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
@@ -817,6 +839,7 @@ class KnownPatternFinder(Analysis):
         # triangle) match at all.
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
+            next_idx=self._next_idx,
             chase_fn=None,
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
@@ -938,6 +961,7 @@ class KnownPatternFinder(Analysis):
     ) -> KnownPatternMatch | None:
         ctx = MatchCtx(
             skip_conversions=self._skip_conversions,
+            next_idx=self._next_idx,
             chase_fn=self._make_chase_fn(block, stmt_idx) if self._chase_defs else None,
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
@@ -1518,7 +1542,9 @@ class KnownPatternFinder(Analysis):
         pre_stmts = [s for i, s in enumerate(stmts[:anchor_idx]) if i not in match.consumed_stmt_idxs] + base_stmts
         post_stmts = post_head + stmts[anchor_idx + 1 :]
 
-        _, b_mid, b_post = split_ail_block(g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr)
+        _, b_mid, b_post = split_ail_block(
+            g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr, self._next_idx
+        )
 
         if b_post is not None:
             frontier_loc = (b_post.addr, b_post.idx)
@@ -1996,33 +2022,6 @@ class KnownPatternFinder(Analysis):
                         return UnaryOp(self._next_idx(), "Reference", expr.copy(), bits=sbo.bits, **sbo.tags)
         return sbo.copy()
 
-    def _fresh_idx(self, expr: Expression) -> Expression:
-        """A copy of ``expr`` with a fresh index wherever it has none.
-
-        The decompiler's VariableMap is keyed by AIL index, and an object built
-        with ``idx=None`` lands at index 0 -- so every such object shares one
-        entry and renders as whatever variable was registered there. PField
-        synthesizes a field address (``root + K``) that way, because the DSL has
-        no access to the AIL manager, and four such addresses in one function
-        all came out as the same ``&<const>``.
-        """
-        if isinstance(expr, BinaryOp) and not expr.idx:
-            return BinaryOp(
-                self._next_idx(),
-                expr.op,
-                [self._fresh_idx(o) for o in expr.operands],
-                expr.signed,
-                bits=expr.bits,
-                floating_point=expr.floating_point,
-                rounding_mode=expr.rounding_mode,
-                **expr.tags,
-            )
-        if isinstance(expr, Const) and not expr.idx:
-            return Const(self._next_idx(), expr.value, expr.bits, **expr.tags)
-        if isinstance(expr, UnaryOp) and not expr.idx:
-            return UnaryOp(self._next_idx(), expr.op, self._fresh_idx(expr.operand), bits=expr.bits, **expr.tags)
-        return expr.copy()
-
     def _call_args_of(self, match: KnownPatternMatch, blocks: Iterable[Block]) -> list[Expression]:
         """The synthesized call's arguments, from the pattern's captures."""
         blocks = list(blocks)
@@ -2031,11 +2030,7 @@ class KnownPatternFinder(Analysis):
             captured = match.captures.get(name)
             if captured is None:
                 raise UnsupportedOutlineError(f"pattern {match.pattern.name}: capture {name!r} is unbound")
-            args.append(
-                self._stack_ref(captured, blocks)
-                if isinstance(captured, StackBaseOffset)
-                else self._fresh_idx(captured)
-            )
+            args.append(self._stack_ref(captured, blocks) if isinstance(captured, StackBaseOffset) else captured.copy())
         return args
 
     def _rewrite_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
@@ -2399,7 +2394,9 @@ class KnownPatternFinder(Analysis):
             [stmts[i] for i in consumed] + [stmts[i] for i in span], rebases, match.base_aliases
         )
         post_stmts = stmts[span[-1] + 1 :]
-        _, b_mid, b_post = split_ail_block(g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr)
+        _, b_mid, b_post = split_ail_block(
+            g, block, pre_stmts, mid_stmts, post_stmts, self._next_block_addr, self._next_idx
+        )
 
         if b_post is not None:
             frontier_loc = (b_post.addr, b_post.idx)
@@ -2490,7 +2487,9 @@ class KnownPatternFinder(Analysis):
                 )
             pre_stmts = [entry_block.statements[i] for i in entry_residue] + base_stmts
             mid_stmts = [s for i, s in enumerate(entry_block.statements) if i not in entry_residue]
-            _, b_mid, _ = split_ail_block(g, entry_block, pre_stmts, mid_stmts, [], self._next_block_addr)
+            _, b_mid, _ = split_ail_block(
+                g, entry_block, pre_stmts, mid_stmts, [], self._next_block_addr, self._next_idx
+            )
             src_loc = (b_mid.addr, b_mid.idx)
 
         return self._run_outliner_and_rewrite(g, match, src_loc, frontier_loc, ins_addr)
@@ -2549,6 +2548,7 @@ class KnownPatternFinder(Analysis):
             patterns=[pattern],
             chase_defs=self._chase_defs,
             skip_conversions=self._skip_conversions,
+            ail_manager=self._ail_manager,
             vvar_id_start=self.vvar_id_start,
             block_addr_start=self.block_addr_start,
         )
@@ -2619,7 +2619,7 @@ class KnownPatternFinder(Analysis):
             call_bits = old_stmt.dst.bits
 
         new_call = Call(
-            self._ail_manager.next_atom() if self._ail_manager is not None else None,
+            self._next_idx(),
             pattern.call_name,
             args=args,
             bits=call_bits,
@@ -2637,12 +2637,16 @@ class KnownPatternFinder(Analysis):
         call_block.statements[call_stmt_idx] = new_stmt
         return new_stmt
 
-    def _next_idx(self) -> int | None:
-        """A fresh AIL atom index. Objects built with ``idx=None`` all end up at
-        index 0, and the decompiler's VariableMap is keyed by index -- so two
-        outlined results would collide there and render as the same C variable
-        even though variable recovery kept them distinct."""
-        return self._ail_manager.next_atom() if self._ail_manager is not None else None
+    def _next_idx(self) -> int:
+        """A fresh AIL atom index.
+
+        Never None. Objects built with ``idx=None`` all end up at index 0, and
+        the decompiler's VariableMap is keyed by index -- so two of them collide
+        there and render as the same C variable even though variable recovery
+        kept them distinct. Every AIL object this package creates goes through
+        here or through :attr:`MatchCtx.next_idx`, which is this method.
+        """
+        return self._ail_manager.next_atom()
 
     def _next_vvar_id(self) -> int:
         vvar_id = self.vvar_id_start

@@ -16,6 +16,7 @@ the pre-branch state.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 
@@ -38,6 +39,17 @@ from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatem
 
 # ops for which operand order is irrelevant; commutative matching tries both orders
 COMMUTATIVE_OPS = frozenset({"Add", "Mul", "And", "Or", "Xor", "CmpEQ", "CmpNE"})
+
+
+#: Indices for expressions synthesized without a finder. Starts high enough that
+#: it cannot be confused with an index a real AIL graph handed out; nothing built
+#: with one of these reaches a graph, because the finder always supplies its own
+#: allocator, but they still have to be distinct from each other.
+_STANDALONE_IDX = itertools.count(1 << 32)
+
+
+def _standalone_idx() -> int:
+    return next(_STANDALONE_IDX)
 
 
 @dataclass
@@ -99,6 +111,14 @@ class MatchCtx:
     # binary, its demangled spelling. Supplied by the finder, which holds the
     # Project; a pattern that names a callee is only matchable with it.
     call_target_fn: Callable[[Call], frozenset[str]] | None = None
+    # allocator for the AIL indices of expressions the matcher has to synthesize
+    # (PField's ``root + K``, PStackField's StackBaseOffset). The finder supplies
+    # Clinic's, so a synthesized object lands in the same index space as the
+    # graph it will be spliced into; the default exists so a pattern can be
+    # matched without a finder at all, as the DSL unit tests do. It must never
+    # hand out None: the decompiler's VariableMap is keyed by index and every
+    # object built with idx=None collides at index 0.
+    next_idx: Callable[[], int] = _standalone_idx
     # the expression that *defined* a virtual variable, followed through plain
     # copies and through phis whose arms agree. Deliberately *not* ``peek_fn``:
     # that one's contract is "this expression can be recomputed at the use", so
@@ -547,7 +567,13 @@ class PField(PatternExpr):
         base_expr: Expression = (
             root
             if obj_off == 0
-            else BinaryOp(None, "Add", [root, Const(None, obj_off, root.bits)], False, bits=root.bits)
+            else BinaryOp(
+                ctx.next_idx(),
+                "Add",
+                [root, Const(ctx.next_idx(), obj_off, root.bits)],
+                False,
+                bits=root.bits,
+            )
         )
         st = state.bind(self.base, base_expr)
         if st is None:
@@ -675,7 +701,7 @@ class PStackField(PatternExpr):
         stack_off = slot.stack_offset
         if stack_off is None:
             return None
-        st = state.bind(self.base, StackBaseOffset(None, slot.bits, stack_off - self.offset))
+        st = state.bind(self.base, StackBaseOffset(ctx.next_idx(), slot.bits, stack_off - self.offset))
         if st is None:
             return None
         return self._bind_if_named(self.name, expr, st)

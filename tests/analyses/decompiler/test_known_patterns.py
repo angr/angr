@@ -4,6 +4,7 @@ from __future__ import annotations
 import os.path
 import re
 import unittest
+from pathlib import Path
 from unittest import TestCase
 
 import archinfo
@@ -11,6 +12,7 @@ import archinfo
 import angr
 from angr.ailment.expression import BinaryOp, Call, Const, Load, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, SideEffectStatement
+from angr.analyses.decompiler import known_patterns as known_patterns_pkg
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompilation_options import parse_known_patterns
 from angr.analyses.decompiler.decompiler import Decompiler
@@ -343,6 +345,49 @@ class TestPCall(TestCase):
         # discriminate neither
         assert pattern_anchor_key(PCallResult(frozenset({"x"}))) is None
         assert pattern_anchor_key(PDefOf(PVVar("x"))) is None
+
+
+class TestAilIndicesAreReal(TestCase):
+    """No AIL object this package builds may carry ``idx=None``.
+
+    An object built with ``idx=None`` reads its index back as 0, and the
+    decompiler's VariableMap is keyed by index -- so every such object shares
+    one entry and renders as whatever variable happens to live there. It is not
+    a hypothetical: four PField-synthesized field addresses in one function all
+    came out as the same ``&<None|const 12>``, and the fix was mistaken twice
+    for something else (a missing propagation pass, then a rendering bug) before
+    it was found. A source-level check is what keeps it fixed, because the
+    symptom is invisible until something reaches codegen.
+    """
+
+    def test_no_ail_object_is_built_with_a_none_index(self):
+        import ast
+
+        from angr.ailment import expression as ail_expr
+        from angr.ailment import statement as ail_stmt
+
+        # every AIL class whose first positional parameter is the atom index
+        ail_names = {
+            n
+            for mod in (ail_expr, ail_stmt)
+            for n in dir(mod)
+            if isinstance(getattr(mod, n), type) and not n.startswith("_")
+        }
+        pkg = Path(known_patterns_pkg.__file__).parent
+
+        offenders = []
+        for path in sorted(pkg.glob("*.py")):
+            tree = ast.parse(path.read_text(), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call) or not node.args:
+                    continue
+                name = node.func.id if isinstance(node.func, ast.Name) else None
+                if name not in ail_names:
+                    continue
+                first = node.args[0]
+                if isinstance(first, ast.Constant) and first.value is None:
+                    offenders.append(f"{path.name}:{node.lineno}: {name}(None, ...)")
+        assert not offenders, "AIL objects built with idx=None:\n" + "\n".join(offenders)
 
 
 class TestKnownPatternFinder(TestCase):
