@@ -311,10 +311,11 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         :return:
         """
 
-        if (
-            offset in (self.project.arch.ip_offset, self.project.arch.sp_offset, self.project.arch.lr_offset)
-            or not create_variable
-        ):
+        excluded_register_offsets = (
+            self.project.arch.ip_offset,
+            self.project.arch.sp_offset,
+        )
+        if offset in excluded_register_offsets or not create_variable:
             # only store the value. don't worry about variables.
             v = MultiValues(richr.data)
             self.state.register_region.store(offset, v)
@@ -398,7 +399,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         if (
             vvar.category == ailment.expression.VirtualVariableCategory.REGISTER
-            and vvar.oident in (self.project.arch.ip_offset, self.project.arch.sp_offset, self.project.arch.lr_offset)
+            and vvar.oident in (self.project.arch.ip_offset, self.project.arch.sp_offset)
         ) or not create_variable:
             # only store the value. don't worry about variables.
             self.vvar_region[vvar_id] = richr.data

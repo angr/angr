@@ -2,12 +2,23 @@
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
+# pylint:disable=missing-class-docstring,protected-access
 
 import logging
 import os
 import unittest
+from collections import defaultdict
+from types import SimpleNamespace
+from typing import Any, cast
+
+import claripy
 
 import angr
+from angr import ailment
+from angr.analyses.typehoon.typevars import TypeVariableManager
+from angr.analyses.variable_recovery.engine_base import RichR, SimEngineVRBase
+from angr.analyses.variable_recovery.variable_recovery_fast import VariableRecoveryFastState
+from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.variables import VariableType
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, print_decompilation_result
@@ -17,12 +28,118 @@ test_location = os.path.join(bin_location, "tests")
 l = logging.getLogger("test_variablerecovery")
 
 
+class _VariableRecoveryEngine(SimEngineVRBase):
+    def process(self, state, *, block=None, **kwargs):  # pylint:disable=unused-argument
+        return None
+
+
 #
 # Utility methods
 #
 
 
 class TestVariableRecovery(unittest.TestCase):
+    def _arm_variable_recovery_engine(self):
+        project = angr.Project(os.path.join(test_location, "armel", "checkbyte"), auto_load_libs=False)
+        function = cast(
+            Function,
+            project.kb.functions.function(addr=project.entry, name="test_lr_assignment", create=True),
+        )
+        self.assertIsNotNone(function)
+
+        analysis: Any = SimpleNamespace(
+            _dominance_frontiers=defaultdict(set),
+            variable_manager=project.kb.variables,
+            get_variable_definitions=lambda _: set(),
+        )
+        tv_manager = TypeVariableManager(function.addr)
+        state = VariableRecoveryFastState(
+            function.addr,
+            analysis,
+            project.arch,
+            function,
+            project,
+            tv_manager=tv_manager,
+        )
+        engine = _VariableRecoveryEngine(project, project.kb, tv_manager=tv_manager)
+        engine.state = state
+        engine.block = ailment.Block(function.addr, statements=[])
+        engine.stmt_idx = 0
+        engine.ins_addr = function.addr
+        return project, function, engine
+
+    def test_lr_assignment_creates_register_variable(self):
+        project, function, engine = self._arm_variable_recovery_engine()
+        lr = cast(int, project.arch.lr_offset)
+        lr_dst = ailment.Expr.Register(0, lr, project.arch.bits)
+
+        engine._assign_to_register(
+            lr,
+            RichR(claripy.BVV(1, project.arch.bits)),
+            project.arch.bytes,
+            dst=lr_dst,
+        )
+
+        lr_variables = project.kb.variables[function.addr].find_variables_by_atom(
+            function.addr, engine.stmt_idx, lr_dst
+        )
+        self.assertEqual(len(lr_variables), 1)
+        lr_variable, _ = next(iter(lr_variables))
+        self.assertIsInstance(lr_variable, SimRegisterVariable)
+        lr_variable = cast(SimRegisterVariable, lr_variable)
+        self.assertEqual(lr_variable.reg, lr)
+
+        for stmt_idx, excluded_offset in enumerate((project.arch.ip_offset, project.arch.sp_offset), start=1):
+            with self.subTest(offset=excluded_offset):
+                excluded_offset = cast(int, excluded_offset)
+                engine.stmt_idx = stmt_idx
+                dst = ailment.Expr.Register(stmt_idx, excluded_offset, project.arch.bits)
+                engine._assign_to_register(
+                    excluded_offset,
+                    RichR(claripy.BVV(stmt_idx, project.arch.bits)),
+                    project.arch.bytes,
+                    dst=dst,
+                )
+                variables = project.kb.variables[function.addr].find_variables_by_atom(function.addr, stmt_idx, dst)
+                self.assertFalse(variables)
+
+    def test_lr_vvar_assignment_creates_register_variable(self):
+        project, function, engine = self._arm_variable_recovery_engine()
+        category = ailment.Expr.VirtualVariableCategory.REGISTER
+        lr = cast(int, project.arch.lr_offset)
+        lr_vvar = ailment.Expr.VirtualVariable(0, 1, project.arch.bits, category, oident=lr)
+
+        lr_variable = engine._assign_to_vvar(
+            lr_vvar,
+            RichR(claripy.BVV(1, project.arch.bits)),
+            dst=lr_vvar,
+        )
+
+        self.assertIsInstance(lr_variable, SimRegisterVariable)
+        lr_variable = cast(SimRegisterVariable, lr_variable)
+        self.assertEqual(lr_variable.reg, lr)
+        self.assertEqual(
+            project.kb.variables[function.addr].find_variables_by_atom(function.addr, engine.stmt_idx, lr_vvar),
+            {(lr_variable, None)},
+        )
+
+        for stmt_idx, excluded_offset in enumerate((project.arch.ip_offset, project.arch.sp_offset), start=1):
+            with self.subTest(offset=excluded_offset):
+                excluded_offset = cast(int, excluded_offset)
+                engine.stmt_idx = stmt_idx
+                vvar = ailment.Expr.VirtualVariable(
+                    stmt_idx, stmt_idx + 1, project.arch.bits, category, excluded_offset
+                )
+                variable = engine._assign_to_vvar(
+                    vvar,
+                    RichR(claripy.BVV(stmt_idx, project.arch.bits)),
+                    dst=vvar,
+                )
+                self.assertIsNone(variable)
+                self.assertFalse(
+                    project.kb.variables[function.addr].find_variables_by_atom(function.addr, stmt_idx, vvar)
+                )
+
     def _compare_memory_variable(self, variable, variable_info):
         if variable_info["location"] == "stack":
             if not isinstance(variable, SimStackVariable):
