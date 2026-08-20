@@ -5,10 +5,12 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import unittest
+from types import SimpleNamespace
 
 import networkx
 
 from angr.analyses.decompiler.region_overlay import OverlayManager, RegionOverlay
+from angr.analyses.decompiler.structuring.recursive_structurer import RecursiveStructurer
 from angr.utils.graph import GraphUtils, dfs_back_edges
 
 
@@ -126,6 +128,136 @@ class TestRegionOverlayViews(unittest.TestCase):
         root_view = mgr.root.view()
         # the loop's internal back edge must not become a self-loop on the region node
         assert edge_set(root_view) == {(nodes[1], loop), (loop, nodes[4])}
+
+
+class TestRecursiveStructurerOverlayScheduling(unittest.TestCase):
+    @staticmethod
+    def _execution_order(root: RegionOverlay) -> list[RegionOverlay]:
+        """Expand child lists as the structurer's LIFO worklist does, without mutating the overlays."""
+        stack = [(root, False)]
+        result = []
+        while stack:
+            region, expanded = stack.pop()
+            if expanded:
+                result.append(region)
+            else:
+                stack.append((region, True))
+                stack.extend((child, False) for child in RecursiveStructurer._child_regions_for_stack(region))
+        return result
+
+    def test_schedules_all_direct_children_without_reordering_reachable_children(self):
+        nodes = {i: Node(i) for i in range(1, 9)}
+        graph = networkx.DiGraph()
+        graph.add_edges_from(
+            [
+                (nodes[1], nodes[2]),
+                (nodes[2], nodes[3]),
+                (nodes[3], nodes[4]),
+                (nodes[5], nodes[2]),
+            ]
+        )
+        graph.add_nodes_from((nodes[6], nodes[7], nodes[8]))
+        manager = OverlayManager(graph)
+        manager.root.head = nodes[1]
+        reachable_0 = manager.root.create_subregion(nodes[2], [nodes[2], nodes[3]], cyclic=False)
+        reachable_1 = manager.root.create_subregion(nodes[4], [nodes[4]], cyclic=False)
+        feeder = manager.root.create_subregion(nodes[5], [nodes[5]], cyclic=False)
+        island = manager.root.create_subregion(nodes[6], [nodes[6], nodes[7]], cyclic=False)
+
+        reachable_order = [
+            node
+            for node in GraphUtils.dfs_postorder_nodes_deterministic(manager.root.graph, manager.root.head)
+            if isinstance(node, RegionOverlay)
+        ]
+        assert reachable_order == [reachable_1, reachable_0]
+
+        stack_order = RecursiveStructurer._child_regions_for_stack(manager.root)
+        assert stack_order == [island, feeder, *reachable_order]
+        assert set(stack_order) == set(manager.root.children)
+
+    def test_nested_head_unreachable_children_are_scheduled_once_bottom_up(self):
+        head, reachable_node, outer_head, nested_node = (Node(i) for i in range(1, 5))
+        graph = networkx.DiGraph([(head, reachable_node)])
+        graph.add_nodes_from((outer_head, nested_node))
+        manager = OverlayManager(graph)
+        manager.root.head = head
+        reachable = manager.root.create_subregion(reachable_node, [reachable_node], cyclic=False)
+        outer = manager.root.create_subregion(outer_head, [outer_head, nested_node], cyclic=False)
+        nested = outer.create_subregion(nested_node, [nested_node], cyclic=False)
+
+        assert RecursiveStructurer._child_regions_for_stack(manager.root) == [outer, reachable]
+        assert RecursiveStructurer._child_regions_for_stack(outer) == [nested]
+        assert self._execution_order(manager.root) == [reachable, nested, outer, manager.root]
+
+    def test_head_unreachable_child_dependencies_are_address_independent(self):
+        for source_addr, target_addr in ((0x10, 0x20), (0x20, 0x10)):
+            with self.subTest(source_addr=source_addr, target_addr=target_addr):
+                head, reachable_node, ordinary_node = Node(1), Node(2), Node(3)
+                source_node, target_node = Node(source_addr), Node(target_addr)
+                graph = networkx.DiGraph(
+                    [(head, reachable_node), (source_node, ordinary_node), (ordinary_node, target_node)]
+                )
+                manager = OverlayManager(graph)
+                manager.root.head = head
+                reachable = manager.root.create_subregion(reachable_node, [reachable_node], cyclic=False)
+                source = manager.root.create_subregion(source_node, [source_node], cyclic=False)
+                target = manager.root.create_subregion(target_node, [target_node], cyclic=False)
+
+                assert RecursiveStructurer._child_regions_for_stack(manager.root) == [target, source, reachable]
+                assert self._execution_order(manager.root) == [reachable, source, target, manager.root]
+
+    def test_structure_overlay_tree_resolves_every_direct_child_before_parent(self):
+        head, reachable_node, feeder_node, island_node = (Node(i) for i in range(1, 5))
+        graph = networkx.DiGraph([(head, reachable_node), (feeder_node, reachable_node)])
+        graph.add_node(island_node)
+        manager = OverlayManager(graph)
+        manager.root.head = head
+        reachable = manager.root.create_subregion(reachable_node, [reachable_node], cyclic=False)
+        feeder = manager.root.create_subregion(feeder_node, [feeder_node], cyclic=False)
+        island = manager.root.create_subregion(island_node, [island_node], cyclic=False)
+        original_children = list(manager.root.children)
+        original_edges = edge_set(manager.root.graph)
+        original_owners = {node: manager.owner_of(node) for node in (head, reachable_node, feeder_node, island_node)}
+
+        structure_order = []
+
+        def structure(region, **_kwargs):
+            structure_order.append(region)
+            if region is manager.root:
+                assert not manager.root.children
+                assert not any(isinstance(member, RegionOverlay) for member in manager.root.members)
+                return SimpleNamespace(result=manager.root.head)
+            return SimpleNamespace(result=next(iter(region.members)))
+
+        recursive = object.__new__(RecursiveStructurer)
+        recursive._region = manager.root
+        object.__setattr__(
+            recursive,
+            "project",
+            SimpleNamespace(analyses={object: SimpleNamespace(prep=lambda **_kwargs: structure)}),
+        )
+        object.__setattr__(recursive, "kb", SimpleNamespace(cfgs={"CFGFast": SimpleNamespace(jump_tables={})}))
+        recursive._fail_fast = True
+        recursive.structurer_cls = object
+        recursive.structurer_options = {}
+        object.__setattr__(recursive, "ail_manager", object())
+        recursive.cond_proc = object()
+        recursive.function = None
+        recursive._case_entry_to_switch_head = {}
+        recursive.result = None
+        recursive.result_incomplete = False
+
+        recursive._structure_overlay_tree()
+
+        assert structure_order == [reachable, feeder, island, manager.root]
+        assert len(structure_order) == len(set(structure_order))
+        assert recursive.result is head
+        assert len(manager.root.children) == len(original_children)
+        assert set(manager.root.children) == set(original_children)
+        assert all(child.parent is manager.root for child in original_children)
+        assert set(manager.root.members) == {head, *original_children}
+        assert edge_set(manager.root.graph) == original_edges
+        assert {node: manager.owner_of(node) for node in original_owners} == original_owners
 
 
 class TestRegionOverlayMutation(unittest.TestCase):

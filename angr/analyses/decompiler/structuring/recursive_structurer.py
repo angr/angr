@@ -60,6 +60,31 @@ class RecursiveStructurer(Analysis):
         self._structure_overlay_tree()
         self._post_process_result()
 
+    @staticmethod
+    def _child_regions_for_stack(region: RegionOverlay) -> list[RegionOverlay]:
+        """Return every direct child region in the order in which it should be appended to the work stack."""
+        graph = region.graph
+        reachable_postorder = list(GraphUtils.dfs_postorder_nodes_deterministic(graph, region.head))
+        reachable_nodes = set(reachable_postorder)
+        reachable_children = [node for node in reachable_postorder if isinstance(node, RegionOverlay)]
+
+        # The explicit overlay tree, not reachability from the region head, defines which subregions must be
+        # structured. Preserve the historical postorder for head-reachable children, and separately postorder the
+        # remaining components so dependencies between head-unreachable children are respected as well.
+        head_unreachable_children = [child for child in region.children if child not in reachable_nodes]
+        if not head_unreachable_children:
+            return reachable_children
+
+        remaining_graph = graph.subgraph(set(graph) - reachable_nodes)
+        head_unreachable_children_set = set(head_unreachable_children)
+        head_unreachable_postorder = GraphUtils.dfs_postorder_nodes_deterministic_multi(
+            remaining_graph, head_unreachable_children
+        )
+        return [
+            *(node for node in head_unreachable_postorder if node in head_unreachable_children_set),
+            *reachable_children,
+        ]
+
     def _structure_overlay_tree(self):
         """
         Structure an overlay tree natively and destructively: structuring algorithms mutate the shared graph
@@ -80,13 +105,12 @@ class RecursiveStructurer(Analysis):
                 current_region = stack[-1]
 
                 has_region = False
-                for node in GraphUtils.dfs_postorder_nodes_deterministic(current_region.graph, current_region.head):
-                    if isinstance(node, RegionOverlay):
-                        if node in stack:
-                            stack.remove(node)
-                        stack.append(node)
-                        parent_map[node] = current_region
-                        has_region = True
+                for node in self._child_regions_for_stack(current_region):
+                    if node in stack:
+                        stack.remove(node)
+                    stack.append(node)
+                    parent_map[node] = current_region
+                    has_region = True
 
                 if not has_region:
                     # pop this region from the stack
