@@ -288,10 +288,49 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         assert percentages[-1] == 100.0
         assert any(inst is fpijr for _, _, inst in updates)
 
-        # low_priority must not change the result
+        # every phase has to say what it is doing, and the per-function phase has to name the function it is on
+        texts = [text or "" for _, text, _ in updates]
+        assert any(text.startswith(f"Analyzing {name} (") for text in texts for name in ("dispatch", "main"))
+        assert any("Propagating pointer shapes" in text for text in texts)
+        assert any("Harvesting global pointer tables" in text for text in texts)
+        assert any("Resolving indirect jumps" in text for text in texts)
+        # and the last thing a host is told is the summary of the run
+        assert fpijr.stats.summary() in texts
+
+        # the per-function progress text carries a running count of what has been found so far
+        assert any("indirect sites" in text for text in texts if text.startswith("Analyzing "))
+
         dispatch = cfg.kb.functions["dispatch"]
         expected = {cfg.kb.functions[name].addr for name in ("f0", "f1", "f2", "f3")}
         assert self._union_of_resolutions(fpijr, dispatch) == expected
+
+    def test_run_statistics(self):
+        _, cfg, fpijr = self._run("fpijr_global_table")
+        stats = fpijr.stats
+
+        # every selected function is accounted for, either as analyzed or as failed
+        assert stats.functions_total == len(fpijr._selected_funcs)  # pylint:disable=protected-access
+        assert stats.functions_total > 0
+        assert stats.functions_analyzed + stats.functions_failed == stats.functions_total
+        assert stats.functions_failed == 0
+        assert not stats.aborted
+
+        # the site counters must agree with the results themselves
+        assert stats.sites_found == len(fpijr.indirect_sites)
+        assert stats.sites_resolved == len(fpijr.resolved_indirect_jumps)
+        assert stats.targets_resolved == sum(len(t) for t in fpijr.resolved_indirect_jumps.values())
+        assert 0 < stats.sites_resolved <= stats.sites_found
+        assert stats.propagation_rounds >= 1
+
+        # sites are enumerated whether or not they resolved, with the function they live in and what kind they are
+        dispatch = cfg.kb.functions["dispatch"]
+        sites_in_dispatch = {
+            addr for addr, (func_addr, _) in fpijr.indirect_sites.items() if func_addr == dispatch.addr
+        }
+        assert sites_in_dispatch >= set(fpijr.get_resolutions(dispatch))
+        assert all(kind in ("jump", "call") for _, kind in fpijr.indirect_sites.values())
+
+        assert "indirect sites resolved" in stats.summary()
 
     def test_low_priority(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
@@ -330,6 +369,10 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         assert len(fpijr._func_facts) < len(fpijr._selected_funcs)  # pylint:disable=protected-access
         # partial results must still be a valid dict
         assert isinstance(fpijr.resolved_indirect_jumps, dict)
+        # and the statistics must own up to being partial
+        assert fpijr.stats.aborted
+        assert "aborted" in fpijr.stats.summary()
+        assert fpijr.stats.functions_analyzed < fpijr.stats.functions_total
 
     def test_abort_before_run_is_idempotent(self):
         _, _, fpijr = self._run("fpijr_global_table")

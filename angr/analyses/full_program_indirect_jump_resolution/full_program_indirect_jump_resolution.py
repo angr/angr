@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from angr import ailment
@@ -36,6 +37,16 @@ _MAX_TABLE_ENTRIES = 256
 
 # names of allocation functions whose return value is a fresh heap region
 _ALLOC_FUNCS = {"malloc", "calloc", "realloc", "xmalloc", "xcalloc", "_Znwm", "_Znam"}
+
+# how the progress budget is split between the four phases. The per-function phase (A) is a Clinic run per function
+# and dominates everything else, so it gets almost all of it.
+PHASE_A_BUDGET = 90.0
+PHASE_B_BUDGET = 5.0
+PHASE_C_BUDGET = 3.0
+PHASE_D_BUDGET = 2.0
+
+# how many items of the cheap phases to get through between two progress updates
+_PROGRESS_GRANULARITY = 32
 
 
 class _FuncFacts:
@@ -87,6 +98,49 @@ class _FuncFacts:
         self.call_arg_codeptrs: list[tuple[int, int | None, dict[int, tuple[int | None, frozenset[int]]]]] = []
 
 
+@dataclass
+class ResolutionStatistics:
+    """
+    What a :class:`FullProgramIndirectJumpResolution` run did, for progress reporting and for hosts that want to show
+    a summary of the run.
+
+    :ivar functions_total:    How many functions the run set out to analyze.
+    :ivar functions_analyzed: How many of them it actually got through.
+    :ivar functions_failed:   How many of those raised and were skipped.
+    :ivar sites_found:        How many indirect jump/call sites were seen in the analyzed functions.
+    :ivar sites_resolved:     How many of those sites came out with at least one target.
+    :ivar targets_resolved:   The total number of (site, target) pairs recovered.
+    :ivar propagation_rounds: How many interprocedural propagation rounds ran before the fixed point settled.
+    :ivar tables_harvested:   How many global regions were walked as pointer tables.
+    :ivar aborted:            Whether the run stopped early because :meth:`FullProgramIndirectJumpResolution.abort`
+                              was called; if so, the numbers above describe the partial run.
+    """
+
+    functions_total: int = 0
+    functions_analyzed: int = 0
+    functions_failed: int = 0
+    sites_found: int = 0
+    sites_resolved: int = 0
+    targets_resolved: int = 0
+    propagation_rounds: int = 0
+    tables_harvested: int = 0
+    aborted: bool = False
+
+    def summary(self) -> str:
+        """
+        A one-line, human-readable summary of the run, suitable for a status bar.
+        """
+        parts = [f"{self.functions_analyzed}/{self.functions_total} functions"]
+        if self.functions_failed:
+            parts.append(f"{self.functions_failed} failed")
+        parts.append(f"{self.sites_resolved}/{self.sites_found} indirect sites resolved")
+        if self.sites_resolved:
+            parts.append(f"{self.targets_resolved} targets")
+        if self.aborted:
+            parts.append("aborted")
+        return ", ".join(parts)
+
+
 class FullProgramIndirectJumpResolution(Analysis):
     """
     Resolves indirect jumps and calls across a whole binary using AIL-level pointer-shape analysis.
@@ -111,7 +165,9 @@ class FullProgramIndirectJumpResolution(Analysis):
     The per-function phase dominates the runtime, so the analysis supports the usual angr responsiveness controls:
     pass ``progress_callback`` and/or ``show_progressbar`` (handled by the base :class:`Analysis`) to observe progress,
     ``low_priority=True`` to periodically release the GIL and keep a host application (e.g. a GUI) responsive, and call
-    :meth:`abort` to stop early. Each progress update passes ``analysis=self`` to the callback, so a host can grab the
+    :meth:`abort` to stop early. Progress is reported per phase and, within the per-function phase, per function, with
+    text naming what is being worked on and how much has been found so far; :attr:`stats` holds the same numbers for
+    display once the run is over. Each progress update passes ``analysis=self`` to the callback, so a host can grab the
     running instance and call :meth:`abort` on it (or do so from another thread). An aborted run still finalizes the
     partial results collected so far, leaving ``resolved_indirect_jumps`` valid.
 
@@ -121,7 +177,10 @@ class FullProgramIndirectJumpResolution(Analysis):
 
     :ivar resolved_indirect_jumps: mapping from the instruction address of an indirect jump/call to the set of
                                    resolved target function addresses.
+    :ivar indirect_sites:          every indirect jump/call site that was seen, resolved or not, mapping the
+                                   instruction address to a ``(containing function address, "jump" | "call")`` pair.
     :ivar pointer_shapes:          the descriptor store, exposed for debugging and inspection.
+    :ivar stats:                   a :class:`ResolutionStatistics` describing what the run did.
 
     :param functions:      Optional iterable of Function objects or addresses to restrict the analysis to.
     :param fail_fast:      Re-raise per-function exceptions instead of skipping the offending function.
@@ -153,7 +212,9 @@ class FullProgramIndirectJumpResolution(Analysis):
         self._gil_ctr = 0
 
         self.resolved_indirect_jumps: dict[int, set[int]] = {}
+        self.indirect_sites: dict[int, tuple[int, str]] = {}
         self.pointer_shapes: DescriptorStore = DescriptorStore()
+        self.stats = ResolutionStatistics()
 
         self._cfg_model: CFGModel | None = self._get_cfg_model()
         self._func_facts: dict[int, _FuncFacts] = {}
@@ -315,10 +376,12 @@ class FullProgramIndirectJumpResolution(Analysis):
         # Phase A dominates the runtime (a Clinic run per function), so it owns most of the progress budget; the
         # cheap interprocedural phases share the remainder.
         total = len(self._selected_funcs)
+        self.stats.functions_total = total
 
         # Phase A: per-function intra-procedural shape extraction
         for i, func in enumerate(self._selected_funcs):
             if self._should_abort:
+                self.stats.aborted = True
                 l.info(
                     "FullProgramIndirectJumpResolution aborted after %d/%d functions; finalizing partial results.",
                     i,
@@ -327,39 +390,61 @@ class FullProgramIndirectJumpResolution(Analysis):
                 break
             if total:
                 self._update_progress(
-                    i * 90.0 / total,
-                    text=f"Analyzing function {i + 1}/{total} at {func.addr:#x}",
-                    analysis=self,
+                    i * PHASE_A_BUDGET / total, text=self._phase_a_text(func, i, total), analysis=self
                 )
             try:
                 self._analyze_function(func)
+                self.stats.functions_analyzed += 1
+                facts = self._func_facts.get(func.addr)
+                if facts is not None:
+                    self.stats.sites_found += len(facts.indirect_sites)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast_flag:
                     raise
+                self.stats.functions_failed += 1
                 l.warning("Failed to analyze function %#x for indirect jump resolution.", func.addr, exc_info=True)
             if self._low_priority:
                 self._gil_ctr += 1
                 self._release_gil(self._gil_ctr, 1)
 
+        if total and self.stats.functions_failed == total:
+            # every single function failed, which produces exactly the same empty result as a binary with nothing to
+            # resolve. Say so, or a broken run looks like a clean one.
+            l.warning(
+                "Indirect jump resolution failed on all %d functions; the empty result reflects those failures, not "
+                "the absence of indirect jumps. Re-run with fail_fast=True to see the first exception.",
+                total,
+            )
+
         # The remaining phases are cheap relative to Phase A and bounded by the facts already collected, so they run to
         # completion even after an abort in order to turn those partial facts into the best resolutions possible.
 
         # Phase B: interprocedural pointer-shape propagation (fixed point)
-        self._update_progress(90.0, text="Propagating pointer shapes", analysis=self)
         self._propagate_interproc()
 
         # Phase C: harvest global tables now that strides/fields have settled
-        self._update_progress(95.0, text="Harvesting global tables", analysis=self)
         self._harvest_global_tables()
 
         # Phase D: resolve indirect sites
-        self._update_progress(98.0, text="Resolving indirect jumps", analysis=self)
         self._resolve_sites()
 
         if self._update_kb_flag:
             self._publish_to_kb()
 
+        l.info("FullProgramIndirectJumpResolution: %s.", self.stats.summary())
+        self._update_progress(100.0, text=self.stats.summary(), analysis=self)
         self._finish_progress()
+
+    def _phase_a_text(self, func: Function, i: int, total: int) -> str:
+        """
+        Progress text for the per-function phase: where we are, what we are on, and what has been found so far.
+        """
+        text = f"Analyzing {func.name} ({i + 1}/{total})"
+        if self.stats.sites_found:
+            text += f" - {self.stats.sites_found} indirect sites"
+        if self.stats.functions_failed:
+            text += f", {self.stats.functions_failed} failed"
+        return text
 
     def _publish_to_kb(self) -> None:
         """
@@ -1046,9 +1131,18 @@ class FullProgramIndirectJumpResolution(Analysis):
     #
 
     def _propagate_interproc(self) -> None:
-        for _ in range(self._max_iterations):
+        for i in range(self._max_iterations):
+            self._update_progress(
+                PHASE_A_BUDGET + i * PHASE_B_BUDGET / self._max_iterations,
+                text=f"Propagating pointer shapes across the call graph (round {i + 1}/{self._max_iterations})",
+                analysis=self,
+            )
             changed = self._propagate_regions()
             changed |= self._propagate_codeptrs()
+            self.stats.propagation_rounds = i + 1
+            if self._low_priority:
+                self._gil_ctr += 1
+                self._release_gil(self._gil_ctr, 1)
             if not changed:
                 break
 
@@ -1166,10 +1260,22 @@ class FullProgramIndirectJumpResolution(Analysis):
     #
 
     def _harvest_global_tables(self) -> None:
-        for region, desc in list(self.pointer_shapes.items()):
-            if not isinstance(region, GlobalRegion):
-                continue
+        # materialized up front: harvesting a table can create new descriptors in the store
+        regions = [(region, desc) for region, desc in self.pointer_shapes.items() if isinstance(region, GlobalRegion)]
+        total = len(regions)
+        base = PHASE_A_BUDGET + PHASE_B_BUDGET
+        for i, (region, desc) in enumerate(regions):
+            if i % _PROGRESS_GRANULARITY == 0:
+                self._update_progress(
+                    base + i * PHASE_C_BUDGET / total,
+                    text=f"Harvesting global pointer tables ({i + 1}/{total})",
+                    analysis=self,
+                )
             self._harvest_global_table(region, desc)
+            self.stats.tables_harvested += 1
+            if self._low_priority:
+                self._gil_ctr += 1
+                self._release_gil(self._gil_ctr, _PROGRESS_GRANULARITY)
 
     def _harvest_global_table(self, region: GlobalRegion, desc: PointerShapeDescriptor) -> None:
         base = region.addr
@@ -1247,13 +1353,31 @@ class FullProgramIndirectJumpResolution(Analysis):
     #
 
     def _resolve_sites(self) -> None:
-        for func_addr, facts in self._func_facts.items():
-            for ins_addr, _kind, target in facts.indirect_sites:
+        total = len(self._func_facts)
+        base = PHASE_A_BUDGET + PHASE_B_BUDGET + PHASE_C_BUDGET
+        for i, (func_addr, facts) in enumerate(self._func_facts.items()):
+            if i % _PROGRESS_GRANULARITY == 0:
+                self._update_progress(
+                    base + i * PHASE_D_BUDGET / total,
+                    text=f"Resolving indirect jumps ({len(self.resolved_indirect_jumps)} sites resolved so far)",
+                    analysis=self,
+                )
+            for ins_addr, kind, target in facts.indirect_sites:
+                self.indirect_sites[ins_addr] = (func_addr, kind)
                 targets = self._evaluate_target(facts, target, ins_addr)
                 targets = {t for t in targets if self._is_valid_target(t)}
                 if targets:
                     self.resolved_indirect_jumps.setdefault(ins_addr, set()).update(targets)
                     self._site_to_func[ins_addr] = func_addr
+            if self._low_priority:
+                self._gil_ctr += 1
+                self._release_gil(self._gil_ctr, _PROGRESS_GRANULARITY)
+
+        # the site counters are recomputed here rather than accumulated, so they stay truthful even if a site address
+        # showed up in more than one function's facts
+        self.stats.sites_found = len(self.indirect_sites)
+        self.stats.sites_resolved = len(self.resolved_indirect_jumps)
+        self.stats.targets_resolved = sum(len(targets) for targets in self.resolved_indirect_jumps.values())
 
     def _evaluate_target(self, facts: _FuncFacts, target, site_addr: int | None = None) -> set[int]:
         target = _unwrap_copy(target)

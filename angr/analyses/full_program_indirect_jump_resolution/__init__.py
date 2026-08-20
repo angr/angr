@@ -1,5 +1,5 @@
 from __future__ import annotations
 
-from .full_program_indirect_jump_resolution import FullProgramIndirectJumpResolution
+from .full_program_indirect_jump_resolution import FullProgramIndirectJumpResolution, ResolutionStatistics
 
-__all__ = ("FullProgramIndirectJumpResolution",)
+__all__ = ("FullProgramIndirectJumpResolution", "ResolutionStatistics")
