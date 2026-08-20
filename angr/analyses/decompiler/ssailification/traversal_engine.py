@@ -22,7 +22,7 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.statement import CAS, ConditionalJump, SideEffectStatement, Store
-from angr.calling_conventions import call_clobbered_regs, default_cc
+from angr.calling_conventions import call_clobbered_regs, default_cc, project_language
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
@@ -597,7 +597,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         elif target is not None and target.calling_convention is not None:
             cc = target.calling_convention
         else:
-            cc = default_cc(self.arch.name, platform=self.simos.name if self.simos is not None else None)
+            cc = default_cc(
+                self.arch.name,
+                platform=self.simos.name if self.simos is not None else None,
+                language=project_language(self.project),
+            )
             assert cc is not None
             cc = cc(self.arch)
 

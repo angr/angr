@@ -9,7 +9,7 @@ import pyvex
 
 from angr.analyses.propagator.propagator import PropagatorVEXState
 from angr.block import Block
-from angr.calling_conventions import DEFAULT_CC, SYSCALL_CC, SimRegArg, default_cc
+from angr.calling_conventions import DEFAULT_CC, SYSCALL_CC, SimRegArg, default_cc, project_language
 from angr.engines.light import SimEngineNostmtVEX
 from angr.engines.vex.claripy.datalayer import value
 from angr.knowledge_plugins.propagations.states import RegisterAnnotation, RegisterComparisonAnnotation
@@ -115,6 +115,7 @@ class SimEnginePropagatorVEX(
             cc = default_cc(
                 self.arch.name,
                 platform=self.project.simos.name if self.project.simos is not None else None,
+                language=project_language(self.project),
                 syscall=syscall,
             )  # don't instantiate the class for speed
             assert cc is not None
