@@ -911,7 +911,10 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
     which case the pattern must be attempted everywhere.
     """
     if isinstance(node, PLoad):
-        return ("Load", None)
+        # the width is part of the discriminator: PLoad.match rejects a
+        # different-sized Load outright, so a sized pattern need never be tried
+        # at one
+        return ("Load", None if node.size is None else str(node.size))
     if isinstance(node, PBinOp):
         return ("BinaryOp", node.op if isinstance(node.op, str) else None)
     if isinstance(node, PUnaryOp):
@@ -961,10 +964,49 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
     return None
 
 
+StmtKey = tuple[str, tuple[str, str | None] | None]
+
+
+def stmt_pattern_anchor_key(node: PatternNode) -> StmtKey | None:
+    """The discriminator of a *statement* pattern's first statement.
+
+    Statement patterns are anchored at every statement of every block and then
+    scan forward, so trying one that cannot possibly match is the expensive kind
+    of waste. The key is the statement kind plus the anchor key of the expression
+    that carries the pattern's shape -- an assignment's source, a store's value
+    -- which is what separates ``t = *a`` (a swap) from the assignments that
+    make up most of a block.
+    """
+    if isinstance(node, PStmtSeq):
+        return stmt_pattern_anchor_key(node.stmts[0]) if node.stmts else None
+    if isinstance(node, PAssign):
+        return ("Assignment", pattern_anchor_key(node.src))
+    if isinstance(node, PStore):
+        return ("Store", pattern_anchor_key(node.value))
+    if isinstance(node, PCondJump):
+        return ("ConditionalJump", None)
+    if isinstance(node, PCallStmt):
+        return ("Call", None)
+    return None
+
+
+def stmt_anchor_key(stmt: Statement) -> StmtKey:
+    """The anchor key of a concrete AIL statement, for pruning."""
+    if isinstance(stmt, Assignment):
+        return ("Assignment", expr_anchor_key(stmt.src))
+    if isinstance(stmt, Store):
+        return ("Store", expr_anchor_key(stmt.data))
+    if isinstance(stmt, ConditionalJump):
+        return ("ConditionalJump", None)
+    if isinstance(stmt, SideEffectStatement):
+        return ("Call", None)
+    return ("", None)
+
+
 def expr_anchor_key(expr: Expression) -> tuple[str, str | None]:
     """The anchor key of a concrete AIL expression, for pruning."""
     if isinstance(expr, Load):
-        return ("Load", None)
+        return ("Load", str(expr.size))
     if isinstance(expr, BinaryOp):
         return ("BinaryOp", expr.op)
     if isinstance(expr, UnaryOp):
