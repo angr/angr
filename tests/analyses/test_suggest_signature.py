@@ -470,6 +470,27 @@ class TestSuggestSignatureOverHTTP(unittest.TestCase):
         assert proj.kb.functions[0x415CC0].is_default_name is False
         assert proj.kb.functions[0x415CC0].from_signature == "flirt"
 
+    def test_supplied_query_inputs_are_what_is_sent(self):
+        # a caller that must show the user what will be uploaded collects the constants itself and passes them in;
+        # exactly those, and nothing re-collected, must reach the server
+        from angr.sigs import collect_query_integers, collect_query_strings  # pylint:disable=import-outside-toplevel
+
+        cfg_model = self.proj.kb.cfgs.get_most_accurate()
+        strings = collect_query_strings(self.proj, cfg_model)
+        assert strings and all(s in strings for s in LIBC_STRINGS)
+        assert all(v >= 0x10000 for v in collect_query_integers(self.proj, cfg_model))
+
+        approved = sorted(set(LIBC_STRINGS))
+        analysis = self.proj.analyses.SuggestSignature(
+            server_url=self.server.url, apply=False, query_strings=approved, query_integers=[]
+        )
+        assert analysis.query_strings == approved
+        assert analysis.query_integers == []
+        sent = self.server.queries[-1]
+        assert sent["strings"] == approved
+        assert sent["integers"] == []
+        assert analysis.accepted
+
     def test_suggest_over_http(self):
         analysis = self.proj.analyses.SuggestSignature(server_url=self.server.url, apply=False)
 

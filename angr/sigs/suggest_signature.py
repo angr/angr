@@ -18,6 +18,74 @@ _l = logging.getLogger(name=__name__)
 MIN_STRING_LEN = 6
 
 
+def collect_query_strings(project, cfg_model) -> list[str]:
+    """
+    Collect the string constants of a binary to query a signature server with.
+
+    Strings are truncated to ``MAX_UNIQUE_STRING_LEN`` because that is how signature metadata stores them, and a
+    server matches a query string as a substring of what it stored.
+
+    :param project:     The project the strings are recovered from.
+    :param cfg_model:   The CFG model holding the recovered memory data.
+    :return:            The collected strings, sorted.
+    """
+    strings: set[str] = set()
+    for md in cfg_model.memory_data.values():
+        if md.sort not in (MemoryDataSort.String, MemoryDataSort.UnicodeString):
+            continue
+        content = md.content
+        if content is None:
+            if not md.size:
+                continue
+            content = project.loader.memory.load(md.addr, md.size)
+        try:
+            if md.sort == MemoryDataSort.UnicodeString:
+                s = content.decode("utf-16-le", errors="ignore")
+            else:
+                s = content.decode("ascii", errors="ignore")
+        except (UnicodeDecodeError, AttributeError):
+            continue
+        s = s.rstrip("\x00")
+        if len(s) < MIN_STRING_LEN:
+            continue
+        strings.add(s[:MAX_UNIQUE_STRING_LEN])
+    return sorted(strings)
+
+
+def collect_query_integers(project, cfg_model) -> list[int]:
+    """
+    Collect the integer constants of a binary to query a signature server with.
+
+    Values too small to identify anything and values that look like pointers into the binary are left out.
+
+    :param project:     The project the constants are recovered from.
+    :param cfg_model:   The CFG model holding the recovered memory data.
+    :return:            The collected integers, sorted.
+    """
+    endness = "little" if project.arch.memory_endness == "Iend_LE" else "big"
+    min_addr = project.loader.min_addr
+    max_addr = project.loader.max_addr
+    integers: set[int] = set()
+    for md in cfg_model.memory_data.values():
+        if md.sort != MemoryDataSort.Integer or md.size not in (4, 8):
+            continue
+        try:
+            raw = project.loader.memory.load(md.addr, md.size)
+        except KeyError:
+            continue
+        if len(raw) != md.size:
+            continue
+        v = int.from_bytes(raw, endness)
+        if v < 0x10000 or v > 0x7FFF_FFFF_FFFF_FFFF:
+            # too small to be a meaningful constant, or does not fit in a signed 64-bit integer
+            continue
+        if min_addr <= v <= max_addr and project.loader.find_object_containing(v) is not None:
+            # pointer-looking value; skip
+            continue
+        integers.add(v)
+    return sorted(integers)
+
+
 class SuggestSignatureAnalysis(Analysis):
     """
     SuggestSignatureAnalysis queries a sigserv signature server with string and integer constants recovered from the
@@ -34,6 +102,11 @@ class SuggestSignatureAnalysis(Analysis):
     grouped by the concrete library name (the ``library`` field of the signature metadata, falling back to the
     signature name when unset), and only the ``max_signatures_per_library`` best-scored signatures of each library are
     accepted.
+
+    The constants to query with are recovered from the CFG by default. A caller that must know in advance what
+    will be sent -- a UI asking the user to approve an upload, say -- can collect them itself with
+    :func:`collect_query_strings` and :func:`collect_query_integers` and pass them as ``query_strings`` and
+    ``query_integers``, which guarantees that what is sent is what was approved and skips the second collection.
 
     Results are stored in ``suggestions`` (all arch-compatible suggestions returned by sigserv), ``accepted`` (the
     accepted subset, best-scored first), ``accepted_by_library`` (the accepted subset grouped by library), and
@@ -52,6 +125,8 @@ class SuggestSignatureAnalysis(Analysis):
         max_signatures: int | None = None,
         platform: str | None = None,
         max_mismatched_bytes: int = 0,
+        query_strings: list[str] | None = None,
+        query_integers: list[int] | None = None,
     ):
         if sum(1 for src in (signatures_dir, db_url, server_url, sig_server) if src is not None) != 1:
             raise AngrValueError("Exactly one of signatures_dir, db_url, server_url, or sig_server must be provided")
@@ -74,12 +149,20 @@ class SuggestSignatureAnalysis(Analysis):
             )
         self._sig_server = sig_server
 
-        cfg_model = self.kb.cfgs.get_most_accurate()
-        if cfg_model is None or not cfg_model.memory_data:
-            raise AngrRuntimeError("A CFG with memory data is required; run CFGFast before SuggestSignature")
+        if query_strings is None or query_integers is None:
+            cfg_model = self.kb.cfgs.get_most_accurate()
+            if cfg_model is None or not cfg_model.memory_data:
+                raise AngrRuntimeError("A CFG with memory data is required; run CFGFast before SuggestSignature")
+        else:
+            # everything to query with was supplied; the CFG is not needed
+            cfg_model = None
 
-        self.query_strings: list[str] = self._collect_strings(cfg_model)
-        self.query_integers: list[int] = self._collect_integers(cfg_model)
+        self.query_strings: list[str] = (
+            list(query_strings) if query_strings is not None else collect_query_strings(self.project, cfg_model)
+        )
+        self.query_integers: list[int] = (
+            list(query_integers) if query_integers is not None else collect_query_integers(self.project, cfg_model)
+        )
 
         suggestions = self._sig_server.query(
             strings=self.query_strings, integers=self.query_integers, arch=None, platform=platform
@@ -129,53 +212,6 @@ class SuggestSignatureAnalysis(Analysis):
                     )
                     flirt = self.project.analyses.Flirt(local_path, max_mismatched_bytes=max_mismatched_bytes)
                     self.applied[sig_path] = sum(len(d) for _, d in flirt.matched_suggestions.values())
-
-    def _collect_strings(self, cfg_model) -> list[str]:
-        strings: set[str] = set()
-        for md in cfg_model.memory_data.values():
-            if md.sort not in (MemoryDataSort.String, MemoryDataSort.UnicodeString):
-                continue
-            content = md.content
-            if content is None:
-                if not md.size:
-                    continue
-                content = self.project.loader.memory.load(md.addr, md.size)
-            try:
-                if md.sort == MemoryDataSort.UnicodeString:
-                    s = content.decode("utf-16-le", errors="ignore")
-                else:
-                    s = content.decode("ascii", errors="ignore")
-            except (UnicodeDecodeError, AttributeError):
-                continue
-            s = s.rstrip("\x00")
-            if len(s) < MIN_STRING_LEN:
-                continue
-            strings.add(s[:MAX_UNIQUE_STRING_LEN])
-        return sorted(strings)
-
-    def _collect_integers(self, cfg_model) -> list[int]:
-        endness = "little" if self.project.arch.memory_endness == "Iend_LE" else "big"
-        min_addr = self.project.loader.min_addr
-        max_addr = self.project.loader.max_addr
-        integers: set[int] = set()
-        for md in cfg_model.memory_data.values():
-            if md.sort != MemoryDataSort.Integer or md.size not in (4, 8):
-                continue
-            try:
-                raw = self.project.loader.memory.load(md.addr, md.size)
-            except KeyError:
-                continue
-            if len(raw) != md.size:
-                continue
-            v = int.from_bytes(raw, endness)
-            if v < 0x10000 or v > 0x7FFF_FFFF_FFFF_FFFF:
-                # too small to be a meaningful constant, or does not fit in a signed 64-bit integer
-                continue
-            if min_addr <= v <= max_addr and self.project.loader.find_object_containing(v) is not None:
-                # pointer-looking value; skip
-                continue
-            integers.add(v)
-        return sorted(integers)
 
     def _arch_matches(self, sig_arch: str | None) -> bool:
         if not sig_arch:
