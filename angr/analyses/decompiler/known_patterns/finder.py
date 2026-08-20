@@ -1996,6 +1996,33 @@ class KnownPatternFinder(Analysis):
                         return UnaryOp(self._next_idx(), "Reference", expr.copy(), bits=sbo.bits, **sbo.tags)
         return sbo.copy()
 
+    def _fresh_idx(self, expr: Expression) -> Expression:
+        """A copy of ``expr`` with a fresh index wherever it has none.
+
+        The decompiler's VariableMap is keyed by AIL index, and an object built
+        with ``idx=None`` lands at index 0 -- so every such object shares one
+        entry and renders as whatever variable was registered there. PField
+        synthesizes a field address (``root + K``) that way, because the DSL has
+        no access to the AIL manager, and four such addresses in one function
+        all came out as the same ``&<const>``.
+        """
+        if isinstance(expr, BinaryOp) and not expr.idx:
+            return BinaryOp(
+                self._next_idx(),
+                expr.op,
+                [self._fresh_idx(o) for o in expr.operands],
+                expr.signed,
+                bits=expr.bits,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
+        if isinstance(expr, Const) and not expr.idx:
+            return Const(self._next_idx(), expr.value, expr.bits, **expr.tags)
+        if isinstance(expr, UnaryOp) and not expr.idx:
+            return UnaryOp(self._next_idx(), expr.op, self._fresh_idx(expr.operand), bits=expr.bits, **expr.tags)
+        return expr.copy()
+
     def _call_args_of(self, match: KnownPatternMatch, blocks: Iterable[Block]) -> list[Expression]:
         """The synthesized call's arguments, from the pattern's captures."""
         blocks = list(blocks)
@@ -2004,7 +2031,11 @@ class KnownPatternFinder(Analysis):
             captured = match.captures.get(name)
             if captured is None:
                 raise UnsupportedOutlineError(f"pattern {match.pattern.name}: capture {name!r} is unbound")
-            args.append(self._stack_ref(captured, blocks) if isinstance(captured, StackBaseOffset) else captured.copy())
+            args.append(
+                self._stack_ref(captured, blocks)
+                if isinstance(captured, StackBaseOffset)
+                else self._fresh_idx(captured)
+            )
         return args
 
     def _rewrite_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
@@ -2282,14 +2313,8 @@ class KnownPatternFinder(Analysis):
             )
 
         ins_addr = stmts[span[0]].tags.get("ins_addr")
-        # a capture bound to `root + K` -- a field of some other object -- gets a
-        # variable of its own, exactly as outlining gives it one. Passing the
-        # address expression raw leaves codegen with a pointer into the middle of
-        # a struct and no field to name it by.
-        base_stmts, _rebases, base_caps = self._materialize_bases(revalidated, ins_addr)
-        if base_caps:
-            revalidated = dataclass_replace(revalidated, captures={**revalidated.captures, **base_caps})
         args = self._call_args_of(revalidated, [block])
+        base_stmts: list[Statement] = []
         call = Call(
             self._next_idx(),
             match.pattern.call_name,

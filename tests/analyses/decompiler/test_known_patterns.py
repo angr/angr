@@ -1470,19 +1470,70 @@ class TestSwapWidthsAndInterleaving(TestCase):
         for width in (1, 2, 4, 8):
             assert {f"std_swap_{width}", f"std_swap_{width}_scheduled", f"std_swap_{width}_scheduled_rev"} <= names
 
-    def test_interleaved_field_swap(self):
+    @staticmethod
+    def _decompile_pair_swap():
+        """pair_swap, decompiled the way a real run does it.
+
+        ``data_references=True`` is not decoration: without it calling-convention
+        recovery keeps a spurious return value for this void function, which
+        pins one swap's temporary and makes it unnameable. That is a CC
+        over-approximation, not a pattern gap -- the finder-level test below
+        matches all three either way.
+        """
+        proj = angr.Project(TestSwapWidthsAndInterleaving.STL4_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name="pair_swap")
+        assert func is not None
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return proj, cfg, func, dec
+
+    def test_all_three_field_swaps_are_matched(self):
         # Pair's three fields are 8, 4 and 1 bytes and gcc interleaves the three
         # swaps -- the next field's load lands between this one's store and its
-        # writeback. All three have to be named; asserting only that *a*
-        # std::swap appears passed while two of the three were still raw
+        # writeback. All three have to be *found*; asserting only that "a"
+        # std::swap appeared passed while two of the three were still raw
         # load/store shuffles.
-        _, _, _, dec = _decompile(self.STL4_BIN, "pair_swap", preset="full")
+        proj, _, func, dec = _decompile(self.STL4_BIN, "pair_swap")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        swaps = [m for m in finder.matches if m.pattern.name == "std_swap"]
+        assert len(swaps) == 3, [(m.pattern.name, sorted(m.stmt_span or ())) for m in finder.matches]
+        # three different spans, one per field
+        assert len({tuple(sorted(m.stmt_span or ())) for m in swaps}) == 3
+
+    def test_interleaved_field_swap(self):
+        _, _, _, dec = self._decompile_pair_swap()
         text = dec.codegen.text
-        assert text.count("std::swap(") == 3, text
-        # ...and they are three different swaps, one per field, not one call
-        # reported three times
-        args = re.findall(r"std::swap\(([^)]*)\)", text)
-        assert len(args) == 3 and len(set(args)) == 3, text
+        calls = [line.strip() for line in text.splitlines() if "std::swap(" in line]
+        # all three, and three *different* swaps rather than one reported thrice
+        assert len(calls) == 3 and len(set(calls)) == 3, text
+        # each takes its field addresses straight from the parameters -- no
+        # helper variable per argument. Those were forced by the VariableMap's
+        # index keying: PField synthesizes `root + K` with idx=None, everything
+        # with no index lands at index 0, and four such addresses in one
+        # function all rendered as the same `&<const>`.
+        for call in calls:
+            assert "a0" in call and "a1" in call, text
+
+    def test_synthesized_arguments_get_distinct_indices(self):
+        # the AIL side of the same thing: the VariableMap is keyed by index, so
+        # two synthesized arguments sharing one is two arguments sharing a
+        # variable
+        from angr.ailment.expression import Call
+        from angr.analyses.decompiler.known_patterns.finder import _iter_subexprs
+
+        _, _, _, dec = self._decompile_pair_swap()
+        idxs = [
+            arg.idx
+            for b in dec.ail_graph.nodes()
+            for st in b.statements
+            for e in _iter_subexprs(st)
+            if isinstance(e, Call) and e.target == "std::swap"
+            for arg in (e.args or ())
+        ]
+        assert len(idxs) == 6, idxs
+        assert 0 not in idxs and len(set(idxs)) == 6, idxs
 
     def test_narrow_widths_are_matched_on_their_own(self):
         for func in ("swap_ints", "swap_chars"):
