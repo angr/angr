@@ -571,18 +571,14 @@ class FullProgramIndirectJumpResolution(Analysis):
             changed |= self._handle_call(func, facts, call, call_ins)
 
         # indirect jumps
-        if isinstance(stmt, ailment.Stmt.Jump) and not isinstance(stmt.target, ailment.Expr.Const):
-            ins_addr = _ins_addr_of(stmt)
-            if ins_addr is not None:
-                facts.indirect_sites.append((ins_addr, "jump", stmt.target))
+        if isinstance(stmt, ailment.Stmt.Jump) and _is_computed_target(stmt.target) and ins_addr is not None:
+            facts.indirect_sites.append((ins_addr, "jump", stmt.target))
 
         # indirect conditional jumps (rare at this level, but be safe)
         if isinstance(stmt, ailment.Stmt.ConditionalJump):
             for tgt in (stmt.true_target, stmt.false_target):
-                if tgt is not None and not isinstance(tgt, ailment.Expr.Const):
-                    ins_addr = _ins_addr_of(stmt)
-                    if ins_addr is not None:
-                        facts.indirect_sites.append((ins_addr, "jump", tgt))
+                if tgt is not None and _is_computed_target(tgt) and ins_addr is not None:
+                    facts.indirect_sites.append((ins_addr, "jump", tgt))
 
         return changed
 
@@ -758,7 +754,11 @@ class FullProgramIndirectJumpResolution(Analysis):
 
         # indirect call site
         if not isinstance(call.target, ailment.Expr.Const):
-            if call_ins is not None and (call_ins, "call", call.target) not in facts.indirect_sites:
+            if (
+                _is_computed_target(call.target)
+                and call_ins is not None
+                and (call_ins, "call", call.target) not in facts.indirect_sites
+            ):
                 facts.indirect_sites.append((call_ins, "call", call.target))
             return changed
 
@@ -1794,6 +1794,19 @@ class _ExprCollector(AILBlockViewer):
         if isinstance(expr, self._expr_cls):
             self.results.append(expr)
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _is_computed_target(expr) -> bool:
+    """
+    Whether a jump or call target is an address computed at run time, i.e. something worth trying to resolve.
+
+    A constant target is a direct branch. Anything modelling a VEX artifact is not an address at all: an ``hlt``, for
+    instance, lifts to a call to the ``__debugbreak()`` dirty helper, which would otherwise be reported as an
+    indirect call site sitting on an ``hlt`` instruction.
+    """
+    if expr is None or isinstance(expr, ailment.Expr.Const):
+        return False
+    return not isinstance(expr, (ailment.Expr.DirtyExpression, ailment.Expr.VEXCCallExpression))
 
 
 def _codeptr_source_varids(expr) -> set[int]:

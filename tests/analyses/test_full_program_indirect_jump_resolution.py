@@ -268,6 +268,24 @@ class TestFullProgramIndirectJumpResolution(unittest.TestCase):
         proj.analyses.FullProgramIndirectJumpResolution()
         assert {addr: len(targets) for addr, targets in indirect_jumps.resolved.items()} == counts
 
+    def test_dirty_helpers_are_not_indirect_calls(self):
+        # An hlt lifts to a call to the __debugbreak() dirty helper, and a ccall expression is not an address either.
+        # Neither is a computed target, so neither may be recorded as an indirect jump or call site.
+        from angr import ailment  # pylint:disable=import-outside-toplevel
+
+        _, cfg, fpijr = self._run("fpijr_global_table")
+
+        for facts in fpijr._func_facts.values():  # pylint:disable=protected-access
+            for site, _kind, target in facts.indirect_sites:
+                assert not isinstance(target, (ailment.Expr.DirtyExpression, ailment.Expr.VEXCCallExpression)), (
+                    f"VEX artifact recorded as an indirect site at {site:#x}: {target!r}"
+                )
+
+        # and the real site is still there
+        dispatch = cfg.kb.functions["dispatch"]
+        expected = {cfg.kb.functions[name].addr for name in ("f0", "f1", "f2", "f3")}
+        assert self._union_of_resolutions(fpijr, dispatch) == expected
+
     def test_progress_callback(self):
         binary_path = os.path.join(test_location, "x86_64", "fpijr_global_table")
         proj = angr.Project(binary_path, auto_load_libs=False)
