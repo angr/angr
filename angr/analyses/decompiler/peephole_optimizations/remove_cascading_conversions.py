@@ -20,6 +20,8 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
             and expr.operand.to_type == Convert.TYPE_INT
         ):
             inner = expr.operand
+            if expr.tags.get("narrowing_adapter", False) or inner.tags.get("narrowing_adapter", False):
+                return None
             if inner.from_bits == expr.to_bits and inner.from_type == expr.to_type:
                 if inner.from_bits < inner.to_bits:
                     # extension -> truncation
