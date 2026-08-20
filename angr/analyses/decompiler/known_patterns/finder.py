@@ -55,6 +55,8 @@ from .dsl import (
     PStmtSeq,
     expr_anchor_key,
     pattern_anchor_key,
+    stmt_anchor_key,
+    stmt_pattern_anchor_key,
 )
 from .pattern import KnownPattern
 
@@ -317,7 +319,10 @@ class KnownPatternFinder(Analysis):
         The library is generated per element size -- one std::vector<T>::size
         template for every sizeof(T) -- so it runs to four figures, and a linear
         scan that recomputes pattern_anchor_key at every expression of every
-        block is quadratic in exactly the wrong variable.
+        block is quadratic in exactly the wrong variable. Statement patterns are
+        bucketed the same way, on the key of their first statement -- they are
+        anchored at every statement of every block and then scan forward, so
+        each one tried needlessly costs a scan.
 
         Must be re-run whenever ``_patterns`` changes: the corroboration stage
         enlarges it mid-analysis, and an index built only in __init__ silently
@@ -326,9 +331,20 @@ class KnownPatternFinder(Analysis):
         self._expr_patterns_by_key: dict[tuple[str, str | None], list[KnownPattern]] = defaultdict(list)
         self._expr_patterns_any: list[KnownPattern] = []
         self._stmt_patterns: list[KnownPattern] = []
+        self._stmt_patterns_by_key: dict[tuple, list[KnownPattern]] = defaultdict(list)
+        self._stmt_patterns_by_kind: dict[str, list[KnownPattern]] = defaultdict(list)
+        self._stmt_patterns_any: list[KnownPattern] = []
         for p in self._patterns:
             if isinstance(p.pattern, PatternStmt):
                 self._stmt_patterns.append(p)
+                if isinstance(p.pattern, PStmtSeq) and not p.pattern.ordered:
+                    continue  # matched once per block, not anchored at a statement
+                skey = stmt_pattern_anchor_key(p.pattern)
+                if skey is None:
+                    self._stmt_patterns_any.append(p)
+                else:
+                    self._stmt_patterns_by_key[skey].append(p)
+                    self._stmt_patterns_by_kind[skey[0]].append(p)
                 continue
             if not isinstance(p.pattern, PatternExpr):
                 continue
@@ -337,6 +353,26 @@ class KnownPatternFinder(Analysis):
                 self._expr_patterns_any.append(p)
             else:
                 self._expr_patterns_by_key[pkey].append(p)
+
+    def _stmt_candidates(self, key) -> list[KnownPattern]:
+        """Ordered statement patterns worth anchoring at a statement with this key.
+
+        Like :meth:`_expr_candidates`, with one extra fallback: the payload may
+        not be the shape the pattern will end up matching. A bare virtual
+        variable can be *chased* to its definition, and a Convert is skipped
+        through -- a byte swap's temporary is loaded as ``Conv(8->32, Load(a))``
+        and matched by a plain PLoad. Neither shape is knowable from the key, so
+        every pattern of that statement kind stays a candidate.
+        """
+        kind, sub = key
+        if sub is not None and sub[0] in ("VirtualVariable", "Convert"):
+            return self._stmt_patterns_any + self._stmt_patterns_by_kind.get(kind, [])
+        out = self._stmt_patterns_any + self._stmt_patterns_by_key.get(key, [])
+        if sub is not None:
+            out += self._stmt_patterns_by_key.get((kind, None), [])
+            if sub[1] is not None:
+                out += self._stmt_patterns_by_key.get((kind, (sub[0], None)), [])
+        return out
 
     def _expr_candidates(self, key: tuple[str, str | None]) -> list[KnownPattern]:
         """Patterns worth trying at an expression with this anchor key: those
@@ -446,6 +482,18 @@ class KnownPatternFinder(Analysis):
         # anchored in one of them (std::string::length matches the bare _M_finish
         # load of every std::vector<T>::size) — then, among matches of the same
         # size, the one closest to the statement root (shortest expr_path).
+        # Among *statement-span* matches covering the same statements, the one
+        # that chased fewest definitions wins: a chased definition has to be
+        # moved to where the call goes, which anything side-effecting in between
+        # forbids, so a spelling that describes the code as it stands is
+        # strictly easier to apply. Two statement orders of std::swap can cover
+        # one field swap -- one reading the second value inline (and chasing its
+        # definition), one with both loads hoisted -- and only the second can be
+        # applied when the neighbouring field's store sits between them. It is
+        # deliberately not applied to graph and expression matches: their
+        # footprint is only their entry statement, so a chase count would
+        # outrank match size and let a destructor's own guard beat the
+        # destructor.
         # Registration order only breaks remaining ties. Matches are positioned at
         # the first statement they cover rather than at their anchor, so that a
         # match reaching back over earlier statements is offered first.
@@ -456,6 +504,7 @@ class KnownPatternFinder(Analysis):
                 -1 if m.block_loc[1] is None else m.block_loc[1],
                 min(self._stmt_footprint(m)),
                 -len(self._stmt_footprint(m)),
+                len(m.consumed_stmt_idxs) if m.stmt_span is not None else 0,
                 len(m.expr_path),
                 pattern_order[id(m.pattern)],
             )
@@ -594,9 +643,7 @@ class KnownPatternFinder(Analysis):
                 continue
             # statement-level patterns (single statements and ordered sequences)
             if not isinstance(stmt, Label):
-                for pattern in self._stmt_patterns:
-                    if isinstance(pattern.pattern, PStmtSeq) and not pattern.pattern.ordered:
-                        continue
+                for pattern in self._stmt_candidates(stmt_anchor_key(stmt)):
                     m = self._try_match_stmt_seq(pattern, block, stmt_idx)
                     if m is not None:
                         yield m
@@ -1220,6 +1267,70 @@ class KnownPatternFinder(Analysis):
     # outlining
     #
 
+    def apply_matches(
+        self, matches: list[KnownPatternMatch], ail_graph: networkx.DiGraph
+    ) -> tuple[networkx.DiGraph, set[int]]:
+        """Apply as many of ``matches`` as possible, batching where it matters.
+
+        Applying one match at a time is fine until several of them *interleave*
+        in one block, which is exactly what consecutive field swaps do:
+
+            t1 = x->b;  t2 = y->b;  y->b = t1;  x->b = t2;
+                        ^ the next field's load sits in this one's gap
+
+        Rewrite the first and the second's statements have moved; rewrite it
+        anyway and the third now has an opaque call sitting in its gap, which no
+        disjointness test will let it move across. So the void statement-span
+        matches of a block -- which the finder has already checked do not
+        conflict -- are spliced in together, against the statement indices they
+        were found at. Everything else keeps the one-at-a-time path.
+
+        Returns the new graph and the ids of the matches that were applied.
+        """
+        from angr.analyses.decompiler.clinic import Clinic  # pylint:disable=import-outside-toplevel
+
+        applied: set[int] = set()
+        graph = ail_graph
+        by_block: dict[tuple[int, int | None], list[KnownPatternMatch]] = defaultdict(list)
+        for m in matches:
+            if m.block_map is None and m.stmt_span is not None and self._is_void(m.pattern):
+                by_block[m.block_loc].append(m)
+        for loc, group in by_block.items():
+            if len(group) < 2:
+                continue
+            block = next((n for n in graph if (n.addr, n.idx) == loc), None)
+            if block is None:
+                continue
+            rewrites = []
+            done = []
+            for m in group:
+                try:
+                    rewrites.append(self._prepare_stmt_rewrite(m, block))
+                    done.append(m)
+                except UnsupportedOutlineError as ex:
+                    _l.debug("Cannot rewrite %r in place: %s", m, ex)
+            if len(rewrites) < 2:
+                continue
+            graph = Clinic._copy_graph(graph)
+            block = next(n for n in graph if (n.addr, n.idx) == loc)
+            networkx.relabel_nodes(graph, {block: self._splice_calls(block, rewrites)}, copy=False)
+            applied.update(id(m) for m in done)
+
+        for m in matches:
+            if id(m) in applied:
+                continue
+            try:
+                graph = self.outline(m, ail_graph=graph).graph
+            except UnsupportedOutlineError as ex:
+                _l.debug("Cannot outline %r: %s", m, ex)
+                continue
+            applied.add(id(m))
+        return graph, applied
+
+    @staticmethod
+    def _is_void(pattern) -> bool:
+        return pattern.returnty is None and pattern.returnty_factory is None
+
     def outline(self, match: KnownPatternMatch, ail_graph: networkx.DiGraph | None = None) -> OutlineResult:
         """Outline one match: split the anchor block so the matched span forms
         its own block, invoke the Outliner analysis on it, and rewrite the
@@ -1261,10 +1372,23 @@ class KnownPatternFinder(Analysis):
                 g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
                 return self._rewrite_graph_in_place(match, g)
         if match.stmt_span is not None:
+            void = match.pattern.returnty is None and match.pattern.returnty_factory is None
+            if void:
+                # Nothing reads a value out of a void span, so there is no
+                # interface for an outlined callee to discover -- and outlining
+                # would *split the block*, which is destructive here in a way it
+                # is not for an expression: a block holding several interleaved
+                # idioms (three field swaps, say) loses the rest of them the
+                # moment the first one is cut out. Naming it in place leaves the
+                # block whole.
+                try:
+                    return self._rewrite_stmts_in_place(match, g, block)
+                except UnsupportedOutlineError as ex:
+                    _l.debug("in-place rewrite of %r declined (%s); trying to outline", match, ex)
             try:
                 return self._outline_stmt_span(match, g, block)
             except UnsupportedOutlineError:
-                if match.pattern.returnty is not None or match.pattern.returnty_factory is not None:
+                if not void:
                     raise
                 # Same reasoning as for a void region: nothing reads a value out
                 # of it, so there is no interface to discover and the call can
@@ -2074,36 +2198,98 @@ class KnownPatternFinder(Analysis):
             graph=g, match=match, call_stmt=call_stmt, child_func=None, child_graph=None, child_funcargs=[]
         )
 
-    def _rewrite_stmts_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
-        """Replace a matched statement span by the pattern's call, with no callee.
+    def _check_gap_statements(self, stmts: list, span: list[int], consumed) -> list[int]:
+        """Whether the unmatched statements inside a matched span may be moved
+        across it.
 
-        The statement-span counterpart of :meth:`_rewrite_in_place`. Only the
-        matched statements are removed, and only when nothing sits between them,
-        so the rewrite cannot reorder anything: one statement takes the place of
-        several at the same point in the block.
+        Collapsing a statement span reorders whatever sits between its
+        statements -- outlining hoists those before the region, rewriting in
+        place leaves them after the call -- and both are sound under the same
+        condition: they must neither touch memory the region touches nor read a
+        value the region defines. Returns the indices of those statements.
+        """
+        matched_set = set(span) | set(consumed)
+        matched_defs = frozenset().union(*(_stmt_defs(stmts[i]) for i in matched_set))
+        region_has_side_effects = any(_stmt_has_side_effects(stmts[i]) for i in matched_set)
+        gap_idxs = [i for i in range(span[0], span[-1]) if i not in matched_set]
+        region_mem = [self._mem_accesses(stmts[i]) for i in matched_set]
+        for i in gap_idxs:
+            if (
+                region_has_side_effects
+                and _stmt_touches_memory(stmts[i])
+                and not self._commutes_with_region(stmts[i], region_mem)
+            ):
+                raise UnsupportedOutlineError("memory-touching statements interleave with the matched span")
+            if _stmt_uses(stmts[i]) & matched_defs:
+                raise UnsupportedOutlineError("interleaved statements use values defined by the matched span")
+        return gap_idxs
+
+    def _prepare_stmt_rewrite(self, match: KnownPatternMatch, block: Block) -> tuple[list[int], int, list[Statement]]:
+        """Validate a statement-span match against ``block`` and build its call.
+
+        Returns the statement indices to delete, the index the call goes at, and
+        the statements to put there. Shared by the single and batched in-place
+        rewrites. Re-matching the
+        pattern is what makes a *stale* match safe: statement indices shift
+        under every earlier rewrite, and a span applied blind would delete
+        whatever now sits at those positions.
         """
         if match.pattern.returnty is not None or match.pattern.returnty_factory is not None:
             raise UnsupportedOutlineError(
                 f"pattern {match.pattern.name}: in-place statement rewriting is only defined for void patterns"
             )
-        span = sorted(match.stmt_span or ())
-        if not span:
+        if not match.stmt_span:
             raise UnsupportedOutlineError(f"pattern {match.pattern.name}: the match has no statement span")
         if match.consumed_stmt_idxs:
             raise UnsupportedOutlineError(
                 f"pattern {match.pattern.name}: in-place statement rewriting cannot move chased definitions"
             )
+        seq = match.pattern.pattern
+        if isinstance(seq, PStmtSeq) and not seq.ordered:
+            revalidated = self._try_match_stmt_bag(match.pattern, block)
+        else:
+            revalidated = self._try_match_stmt_seq(match.pattern, block, match.stmt_span[0])
+        if revalidated is None or set(revalidated.stmt_span or ()) != set(match.stmt_span):
+            raise UnsupportedOutlineError("stale match: the statement span no longer matches the pattern")
+
         stmts = list(block.statements)
-        if span[-1] >= len(stmts):
-            raise UnsupportedOutlineError("stale match: the statement span is gone from the block")
-        matched = set(span)
-        if any(not isinstance(stmts[i], Label) for i in range(span[0], span[-1] + 1) if i not in matched):
+        span = sorted(revalidated.stmt_span or ())
+        # statements between the matched ones stay where they are and therefore
+        # end up after the call; the same commutation argument that lets
+        # outlining hoist them before the region licenses that
+        self._check_gap_statements(stmts, span, ())
+        # A value the span defines and something outside still reads cannot just
+        # be deleted -- outlining catches that through the recovered interface
+        # (a void pattern with frontier variables is refused) and this path has
+        # no interface, so it asks directly. But it need not give up: the
+        # statement that produces such a value is a pure load, and *keeping* it
+        # in front of the call preserves it exactly, because it read memory
+        # before the idiom wrote any. Only what follows the last kept statement
+        # is replaced. This is what a swap whose temporary happens to be the
+        # function's (over-approximated) return value needs.
+        kept = [
+            i for i in span if any(not self._all_uses_within(varid, block, set(span)) for varid in _stmt_defs(stmts[i]))
+        ]
+        if any(_stmt_has_side_effects(stmts[i]) for i in kept):
             raise UnsupportedOutlineError(
-                f"pattern {match.pattern.name}: unmatched statements interleave with the matched span"
+                f"pattern {match.pattern.name}: a side-effecting statement of the span is used outside it"
+            )
+        dropped = [i for i in span if i not in set(kept)]
+        after = [i for i in dropped if not kept or i > max(kept)]
+        if not after:
+            raise UnsupportedOutlineError(
+                f"pattern {match.pattern.name}: nothing of the span is left to replace with the call"
             )
 
-        args = self._call_args_of(match, [block])
         ins_addr = stmts[span[0]].tags.get("ins_addr")
+        # a capture bound to `root + K` -- a field of some other object -- gets a
+        # variable of its own, exactly as outlining gives it one. Passing the
+        # address expression raw leaves codegen with a pointer into the middle of
+        # a struct and no field to name it by.
+        base_stmts, _rebases, base_caps = self._materialize_bases(revalidated, ins_addr)
+        if base_caps:
+            revalidated = dataclass_replace(revalidated, captures={**revalidated.captures, **base_caps})
+        args = self._call_args_of(revalidated, [block])
         call = Call(
             self._next_idx(),
             match.pattern.call_name,
@@ -2114,14 +2300,34 @@ class KnownPatternFinder(Analysis):
             is_prototype_guessed=False,
         )
         call_stmt = SideEffectStatement(self._next_idx(), call, ret_expr=None, fp_ret_expr=None, ins_addr=ins_addr)
-        new_stmts = [
-            call_stmt if i == span[0] else stmt for i, stmt in enumerate(stmts) if i not in matched or i == span[0]
-        ]
+        return dropped, after[0], [*base_stmts, call_stmt]
+
+    @staticmethod
+    def _splice_calls(block: Block, rewrites: list[tuple[list[int], int, list[Statement]]]) -> Block:
+        """A copy of ``block`` with each rewrite's statements deleted and its call
+        put where the rewrite asked for it."""
+        insert = {at: new for _, at, new in rewrites}
+        drop = {i for dropped, _, _ in rewrites for i in dropped}
+        out: list[Statement] = []
+        for i, stmt in enumerate(block.statements):
+            if i in insert:
+                out.extend(insert[i])
+            if i not in drop:
+                out.append(stmt)
         new_block = block.copy()
-        new_block.statements = new_stmts
+        new_block.statements = out
+        return new_block
+
+    def _rewrite_stmts_in_place(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
+        """Replace a matched statement span by the pattern's call, with no callee.
+
+        The statement-span counterpart of :meth:`_rewrite_in_place`.
+        """
+        rewrite = self._prepare_stmt_rewrite(match, block)
+        new_block = self._splice_calls(block, [rewrite])
         networkx.relabel_nodes(g, {block: new_block}, copy=False)
         return OutlineResult(
-            graph=g, match=match, call_stmt=call_stmt, child_func=None, child_graph=None, child_funcargs=[]
+            graph=g, match=match, call_stmt=rewrite[2][-1], child_func=None, child_graph=None, child_funcargs=[]
         )
 
     def _outline_stmt_span(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
@@ -2152,23 +2358,7 @@ class KnownPatternFinder(Analysis):
                 if i not in match.consumed_stmt_idxs and _stmt_has_side_effects(stmts[i]):
                     raise UnsupportedOutlineError("side-effecting statements interleave with the chased definitions")
 
-        # gap statements inside the span are hoisted before the outlined
-        # region; that is only sound if they neither touch memory around the
-        # region's stores/calls nor use values the region defines
-        matched_set = set(span) | set(consumed)
-        matched_defs = frozenset().union(*(_stmt_defs(stmts[i]) for i in matched_set))
-        region_has_side_effects = any(_stmt_has_side_effects(stmts[i]) for i in matched_set)
-        gap_idxs = [i for i in range(span[0], span[-1]) if i not in matched_set]
-        region_mem = [self._mem_accesses(stmts[i]) for i in matched_set]
-        for i in gap_idxs:
-            if (
-                region_has_side_effects
-                and _stmt_touches_memory(stmts[i])
-                and not self._commutes_with_region(stmts[i], region_mem)
-            ):
-                raise UnsupportedOutlineError("memory-touching statements interleave with the matched span")
-            if _stmt_uses(stmts[i]) & matched_defs:
-                raise UnsupportedOutlineError("interleaved statements use values defined by the matched span")
+        gap_idxs = self._check_gap_statements(stmts, span, consumed)
 
         ins_addr = stmts[span[0]].tags.get("ins_addr")
         base_stmts, rebases, base_caps = self._materialize_bases(match, ins_addr)
