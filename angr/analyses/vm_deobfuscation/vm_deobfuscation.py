@@ -3453,6 +3453,248 @@ class VMDeobfuscation(Analysis):
         print("Done")
         return dsa_new_model
 
+    def _vex_type_size(self, ty):
+        if isinstance(ty, str) and ty.startswith("Ity_I"):
+            bits = int(ty[5:])
+            if bits % 8 != 0:
+                return None
+            return bits // 8
+        return None
+
+    @staticmethod
+    def _memory_atom_addr_key(atom):
+        if not isinstance(atom, atoms.MemoryLocation):
+            return None
+
+        addr = atom.addr
+        if isinstance(addr, SpOffset):
+            return "stack", addr.offset
+        if isinstance(addr, int):
+            return "const", addr
+        if hasattr(addr, "value"):
+            return "const", addr.value
+        return None
+
+    @staticmethod
+    def _is_zero_vex_expr(expr):
+        return isinstance(expr, pyvex.expr.Const) and expr.con.value == 0
+
+    @staticmethod
+    def _is_same_vex_addr(a, b):
+        return a == b or str(a) == str(b)
+
+    def _vex_expr_size(self, expr, tyenv):
+        try:
+            return self._vex_type_size(expr.result_type(tyenv))
+        except (AttributeError, TypeError):
+            return None
+
+    def _vex_const_signed_value(self, const):
+        size = self._vex_type_size(getattr(const, "type", None))
+        if size is None or size <= 0:
+            size = 8
+        bits = size * 8
+        value = const.value
+        sign_bit = 1 << (bits - 1)
+        if value & sign_bit:
+            value -= 1 << bits
+        return value
+
+    def _vex_const_expr_signed_value(self, expr, tmp_constants):
+        if isinstance(expr, pyvex.expr.Const):
+            return self._vex_const_signed_value(expr.con)
+        if isinstance(expr, pyvex.expr.RdTmp):
+            return tmp_constants.get(expr.tmp, None)
+        return None
+
+    def _vex_stack_addr_offset(self, expr, tmp_stack_offsets, reg_stack_offsets, tmp_constants):
+        if isinstance(expr, pyvex.expr.RdTmp):
+            return tmp_stack_offsets.get(expr.tmp, None)
+
+        if isinstance(expr, pyvex.expr.Get):
+            return reg_stack_offsets.get(expr.offset, None)
+
+        if isinstance(expr, pyvex.expr.Binop) and expr.op.startswith("Iop_Add"):
+            first, second = expr.args
+            first_const = self._vex_const_expr_signed_value(first, tmp_constants)
+            second_const = self._vex_const_expr_signed_value(second, tmp_constants)
+            if first_const is not None:
+                offset = self._vex_stack_addr_offset(second, tmp_stack_offsets, reg_stack_offsets, tmp_constants)
+                const_value = first_const
+            elif second_const is not None:
+                offset = self._vex_stack_addr_offset(first, tmp_stack_offsets, reg_stack_offsets, tmp_constants)
+                const_value = second_const
+            else:
+                return None
+
+            if offset is not None:
+                return offset + const_value
+
+        if isinstance(expr, pyvex.expr.Binop) and expr.op.startswith("Iop_Sub"):
+            first, second = expr.args
+            second_const = self._vex_const_expr_signed_value(second, tmp_constants)
+            if second_const is not None:
+                offset = self._vex_stack_addr_offset(first, tmp_stack_offsets, reg_stack_offsets, tmp_constants)
+                if offset is not None:
+                    return offset - second_const
+
+        return None
+
+    @staticmethod
+    def _remove_overlapping_stack_stores(stores, offset, size):
+        end = offset + size
+        for key in list(stores.keys()):
+            store_offset, store_size = key
+            store_end = store_offset + store_size
+            if offset < store_end and store_offset < end:
+                del stores[key]
+
+    def _try_make_local_stack_replacement(self, stores, offset, load_size, load_endness):
+        if load_endness != "Iend_LE":
+            return None
+
+        same_size_store = stores.get((offset, load_size))
+        if same_size_store is not None:
+            return same_size_store.data
+
+        containing_qword_store = stores.get((offset, 8))
+        if load_size == 4 and containing_qword_store is not None:
+            return pyvex.expr.Unop("Iop_64to32", [containing_qword_store.data])
+
+        low_store = stores.get((offset, 4))
+        high_store = stores.get((offset + 4, 4))
+        if load_size == 8 and low_store is not None and high_store is not None:
+            if self._is_zero_vex_expr(high_store.data):
+                return pyvex.expr.Unop("Iop_32Uto64", [low_store.data])
+
+        return None
+
+    def _collect_local_store_load_replacements(self, irsb):
+        tmp_stack_offsets = {}
+        tmp_constants = {}
+        reg_stack_offsets = {self.project.arch.sp_offset: 0}
+        stores = {}
+        replacements = {}
+
+        for idx, stmt in enumerate(irsb.statements):
+            if isinstance(stmt, pyvex.stmt.WrTmp):
+                if isinstance(stmt.data, pyvex.expr.Load):
+                    load_offset = self._vex_stack_addr_offset(
+                        stmt.data.addr,
+                        tmp_stack_offsets,
+                        reg_stack_offsets,
+                        tmp_constants,
+                    )
+                    load_size = self._vex_type_size(stmt.data.ty)
+                    if load_offset is not None and load_size is not None:
+                        replacement = self._try_make_local_stack_replacement(
+                            stores,
+                            load_offset,
+                            load_size,
+                            stmt.data.endness,
+                        )
+                        if replacement is not None:
+                            replacements[idx] = replacement
+
+                tmp_stack_offsets[stmt.tmp] = self._vex_stack_addr_offset(
+                    stmt.data,
+                    tmp_stack_offsets,
+                    reg_stack_offsets,
+                    tmp_constants,
+                )
+                tmp_constants[stmt.tmp] = self._vex_const_expr_signed_value(stmt.data, tmp_constants)
+
+            elif isinstance(stmt, pyvex.stmt.Put):
+                stack_offset = self._vex_stack_addr_offset(
+                    stmt.data,
+                    tmp_stack_offsets,
+                    reg_stack_offsets,
+                    tmp_constants,
+                )
+                if stack_offset is None:
+                    reg_stack_offsets.pop(stmt.offset, None)
+                else:
+                    reg_stack_offsets[stmt.offset] = stack_offset
+
+            elif isinstance(stmt, pyvex.stmt.Store):
+                store_offset = self._vex_stack_addr_offset(
+                    stmt.addr,
+                    tmp_stack_offsets,
+                    reg_stack_offsets,
+                    tmp_constants,
+                )
+                store_size = self._vex_expr_size(stmt.data, irsb.tyenv)
+                if store_offset is None or store_size is None:
+                    stores.clear()
+                else:
+                    self._remove_overlapping_stack_stores(stores, store_offset, store_size)
+                    stores[(store_offset, store_size)] = stmt
+
+            elif isinstance(stmt, (pyvex.stmt.CAS, pyvex.stmt.LLSC, pyvex.stmt.Dirty)):
+                stores.clear()
+
+        return replacements
+
+    def _try_make_redundant_store_load_replacement(self, irsb, defs_at_use, use_stmt_idx):
+        use_stmt = irsb.statements[use_stmt_idx]
+        if not isinstance(use_stmt, pyvex.stmt.WrTmp) or not isinstance(use_stmt.data, pyvex.expr.Load):
+            return None
+
+        load = use_stmt.data
+        load_size = self._vex_type_size(load.ty)
+        if load_size is None:
+            return None
+
+        store_defs = []
+        for d in defs_at_use:
+            if not isinstance(d.atom, atoms.MemoryLocation):
+                continue
+            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy or d.codeloc.stmt_idx is None:
+                return None
+            if d.codeloc.stmt_idx >= use_stmt_idx:
+                return None
+
+            store_stmt = irsb.statements[d.codeloc.stmt_idx]
+            if not isinstance(store_stmt, pyvex.stmt.Store):
+                return None
+
+            addr_key = self._memory_atom_addr_key(d.atom)
+            if addr_key is None:
+                return None
+
+            store_defs.append((d, store_stmt, addr_key))
+
+        if len(store_defs) == 1:
+            d, store_stmt, _ = store_defs[0]
+            if d.atom.size == load_size:
+                return store_stmt.data
+
+            if d.atom.size == 8 and load_size == 4 and load.endness == "Iend_LE":
+                if self._is_same_vex_addr(store_stmt.addr, load.addr):
+                    return pyvex.expr.Unop("Iop_64to32", [store_stmt.data])
+
+            return None
+
+        if len(store_defs) == 2 and load_size == 8 and load.endness == "Iend_LE":
+            first_def, first_store, first_key = store_defs[0]
+            second_def, second_store, second_key = store_defs[1]
+
+            if first_key[0] != second_key[0] or first_def.atom.size != 4 or second_def.atom.size != 4:
+                return None
+
+            low_def, low_store = (first_def, first_store)
+            high_def, high_store = (second_def, second_store)
+            if first_key[1] == second_key[1] + 4:
+                low_def, low_store = (second_def, second_store)
+                high_def, high_store = (first_def, first_store)
+            elif second_key[1] != first_key[1] + 4:
+                return None
+
+            if low_def.atom.size == 4 and high_def.atom.size == 4 and self._is_zero_vex_expr(high_store.data):
+                return pyvex.expr.Unop("Iop_32Uto64", [low_store.data])
+
+        return None
+
     @logtime
     def remove_redundant_store_load(self, cfg, proj, start_state=None):
         # removing redundant store and loads in a block that look like this
@@ -3486,7 +3728,7 @@ class VMDeobfuscation(Analysis):
                                                            )
 
             # Find redundant loads
-            replace_stle_dict = {}
+            replace_stle_dict = self._collect_local_store_load_replacements(node.irsb)
             all_defs = rd.all_definitions
             for d in all_defs:
                 if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
@@ -3508,26 +3750,26 @@ class VMDeobfuscation(Analysis):
                             import ipdb;ipdb.set_trace()
 
                         if len(rd.all_uses.get_uses_by_location(use)) == 1:
-                            if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
-                                ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
-                                if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
-                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
-                                elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
-                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                            replacement = self._try_make_redundant_store_load_replacement(
+                                node.irsb,
+                                rd.all_uses.get_uses_by_location(use),
+                                use.stmt_idx,
+                            )
+                            if replacement is not None:
+                                replace_stle_dict[use.stmt_idx] = replacement
 
                 elif isinstance(d.atom, atoms.MemoryLocation) and \
                     isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                     isinstance(node.irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
                     for use in uses:
                         if len(rd.all_uses.get_uses_by_location(use)) == 1:
-                            if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp) and \
-                                    isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load) and \
-                                    isinstance(node.irsb.statements[use.stmt_idx].data.addr, pyvex.expr.Const):
-                                ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
-                                if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
-                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
-                                elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
-                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                            replacement = self._try_make_redundant_store_load_replacement(
+                                node.irsb,
+                                rd.all_uses.get_uses_by_location(use),
+                                use.stmt_idx,
+                            )
+                            if replacement is not None:
+                                replace_stle_dict[use.stmt_idx] = replacement
 
 
 
