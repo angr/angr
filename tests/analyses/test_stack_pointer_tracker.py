@@ -9,6 +9,7 @@ import os
 import unittest
 
 import angr
+from angr.analyses.stack_pointer_tracker import OffsetVal, Register
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -50,6 +51,25 @@ class TestStackPointerTracker(unittest.TestCase):
         sp_result, bp_result = run_tracker(track_mem=False, use_bp=True)
         assert sp_result == 8
         assert bp_result is None
+
+    def test_stack_pointer_tracker_explicit_initial_bp_copied_from_sp(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        p.analyses.CFGFast()
+        main = p.kb.functions["main"]
+        sp = p.arch.sp_offset
+        bp = p.arch.bp_offset
+        initial_reg_values = {
+            sp: OffsetVal(Register(sp, p.arch.bits), 0x20),
+            bp: OffsetVal(Register(bp, p.arch.bits), 0x40),
+        }
+
+        sptracker = p.analyses.StackPointerTracker(
+            main, {sp, bp}, track_memory=True, initial_reg_values=initial_reg_values
+        )
+
+        self.assertEqual(sptracker.offset_after(0x40071D, sp), 0x18)
+        self.assertEqual(sptracker.offset_after(0x40071D, bp), 0x40)
+        self.assertEqual(sptracker.offset_after(0x40071E, bp), 0x18)
 
     def test_stack_pointer_tracker_just_sp(self):
         sp_result = run_tracker(track_mem=False, use_bp=False)
