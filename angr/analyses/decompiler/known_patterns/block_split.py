@@ -22,10 +22,19 @@ if TYPE_CHECKING:
     from angr.ailment.statement import Statement
 
 
-def rewrite_phi_sources(block: Block, old_src: tuple[int, int | None], new_src: tuple[int, int | None]) -> None:
+def rewrite_phi_sources(
+    block: Block,
+    old_src: tuple[int, int | None],
+    new_src: tuple[int, int | None],
+    idx_alloc: Callable[[], int],
+) -> None:
     """Rewrite phi statements at the top of ``block`` so that entries sourced
     from ``old_src`` are sourced from ``new_src`` instead. Mutates the block's
-    statement list in place."""
+    statement list in place.
+
+    ``idx_alloc`` supplies AIL indices for the rebuilt statements: an object
+    built with ``idx=None`` lands at index 0, and the decompiler's VariableMap
+    is keyed by index, so all of them would share one entry."""
     for i, stmt in enumerate(block.statements):
         if not is_phi_assignment(stmt):
             continue
@@ -34,8 +43,8 @@ def rewrite_phi_sources(block: Block, old_src: tuple[int, int | None], new_src: 
         if not any(src == old_src for src, _ in phi.src_and_vvars):
             continue
         new_src_and_vvars = [(new_src if src == old_src else src, vvar) for src, vvar in phi.src_and_vvars]
-        new_phi = Phi(None, phi.bits, new_src_and_vvars, **phi.tags)
-        block.statements[i] = Assignment(None, stmt.dst, new_phi, **stmt.tags)
+        new_phi = Phi(idx_alloc(), phi.bits, new_src_and_vvars, **phi.tags)
+        block.statements[i] = Assignment(idx_alloc(), stmt.dst, new_phi, **stmt.tags)
 
 
 def split_ail_block(
@@ -45,6 +54,7 @@ def split_ail_block(
     mid_stmts: Sequence[Statement],
     post_stmts: Sequence[Statement],
     block_addr_alloc: Callable[[], int],
+    idx_alloc: Callable[[], int],
 ) -> tuple[Block | None, Block, Block | None]:
     """Replace ``block`` in ``graph`` with up to three consecutive blocks
     holding ``pre_stmts``, ``mid_stmts``, and ``post_stmts``.
@@ -92,6 +102,6 @@ def split_ail_block(
 
     if (last.addr, last.idx) != (block.addr, block.idx):
         for succ in graph.successors(last):
-            rewrite_phi_sources(succ, (block.addr, block.idx), (last.addr, last.idx))
+            rewrite_phi_sources(succ, (block.addr, block.idx), (last.addr, last.idx), idx_alloc)
 
     return b_pre, b_mid, b_post
