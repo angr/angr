@@ -954,7 +954,9 @@ class SpillingCFG:
         self._out_degree_cache.pop(block_key, None)
 
     def has_node(self, node: CFGNode) -> bool:
-        block_key = get_block_key(node)
+        return self.has_node_key(get_block_key(node))
+
+    def has_node_key(self, block_key: K) -> bool:
         return block_key in self._graph
 
     def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:

@@ -4480,7 +4480,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         removed_node_keys = set()
 
-        a_key = None  # a is always the most recent non-removed node
+        a_key = None  # a is always the most recent node that is still in the graph
         is_arm = is_arm_arch(self.project.arch)
 
         for i in range(len(sorted_node_keys)):  # pylint:disable=consider-using-enumerate
@@ -4494,6 +4494,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             if b_key in removed_node_keys:
                 # skip all removed nodes
+                continue
+
+            # the _scan_block() call at the bottom of this loop drops the blocks whose decoding assumptions it
+            # invalidates, anywhere in the graph, so a key from the snapshot above may no longer name a node
+            if not self.graph.has_node_key(b_key):
+                continue
+            if not self.graph.has_node_key(a_key):
+                a_key = b_key
                 continue
 
             a_addr = block_key_to_addr(a_key)
