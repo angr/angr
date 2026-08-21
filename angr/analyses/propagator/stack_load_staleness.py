@@ -291,7 +291,6 @@ def _stack_load_sources(
     if budget_exhausted is None:
         budget_exhausted = [False]
     if max_depth >= 0 and depth > max_depth:
-        budget_exhausted[0] = True
         return []
     if max_expr_depth >= 0 and getattr(expr, "depth", 0) > max_expr_depth:
         budget_exhausted[0] = True
