@@ -6,8 +6,7 @@ import os
 import time
 from typing import TypeVar, overload
 
-import claripy
-
+from angr import claripy
 from angr import sim_options as o
 from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
 from angr.sim_state import SimState

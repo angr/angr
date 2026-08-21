@@ -7,16 +7,15 @@ from collections.abc import Generator, Iterable
 from typing import TYPE_CHECKING, Any, cast
 
 import archinfo
-import claripy
 import networkx
 from archinfo import Arch
-from claripy.annotation import Annotation
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import BinaryOp, StackBaseOffset
 from angr.analyses.analysis import Analysis
 from angr.analyses.dominance_frontier import DominanceFrontier
 from angr.analyses.typehoon.typevars import TypeVariable, TypeVariableManager, TypeVariables
+from angr.claripy.annotation import Annotation
 from angr.codenode import CodeNode
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function

@@ -8,10 +8,8 @@ import os
 import pickle
 import unittest
 
-import claripy
-
 import angr
-from angr import SimHeapBrk, SimHeapPTMalloc, SimState
+from angr import SimHeapBrk, SimHeapPTMalloc, SimState, claripy
 from angr.state_plugins.heap.heap_base import HEAP_INITIAL_MAPPED_SIZE, HEAP_MAPPING_GROWTH_FACTOR
 from tests.common import bin_location
 

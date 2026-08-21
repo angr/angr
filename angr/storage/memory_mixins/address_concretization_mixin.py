@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import claripy
-
 import angr
-from angr import concretization_strategies
+from angr import claripy, concretization_strategies
 from angr import sim_options as options
 from angr.errors import SimMemoryAddressError, SimMemoryError, SimMergeError, SimUnsatError
 from angr.sim_state_options import SimStateOptions

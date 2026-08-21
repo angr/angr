@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-import claripy
-
-from angr import concretization_strategies
+from angr import claripy, concretization_strategies
 from angr.errors import SimMemoryAddressError, SimMergeError
 from angr.sim_options import APPROXIMATE_FIRST, HYBRID_SOLVER
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin

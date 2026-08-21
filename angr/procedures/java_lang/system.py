@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 from time import time
 
-import claripy
-
+from angr import claripy
 from angr.procedures.java import JavaSimProcedure
 
 log = logging.getLogger(name=__name__)

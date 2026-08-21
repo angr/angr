@@ -7,9 +7,8 @@ from typing import Any
 from unittest import TestCase, main
 
 import archinfo
-import claripy
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.analyses.decompiler.optimization_passes.engine_base import SimplifierAILEngine
 from angr.analyses.decompiler.optimization_passes.inlined_string_transformation_simplifier import (
     InlinedStringTransformationAILEngine,

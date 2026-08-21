@@ -6,9 +6,8 @@ __package__ = __package__ or "tests.state_plugins.solver"  # pylint:disable=rede
 
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 from tests.common import broken
 
 

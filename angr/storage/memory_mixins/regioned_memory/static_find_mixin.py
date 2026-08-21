@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import claripy
-
+from angr import claripy
 from angr.storage.memory_mixins.smart_find_mixin import SmartFindMixin
 
 
@@ -60,8 +59,8 @@ class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
 
         # we only support strided intervals
         if not element.has_annotation_type(claripy.annotation.RegionAnnotation):
-            comparison = not claripy.simplify(element.intersection(target)).identical(claripy.ESI(element.length))
-            concrete_comparison = element.identical(target)
+            comparison = not claripy.vsa.identical(element.intersection(target), claripy.ESI(element.length))
+            concrete_comparison = claripy.vsa.identical(element, target)
 
         return comparison, concrete_comparison
 

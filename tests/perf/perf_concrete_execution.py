@@ -6,9 +6,8 @@ from __future__ import annotations
 import os
 import time
 
-import claripy
-
 import angr
+from angr import claripy
 
 # attempt to turn off claripy debug mode
 if hasattr(claripy, "set_debug"):

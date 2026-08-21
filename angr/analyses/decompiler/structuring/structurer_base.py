@@ -5,10 +5,9 @@ import logging
 from collections import OrderedDict, defaultdict
 from typing import TYPE_CHECKING, Any
 
-import claripy
 import networkx
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.manager import Manager
 from angr.analyses.analysis import Analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor

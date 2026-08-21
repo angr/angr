@@ -5,11 +5,9 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
-import claripy
-
 import angr
 import angr.ailment.utils
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.block import Block
 from angr.utils.hashing import stable_hash
 
