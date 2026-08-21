@@ -1,3 +1,5 @@
+# the handler tables below deliberately reference this module's own private translation methods
+# pylint:disable=protected-access
 from __future__ import annotations
 
 from angr import sim_type
@@ -38,21 +40,21 @@ class RustTypeTranslator(TypeTranslator):
     # TypeConstant -> RustSimType (tc2simtype direction)
     # ----------------------------------------------------------------
 
-    def _translate_Pointer64(self, tc):
+    def _translate_Pointer(self, tc):
         if isinstance(tc.basetype, typeconsts.BottomType):
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         else:
             internal = self._tc2simtype(tc.basetype)
         return RustSimTypeReference(internal).with_arch(self.arch)
 
-    def _translate_Pointer32(self, tc):
-        return self._translate_Pointer64(tc)
-
     def _translate_Int8(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=8, signed=False).with_arch(self.arch)
 
     def _translate_Int16(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=16, signed=False).with_arch(self.arch)
+
+    def _translate_Int24(self, tc):
+        return RustSimTypeInt(size=24, signed=False).with_arch(self.arch)
 
     def _translate_Int32(self, tc):
         return RustSimTypeInt(size=32, signed=False).with_arch(self.arch)
@@ -187,6 +189,8 @@ class RustTypeTranslator(TypeTranslator):
             return typeconsts.Int8()
         if ty.size == 16:
             return typeconsts.Int16()
+        if ty.size == 24:
+            return typeconsts.Int24()
         if ty.size == 32:
             return typeconsts.Int32()
         if ty.size == 64:
@@ -229,6 +233,10 @@ class RustTypeTranslator(TypeTranslator):
 
     def _translate_RustSimTypeReference(self, ty: RustSimTypeReference):
         base = self._simtype2tc(ty.pts_to)
+        if self.arch.bits == 16:
+            return typeconsts.Pointer16(base)
+        if self.arch.bits == 24:
+            return typeconsts.Pointer24(base)
         if self.arch.bits == 32:
             return typeconsts.Pointer32(base)
         return typeconsts.Pointer64(base)
@@ -251,12 +259,19 @@ class RustTypeTranslator(TypeTranslator):
 
 
 RustTypeConstHandlers = {
-    typeconsts.Pointer64: RustTypeTranslator._translate_Pointer64,
-    typeconsts.Pointer32: RustTypeTranslator._translate_Pointer32,
+    typeconsts.Pointer64: RustTypeTranslator._translate_Pointer,
+    typeconsts.Pointer32: RustTypeTranslator._translate_Pointer,
+    typeconsts.Pointer24: RustTypeTranslator._translate_Pointer,
+    typeconsts.Pointer16: RustTypeTranslator._translate_Pointer,
     typeconsts.Array: RustTypeTranslator._translate_Array,
     typeconsts.Struct: RustTypeTranslator._translate_Struct,
     typeconsts.Int8: RustTypeTranslator._translate_Int8,
     typeconsts.Int16: RustTypeTranslator._translate_Int16,
+    typeconsts.Int24: RustTypeTranslator._translate_Int24,
+    # signed_int_type(24) and unsigned_int_type(24) used to fall back to IntVar, which this table does handle; keep
+    # the 24-bit width from reaching the Rust code generator as a bottom type now that they return SInt24/UInt24
+    typeconsts.SInt24: RustTypeTranslator._translate_Int24,
+    typeconsts.UInt24: RustTypeTranslator._translate_Int24,
     typeconsts.Int32: RustTypeTranslator._translate_Int32,
     typeconsts.Int64: RustTypeTranslator._translate_Int64,
     typeconsts.Int128: RustTypeTranslator._translate_Int128,

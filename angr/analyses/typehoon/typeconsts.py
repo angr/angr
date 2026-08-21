@@ -108,6 +108,13 @@ class Int16(Int):
         return "int16"
 
 
+class Int24(Int):
+    SIZE = 3
+
+    def __repr__(self, memo=None) -> str:
+        return "int24"
+
+
 class Int32(Int):
     SIZE = 4
 
@@ -147,6 +154,16 @@ class SInt16(Int16):
 class UInt16(Int16):
     def __repr__(self, memo=None) -> str:
         return "uint16"
+
+
+class SInt24(Int24):
+    def __repr__(self, memo=None) -> str:
+        return "sint24"
+
+
+class UInt24(Int24):
+    def __repr__(self, memo=None) -> str:
+        return "uint24"
 
 
 class SInt32(Int32):
@@ -254,6 +271,38 @@ class Pointer(TypeConstant):
         if new_basetype is self.basetype:
             return self
         return self.new(new_basetype, name=self.name)
+
+
+class Pointer16(Pointer, Int16):
+    """
+    16-bit pointers.
+    """
+
+    def __init__(self, basetype=None, name: str | None = None):
+        Pointer.__init__(self, basetype, name=name)
+        Int16.__init__(self, name=name)
+
+    @memoize
+    def __repr__(self, memo=None):
+        bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
+        name_str = f"{self.name}#" if self.name else ""
+        return f"{name_str}ptr16({bt})"
+
+
+class Pointer24(Pointer, Int24):
+    """
+    24-bit pointers.
+    """
+
+    def __init__(self, basetype=None, name: str | None = None):
+        Pointer.__init__(self, basetype, name=name)
+        Int24.__init__(self, name=name)
+
+    @memoize
+    def __repr__(self, memo=None):
+        bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
+        name_str = f"{self.name}#" if self.name else ""
+        return f"{name_str}ptr24({bt})"
 
 
 class Pointer32(Pointer, Int32):
@@ -596,6 +645,7 @@ def int_type(bits: int) -> Int:
         1: Int1,
         8: Int8,
         16: Int16,
+        24: Int24,
         32: Int32,
         64: Int64,
         128: Int128,
@@ -606,12 +656,12 @@ def int_type(bits: int) -> Int:
 
 
 def signed_int_type(bits: int) -> Int:
-    mapping = {8: SInt8, 16: SInt16, 32: SInt32, 64: SInt64}
+    mapping = {8: SInt8, 16: SInt16, 24: SInt24, 32: SInt32, 64: SInt64}
     return mapping[bits]() if bits in mapping else int_type(bits)
 
 
 def unsigned_int_type(bits: int) -> Int:
-    mapping = {8: UInt8, 16: UInt16, 32: UInt32, 64: UInt64}
+    mapping = {8: UInt8, 16: UInt16, 24: UInt24, 32: UInt32, 64: UInt64}
     return mapping[bits]() if bits in mapping else int_type(bits)
 
 
