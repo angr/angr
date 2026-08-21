@@ -106,12 +106,7 @@ impl Base {
     pub fn variables<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyFrozenSet>, ClaripyError> {
         Ok(PyFrozenSet::new(
             py,
-            self.inner
-                .variables()
-                .iter()
-                .map(|v| v.as_str().into_py_any(py))
-                .collect::<Result<Vec<_>, _>>()?
-                .iter(),
+            self.inner.variables().iter().map(|v| v.as_str()),
         )?)
     }
 
