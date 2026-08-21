@@ -160,40 +160,75 @@ def stack_aliases_from_state(state) -> Aliases:
     return aliases
 
 
-def _collect_tmp_ids(expr, seen: Optional[Set[int]] = None) -> Set[int]:
+def _collect_tmp_ids(
+    expr,
+    seen: Optional[Set[int]] = None,
+    max_expr_depth: int = -1,
+    max_nodes: int = -1,
+    budget_exhausted: Optional[List[bool]] = None,
+) -> Set[int]:
     if seen is None:
         seen = set()
+    if budget_exhausted is None:
+        budget_exhausted = [False]
     if expr is None:
+        return set()
+    if max_expr_depth >= 0 and getattr(expr, "depth", 0) > max_expr_depth:
+        budget_exhausted[0] = True
         return set()
 
     expr_id = id(expr)
     if expr_id in seen:
         return set()
     seen.add(expr_id)
+    if max_nodes >= 0 and len(seen) > max_nodes:
+        budget_exhausted[0] = True
+        return set()
 
     tmp_ids = set()
     if isinstance(expr, Expr.Tmp):
         tmp_ids.add(expr.tmp_idx)
 
     for child in _children(expr):
-        tmp_ids.update(_collect_tmp_ids(child, seen=seen))
+        tmp_ids.update(
+            _collect_tmp_ids(
+                child,
+                seen=seen,
+                max_expr_depth=max_expr_depth,
+                max_nodes=max_nodes,
+                budget_exhausted=budget_exhausted,
+            )
+        )
     return tmp_ids
 
 
 def _collect_stack_load_ranges(
-    expr, aliases: Optional[Aliases] = None, seen: Optional[Set[int]] = None
+    expr,
+    aliases: Optional[Aliases] = None,
+    seen: Optional[Set[int]] = None,
+    max_expr_depth: int = -1,
+    max_nodes: int = -1,
+    budget_exhausted: Optional[List[bool]] = None,
 ) -> List[StackRange]:
     if aliases is None:
         aliases = {}
     if seen is None:
         seen = set()
+    if budget_exhausted is None:
+        budget_exhausted = [False]
     if expr is None:
+        return []
+    if max_expr_depth >= 0 and getattr(expr, "depth", 0) > max_expr_depth:
+        budget_exhausted[0] = True
         return []
 
     expr_id = id(expr)
     if expr_id in seen:
         return []
     seen.add(expr_id)
+    if max_nodes >= 0 and len(seen) > max_nodes:
+        budget_exhausted[0] = True
+        return []
 
     ranges = []
     if isinstance(expr, Expr.Load):
@@ -202,7 +237,16 @@ def _collect_stack_load_ranges(
             ranges.append((offset, expr.size))
 
     for child in _children(expr):
-        ranges.extend(_collect_stack_load_ranges(child, aliases=aliases, seen=seen))
+        ranges.extend(
+            _collect_stack_load_ranges(
+                child,
+                aliases=aliases,
+                seen=seen,
+                max_expr_depth=max_expr_depth,
+                max_nodes=max_nodes,
+                budget_exhausted=budget_exhausted,
+            )
+        )
     return ranges
 
 
@@ -238,16 +282,44 @@ def _stack_load_sources(
     visited: Optional[Set[Tuple[int, int]]] = None,
     depth: int = 0,
     max_depth: int = 64,
+    max_expr_depth: int = -1,
+    max_expr_nodes: int = -1,
+    budget_exhausted: Optional[List[bool]] = None,
 ) -> List[Tuple[StackRange, int]]:
     if visited is None:
         visited = set()
+    if budget_exhausted is None:
+        budget_exhausted = [False]
     if max_depth >= 0 and depth > max_depth:
+        budget_exhausted[0] = True
+        return []
+    if max_expr_depth >= 0 and getattr(expr, "depth", 0) > max_expr_depth:
+        budget_exhausted[0] = True
         return []
 
     aliases = aliases_by_stmt[stmt_idx] if stmt_idx < len(aliases_by_stmt) else {}
-    sources = [(load_range, stmt_idx) for load_range in _collect_stack_load_ranges(expr, aliases=aliases)]
+    sources = [
+        (load_range, stmt_idx)
+        for load_range in _collect_stack_load_ranges(
+            expr,
+            aliases=aliases,
+            max_expr_depth=max_expr_depth,
+            max_nodes=max_expr_nodes,
+            budget_exhausted=budget_exhausted,
+        )
+    ]
 
-    for tmp_idx in _collect_tmp_ids(expr):
+    if budget_exhausted[0]:
+        return sources
+
+    for tmp_idx in _collect_tmp_ids(
+        expr,
+        max_expr_depth=max_expr_depth,
+        max_nodes=max_expr_nodes,
+        budget_exhausted=budget_exhausted,
+    ):
+        if budget_exhausted[0]:
+            break
         definition = _tmp_definition_before(block, tmp_idx, stmt_idx)
         if definition is None:
             continue
@@ -265,6 +337,9 @@ def _stack_load_sources(
                 visited=visited,
                 depth=depth + 1,
                 max_depth=max_depth,
+                max_expr_depth=max_expr_depth,
+                max_expr_nodes=max_expr_nodes,
+                budget_exhausted=budget_exhausted,
             )
         )
 
@@ -393,6 +468,9 @@ def replacement_has_stale_stack_load_source(
     new,
     initial_aliases: Optional[Aliases] = None,
     max_depth: int = 64,
+    max_expr_depth: int = -1,
+    max_expr_nodes: int = -1,
+    aliases_by_stmt: Optional[List[Aliases]] = None,
 ) -> bool:
     """
     Return True if applying a replacement would inline a stack load from a tmp whose saved load source was overwritten.
@@ -416,6 +494,9 @@ def replacement_has_stale_stack_load_source(
         codeloc,
         initial_aliases=initial_aliases,
         max_depth=max_depth,
+        max_expr_depth=max_expr_depth,
+        max_expr_nodes=max_expr_nodes,
+        aliases_by_stmt=aliases_by_stmt,
     )
 
 
@@ -428,6 +509,9 @@ def replacement_introduces_stale_stack_load(
     new,
     initial_aliases: Optional[Aliases] = None,
     max_depth: int = 64,
+    max_expr_depth: int = -1,
+    max_expr_nodes: int = -1,
+    aliases_by_stmt: Optional[List[Aliases]] = None,
 ) -> bool:
     """
     Return True if a replacement introduces or reuses a stack load whose stack-copy source is stale.
@@ -442,6 +526,9 @@ def replacement_introduces_stale_stack_load(
         new,
         initial_aliases=initial_aliases,
         max_depth=max_depth,
+        max_expr_depth=max_expr_depth,
+        max_expr_nodes=max_expr_nodes,
+        aliases_by_stmt=aliases_by_stmt,
     ):
         return True
 
@@ -449,7 +536,8 @@ def replacement_introduces_stale_stack_load(
     if stmt_idx is None:
         return False
 
-    aliases_by_stmt = block_stack_aliases_by_stmt(block, initial_aliases=initial_aliases)
+    if aliases_by_stmt is None:
+        aliases_by_stmt = block_stack_aliases_by_stmt(block, initial_aliases=initial_aliases)
     aliases = aliases_by_stmt[stmt_idx] if stmt_idx < len(aliases_by_stmt) else dict(initial_aliases or {})
 
     load_ranges = []
@@ -496,6 +584,9 @@ def has_stale_stack_load_source(
     current_loc: CodeLocation,
     initial_aliases: Optional[Aliases] = None,
     max_depth: int = 64,
+    max_expr_depth: int = -1,
+    max_expr_nodes: int = -1,
+    aliases_by_stmt: Optional[List[Aliases]] = None,
 ) -> bool:
     """
     Return True if propagating expr to current_loc would turn a saved stack load into a fresh load after the
@@ -509,14 +600,19 @@ def has_stale_stack_load_source(
     if def_stmt_idx is None or current_stmt_idx is None or current_stmt_idx <= def_stmt_idx:
         return False
 
-    aliases_by_stmt = block_stack_aliases_by_stmt(block, initial_aliases=initial_aliases)
+    if aliases_by_stmt is None:
+        aliases_by_stmt = block_stack_aliases_by_stmt(block, initial_aliases=initial_aliases)
     seen_sources = set()
+    budget_exhausted = [False]
     for load_range, source_idx in _stack_load_sources(
         block,
         expr,
         def_stmt_idx,
         aliases_by_stmt,
         max_depth=max_depth,
+        max_expr_depth=max_expr_depth,
+        max_expr_nodes=max_expr_nodes,
+        budget_exhausted=budget_exhausted,
     ):
         key = load_range, source_idx
         if key in seen_sources:
@@ -527,4 +623,4 @@ def has_stale_stack_load_source(
         if _transitive_stack_copy_is_stale(block, load_range, source_idx, current_stmt_idx, aliases_by_stmt):
             return True
 
-    return False
+    return budget_exhausted[0]

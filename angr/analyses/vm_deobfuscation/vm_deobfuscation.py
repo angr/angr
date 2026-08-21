@@ -16,7 +16,7 @@ import pickle
 
 from pathlib import Path
 
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, Counter
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines import UberEngine
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
@@ -574,6 +574,22 @@ time_so_far = 0
 total_time = defaultdict(float)
 time_distribution = defaultdict(list)
 depth = 0
+
+
+def _project_int_attr(project, name, default):
+    value = getattr(project, name, default) if project is not None else default
+    if value is None:
+        return default
+    return int(value)
+
+
+def _project_bool_attr(project, name, default):
+    value = getattr(project, name, default) if project is not None else default
+    if isinstance(value, str):
+        return value.lower() not in {"", "0", "false", "no", "off"}
+    return bool(value)
+
+
 def logtime(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
@@ -626,7 +642,8 @@ class VMDeobfuscation(Analysis):
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
                  ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=5.00, use_mem_vpc_finder=False, hook_other_functions=False,
-                 remove_vmp_semantically_same_branch=False, use_ctf_vpc_finder=False):
+                 remove_vmp_semantically_same_branch=False, use_ctf_vpc_finder=False,
+                 enable_pre_decompilation_vex_simplifications=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -649,6 +666,10 @@ class VMDeobfuscation(Analysis):
         self.project_dir = Path(self.project.filename).resolve().parent
         self.hook_other_functions = hook_other_functions
         self.remove_vmp_semantically_same_branch = remove_vmp_semantically_same_branch
+        self.enable_pre_decompilation_vex_simplifications = (
+            enable_pre_decompilation_vex_simplifications
+            or _project_bool_attr(self.project, "enable_pre_decompilation_vex_simplifications", False)
+        )
 
 
         DUMP = "dump"
@@ -1091,7 +1112,15 @@ class VMDeobfuscation(Analysis):
         # pickled_file_name = self.project_dir / "themida_simplification_cfg"
         # new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
-        new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
+        if self.enable_pre_decompilation_vex_simplifications:
+            new_cfg = self.run_pre_decompilation_vex_simplifications(
+                new_cfg,
+                proj,
+                start_state=start_state,
+                keep_sp_changes_dae=keep_sp_changes_dae,
+            )
+        else:
+            new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
 
         # verification_state_copy = verification_state.copy()
         # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
@@ -3354,6 +3383,860 @@ class VMDeobfuscation(Analysis):
         return dsa_new_model
 
 
+
+    @staticmethod
+    def _vex_const_value(expr):
+        return expr.con.value if isinstance(expr, pyvex.expr.Const) else None
+
+    @staticmethod
+    def _vex_expr_key(expr):
+        if isinstance(expr, pyvex.expr.RdTmp):
+            return ("tmp", expr.tmp)
+        if isinstance(expr, pyvex.expr.Const):
+            return ("const", expr.con.__class__.__name__, expr.con.value)
+        if isinstance(expr, pyvex.expr.Unop):
+            arg_keys = tuple(VMDeobfuscation._vex_expr_key(arg) for arg in expr.args)
+            return None if any(arg_key is None for arg_key in arg_keys) else ("unop", expr.op, arg_keys)
+        if isinstance(expr, pyvex.expr.Binop):
+            arg_keys = tuple(VMDeobfuscation._vex_expr_key(arg) for arg in expr.args)
+            return None if any(arg_key is None for arg_key in arg_keys) else ("binop", expr.op, arg_keys)
+        return None
+
+    @staticmethod
+    def _vex_zero_const_for_tmp(tyenv, tmp_idx):
+        const_class = pyvex.const.ty_to_const_class(tyenv.lookup(tmp_idx))
+        return pyvex.expr.Const(const_class(0))
+
+    @staticmethod
+    def _vex_bits_for_tmp(tyenv, tmp_idx):
+        ty = tyenv.lookup(tmp_idx)
+        if isinstance(ty, str) and ty.startswith("Ity_I"):
+            return int(ty[5:])
+        return None
+
+    @staticmethod
+    def _vex_mask_for_tmp(tyenv, tmp_idx):
+        bits = VMDeobfuscation._vex_bits_for_tmp(tyenv, tmp_idx)
+        return (1 << bits) - 1 if bits is not None else None
+
+    @staticmethod
+    def _vex_make_const_like(const_expr, value):
+        const_class = const_expr.con.__class__
+        ty = getattr(const_expr.con, "type", None)
+        if isinstance(ty, str) and ty.startswith("Ity_I"):
+            value &= (1 << int(ty[5:])) - 1
+        return pyvex.expr.Const(const_class(value))
+
+    @staticmethod
+    def _vex_const_and_var_arg(expr):
+        if not isinstance(expr, pyvex.expr.Binop):
+            return None, None
+        arg0, arg1 = expr.args
+        if isinstance(arg0, pyvex.expr.Const):
+            return arg0, arg1
+        if isinstance(arg1, pyvex.expr.Const):
+            return arg1, arg0
+        return None, None
+
+    @staticmethod
+    def _vex_expr_depth(expr):
+        if isinstance(expr, (pyvex.expr.RdTmp, pyvex.expr.Const)):
+            return 1
+        if isinstance(expr, (pyvex.expr.Unop, pyvex.expr.Binop)):
+            return 1 + max((VMDeobfuscation._vex_expr_depth(arg) for arg in expr.args), default=0)
+        return 99
+
+    @staticmethod
+    def _vex_inline_expr_children(expr):
+        if isinstance(expr, pyvex.expr.ITE):
+            return [expr.cond, expr.iftrue, expr.iffalse]
+        if isinstance(expr, pyvex.expr.Load):
+            return [expr.addr]
+        args = getattr(expr, "args", None)
+        return list(args) if args is not None else []
+
+    @staticmethod
+    def _vex_inline_expr_depth(expr):
+        if isinstance(expr, (pyvex.expr.RdTmp, pyvex.expr.Const, pyvex.expr.Get)):
+            return 1
+        children = VMDeobfuscation._vex_inline_expr_children(expr)
+        if children:
+            return 1 + max((VMDeobfuscation._vex_inline_expr_depth(child) for child in children), default=0)
+        return 99
+
+    @staticmethod
+    def _vex_inline_expr_size(expr):
+        if isinstance(expr, (pyvex.expr.RdTmp, pyvex.expr.Const, pyvex.expr.Get)):
+            return 1
+        children = VMDeobfuscation._vex_inline_expr_children(expr)
+        if children:
+            return 1 + sum(VMDeobfuscation._vex_inline_expr_size(child) for child in children)
+        return 99
+
+    @staticmethod
+    def _vex_pure_operand_inline_allowed(expr):
+        if isinstance(expr, pyvex.expr.Binop):
+            if not expr.op.startswith(("Iop_Add", "Iop_Sub", "Iop_Xor", "Iop_Or", "Iop_And", "Iop_Shl", "Iop_Shr", "Iop_Sar")):
+                return False
+            return all(VMDeobfuscation._vex_pure_operand_inline_allowed(arg) for arg in expr.args)
+        if isinstance(expr, pyvex.expr.Unop):
+            if not expr.op.startswith((
+                "Iop_Not",
+                "Iop_8Uto",
+                "Iop_16Uto",
+                "Iop_32Uto",
+                "Iop_64to",
+                "Iop_32to",
+                "Iop_16to",
+                "Iop_8Sto",
+                "Iop_16Sto",
+                "Iop_32Sto",
+            )):
+                return False
+            return all(VMDeobfuscation._vex_pure_operand_inline_allowed(arg) for arg in expr.args)
+        return isinstance(expr, (pyvex.expr.RdTmp, pyvex.expr.Const, pyvex.expr.Get))
+
+    @staticmethod
+    def _vex_get_offsets(expr):
+        offsets = set()
+        if isinstance(expr, pyvex.expr.Get):
+            offsets.add(expr.offset)
+        for child in VMDeobfuscation._vex_inline_expr_children(expr):
+            offsets.update(VMDeobfuscation._vex_get_offsets(child))
+        return offsets
+
+    @staticmethod
+    def _vex_has_put_barrier(statements, start_idx, end_idx, get_offsets):
+        if not get_offsets:
+            return False
+        for stmt in statements[start_idx + 1:end_idx]:
+            if isinstance(stmt, pyvex.stmt.Put) and stmt.offset in get_offsets:
+                return True
+        return False
+
+    @staticmethod
+    def _vex_const_binop_inline_allowed(expr):
+        if not isinstance(expr, pyvex.expr.Binop):
+            return False
+        if not expr.op.startswith(("Iop_Add", "Iop_Sub", "Iop_Xor", "Iop_Or", "Iop_And", "Iop_Shl", "Iop_Shr")):
+            return False
+        const_expr, _ = VMDeobfuscation._vex_const_and_var_arg(expr)
+        return const_expr is not None
+
+    def _vex_same_value_exprs(self, expr0, expr1, tmp_expr_keys):
+        key0 = self._vex_expr_key(expr0)
+        key1 = self._vex_expr_key(expr1)
+        if key0 is not None and key0 == key1:
+            return True
+
+        if isinstance(expr0, pyvex.expr.RdTmp):
+            key0 = tmp_expr_keys.get(expr0.tmp, key0)
+        if isinstance(expr1, pyvex.expr.RdTmp):
+            key1 = tmp_expr_keys.get(expr1.tmp, key1)
+        return key0 is not None and key0 == key1
+
+    def _vex_identity_replacement(self, stmt, tmp_expr_keys, tyenv):
+        if not isinstance(stmt, pyvex.stmt.WrTmp) or not isinstance(stmt.data, pyvex.expr.Binop):
+            return None
+
+        op = stmt.data.op
+        arg0, arg1 = stmt.data.args
+        arg0_const = self._vex_const_value(arg0)
+        arg1_const = self._vex_const_value(arg1)
+
+        if op.startswith(("Iop_Or", "Iop_Add", "Iop_Xor")):
+            if arg0_const == 0:
+                return arg1
+            if arg1_const == 0:
+                return arg0
+
+        if op.startswith("Iop_Sub") and arg1_const == 0:
+            return arg0
+
+        if op.startswith(("Iop_Shl", "Iop_Shr", "Iop_Sar")) and arg1_const == 0:
+            return arg0
+
+        if op.startswith(("Iop_Or", "Iop_And")) and self._vex_same_value_exprs(arg0, arg1, tmp_expr_keys):
+            return arg0
+
+        if op.startswith("Iop_Xor") and self._vex_same_value_exprs(arg0, arg1, tmp_expr_keys):
+            return self._vex_zero_const_for_tmp(tyenv, stmt.tmp)
+
+        if op.startswith("Iop_And") and (arg0_const == 0 or arg1_const == 0):
+            return self._vex_zero_const_for_tmp(tyenv, stmt.tmp)
+
+        return None
+
+    def _vex_const_chain_replacement(self, stmt, tmp_exprs, tyenv):
+        if not isinstance(stmt, pyvex.stmt.WrTmp) or not isinstance(stmt.data, pyvex.expr.Binop):
+            return None
+
+        op = stmt.data.op
+        if not op.startswith(("Iop_Or", "Iop_And", "Iop_Xor")):
+            return None
+
+        const_expr, var_expr = self._vex_const_and_var_arg(stmt.data)
+        if const_expr is None or not isinstance(var_expr, pyvex.expr.RdTmp):
+            return None
+
+        pred_expr = tmp_exprs.get(var_expr.tmp)
+        if not isinstance(pred_expr, pyvex.expr.Binop) or pred_expr.op != op:
+            return None
+
+        pred_const_expr, pred_var_expr = self._vex_const_and_var_arg(pred_expr)
+        if pred_const_expr is None:
+            return None
+
+        const_value = const_expr.con.value
+        pred_const_value = pred_const_expr.con.value
+
+        if op.startswith("Iop_Or"):
+            combined_value = pred_const_value | const_value
+            mask = self._vex_mask_for_tmp(tyenv, stmt.tmp)
+            if combined_value == pred_const_value:
+                return var_expr
+            if mask is not None and combined_value == mask:
+                return self._vex_make_const_like(const_expr, combined_value)
+        elif op.startswith("Iop_And"):
+            combined_value = pred_const_value & const_value
+            mask = self._vex_mask_for_tmp(tyenv, stmt.tmp)
+            if combined_value == pred_const_value:
+                return var_expr
+            if combined_value == 0:
+                return self._vex_zero_const_for_tmp(tyenv, stmt.tmp)
+            if mask is not None and combined_value == mask:
+                return pred_var_expr
+        else:
+            combined_value = pred_const_value ^ const_value
+            if combined_value == 0:
+                return pred_var_expr
+
+        return pyvex.expr.Binop(op, [pred_var_expr, self._vex_make_const_like(const_expr, combined_value)])
+
+    def _vex_shift_expr(self, expr, tmp_exprs):
+        if not isinstance(expr, pyvex.expr.RdTmp):
+            return None
+
+        pred_expr = tmp_exprs.get(expr.tmp)
+        if not isinstance(pred_expr, pyvex.expr.Binop) or len(pred_expr.args) != 2:
+            return None
+
+        if pred_expr.op.startswith("Iop_Shl"):
+            direction = "left"
+        elif pred_expr.op.startswith("Iop_Shr"):
+            direction = "right"
+        else:
+            return None
+
+        value_expr, shift_expr = pred_expr.args
+        if not isinstance(shift_expr, pyvex.expr.Const):
+            return None
+
+        return direction, pred_expr.op, value_expr, shift_expr
+
+    def _vex_rotate_replacement(self, stmt, tmp_exprs, tyenv):
+        if not isinstance(stmt, pyvex.stmt.WrTmp) or not isinstance(stmt.data, pyvex.expr.Binop):
+            return None
+        if not stmt.data.op.startswith("Iop_Or"):
+            return None
+
+        bits = self._vex_bits_for_tmp(tyenv, stmt.tmp)
+        if bits not in (8, 16, 32, 64):
+            return None
+
+        left_shift = self._vex_shift_expr(stmt.data.args[0], tmp_exprs)
+        right_shift = self._vex_shift_expr(stmt.data.args[1], tmp_exprs)
+        if left_shift is None or right_shift is None:
+            return None
+
+        direction0, op0, value0, amount_expr0 = left_shift
+        direction1, op1, value1, amount_expr1 = right_shift
+        amount0 = amount_expr0.con.value
+        amount1 = amount_expr1.con.value
+        if direction0 == direction1 or amount0 <= 0 or amount1 <= 0 or amount0 + amount1 != bits:
+            return None
+
+        value0_key = self._vex_expr_key(value0)
+        value1_key = self._vex_expr_key(value1)
+        if value0_key is None or value0_key != value1_key:
+            return None
+
+        return pyvex.expr.Binop(
+            stmt.data.op,
+            [
+                pyvex.expr.Binop(op0, [value0, amount_expr0]),
+                pyvex.expr.Binop(op1, [value1, amount_expr1]),
+            ],
+        )
+
+    def _vex_masked_shift_replacement(self, stmt, tmp_exprs):
+        if not isinstance(stmt, pyvex.stmt.WrTmp) or not isinstance(stmt.data, pyvex.expr.Binop):
+            return None
+        if not stmt.data.op.startswith("Iop_And"):
+            return None
+
+        const_expr, var_expr = self._vex_const_and_var_arg(stmt.data)
+        if const_expr is None or not isinstance(var_expr, pyvex.expr.RdTmp):
+            return None
+
+        pred_expr = tmp_exprs.get(var_expr.tmp)
+        if not isinstance(pred_expr, pyvex.expr.Binop) or not pred_expr.op.startswith(("Iop_Shl", "Iop_Shr")):
+            return None
+        if len(pred_expr.args) != 2 or not isinstance(pred_expr.args[1], pyvex.expr.Const):
+            return None
+
+        return pyvex.expr.Binop(stmt.data.op, [pred_expr, const_expr])
+
+    def _vex_inline_single_use_const_binop_predecessors(self, node):
+        defs = {}
+        use_counts = Counter()
+
+        for idx, stmt in enumerate(node.irsb.statements):
+            if isinstance(stmt, pyvex.stmt.WrTmp):
+                defs[stmt.tmp] = (idx, stmt)
+            for expr in getattr(stmt, "expressions", []):
+                if isinstance(expr, pyvex.expr.RdTmp):
+                    use_counts[expr.tmp] += 1
+        if isinstance(node.irsb.next, pyvex.expr.RdTmp):
+            use_counts[node.irsb.next.tmp] += 1
+
+        new_statements = list(node.irsb.statements)
+        inline_count = 0
+
+        for idx, stmt in enumerate(new_statements):
+            if not isinstance(stmt, pyvex.stmt.WrTmp) or not self._vex_const_binop_inline_allowed(stmt.data):
+                continue
+
+            candidate_arg_idx = None
+            candidate_tmp = None
+            for arg_idx, arg in enumerate(stmt.data.args):
+                if isinstance(arg, pyvex.expr.RdTmp) and use_counts[arg.tmp] == 1 and arg.tmp in defs:
+                    candidate_arg_idx = arg_idx
+                    candidate_tmp = arg.tmp
+                    break
+            if candidate_tmp is None:
+                continue
+
+            pred_idx, pred_stmt = defs[candidate_tmp]
+            if pred_idx >= idx or not self._vex_const_binop_inline_allowed(pred_stmt.data):
+                continue
+            if self._vex_expr_depth(pred_stmt.data) > 2:
+                continue
+
+            new_args = list(stmt.data.args)
+            new_args[candidate_arg_idx] = copy.deepcopy(pred_stmt.data)
+            new_expr = pyvex.expr.Binop(stmt.data.op, new_args)
+            if self._vex_expr_depth(new_expr) > 4:
+                continue
+
+            new_stmt = pyvex.stmt.WrTmp(stmt.tmp, new_expr)
+            new_statements[idx] = new_stmt
+            defs[stmt.tmp] = (idx, new_stmt)
+            inline_count += 1
+
+        if inline_count:
+            node.irsb = pyvex.IRSB.empty_block(
+                node.irsb.arch,
+                node.irsb.addr,
+                statements=new_statements,
+                tyenv=node.irsb.tyenv,
+                nxt=node.irsb.next,
+                direct_next=node.irsb.direct_next,
+                jumpkind=node.irsb.jumpkind,
+                size=node.irsb.size,
+            )
+
+        return inline_count
+
+    def _vex_inline_single_use_pure_operands(
+            self,
+            node,
+            max_pred_depth=4,
+            max_result_depth=7,
+            max_result_size=18,
+            max_replacements_per_stmt=4):
+        defs = {}
+        use_counts = Counter()
+        statements = list(node.irsb.statements)
+
+        for idx, stmt in enumerate(statements):
+            if isinstance(stmt, pyvex.stmt.WrTmp):
+                defs[stmt.tmp] = (idx, stmt)
+            for expr in getattr(stmt, "expressions", []):
+                if isinstance(expr, pyvex.expr.RdTmp):
+                    use_counts[expr.tmp] += 1
+        if isinstance(node.irsb.next, pyvex.expr.RdTmp):
+            use_counts[node.irsb.next.tmp] += 1
+
+        inline_count = 0
+        changed = False
+
+        for idx, stmt in enumerate(statements):
+            replacements = {}
+            replacement_count = 0
+            for expr in list(getattr(stmt, "expressions", [])):
+                if not isinstance(expr, pyvex.expr.RdTmp) or use_counts[expr.tmp] != 1 or expr.tmp not in defs:
+                    continue
+
+                pred_idx, pred_stmt = defs[expr.tmp]
+                if pred_idx >= idx:
+                    continue
+
+                pred_expr = pred_stmt.data
+                if not self._vex_pure_operand_inline_allowed(pred_expr):
+                    continue
+                if self._vex_inline_expr_depth(pred_expr) > max_pred_depth:
+                    continue
+                if self._vex_inline_expr_size(pred_expr) > max_result_size:
+                    continue
+                if self._vex_has_put_barrier(statements, pred_idx, idx, self._vex_get_offsets(pred_expr)):
+                    continue
+
+                replacements[expr] = copy.deepcopy(pred_expr)
+                replacement_count += 1
+                if replacement_count >= max_replacements_per_stmt:
+                    break
+
+            if not replacements:
+                continue
+
+            if isinstance(stmt, pyvex.stmt.WrTmp):
+                new_data = copy.deepcopy(stmt.data)
+                new_data.replace_expression(replacements)
+                if self._vex_inline_expr_depth(new_data) > max_result_depth:
+                    continue
+                if self._vex_inline_expr_size(new_data) > max_result_size:
+                    continue
+                new_stmt = pyvex.stmt.WrTmp(stmt.tmp, new_data)
+                statements[idx] = new_stmt
+                defs[stmt.tmp] = (idx, new_stmt)
+            else:
+                stmt.replace_expression(replacements)
+
+            inline_count += len(replacements)
+            changed = True
+
+        if changed:
+            node.irsb = pyvex.IRSB.empty_block(
+                node.irsb.arch,
+                node.irsb.addr,
+                statements=statements,
+                tyenv=node.irsb.tyenv,
+                nxt=node.irsb.next,
+                direct_next=node.irsb.direct_next,
+                jumpkind=node.irsb.jumpkind,
+                size=node.irsb.size,
+            )
+
+        return inline_count
+
+    @logtime
+    def simplify_or_zero_vex_inst(self, cfg):
+        print("Simplify VEX identity instructions")
+        simplified_count = 0
+        rewritten_count = 0
+        rotate_count = 0
+        masked_shift_count = 0
+        single_use_inline_count = 0
+        pure_operand_inline_count = 0
+
+        for node in cfg.nodes():
+            if node.is_simprocedure:
+                continue
+
+            tmp_replace_dict = {}
+            tmp_expr_keys = {}
+            tmp_exprs = {}
+            new_statements = []
+
+            for stmt in node.irsb.statements:
+                if not isinstance(stmt, pyvex.stmt.IMark):
+                    replacements = {}
+                    for expr in stmt.expressions:
+                        if isinstance(expr, pyvex.expr.RdTmp) and expr.tmp in tmp_replace_dict:
+                            replacements[expr] = tmp_replace_dict[expr.tmp]
+                    if replacements:
+                        stmt.replace_expression(replacements)
+
+                replacement = self._vex_identity_replacement(stmt, tmp_expr_keys, node.irsb.tyenv)
+                if replacement is not None:
+                    if not isinstance(replacement, (pyvex.expr.RdTmp, pyvex.expr.Const)):
+                        new_statements.append(pyvex.stmt.WrTmp(stmt.tmp, replacement))
+                        tmp_expr_keys[stmt.tmp] = self._vex_expr_key(replacement)
+                        tmp_exprs[stmt.tmp] = replacement
+                        continue
+                    while isinstance(replacement, pyvex.expr.RdTmp) and replacement.tmp in tmp_replace_dict:
+                        replacement = tmp_replace_dict[replacement.tmp]
+                    tmp_replace_dict[stmt.tmp] = replacement
+                    tmp_expr_keys[stmt.tmp] = self._vex_expr_key(replacement)
+                    tmp_exprs[stmt.tmp] = replacement
+                    simplified_count += 1
+                    continue
+
+                replacement = self._vex_const_chain_replacement(stmt, tmp_exprs, node.irsb.tyenv)
+                if replacement is not None:
+                    if isinstance(replacement, (pyvex.expr.RdTmp, pyvex.expr.Const)):
+                        while isinstance(replacement, pyvex.expr.RdTmp) and replacement.tmp in tmp_replace_dict:
+                            replacement = tmp_replace_dict[replacement.tmp]
+                        tmp_replace_dict[stmt.tmp] = replacement
+                        tmp_expr_keys[stmt.tmp] = self._vex_expr_key(replacement)
+                        tmp_exprs[stmt.tmp] = replacement
+                        simplified_count += 1
+                        continue
+
+                    stmt = pyvex.stmt.WrTmp(stmt.tmp, replacement)
+                    rewritten_count += 1
+
+                replacement = self._vex_rotate_replacement(stmt, tmp_exprs, node.irsb.tyenv)
+                if replacement is not None:
+                    stmt = pyvex.stmt.WrTmp(stmt.tmp, replacement)
+                    rotate_count += 1
+
+                replacement = self._vex_masked_shift_replacement(stmt, tmp_exprs)
+                if replacement is not None:
+                    stmt = pyvex.stmt.WrTmp(stmt.tmp, replacement)
+                    masked_shift_count += 1
+
+                if isinstance(stmt, pyvex.stmt.WrTmp):
+                    tmp_expr_keys[stmt.tmp] = self._vex_expr_key(stmt.data)
+                    tmp_exprs[stmt.tmp] = stmt.data
+
+                new_statements.append(stmt)
+
+            new_next = node.irsb.next
+            if isinstance(new_next, pyvex.expr.RdTmp) and new_next.tmp in tmp_replace_dict:
+                replacement = tmp_replace_dict[new_next.tmp]
+                if isinstance(replacement, pyvex.expr.RdTmp):
+                    block_id = getattr(new_next, "block_id", None)
+                    new_next = DataSensitiveRdTmp(replacement.tmp, block_id) if block_id is not None else replacement
+
+            if len(new_statements) != len(node.irsb.statements) or new_next is not node.irsb.next:
+                node.irsb = pyvex.IRSB.empty_block(
+                    node.irsb.arch,
+                    node.irsb.addr,
+                    statements=new_statements,
+                    tyenv=node.irsb.tyenv,
+                    nxt=new_next,
+                    direct_next=node.irsb.direct_next,
+                    jumpkind=node.irsb.jumpkind,
+                    size=node.irsb.size,
+                )
+
+        self.simplified_vex_or_identities = simplified_count
+        self.simplified_vex_const_chains = rewritten_count
+        self.simplified_vex_rotates = rotate_count
+        self.simplified_vex_masked_shifts = masked_shift_count
+
+        for node in cfg.nodes():
+            if not node.is_simprocedure:
+                single_use_inline_count += self._vex_inline_single_use_const_binop_predecessors(node)
+        self.simplified_vex_single_use_const_binop_inlines = single_use_inline_count
+
+        for node in cfg.nodes():
+            if not node.is_simprocedure:
+                pure_operand_inline_count += self._vex_inline_single_use_pure_operands(node)
+        self.simplified_vex_single_use_pure_operand_inlines = pure_operand_inline_count
+        return cfg
+
+    @logtime
+    def run_pre_decompilation_vex_simplifications(self, cfg, proj, start_state=None, keep_sp_changes_dae=False):
+        cfg = self.simplify_or_zero_vex_inst(cfg)
+        cfg = self.remove_overwritten_sp_updates(cfg, proj)
+        cfg = self.run_post_sp_cleanup_dae(
+            cfg,
+            proj,
+            keep_sp_changes_dae=keep_sp_changes_dae,
+            iterations=_project_int_attr(proj, "vm_deobf_post_sp_cleanup_dae_iterations", 25),
+        )
+        cfg = self.remove_redundant_store_load(cfg, proj, start_state=start_state)
+        cfg = self.run_post_sp_cleanup_dae(
+            cfg,
+            proj,
+            keep_sp_changes_dae=keep_sp_changes_dae,
+            iterations=_project_int_attr(proj, "vm_deobf_post_store_load_dae_iterations", 5),
+        )
+        cfg = self.remove_conservative_local_memory_redundancies(cfg)
+        cfg = self.run_post_sp_cleanup_dae(
+            cfg,
+            proj,
+            keep_sp_changes_dae=keep_sp_changes_dae,
+            iterations=_project_int_attr(proj, "vm_deobf_post_local_memory_dae_iterations", 15),
+        )
+        return self.remove_segment_selector_vex_inst(cfg)
+
+    @staticmethod
+    def _vex_expr_uses_get_offset(expr, reg_offset):
+        if expr is None:
+            return False
+        if isinstance(expr, pyvex.expr.Get):
+            return expr.offset == reg_offset
+        if isinstance(expr, pyvex.expr.ITE):
+            return any(
+                VMDeobfuscation._vex_expr_uses_get_offset(child, reg_offset)
+                for child in (expr.cond, expr.iftrue, expr.iffalse)
+            )
+        if isinstance(expr, pyvex.expr.Load):
+            return VMDeobfuscation._vex_expr_uses_get_offset(expr.addr, reg_offset)
+        args = getattr(expr, "args", None)
+        if args is not None:
+            return any(VMDeobfuscation._vex_expr_uses_get_offset(arg, reg_offset) for arg in args)
+        return False
+
+    @staticmethod
+    def _vex_stmt_uses_get_offset(stmt, reg_offset):
+        return any(
+            VMDeobfuscation._vex_expr_uses_get_offset(expr, reg_offset)
+            for expr in getattr(stmt, "expressions", ())
+        )
+
+    @staticmethod
+    def _vex_stmt_may_observe_sp(stmt):
+        return isinstance(stmt, (pyvex.stmt.Dirty, pyvex.stmt.CAS, pyvex.stmt.LLSC))
+
+    @logtime
+    def remove_overwritten_sp_updates(self, cfg, proj):
+        print("Remove overwritten stack pointer updates")
+        sp_offset = proj.arch.sp_offset
+        removed_count = 0
+        removed_by_block = Counter()
+
+        for node in cfg.nodes():
+            if node.is_simprocedure or getattr(node, "irsb", None) is None:
+                continue
+
+            statements = list(node.irsb.statements)
+            keep_statement = [True] * len(statements)
+            sp_live = True
+
+            for stmt_idx in range(len(statements) - 1, -1, -1):
+                stmt = statements[stmt_idx]
+
+                if isinstance(stmt, pyvex.stmt.Put) and stmt.offset == sp_offset:
+                    if not sp_live:
+                        keep_statement[stmt_idx] = False
+                        removed_count += 1
+                        block_id = getattr(node, "block_id", None)
+                        removed_by_block[(node.addr, getattr(block_id, "vm_vpc", None))] += 1
+
+                    sp_live = self._vex_expr_uses_get_offset(stmt.data, sp_offset)
+                    continue
+
+                if self._vex_stmt_uses_get_offset(stmt, sp_offset) or self._vex_stmt_may_observe_sp(stmt):
+                    sp_live = True
+
+            if all(keep_statement):
+                continue
+
+            node.irsb = pyvex.IRSB.empty_block(
+                node.irsb.arch,
+                node.irsb.addr,
+                statements=[stmt for stmt, keep in zip(statements, keep_statement) if keep],
+                tyenv=node.irsb.tyenv,
+                nxt=node.irsb.next,
+                direct_next=node.irsb.direct_next,
+                jumpkind=node.irsb.jumpkind,
+                size=node.irsb.size,
+            )
+
+        self.removed_overwritten_sp_updates = removed_count
+        self.removed_overwritten_sp_updates_by_block = removed_by_block
+        return cfg
+
+    @staticmethod
+    def _vex_stmt_count(cfg):
+        return sum(
+            len(node.irsb.statements)
+            for node in cfg.nodes()
+            if not node.is_simprocedure and getattr(node, "irsb", None) is not None
+        )
+
+    @logtime
+    def run_post_sp_cleanup_dae(self, cfg, proj, keep_sp_changes_dae=False, iterations=3):
+        print("Run post-SP-cleanup dead assignment elimination")
+        pass_counts = []
+
+        for iteration in range(iterations):
+            before_count = self._vex_stmt_count(cfg)
+            cfg = self._eliminate_dead_assignments(cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
+            after_count = self._vex_stmt_count(cfg)
+            pass_counts.append((before_count, after_count))
+            print("post-SP cleanup DAE iteration %d: %d -> %d" % (iteration, before_count, after_count))
+
+            if after_count == before_count:
+                break
+
+        self.post_sp_cleanup_dae_counts = pass_counts
+        return cfg
+
+    def _vex_type_size(self, ty):
+        if isinstance(ty, str) and ty.startswith("Ity_I"):
+            bits = int(ty[5:])
+            if bits % 8 != 0:
+                return None
+            return bits // 8
+        return None
+
+    def _vex_expr_size(self, expr, tyenv):
+        try:
+            return self._vex_type_size(expr.result_type(tyenv))
+        except (AttributeError, TypeError):
+            return None
+
+    @staticmethod
+    def _vex_expr_has_load(expr):
+        if isinstance(expr, pyvex.expr.Load):
+            return True
+        return any(
+            VMDeobfuscation._vex_expr_has_load(child)
+            for child in VMDeobfuscation._vex_inline_expr_children(expr)
+        )
+
+    @staticmethod
+    def _vex_stmt_has_load(stmt):
+        return any(
+            VMDeobfuscation._vex_expr_has_load(expr)
+            for expr in getattr(stmt, "expressions", ())
+        )
+
+    @staticmethod
+    def _vex_get_ranges(expr, tyenv):
+        ranges = set()
+        if isinstance(expr, pyvex.expr.Get):
+            try:
+                size = expr.result_size(tyenv) // 8
+            except (AttributeError, TypeError):
+                size = None
+            ranges.add((expr.offset, size))
+        for child in VMDeobfuscation._vex_inline_expr_children(expr):
+            ranges.update(VMDeobfuscation._vex_get_ranges(child, tyenv))
+        return ranges
+
+    @staticmethod
+    def _vex_put_may_overlap_get_ranges(put_offset, put_size, get_ranges):
+        for get_offset, get_size in get_ranges:
+            if put_size is None or get_size is None:
+                if put_offset == get_offset:
+                    return True
+                continue
+
+            if put_offset < get_offset + get_size and get_offset < put_offset + put_size:
+                return True
+
+        return False
+
+    def _invalidate_local_memory_facts_for_put(self, pending_stores, stmt, tyenv):
+        put_size = self._vex_expr_size(stmt.data, tyenv)
+        for addr_key, store_info in list(pending_stores.items()):
+            if self._vex_put_may_overlap_get_ranges(stmt.offset, put_size, store_info["addr_get_ranges"]):
+                del pending_stores[addr_key]
+
+    def _collect_conservative_local_memory_rewrites(self, irsb):
+        pending_stores = {}
+        remove_store_stmt_idxs = set()
+        load_replacements = {}
+        store_generation = 0
+
+        for idx, stmt in enumerate(irsb.statements):
+            if isinstance(stmt, (pyvex.stmt.Dirty, pyvex.stmt.CAS, pyvex.stmt.LLSC)):
+                pending_stores.clear()
+                continue
+
+            if isinstance(stmt, pyvex.stmt.Put):
+                self._invalidate_local_memory_facts_for_put(pending_stores, stmt, irsb.tyenv)
+
+            if isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Load):
+                addr_key = str(stmt.data.addr)
+                store_info = pending_stores.get(addr_key)
+                load_size = self._vex_type_size(stmt.data.ty)
+                if (
+                        store_info is not None
+                        and store_info["store_generation"] == store_generation
+                        and store_info["size"] is not None
+                        and load_size is not None
+                        and store_info["size"] == load_size
+                        and store_info["endness"] == stmt.data.endness):
+                    load_replacements[idx] = copy.deepcopy(store_info["data"])
+
+                pending_stores.clear()
+                continue
+
+            if self._vex_stmt_has_load(stmt):
+                pending_stores.clear()
+
+            if isinstance(stmt, pyvex.stmt.Store):
+                addr_key = str(stmt.addr)
+                store_size = self._vex_expr_size(stmt.data, irsb.tyenv)
+                store_info = pending_stores.get(addr_key)
+                if (
+                        store_info is not None
+                        and store_info["size"] is not None
+                        and store_size is not None
+                        and store_info["size"] == store_size
+                        and store_info["endness"] == stmt.endness):
+                    remove_store_stmt_idxs.add(store_info["stmt_idx"])
+
+                store_generation += 1
+                if store_size is not None:
+                    pending_stores[addr_key] = {
+                        "stmt_idx": idx,
+                        "size": store_size,
+                        "endness": stmt.endness,
+                        "data": stmt.data,
+                        "addr_get_ranges": self._vex_get_ranges(stmt.addr, irsb.tyenv),
+                        "store_generation": store_generation,
+                    }
+
+        return remove_store_stmt_idxs, load_replacements
+
+    @logtime
+    def remove_conservative_local_memory_redundancies(self, cfg):
+        print("Remove conservative local memory redundancies")
+        removed_store_count = 0
+        forwarded_load_count = 0
+        removed_by_block = Counter()
+        forwarded_by_block = Counter()
+
+        for node in cfg.nodes():
+            if node.is_simprocedure or getattr(node, "irsb", None) is None:
+                continue
+
+            remove_store_stmt_idxs, load_replacements = self._collect_conservative_local_memory_rewrites(node.irsb)
+            if not remove_store_stmt_idxs and not load_replacements:
+                continue
+
+            new_statements = []
+            for idx, stmt in enumerate(node.irsb.statements):
+                if idx in remove_store_stmt_idxs:
+                    removed_store_count += 1
+                    block_id = getattr(node, "block_id", None)
+                    removed_by_block[(node.addr, getattr(block_id, "vm_vpc", None))] += 1
+                    continue
+
+                if idx in load_replacements:
+                    forwarded_load_count += 1
+                    block_id = getattr(node, "block_id", None)
+                    forwarded_by_block[(node.addr, getattr(block_id, "vm_vpc", None))] += 1
+                    new_statements.append(pyvex.stmt.WrTmp(stmt.tmp, load_replacements[idx]))
+                    continue
+
+                new_statements.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(
+                node.irsb.arch,
+                node.irsb.addr,
+                statements=new_statements,
+                tyenv=node.irsb.tyenv,
+                nxt=node.irsb.next,
+                direct_next=node.irsb.direct_next,
+                jumpkind=node.irsb.jumpkind,
+                size=node.irsb.size,
+            )
+
+        self.local_memory_removed_stores = removed_store_count
+        self.local_memory_forwarded_loads = forwarded_load_count
+        self.local_memory_removed_stores_by_block = removed_by_block
+        self.local_memory_forwarded_loads_by_block = forwarded_by_block
+        return cfg
 
     @logtime
     def remove_redundant_assignment(self, cfg, proj, start_state=None):
