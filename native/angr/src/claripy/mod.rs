@@ -81,8 +81,8 @@ fn py_replace<'py>(
     old: Bound<'py, Base>,
     new: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    let old_dyn = Base::to_ast(old)?;
-    let new_dyn = Base::to_ast(new)?;
+    let old_dyn = old.get().ast();
+    let new_dyn = new.get().ast();
 
     // Convert new type to old type, if they do not match and both are BV or FP
     let new_coerced = match (old_dyn.ast_type(), new_dyn.ast_type()) {
@@ -95,7 +95,8 @@ fn py_replace<'py>(
 
     Base::from_ast(
         expr.py(),
-        Base::to_ast(expr)?
+        expr.get()
+            .ast()
             .replace(&old_dyn, &new_coerced)?
             .simplify()?,
     )
@@ -106,7 +107,7 @@ fn py_excavate_ite<'py>(
     py: Python<'py>,
     expr: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    Base::from_ast(py, Base::to_ast(expr)?.excavate_ite()?.simplify()?)
+    Base::from_ast(py, expr.get().ast().excavate_ite()?.simplify()?)
 }
 
 #[pyfunction]

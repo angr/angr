@@ -566,10 +566,7 @@ impl PySolver {
             return Ok(vec![PyTuple::empty(py)]);
         }
 
-        let asts: Vec<AstRef<'static>> = exprs
-            .into_iter()
-            .map(Base::to_ast)
-            .collect::<Result<_, _>>()?;
+        let asts: Vec<AstRef<'static>> = exprs.iter().map(|expr| expr.get().ast()).collect();
         let exact = Self::extract_exact(exact);
 
         let rows: Vec<Vec<AstRef<'static>>> = self
@@ -878,8 +875,8 @@ impl PySolver {
         old: Bound<'py, Base>,
         new: Bound<'py, Base>,
     ) -> Result<(), ClaripyError> {
-        let old_dyn = Base::to_ast(old)?;
-        let new_dyn = Base::to_ast(new)?;
+        let old_dyn = old.get().ast();
+        let new_dyn = new.get().ast();
         self.inner.add_replacement(old_dyn, new_dyn)?;
         Ok(())
     }
