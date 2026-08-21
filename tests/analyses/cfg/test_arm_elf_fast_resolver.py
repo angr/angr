@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
 import os
-import tempfile
 import unittest
+from unittest import mock
+
+import pyvex
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers.arm_elf_fast import ArmElfFastResolver
@@ -15,9 +17,7 @@ from tests.common import bin_location
 test_location = os.path.join(bin_location, "tests")
 
 FAUXWARE = os.path.join(test_location, "armel", "fauxware")
-
-# armel/fauxware is loaded at 0x8000, so an address in it is also its offset in the file
-LOAD_BASE = 0x8000
+REGISTER_ADD = os.path.join(test_location, "armel", "cfg_arm_elf_fast_resolve_put")
 
 # strcmp's PLT stub, the sequence _resolve_put is written for:
 #
@@ -25,16 +25,6 @@ LOAD_BASE = 0x8000
 #   8434  add ip, ip, #0x8000
 #   8438  ldr pc, [ip, #0xbd4]!
 STRCMP_STUB = 0x8430
-
-# Overwriting accepted(), a leaf function, puts an add of two registers in a block that still ends in
-# an indirect jump through r12.
-ACCEPTED = 0x85F0
-REGISTER_ADD_BODY = bytes.fromhex(
-    "11caa0e3"  # mov ip, #0x11000
-    "023081e0"  # add r3, r1, r2
-    "20c08ce2"  # add ip, ip, #0x20
-    "04f0bce5"  # ldr pc, [ip, #4]!
-)
 
 
 class TestArmElfFastResolver(unittest.TestCase):
@@ -49,24 +39,48 @@ class TestArmElfFastResolver(unittest.TestCase):
         assert sorted(successor.addr for successor in cfg.model.get_successors(stub)) == [strcmp.rebased_addr]
 
     def test_block_with_a_register_add_is_declined(self):
-        with open(FAUXWARE, "rb") as f:
-            image = bytearray(f.read())
-        offset = ACCEPTED - LOAD_BASE
-        image[offset : offset + len(REGISTER_ADD_BODY)] = REGISTER_ADD_BODY
+        proj = angr.Project(REGISTER_ADD, auto_load_libs=False)
+        original = ArmElfFastResolver._resolve_put
+        register_add_results = []
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "fauxware-register-add")
-            with open(path, "wb") as f:
-                f.write(image)
-            proj = angr.Project(path, auto_load_libs=False)
-            # the register add used to raise IndexError here and abort the whole scan
-            cfg = proj.analyses.CFGFast()
+        class StopAfterRegisterAdd:
+            def __init__(self, block):
+                self._block = block
+                self.statements = self._statements()
 
-            # 0x11000 + 0x20 + 4 holds a code address, so adding up only the constants hands back a target
-            # for a block whose r12 also depends on r1 and r2
-            block = proj.factory.block(ACCEPTED, cross_insn_opt=False).vex  # how CFGFast lifts
-            resolver = ArmElfFastResolver(proj)
-            assert resolver.resolve(cfg, ACCEPTED, ACCEPTED, block, block.jumpkind) == (False, [])
+            def __getattr__(self, name):
+                return getattr(self._block, name)
+
+            def _statements(self):
+                for block_stmt in self._block.statements:
+                    yield block_stmt
+                    if (
+                        isinstance(block_stmt, pyvex.IRStmt.WrTmp)
+                        and isinstance(block_stmt.data, pyvex.IRExpr.Binop)
+                        and "Add" in block_stmt.data.op
+                        and not block_stmt.constants
+                    ):
+                        raise AssertionError("resolver continued after a register-register add")
+
+        def record_register_add(resolver, stmt, block, source, cfg, blade):
+            has_register_add = any(
+                isinstance(block_stmt, pyvex.IRStmt.WrTmp)
+                and isinstance(block_stmt.data, pyvex.IRExpr.Binop)
+                and "Add" in block_stmt.data.op
+                and not block_stmt.constants
+                for block_stmt in block.statements
+            )
+            observed_block = StopAfterRegisterAdd(block) if has_register_add else block
+            result = original(resolver, stmt, observed_block, source, cfg, blade)
+            if has_register_add:
+                register_add_results.append(result)
+            return result
+
+        with mock.patch.object(ArmElfFastResolver, "_resolve_put", record_register_add):
+            proj.analyses.CFGFast()
+
+        assert register_add_results
+        assert all(result == (False, []) for result in register_add_results)
 
 
 if __name__ == "__main__":
