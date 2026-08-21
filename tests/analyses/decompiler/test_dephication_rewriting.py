@@ -9,7 +9,7 @@ import unittest
 
 import angr
 from angr.ailment import Manager
-from angr.ailment.expression import Const, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import ITE, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.dephication.rewriting_engine import SimEngineDephiRewriting
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
@@ -90,6 +90,23 @@ class TestDephicationRewriting(unittest.TestCase):
 
         # None means "unchanged" to the caller, which then keeps the original statement
         assert engine._handle_stmt_Assignment(stmt) is None
+
+    def test_ite_branches_are_not_swapped(self):
+        # ailment's ITE takes (idx, cond, iffalse, iftrue): rebuilding it with the branches in
+        # source order silently inverts the ternary, e.g. `c ? -1 : x` comes out as `c ? x : -1`
+        proj, engine = self._engine({5: 6})
+        m = Manager(arch=proj.arch)
+        cond = VirtualVariable(m.next_atom(), 5, 1, VirtualVariableCategory.REGISTER)
+        iffalse = Const(m.next_atom(), 0xFFFFFFFF, 32)
+        iftrue = Const(m.next_atom(), 0x11, 32)
+        expr = ITE(m.next_atom(), cond, iffalse, iftrue, ins_addr=0x400100)
+
+        # only the condition is remapped, so the rebuild is driven purely by the new condition
+        out = engine._handle_expr_ITE(expr)
+        assert isinstance(out, ITE)
+        assert out.cond.varid == 6
+        assert out.iftrue.value == 0x11
+        assert out.iffalse.value == 0xFFFFFFFF
 
     def test_bbbq_rust_flavor_keeps_string_constants(self):
         """
