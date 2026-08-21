@@ -4,6 +4,7 @@ from __future__ import annotations
 from unittest import TestCase, main
 
 import archinfo
+import claripy
 
 from angr.knowledge_plugins.key_definitions.atoms import Register, SpOffset
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
@@ -16,6 +17,26 @@ class TestLiveDefinitions(TestCase):
 
         sp_offset = self.arch.registers["sp"][0]
         self.sp_register = Register(sp_offset, self.arch.bytes)
+
+    def test_negative_stack_offset_is_signed_regardless_of_ast_shape(self):
+        # `sp - 0xc` and `sp + 0xfffffff4` are the same address; simplifiers pick either shape freely, and the
+        # offset has to come back as -0xc for both. Reading the addend as unsigned yields 0xfffffff4 instead,
+        # which desynchronizes every stack-offset comparison built on top of get_stack_offset().
+        arch = archinfo.arch_x86.ArchX86()
+        live_definitions = LiveDefinitions(arch)
+        base = live_definitions.stack_address(0)
+
+        assert LiveDefinitions.get_stack_offset(base - 0xC) == -0xC
+        assert LiveDefinitions.get_stack_offset(base + 0xFFFFFFF4) == -0xC
+        assert LiveDefinitions.get_stack_offset(base + claripy.BVV(0xFFFFFFF4, 32)) == -0xC
+
+    def test_positive_stack_offset_is_unchanged(self):
+        arch = archinfo.arch_x86.ArchX86()
+        live_definitions = LiveDefinitions(arch)
+        base = live_definitions.stack_address(0)
+
+        assert LiveDefinitions.get_stack_offset(base) == 0
+        assert LiveDefinitions.get_stack_offset(base + 0xC) == 0xC
 
     def test_get_sp_retrieves_the_value_of_sp_register(self):
         live_definitions = LiveDefinitions(self.arch)
