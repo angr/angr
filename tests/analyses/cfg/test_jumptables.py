@@ -2826,6 +2826,117 @@ class TestJumpTableResolver(unittest.TestCase):
             0x40D1F8,
         ]
 
+    def test_ppc_jumptable_behind_bcctr_alignment_mask(self):
+        # PowerPC ignores the low two bits of the count register, so the lifter masks the target of every bcctr with
+        # ~3, and the jump table load sits behind that mask.
+        p = angr.Project(os.path.join(test_location, "ppc", "libc.so.6"), auto_load_libs=False)
+        # only the function that holds the dispatch, so that the test does not scan all of libc
+        cfg = p.analyses[CFGFast].prep()(regions=[(0x4C6A00, 0x4C6A00 + 0x47C4)])
+
+        assert 0x4C6B38 in cfg.model.jump_tables
+        assert cfg.indirect_jumps[0x4C6B38].type == IndirectJumpType.Jumptable_AddressLoadedFromMemory
+        jumptable = cfg.model.jump_tables[0x4C6B38]
+        assert jumptable.jumptable_addr == 0x55A054
+        assert jumptable.jumptable_entry_size == 4
+        # The switch has 60 cases. The table is bounded by the mask that truncates the index (clrlwi r9, r9, 0x18)
+        # instead of the comparison against 0x3b that follows it, so the entries past the 60th are read out of the
+        # tables that come after this one.
+        assert jumptable.jumptable_entries is not None
+        assert len(jumptable.jumptable_entries) == 256
+        assert jumptable.jumptable_entries[:60] == [
+            0x4C6DC0,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6E00,
+            0x4C6DC0,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D10,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6CD0,
+            0x4C6DC0,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6D1C,
+            0x4C6B90,
+            0x4C6B50,
+        ]
+
+    def test_ppc64_jumptable_behind_bcctr_alignment_mask(self):
+        # The same mask on PPC64, where the table holds 32-bit offsets. The entries are narrower than a pointer and a
+        # base address is added to them, so this table must not be taken for a vtable.
+        p = angr.Project(os.path.join(test_location, "ppc64el", "fauxware_static"), auto_load_libs=False)
+        # only read_encoded_value_with_base, which holds the dispatch
+        cfg = p.analyses[CFGFast].prep()(regions=[(0x10096D20, 0x10096F00)])
+
+        assert 0x10096D40 in cfg.model.jump_tables
+        assert cfg.indirect_jumps[0x10096D40].type == IndirectJumpType.Jumptable_AddressLoadedFromMemory
+        jumptable = cfg.model.jump_tables[0x10096D40]
+        assert jumptable.jumptable_addr == 0x10096D58
+        assert jumptable.jumptable_entry_size == 4
+        # The switch has 13 cases, and the table is bounded by the index mask as above.
+        assert jumptable.jumptable_entries is not None
+        assert len(jumptable.jumptable_entries) == 16
+        assert jumptable.jumptable_entries[:13] == [
+            0x10096D90,
+            0x10096E00,
+            0x10096E40,
+            0x10096E50,
+            0x10096D90,
+            0x10096EC4,
+            0x10096EC4,
+            0x10096EC4,
+            0x10096EC4,
+            0x10096E70,
+            0x10096DF0,
+            0x10096E60,
+            0x10096D90,
+        ]
+
     def test_amd64_fmt0_with_constant_propagation_r12(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fmt_0"), auto_load_libs=False)
         cfg = p.analyses[CFGFast].prep()()
