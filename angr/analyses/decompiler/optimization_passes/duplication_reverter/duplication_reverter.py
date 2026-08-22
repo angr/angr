@@ -14,7 +14,10 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Ret
 from angr.analyses.decompiler.block_io_finder import BlockIOFinder
 from angr.analyses.decompiler.block_similarity import index_of_similar_stmts, is_similar, longest_ail_subseq
 from angr.analyses.decompiler.counters.boolean_counter import BooleanCounter
-from angr.analyses.decompiler.optimization_passes.optimization_pass import StructuringOptimizationPass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import (
+    StructuringOptimizationPass,
+    StructuringOptimizationPassResult,
+)
 from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.utils.graph import dominates
@@ -84,7 +87,7 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Main Analysis
     #
 
-    def _analyze(self, cache=None) -> bool:
+    def _analyze(self, cache=None) -> StructuringOptimizationPassResult:
         """
         This function is the main analysis function for this deoptimization which implements SAILR's ISD deoptimization.
         There are generally three steps to this deoptimization:
@@ -99,9 +102,8 @@ class DuplicationReverter(StructuringOptimizationPass):
         In these cases, we bail. In stage 3, we reinsert the merged candidate into the original graph. This stage is
         also a little messy because need to correct every jump address.
 
-        Finally, the _analyze function returns True if the analysis was successful and a change was made to the graph.
-        In this case, we return True if this optimization requires another iteration, and False if it does not.
-        It can be True even if no changes were made to the graph.
+        Finally, the _analyze function reports whether analysis should stop, retry another candidate, or retain an
+        updated graph.
         """
         # construct graphs for writing and reading so we can corrupt the write graph
         # but still have a clean copy to read from
@@ -112,7 +114,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         # phase 1: search for candidates to merge based on the ISD-schema
         candidate = self._search_for_deduplication_candidate()
         if candidate is None:
-            return False
+            return StructuringOptimizationPassResult.STOP
 
         # phase 2: construct the middle graph/node that is merged from the duplicate candidate
         try:
@@ -120,16 +122,16 @@ class DuplicationReverter(StructuringOptimizationPass):
         except SAILRSemanticError as e:
             _l.debug("Skipping this candidate because of %s...", e)
             self.candidate_blacklist.add(tuple(candidate))
-            return True
+            return StructuringOptimizationPassResult.RETRY
 
         # phase 3: reinsert the merged candidate into the original graph
         success = self._reinsert_merged_candidate(ail_merge_graph, candidate)
         if not success:
             self.candidate_blacklist.add(tuple(candidate))
-            return True
+            return StructuringOptimizationPassResult.RETRY
 
         self.out_graph = to_ail_supergraph(self.write_graph)
-        return True
+        return StructuringOptimizationPassResult.UPDATED
 
     def _search_for_deduplication_candidate(self) -> tuple[Block, Block] | None:
         candidates = self._find_initial_candidates()

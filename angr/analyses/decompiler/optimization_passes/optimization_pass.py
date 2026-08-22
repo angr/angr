@@ -19,7 +19,7 @@ from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
-from angr.analyses.decompiler.utils import add_labels, is_empty_node, remove_edges_in_ailgraph
+from angr.analyses.decompiler.utils import add_labels, copy_graph, is_empty_node, remove_edges_in_ailgraph
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.region_identifier import RegionIdentifier, RegionOverlay
@@ -67,6 +67,18 @@ class OptimizationPassStage(Enum):
     BEFORE_REGION_IDENTIFICATION = 9
     DURING_REGION_IDENTIFICATION = 10
     AFTER_STRUCTURING = 11
+
+
+class StructuringOptimizationPassResult(Enum):
+    """The outcome of one structuring optimization attempt.
+
+    STOP and RETRY leave ``out_graph`` unchanged; RETRY consumes an iteration before trying another candidate.
+    UPDATED reports a graph mutation that the base class must verify.
+    """
+
+    STOP = 0
+    RETRY = 1
+    UPDATED = 2
 
 
 class BaseOptimizationPass:
@@ -537,8 +549,24 @@ class StructuringOptimizationPass(OptimizationPass):
         self._initial_structure_counter = None
         self._current_structure_counter = None
 
-    def _analyze(self, cache=None) -> bool:
+    def _analyze(self, cache=None) -> bool | StructuringOptimizationPassResult:
         raise NotImplementedError
+
+    def _requires_structurability_check(self) -> bool:
+        return (
+            self._require_structurable_graph
+            or self._require_gotos
+            or self._prevent_new_gotos
+            or self._must_improve_rel_quality
+        )
+
+    @staticmethod
+    def _normalize_analyze_result(result: object) -> StructuringOptimizationPassResult:
+        if isinstance(result, bool):
+            return StructuringOptimizationPassResult.UPDATED if result else StructuringOptimizationPassResult.STOP
+        if isinstance(result, StructuringOptimizationPassResult):
+            return result
+        raise TypeError(f"Unexpected structuring optimization pass result {result!r}")
 
     def analyze(self):
         try:
@@ -555,12 +583,12 @@ class StructuringOptimizationPass(OptimizationPass):
         if not ret:
             return
 
-        # only initialize self._goto_manager if this optimization requires a structurable graph or gotos
+        # initialize structuring-derived state only when a configured check consumes it
         initial_structurable: bool | None = None
-        if self._require_structurable_graph or self._require_gotos or self._prevent_new_gotos:
+        if self._requires_structurability_check():
             initial_structurable = self._graph_is_structurable(self._graph, initial=True)
 
-        if self._require_structurable_graph and initial_structurable is False:
+        if initial_structurable is False:
             return
 
         if self._require_gotos:
@@ -574,8 +602,8 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._max_opt_iters > 1:
             self._fixed_point_analyze(cache=cache)
         else:
-            updates = self._analyze(cache=cache)
-            if not updates:
+            result = self._normalize_analyze_result(self._analyze(cache=cache))
+            if result is not StructuringOptimizationPassResult.UPDATED:
                 self.out_graph = None
 
         # analysis is complete, no out_graph means it failed somewhere along the way
@@ -587,7 +615,7 @@ class StructuringOptimizationPass(OptimizationPass):
             self.out_graph = add_labels(self.out_graph, self.manager)
 
         if (
-            self._require_structurable_graph
+            self._requires_structurability_check()
             and self._max_opt_iters <= 1
             and not self._graph_is_structurable(self.out_graph, readd_labels=False)
         ):
@@ -628,21 +656,26 @@ class StructuringOptimizationPass(OptimizationPass):
 
             # backup the graph before the optimization
             if self._recover_structure_fails and self.out_graph is not None:
-                self._prev_graph = networkx.DiGraph(self.out_graph)
+                self._prev_graph = copy_graph(self.out_graph)
 
             # run the optimization, output applied to self.out_graph
-            changes = self._analyze(cache=cache)
-            if not changes:
+            result = self._normalize_analyze_result(self._analyze(cache=cache))
+            if result is StructuringOptimizationPassResult.STOP:
                 break
+            if result is StructuringOptimizationPassResult.RETRY:
+                continue
 
-            had_any_changes = True
-            # check if the graph is structurable
-            if not self._graph_is_structurable(self.out_graph, readd_labels=self._readd_labels):
+            # update structuring-derived state and reject invalid graphs when any configured check depends on it
+            if self._requires_structurability_check() and not self._graph_is_structurable(
+                self.out_graph, readd_labels=self._readd_labels
+            ):
                 if self._recover_structure_fails:
                     self.out_graph = self._prev_graph
                 else:
                     self.out_graph = None
-                    break
+                break
+
+            had_any_changes = True
 
         if not had_any_changes:
             self.out_graph = None
