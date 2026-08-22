@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import os
+import pickle
 from unittest import TestCase, main
 
 import archinfo
+import pyvex
 
 import angr
+from angr.engines.pcode import lifter as pcode_lifter
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
@@ -144,6 +147,70 @@ class TestPcodeEngine(TestCase):
                 continue
             func_out = func.graph.out_degree(func_node)
             assert func_out > 0
+
+    def test_sleigh_context_is_not_shared_between_projects(self):
+        """
+        Test that a project's blocks do not depend on which other projects were lifted before it.
+
+        Sleigh records context variables per address, so a PA-RISC branch lifted in one project used to leave the
+        delay slot context it sets behind at the following address, and an unrelated project's instruction at that
+        address was then decoded as that branch's delay slot.
+        """
+        base_addr = 0x1000
+        nop = b"\x08\x00\x02\x40"  # or %r0, %r0, %r0
+        branch = b"\xe8\x00\x00\x10"  # b 0x1010, whose delay slot is the instruction at 0x1004
+        arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+
+        def project(code):
+            return angr.load_shellcode(code, arch=arch, load_address=base_addr, engine=angr.engines.UberEnginePcode)
+
+        def delay_slot_block():
+            block = project(nop * 8).factory.block(base_addr + 4)
+            next_expr = block.vex.next
+            assert isinstance(next_expr, pyvex.expr.Const)
+            return block.size, block.vex.jumpkind, next_expr.con.value
+
+        before = delay_slot_block()
+        assert before == (28, "Ijk_Boring", 0x1020)
+
+        # Lift the branch in another project, writing its delay slot context at base_addr + 4. The branch and its
+        # delay slot are one two-instruction block, which is what leaves the context behind.
+        branch_block = project(branch + nop * 7).factory.block(base_addr)
+        assert (branch_block.size, branch_block.instructions) == (8, 2)
+
+        assert delay_slot_block() == before
+
+    def test_block_lifter_is_kept_per_project(self):
+        """
+        Test that a project decodes with one basic block lifter, and therefore one Sleigh context.
+
+        Block.pcode reads that context, so a project whose engine is not the p-code engine must neither share one
+        with another project nor build one for every block.
+        """
+        code = b"\x13\x00\x00\x00" * 4  # four RISC-V nops
+        first = angr.load_shellcode(code, arch="RISCV64", load_address=0)
+        second = angr.load_shellcode(code, arch="RISCV64", load_address=0)
+
+        assert [insn.mnemonic for insn in first.factory.block(0).pcode.insns] == ["nop"] * 4
+
+        block_lifter = pcode_lifter.get_block_lifter(first, first.arch)
+        assert pcode_lifter.get_block_lifter(first, first.arch) is block_lifter
+        assert pcode_lifter.get_block_lifter(second, second.arch) is not block_lifter
+
+        # a lifter decodes one architecture, so asking for another replaces it rather than decoding with it
+        other_arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+        assert pcode_lifter.get_block_lifter(first, other_arch).arch == other_arch
+        assert pcode_lifter.get_block_lifter(first, first.arch) is not block_lifter
+
+        # a Sleigh context cannot be pickled, so the lifter a project keeps must not go into its pickle
+        restored = pickle.loads(pickle.dumps(first))
+        assert [insn.mnemonic for insn in restored.factory.block(0).pcode.insns] == ["nop"] * 4
+
+        arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+        third = angr.load_shellcode(
+            b"\x08\x00\x02\x40" * 4, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode
+        )
+        assert pcode_lifter.get_block_lifter(third, arch) is third.factory.default_engine.get_block_lifter(arch)
 
 
 if __name__ == "__main__":
