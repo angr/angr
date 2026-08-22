@@ -6,6 +6,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import logging
 import unittest
+from types import SimpleNamespace
 
 import networkx
 
@@ -16,6 +17,10 @@ from angr.ailment.expression import BinaryOp, Call, Const, Load, Register, Virtu
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Return, Store, WeakAssignment
 from angr.analyses.decompiler.optimization_passes import DetermineLoadSizes, FlipBooleanCmp
+from angr.analyses.decompiler.optimization_passes.optimization_pass import (
+    StructuringOptimizationPass,
+    StructuringOptimizationPassResult,
+)
 from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
 
 log = logging.getLogger(__name__)
@@ -32,6 +37,307 @@ def r(o):
     return Register(0, o, 32)
 
 
+class _FixedPointLifecyclePass(StructuringOptimizationPass):
+    def __init__(  # pylint:disable=super-init-not-called
+        self,
+        results,
+        structurability_results=(),
+        max_opt_iters=5,
+        require_structurable_graph=True,
+        recover_structure_fails=True,
+        require_gotos=False,
+        prevent_new_gotos=False,
+    ):
+        self._graph = networkx.DiGraph()
+        self.out_graph = networkx.DiGraph()
+        self._results = iter(results)
+        self._structurability_results = iter(structurability_results)
+        self._max_opt_iters = max_opt_iters
+        self._require_structurable_graph = require_structurable_graph
+        self._prevent_new_gotos = prevent_new_gotos
+        self._must_improve_rel_quality = False
+        self._simplify_ail = False
+        self._require_gotos = require_gotos
+        self._recover_structure_fails = recover_structure_fails
+        self._readd_labels = False
+        self.analysis_count = 0
+        self.structurability_checks = 0
+
+    def _check(self):
+        return True, None
+
+    def _analyze(self, cache=None):
+        self.analysis_count += 1
+        result = next(self._results)
+        if result is StructuringOptimizationPassResult.UPDATED or result is True:
+            assert self.out_graph is not None
+            self.out_graph.add_node(Block(self.analysis_count, 0))
+        return result
+
+    def _graph_is_structurable(self, graph, readd_labels=False, initial=False):
+        self.structurability_checks += 1
+        structurable = next(self._structurability_results, True)
+        if structurable:
+            self._goto_manager = SimpleNamespace(gotos=set())
+        return structurable
+
+
+class _FixedPointStatementRollbackPass(_FixedPointLifecyclePass):
+    def __init__(self):
+        super().__init__(
+            [StructuringOptimizationPassResult.UPDATED, StructuringOptimizationPassResult.UPDATED],
+            [True, False],
+        )
+
+    def _analyze(self, cache=None):
+        self.analysis_count += 1
+        assert self.out_graph is not None
+        if self.analysis_count == 1:
+            self.out_graph.add_node(Block(1, 0, statements=[Return(0, [])]))
+        else:
+            node = next(iter(self.out_graph))
+            node.statements[0] = Return(1, [])
+        return StructuringOptimizationPassResult.UPDATED
+
+
+class _FixedPointAttributeRollbackPass(_FixedPointLifecyclePass):
+    def __init__(self):
+        super().__init__(
+            [StructuringOptimizationPassResult.UPDATED, StructuringOptimizationPassResult.UPDATED],
+            [True, False],
+        )
+
+    def _analyze(self, cache=None):
+        self.analysis_count += 1
+        assert self.out_graph is not None
+        if self.analysis_count == 1:
+            src = Block(1, 0)
+            dst = Block(2, 0)
+            self.out_graph.graph["status"] = "accepted"
+            self.out_graph.add_node(src, original_nodes=[src])
+            self.out_graph.add_node(dst)
+            self.out_graph.add_edge(src, dst, type="accepted")
+        else:
+            src, dst = sorted(self.out_graph, key=lambda node: node.addr)
+            self.out_graph.graph["status"] = "rejected"
+            self.out_graph.nodes[src]["original_nodes"] = []
+            self.out_graph[src][dst]["type"] = "rejected"
+        return StructuringOptimizationPassResult.UPDATED
+
+
+# pylint:disable=protected-access
+class TestStructuringOptimizationPass(unittest.TestCase):
+    def test_fixed_point_retry_without_graph_update_is_not_output(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.RETRY, StructuringOptimizationPassResult.STOP]
+        )
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 2)
+        self.assertEqual(optimization_pass.structurability_checks, 0)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_fixed_point_graph_update_is_output(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.UPDATED, StructuringOptimizationPassResult.STOP]
+        )
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 2)
+        self.assertEqual(optimization_pass.structurability_checks, 1)
+        self.assertIsNotNone(optimization_pass.out_graph)
+        assert optimization_pass.out_graph is not None
+        self.assertEqual({node.addr for node in optimization_pass.out_graph}, {1})
+
+    def test_fixed_point_rolled_back_graph_update_is_not_output(self):
+        optimization_pass = _FixedPointLifecyclePass([StructuringOptimizationPassResult.UPDATED], [False])
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 1)
+        self.assertEqual(optimization_pass.structurability_checks, 1)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_fixed_point_failed_graph_update_restores_last_accepted_graph_and_stops(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [
+                StructuringOptimizationPassResult.UPDATED,
+                StructuringOptimizationPassResult.UPDATED,
+                StructuringOptimizationPassResult.UPDATED,
+            ],
+            [True, False],
+        )
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 2)
+        self.assertEqual(optimization_pass.structurability_checks, 2)
+        self.assertIsNotNone(optimization_pass.out_graph)
+        assert optimization_pass.out_graph is not None
+        self.assertEqual({node.addr for node in optimization_pass.out_graph}, {1})
+
+    def test_fixed_point_failed_graph_update_without_recovery_discards_output(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.UPDATED],
+            [False],
+            recover_structure_fails=False,
+        )
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 1)
+        self.assertEqual(optimization_pass.structurability_checks, 1)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_fixed_point_update_skips_structurability_when_not_required(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.UPDATED, StructuringOptimizationPassResult.STOP],
+            [False],
+            require_structurable_graph=False,
+        )
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 2)
+        self.assertEqual(optimization_pass.structurability_checks, 0)
+        self.assertIsNotNone(optimization_pass.out_graph)
+        assert optimization_pass.out_graph is not None
+        self.assertEqual({node.addr for node in optimization_pass.out_graph}, {1})
+
+    def test_fixed_point_stop_halts(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.STOP, StructuringOptimizationPassResult.UPDATED]
+        )
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 1)
+        self.assertEqual(optimization_pass.structurability_checks, 0)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_fixed_point_max_iters_one_retry_is_not_output(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.RETRY],
+            max_opt_iters=1,
+            require_structurable_graph=False,
+        )
+
+        optimization_pass._analyze_and_verify()
+
+        self.assertEqual(optimization_pass.analysis_count, 1)
+        self.assertEqual(optimization_pass.structurability_checks, 0)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_fixed_point_retries_are_bounded_by_max_iters(self):
+        optimization_pass = _FixedPointLifecyclePass([StructuringOptimizationPassResult.RETRY] * 4, max_opt_iters=3)
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 3)
+        self.assertEqual(optimization_pass.structurability_checks, 0)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_fixed_point_bool_results_remain_supported(self):
+        optimization_pass = _FixedPointLifecyclePass([True, False], max_opt_iters=2)
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertEqual(optimization_pass.analysis_count, 2)
+        self.assertEqual(optimization_pass.structurability_checks, 1)
+        self.assertIsNotNone(optimization_pass.out_graph)
+        assert optimization_pass.out_graph is not None
+        self.assertEqual({node.addr for node in optimization_pass.out_graph}, {1})
+
+    def test_fixed_point_rejects_invalid_result(self):
+        optimization_pass = _FixedPointLifecyclePass([None])
+
+        with self.assertRaisesRegex(TypeError, "Unexpected structuring optimization pass result None"):
+            optimization_pass._fixed_point_analyze()
+
+    def test_single_iteration_rejects_invalid_result(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [None],
+            max_opt_iters=1,
+            require_structurable_graph=False,
+        )
+
+        with self.assertRaisesRegex(TypeError, "Unexpected structuring optimization pass result None"):
+            optimization_pass._analyze_and_verify()
+
+    def test_initial_structurability_failure_stops_goto_dependent_pass(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.UPDATED],
+            [False],
+            require_structurable_graph=False,
+            require_gotos=True,
+        )
+        optimization_pass.out_graph = None
+
+        optimization_pass._analyze_and_verify()
+
+        self.assertEqual(optimization_pass.analysis_count, 0)
+        self.assertEqual(optimization_pass.structurability_checks, 1)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_single_iteration_refreshes_structurability_for_goto_checks(self):
+        optimization_pass = _FixedPointLifecyclePass(
+            [StructuringOptimizationPassResult.UPDATED],
+            [True, False],
+            max_opt_iters=1,
+            require_structurable_graph=False,
+            prevent_new_gotos=True,
+        )
+
+        optimization_pass._analyze_and_verify()
+
+        self.assertEqual(optimization_pass.analysis_count, 1)
+        self.assertEqual(optimization_pass.structurability_checks, 2)
+        self.assertIsNone(optimization_pass.out_graph)
+
+    def test_fixed_point_rollback_restores_block_statements(self):
+        optimization_pass = _FixedPointStatementRollbackPass()
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertIsNotNone(optimization_pass.out_graph)
+        assert optimization_pass.out_graph is not None
+        node = next(iter(optimization_pass.out_graph))
+        self.assertEqual(node.statements[0].idx, 0)
+
+    def test_fixed_point_rollback_restores_graph_attributes(self):
+        optimization_pass = _FixedPointAttributeRollbackPass()
+
+        optimization_pass._fixed_point_analyze()
+
+        self.assertIsNotNone(optimization_pass.out_graph)
+        assert optimization_pass.out_graph is not None
+        src, dst = sorted(optimization_pass.out_graph, key=lambda node: node.addr)
+        self.assertEqual(optimization_pass.out_graph.graph["status"], "accepted")
+        self.assertEqual(optimization_pass.out_graph.nodes[src]["original_nodes"], [src])
+        self.assertEqual(optimization_pass.out_graph[src][dst]["type"], "accepted")
+
+    def test_single_iteration_bool_update_is_output(self):
+        optimization_pass = _FixedPointLifecyclePass([True], max_opt_iters=1)
+
+        optimization_pass._analyze_and_verify()
+
+        self.assertEqual(optimization_pass.analysis_count, 1)
+        self.assertIsNotNone(optimization_pass.out_graph)
+        assert optimization_pass.out_graph is not None
+        self.assertEqual({node.addr for node in optimization_pass.out_graph}, {1})
+
+    def test_single_iteration_bool_no_update_is_not_output(self):
+        optimization_pass = _FixedPointLifecyclePass([False], max_opt_iters=1)
+
+        optimization_pass._analyze_and_verify()
+
+        self.assertEqual(optimization_pass.analysis_count, 1)
+        self.assertIsNone(optimization_pass.out_graph)
+
+
+# pylint:enable=protected-access
 class TestFlipBooleanCmp(unittest.TestCase):
     """
     Test FlipBooleanCmp optimization pass.
