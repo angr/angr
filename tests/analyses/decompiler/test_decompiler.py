@@ -3674,11 +3674,15 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg)
 
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f,
+            cfg=cfg.model,
+            options=decompiler_options,
+            preset=DECOMPILATION_PRESETS["full"],
+        )
         print_decompilation_result(d)
 
-        # incorrect region replacement was causing the while loop be duplicated, so we would end up with four while
-        # loops. In the original source, there is only a single while loop.
+        # Incorrect fixed-point output could lose or duplicate this loop. In the original source, there is one loop.
         assert d.codegen.text.count("while (") == 1
 
     @structuring_algo("sailr")
