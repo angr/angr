@@ -245,9 +245,7 @@ class __libc_start_main(angr.SimProcedure):
             else:
                 break
 
-        cc = angr.default_cc(
-            self.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
-        )(self.arch)
+        cc = self._resolve_cc()
         ty = angr.sim_type.parse_signature("void x(void*, void*, void*, void*, void*)").with_arch(self.arch)
         args = cc.get_args(state, ty)
         main, _, _, init, fini = self._extract_args(blank_state, *args)
