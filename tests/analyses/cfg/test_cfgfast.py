@@ -1063,6 +1063,31 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_msvc_function_ending_in_a_noreturning_call_is_kept(self):
+        # each of these five ends in a call MSVC treats as non-returning, and the block CFGFast recovers past
+        # that call is the single int3 MSVC leaves there. drop_bad_functions() used to read the run of int3
+        # padding that follows as the function running into data and delete the whole function; the image's own
+        # exception directory names all five.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for addr in (0x180004D20, 0x18001A3EC, 0x18001FDFC, 0x180024064, 0x180024080):
+            assert addr in cfg.kb.functions, f"{addr:#x} was dropped"
+            assert cfg.model.get_any_node(addr) is not None, f"no block covers {addr:#x}"
+        # the one-block int3 the linear scan picked up out of the padding is still not a function
+        assert 0x180004681 not in cfg.kb.functions
+
+    def test_ppc64_function_ending_in_a_noreturning_call_is_kept(self):
+        # rejected(): puts() and then exit(). Its .opd descriptor at 0x10010e20 puts it at 0x100007bc with a
+        # size of 60, so all three blocks below are inside it. GCC emits the TOC restore after the bl to exit()
+        # and pads the rest of the section with zeroes, so the block past that call runs into bytes that do not
+        # decode -- which said nothing about the function, and cost it all three blocks.
+        proj = angr.Project(os.path.join(test_location, "ppc64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert 0x100007BC in cfg.kb.functions
+        assert {0x100007BC, 0x100007DC, 0x100007E8} <= cfg.kb.functions[0x100007BC].block_addrs_set
+
 
 if __name__ == "__main__":
     unittest.main()
