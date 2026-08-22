@@ -15,7 +15,7 @@ import archinfo
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 from angr.codenode import FuncNode
-from angr.knowledge_plugins.cfg import CFGModel, CFGNode
+from angr.knowledge_plugins.cfg import CFGModel, CFGNode, MemoryDataSort
 from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgfast")
@@ -1003,10 +1003,10 @@ class TestCfgfast(unittest.TestCase):
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
 
     @staticmethod
-    def _blob_project(data: bytes) -> angr.Project:
+    def _blob_project(data: bytes, arch: str = "AMD64") -> angr.Project:
         return angr.Project(
             io.BytesIO(data),
-            main_opts={"backend": "blob", "arch": "AMD64", "base_addr": 0, "entry_point": 0},
+            main_opts={"backend": "blob", "arch": arch, "base_addr": 0, "entry_point": 0},
             auto_load_libs=False,
             use_sim_procedures=False,
         )
@@ -1062,6 +1062,53 @@ class TestCfgfast(unittest.TestCase):
             (0x4686A0, "_dl_runtime_resolve_xsavec"),
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
+
+    def test_smart_scan_skips_x86_nop_padding(self):
+        # 0x0:  xor eax, eax; ret            - a real function, reached from the entry point
+        # 0x3:  13 bytes of multi-byte NOPs  - padding that aligns the next function to 0x10
+        # 0x10: xor eax, eax; ret            - a function that only the linear scan can find
+        blobs = {
+            # nopl 0x0(%rax,%rax,1); nopl 0x0(%rax,%rax,1)
+            "AMD64": bytes.fromhex("0F1F840000000000") + bytes.fromhex("0F1F440000"),
+            # lea 0x0(%esi,%eiz,1),%esi; lea 0x0(%esi),%esi; mov %esi,%esi; nop
+            "X86": bytes.fromhex("8DB42600000000") + bytes.fromhex("8D7600") + bytes.fromhex("89F6") + b"\x90",
+        }
+        for arch, padding in blobs.items():
+            with self.subTest(arch=arch):
+                proj = self._blob_project(b"\x31\xc0\xc3" + padding + b"\x31\xc0\xc3", arch=arch)
+                cfg = proj.analyses.CFGFast(normalize=True)
+
+                assert 0 in cfg.kb.functions
+                assert 0x10 in cfg.kb.functions
+                assert 3 not in cfg.kb.functions, "alignment padding was recovered as a function"
+
+                data = cfg.model.memory_data[3]
+                assert data.sort == MemoryDataSort.Alignment
+                assert data.size == len(padding)
+
+    def test_gcc_nop_padding_does_not_become_functions(self):
+        # gcc pads with the multi-byte NOP encodings, and padding is unreachable by construction: whatever
+        # transfers control to the aligned address skips over it. The linear scan therefore lands on all of it, and
+        # used to seed a function at every run.
+        for arch, binary, padding_addr, padding_size in [
+            # nopw %cs:0x0(%rax,%rax,1); nopl 0x0(%rax,%rax,1)
+            ("x86_64", "cat_gcc17.0.0_O2", 0x402890, 16),
+            # mov %esi,%esi; lea 0x0(%edi,%eiz,1),%edi
+            ("i386", "nl", 0x401917, 9),
+        ]:
+            with self.subTest(arch=arch):
+                proj = angr.Project(os.path.join(test_location, arch, binary), auto_load_libs=False)
+                cfg = proj.analyses.CFGFast(normalize=True)
+
+                padding_funcs = [f for f in cfg.kb.functions.values() if f.is_alignment]
+                assert padding_funcs == [], f"{len(padding_funcs)} alignment functions, e.g. {padding_funcs[:4]}"
+
+                data = cfg.model.memory_data[padding_addr]
+                assert data.sort == MemoryDataSort.Alignment
+                assert data.size == padding_size
+
+                # the real functions are still there
+                assert "main" in cfg.kb.functions
 
 
 if __name__ == "__main__":

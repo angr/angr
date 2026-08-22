@@ -1160,7 +1160,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         try:
             _ = self[item]
             return True
-        except (KeyError, TypeError):
+        except (KeyError, TypeError, ValueError):
+            # ValueError: a key of a type this manager does not index is simply not in it
             return False
 
     def __getitem__(self, k) -> Function:
