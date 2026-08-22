@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import angr
+from angr.engines.failure import is_failure_jumpkind
 
 # pylint: disable=arguments-differ,unused-argument,no-self-use,inconsistent-return-statements
 
@@ -28,10 +29,10 @@ class pthread_create(angr.SimProcedure):
         state = blank_state
         for b in blocks:
             irsb = self.project.factory.default_engine.process(state, b, force_addr=b.addr)
-            if irsb.successors:
-                state = irsb.successors[0]
-            else:
+            succ = next((s for s in irsb.successors if not is_failure_jumpkind(s.history.jumpkind)), None)
+            if succ is None:
                 break
+            state = succ
 
         callfunc = self.cc.get_args(state, self.prototype)[2]
         retaddr = state.memory.load(state.regs.sp, size=self.arch.bytes)

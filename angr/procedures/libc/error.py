@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import angr
+from angr.engines.failure import is_failure_jumpkind
 
 
 class error(angr.SimProcedure):
@@ -32,15 +33,16 @@ class error(angr.SimProcedure):
         state = blank_state
         for idx, b in enumerate(blocks):
             successors = self.project.factory.default_engine.process(state, irsb=b, force_addr=b.addr)
-            if successors.all_successors:
-                state = successors.all_successors[0]
+            steppable = [succ for succ in successors.all_successors if not is_failure_jumpkind(succ.history.jumpkind)]
+            if steppable:
+                state = steppable[0]
                 # if it was a call before reaching the last block, pick the one with Ijk_FakeRet
                 if (
                     idx < len(blocks) - 1
                     and b.jumpkind
                     and (b.jumpkind == "Ijk_Call" or b.jumpkind.startswith("Ijk_Sys"))
                 ):
-                    fakerets = [succ for succ in successors.all_successors if succ.history.jumpkind == "Ijk_FakeRet"]
+                    fakerets = [succ for succ in steppable if succ.history.jumpkind == "Ijk_FakeRet"]
                     if fakerets:
                         state = fakerets[0]
             else:
