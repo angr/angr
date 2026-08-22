@@ -11,6 +11,7 @@ import pickle
 import unittest
 
 import angr
+from angr.knowledge_plugins.cfg.cfg_model import CFGModel
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from tests.common import bin_location
 
@@ -176,6 +177,45 @@ class TestSpillingCFGGraph(unittest.TestCase):
 
             if out_list or in_list:
                 break
+
+
+class TestSpillingCFGAddressIndex(unittest.TestCase):
+    """Test cases for the address index that SpillingCFG keeps alongside its nodes."""
+
+    SRC_ADDR = 0x10
+    DST_ADDR = 0x20
+    SUCCESSOR_ADDR = 0x14
+
+    def _model_with_nodes(self) -> tuple[CFGModel, CFGNode, CFGNode]:
+        model = CFGModel("CFGFast")
+        src = CFGNode(self.SRC_ADDR, 4, model, block_id=self.SRC_ADDR)
+        dst = CFGNode(self.DST_ADDR, 4, model, block_id=self.DST_ADDR)
+        model.graph.add_node(src)
+        model.graph.add_node(dst)
+        return model, src, dst
+
+    def test_add_edge_indexes_a_removed_node_by_address(self):
+        """An edge that reintroduces a removed node must put it back into the address index."""
+        model, src, dst = self._model_with_nodes()
+
+        model.graph.remove_node(src)
+        assert not model.has_node_addr(self.SRC_ADDR)
+
+        model.graph.add_edge(src, dst, jumpkind="Ijk_Boring")
+
+        assert model.has_node_addr(self.SRC_ADDR)
+        assert list(model.nodes_by_addr(self.SRC_ADDR)) == [src]
+        assert model.get_any_node(self.SRC_ADDR) is src
+
+    def test_add_edge_indexes_a_never_added_node_by_address(self):
+        """An edge is the only insertion path for the successor node that CFGFast._shrink_node() creates."""
+        model, src, _ = self._model_with_nodes()
+        successor = CFGNode(self.SUCCESSOR_ADDR, 4, model, block_id=self.SUCCESSOR_ADDR)
+
+        model.graph.add_edge(src, successor, jumpkind="Ijk_Boring")
+
+        assert model.has_node_addr(self.SUCCESSOR_ADDR)
+        assert model.get_any_node(self.SUCCESSOR_ADDR) is successor
 
 
 class TestSpillingCFGGraphWithSpilling(unittest.TestCase):
