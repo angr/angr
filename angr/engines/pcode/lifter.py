@@ -113,6 +113,7 @@ class IRSB:
     __slots__ = (
         "_direct_next",
         "_disassembly",
+        "_disassembly_source",
         "_exit_statements",
         "_instruction_addresses",
         "_ops",
@@ -135,6 +136,9 @@ class IRSB:
     _size: int | None
     _statements: Iterable  # Note: currently unused
     _disassembly: PcodeDisassemblerBlock | None
+    # The lifter that decoded this block and the bytes it decoded, kept to disassemble on demand. Both decodes go
+    # through one lifter because Sleigh reads the context variables its own instance recorded.
+    _disassembly_source: tuple[PcodeBasicBlockLifter, bytes] | None
     addr: int
     arch: archinfo.Arch
     behaviors: BehaviorFactory | None
@@ -211,6 +215,7 @@ class IRSB:
         self.jumpkind = None
         self.next = None
         self._disassembly = None
+        self._disassembly_source = None
 
         if data is not None:
             # This is the slower path (because we need to call _from_py() to copy the content in the returned IRSB to
@@ -287,6 +292,7 @@ class IRSB:
         )
 
         self._disassembly = None
+        self._disassembly_source = None
         return self
 
     def invalidate_direct_next(self) -> None:
@@ -509,7 +515,15 @@ class IRSB:
         # return self._statements
 
     @property
-    def disassembly(self) -> PcodeDisassemblerBlock:
+    def disassembly(self) -> PcodeDisassemblerBlock | None:
+        if self._disassembly is None and self._disassembly_source is not None:
+            block_lifter, data = self._disassembly_source
+            self._disassembly_source = None
+            try:
+                self._disassembly = block_lifter.disassemble(self.addr, data)
+            except (pypcode.BadDataError, pypcode.UnimplError, pypcode.LowlevelError):
+                # A block that will not decode simply has no disassembly. This property does not raise.
+                l.debug("Failed to disassemble block at %#x", self.addr)
         return self._disassembly
 
 
@@ -819,6 +833,7 @@ class PcodeBasicBlockLifter:
     Lifts basic blocks to P-code
     """
 
+    arch: archinfo.Arch
     context: Context
     behaviors: BehaviorFactory
 
@@ -837,8 +852,24 @@ class PcodeBasicBlockLifter:
                 raise NotImplementedError
             langid = archinfo_to_lang_map[arch.name]
 
+        self.arch = arch
         self.context = pypcode.Context(langid)
         self.behaviors = BehaviorFactory()
+
+    def disassemble(self, addr: int, data: bytes) -> PcodeDisassemblerBlock:
+        """
+        Disassemble the instructions of a single block.
+
+        :param addr: The address the block starts at.
+        :param data: The bytes of the block, exactly as they were lifted.
+        """
+        disasm = self.context.disassemble(data, addr, max_instructions=MAX_INSTRUCTIONS, max_bytes=len(data))
+        return PcodeDisassemblerBlock(
+            addr=addr,
+            insns=[PcodeDisassemblerInsn(ins) for ins in disasm.instructions],
+            thumb=False,
+            arch=self.arch,
+        )
 
     def lift(
         self,
@@ -932,19 +963,9 @@ class PcodeBasicBlockLifter:
                 elif op.opcode == pypcode.OpCode.RETURN and next_block is None:
                     next_block = (None, "Ijk_Ret")
 
-            # FIXME: Do this lazily
-            disasm = self.context.disassemble(
-                sliced_data,
-                irsb.addr,
-                max_instructions=max_inst,
-                max_bytes=fallthru_addr - irsb.addr,
-            )
-            irsb._disassembly = PcodeDisassemblerBlock(
-                addr=irsb.addr,
-                insns=[PcodeDisassemblerInsn(ins) for ins in disasm.instructions],
-                thumb=False,
-                arch=irsb.arch,
-            )
+            # Keep what IRSB.disassembly needs to run Sleigh over the block on demand
+            if fallthru_addr > irsb.addr:
+                irsb._disassembly_source = (self, sliced_data[: fallthru_addr - irsb.addr])
 
         except (pypcode.BadDataError, pypcode.UnimplError):
             next_block = (fallthru_addr, "Ijk_NoDecode")
@@ -1002,7 +1023,7 @@ class PcodeLifterEngineMixin(SimEngine):
         self,
         project=None,
         use_cache: bool | None = None,
-        cache_size: int = 50000,
+        cache_size: int = 5000,
         default_opt_level: int = 1,
         selfmodifying_code: bool | None = None,
         single_step: bool = False,
