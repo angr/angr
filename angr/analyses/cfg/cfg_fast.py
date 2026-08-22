@@ -7,7 +7,7 @@ import math
 import re
 import string
 import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 from enum import Enum, unique
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +30,7 @@ from angr.codenode import FuncNode, HookNode
 from angr.errors import (
     AngrCFGError,
     AngrSkipJobNotice,
+    AngrUnsupportedSyscallError,
     SimEngineError,
     SimIRSBNoDecodeError,
     SimMemoryError,
@@ -47,6 +48,8 @@ from angr.knowledge_plugins.cfg import (
 from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, block_key_to_size, get_block_key
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.misc.ux import once
+from angr.procedures.stubs.PathTerminator import PathTerminator
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.rustylib import SegmentList
 from angr.simos import SimWindows
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -79,6 +82,7 @@ if TYPE_CHECKING:
     from angr.engines.pcode.lifter import IRSB as PcodeIRSB
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import CFGNODE_K
+    from angr.knowledge_plugins.functions.function import Function
 
 
 VEX_IRSB_MAX_SIZE = 400
@@ -2602,6 +2606,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.make_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
 
+        # ahead of the loop below, which reads nonreturning_func_addrs() to strip the fall-through edges
+        self._revise_returning_of_functions_that_cannot_return()
         self._analyze_all_function_features(all_funcs_completed=True)
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
@@ -4838,6 +4844,99 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
                     del self._function_returns[nonreturning_function_addr]
+
+    def _revise_returning_of_functions_that_cannot_return(self):
+        """
+        Correct a returning status that the rebuilt functions no longer support.
+
+        Function.returning is only ever set while the CFG is recovered and never revised, and
+        make_functions() copies a recorded True onto the rebuilt function. That True can come from
+        a block the rebuild has just taken away: the fall-through of a call to a function that does
+        not return carries its blocks, and any ret among them, into another function. What is left
+        owns no return site at all and still claims to return, and _analyze_function_features()
+        skips it from then on because its status is no longer unknown.
+
+        Decide the correction from the procedures that declare NO_RET, not from the returning
+        status of the callee. That status is False both for a callee that cannot come back and for
+        one whose exit was never recovered -- an ARM function that tail-jumps into the unmapped
+        kuser helper page, say -- and a function angr failed to find the exit of is not evidence
+        that its callers do not return.
+        """
+
+        functions = self.functions
+        cannot_return: set[int] = {
+            func_addr for func_addr in functions.function_addrs_set if self._declares_no_ret(func_addr)
+        }
+        worklist: deque[int] = deque(cannot_return)
+
+        while worklist:
+            callee_addr = worklist.popleft()
+            if callee_addr not in functions.callgraph:
+                continue
+            for caller_addr in functions.callgraph.predecessors(callee_addr):
+                if caller_addr in cannot_return or not functions.contains_addr(caller_addr):
+                    continue
+                # most callers of a function that never returns keep a ret of their own; settle those from the
+                # metadata rather than deserializing the whole function and evicting a live one to make room
+                meta = functions.get_by_addr(caller_addr, meta_only=True)
+                if meta.is_simprocedure or meta.has_return or not meta.block_addrs_set:
+                    continue
+                caller = functions.get_by_addr(caller_addr)
+                if not self._all_ways_out_cannot_return(caller, cannot_return):
+                    continue
+                cannot_return.add(caller_addr)
+                worklist.append(caller_addr)
+                if caller.returning is True:
+                    caller.returning = False
+
+    def _declares_no_ret(self, func_addr: int) -> bool:
+        """
+        Does a procedure that stands in for ``func_addr`` declare that it never returns?
+
+        UnresolvableJumpTarget and PathTerminator carry NO_RET to stop exploration and say that
+        angr does not know where control went, not that it cannot come back;
+        _determine_function_returning() leaves UnresolvableJumpTarget out for the same reason.
+        """
+
+        if self.project.is_hooked(func_addr):
+            procedure = self.project.hooked_by(func_addr)
+        else:
+            try:
+                procedure = self.project.simos.syscall_from_addr(func_addr, allow_unsupported=False)
+            except AngrUnsupportedSyscallError:
+                procedure = None
+        if procedure is None or not procedure.NO_RET:
+            return False
+        return not isinstance(procedure, (UnresolvableJumpTarget, PathTerminator))
+
+    def _all_ways_out_cannot_return(self, func: Function, cannot_return: set[int]) -> bool:
+        """
+        Does every way out of ``func`` hand control to a function in ``cannot_return``?
+
+        Read the ways out of the transition graph rather than from Function.endpoints, which does
+        not hold the calls yet: mark_nonreturning_calls_endpoints() adds those only once every
+        returning status is settled, which is what this is deciding. A call is a way out exactly
+        when the rebuild left it without a fall-through, which is how make_functions() records a
+        callee that does not come back; a fall-through the rebuild put in another function is a
+        way out as well, since what happens after it is that function's business.
+        """
+
+        graph = func.transition_graph
+        edges = list(graph.edges(data=True))
+        with_fallthrough = {src for src, _, data in edges if data.get("type") == "fake_return"}
+        ways_out = []
+        for src, dst, data in edges:
+            type_ = data.get("type")
+            if type_ in ("call", "syscall"):
+                if src not in with_fallthrough:
+                    ways_out.append(dst.addr)
+            elif data.get("outside") and type_ in ("transition", "fake_return"):
+                # a tail jump, or a call whose fall-through the rebuild put in another function
+                ways_out.append(dst.addr)
+        if not ways_out:
+            # nothing leaves the function, so angr never found its exit. That is not evidence.
+            return False
+        return all(addr in cannot_return for addr in ways_out)
 
     def _pop_pending_job(self, returning=True) -> CFGJob | None:
         while self._pending_jobs:
