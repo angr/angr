@@ -1063,6 +1063,52 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_failing_static_exits_only_lose_the_exits(self):
+        # a SimProcedure that adds exits recovers them by running the caller's blocks on a blank state, which fails on
+        # plenty of real binaries. Losing those exits is a local event, like failing to lift a block.
+        class BrokenExits(angr.SimProcedure):
+            ADDS_EXITS = True
+
+            def run(self):  # pylint:disable=arguments-differ
+                return 0
+
+            def static_exits(self, blocks, **kwargs):
+                raise angr.errors.SimProcedureError("cannot work out the exits of this call")
+
+        path = os.path.join(test_location, "i386", "fauxware")
+        expected = set(angr.Project(path, auto_load_libs=False).analyses.CFGFast(normalize=True).kb.functions)
+
+        proj = angr.Project(path, auto_load_libs=False)
+        # open() is called from authenticate(), so the scan reaches it with a predecessor block to execute
+        proj.hook_symbol("open", BrokenExits())
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert set(cfg.kb.functions) == expected
+
+    def test_failing_dynamic_returns_falls_back_to_the_callee(self):
+        # a SimProcedure that decides whether a call returns runs the caller's blocks the same way, and fails the same
+        # way. The scan then answers from the callee, as it does for a hook that does not decide dynamically.
+        class Deciding(angr.SimProcedure):
+            DYNAMIC_RET = True
+
+            def run(self):  # pylint:disable=arguments-differ
+                return 0
+
+            def dynamic_returns(self, blocks, **kwargs):
+                return True
+
+        class Failing(Deciding):
+            def dynamic_returns(self, blocks, **kwargs):
+                raise angr.errors.SimProcedureError("cannot work out whether this call returns")
+
+        def functions(procedure):
+            proj = angr.Project(os.path.join(test_location, "i386", "fauxware"), auto_load_libs=False)
+            # authenticate() is called directly from main(), so the scan asks the hook whether that call returns
+            proj.hook_symbol("authenticate", procedure)
+            return set(proj.analyses.CFGFast(normalize=True).kb.functions)
+
+        assert functions(Failing()) == functions(Deciding())
+
 
 if __name__ == "__main__":
     unittest.main()
