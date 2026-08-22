@@ -1759,7 +1759,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if not self._inside_regions(job.addr):
             obj = self.project.loader.find_object_containing(job.addr)
             if obj is not None and isinstance(obj, self._cle_pseudo_objects):
-                pass
+                # An object CLE invents holds no file content, so the only addresses in it that
+                # stand for anything are the ones something is hooked at. The rest is zero fill.
+                if not self._addr_hooked_or_syscall(job.addr):
+                    raise AngrSkipJobNotice
             else:
                 # it's outside permitted regions. skip.
                 if job.jumpkind == "Ijk_Call":
