@@ -4781,7 +4781,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if cfg_node is not None:
                 self.model.remove_node_and_graph_node(cfg_node)
             if self.kb.functions.contains_addr(node_addr):
-                del self.kb.functions[func_addr]
+                del self.kb.functions[node_addr]
 
     def _analyze_all_function_features(self, all_funcs_completed=False):
         """
