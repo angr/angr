@@ -3246,6 +3246,49 @@ class TestJumpTableResolver(unittest.TestCase):
         assert jt0.jumptables[0].entries_guessed is True
         assert jt0.jumptables[0].entries == [0x4154DA, 0x4154F0, 0x4154F0, 0x4154F0, 0x4154F0]
 
+    @staticmethod
+    def _bss_regions(*path):
+        proj = angr.Project(os.path.join(test_location, *path), auto_load_libs=False)
+        return JumpTableResolver(proj)._bss_regions  # pylint:disable=protected-access
+
+    def test_bss_regions_on_macho(self):
+        # A Mach-O zero-fill section is called __bss, so matching the name ".bss" found nothing and
+        # reads from it came back as the zeroes CLE pads the segment with.
+        assert self._bss_regions("aarch64", "dyld_ios15.macho") == [(0x10000C1B0, 0x100)]
+
+    def test_bss_regions_cover_every_zero_fill_section(self):
+        # .sbss as well as .bss
+        assert self._bss_regions("mipsel", "jumptable_0") == [(0x100004A8, 0x6C), (0x10000520, 0xE8)]
+
+    def test_bss_regions_exclude_thread_local_zero_fill(self):
+        # .tbss is laid over the addresses of .init_array, .fini_array and .data.rel.ro, which are
+        # initialized; only .bss and __libc_freeres_ptrs are uninitialized memory.
+        assert self._bss_regions("i386", "bronze_ropchain") == [(0x80DB320, 0xCDC), (0x80DBFFC, 0x14)]
+
+    def test_jump_table_base_in_zero_fill_is_rejected(self):
+        path = os.path.join(test_location, "aarch64", "lynx-2.9.0dev.10_ios_arm64.macho")
+        proj = angr.Project(path, auto_load_libs=False, use_sim_procedures=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=False, resolve_indirect_jumps=True)
+
+        # The dispatch at 0x10001e8fc loads its table base with adrp/add from __DATA,__common, which
+        # has no bytes in the file, so anything read there is the loader's zero fill.
+        assert 0x10001E8FC not in cfg.model.jump_tables
+
+        # A second dispatch reads a real table out of __TEXT,__const and must still resolve, so
+        # that the assertion above cannot pass by the resolver never resolving anything here.
+        jt = cfg.model.jump_tables[0x10009D01C]
+        assert len(jt.jumptables) == 1
+        assert jt.jumptables[0].addr == 0x1001069D3
+        assert jt.jumptables[0].entry_size == 1
+        assert sorted(jt.jumptables[0].entries) == [
+            0x10009D034,
+            0x10009D058,
+            0x10009D074,
+            0x10009D080,
+            0x10009D0D8,
+            0x10009D0E4,
+        ]
+
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """
