@@ -402,10 +402,12 @@ class ExpressionSpotter(VVarUsesCollector):
     def __init__(self):
         super().__init__()
         self.has_calls: bool = False
+        self.has_far_calls: bool = False
         self.has_loads: bool = False
 
     def _handle_Call(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         self.has_calls = True
+        self.has_far_calls |= getattr(expr, "transfer_kind", "unknown") == "far"
         return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):

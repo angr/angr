@@ -240,6 +240,7 @@ pub enum ExpressionKind {
     FunctionLikeMacro = 24,
     BasePointerOffset = 25,
     StackBaseOffset = 26,
+    SegmentedAddress = 27,
 }
 
 #[pymethods]
@@ -319,6 +320,7 @@ impl ExpressionKind {
             Self::FunctionLikeMacro => "FunctionLikeMacro",
             Self::BasePointerOffset => "BasePointerOffset",
             Self::StackBaseOffset => "StackBaseOffset",
+            Self::SegmentedAddress => "SegmentedAddress",
         }
     }
 
@@ -351,6 +353,7 @@ impl ExpressionKind {
             24 => Self::FunctionLikeMacro,
             25 => Self::BasePointerOffset,
             26 => Self::StackBaseOffset,
+            27 => Self::SegmentedAddress,
             _ => return None,
         })
     }

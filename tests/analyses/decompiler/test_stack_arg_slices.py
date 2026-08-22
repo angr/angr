@@ -31,9 +31,11 @@ class TestStackArgSlices(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        # the high half of the stack argument must be read at offset +4 from the argument, not as the
-        # argument itself
-        assert re.search(r"\(void\s*\*\)\s*&a\d+ \+ 4", dec.codegen.text) is not None
+        # The same full-width argument must supply both halves. Scalar Extracts are rendered as bit
+        # operations, so the high half is a 32-bit shift rather than an address-of-plus-four load.
+        high_half = re.search(r"=\s*(a\d+)\s*>>\s*32(?:\s*&\s*0xffffffff)?\s*;", dec.codegen.text)
+        assert high_half is not None
+        assert re.search(rf"=\s*{re.escape(high_half.group(1))}\s*&\s*0xffffffff\s*;", dec.codegen.text) is not None
 
 
 if __name__ == "__main__":

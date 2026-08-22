@@ -100,3 +100,93 @@ message StaticVVars {
 message StaticBuffers {
     map<string, FixedBufferMsg> entries = 1;
 }
+
+// Normalized external architectural-register state binding. Decompiler API
+// register names have already been resolved to exact byte ranges before this
+// representation is cached.
+message RegisterStateBinding {
+    uint64 register_offset = 1;
+    uint32 size = 2;
+    string c_lvalue = 3;
+}
+
+// One normalized register output of a selected call. selector_kind is one of
+// "callee_name", "callee_addr", or "callsite_addr". Exactly one of
+// selector_name and selector_addr is meaningful for that kind.
+message PostCallRegisterStateBinding {
+    string selector_kind = 1;
+    optional string selector_name = 2;
+    optional uint64 selector_addr = 3;
+    uint64 register_offset = 4;
+    uint32 size = 5;
+    string c_identifier = 6;
+}
+
+message SegmentedMemoryBinding {
+    string address_kind = 1;
+    string endness = 2;
+    uint32 size = 3;
+    optional string load_helper = 4;
+    optional string store_helper = 5;
+}
+
+// One exact direct far-call binding. kind is "internal" or "external".
+// Internal bindings carry a logical runtime segment symbol plus begin/end
+// helpers. External bindings carry an exact wrapper symbol and no helpers.
+message FarCallBinding {
+    uint64 target_addr = 1;
+    string kind = 2;
+    string target_symbol = 3;
+    optional string begin_helper = 4;
+    optional string end_helper = 5;
+}
+
+message RegisterRange {
+    uint64 register_offset = 1;
+    uint32 size = 2;
+}
+
+// One exact dynamic far-call site. The dispatcher receives the current slot
+// selector, the segment-relative slot offset, an optional sealed site
+// identifier, then register_inputs in their ABI-significant order. The slot
+// offset is either the legacy constant field or an exact architectural
+// register; old serialized constant-slot rows therefore remain valid.
+message IndirectFarCallBinding {
+    uint64 callsite_addr = 1;
+    string dispatcher = 2;
+    string address_kind = 3;
+    uint64 slot_selector_offset = 4;
+    uint32 slot_selector_size = 5;
+    uint32 slot_offset = 6;
+    repeated RegisterRange register_inputs = 7;
+    optional RegisterRange slot_offset_register = 8;
+    optional uint32 site_identifier = 9;
+}
+
+// One exact dynamic protected-mode near-call site. The original target must
+// be CS:<target register>. The dispatcher receives the current target offset
+// and the sealed site identifier and returns the post-call AX value.
+message IndirectNearCallBinding {
+    uint64 callsite_addr = 1;
+    string dispatcher = 2;
+    string address_kind = 3;
+    uint64 target_selector_offset = 4;
+    uint32 target_selector_size = 5;
+    uint64 target_offset = 6;
+    uint32 target_size = 7;
+    uint32 site_identifier = 8;
+}
+
+message ConvertedPointerBinding {
+    uint64 callsite_addr = 1;
+    uint32 argument_index = 2;
+    string helper = 3;
+    uint32 span = 4;
+    string address_kind = 5;
+    string selector_register = 6;
+    uint32 selector_offset = 7;
+    uint32 selector_size = 8;
+    string contract = 9;
+    optional sint64 native_stack_offset = 10;
+    optional string native_stack_evidence = 11;
+}

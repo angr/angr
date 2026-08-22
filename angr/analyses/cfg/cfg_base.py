@@ -1091,7 +1091,7 @@ class CFGBase(Analysis):
         a) it is a SimProcedure that has NO_RET being True,
         or
         b) it is completely recovered (i.e. every block of this function has been recovered, and no future block will
-           be added to it), and it does not have a ret or any equivalent instruction.
+           be added to it), it has no unresolved jump, and it does not have a ret or any equivalent instruction.
 
         A function returns if any of its block contains a ret instruction or any equivalence.
 
@@ -1121,6 +1121,11 @@ class CFGBase(Analysis):
 
         if procedure is not None and hasattr(procedure, "NO_RET"):
             return not procedure.NO_RET
+
+        # An unresolved indirect jump can be a tail transfer to a returning function. Its missing target is not proof
+        # that this function does not return, so keep the three-valued result unknown until the jump is resolved.
+        if func.has_unresolved_jumps:
+            return None
 
         # did we finish analyzing this function?
         if not all_funcs_completed and func.addr not in self._completed_functions:
@@ -1383,6 +1388,9 @@ class CFGBase(Analysis):
         smallest_nodes,
         end_addr_to_nodes,
     ):
+        unresolved_indirect_addrs = self.kb.unresolved_indirect_jumps
+        stale_unresolved_indirect_addrs = {n.addr for n in other_nodes if n.addr in unresolved_indirect_addrs}
+
         # Break other nodes
         for n in other_nodes:
             new_size = get_real_address_if_arm(self.project.arch, smallest_node.addr) - get_real_address_if_arm(
@@ -1538,6 +1546,16 @@ class CFGBase(Analysis):
             for n in other_nodes:
                 if n.addr in self.indirect_jumps:
                     del self.indirect_jumps[n.addr]
+
+        # An indirect transfer belongs to the normalized tail block, not the
+        # larger block that originally contained it. Keep the KB's unresolved
+        # inventory in lockstep with the IndirectJump address rewrite above so
+        # consumers never observe both the stale container address and the
+        # actual transfer block.
+        unresolved_indirect_addrs.difference_update(stale_unresolved_indirect_addrs)
+        normalized_jump = self.indirect_jumps.get(smallest_node.addr)
+        if stale_unresolved_indirect_addrs and normalized_jump is not None and not normalized_jump.resolved_targets:
+            unresolved_indirect_addrs.add(smallest_node.addr)
 
     #
     # Job management

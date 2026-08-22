@@ -13,8 +13,21 @@ from angr.ailment.block_walker import AILBlockViewer, _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, StackBaseOffset
 from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.converted_pointers import (
+    ConvertedPointerBindingMap,
+    ConvertedPointerBindings,
+    converted_pointer_binding_map,
+)
+from angr.analyses.decompiler.far_calls import FarCallBindingMap, FarCallBindings, far_call_binding_map
+from angr.analyses.decompiler.near_calls import INDIRECT_NEAR_CALL_TARGET_REGISTERS
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.register_state import RegisterStateBindings, register_state_binding_map
+from angr.analyses.decompiler.segmented_memory import (
+    SegmentedMemoryBindings,
+    segmented_memory_binding_map,
+    segmented_stack_variable,
+)
 from angr.analyses.decompiler.structurer_nodes import (
     BreakNode,
     CascadingConditionNode,
@@ -30,6 +43,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.variable_map import VariableMap
+from angr.calling_conventions import SimComboArg, SimStackArg
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -46,12 +60,14 @@ from angr.sim_type import (
     SimTypeEnum,
     SimTypeFixedSizeArray,
     SimTypeFloat,
+    SimTypeFloat80,
     SimTypeFunction,
     SimTypeInt,
     SimTypeInt128,
     SimTypeInt256,
     SimTypeInt512,
     SimTypeLength,
+    SimTypeLong,
     SimTypeLongLong,
     SimTypeNum,
     SimTypePointer,
@@ -101,6 +117,129 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 INDENT_DELTA = 4
 
 
+_C_IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_EXACT_STORAGE_ACCESS_TAG = "_exact_storage_access"
+_EXACT_STORAGE_OFFSET_TAG = "_exact_storage_offset"
+_NATIVE_STACK_ABSOLUTE_OFFSET_TAG = "_native_stack_absolute_offset"
+_NATIVE_STACK_FRAME_ALIGNMENT_TAG = "_native_stack_frame_alignment"
+_CONVERTED_POINTER_ARGUMENTS_TAG = "_converted_pointer_arguments"
+_AMBIENT_REGISTER_STATE_SEED_TAG = "ambient_register_state_seed"
+_INITIAL_REGISTER_STATE_SEED_TAG = "initial_register_state_seed"
+_REQUIRED_CAST_TAG = "_force_explicit_cast"
+_VOID_CALL_RESULT_TAG = "_void_call_result_consumed"
+_UNSUPPORTED_DIAGNOSTIC_KIND_TAG = "_unsupported_diagnostic_kind"
+_UNSUPPORTED_DIAGNOSTIC_OPERATION_TAG = "_unsupported_diagnostic_operation"
+_NATIVE_STACK_POINTER_NEAR_CALL_KIND = "guest_near_pointer_boundary"
+_NATIVE_STACK_POINTER_NEAR_CALL_OPERATION = "native-stack-pointer-to-16-bit-guest-near-pointer"
+_NATIVE_STACK_POINTER_FAR_CALL_KIND = "native_stack_pointer_far_call_boundary"
+_NATIVE_STACK_POINTER_FAR_CALL_OPERATION = "native-stack-pointer-to-16:16-guest-far-pointer"
+_CONVERTED_POINTER_FAILURE_KIND = "converted_pointer_binding_failure"
+_X86_PCODE_SWI_TARGET = "__pcode_swi"
+_X86_PCODE_SWI_ARGUMENT_COUNT = 16
+_C_KEYWORDS = {
+    "auto",
+    "break",
+    "case",
+    "char",
+    "const",
+    "continue",
+    "default",
+    "do",
+    "double",
+    "else",
+    "enum",
+    "extern",
+    "float",
+    "for",
+    "goto",
+    "if",
+    "inline",
+    "int",
+    "long",
+    "register",
+    "restrict",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "struct",
+    "switch",
+    "typedef",
+    "union",
+    "unsigned",
+    "void",
+    "volatile",
+    "while",
+    "_Alignas",
+    "_Alignof",
+    "_Atomic",
+    "_Bool",
+    "_Complex",
+    "_Generic",
+    "_Imaginary",
+    "_Noreturn",
+    "_Static_assert",
+    "_Thread_local",
+}
+
+
+class _NativeStackPointerGuestNearCallError(UnsupportedNodeTypeError):
+    pass
+
+
+class _StructuredCodegenDiagnosticError(UnsupportedNodeTypeError):
+    def __init__(self, message: str, kind: str, operation: str):
+        super().__init__(message)
+        self.kind = kind
+        self.operation = operation
+
+
+class _SegmentedAddressFinder(AILBlockViewer):
+    def __init__(self):
+        super().__init__()
+        self.found = False
+
+    def _handle_SegmentedAddress(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.found = True
+
+
+def _contains_segmented_address(expr: Expr.Expression) -> bool:
+    if isinstance(expr, Expr.SegmentedAddress):
+        return True
+    finder = _SegmentedAddressFinder()
+    finder.walk_expression(expr)
+    return finder.found
+
+
+def c_identifier(name: str) -> str:
+    """Return a deterministic C identifier for an ABI symbol name."""
+
+    if _C_IDENTIFIER_RE.fullmatch(name) and name not in _C_KEYWORDS:
+        return name
+    encoded = "".join(
+        character if (character == "_" or (character.isascii() and character.isalnum())) else f"_x{ord(character):x}_"
+        for character in name
+    )
+    if not encoded or encoded[0].isdigit():
+        encoded = "_" + encoded
+    if encoded in _C_KEYWORDS:
+        encoded = "_" + encoded
+    return encoded
+
+
+def c_variable_identifier(variable: SimVariable) -> str:
+    """Return the same valid identifier for every declaration and use of a SimVariable."""
+
+    if variable.name:
+        raw_name = variable.name
+    elif isinstance(variable, SimTemporaryVariable):
+        raw_name = f"tmp_{variable.tmp_id}"
+    else:
+        raw_name = str(variable)
+    return c_identifier(raw_name)
+
+
 def qualifies_for_simple_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen precisely?
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
@@ -126,8 +265,9 @@ def qualifies_for_implicit_cast(ty1, ty2):
 
 
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
-    # handle unnecessary type casts
-    if isinstance(expr, CTypeCast):
+    # Look through representation-preserving casts while recovering address terms. Width-changing casts can truncate
+    # or extend the machine address and must remain part of the expression even if their operand has a pointer type.
+    if isinstance(expr, CTypeCast) and expr.src_type.size == expr.dst_type.size:
         expr = MakeTypecastsImplicit.collapse(expr.dst_type, expr.expr)
     if (
         isinstance(expr, CTypeCast)
@@ -194,6 +334,69 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
         }:
             return True
     return t0 == t1
+
+
+def _is_void_type(type_: SimType | None) -> bool:
+    type_ = unpack_typeref(type_) if type_ is not None else None
+    return isinstance(type_, SimTypeBottom) and type_.label == "void"
+
+
+def _coerce_scalar_expression(
+    expression: CExpression,
+    expected_type: SimType | None,
+    codegen: CStructuredCodeGenerator,
+    *,
+    force_numeric: bool = False,
+) -> CExpression:
+    """Represent a recovered scalar conversion explicitly at a C type boundary.
+
+    AIL expressions retain fixed-width machine values even when independently
+    recovered C types disagree. C does not permit implicit integer/pointer or
+    incompatible-pointer conversions at assignments, returns, and call
+    boundaries, so preserve the machine-level conversion with a required cast.
+    Aggregate conversions remain unresolved because C has no aggregate cast.
+
+    A consumed result from a call recovered as ``void`` is a stronger conflict:
+    casting a void expression is itself invalid C. Retain both pieces of
+    evidence by giving that call an explicit call-site return ABI while tagging
+    the conflict for unsupported-construct reporting.
+    """
+
+    # Reaching a scalar type boundary proves that a direct call expression's result is consumed. This assignment is
+    # intentionally structural: deserialized codegen nodes and AST rewrites may bypass CFunctionCall's original AIL
+    # construction context, while the enclosing assignment/return/argument still preserves the use unambiguously.
+    if isinstance(expression, CFunctionCall):
+        expression.result_used = True
+
+    if expected_type is None or expression.type is None:
+        return expression
+
+    actual = unpack_typeref(expression.type).with_arch(codegen.project.arch)
+    expected = unpack_typeref(expected_type).with_arch(codegen.project.arch)
+    if type_equals(actual, expected):
+        return expression
+    if isinstance(actual, (SimStruct, SimTypeArray, SimTypeFixedSizeArray)) or isinstance(
+        expected,
+        (SimStruct, SimTypeArray, SimTypeFixedSizeArray, SimTypeFunction, SimTypeBottom),
+    ):
+        return expression
+    if (
+        not force_numeric
+        and isinstance(actual, (SimTypeChar, SimTypeInt, SimTypeNum))
+        and isinstance(expected, (SimTypeChar, SimTypeInt, SimTypeNum))
+    ):
+        return expression
+
+    if _is_void_type(actual):
+        if not isinstance(expression, CFunctionCall):
+            return expression
+        if not expression.override_callsite_return_type(expected):
+            return expression
+        expression.tags[_VOID_CALL_RESULT_TAG] = True
+        return expression
+
+    tags = {**expression.tags, _REQUIRED_CAST_TAG: True}
+    return CTypeCast(actual, expected, expression, tags=tags, codegen=codegen)
 
 
 def _safe_type_size(ty) -> int:
@@ -478,7 +681,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     __slots__ = (
         "addr",
         "arg_list",
+        "canonical_local_vars",
         "demangled_name",
+        "exact_local_storage_accesses",
         "functy",
         "name",
         "omit_header",
@@ -513,6 +718,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.variables_in_use = variables_in_use
         self.variable_manager: VariableManagerInternal = variable_manager
         self.demangled_name = demangled_name
+        self.canonical_local_vars: dict[SimVariable, SimVariable] = {}
+        self.exact_local_storage_accesses: dict[SimVariable, tuple[CVariable, ...]] = {}
         self.unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]] = {}
         self.show_demangled_name = show_demangled_name
         self.omit_header = omit_header
@@ -521,6 +728,134 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
     def refresh(self):
         self.unified_local_vars = self.get_unified_local_vars()
+        # SimVariable equality deliberately ignores some provenance fields (for example, a stack variable's
+        # region). Preserve the exact key chosen for each declaration so equal CVariable nodes cannot render a
+        # different identifier from the declaration that represents them.
+        self.canonical_local_vars = {variable: variable for variable in self.unified_local_vars}
+        self.exact_local_storage_accesses = self._collect_exact_local_storage_accesses()
+
+    def _collect_exact_local_storage_accesses(self) -> dict[SimVariable, tuple[CVariable, ...]]:
+        """Collect every exact-width value view backed by a rendered local declaration."""
+
+        accesses: dict[SimVariable, list[CVariable]] = defaultdict(list)
+        visited: set[int] = set()
+
+        def visit(value) -> None:
+            if isinstance(value, CVariable):
+                if value.tags.get(_EXACT_STORAGE_ACCESS_TAG, False):
+                    accesses[self.resolved_variable(value)].append(value)
+                return
+
+            if isinstance(value, CConstruct):
+                if id(value) in visited:
+                    return
+                visited.add(id(value))
+                for cls in type(value).__mro__:
+                    slots = cls.__dict__.get("__slots__", ())
+                    if isinstance(slots, str):
+                        slots = (slots,)
+                    for slot in slots:
+                        if slot in {"codegen", "ident", "idx", "tags"}:
+                            continue
+                        visit(getattr(value, slot, None))
+            elif isinstance(value, dict):
+                for item in value.values():
+                    visit(item)
+            elif isinstance(value, (list, tuple, set, frozenset)):
+                for item in value:
+                    visit(item)
+
+        visit(self.statements)
+        return {variable: tuple(variable_accesses) for variable, variable_accesses in accesses.items()}
+
+    @staticmethod
+    def captured_variable(variable: CVariable) -> SimVariable:
+        """Return the unified identity captured when this C AST node was built."""
+
+        return variable.unified_variable or variable.variable
+
+    def resolved_variable(self, variable: CVariable) -> SimVariable:
+        """Return the exact variable identity used by this function's rendered declaration."""
+
+        captured_variable = self.captured_variable(variable)
+        canonical_local_vars = getattr(self, "canonical_local_vars", {})
+        return canonical_local_vars.get(captured_variable, captured_variable)
+
+    def argument_name(self, variable: CVariable) -> str | None:
+        """Return the rendered parameter name for a variable unified with a function argument."""
+
+        variable_key = self.captured_variable(variable)
+        argument_names = self.functy.arg_names or ()
+        for index, argument in enumerate(self.arg_list):
+            argument_key = self.captured_variable(argument)
+            if variable_key != argument_key:
+                continue
+            if index < len(argument_names) and argument_names[index]:
+                return c_identifier(argument_names[index])
+            return c_variable_identifier(argument_key)
+        return None
+
+    @staticmethod
+    def _sorted_local_variable_types(cvar_and_vartypes: set[tuple[CVariable, SimType]]) -> list[SimType]:
+        vartypes = [vartype for _cvar, vartype in cvar_and_vartypes]
+        count = Counter(vartypes)
+        return sorted(
+            count,
+            key=lambda vartype: (
+                isinstance(vartype, (SimTypeChar, SimTypeInt, SimTypeFloat)),
+                count[vartype],
+                repr(vartype),
+            ),
+        )
+
+    def _storage_safe_declaration_type(self, variable: SimVariable, declaration_type: SimType) -> SimType:
+        """Ensure an emitted local declaration owns all bytes accessed through its exact AIL value views."""
+
+        declaration_size = _safe_type_size(unpack_typeref(declaration_type))
+        required_size = 0
+        widest_zero_offset_access: SimType | None = None
+        for access in self.exact_local_storage_accesses.get(variable, ()):
+            offset = access.tags.get(_EXACT_STORAGE_OFFSET_TAG, 0)
+            access_type = unpack_typeref(access.variable_type)
+            access_size = _safe_type_size(access_type)
+            if type(offset) is not int or offset < 0 or access_size <= 0:
+                continue
+            end = offset * self.codegen.project.arch.byte_width + access_size
+            if end > required_size:
+                required_size = end
+                widest_zero_offset_access = access_type if offset == 0 and end == access_size else None
+            elif end == required_size and offset == 0 and end == access_size:
+                widest_zero_offset_access = access_type
+
+        if required_size <= 0 or declaration_size >= required_size:
+            return declaration_type
+        if widest_zero_offset_access is not None:
+            return widest_zero_offset_access.with_arch(self.codegen.project.arch)
+
+        byte_width = self.codegen.project.arch.byte_width
+        byte_count = (required_size + byte_width - 1) // byte_width
+        byte_type = SimTypeChar(signed=False).with_arch(self.codegen.project.arch)
+        return SimTypeArray(byte_type, byte_count).with_arch(self.codegen.project.arch)
+
+    def _selected_local_variable_type(
+        self, variable: SimVariable, cvar_and_vartypes: set[tuple[CVariable, SimType]]
+    ) -> SimType:
+        recovered_type = self._sorted_local_variable_types(cvar_and_vartypes)[0]
+        return self._storage_safe_declaration_type(variable, recovered_type)
+
+    def declaration_type(self, variable: CVariable) -> SimType | None:
+        """Return the type of the declaration whose identifier ``variable`` renders."""
+
+        variable_key = self.captured_variable(variable)
+        for index, argument in enumerate(self.arg_list):
+            if variable_key == self.captured_variable(argument) and index < len(self.functy.args):
+                return self.functy.args[index]
+
+        declaration = self.unified_local_vars.get(self.resolved_variable(variable))
+        if declaration:
+            resolved_variable = self.resolved_variable(variable)
+            return self._selected_local_variable_type(resolved_variable, declaration)
+        return variable.variable_type
 
     def get_unified_local_vars(self) -> dict[SimVariable, set[tuple[CVariable, SimType]]]:
         unified_to_var_and_types: dict[SimVariable, set[tuple[CVariable, SimType]]] = defaultdict(set)
@@ -529,10 +864,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         for arg in self.arg_list:
             # TODO: Handle CIndexedVariable
             if isinstance(arg, CVariable):
-                if arg.unified_variable is not None:
-                    arg_set.add(arg.unified_variable)
-                else:
-                    arg_set.add(arg.variable)
+                arg_set.add(self.captured_variable(arg))
 
         # output each variable and its type
         for var, cvar in self.variables_in_use.items():
@@ -540,16 +872,25 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 # Skip all global variables
                 continue
 
-            if var in arg_set or cvar.unified_variable in arg_set:
+            key = self.captured_variable(cvar)
+            if key in arg_set:
                 continue
 
-            unified_var = self.variable_manager.unified_variable(var)
-            if unified_var is not None:
-                key = unified_var
-                var_type = self.variable_manager.get_variable_type(var)  # FIXME
-            else:
-                key = var
-                var_type = self.variable_manager.get_variable_type(var)
+            var_type = self.variable_manager.get_variable_type(var)  # FIXME
+
+            # `_handle_VirtualVariable` overrides p-code wide bit-vector carriers to an exact uint64_t/uint80_t.
+            # Keep the declaration consistent with those uses instead of reinstating Typehoon's narrow integer guess
+            # here.
+            if (
+                isinstance(cvar.type, SimTypeNum)
+                and cvar.type.size in {64, 80}
+                and var.size * self.codegen.project.arch.byte_width == cvar.type.size
+            ):
+                var_type = cvar.type
+            elif cvar.tags.get(_NATIVE_STACK_FRAME_ALIGNMENT_TAG) and isinstance(
+                unpack_typeref(cvar.variable_type), (SimTypeArray, SimTypeFixedSizeArray)
+            ):
+                var_type = cvar.variable_type
 
             if var_type is None:
                 var_type = SimTypeBottom().with_arch(self.codegen.project.arch)
@@ -574,28 +915,38 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 # this should never happen, but pylint complains
                 continue
 
-            if variable.name:
-                name = variable.name
-            elif isinstance(variable, SimTemporaryVariable):
-                name = f"tmp_{variable.tmp_id}"
-            else:
-                name = str(variable)
+            name = c_variable_identifier(variable)
 
             # sort by the following:
             #   * if it's a a non-basic type
             #   * the number of occurrences
             #   * the repr of the type itself
             # TODO: The type selection should actually happen during variable unification
-            vartypes = [x[1] for x in cvar_and_vartypes]
-            count = Counter(vartypes)
-            vartypes = sorted(
-                count.copy(),
-                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
-            )
+            vartypes = self._sorted_local_variable_types(cvar_and_vartypes)
+            declaration_type = self._selected_local_variable_type(variable, cvar_and_vartypes)
+            vartypes = [declaration_type, *(var_type for var_type in vartypes if var_type != declaration_type)]
+            initial_register_state_seeds = {
+                seed
+                for cvar, _ in cvar_and_vartypes
+                if isinstance((seed := cvar.tags.get(_INITIAL_REGISTER_STATE_SEED_TAG)), str)
+            }
+            storage_alignments = {
+                alignment
+                for cvar, _ in cvar_and_vartypes
+                if type(alignment := cvar.tags.get(_NATIVE_STACK_FRAME_ALIGNMENT_TAG)) is int and alignment > 0
+            }
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
+                    if storage_alignments:
+                        # A converted-pointer frame is byte-addressed so every recovered field can retain its exact
+                        # offset and aliasing. Give the frame a conservative host alignment without imposing that
+                        # alignment on unrelated recovered locals.
+                        yield f"_Alignas({max(storage_alignments)}) ", None
                     yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
+                    if len(initial_register_state_seeds) == 1:
+                        yield " = ", None
+                        yield next(iter(initial_register_state_seeds)), None
                     yield ";  // ", None
                     yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
@@ -753,7 +1104,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             for v in sorted(self.codegen.cexterns, key=cextern_sort_key):
                 if v.variable not in self.variables_in_use:
                     continue
-                varname = v.c_repr() if v.type is None else v.variable.name
+                varname = v.c_repr() if v.type is None else c_variable_identifier(v.variable)
                 yield "extern ", None
                 if v.type is None:
                     yield "<unknown-type>", None
@@ -779,10 +1130,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
         yield " ", None
         # function name
-        if self.demangled_name and self.show_demangled_name:
+        if self.demangled_name and self.demangled_name != self.name and self.show_demangled_name:
             normalized_name = get_cpp_function_name(self.demangled_name)
         else:
-            normalized_name = self.name
+            normalized_name = c_identifier(self.name)
         yield normalized_name, self
         # argument list
         paren = CClosingObject("(")
@@ -790,12 +1141,24 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield "(", paren
         if not self.functy.args and self.codegen.cstyle_void_param:
             yield "void", None
-        for i, (arg_type, cvariable) in enumerate(zip(self.functy.args, self.arg_list)):
+        for i, arg_type in enumerate(self.functy.args):
             if i:
                 yield ", ", None
 
-            variable = cvariable.unified_variable or cvariable.variable
-            yield from type_to_c_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
+            cvariable = self.arg_list[i] if i < len(self.arg_list) else None
+            if i < len(self.functy.arg_names) and self.functy.arg_names[i]:
+                argument_name = c_identifier(self.functy.arg_names[i])
+            elif cvariable is not None:
+                variable = cvariable.unified_variable or cvariable.variable
+                argument_name = c_variable_identifier(variable)
+            else:
+                argument_name = f"a{i}"
+            yield from type_to_c_repr_chunks(
+                arg_type,
+                name=argument_name,
+                name_type=cvariable if cvariable is not None else arg_type,
+                full=False,
+            )
 
         yield ")", paren
         # function body
@@ -913,9 +1276,9 @@ class CStatements(CStatement):
             yield indent_str, None
             yield f"/* Block {hex(self.addr) if self.addr is not None else 'unknown'} */", None
             yield "\n", None
-        for stmt in self.statements:
+        for index, stmt in enumerate(self.statements):
             yield from stmt.c_repr_chunks(indent=indent, asexpr=asexpr)
-            if asexpr:
+            if asexpr and index + 1 < len(self.statements):
                 yield ", ", None
 
 
@@ -1414,14 +1777,33 @@ class CAssignment(CStatement):
 
     __slots__ = ("lhs", "rhs")
 
+    @staticmethod
+    def _valid_lvalue(lhs: CExpression, codegen) -> CExpression:
+        if isinstance(lhs, CTypeCast):
+            # ISO C casts are rvalues. AIL can nevertheless describe a write through a typed view of an underlying
+            # storage location, especially after a narrow stack access is unified with a wider declaration. Preserve
+            # that bit-level write as ``*(T *)&storage`` instead of emitting the invalid ``(T)storage = value``.
+            return CUnaryOp(
+                "Dereference",
+                CUnaryOp("Reference", lhs, codegen=codegen),
+                codegen=codegen,
+            )
+        return lhs
+
     def __init__(self, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
 
-        self.lhs = lhs
-        self.rhs = rhs
+        self.lhs = self._valid_lvalue(lhs, self.codegen)
+        self.rhs = _coerce_scalar_expression(rhs, self.lhs.type, self.codegen)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
+
+        # Cleanup walkers and cache deserialization can change the effective type of either child after construction.
+        # Re-establish the assignment boundary immediately before rendering so the AST type and emitted C stay in
+        # agreement. The coercion is idempotent because an existing cast already reports the destination type.
+        self.lhs = self._valid_lvalue(self.lhs, self.codegen)
+        self.rhs = _coerce_scalar_expression(self.rhs, self.lhs.type, self.codegen)
 
         yield indent_str, None
         yield from CExpression._try_c_repr_chunks(self.lhs)
@@ -1478,10 +1860,14 @@ class CExpressionStatement(CStatement):
 
     __slots__ = ("expr", "returning")
 
-    def __init__(self, expr: CExpression, returning: bool = True, **kwargs):
+    def __init__(self, expr: CExpression, returning: bool | None = True, **kwargs):
         super().__init__(**kwargs)
         self.expr = expr
-        self.returning = returning
+        # Function.returning is tri-state: None means that analysis has not proved either outcome.  At a call
+        # statement, however, only an explicit False justifies suppressing the fall-through path (and rendering the
+        # corresponding diagnostic).  Keep CExpressionStatement's persisted state boolean so unknown callees remain
+        # cacheable and conservatively behave as returning calls.
+        self.returning = returning is not False
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1490,7 +1876,7 @@ class CExpressionStatement(CStatement):
         yield from self.expr.c_repr_chunks(indent=0)
         if not asexpr:
             yield ";", None
-            if not self.returning:
+            if self.returning is False:
                 yield " /* do not return */", None
             yield "\n", None
 
@@ -1506,6 +1892,8 @@ class CFunctionCall(CExpression):
         "args",
         "callee_func",
         "callee_target",
+        "callsite_prototype",
+        "result_used",
         "show_demangled_name",
         "show_disambiguated_name",
     )
@@ -1517,6 +1905,8 @@ class CFunctionCall(CExpression):
         args,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
+        callsite_prototype: SimTypeFunction | None = None,
+        result_used: bool = False,
         tags=None,
         *,
         codegen,
@@ -1524,11 +1914,69 @@ class CFunctionCall(CExpression):
     ):
         super().__init__(tags=tags, codegen=codegen, **kwargs)
 
+        if not isinstance(callee_target, (int, str, CExpression)):
+            raise UnsupportedNodeTypeError(
+                f"Call target {type(callee_target).__name__} was not converted to a C expression"
+            )
         self.callee_target = callee_target
         self.callee_func: Function | None = callee_func
         self.args = args if args is not None else []
+        # VariableMap commonly obtains this object directly from Function.prototype. Keep the edge-local ABI as an
+        # independent snapshot: later calling-convention recovery is allowed to refine the function-wide prototype in
+        # place, but must not retroactively rewrite an already constructed call site (or its serialized cache entry).
+        self.callsite_prototype = self._snapshot_callsite_prototype(callsite_prototype)
+        self.result_used = result_used
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
+
+    def _snapshot_callsite_prototype(self, prototype: SimTypeFunction | None) -> SimTypeFunction | None:
+        if prototype is None:
+            return None
+        # SimTypeFunction.copy() creates a detached outer object. Binding that copy to the target architecture then
+        # recursively detaches its argument and return types as well, even when the input was already arch-bound.
+        return cast(SimTypeFunction, prototype.copy().with_arch(self.codegen.project.arch))
+
+    def override_callsite_return_type(self, return_type: SimType) -> bool:
+        """Give this call edge a scalar return ABI without mutating the callee's function-wide prototype."""
+
+        prototype = self.prototype
+        if prototype is None:
+            return False
+        callsite_prototype = prototype.copy()
+        callsite_prototype.returnty = return_type
+        self.callsite_prototype = self._snapshot_callsite_prototype(callsite_prototype)
+        return True
+
+    @property
+    def current_callee_func(self) -> Function | None:
+        """Return the function currently registered for this direct call target.
+
+        Decompiler analyses may replace a ``Function`` object in the knowledge base while an earlier structured-code
+        tree is retained for regeneration.  The call-site prototype is an intentional edge-local snapshot, but the
+        declaration it is compared against must come from the current program-wide function identity rather than a
+        detached object captured when this node was constructed.
+        """
+
+        callee_func = self.callee_func
+        if callee_func is None or self.codegen is None:
+            return callee_func
+        kb = getattr(self.codegen, "kb", None)
+        functions = getattr(kb, "functions", None)
+        function = getattr(functions, "function", None)
+        if function is None:
+            return callee_func
+        try:
+            current_callee = function(addr=callee_func.addr)
+        except KeyError:
+            current_callee = None
+        return current_callee if current_callee is not None else callee_func
+
+    @property
+    def current_callee_prototype_is_void(self) -> bool:
+        callee_func = self.current_callee_func
+        if callee_func is None or callee_func.prototype is None:
+            return False
+        return callee_func.prototype.returnty is None or _is_void_type(callee_func.prototype.returnty)
 
     @property
     def prettify_thiscall(self) -> bool:
@@ -1537,12 +1985,15 @@ class CFunctionCall(CExpression):
         return self.codegen.prettify_thiscall
 
     @property
-    def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
-        if self.callee_func is not None and self.callee_func.prototype is not None:
-            proto = self.callee_func.prototype
-            if self.callee_func.prototype_libname is not None:
+    def prototype(self) -> SimTypeFunction | None:
+        if self.callsite_prototype is not None:
+            return self.callsite_prototype
+        callee_func = self.current_callee_func
+        if callee_func is not None and callee_func.prototype is not None:
+            proto = callee_func.prototype
+            if callee_func.prototype_libname is not None:
                 # we need to deref the prototype in case it uses SimTypeRef internally
-                proto = cast(SimTypeFunction, dereference_simtype_by_lib(proto, self.callee_func.prototype_libname))
+                proto = cast(SimTypeFunction, dereference_simtype_by_lib(proto, callee_func.prototype_libname))
             return proto
         returnty = SimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
@@ -1553,8 +2004,11 @@ class CFunctionCall(CExpression):
         Returns returnty and avoids creating the SimTypeFunction instance if the function prototype is not available.
         Instead of self.prototype.returnty, you should use self.prototype_returnty for better performance.
         """
-        if self.callee_func is not None and self.callee_func.prototype is not None:
-            return self.prototype.returnty  # type: ignore
+        prototype = self.prototype
+        if prototype is not None and prototype.returnty is not None:
+            return prototype.returnty
+        if prototype is not None and prototype.returnty is None:
+            return SimTypeBottom(label="void").with_arch(self.codegen.project.arch)
         return SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
 
     @property
@@ -1565,7 +2019,7 @@ class CFunctionCall(CExpression):
         """
         Check for call target name ambiguity.
         """
-        caller, callee = self.codegen._func, self.callee_func
+        caller, callee = self.codegen._func, self.current_callee_func
 
         assert self.codegen._variables_in_use is not None
 
@@ -1595,23 +2049,49 @@ class CFunctionCall(CExpression):
         return re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", chunks[-1]) is not None
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        if self.callee_func is not None:
-            if self.callee_func.demangled_name and self.show_demangled_name:
-                func_name = get_cpp_function_name(self.callee_func.demangled_name)
+        callee_func = self.current_callee_func
+        if callee_func is not None:
+            if (
+                callee_func.demangled_name
+                and callee_func.demangled_name != callee_func.name
+                and self.show_demangled_name
+            ):
+                func_name = get_cpp_function_name(callee_func.demangled_name)
             else:
-                func_name = self.callee_func.name
+                func_name = c_identifier(callee_func.get_declaration_name())
             if (
                 self.prettify_thiscall
                 and self.args
-                and self._is_func_likely_method(func_name, self.callee_func.is_rust_function())
+                and self._is_func_likely_method(func_name, callee_func.is_rust_function())
             ):
-                func_name = self.callee_func.short_name
+                func_name = callee_func.short_name
                 yield from self._c_repr_chunks_thiscall(func_name)
                 return
             if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
-                func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
+                func_name = callee_func.get_unambiguous_name(display_name=func_name)
 
-            yield func_name, self
+            callee_prototype = callee_func.prototype
+            if callee_prototype is not None and callee_func.prototype_libname is not None:
+                callee_prototype = cast(
+                    SimTypeFunction,
+                    dereference_simtype_by_lib(callee_prototype, callee_func.prototype_libname),
+                )
+            if (
+                self.callsite_prototype is not None
+                and callee_prototype is not None
+                and not type_equals(self.callsite_prototype, callee_prototype)
+            ):
+                # The declaration describes the callee globally, while the call-site prototype describes the ABI
+                # observed at this edge. Calling through the explicit function-pointer type keeps independently
+                # recovered signatures representable C and makes the disagreement visible in the output.
+                function_pointer_type = SimTypePointer(self.callsite_prototype).with_arch(self.codegen.project.arch)
+                yield "((", None
+                yield function_pointer_type.c_repr(name=None), function_pointer_type
+                yield ")", None
+                yield func_name, self
+                yield ")", None
+            else:
+                yield func_name, self
         elif isinstance(self.callee_target, str):
             yield self.callee_target, self
         elif isinstance(self.callee_target, CDirtyExpression):
@@ -1622,11 +2102,28 @@ class CFunctionCall(CExpression):
             yield (name if name is not None else "/* unsupported call */"), self
         else:
             chunks = list(CExpression._try_c_repr_chunks(self.callee_target))
-            if isinstance(self.callee_target, (CUnaryOp, CBinaryOp)):
-                yield "(", None
-            yield from chunks
-            if isinstance(self.callee_target, (CUnaryOp, CBinaryOp)):
-                yield ")", None
+            target_type = unpack_typeref(getattr(self.callee_target, "type", None))
+            target_is_function_pointer = isinstance(target_type, SimTypePointer) and isinstance(
+                unpack_typeref(target_type.pts_to), SimTypeFunction
+            )
+            if target_is_function_pointer:
+                if isinstance(self.callee_target, (CUnaryOp, CBinaryOp)):
+                    yield "(", None
+                yield from chunks
+                if isinstance(self.callee_target, (CUnaryOp, CBinaryOp)):
+                    yield ")", None
+            else:
+                # AIL represents a raw CALLIND target as an integer expression. Calling that expression directly
+                # produces invalid C (``integer_expression()``). Preserve the call-site ABI by making the
+                # implementation-defined integer-to-function-pointer conversion explicit.
+                prototype = self.prototype
+                assert prototype is not None
+                function_pointer_type = SimTypePointer(prototype).with_arch(self.codegen.project.arch)
+                yield "((", None
+                yield function_pointer_type.c_repr(name=None), function_pointer_type
+                yield ")(", None
+                yield from chunks
+                yield "))", None
 
         paren = CClosingObject("(")
         yield "(", paren
@@ -1671,7 +2168,10 @@ class CReturn(CStatement):
     def __init__(self, retval, **kwargs):
         super().__init__(**kwargs)
 
-        self.retval = retval
+        return_type = self.codegen._func.prototype.returnty if self.codegen._func.prototype is not None else None
+        if return_type is not None and self.codegen._func.prototype_libname is not None:
+            return_type = dereference_simtype_by_lib(return_type, self.codegen._func.prototype_libname)
+        self.retval = _coerce_scalar_expression(retval, return_type, self.codegen) if retval is not None else None
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1741,7 +2241,11 @@ class CUnsupportedStatement(CStatement):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield str(self.stmt), None
+        # AIL is not C. In particular, stringifying an unsupported expression can emit
+        # internal node representations that look like source but cannot compile. Keep
+        # the original statement on this node for structured diagnostics/serialization,
+        # but make the textual fallback inert and deterministic.
+        yield "/* unsupported AIL statement; see structured diagnostics */", self
         yield "\n", None
 
 
@@ -1852,20 +2356,78 @@ class CVariable(CExpression):
 
     @property
     def type(self):
+        # A VirtualVariable denotes a value access of an exact AIL width. Its
+        # backing declaration can be widened, narrowed, or changed to an array
+        # when later decompilations refine the unified variable. Keep the type
+        # of this particular access stable; c_repr_chunks() supplies the typed
+        # lvalue view required by the final declaration.
+        if self.tags.get(_EXACT_STORAGE_ACCESS_TAG, False) and self.variable_type is not None:
+            return self.variable_type
+        if self.codegen is not None and self.codegen.cfunc is not None:
+            return self.codegen.cfunc.declaration_type(self)
         return self.variable_type
 
     @property
     def name(self):
-        v = self.variable if self.unified_variable is None else self.unified_variable
-
-        if v.name:
-            return v.name
-        if isinstance(v, SimTemporaryVariable):
-            return f"tmp_{v.tmp_id}"
-        return str(v)
+        if self.codegen is not None and self.codegen.cfunc is not None:
+            argument_name = self.codegen.cfunc.argument_name(self)
+            if argument_name is not None:
+                return argument_name
+            v = self.codegen.cfunc.resolved_variable(self)
+        else:
+            v = self.variable if self.unified_variable is None else self.unified_variable
+        return c_variable_identifier(v)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        yield self.name, self
+        access_type = self.variable_type if self.tags.get(_EXACT_STORAGE_ACCESS_TAG, False) else None
+        offset = self.tags.get(_EXACT_STORAGE_OFFSET_TAG, 0)
+        declaration_type = (
+            self.codegen.cfunc.declaration_type(self)
+            if access_type is not None and self.codegen is not None and self.codegen.cfunc is not None
+            else None
+        )
+        if (
+            access_type is not None
+            and declaration_type is not None
+            and type(offset) is int
+            and (offset != 0 or not type_equals(access_type, declaration_type))
+        ):
+            # Render the exact AIL value through the final declaration's
+            # storage. In particular, never allow a recovered byte array to
+            # decay to a pointer where the AIL expression is a word value.
+            # The result remains an lvalue, so the same representation is valid
+            # on either side of an assignment.
+            paren = CClosingObject("(")
+            access_pointer_type = SimTypePointer(access_type).with_arch(self.codegen.project.arch)
+            declaration_type = unpack_typeref(declaration_type)
+            declaration_is_array = isinstance(declaration_type, (SimTypeArray, SimTypeFixedSizeArray))
+
+            yield "*", self
+            yield "(", paren
+            yield "(", paren
+            yield access_pointer_type.c_repr(name=None), access_pointer_type
+            yield ")", paren
+            if offset == 0:
+                if not declaration_is_array:
+                    yield "&", self
+                yield self.name, self
+            else:
+                array_element_type = declaration_type.elem_type if declaration_is_array else None
+                if array_element_type is not None and array_element_type.size == self.codegen.project.arch.byte_width:
+                    yield "&", self
+                    yield self.name, self
+                    yield f"[{offset}]", self
+                else:
+                    yield "(", paren
+                    yield "(char *)", None
+                    if not declaration_is_array:
+                        yield "&", self
+                    yield self.name, self
+                    yield f" + {offset}", self
+                    yield ")", paren
+            yield ")", paren
+        else:
+            yield self.name, self
         if self.codegen.display_vvar_ids:
             yield f"<vvar_{self.vvar_id}>", self
 
@@ -1958,6 +2520,13 @@ class CUnaryOp(CExpression):
         "Reference": "_c_repr_chunks_reference",
         "Dereference": "_c_repr_chunks_dereference",
         "Clz": "_c_repr_chunks_clz",
+        "PopCount": "_c_repr_chunks_popcount",
+        "Abs": "_c_repr_chunks_abs",
+        "Sqrt": "_c_repr_chunks_sqrt",
+        "IsNaN": "_c_repr_chunks_isnan",
+        "Ceil": "_c_repr_chunks_ceil",
+        "Floor": "_c_repr_chunks_floor",
+        "Round": "_c_repr_chunks_round",
     }
 
     def __init__(self, op, operand: CExpression, **kwargs):
@@ -1968,7 +2537,9 @@ class CUnaryOp(CExpression):
 
         if operand.type is not None:
             var_type = unpack_typeref(operand.type)
-            if op == "Reference":
+            if op == "IsNaN":
+                self._type = SimTypeChar(signed=False).with_arch(self.codegen.project.arch)
+            elif op == "Reference":
                 self._type = SimTypePointer(var_type).with_arch(self.codegen.project.arch)
             elif op == "Dereference":
                 if isinstance(var_type, SimTypePointer):
@@ -1978,8 +2549,18 @@ class CUnaryOp(CExpression):
 
     @property
     def type(self):
-        if self._type is None and self.operand is not None and hasattr(self.operand, "type"):
-            self._type = self.operand.type
+        operand_type = self.operand.type if self.operand is not None and hasattr(self.operand, "type") else None
+        if operand_type is not None:
+            operand_type = unpack_typeref(operand_type)
+            if self.op == "Reference":
+                return SimTypePointer(operand_type).with_arch(self.codegen.project.arch)
+            if self.op == "Dereference":
+                if isinstance(operand_type, SimTypePointer):
+                    return unpack_typeref(operand_type.pts_to)
+                if isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
+                    return unpack_typeref(operand_type.elem_type)
+        if self._type is None:
+            self._type = operand_type
         return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -2019,6 +2600,18 @@ class CUnaryOp(CExpression):
         yield ")", paren
 
     def _c_repr_chunks_reference(self):
+        if isinstance(self.operand, CTypeCast):
+            # A cast expression is not an lvalue, so ``&(T)value`` is invalid C. AIL uses this shape to take a
+            # typed view of an underlying storage location; take that location's address first and cast the pointer.
+            paren = CClosingObject("(")
+            pointer_type = SimTypePointer(self.operand.dst_type).with_arch(self.codegen.project.arch)
+            yield "(", paren
+            yield pointer_type.c_repr(name=None), pointer_type
+            yield ")", paren
+            yield "&", self
+            yield from CExpression._try_c_repr_chunks(self.operand.expr)
+            return
+
         # C array-to-pointer decay: an array-typed lvalue already decays to a pointer to its first
         # element, so "&array" is redundant.
         operand_type = self.operand.type if self.operand is not None else None
@@ -2041,6 +2634,69 @@ class CUnaryOp(CExpression):
         yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren
+
+    def _c_repr_chunks_popcount(self):
+        operand_bits = getattr(getattr(self.operand, "type", None), "size", None)
+        if operand_bits is not None and operand_bits <= 8:
+            cast_type = "unsigned char"
+            intrinsic = "__builtin_popcount"
+        elif operand_bits is not None and operand_bits <= 16:
+            cast_type = "unsigned short"
+            intrinsic = "__builtin_popcount"
+        elif operand_bits is not None and operand_bits <= 32:
+            cast_type = "unsigned int"
+            intrinsic = "__builtin_popcount"
+        else:
+            cast_type = "unsigned long long"
+            intrinsic = "__builtin_popcountll"
+
+        paren = CClosingObject("(")
+        cast_paren = CClosingObject("(")
+        yield intrinsic, self
+        yield "(", paren
+        yield f"({cast_type})", cast_paren
+        yield "(", cast_paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", cast_paren
+        yield ")", paren
+
+    def _c_repr_chunks_math_call(self, base_name: str):
+        operand_type = unpack_typeref(self.operand.type) if self.operand.type is not None else None
+        if isinstance(operand_type, SimTypeFloat80):
+            function_name = f"{base_name}l"
+        elif isinstance(operand_type, SimTypeDouble):
+            function_name = base_name
+        elif isinstance(operand_type, SimTypeFloat):
+            function_name = f"{base_name}f"
+        else:
+            function_name = base_name
+        paren = CClosingObject("(")
+        yield function_name, self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
+
+    def _c_repr_chunks_abs(self):
+        yield from self._c_repr_chunks_math_call("fabs")
+
+    def _c_repr_chunks_sqrt(self):
+        yield from self._c_repr_chunks_math_call("sqrt")
+
+    def _c_repr_chunks_isnan(self):
+        paren = CClosingObject("(")
+        yield "isnan", self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
+
+    def _c_repr_chunks_ceil(self):
+        yield from self._c_repr_chunks_math_call("ceil")
+
+    def _c_repr_chunks_floor(self):
+        yield from self._c_repr_chunks_math_call("floor")
+
+    def _c_repr_chunks_round(self):
+        yield from self._c_repr_chunks_math_call("round")
 
 
 class CBinaryOp(CExpression):
@@ -2494,11 +3150,23 @@ class CConstant(CExpression):
         return f'{prefix}"{base_str}"'
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        def _memory_data_is_readonly(v: MemoryData) -> bool:
+            return is_in_readonly_segment(self.codegen.project, v.addr) or is_in_readonly_section(
+                self.codegen.project, v.addr
+            )
+
         def _default_output(v) -> str | None:
-            if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String and v.content is not None:
+            if (
+                isinstance(v, MemoryData)
+                and v.sort == MemoryDataSort.String
+                and v.content is not None
+                and _memory_data_is_readonly(v)
+            ):
                 return CConstant.str_to_c_str(v.content.decode("utf-8"), maxlen=self.codegen.max_str_len)
             if isinstance(v, Function):
-                return get_cpp_function_name(v.demangled_name)
+                if v.demangled_name and v.demangled_name != v.name:
+                    return get_cpp_function_name(v.demangled_name)
+                return c_identifier(v.get_declaration_name())
             if isinstance(v, str):
                 return CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len)
             if isinstance(v, bytes):
@@ -2534,26 +3202,34 @@ class CConstant(CExpression):
                 if isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                     refval = self.reference_values[self._type]
                     if isinstance(refval, MemoryData):
-                        v = refval.content.decode("utf-8") if refval.content else f"<unknown@{refval.addr:#x}>"
+                        if not _memory_data_is_readonly(refval):
+                            refval = None
+                        else:
+                            v = refval.content.decode("utf-8") if refval.content else f"<unknown@{refval.addr:#x}>"
                     elif isinstance(refval, bytes):
                         v = refval.decode("latin1")
                     else:
                         # it must be a string
                         v = refval
                         assert isinstance(v, str)
-                    yield CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len), self
-                    return
+                    if refval is not None:
+                        yield CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len), self
+                        return
 
                 if isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                     refval = self.reference_values[self._type]
                     if isinstance(refval, MemoryData):
-                        v = decode_utf16_string(refval.content) if refval.content else f"<unknown@{refval.addr:#x}>"
+                        if not _memory_data_is_readonly(refval):
+                            refval = None
+                        else:
+                            v = decode_utf16_string(refval.content) if refval.content else f"<unknown@{refval.addr:#x}>"
                     elif isinstance(refval, bytes):
                         v = decode_utf16_string(refval) if refval else "<unknown_bytes>"
                     else:
                         assert False, f"Unexpected reference value type {type(refval)} for wide char pointer"
-                    yield CConstant.str_to_c_str(v, prefix="L", maxlen=self.codegen.max_str_len), self
-                    return
+                    if refval is not None:
+                        yield CConstant.str_to_c_str(v, prefix="L", maxlen=self.codegen.max_str_len), self
+                        return
 
                 if isinstance(self.reference_values[self._type], int):
                     yield self.fmt_int(self.reference_values[self._type]), self
@@ -2564,7 +3240,7 @@ class CConstant(CExpression):
                     return
 
             # default priority: string references -> variables -> other reference values
-            for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
+            for v in self.reference_values.values():
                 o = _default_output(v)
                 if o is not None:
                     yield o, self
@@ -2575,7 +3251,13 @@ class CConstant(CExpression):
             yield "NULL", self
 
         elif isinstance(self._type, SimTypePointer) and isinstance(self.value, int):
-            # Print pointers in hex
+            # A nonzero integer is not an implicit C null-pointer constant.
+            # Keep the recovered machine address valid at every use site,
+            # including assignments and prototype-checked call arguments.
+            paren = CClosingObject("(")
+            yield "(", paren
+            yield self._type.c_repr(name=None), self._type
+            yield ")", paren
             yield hex(self.value), self
 
         elif isinstance(self.value, bool):
@@ -2633,8 +3315,7 @@ class CRegister(CExpression):
 
     @property
     def type(self):
-        # FIXME
-        return SimTypeInt().with_arch(self.codegen.project.arch)
+        return self._type or SimTypeInt().with_arch(self.codegen.project.arch)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield str(self.reg), None
@@ -2694,6 +3375,8 @@ class CMultiStatementExpression(CExpression):
         paren = CClosingObject("(")
         yield "(", paren
         yield from self.stmts.c_repr_chunks(indent=0, asexpr=True)
+        if self.stmts.statements:
+            yield ", ", None
         yield from self.expr.c_repr_chunks()
         yield ")", paren
 
@@ -2725,6 +3408,36 @@ class CVEXCCallExpression(CExpression):
             if idx != 0:
                 yield ", ", None
             yield from operand.c_repr_chunks()
+        yield ")", paren
+
+
+class CReinterpret(CExpression):
+    """A width-preserving bit reinterpretation rendered through the PBR compatibility ABI."""
+
+    __slots__ = ("expr", "from_bits", "from_type", "to_bits", "to_type")
+
+    def __init__(self, from_bits, from_type, to_bits, to_type, expr, dst_type, **kwargs):
+        super().__init__(**kwargs)
+        self.from_bits = from_bits
+        self.from_type = from_type
+        self.to_bits = to_bits
+        self.to_type = to_type
+        self.expr = expr
+        self._type = dst_type
+
+    @property
+    def type(self):
+        return self._type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.from_bits != self.to_bits or {self.from_type, self.to_type} != {"I", "F"}:
+            yield "/* unsupported reinterpret */", self
+            return
+        direction = "from_bits" if self.from_type == "I" else "to_bits"
+        paren = CClosingObject("(")
+        yield f"pbr_f{self.to_bits}_{direction}", self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.expr)
         yield ")", paren
 
 
@@ -2843,6 +3556,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         cstyle_void_param: bool = True,
         indent_size: int = 4,
         variable_map: VariableMap | None = None,
+        register_state_bindings: RegisterStateBindings = (),
+        segmented_memory_bindings: SegmentedMemoryBindings = (),
+        far_call_bindings: FarCallBindings = (),
+        converted_pointer_bindings: ConvertedPointerBindings = (),
+        stack_pointer_tracker=None,
     ):
         super().__init__(
             flavor=flavor,
@@ -2887,6 +3605,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             Expr.Extract: self._handle_Expr_Extract,
             Expr.Insert: self._handle_Expr_Insert,
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
+            Expr.SegmentedAddress: self._handle_Expr_SegmentedAddress,
             Expr.VEXCCallExpression: self._handle_Expr_VEXCCallExpression,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
@@ -2901,6 +3620,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self._cfg = cfg
         self._sequence = sequence
         self._variable_map: VariableMap = variable_map if variable_map is not None else VariableMap()
+        self._register_state_bindings = register_state_binding_map(register_state_bindings)
+        self._segmented_memory_bindings = segmented_memory_binding_map(segmented_memory_bindings)
+        self._far_call_bindings: FarCallBindingMap = far_call_binding_map(far_call_bindings)
+        self._converted_pointer_bindings: ConvertedPointerBindingMap = converted_pointer_binding_map(
+            converted_pointer_bindings
+        )
+        self._stack_pointer_tracker = stack_pointer_tracker
         self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: dict | None = None
@@ -2987,6 +3713,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
     def _analyze(self):
         self._variables_in_use = {}
+        # Storage objects proven to carry addresses of native C stack objects.
+        # This is deliberately data-flow evidence, not a type-based guess: a
+        # pointer-shaped 16-bit value may still be an ordinary guest offset.
+        self._native_stack_pointer_carriers: set[SimStackVariable] = set()
+        self._native_stack_pointer_provenance: dict[SimStackVariable, int] = {}
+        self._selector_carriers: dict[SimStackVariable, tuple[int, int]] = {}
+        self._native_stack_frames: dict[tuple[int, int], SimStackVariable] = {}
+        self._all_cvariables: list[CVariable] = []
+
+        # Structuring may clone a labeled block into more than one branch. C labels have function scope, so retain
+        # one canonical declaration for every AIL label name and map every cloned target to that declaration.
+        self._labels_by_name: dict[str, CLabel] = {}
 
         # memo
         self.ailexpr2cnode = {}
@@ -2995,6 +3733,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         self.reset_ident_counters()
         obj = self._handle(self._sequence)
+
+        # A frame may be discovered midway through the structured sequence. Reapply the final interval mapping after
+        # every occurrence has been built so later accesses and AST-cleanup copies use the same aliasing identity.
+        for cvar in self._all_cvariables:
+            self._apply_native_stack_frame_to_cvariable(cvar)
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
@@ -3084,8 +3827,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             elif isinstance(node.obj, SimType):
                 ast_to_pos[node.obj].add(elem)
             elif isinstance(node.obj, CFunctionCall):
-                if node.obj.callee_func is not None:
-                    ast_to_pos[node.obj.callee_func].add(elem)
+                callee_func = node.obj.current_callee_func
+                if callee_func is not None:
+                    ast_to_pos[callee_func].add(elem)
                 else:
                     ast_to_pos[node.obj.callee_target].add(elem)
             elif isinstance(node.obj, CStructField):
@@ -3130,6 +3874,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if self._variables_in_use is not None:
             for var in self._variables_in_use.values():
                 if isinstance(var, CVariable):
+                    # Exact VirtualVariable accesses carry their own AIL value
+                    # type. The declaration is refreshed independently by
+                    # CFunction.refresh(); overwriting the occurrence type here
+                    # would turn array-backed scalar reads into array decay.
+                    if var.tags.get(_EXACT_STORAGE_ACCESS_TAG, False):
+                        continue
                     var.variable_type = self._get_variable_type(
                         var.variable,
                         is_global=isinstance(var.variable, SimMemoryVariable)
@@ -3150,21 +3900,68 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 )
                 if vartype is not None:
                     cvar.variable_type = vartype.with_arch(self.project.arch)
+            # Call arguments were coerced when the retained C AST was built, but whole-program type recovery may
+            # change a variable's rendered declaration before final emission. Refresh the declaration view first,
+            # then reapply only the conversions required by each call's exact edge/callee prototype.
+            self.cfunc.refresh()
+            _ReapplyCallArgumentCoercions().handle(self.cfunc)
+
+    def reload_function_metadata(self, function: Function | None = None) -> None:
+        """
+        Refresh metadata for the function represented by this code generator.
+
+        Decompilation can refine or replace a ``Function`` object after this C AST was constructed. Keep the AST and
+        its recovered local-variable identities, but make subsequent renders use the current function name,
+        demangled name, prototype, and function attributes.
+
+        :param function: The current function object. If omitted, resolve it from the knowledge base by address.
+        :raises ValueError: If the function is missing, has a different address, or has no prototype.
+        """
+
+        if function is None:
+            function = self.kb.functions.function(addr=self._func.addr)
+        if function is None:
+            raise ValueError(f"Function {self._func.addr:#x} is no longer present in the knowledge base")
+        if function.addr != self._func.addr:
+            raise ValueError(
+                f"Cannot reload function metadata for {function.addr:#x} into code generated for {self._func.addr:#x}"
+            )
+        if function.prototype is None:
+            raise ValueError(f"Function {function.addr:#x} has no prototype")
+
+        self._func = function
+        if self.cfunc is not None:
+            self.cfunc.addr = function.addr
+            self.cfunc.name = function.name
+            self.cfunc.demangled_name = function.demangled_name
+            self.cfunc.functy = function.prototype
+            self.cfunc.refresh()
 
     #
     # Util methods
     #
 
     def default_simtype_from_bits(self, n: int, signed: bool = True) -> SimType:
-        _mapping = {
-            64: SimTypeLongLong,
-            32: SimTypeInt,
-            16: SimTypeShort,
-            8: SimTypeChar,
+        candidates = {
+            64: (SimTypeLongLong, SimTypeLong),
+            32: (SimTypeInt, SimTypeLong),
+            16: (SimTypeShort, SimTypeInt),
+            8: (SimTypeChar,),
         }
-        if n in _mapping:
-            return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
+        for simtype in candidates.get(n, ()):
+            candidate = simtype(signed=signed).with_arch(self.project.arch)
+            if candidate.size == n:
+                return candidate
         return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
+
+    def float_simtype_from_bits(self, n: int) -> SimType:
+        if n == 32:
+            return SimTypeFloat().with_arch(self.project.arch)
+        if n == 64:
+            return SimTypeDouble().with_arch(self.project.arch)
+        if n == 80:
+            return SimTypeFloat80().with_arch(self.project.arch)
+        raise UnsupportedNodeTypeError(f"Unsupported floating-point width {n}.")
 
     def _variable(
         self, variable: SimVariable, fallback_type_size: int | None, vvar_id: int | None = None, mark_used: bool = True
@@ -3180,9 +3977,255 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
             )
         cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self, vvar_id=vvar_id)
+        all_cvariables = getattr(self, "_all_cvariables", None)
+        if all_cvariables is not None:
+            all_cvariables.append(cvar)
+        self._apply_native_stack_frame_to_cvariable(cvar)
         if mark_used:
+            previous = self._variables_in_use.get(variable)
+            if previous is not None and _INITIAL_REGISTER_STATE_SEED_TAG in previous.tags:
+                cvar.tags[_INITIAL_REGISTER_STATE_SEED_TAG] = previous.tags[_INITIAL_REGISTER_STATE_SEED_TAG]
             self._variables_in_use[variable] = cvar
         return cvar
+
+    def _cvariable_stack_interval(self, cvar: CVariable) -> tuple[int, int] | None:
+        variable = cvar.variable
+        if not isinstance(variable, SimStackVariable) or variable.base != "bp" or type(variable.offset) is not int:
+            return None
+        absolute_start = cvar.tags.get(_NATIVE_STACK_ABSOLUTE_OFFSET_TAG)
+        if type(absolute_start) is not int:
+            access_offset = cvar.tags.get(_EXACT_STORAGE_OFFSET_TAG, 0)
+            if type(access_offset) is not int:
+                return None
+            absolute_start = variable.offset + access_offset
+        access_type = cvar.variable_type if cvar.tags.get(_EXACT_STORAGE_ACCESS_TAG, False) else None
+        access_bits = _safe_type_size(unpack_typeref(access_type)) if access_type is not None else -1
+        if access_bits > 0 and access_bits % self.project.arch.byte_width == 0:
+            size = access_bits // self.project.arch.byte_width
+        else:
+            size = variable.size
+        if type(size) is not int or size <= 0:
+            return None
+        return absolute_start, absolute_start + size
+
+    def _apply_native_stack_frame_to_cvariable(self, cvar: CVariable) -> None:
+        interval = self._cvariable_stack_interval(cvar)
+        if interval is None:
+            return
+        start, end = interval
+        frames = getattr(self, "_native_stack_frames", {})
+        matches = [
+            (frame_start, span, frame)
+            for (frame_start, span), frame in frames.items()
+            if frame_start <= start and end <= frame_start + span
+        ]
+        if len(matches) != 1:
+            return
+        frame_start, _span, frame = matches[0]
+        cvar.unified_variable = frame
+        cvar.tags = {
+            **cvar.tags,
+            _EXACT_STORAGE_ACCESS_TAG: True,
+            _EXACT_STORAGE_OFFSET_TAG: start - frame_start,
+            _NATIVE_STACK_ABSOLUTE_OFFSET_TAG: start,
+        }
+
+    def _stack_variable_intervals(self) -> list[tuple[int, int, SimStackVariable]]:
+        variable_manager = self.kb.dec_variables[self._func.addr]
+        candidates = list(variable_manager.get_variables("stack"))
+        candidates.extend(variable_manager.get_unified_variables("stack"))
+        candidates.extend(
+            cvar.variable
+            for cvar in getattr(self, "_all_cvariables", ())
+            if isinstance(cvar.variable, SimStackVariable)
+        )
+        unique: dict[tuple[int, int, str, str | int | None], SimStackVariable] = {}
+        for variable in candidates:
+            if variable.base != "bp" or type(variable.offset) is not int or type(variable.size) is not int:
+                continue
+            if variable.size <= 0:
+                continue
+            unique[(variable.offset, variable.size, variable.ident or "", variable.region)] = variable
+        return sorted(
+            ((variable.offset, variable.offset + variable.size, variable) for variable in unique.values()),
+            key=lambda row: (row[0], row[1], row[2].ident or ""),
+        )
+
+    def _stack_storage_evidence_intervals(self) -> list[tuple[int, int]]:
+        intervals = [(start, end) for start, end, _ in self._stack_variable_intervals()]
+        intervals.extend(
+            interval
+            for cvar in getattr(self, "_all_cvariables", ())
+            if (interval := self._cvariable_stack_interval(cvar)) is not None
+        )
+        return sorted(set(intervals))
+
+    def _function_argument_stack_intervals(self) -> tuple[tuple[int, int], ...]:
+        intervals = []
+        variable_manager = self.kb.dec_variables[self._func.addr]
+        for variable in self._func_args or ():
+            if not isinstance(variable, SimStackVariable):
+                continue
+            candidates = (variable, variable_manager.unified_variable(variable))
+            for candidate in candidates:
+                if (
+                    isinstance(candidate, SimStackVariable)
+                    and candidate.base == "bp"
+                    and type(candidate.offset) is int
+                    and type(candidate.size) is int
+                    and candidate.size > 0
+                ):
+                    intervals.append((candidate.offset, candidate.offset + candidate.size))
+        return tuple(sorted(set(intervals)))
+
+    def _signed_arch_offset(self, value) -> int | None:
+        if type(value) is not int:
+            return None
+        sign_bit = 1 << (self.project.arch.bits - 1)
+        modulus = 1 << self.project.arch.bits
+        return value - modulus if value & sign_bit else value
+
+    def _proven_call_local_stack_interval(
+        self,
+        expr: Expr.Call,
+        prototype: SimTypeFunction | None,
+        target_func: Function | None,
+    ) -> tuple[int, int] | None:
+        """Prove the local allocation still live below BP at one call instruction.
+
+        Stack-pointer tracking observes SP after the caller has materialized the
+        outgoing arguments. Removing the exact ABI-described stack argument
+        footprint yields the allocation floor before those temporary pushes;
+        the tracked BP value is its exclusive ceiling. This proves allocated
+        bytes without confusing adjacent outgoing argument slots with the
+        address-taken object.
+        """
+
+        tracker = self._stack_pointer_tracker
+        callsite = expr.tags.get("ins_addr")
+        if tracker is None or prototype is None or type(callsite) is not int:
+            return None
+        cc = self._variable_map.calling_convention(expr)
+        if cc is None and target_func is not None:
+            cc = target_func.calling_convention
+        if cc is None or self.project.arch.bp_offset is None:
+            return None
+        try:
+            locations = cc.arg_locs(prototype)
+        except (TypeError, ValueError, NotImplementedError):
+            return None
+
+        stack_ranges = []
+
+        def collect(location) -> bool:
+            if isinstance(location, SimStackArg):
+                if type(location.stack_offset) is not int or type(location.size) is not int or location.size <= 0:
+                    return False
+                stack_ranges.append((location.stack_offset, location.stack_offset + location.size))
+                return True
+            if isinstance(location, SimComboArg):
+                return all(collect(part) for part in location.locations)
+            return True
+
+        if not all(collect(location) for location in locations) or not stack_ranges:
+            return None
+        stack_argument_start = getattr(cc, "STACKARG_SP_DIFF", None)
+        if type(stack_argument_start) is not int:
+            return None
+        stack_argument_end = max(end for _start, end in stack_ranges)
+        if stack_argument_end < stack_argument_start:
+            return None
+        argument_bytes = stack_argument_end - stack_argument_start
+
+        sp = self._signed_arch_offset(tracker.offset_before(callsite, self.project.arch.sp_offset))
+        bp = self._signed_arch_offset(tracker.offset_before(callsite, self.project.arch.bp_offset))
+        if sp is None or bp is None:
+            return None
+        allocation_floor = sp + argument_bytes
+        if allocation_floor >= bp:
+            return None
+        return allocation_floor, bp
+
+    def _install_native_stack_frame(
+        self,
+        start: int,
+        span: int,
+        allocated_interval: tuple[int, int] | None,
+    ) -> SimStackVariable:
+        end = start + span
+        if start >= 0 or end > 0:
+            raise _StructuredCodegenDiagnosticError(
+                f"Converted native stack interval [{start}, {end}) is not wholly local stack storage",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-local-stack-storage",
+            )
+        for argument_start, argument_end in self._function_argument_stack_intervals():
+            if start < argument_end and argument_start < end:
+                raise _StructuredCodegenDiagnosticError(
+                    f"Converted native stack interval [{start}, {end}) overlaps function argument storage",
+                    _CONVERTED_POINTER_FAILURE_KIND,
+                    "reject-function-argument-storage",
+                )
+        if allocated_interval is None or not (allocated_interval[0] <= start and end <= allocated_interval[1]):
+            raise _StructuredCodegenDiagnosticError(
+                f"Required native stack interval [{start}, {end}) is not contained in a proven live local "
+                f"allocation {allocated_interval!r}",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-live-stack-allocation",
+            )
+
+        for frame_start, frame_span in getattr(self, "_native_stack_frames", {}):
+            frame_end = frame_start + frame_span
+            if (frame_start, frame_span) != (start, span) and start < frame_end and frame_start < end:
+                raise _StructuredCodegenDiagnosticError(
+                    "Converted native stack frames must be identical or disjoint",
+                    _CONVERTED_POINTER_FAILURE_KIND,
+                    "reject-overlapping-native-frames",
+                )
+        existing = getattr(self, "_native_stack_frames", {}).get((start, span))
+        if existing is not None:
+            return existing
+
+        evidence = []
+        for evidence_start, evidence_end in self._stack_storage_evidence_intervals():
+            if evidence_start < end and start < evidence_end:
+                if evidence_start < start or evidence_end > end:
+                    raise _StructuredCodegenDiagnosticError(
+                        f"Recovered stack storage [{evidence_start}, {evidence_end}) straddles converted interval "
+                        f"[{start}, {end})",
+                        _CONVERTED_POINTER_FAILURE_KIND,
+                        "prove-stack-storage-alias-boundary",
+                    )
+                evidence.append((evidence_start, evidence_end))
+
+        offset_name = f"m{-start:x}" if start < 0 else f"p{start:x}"
+        frame = SimStackVariable(
+            start,
+            span,
+            ident=f"converted_pointer_frame_{offset_name}_{span:x}",
+            name=f"native_frame_{offset_name}_{span:x}",
+            region=self._func.addr,
+        )
+        self._native_stack_frames[(start, span)] = frame
+        for cvar in self._all_cvariables:
+            self._apply_native_stack_frame_to_cvariable(cvar)
+
+        byte_type = SimTypeChar(signed=False).with_arch(self.project.arch)
+        frame_type = SimTypeArray(byte_type, span).with_arch(self.project.arch)
+        frame_declaration = CVariable(
+            frame,
+            unified_variable=frame,
+            variable_type=frame_type,
+            tags={
+                _EXACT_STORAGE_ACCESS_TAG: True,
+                _EXACT_STORAGE_OFFSET_TAG: 0,
+                _NATIVE_STACK_FRAME_ALIGNMENT_TAG: 16,
+            },
+            codegen=self,
+        )
+        self._all_cvariables.append(frame_declaration)
+        self._variables_in_use[frame] = frame_declaration
+        return frame
 
     def _get_variable_reference(self, cvar: CVariable) -> CExpression:
         """
@@ -3370,11 +4413,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     ) -> CExpression:
         # same rule as _access_constant_offset wrt pointer expressions
         data_type = unpack_typeref(data_type)
-        base_type = unpack_pointer_and_array(expr.type) if expr.type is not None else None
-        if base_type is None:
-            # use the fallback from above
-            return self._access_constant_offset(expr, 0, data_type, lvalue, renegotiate_type)
-
+        # The enclosing arithmetic may have an integer type because BinaryOp rendering explicitly casts recovered
+        # pointers before machine-width arithmetic. ``extract_terms`` deliberately peels those casts so a load/store
+        # can still lower a byte offset to a struct field or array element. Falling back based only on ``expr.type``
+        # would discard that recoverable pointer base and emit an opaque integer-address dereference.
         o_constant, o_terms = extract_terms(expr)
 
         def bail_out():
@@ -3404,9 +4446,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     )
                 else:
                     assert t.type is not None
+                    coefficient_type = pointer_length_int_type if isinstance(t.type, SimTypePointer) else t.type
                     piece = CBinaryOp(
                         "Mul",
-                        CConstant(c, t.type, codegen=self),
+                        CConstant(c, coefficient_type, codegen=self),
                         (
                             t
                             if not isinstance(t.type, SimTypePointer)
@@ -3674,6 +4717,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         """
 
         switch_expr = self._handle(node.switch_expr)
+        # AIL switch selectors are fixed-width machine values. Type recovery
+        # may label the same carrier as a pointer because of uses elsewhere in
+        # the function, but C only accepts integer switch expressions. Preserve
+        # the selector's exact AIL width with an explicit numeric conversion at
+        # this boundary instead of emitting invalid C or inheriting C pointer
+        # semantics.
+        switch_type = self.default_simtype_from_bits(node.switch_expr.bits, signed=False)
+        switch_expr = _coerce_scalar_expression(switch_expr, switch_type, self, force_numeric=True)
         cases = [(idx, self._handle(case, is_expr=False)) for idx, case in node.cases.items()]
         default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
         tags = {"ins_addr": node.addr}
@@ -3702,14 +4753,33 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         for stmt in node.statements:
             try:
                 cstmt = self._handle(stmt, is_expr=False)
-            except UnsupportedNodeTypeError:
+            except UnsupportedNodeTypeError as error:
                 l.warning(
                     "Unsupported AIL statement or expression %s.",
                     getattr(stmt, "kind", None) or type(stmt).__name__,
                     exc_info=True,
                 )
-                cstmt = CUnsupportedStatement(stmt, codegen=self)
-            cstmts.append(cstmt)
+                diagnostic_tags = None
+                if isinstance(error, _NativeStackPointerGuestNearCallError):
+                    diagnostic_tags = {
+                        **stmt.tags,
+                        _UNSUPPORTED_DIAGNOSTIC_KIND_TAG: _NATIVE_STACK_POINTER_NEAR_CALL_KIND,
+                        _UNSUPPORTED_DIAGNOSTIC_OPERATION_TAG: _NATIVE_STACK_POINTER_NEAR_CALL_OPERATION,
+                    }
+                elif isinstance(error, _StructuredCodegenDiagnosticError):
+                    diagnostic_tags = {
+                        **stmt.tags,
+                        _UNSUPPORTED_DIAGNOSTIC_KIND_TAG: error.kind,
+                        _UNSUPPORTED_DIAGNOSTIC_OPERATION_TAG: error.operation,
+                    }
+                cstmt = CUnsupportedStatement(stmt, tags=diagnostic_tags, codegen=self)
+            if isinstance(cstmt, CStatements):
+                # Statement lowering may expand one AIL statement into an ordered C sequence (for example, a local
+                # SSA definition and its ambient-register write-through). Keep that sequence at this block level so
+                # enclosing if/else rendering sees its real statement count and retains required braces.
+                cstmts.extend(cstmt.statements)
+            else:
+                cstmts.append(cstmt)
 
         return CStatements(cstmts, codegen=self, addr=node.addr)
 
@@ -3717,11 +4787,1039 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     # AIL statement handlers
     #
 
+    @staticmethod
+    def _c_lvalue_is_stack_object(expr: CExpression) -> bool:
+        if isinstance(expr, CVariable):
+            return isinstance(expr.variable, SimStackVariable) or isinstance(expr.unified_variable, SimStackVariable)
+        if isinstance(expr, (CIndexedVariable, CVariableField)):
+            return CStructuredCodeGenerator._c_lvalue_is_stack_object(expr.variable)
+        return False
+
+    @staticmethod
+    def _c_expression_has_pointer_semantics(expr: CExpression) -> bool:
+        expr_type = unpack_typeref(expr.type) if expr.type is not None else None
+        if isinstance(expr_type, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+            return True
+        if isinstance(expr, CUnaryOp):
+            return expr.op == "Reference" or CStructuredCodeGenerator._c_expression_has_pointer_semantics(expr.operand)
+        if isinstance(expr, CBinaryOp):
+            return CStructuredCodeGenerator._c_expression_has_pointer_semantics(
+                expr.lhs
+            ) or CStructuredCodeGenerator._c_expression_has_pointer_semantics(expr.rhs)
+        if isinstance(expr, CTypeCast):
+            return CStructuredCodeGenerator._c_expression_has_pointer_semantics(expr.expr)
+        return False
+
+    @staticmethod
+    def _c_expression_is_proven_stack_address(expr: CExpression) -> bool:
+        if isinstance(expr, CUnaryOp) and expr.op == "Reference":
+            return CStructuredCodeGenerator._c_lvalue_is_stack_object(expr.operand)
+        if isinstance(expr, CTypeCast):
+            dst_type = unpack_typeref(expr.dst_type)
+            return isinstance(
+                dst_type, SimTypePointer
+            ) and CStructuredCodeGenerator._c_expression_is_proven_stack_address(expr.expr)
+        if isinstance(expr, CBinaryOp) and expr.op in {"Add", "Sub"}:
+            lhs_is_stack = CStructuredCodeGenerator._c_expression_is_proven_stack_address(expr.lhs)
+            rhs_is_stack = CStructuredCodeGenerator._c_expression_is_proven_stack_address(expr.rhs)
+            lhs_has_pointer = CStructuredCodeGenerator._c_expression_has_pointer_semantics(expr.lhs)
+            rhs_has_pointer = CStructuredCodeGenerator._c_expression_has_pointer_semantics(expr.rhs)
+            return (lhs_is_stack and not rhs_has_pointer) or (expr.op == "Add" and rhs_is_stack and not lhs_has_pointer)
+        return False
+
+    @staticmethod
+    def _c_stack_storage_identity(expr: CExpression) -> SimStackVariable | None:
+        if not isinstance(expr, CVariable):
+            return None
+        if isinstance(expr.unified_variable, SimStackVariable):
+            return expr.unified_variable
+        return expr.variable if isinstance(expr.variable, SimStackVariable) else None
+
+    @staticmethod
+    def _c_integer_constant(expr: CExpression) -> int | None:
+        if isinstance(expr, CConstant) and type(expr.value) is int:
+            return expr.value
+        if isinstance(expr, CTypeCast):
+            return CStructuredCodeGenerator._c_integer_constant(expr.expr)
+        return None
+
+    def _c_stack_lvalue_offset(self, expr: CExpression) -> int | None:
+        """Return the exact BP-relative byte offset of a recovered stack lvalue."""
+
+        if isinstance(expr, CVariable) and isinstance(expr.variable, SimStackVariable):
+            if type(expr.variable.offset) is not int or expr.variable.base != "bp":
+                return None
+            access_offset = expr.tags.get(_EXACT_STORAGE_OFFSET_TAG, 0)
+            if type(access_offset) is not int:
+                return None
+            return expr.variable.offset + access_offset
+        if isinstance(expr, CIndexedVariable):
+            base_offset = self._c_stack_lvalue_offset(expr.variable)
+            index = self._c_integer_constant(expr.index)
+            element_bits = _safe_type_size(unpack_typeref(expr.type))
+            if base_offset is None or index is None or element_bits <= 0:
+                return None
+            byte_width = self.project.arch.byte_width
+            if element_bits % byte_width != 0:
+                return None
+            return base_offset + index * (element_bits // byte_width)
+        if isinstance(expr, CVariableField) and not expr.var_is_ptr:
+            base_offset = self._c_stack_lvalue_offset(expr.variable)
+            return None if base_offset is None else base_offset + expr.field.offset
+        return None
+
+    def _c_native_stack_pointer_offset(self, expr: CExpression) -> int | None:
+        """Recover a native stack address without treating pointer-shaped guest integers as evidence."""
+
+        if isinstance(expr, CUnaryOp) and expr.op == "Reference":
+            return self._c_stack_lvalue_offset(expr.operand)
+        if isinstance(expr, CVariable):
+            storage = self._c_stack_storage_identity(expr)
+            if storage is not None:
+                return getattr(self, "_native_stack_pointer_provenance", {}).get(storage)
+            expr_type = unpack_typeref(expr.type) if expr.type is not None else None
+            if isinstance(expr_type, (SimTypeArray, SimTypeFixedSizeArray)):
+                return self._c_stack_lvalue_offset(expr)
+        if isinstance(expr, CTypeCast):
+            return self._c_native_stack_pointer_offset(expr.expr)
+        if isinstance(expr, CBinaryOp) and expr.op in {"Add", "Sub"}:
+            lhs_offset = self._c_native_stack_pointer_offset(expr.lhs)
+            rhs_offset = self._c_native_stack_pointer_offset(expr.rhs)
+            lhs_constant = self._c_integer_constant(expr.lhs)
+            rhs_constant = self._c_integer_constant(expr.rhs)
+            if lhs_offset is not None and rhs_constant is not None:
+                return lhs_offset + (rhs_constant if expr.op == "Add" else -rhs_constant)
+            if expr.op == "Add" and rhs_offset is not None and lhs_constant is not None:
+                return rhs_offset + lhs_constant
+        return None
+
+    def _c_selector_provenance(self, expr: CExpression) -> tuple[int, int] | None:
+        if isinstance(expr, CRegister):
+            matches = [storage for storage, lvalue in self._register_state_bindings.items() if lvalue == expr.reg]
+            return matches[0] if len(matches) == 1 else None
+        if isinstance(expr, CVariable):
+            storage = self._c_stack_storage_identity(expr)
+            if storage is not None:
+                return getattr(self, "_selector_carriers", {}).get(storage)
+            seed = expr.tags.get(_INITIAL_REGISTER_STATE_SEED_TAG)
+            if isinstance(seed, str):
+                matches = [storage for storage, lvalue in self._register_state_bindings.items() if lvalue == seed]
+                return matches[0] if len(matches) == 1 else None
+        if isinstance(expr, CTypeCast):
+            return self._c_selector_provenance(expr.expr)
+        return None
+
+    def _c_expression_has_native_stack_pointer_identity(self, expr: CExpression) -> bool:
+        if self._c_expression_is_proven_stack_address(expr):
+            return True
+        storage = self._c_stack_storage_identity(expr)
+        if storage is not None:
+            return storage in getattr(self, "_native_stack_pointer_carriers", set())
+        if isinstance(expr, CTypeCast):
+            # A narrowing cast does not turn a native C object address into a
+            # guest offset. Retain the identity so a later ABI boundary can
+            # reject the truncation instead of treating it as evidence.
+            return self._c_expression_has_native_stack_pointer_identity(expr.expr)
+        if isinstance(expr, CBinaryOp) and expr.op in {"Add", "Sub"}:
+            lhs_is_stack_pointer = self._c_expression_has_native_stack_pointer_identity(expr.lhs)
+            rhs_is_stack_pointer = self._c_expression_has_native_stack_pointer_identity(expr.rhs)
+            lhs_has_pointer = self._c_expression_has_pointer_semantics(expr.lhs)
+            rhs_has_pointer = self._c_expression_has_pointer_semantics(expr.rhs)
+            return (lhs_is_stack_pointer and not rhs_has_pointer) or (
+                expr.op == "Add" and rhs_is_stack_pointer and not lhs_has_pointer
+            )
+        return False
+
+    def _remember_native_stack_pointer_assignment(self, destination: CExpression, source: CExpression) -> None:
+        storage = self._c_stack_storage_identity(destination)
+        if storage is None:
+            return
+        carriers = getattr(self, "_native_stack_pointer_carriers", None)
+        if carriers is None:
+            carriers = self._native_stack_pointer_carriers = set()
+        if self._c_expression_has_native_stack_pointer_identity(source):
+            carriers.add(storage)
+        else:
+            carriers.discard(storage)
+        proven_offset = self._c_native_stack_pointer_offset(source)
+        provenance = getattr(self, "_native_stack_pointer_provenance", None)
+        if provenance is None:
+            provenance = self._native_stack_pointer_provenance = {}
+        if proven_offset is None:
+            provenance.pop(storage, None)
+        else:
+            provenance[storage] = proven_offset
+
+        selector = self._c_selector_provenance(source)
+        selector_carriers = getattr(self, "_selector_carriers", None)
+        if selector_carriers is None:
+            selector_carriers = self._selector_carriers = {}
+        if selector is None:
+            selector_carriers.pop(storage, None)
+        else:
+            selector_carriers[storage] = selector
+
+    def _reject_native_stack_pointer_at_guest_near_call_boundary(
+        self,
+        argument: CExpression,
+        expected_type: SimType | None,
+        *,
+        guest_near_pointer_boundary: bool,
+    ) -> None:
+        if not guest_near_pointer_boundary or expected_type is None:
+            return
+        expected = unpack_typeref(expected_type).with_arch(self.project.arch)
+        if not (
+            isinstance(expected, SimTypePointer)
+            and expected.size == 16
+            and self._c_expression_has_native_stack_pointer_identity(argument)
+        ):
+            return
+        raise _NativeStackPointerGuestNearCallError(
+            "Native C stack-object pointer identity cannot be reinterpreted or truncated at a 16-bit guest "
+            "near-pointer call boundary without an explicit host-pointer service binding"
+        )
+
+    @staticmethod
+    def _ail_expression_is_direct_register_value(expr: Expr.Expression) -> bool:
+        if isinstance(expr, Expr.Register):
+            return True
+        if not isinstance(expr, Expr.VirtualVariable):
+            return False
+        return expr.was_reg or (
+            expr.was_parameter
+            and isinstance(expr.oident, tuple)
+            and len(expr.oident) == 2
+            and expr.oident[0] == Expr.VirtualVariableCategory.REGISTER
+        )
+
+    @staticmethod
+    def _segmented_address_uses_stack_selector(address: Expr.SegmentedAddress) -> bool:
+        return address.tags.get("segment_register") == "ss" or address.tags.get("segment_register_origin") == "ss"
+
+    def _classify_segmented_memory_offset(self, address: Expr.SegmentedAddress) -> tuple[CExpression, bool]:
+        offset = self._handle(address.offset)
+        native_stack_address = (
+            address.address_kind == "x86-protected-16:16"
+            and self._segmented_address_uses_stack_selector(address)
+            and self._c_expression_is_proven_stack_address(offset)
+        )
+        if native_stack_address:
+            return offset, True
+        if self._c_expression_has_pointer_semantics(offset):
+            segment_register = address.tags.get("segment_register")
+            direct_machine_register = isinstance(address.offset, Expr.Register) or (
+                isinstance(address.offset, Expr.VirtualVariable) and address.offset.was_reg
+            )
+            if (
+                address.address_kind == "x86-protected-16:16"
+                and isinstance(segment_register, str)
+                and (
+                    segment_register in {"cs", "ds", "es", "fs", "gs"}
+                    or (segment_register == "ss" and direct_machine_register)
+                )
+                and address.offset.bits == 16
+                and self._ail_expression_is_direct_register_value(address.offset)
+            ):
+                # The AIL value is still the exact 16-bit machine register even if type recovery independently labels
+                # its C storage as a pointer. Convert through the 32-bit runtime carrier before narrowing back to the
+                # guest width: on the supported 32-bit hosts this avoids a pointer-to-smaller-integer conversion while
+                # preserving the register bits. An ordinary SS register read is also a guest offset; explicit
+                # pointer-typed SS parameters and pointer-derived expressions remain closed.
+                carrier_type = self.default_simtype_from_bits(32, signed=False)
+                guest_offset_type = self.default_simtype_from_bits(address.offset.bits, signed=False)
+                cast_tags = {**offset.tags, _REQUIRED_CAST_TAG: True}
+                carrier_offset = CTypeCast(
+                    offset.type,
+                    carrier_type,
+                    offset,
+                    tags=cast_tags,
+                    codegen=self,
+                )
+                return (
+                    CTypeCast(
+                        carrier_type,
+                        guest_offset_type,
+                        carrier_offset,
+                        tags=cast_tags,
+                        codegen=self,
+                    ),
+                    False,
+                )
+            raise UnsupportedNodeTypeError(
+                "Segmented-memory offset resolved to a host C pointer without proven SS stack-object provenance"
+            )
+        return offset, False
+
+    def _segmented_memory_helper_call(
+        self,
+        address: Expr.SegmentedAddress,
+        size: int,
+        endness: str,
+        *,
+        data: CExpression | None = None,
+        offset: CExpression | None = None,
+        tags=None,
+    ) -> CFunctionCall:
+        if address.address_kind != "x86-protected-16:16" or address.selector.bits != 16 or address.offset.bits != 16:
+            raise UnsupportedNodeTypeError(
+                f"Unsupported segmented-address helper ABI {address.address_kind!r} "
+                f"with {address.selector.bits}-bit selector and {address.offset.bits}-bit offset"
+            )
+        binding_key = address.address_kind, endness, size
+        helpers = self._segmented_memory_bindings.get(binding_key)
+        operation = "store" if data is not None else "load"
+        helper = None if helpers is None else helpers[1 if data is not None else 0]
+        if helper is None:
+            raise UnsupportedNodeTypeError(
+                f"No {operation} helper is bound for segmented address {address.address_kind!r}, "
+                f"endness {endness!r}, width {size}"
+            )
+
+        selector_type = self.default_simtype_from_bits(16, signed=False)
+        offset_type = self.default_simtype_from_bits(32, signed=False)
+        selector = self._coerce_call_argument(self._handle(address.selector), selector_type)
+        if offset is None:
+            offset, native_stack_address = self._classify_segmented_memory_offset(address)
+            if native_stack_address:
+                raise UnsupportedNodeTypeError(
+                    "Proven SS stack-object address must be lowered as a native C access, not a guest runtime offset"
+                )
+        offset = self._coerce_call_argument(offset, offset_type)
+        args = [selector, offset]
+        argument_types = [selector_type, offset_type]
+
+        if data is None:
+            return_type = self.default_simtype_from_bits(size * self.project.arch.byte_width, signed=False)
+        else:
+            data_type = self.default_simtype_from_bits(size * self.project.arch.byte_width, signed=False)
+            args.append(self._coerce_call_argument(data, data_type))
+            argument_types.append(data_type)
+            return_type = None
+
+        prototype = SimTypeFunction(
+            argument_types,
+            return_type,
+        ).with_arch(self.project.arch)
+        return CFunctionCall(
+            helper,
+            None,
+            args,
+            callsite_prototype=prototype,
+            result_used=data is None,
+            tags=tags,
+            codegen=self,
+        )
+
+    def _segmented_stack_access(
+        self,
+        variable: SimStackVariable,
+        size: int,
+        offset: int,
+        tags: dict,
+    ) -> CVariable:
+        """Build an exact-width lvalue view into a proven native stack object."""
+
+        access = self._variable(variable, size)
+        access.variable_type = self.default_simtype_from_bits(
+            size * self.project.arch.byte_width,
+            signed=False,
+        )
+        access.tags = {
+            **tags,
+            _EXACT_STORAGE_ACCESS_TAG: True,
+            _EXACT_STORAGE_OFFSET_TAG: offset,
+        }
+        return access
+
+    def _segmented_stack_access_needs_exact_view(
+        self,
+        variable: SimStackVariable,
+        size: int,
+        offset: int,
+    ) -> bool:
+        variable_manager = self.kb.dec_variables[self._func.addr]
+        recovered_type = variable_manager.get_variable_type(variable)
+        recovered_bits = _safe_type_size(unpack_typeref(recovered_type)) if recovered_type is not None else 0
+        access_bits = size * self.project.arch.byte_width
+        if offset != 0 or variable.size != size or recovered_bits not in {0, access_bits}:
+            return True
+
+        unified = variable_manager.unified_variable(variable)
+        return unified is not None and any(
+            candidate != variable and variable_manager.unified_variable(candidate) == unified and candidate.size != size
+            for candidate in variable_manager.get_variables("stack")
+        )
+
+    def _direct_far_call_target_addr(self, expr: Expr.Call) -> int:
+        if expr.tags.get("far_call_resolved_indirect", False):
+            raise UnsupportedNodeTypeError(
+                "A CFG-resolved indirect far call is not a direct CALLF operand; refusing guessed lowering"
+            )
+        if isinstance(expr.target, Expr.Const):
+            if not isinstance(expr.target.value, int) or isinstance(expr.target.value, bool):
+                raise UnsupportedNodeTypeError("Direct far-call targets must be integer constants")
+            return expr.target.value
+
+        target = expr.target
+        if not (
+            isinstance(target, Expr.SegmentedAddress)
+            and target.address_kind in {"x86-protected-16:16", "x86-protected-16:32"}
+            and target.selector.bits == 16
+            and isinstance(target.selector, Expr.Const)
+            and isinstance(target.selector.value, int)
+            and not isinstance(target.selector.value, bool)
+            and isinstance(target.offset, Expr.Const)
+            and isinstance(target.offset.value, int)
+            and not isinstance(target.offset.value, bool)
+        ):
+            raise UnsupportedNodeTypeError(
+                "Indirect or nonconstant segmented far calls are unsupported; refusing host function-pointer lowering"
+            )
+
+        # A protected-mode immediate CALLF operand carries a loader selector,
+        # not a runtime selector. Resolve it solely through the canonical CFG
+        # call edge. The raw selector is deliberately neither flattened nor
+        # passed to generated C.
+        cfg = getattr(self._cfg, "model", self._cfg)
+        ins_addr = expr.tags.get("ins_addr")
+        if cfg is None or not isinstance(ins_addr, int):
+            raise UnsupportedNodeTypeError("A constant segmented far call requires an exact canonical CFG call edge")
+        callsite_node = cfg.get_any_node(ins_addr, anyaddr=True)
+        if callsite_node is None:
+            raise UnsupportedNodeTypeError("A constant segmented far call has no canonical CFG callsite node")
+
+        callees = {
+            successor.addr
+            for _, successor, data in cfg.graph.out_edges([callsite_node], data=True)
+            if data.get("jumpkind") == "Ijk_Call"
+            and (data.get("ins_addr") is None or data.get("ins_addr") == ins_addr)
+            and isinstance(successor.addr, int)
+        }
+        if len(callees) != 1:
+            raise UnsupportedNodeTypeError(
+                "A constant segmented far call does not resolve to exactly one canonical CFG target"
+            )
+        return next(iter(callees))
+
+    def _resolve_far_call_binding(self, expr: Expr.Call) -> tuple[str, str, str | None, str | None] | None:
+        if getattr(expr, "transfer_kind", "unknown") != "far":
+            return None
+        if expr.tags.get("indirect_far_call_dispatch", False):
+            slot_offset_kind = expr.tags.get("indirect_far_call_slot_offset_kind")
+            slot_offset = expr.tags.get("indirect_far_call_slot_offset")
+            if slot_offset_kind is None and slot_offset is not None:
+                # Serialized fixed-slot intrinsics created before offset-source tagging are unambiguous.
+                slot_offset_kind = "constant"
+            if not (
+                isinstance(expr.target, str)
+                and expr.args is not None
+                and len(expr.args) >= 2
+                and expr.bits in (None, 0)
+                and expr.tags.get("indirect_far_call_binding_authoritative", False)
+                and expr.tags.get("indirect_far_call_address_kind") == "x86-protected-16:16"
+                and expr.args[0].bits == 16
+            ):
+                raise UnsupportedNodeTypeError("Malformed dynamic far-call dispatcher intrinsic")
+
+            if slot_offset_kind == "constant":
+                valid_offset = (
+                    isinstance(slot_offset, int)
+                    and not isinstance(slot_offset, bool)
+                    and 0 <= slot_offset <= 0xFFFF
+                    and isinstance(expr.args[1], Expr.Const)
+                    and expr.args[1].bits == 16
+                    and expr.args[1].value == slot_offset
+                    and "indirect_far_call_slot_offset_register" not in expr.tags
+                    and "indirect_far_call_slot_offset_register_size" not in expr.tags
+                )
+            elif slot_offset_kind == "register":
+                slot_register_offset = expr.tags.get("indirect_far_call_slot_offset_register")
+                slot_register_size = expr.tags.get("indirect_far_call_slot_offset_register_size")
+                valid_offset = (
+                    slot_offset is None
+                    and isinstance(slot_register_offset, int)
+                    and not isinstance(slot_register_offset, bool)
+                    and slot_register_offset >= 0
+                    and slot_register_size == 2
+                    and expr.args[1].bits == 16
+                )
+            else:
+                valid_offset = False
+            if not valid_offset:
+                raise UnsupportedNodeTypeError("Malformed dynamic far-call dispatcher intrinsic")
+
+            has_site_identifier = "indirect_far_call_site_identifier" in expr.tags
+            if has_site_identifier:
+                site_identifier = expr.tags["indirect_far_call_site_identifier"]
+                if not (
+                    isinstance(site_identifier, int)
+                    and not isinstance(site_identifier, bool)
+                    and 0 <= site_identifier <= 0xFFFF_FFFF
+                    and len(expr.args) >= 3
+                    and isinstance(expr.args[2], Expr.Const)
+                    and expr.args[2].bits == 32
+                    and expr.args[2].value == site_identifier
+                    and expr.tags.get("indirect_far_call_noreturn", False)
+                ):
+                    raise UnsupportedNodeTypeError("Malformed dynamic far-call dispatcher intrinsic")
+            elif expr.tags.get("indirect_far_call_noreturn", False):
+                raise UnsupportedNodeTypeError("Malformed dynamic far-call dispatcher intrinsic")
+            return None
+        target_addr = self._direct_far_call_target_addr(expr)
+        binding = self._far_call_bindings.get(target_addr)
+        if binding is None:
+            raise UnsupportedNodeTypeError(
+                f"No exact far-call binding exists for canonical direct target {target_addr:#x}; "
+                "refusing host function-pointer lowering"
+            )
+        return binding
+
+    def _x86_pcode_swi_prototype(self, expr: Expr.Call) -> SimTypeFunction | None:
+        if expr.target != _X86_PCODE_SWI_TARGET or self.project.arch.name not in {
+            "x86:LE:16:Protected Mode",
+            "x86:LE:16:Real Mode",
+        }:
+            return None
+        if expr.args is None or len(expr.args) != _X86_PCODE_SWI_ARGUMENT_COUNT:
+            raise UnsupportedNodeTypeError(
+                f"{_X86_PCODE_SWI_TARGET} requires a vector, eight x86-16 registers, and CF/PF/AF/ZF/SF/OF/DF"
+            )
+        return SimTypeFunction(
+            [SimTypeShort(signed=False) for _ in range(9)] + [SimTypeChar(signed=False) for _ in range(7)],
+            SimTypeShort(signed=False),
+        ).with_arch(self.project.arch)
+
+    def _coerce_guest_register_argument(self, argument: CExpression, expected_type: SimType) -> CExpression:
+        """Render one runtime input as the exact low bits of a guest register."""
+        expected_type = expected_type.with_arch(self.project.arch)
+        expected_bits = expected_type.size
+        if not isinstance(expected_bits, int) or expected_bits <= 0 or expected_bits > 64:
+            raise UnsupportedNodeTypeError("Guest-register runtime arguments must be unsigned scalars up to 64 bits")
+        mask = (1 << expected_bits) - 1
+        if isinstance(argument, CConstant) and isinstance(argument.value, int):
+            return CConstant(
+                argument.value & mask,
+                expected_type,
+                tags=argument.tags,
+                codegen=self,
+            )
+
+        actual_type = unpack_typeref(argument.type) if argument.type is not None else None
+        if (
+            not isinstance(actual_type, SimTypePointer)
+            and isinstance(argument, CVariable)
+            and argument.codegen is not None
+            and argument.codegen.cfunc is not None
+        ):
+            declaration_type = unpack_typeref(argument.codegen.cfunc.declaration_type(argument))
+            if isinstance(declaration_type, SimTypePointer):
+                # Exact-width VVar accesses normally render through the declaration's storage (for example as a
+                # 16-bit lvalue view of an array). At a guest-register ABI boundary, however, pointer-typed storage
+                # denotes the pointer value itself. Use an unwrapped occurrence so the conversion below goes through
+                # the integer carrier instead of dereferencing the pointer object's representation.
+                argument = CVariable(
+                    argument.variable,
+                    unified_variable=argument.unified_variable,
+                    variable_type=declaration_type,
+                    vvar_id=argument.vvar_id,
+                    tags={
+                        key: value
+                        for key, value in argument.tags.items()
+                        if key not in {_EXACT_STORAGE_ACCESS_TAG, _EXACT_STORAGE_OFFSET_TAG}
+                    },
+                    codegen=self,
+                )
+                actual_type = declaration_type
+        if isinstance(actual_type, SimTypePointer):
+            # A recovered host pointer type is type evidence, not the guest runtime ABI. Convert through an integer
+            # carrier wide enough for every supported host, then explicitly retain the low guest bits. This avoids
+            # both an invalid implicit pointer-to-integer conversion and a size-changing direct pointer cast.
+            carrier_type = SimTypeNum(64, signed=False).with_arch(self.project.arch)
+            required_tags = {**argument.tags, _REQUIRED_CAST_TAG: True}
+            integer_value = CTypeCast(
+                actual_type,
+                carrier_type,
+                argument,
+                tags=required_tags,
+                codegen=self,
+            )
+            masked_value = (
+                integer_value
+                if expected_bits == 64
+                else CBinaryOp(
+                    "And",
+                    integer_value,
+                    CConstant(mask, carrier_type, codegen=self),
+                    tags=argument.tags,
+                    codegen=self,
+                )
+            )
+            return CTypeCast(
+                masked_value.type,
+                expected_type,
+                masked_value,
+                tags=required_tags,
+                codegen=self,
+            )
+
+        return self._coerce_call_argument(argument, expected_type)
+
+    def _coerce_x86_pcode_swi_argument(self, argument: CExpression, expected_type: SimType) -> CExpression:
+        """Render one software-interrupt input as the exact low 16 bits of a guest register."""
+
+        return self._coerce_guest_register_argument(argument, expected_type)
+
+    @staticmethod
+    def _ail_16_16_carrier_parts(argument: Expr.Expression) -> tuple[Expr.Expression, Expr.Expression] | None:
+        if not (
+            isinstance(argument, Expr.BinaryOp)
+            and argument.op == "Concat"
+            and argument.bits == 32
+            and len(argument.operands) == 2
+            and argument.operands[0].bits == 16
+            and argument.operands[1].bits == 16
+        ):
+            return None
+        return argument.operands[0], argument.operands[1]
+
+    def _converted_pointer_helper_call(
+        self,
+        frame: SimStackVariable,
+        helper: str,
+        span: int,
+        contract: str,
+        tags,
+    ) -> CFunctionCall:
+        byte_type = SimTypeChar(signed=False).with_arch(self.project.arch)
+        frame_type = SimTypeArray(byte_type, frame.size).with_arch(self.project.arch)
+        frame_value = CVariable(
+            frame,
+            unified_variable=frame,
+            variable_type=frame_type,
+            tags={_NATIVE_STACK_FRAME_ALIGNMENT_TAG: 16},
+            codegen=self,
+        )
+        frame_byte = CIndexedVariable(
+            frame_value,
+            CConstant(0, self.default_simtype_from_bits(32, signed=False), codegen=self),
+            variable_type=byte_type,
+            codegen=self,
+        )
+        frame_address = CUnaryOp("Reference", frame_byte, codegen=self)
+        void_pointer_type = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
+        frame_address = CTypeCast(
+            frame_address.type,
+            void_pointer_type,
+            frame_address,
+            tags={_REQUIRED_CAST_TAG: True},
+            codegen=self,
+        )
+        span_type = self.default_simtype_from_bits(32, signed=False)
+        helper_prototype = SimTypeFunction(
+            [void_pointer_type, span_type],
+            SimTypeNum(64, signed=False),
+        ).with_arch(self.project.arch)
+        return CFunctionCall(
+            helper,
+            None,
+            [frame_address, CConstant(span, span_type, codegen=self)],
+            callsite_prototype=helper_prototype,
+            result_used=True,
+            tags={**(tags or {}), "converted_pointer_contract": contract},
+            codegen=self,
+        )
+
+    def _lower_converted_pointer_argument(
+        self,
+        argument: Expr.Expression,
+        converted_argument: CExpression,
+        binding: tuple[str, int, str, str, int, int, str, int | None, str | None] | None,
+        *,
+        allocated_interval: tuple[int, int] | None,
+        tags,
+    ) -> CExpression | None:
+        """Lower a proven native 16:16 carrier, preserving clearly guest-native values unchanged."""
+
+        parts = self._ail_16_16_carrier_parts(argument)
+        if parts is None:
+            if binding is None and argument.bits != 32:
+                # A legacy 16-bit near-pointer prototype has its own precise boundary diagnostic in
+                # `_coerce_call_argument`. This bridge is exclusively about one 32-bit 16:16 machine carrier.
+                return None
+            if not self._c_expression_has_native_stack_pointer_identity(converted_argument):
+                return None
+            if binding is None:
+                raise _StructuredCodegenDiagnosticError(
+                    "A proven native stack address reaches a far-call scalar without an exact converted-pointer "
+                    "binding",
+                    _NATIVE_STACK_POINTER_FAR_CALL_KIND,
+                    _NATIVE_STACK_POINTER_FAR_CALL_OPERATION,
+                )
+            raise _StructuredCodegenDiagnosticError(
+                "A converted-pointer argument carrying native address identity is not an exact 16:16 value",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-exact-16:16-carrier",
+            )
+
+        selector_ail, offset_ail = parts
+        selector = self._handle(selector_ail)
+        offset = self._handle(offset_ail)
+        native_identity = self._c_expression_has_native_stack_pointer_identity(offset)
+        native_offset = self._c_native_stack_pointer_offset(offset)
+        sealed_native_offset = None if binding is None else binding[7]
+        if not native_identity and native_offset is None and sealed_native_offset is None:
+            # The binding describes the semantic API argument, not every caller's choice of storage. A genuine guest
+            # selector:offset must retain its exact 32-bit carrier and must never mint a host borrow token.
+            return None
+        if binding is None:
+            raise _StructuredCodegenDiagnosticError(
+                "A proven native stack address was truncated into the low half of an unbound 16:16 far argument",
+                _NATIVE_STACK_POINTER_FAR_CALL_KIND,
+                _NATIVE_STACK_POINTER_FAR_CALL_OPERATION,
+            )
+        if native_offset is None and sealed_native_offset is None:
+            raise _StructuredCodegenDiagnosticError(
+                "Native stack address identity lacks an exact recovered BP-relative origin",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-native-stack-pointer-provenance",
+            )
+
+        (
+            helper,
+            span,
+            address_kind,
+            _selector_name,
+            selector_offset,
+            selector_size,
+            contract,
+            sealed_native_offset,
+            sealed_native_evidence,
+        ) = binding
+        if address_kind != "x86-protected-16:16":
+            raise _StructuredCodegenDiagnosticError(
+                f"Unsupported converted-pointer address kind {address_kind!r}",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-address-kind",
+            )
+        selector_provenance = self._c_selector_provenance(selector)
+        if sealed_native_offset is None and selector_provenance != (selector_offset, selector_size):
+            raise _StructuredCodegenDiagnosticError(
+                "Native stack pointer carrier selector is not proven to come from the configured stack selector",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-stack-selector",
+            )
+
+        if sealed_native_offset is not None:
+            if not sealed_native_evidence:
+                raise _StructuredCodegenDiagnosticError(
+                    "Sealed native stack offset has no machine-evidence identity",
+                    _CONVERTED_POINTER_FAILURE_KIND,
+                    "prove-machine-native-stack-evidence",
+                )
+            if selector_provenance is not None and selector_provenance != (selector_offset, selector_size):
+                raise _StructuredCodegenDiagnosticError(
+                    "Recovered pointer selector contradicts the sealed machine stack-selector proof",
+                    _CONVERTED_POINTER_FAILURE_KIND,
+                    "prove-machine-stack-selector",
+                )
+            # The sealed displacement is relative to machine BP.  angr stack
+            # variables and StackPointerTracker use the function-entry SP
+            # coordinate, whose BP origin is the live interval's exclusive
+            # upper bound.  Translate the machine fact into that coordinate;
+            # this is commonly a two-byte shift for the saved 16-bit BP.
+            native_offset = (
+                sealed_native_offset if allocated_interval is None else sealed_native_offset + allocated_interval[1]
+            )
+
+        assert native_offset is not None
+        frame = self._install_native_stack_frame(native_offset, span, allocated_interval)
+        return self._converted_pointer_helper_call(frame, helper, span, contract, tags)
+
+    def _build_call_expression(
+        self, expr: Expr.Call, *, result_used: bool, tags=None
+    ) -> tuple[CFunctionCall, Function | None, tuple[str, str, str | None, str | None] | None]:
+        dynamic_far_dispatch = expr.tags.get("indirect_far_call_dispatch", False)
+        dynamic_near_dispatch = expr.tags.get("indirect_near_call_dispatch", False)
+        if dynamic_far_dispatch and dynamic_near_dispatch:
+            raise UnsupportedNodeTypeError("A call cannot be both a dynamic far- and near-call dispatcher")
+        runtime_prototype = None
+        if dynamic_far_dispatch and result_used:
+            raise UnsupportedNodeTypeError("Dynamic far-call dispatcher intrinsics are void")
+        if dynamic_far_dispatch:
+            runtime_prototype = self._variable_map.prototype(expr)
+            runtime_arg_types = () if runtime_prototype is None else runtime_prototype.args
+            if not (
+                expr.tags.get("indirect_far_call_binding_authoritative", False)
+                and self._variable_map.calling_convention(expr) is None
+                and runtime_prototype is not None
+                and isinstance(runtime_prototype.returnty, SimTypeBottom)
+                and runtime_prototype.returnty.label == "void"
+                and expr.args is not None
+                and len(runtime_arg_types) == len(expr.args)
+                and all(
+                    isinstance(unpack_typeref(arg_type), (SimTypeChar, SimTypeInt, SimTypeNum))
+                    and unpack_typeref(arg_type).signed is False
+                    and arg_type.with_arch(self.project.arch).size == argument.bits
+                    for arg_type, argument in zip(runtime_arg_types, expr.args)
+                )
+            ):
+                raise UnsupportedNodeTypeError(
+                    "Dynamic far-call dispatcher intrinsics require an exact binding-authoritative scalar void ABI"
+                )
+        if dynamic_near_dispatch:
+            runtime_prototype = self._variable_map.prototype(expr)
+            runtime_arg_types = () if runtime_prototype is None else runtime_prototype.args
+            return_type = None if runtime_prototype is None else unpack_typeref(runtime_prototype.returnty)
+            allowed_target_ranges = {
+                self.project.arch.registers[register_name]
+                for register_name in INDIRECT_NEAR_CALL_TARGET_REGISTERS
+                if register_name in self.project.arch.registers
+            }
+            selector_offset = expr.tags.get("indirect_near_call_selector_register")
+            selector_size = expr.tags.get("indirect_near_call_selector_register_size")
+            target_offset = expr.tags.get("indirect_near_call_target_register")
+            target_size = expr.tags.get("indirect_near_call_target_register_size")
+            site_identifier = expr.tags.get("indirect_near_call_site_identifier")
+            if not (
+                expr.tags.get("indirect_near_call_binding_authoritative", False)
+                and expr.tags.get("indirect_near_call_address_kind") == "x86-protected-16:16"
+                and isinstance(expr.target, str)
+                and getattr(expr, "transfer_kind", "unknown") == "near"
+                and type(selector_offset) is int
+                and selector_size == 2
+                and (selector_offset, selector_size) == self.project.arch.registers.get("cs")
+                and type(target_offset) is int
+                and target_size == 2
+                and (target_offset, target_size) in allowed_target_ranges
+                and target_offset != selector_offset
+                and type(site_identifier) is int
+                and 0 <= site_identifier <= 0xFFFF_FFFF
+                and self._variable_map.calling_convention(expr) is None
+                and runtime_prototype is not None
+                and isinstance(return_type, (SimTypeChar, SimTypeInt, SimTypeNum))
+                and return_type.signed is False
+                and runtime_prototype.returnty.with_arch(self.project.arch).size == 16
+                and expr.bits == 16
+                and expr.args is not None
+                and len(expr.args) == 2
+                and len(runtime_arg_types) == len(expr.args)
+                and tuple(argument.bits for argument in expr.args) == (16, 32)
+                and isinstance(expr.args[1], Expr.Const)
+                and expr.args[1].value == site_identifier
+                and all(
+                    isinstance(unpack_typeref(arg_type), (SimTypeChar, SimTypeInt, SimTypeNum))
+                    and unpack_typeref(arg_type).signed is False
+                    and arg_type.with_arch(self.project.arch).size == argument.bits
+                    for arg_type, argument in zip(runtime_arg_types, expr.args)
+                )
+            ):
+                raise UnsupportedNodeTypeError(
+                    "Dynamic near-call dispatcher intrinsics require an exact binding-authoritative unsigned "
+                    "16-bit return ABI"
+                )
+        far_binding = self._resolve_far_call_binding(expr)
+        far_target_addr = self._direct_far_call_target_addr(expr) if far_binding is not None else None
+        guest_near_pointer_boundary = (
+            far_binding is not None
+            and far_binding[0] == "external"
+            and self.project.arch.name in {"x86:LE:16:Protected Mode", "x86:LE:16:Real Mode"}
+        )
+
+        # Keep the original direct target for KB/prototype lookup even when an
+        # external binding replaces the emitted callee with an exact wrapper.
+        original_target = (
+            CConstant(
+                far_target_addr,
+                self.default_simtype_from_bits(self.project.arch.bits, signed=False),
+                tags=expr.target.tags,
+                codegen=self,
+            )
+            if far_target_addr is not None
+            else self._handle(expr.target, lvalue=True)
+            if not isinstance(expr.target, str)
+            else expr.target
+        )
+        if (
+            isinstance(original_target, CUnaryOp)
+            and original_target.op == "Reference"
+            and isinstance(original_target.operand, CVariable)
+            and isinstance(original_target.operand.variable, SimMemoryVariable)
+            and not isinstance(original_target.operand.variable, SimStackVariable)
+            and original_target.operand.variable.size == 1
+        ):
+            original_target = original_target.operand
+
+        target_func = (
+            self.kb.functions.function(addr=original_target.value) if isinstance(original_target, CConstant) else None
+        )
+        if far_binding is not None and target_func is None:
+            raise UnsupportedNodeTypeError(
+                f"Far-call target {far_target_addr:#x} is not a known function; refusing guessed lowering"
+            )
+
+        callsite_prototype = self._variable_map.prototype(expr)
+        x86_pcode_swi_prototype = self._x86_pcode_swi_prototype(expr)
+        argument_prototype = (
+            x86_pcode_swi_prototype
+            or runtime_prototype
+            or callsite_prototype
+            or (target_func.prototype if target_func is not None else None)
+        )
+        callsite = expr.tags.get("ins_addr")
+        if not isinstance(callsite, int) or isinstance(callsite, bool):
+            callsite = None
+        converted_bindings = self._converted_pointer_bindings.get(callsite, {})
+        if converted_bindings and not (
+            getattr(expr, "transfer_kind", "unknown") == "far"
+            and far_binding is not None
+            and far_binding[0] == "external"
+        ):
+            raise _StructuredCodegenDiagnosticError(
+                "Converted-pointer bindings only apply to exact external far-call sites",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-external-far-call",
+            )
+        argument_count = len(expr.args) if expr.args is not None else 0
+        missing_bound_indices = sorted(index for index in converted_bindings if index >= argument_count)
+        if missing_bound_indices:
+            raise _StructuredCodegenDiagnosticError(
+                f"Converted-pointer argument indices do not exist at this callsite: {missing_bound_indices!r}",
+                _CONVERTED_POINTER_FAILURE_KIND,
+                "prove-bound-argument-index",
+            )
+        local_stack_interval = self._proven_call_local_stack_interval(expr, argument_prototype, target_func)
+        args = []
+        converted_argument_indices = []
+        if expr.args is not None:
+            for i, arg in enumerate(expr.args):
+                type_ = None
+                if argument_prototype is not None and i < len(argument_prototype.args):
+                    type_ = argument_prototype.args[i].with_arch(self.project.arch)
+                    if (
+                        callsite_prototype is None
+                        and target_func is not None
+                        and target_func.prototype_libname is not None
+                    ):
+                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
+
+                if isinstance(arg, Expr.Const):
+                    if isinstance(arg.value, int) and type_ is None:
+                        type_ = guess_value_type(arg.value, self.project) or type_
+                    new_arg = self._handle_Expr_Const(arg, type_=type_)
+                else:
+                    new_arg = self._handle(arg, type_=type_)
+                converted_argument = None
+                if getattr(expr, "transfer_kind", "unknown") == "far":
+                    converted_argument = self._lower_converted_pointer_argument(
+                        arg,
+                        new_arg,
+                        converted_bindings.get(i),
+                        allocated_interval=local_stack_interval,
+                        tags=arg.tags,
+                    )
+                if converted_argument is not None:
+                    args.append(converted_argument)
+                    converted_argument_indices.append(i)
+                    continue
+                args.append(
+                    self._coerce_x86_pcode_swi_argument(new_arg, type_)
+                    if x86_pcode_swi_prototype is not None
+                    else self._coerce_guest_register_argument(new_arg, type_)
+                    if dynamic_far_dispatch or dynamic_near_dispatch
+                    else self._coerce_call_argument(
+                        new_arg,
+                        type_,
+                        guest_near_pointer_boundary=guest_near_pointer_boundary,
+                    )
+                )
+
+        emitted_target = original_target
+        emitted_target_func = target_func
+        emitted_prototype = x86_pcode_swi_prototype or runtime_prototype or callsite_prototype
+        if far_binding is not None and far_binding[0] == "external":
+            # The exact wrapper name is the whole lowering contract. Keep the
+            # recovered edge/callee prototype, but do not let CFunctionCall
+            # substitute the guest function's declaration name or invent a
+            # function-pointer cast for the wrapper.
+            emitted_target = far_binding[1]
+            emitted_target_func = None
+            emitted_prototype = callsite_prototype or (target_func.prototype if target_func is not None else None)
+
+        call_tags = dict(expr.tags if tags is None else tags)
+        if converted_argument_indices:
+            call_tags[_CONVERTED_POINTER_ARGUMENTS_TAG] = converted_argument_indices
+        return (
+            CFunctionCall(
+                emitted_target,
+                emitted_target_func,
+                args,
+                tags=call_tags,
+                show_demangled_name=self.show_demangled_name,
+                show_disambiguated_name=self.show_disambiguated_name,
+                callsite_prototype=emitted_prototype,
+                result_used=result_used,
+                codegen=self,
+            ),
+            target_func,
+            far_binding,
+        )
+
+    def _scope_internal_far_call(
+        self,
+        statement: CStatement,
+        binding: tuple[str, str, str | None, str | None],
+        *,
+        tags=None,
+    ) -> CStatements:
+        kind, segment_symbol, begin_helper, end_helper = binding
+        if kind != "internal" or begin_helper is None or end_helper is None:
+            raise UnsupportedNodeTypeError("Invalid internal far-call binding reached C code generation")
+
+        segment_type = self.default_simtype_from_bits(self.project.arch.bits, signed=False)
+        segment = CRegister(segment_symbol, tags=tags, codegen=self)
+        segment.set_type(segment_type)
+        begin_call = CFunctionCall(
+            begin_helper,
+            None,
+            [segment],
+            callsite_prototype=SimTypeFunction([segment_type], None).with_arch(self.project.arch),
+            result_used=False,
+            tags=tags,
+            codegen=self,
+        )
+        end_call = CFunctionCall(
+            end_helper,
+            None,
+            [],
+            callsite_prototype=SimTypeFunction([], None).with_arch(self.project.arch),
+            result_used=False,
+            tags=tags,
+            codegen=self,
+        )
+        return CStatements(
+            [
+                CExpressionStatement(begin_call, returning=True, tags=tags, codegen=self),
+                statement,
+                CExpressionStatement(end_call, returning=True, tags=tags, codegen=self),
+            ],
+            codegen=self,
+        )
+
     def _handle_Stmt_Store(self, stmt: Stmt.Store, **kwargs):
         cdata = self._handle(stmt.data)
 
-        if cdata.type is not None and cdata.type.size != stmt.size * self.project.arch.byte_width:
-            l.error("Store data lifted to a C type with a different size. Decompilation output will be wrong.")
+        store_bits = stmt.size * self.project.arch.byte_width
+        if cdata.type is not None and cdata.type.size != store_bits:
+            # AIL stores exactly stmt.size bytes even if type recovery assigns a wider C type to the value. Keep the
+            # destination access and the value conversion at the actual memory width so generated C has the same
+            # truncation semantics as the lifted store.
+            cdata = CTypeCast(
+                cdata.type,
+                self.default_simtype_from_bits(store_bits, signed=False),
+                cdata,
+                codegen=self,
+            )
 
         def negotiate(old_ty, proposed_ty):
             # transfer casts from the dst to the src if possible
@@ -3732,17 +5830,60 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 return proposed_ty
             return old_ty
 
-        stmt_var = self._variable_map.variable(stmt)
-        if stmt_var is not None and cdata.type is not None:
-            cvar = self._variable(stmt_var, stmt.size)
-            offset = self._variable_map.variable_offset(stmt) or 0
-            assert type(offset) is int  # I refuse to deal with the alternative
+        exact_stack_binding = segmented_stack_variable(self.kb.dec_variables[self._func.addr], stmt.addr, stmt.size)
+        stmt_var = exact_stack_binding[0] if exact_stack_binding is not None else self._variable_map.variable(stmt)
+        segmented_stack_access = (
+            isinstance(stmt.addr, Expr.SegmentedAddress)
+            and stmt.addr.address_kind == "x86-protected-16:16"
+            and self._segmented_address_uses_stack_selector(stmt.addr)
+            and isinstance(stmt_var, SimStackVariable)
+        )
+        if isinstance(stmt.addr, Expr.SegmentedAddress) and not segmented_stack_access:
+            if stmt.guard is not None:
+                raise UnsupportedNodeTypeError("Guarded segmented-memory stores are not supported")
+            segmented_offset, native_stack_address = self._classify_segmented_memory_offset(stmt.addr)
+            if native_stack_address:
+                cdst = self._access(
+                    segmented_offset,
+                    cdata.type if cdata.type is not None else SimTypeBottom(),
+                    True,
+                    negotiate,
+                )
+                self._remember_native_stack_pointer_assignment(cdst, cdata)
+                return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
+            call = self._segmented_memory_helper_call(
+                stmt.addr,
+                stmt.size,
+                stmt.endness,
+                data=cdata,
+                offset=segmented_offset,
+                tags=stmt.tags,
+            )
+            return CExpressionStatement(call, tags=stmt.tags, codegen=self)
+        if _contains_segmented_address(stmt.addr) and not segmented_stack_access:
+            raise UnsupportedNodeTypeError(
+                "Segmented-memory stores require an exact SegmentedAddress; refusing a native pointer dereference"
+            )
 
-            cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
+        if stmt_var is not None and cdata.type is not None:
+            offset = (
+                exact_stack_binding[1]
+                if exact_stack_binding is not None
+                else self._variable_map.variable_offset(stmt) or 0
+            )
+            assert type(offset) is int  # I refuse to deal with the alternative
+            if segmented_stack_access and self._segmented_stack_access_needs_exact_view(stmt_var, stmt.size, offset):
+                cdst = self._segmented_stack_access(stmt_var, stmt.size, offset, stmt.tags)
+            else:
+                cvar = self._variable(stmt_var, stmt.size)
+                cdst = self._access_constant_offset(
+                    self._get_variable_reference(cvar), offset, cdata.type, True, negotiate
+                )
         else:
             addr_expr = self._handle(stmt.addr)
             cdst = self._access(addr_expr, cdata.type if cdata.type is not None else SimTypeBottom(), True, negotiate)
 
+        self._remember_native_stack_pointer_assignment(cdst, cdata)
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def variables_unify(self, v1: Expr.VirtualVariable, v2: Expr.VirtualVariable) -> bool:
@@ -3754,6 +5895,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return v1v == v2v
 
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
+        far_binding = None
         if (
             isinstance(stmt.dst, Expr.VirtualVariable)
             and stmt.dst.was_stack
@@ -3788,161 +5930,129 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             assert dst_type is not None
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, dst_type, True, negotiate)
         else:
-            csrc = self._handle(stmt.src, lvalue=False)
+            if isinstance(stmt.src, Expr.Call) and getattr(stmt.src, "transfer_kind", "unknown") == "far":
+                csrc, _, far_binding = self._build_call_expression(stmt.src, result_used=True)
+            else:
+                csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
             if csrc.type is not None and cdst.type is not None and cdst.type != csrc.type:
                 csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
 
-        return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
-
-    def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
-        try:
-            # Try to handle it as a normal function call
-            target = (
-                self._handle(stmt.expr.target, lvalue=True)
-                if not isinstance(stmt.expr.target, str)
-                else stmt.expr.target
-            )
-        except UnsupportedNodeTypeError:
-            target = stmt.expr.target
+        self._remember_native_stack_pointer_assignment(cdst, csrc)
+        assignment = CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
+        if far_binding is not None and far_binding[0] == "internal":
+            lowered_assignment = self._scope_internal_far_call(assignment, far_binding, tags=stmt.tags)
+        else:
+            lowered_assignment = assignment
 
         if (
-            isinstance(target, CUnaryOp)
-            and target.op == "Reference"
-            and isinstance(target.operand, CVariable)
-            and isinstance(target.operand.variable, SimMemoryVariable)
-            and not isinstance(target.operand.variable, SimStackVariable)
-            and target.operand.variable.size == 1
+            isinstance(stmt.dst, Expr.VirtualVariable)
+            and stmt.dst.was_reg
+            and not stmt.tags.get("ambient_register_state_reload", False)
+            and (binding := self._register_state_bindings.get((stmt.dst.reg_offset, stmt.dst.size))) is not None
         ):
-            # special case: convert &global_var to just global_var if it's used as the call target
-            target = target.operand
+            # A bound architectural register is mutable ambient state, but its historical SSA versions must remain
+            # ordinary locals. Evaluate the machine definition exactly once into the local, then mirror that captured
+            # value to the embedding runtime. In particular, this ordering gives every definition produced by one
+            # instruction an RHS that cannot be changed by an earlier C assignment.
+            bound_register = CRegister(binding, tags=stmt.tags, codegen=self)
+            bound_register.set_type(self.default_simtype_from_bits(stmt.dst.bits, signed=False))
+            local_value = self._handle(stmt.dst, lvalue=False)
+            write_through = CAssignment(bound_register, local_value, tags=stmt.tags, codegen=self)
+            return CStatements([lowered_assignment, write_through], codegen=self)
 
-        target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
+        return lowered_assignment
 
-        args = []
-        if stmt.expr.args is not None:
-            for i, arg in enumerate(stmt.expr.args):
-                type_ = None
-                if (
-                    target_func is not None
-                    and target_func.prototype is not None
-                    and i < len(target_func.prototype.args)
-                ):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
-                    if target_func.prototype_libname is not None:
-                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
-
-                if isinstance(arg, Expr.Const):
-                    if isinstance(arg.value, int) and (
-                        type_ is None or is_machine_word_size_type(type_, self.project.arch)
-                    ):
-                        type_ = guess_value_type(arg.value, self.project) or type_
-
-                    new_arg = self._handle_Expr_Const(arg, type_=type_)
-                else:
-                    new_arg = self._handle(arg, type_=type_)
-                args.append(new_arg)
-
+    def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
+        far_binding = self._resolve_far_call_binding(stmt.expr)
+        if is_expr and far_binding is not None and far_binding[0] == "internal":
+            raise UnsupportedNodeTypeError(
+                "Internal far calls require a statement boundary for begin/call/end lowering"
+            )
         ret_expr = None
         if not is_expr and stmt.ret_expr is not None:
             ret_expr = self._handle(stmt.ret_expr)
 
-        call_expr = CFunctionCall(
-            target,
-            target_func,
-            args,
+        call_expr, target_func, far_binding = self._build_call_expression(
+            stmt.expr,
+            result_used=is_expr or ret_expr is not None,
             tags=stmt.tags,
-            show_demangled_name=self.show_demangled_name,
-            show_disambiguated_name=self.show_disambiguated_name,
-            codegen=self,
         )
 
         if is_expr:
             # Used as an expression (e.g. nested in another expression)
             if call_expr.type.size != stmt.size * self.project.arch.byte_width:
-                call_expr = CTypeCast(
-                    call_expr.type,
+                call_expr = _coerce_scalar_expression(
+                    call_expr,
                     self.default_simtype_from_bits(
                         stmt.size * self.project.arch.byte_width, signed=getattr(call_expr.type, "signed", False)
                     ),
-                    call_expr,
-                    codegen=self,
+                    self,
                 )
             return call_expr
 
-        returning = target_func.returning if target_func is not None else True
+        returning = target_func is None or target_func.returning is not False
 
         if ret_expr is not None:
             # ret_expr = call()  =>  CAssignment(ret_expr, call_expr)
-            return CAssignment(ret_expr, call_expr, tags=stmt.tags, codegen=self)
+            statement = CAssignment(ret_expr, call_expr, tags=stmt.tags, codegen=self)
+        else:
+            # Standalone call statement
+            statement = CExpressionStatement(call_expr, returning=returning, tags=stmt.tags, codegen=self)
 
-        # Standalone call statement
-        return CExpressionStatement(call_expr, returning=returning, tags=stmt.tags, codegen=self)
+        if far_binding is not None and far_binding[0] == "internal":
+            return self._scope_internal_far_call(statement, far_binding, tags=stmt.tags)
+        return statement
 
     def _handle_Expr_Call(self, expr: Expr.Call, **kwargs):
         """Handle a Call expression (not wrapped in SideEffectStatement)."""
-        try:
-            target = self._handle(expr.target, lvalue=True) if not isinstance(expr.target, str) else expr.target
-        except UnsupportedNodeTypeError:
-            target = expr.target
-
-        if (
-            isinstance(target, CUnaryOp)
-            and target.op == "Reference"
-            and isinstance(target.operand, CVariable)
-            and isinstance(target.operand.variable, SimMemoryVariable)
-            and not isinstance(target.operand.variable, SimStackVariable)
-            and target.operand.variable.size == 1
-        ):
-            target = target.operand
-
-        target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
-
-        args = []
-        if expr.args is not None:
-            for i, arg in enumerate(expr.args):
-                type_ = None
-                if (
-                    target_func is not None
-                    and target_func.prototype is not None
-                    and i < len(target_func.prototype.args)
-                ):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
-                    if target_func.prototype_libname is not None:
-                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
-
-                if isinstance(arg, Expr.Const):
-                    if isinstance(arg.value, int) and (
-                        type_ is None or is_machine_word_size_type(type_, self.project.arch)
-                    ):
-                        type_ = guess_value_type(arg.value, self.project) or type_
-                    new_arg = self._handle_Expr_Const(arg, type_=type_)
-                else:
-                    new_arg = self._handle(arg, type_=type_)
-                args.append(new_arg)
-
-        call_expr = CFunctionCall(
-            target,
-            target_func,
-            args,
-            tags=expr.tags,
-            show_demangled_name=self.show_demangled_name,
-            show_disambiguated_name=self.show_disambiguated_name,
-            codegen=self,
-        )
+        far_binding = self._resolve_far_call_binding(expr)
+        if far_binding is not None and far_binding[0] == "internal":
+            raise UnsupportedNodeTypeError(
+                "Internal far calls require a statement boundary for begin/call/end lowering"
+            )
+        call_expr, _, _ = self._build_call_expression(expr, result_used=True)
 
         if expr.bits and call_expr.type is not None and call_expr.type.size != expr.size * self.project.arch.byte_width:
-            call_expr = CTypeCast(
-                call_expr.type,
+            call_expr = _coerce_scalar_expression(
+                call_expr,
                 self.default_simtype_from_bits(
                     expr.size * self.project.arch.byte_width, signed=getattr(call_expr.type, "signed", False)
                 ),
-                call_expr,
-                codegen=self,
+                self,
             )
         return call_expr
 
+    def _coerce_call_argument(
+        self,
+        argument: CExpression,
+        expected_type: SimType | None,
+        *,
+        guest_near_pointer_boundary: bool = False,
+    ) -> CExpression:
+        """Make recovered call-site ABI conversions explicit in generated C.
+
+        AIL operands are fixed-width bit vectors, while C rejects implicit
+        integer/pointer and incompatible-pointer conversions at a prototype
+        boundary.  If type recovery supplied a scalar ABI type, retain that
+        evidence as a required cast instead of relying on implementation-
+        defined implicit conversion.  Aggregate arguments are deliberately
+        left alone: C has no aggregate cast, and inventing one would hide an
+        unresolved recovery error.
+        """
+
+        self._reject_native_stack_pointer_at_guest_near_call_boundary(
+            argument,
+            expected_type,
+            guest_near_pointer_boundary=guest_near_pointer_boundary,
+        )
+        return _coerce_scalar_expression(argument, expected_type, self, force_numeric=True)
+
     def _handle_Stmt_Jump(self, stmt: Stmt.Jump, **kwargs):
+        if getattr(stmt, "transfer_kind", "unknown") == "far":
+            raise UnsupportedNodeTypeError(
+                "Far jumps require an explicit guest control-transfer binding; refusing flat goto lowering"
+            )
         return CGoto(self._handle(stmt.target), stmt.target_idx, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_ConditionalJump(self, stmt: Stmt.ConditionalJump, **kwargs):
@@ -3998,16 +6108,71 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if len(stmt.ret_exprs) == 1:
             ret_expr = stmt.ret_exprs[0]
             return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
-        # TODO: Multiple return expressions
-        l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
-        ret_expr = stmt.ret_exprs[0]
-        return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
+
+        combined = self._combine_return_expressions(stmt.ret_exprs, stmt.tags)
+        if combined is None:
+            return CUnsupportedStatement(stmt, tags=stmt.tags, codegen=self)
+        return CReturn(combined, tags=stmt.tags, codegen=self)
+
+    def _combine_return_expressions(self, ret_exprs, tags) -> CExpression | None:
+        """Reassemble a split scalar return value from least-significant-first ABI locations."""
+
+        prototype = self._func.prototype
+        calling_convention = self._func.calling_convention
+        if prototype is None or prototype.returnty is None or calling_convention is None:
+            return None
+
+        return_type = (
+            dereference_simtype_by_lib(prototype.returnty, self._func.prototype_libname)
+            if self._func.prototype_libname
+            else prototype.returnty
+        )
+        try:
+            return_location = calling_convention.return_val(return_type)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(return_location, SimComboArg) or len(return_location.locations) != len(ret_exprs):
+            return None
+
+        location_bits = [location.size * self.project.arch.byte_width for location in return_location.locations]
+        expression_bits = [getattr(expression, "bits", None) for expression in ret_exprs]
+        if expression_bits != location_bits:
+            return None
+
+        total_bits = sum(location_bits)
+        if return_type.size != total_bits:
+            return None
+        unsigned_type = self.default_simtype_from_bits(total_bits, signed=False)
+
+        combined = None
+        bit_offset = 0
+        for expression, width in zip(ret_exprs, expression_bits):
+            part = self._handle(expression)
+            cast_tags = {**tags, _REQUIRED_CAST_TAG: True}
+            part = CTypeCast(part.type, unsigned_type, part, tags=cast_tags, codegen=self)
+            if bit_offset:
+                part = CBinaryOp(
+                    "Shl",
+                    part,
+                    CConstant(bit_offset, unsigned_type, tags=tags, codegen=self),
+                    tags=tags,
+                    codegen=self,
+                )
+            combined = part if combined is None else CBinaryOp("Or", combined, part, tags=tags, codegen=self)
+            bit_offset += width
+
+        assert combined is not None
+        return CTypeCast(combined.type, return_type, combined, tags=tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
-        clabel = CLabel(stmt.name, tags=stmt.tags, codegen=self)
+        clabel = self._labels_by_name.get(stmt.name)
+        duplicate = clabel is not None
+        if clabel is None:
+            clabel = CLabel(stmt.name, tags=stmt.tags, codegen=self)
+            self._labels_by_name[stmt.name] = clabel
         if "ins_addr" in stmt.tags:
             self.map_addr_to_label[(stmt.tags["ins_addr"], stmt.tags.get("block_idx"))] = clabel
-        return clabel
+        return CStatements([], codegen=self) if duplicate else clabel
 
     def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):
         dirty = self._handle(stmt.dirty)
@@ -4025,6 +6190,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             ):
                 return proposed_ty
             return old_ty
+
+        if isinstance((post_call_register := expr.tags.get("post_call_register_state")), str):
+            bound_register = CRegister(post_call_register, tags=expr.tags, codegen=self)
+            bound_register.set_type(self.default_simtype_from_bits(expr.bits, signed=False))
+            return bound_register
+
+        if (binding := self._register_state_bindings.get((expr.reg_offset, expr.size))) is not None:
+            bound_register = CRegister(binding, tags=expr.tags, codegen=self)
+            bound_register.set_type(self.default_simtype_from_bits(expr.bits, signed=False))
+            return bound_register
 
         expr_var = self._variable_map.variable(expr)
         if expr_var:
@@ -4062,16 +6237,52 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 return proposed_ty
             return old_ty
 
-        expr_var = self._variable_map.variable(expr)
-        if expr_var is not None:
-            cvar = self._variable(expr_var, expr_size)
-            offset = self._variable_map.variable_offset(expr) or 0
+        exact_stack_binding = segmented_stack_variable(self.kb.dec_variables[self._func.addr], expr.addr, expr_size)
+        expr_var = exact_stack_binding[0] if exact_stack_binding is not None else self._variable_map.variable(expr)
+        segmented_stack_access = (
+            isinstance(expr.addr, Expr.SegmentedAddress)
+            and expr.addr.address_kind == "x86-protected-16:16"
+            and self._segmented_address_uses_stack_selector(expr.addr)
+            and isinstance(expr_var, SimStackVariable)
+        )
+        if isinstance(expr.addr, Expr.SegmentedAddress) and not segmented_stack_access:
+            if expr.guard is not None or expr.alt is not None:
+                raise UnsupportedNodeTypeError("Guarded segmented-memory loads are not supported")
+            segmented_offset, native_stack_address = self._classify_segmented_memory_offset(expr.addr)
+            if native_stack_address:
+                return self._access(segmented_offset, ty, False, negotiate)
+            return self._segmented_memory_helper_call(
+                expr.addr,
+                expr_size,
+                expr.endness,
+                offset=segmented_offset,
+                tags=expr.tags,
+            )
+        if _contains_segmented_address(expr.addr) and not segmented_stack_access:
+            raise UnsupportedNodeTypeError(
+                "Segmented-memory loads require an exact SegmentedAddress; refusing a native pointer dereference"
+            )
 
+        if expr_var is not None:
+            offset = (
+                exact_stack_binding[1]
+                if exact_stack_binding is not None
+                else self._variable_map.variable_offset(expr) or 0
+            )
             assert type(offset) is int  # I refuse to deal with the alternative
+            if segmented_stack_access and self._segmented_stack_access_needs_exact_view(expr_var, expr_size, offset):
+                return self._segmented_stack_access(expr_var, expr_size, offset, expr.tags)
+
+            cvar = self._variable(expr_var, expr_size)
             return self._access_constant_offset(CUnaryOp("Reference", cvar, codegen=self), offset, ty, False, negotiate)
 
         addr_expr = self._handle(expr.addr)
         return self._access(addr_expr, ty, False, negotiate)
+
+    def _handle_Expr_SegmentedAddress(self, expr: Expr.SegmentedAddress, **kwargs):
+        raise UnsupportedNodeTypeError(
+            f"Segmented address {expr.address_kind!r} cannot be emitted as a native C pointer"
+        )
 
     def _handle_Expr_Tmp(self, expr: Tmp, **kwargs):
         l.warning("FIXME: Leftover Tmp expressions are found.")
@@ -4138,9 +6349,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             # (BOT*) instead of a char*.
 
             if not reference_values and isinstance(expr.value, int):
-                if expr.value in self.project.kb.functions:
+                if expr.value in self.project.kb.functions and isinstance(type_, SimTypePointer):
                     # It's a function pointer
-                    # We don't care about the actual prototype here
+                    # We don't care about the actual prototype here. Do not infer a pointer from address equality
+                    # alone: ordinary constants frequently collide with mapped function addresses (especially zero
+                    # and 0x10000 in segmented programs).
                     type_ = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
                     reference_values[type_] = self.project.kb.functions[expr.value]
                     function_pointer = True
@@ -4206,6 +6419,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         operand = self._handle(expr.operand, lvalue=expr.op == "Reference", type_=data_type, ref=ref)
 
+        operand_type = unpack_typeref(operand.type) if operand.type is not None else None
+        if expr.op in {"Neg", "BitwiseNeg"} and isinstance(
+            operand_type, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)
+        ):
+            # AIL unary operations are bit-vector operations. C does not permit arithmetic negation or bitwise
+            # complement directly on pointers, even when type recovery has assigned a pointer type to the machine
+            # word. Preserve the machine operation with an explicit exact-width integer cast.
+            operand = CTypeCast(
+                operand.type,
+                self.default_simtype_from_bits(expr.bits, signed=False),
+                operand,
+                codegen=self,
+            )
+
         if expr.op == "Reference" and isinstance(operand, CUnaryOp) and operand.op == "Dereference":
             # cancel out
             return operand.operand
@@ -4227,6 +6454,59 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
+        if expr.op == "Concat":
+            result_type = self.default_simtype_from_bits(expr.bits, signed=False)
+            cast_tags = {**expr.tags, _REQUIRED_CAST_TAG: True}
+            lhs = CTypeCast(lhs.type, result_type, lhs, tags=cast_tags, codegen=self)
+            rhs = CTypeCast(rhs.type, result_type, rhs, tags=cast_tags, codegen=self)
+            shifted = CBinaryOp(
+                "Shl",
+                lhs,
+                CConstant(expr.operands[1].bits, result_type, codegen=self),
+                codegen=self,
+            )
+            return CBinaryOp("Or", shifted, rhs, tags=expr.tags, codegen=self)
+
+        # Every AIL BinaryOp describes fixed-width machine arithmetic. Pointer types are a type-recovery aid, not
+        # permission to apply C's scaled pointer arithmetic (and operations such as &, ^, and * are not legal on C
+        # pointers at all). Cast pointer-like operands back to their exact-width unsigned bit-vector representation.
+        # Loads and stores later cast the resulting numeric address to the requested pointer type.
+        for operand_idx, (ail_operand, c_operand) in enumerate(((expr.operands[0], lhs), (expr.operands[1], rhs))):
+            operand_type = unpack_typeref(c_operand.type) if c_operand.type is not None else None
+            if isinstance(operand_type, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                converted = CTypeCast(
+                    c_operand.type,
+                    self.default_simtype_from_bits(ail_operand.bits, signed=False),
+                    c_operand,
+                    codegen=self,
+                )
+                if operand_idx == 0:
+                    lhs = converted
+                else:
+                    rhs = converted
+
+        if expr.op.startswith("Cmp"):
+            # C promotes narrow arithmetic operands to int before comparing them. AIL operands are fixed-width
+            # bit-vectors, so an expression such as ``uint16_max + carry`` must wrap to 16 bits before an unsigned
+            # carry comparison observes it. Cast compound narrow operands at this semantic boundary; plain variables
+            # and constants already denote values representable at their declared width.
+            comparison_is_signed = expr.op.endswith("s")
+            for operand_idx, (ail_operand, c_operand) in enumerate(((expr.operands[0], lhs), (expr.operands[1], rhs))):
+                if ail_operand.bits not in {8, 16} or not isinstance(ail_operand, (BinaryOp, Expr.UnaryOp, Expr.ITE)):
+                    continue
+                exact_type = self.default_simtype_from_bits(ail_operand.bits, signed=comparison_is_signed)
+                converted = CTypeCast(
+                    c_operand.type,
+                    exact_type,
+                    c_operand,
+                    tags={**expr.tags, _REQUIRED_CAST_TAG: True},
+                    codegen=self,
+                )
+                if operand_idx == 0:
+                    lhs = converted
+                else:
+                    rhs = converted
+
         return CBinaryOp(
             expr.op,
             lhs,
@@ -4237,6 +6517,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
+        if expr.from_type == Expr.Convert.TYPE_FP or expr.to_type == Expr.Convert.TYPE_FP:
+            child = self._handle(expr.operand)
+            if expr.to_type == Expr.Convert.TYPE_FP:
+                dst_type = self.float_simtype_from_bits(expr.to_bits)
+            else:
+                dst_type = self.default_simtype_from_bits(expr.to_bits, signed=expr.is_signed)
+            return CTypeCast(child.type, dst_type, child, tags=expr.tags, codegen=self)
+
         # width of converted type is easy
         dst_type: SimTypeInt | SimTypeChar
         if 512 >= expr.to_bits > 256:
@@ -4292,12 +6580,33 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             field = next((name for name, off in child_type.offsets.items() if off == offset), None)
             if field is not None and expr.bits == child_type.fields[field].size:
                 return CVariableField(child, CStructField(child_type, offset, field, codegen=self), codegen=self)
-        if isinstance(child_type, (SimTypeInt, SimTypePointer)) and offset == 0:  # TODO not big-endian safe
-            # A pointer is already a scalar value. Taking its address and loading the
-            # requested integer width would reinterpret the pointee instead of
-            # extracting bits from the pointer, and creates invalid C when the
-            # pointer is itself an address expression (for example ``&&local``).
-            return CTypeCast(child_type, target_type, child, codegen=self)
+        if isinstance(child_type, (SimTypeChar, SimTypeInt, SimTypeNum, SimTypePointer)) and offset is not None:
+            # Extract bits from scalar values arithmetically. Taking the address and loading a sub-object both changes
+            # the meaning for pointer values (it reads the pointee) and produces invalid C for scalar rvalues.
+            if expr.endness == "Iend_LE":
+                shift = offset * self.project.arch.byte_width
+            elif expr.endness == "Iend_BE":
+                shift = expr.base.bits - expr.bits - offset * self.project.arch.byte_width
+            else:
+                shift = -1
+            if shift >= 0 and shift + expr.bits <= expr.base.bits:
+                source_type = self.default_simtype_from_bits(expr.base.bits, False)
+                numeric_child = CTypeCast(child.type, source_type, child, codegen=self)
+                if shift:
+                    numeric_child = CBinaryOp(
+                        "Shr",
+                        numeric_child,
+                        CConstant(shift, source_type, codegen=self),
+                        codegen=self,
+                    )
+                if expr.bits < expr.base.bits:
+                    numeric_child = CBinaryOp(
+                        "And",
+                        numeric_child,
+                        CConstant((1 << expr.bits) - 1, source_type, codegen=self),
+                        codegen=self,
+                    )
+                return CTypeCast(numeric_child.type, target_type, numeric_child, tags=expr.tags, codegen=self)
 
         voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)
         inner_expr = CTypeCast(
@@ -4325,13 +6634,48 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_Expr_Insert(self, expr: Expr.Insert, **kwargs):
-        # should never really be used - should be handled by Assignment
-        return CFunctionCall(
-            "_INSERT",
-            None,
-            [self._handle(expr.base), self._handle(expr.offset), self._handle(expr.value)],
+        if not isinstance(expr.offset, Expr.Const) or not isinstance(expr.offset.value, int):
+            return CDirtyExpression(expr, tags=expr.tags, codegen=self)
+
+        inserted_bits = min(expr.value.bits, expr.bits)
+        if expr.endness == "Iend_LE":
+            offset_bits = expr.offset.value * self.project.arch.byte_width
+        elif expr.endness == "Iend_BE":
+            offset_bits = expr.bits - inserted_bits - expr.offset.value * self.project.arch.byte_width
+        else:
+            offset_bits = -1
+        if offset_bits < 0 or offset_bits + inserted_bits > expr.bits:
+            return CDirtyExpression(expr, tags=expr.tags, codegen=self)
+
+        result_type = self.default_simtype_from_bits(expr.bits, signed=False)
+        base = self._handle(expr.base)
+        value = self._handle(expr.value)
+        base = CTypeCast(base.type, result_type, base, codegen=self)
+        value = CTypeCast(value.type, result_type, value, codegen=self)
+
+        full_mask = (1 << expr.bits) - 1
+        value_mask = (1 << inserted_bits) - 1
+        inserted_mask = value_mask << offset_bits
+        cleared = CBinaryOp(
+            "And",
+            base,
+            CConstant(full_mask ^ inserted_mask, result_type, codegen=self),
             codegen=self,
         )
+        inserted = CBinaryOp(
+            "And",
+            value,
+            CConstant(value_mask, result_type, codegen=self),
+            codegen=self,
+        )
+        if offset_bits:
+            inserted = CBinaryOp(
+                "Shl",
+                inserted,
+                CConstant(offset_bits, result_type, codegen=self),
+                codegen=self,
+            )
+        return CBinaryOp("Or", cleared, inserted, tags=expr.tags, codegen=self)
 
     def _handle_Expr_VEXCCallExpression(self, expr: Expr.VEXCCallExpression, **kwargs):
         operands = [self._handle(arg) for arg in expr.operands]
@@ -4346,31 +6690,50 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_Reinterpret(self, expr: Expr.Reinterpret, **kwargs):
-        def _to_type(bits, typestr):
-            if typestr == "I":
-                if bits == 32:
-                    r = SimTypeInt()
-                elif bits == 64:
-                    r = SimTypeLongLong()
-                else:
-                    raise TypeError(f"Unsupported integer type with bits {bits} in Reinterpret")
-            elif typestr == "F":
-                if bits == 32:
-                    r = SimTypeFloat()
-                elif bits == 64:
-                    r = SimTypeDouble()
-                else:
-                    raise TypeError(f"Unsupported floating-point type with bits {bits} in Reinterpret")
-            else:
-                raise TypeError(f"Unexpected reinterpret type {typestr}")
-            return r.with_arch(self.project.arch)
-
-        src_type = _to_type(expr.from_bits, expr.from_type)
-        dst_type = _to_type(expr.to_bits, expr.to_type)
-        return CTypeCast(src_type, dst_type, self._handle(expr.operand), tags=expr.tags, codegen=self)
+        if expr.from_type == "I":
+            src_type = self.default_simtype_from_bits(expr.from_bits, signed=False)
+        elif expr.from_type == "F":
+            src_type = self.float_simtype_from_bits(expr.from_bits)
+        else:
+            raise TypeError(f"Unexpected reinterpret type {expr.from_type}")
+        if expr.to_type == "I":
+            dst_type = self.default_simtype_from_bits(expr.to_bits, signed=False)
+        elif expr.to_type == "F":
+            dst_type = self.float_simtype_from_bits(expr.to_bits)
+        else:
+            raise TypeError(f"Unexpected reinterpret type {expr.to_type}")
+        child = self._handle(expr.operand)
+        if child.type != src_type:
+            child = CTypeCast(child.type, src_type, child, tags=expr.tags, codegen=self)
+        return CReinterpret(
+            expr.from_bits,
+            expr.from_type,
+            expr.to_bits,
+            expr.to_type,
+            child,
+            dst_type,
+            tags=expr.tags,
+            codegen=self,
+        )
 
     def _handle_MultiStatementExpression(self, expr: Expr.MultiStatementExpression, **kwargs):
-        cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
+        statements: list[CStatement] = []
+
+        def append_statement(cstmt: CStatement) -> None:
+            # A single AIL assignment may lower to multiple C assignments (for example, a local SSA snapshot followed
+            # by an ambient-register write-through). MultiStatementExpression renders its statements with comma
+            # separators, so retaining a nested CStatements would give both the inner and outer sequence a trailing
+            # separator and emit invalid `..., , ...` C. Flatten all such lowering sequences at this expression
+            # boundary while preserving their exact order.
+            if isinstance(cstmt, CStatements):
+                for nested in cstmt.statements:
+                    append_statement(nested)
+            else:
+                statements.append(cstmt)
+
+        for stmt in expr.stmts:
+            append_statement(self._handle(stmt, is_expr=False))
+        cstmts = CStatements(statements, codegen=self)
         cexpr = self._handle(expr.expr)
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
 
@@ -4382,27 +6745,66 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         ref: bool = False,
         **kwargs,
     ):
+        if expr.was_reg and isinstance((initial_register := expr.tags.get("initial_register_state")), str):
+            bound_register = CRegister(initial_register, tags=expr.tags, codegen=self)
+            bound_register.set_type(self.default_simtype_from_bits(expr.bits, signed=False))
+            return bound_register
+
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
             cvar = self._variable(expr_var, None, vvar_id=expr.varid)
+            initial_seed = expr.tags.get(_INITIAL_REGISTER_STATE_SEED_TAG)
+            if (
+                not isinstance(initial_seed, str)
+                and expr.was_reg
+                and expr.tags.get(_AMBIENT_REGISTER_STATE_SEED_TAG, False)
+            ):
+                initial_seed = self._register_state_bindings.get((expr.reg_offset, expr.size))
+            if isinstance(initial_seed, str):
+                # A loop-header phi merges the explicit machine-entry binding with values produced by backedges. It
+                # is a mutable C local, not a permanently bound register expression. Ambient-bound entry definitions
+                # use the same initializer mechanism so every historical SSA version remains independent.
+                cvar.tags[_INITIAL_REGISTER_STATE_SEED_TAG] = initial_seed
 
-            if not lvalue and expr_var.size != expr.size:
-                l.warning(
-                    "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
-                    expr.size,
-                    expr_var.size,
+            # P-code represents x87 values as exact bit-vectors and wraps semantic FP uses in Reinterpret nodes. Its
+            # 16-bit architecture metadata also cannot name a native 64-bit C integer. Type recovery may therefore
+            # label a 64- or 80-bit register/memory carrier as an ordinary narrow integer. Keep every such AIL carrier
+            # at its actual width; Reinterpret is responsible for exposing floating-point meaning at arithmetic sites.
+            if expr.bits in {64, 80} and (cvar.type is None or cvar.type.size != expr.bits):
+                cvar.variable_type = self.default_simtype_from_bits(expr.bits, signed=False)
+
+            storage_type = unpack_typeref(cvar.type) if cvar.type is not None else None
+            storage_width = getattr(storage_type, "size", None)
+            if storage_type is None or (
+                isinstance(storage_type, (SimTypeArray, SimTypeFixedSizeArray)) or storage_width != expr.bits
+            ):
+                access_type = self.default_simtype_from_bits(expr.bits, signed=False)
+                l.debug(
+                    "VirtualVariable width (%d bits) and storage type width (%s bits) do not match. "
+                    "Use a scalar storage view.",
+                    expr.bits,
+                    storage_width,
                 )
-                src_type = cvar.type
-                dst_type = {
-                    64: SimTypeLongLong(signed=False),
-                    32: SimTypeInt(signed=False),
-                    16: SimTypeShort(signed=False),
-                    8: SimTypeChar(signed=False),
-                }.get(expr.bits)
-                if dst_type is not None:
-                    dst_type = dst_type.with_arch(self.project.arch)
-                    return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
+            else:
+                # Preserve recovered same-width scalar and pointer semantics.
+                # Aggregate storage has already selected an exact integer view
+                # above because a C aggregate expression is not an AIL value.
+                access_type = storage_type
+
+            cvar.variable_type = access_type.with_arch(self.project.arch)
+            cvar.tags = {
+                **cvar.tags,
+                _EXACT_STORAGE_ACCESS_TAG: True,
+                _EXACT_STORAGE_OFFSET_TAG: self._variable_map.variable_offset(expr) or 0,
+            }
+            self._apply_native_stack_frame_to_cvariable(cvar)
             return cvar
+        if expr.was_reg and isinstance(expr.oident, int):
+            register_name = expr.tags.get("reg_name")
+            if not isinstance(register_name, str):
+                register_name = self.project.arch.translate_register_name(expr.oident, expr.size)
+            if isinstance(register_name, str) and CDirtyExpression._IDENT_RE.fullmatch(register_name):
+                return CRegister(register_name.lower(), tags=expr.tags, codegen=self)
         return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
@@ -4585,6 +6987,24 @@ class _UnsupportedAILExpressionCollector(AILBlockViewer):
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
+class _UnsupportedSegmentedAddressCollector(AILBlockViewer):
+    def __init__(self, record, cnode: CConstruct, root: Stmt.Statement):
+        super().__init__()
+        self._record = record
+        self._cnode = cnode
+        self._root = root
+
+    def _handle_SegmentedAddress(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._record(
+            "segmented_address",
+            expr.address_kind,
+            self._cnode,
+            source=expr,
+            fallback_source=self._root,
+        )
+        return super()._handle_SegmentedAddress(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class _UnsupportedConstructCollector:
     def __init__(self):
         self._occurrences: dict[
@@ -4599,13 +7019,35 @@ class _UnsupportedConstructCollector:
         if isinstance(obj, CAILBlock):
             self._record("ail_block", "Block", obj, source=obj.block)
         elif isinstance(obj, CUnsupportedStatement):
-            self._record("unsupported_statement", getattr(obj.stmt, "kind", None), obj, source=obj.stmt)
+            diagnostic_kind = obj.tags.get(_UNSUPPORTED_DIAGNOSTIC_KIND_TAG)
+            diagnostic_operation = obj.tags.get(_UNSUPPORTED_DIAGNOSTIC_OPERATION_TAG)
+            if isinstance(diagnostic_kind, str) and isinstance(diagnostic_operation, str):
+                self._record(diagnostic_kind, diagnostic_operation, obj, source=obj.stmt)
+            else:
+                self._record("unsupported_statement", getattr(obj.stmt, "kind", None), obj, source=obj.stmt)
+            _UnsupportedSegmentedAddressCollector(self._record, obj, obj.stmt).walk_statement(obj.stmt)
+        elif isinstance(obj, CGoto):
+            if not isinstance(obj.target, int):
+                self._record("indirect_goto", "computed-target", obj)
+            elif obj.codegen is None or (obj.target, obj.target_idx) not in obj.codegen.map_addr_to_label:
+                self._record("unresolved_goto", f"{obj.target:#x}", obj)
         elif isinstance(obj, CDirtyExpression):
             operation = getattr(obj.dirty, "callee", None)
             if operation is None:
                 operation = getattr(obj.dirty, "kind", None)
             self._record("dirty_expression", operation, obj, source=obj.dirty)
             _UnsupportedAILExpressionCollector(self._record, obj, obj.dirty).walk_expression(obj.dirty)
+        elif isinstance(obj, CFunctionCall) and (
+            # The tag is only installed while coercing a call at a consumed scalar boundary. Treat it as independent
+            # structural evidence so a legacy cache's default-false result_used field cannot hide the conflict.
+            obj.tags.get(_VOID_CALL_RESULT_TAG, False)
+            or (obj.result_used and (_is_void_type(obj.prototype_returnty) or obj.current_callee_prototype_is_void))
+        ):
+            self._record("void_call_value", "call-result-consumed", obj)
+        elif isinstance(obj, CExpression) and obj.collapsed:
+            # ``...`` is useful in an interactive UI, but it is not executable C and must be visible to consumers
+            # deciding whether a decompilation result is complete.
+            self._record("collapsed_expression", type(obj).__name__, obj)
         elif isinstance(obj, CUnaryOp) and obj.op not in CUnaryOp._OPERATION_HANDLERS:
             self._record("unary_operation", obj.op, obj)
         elif isinstance(obj, CBinaryOp) and obj.op not in CBinaryOp._OPERATION_HANDLERS:
@@ -4693,18 +7135,44 @@ class _UnsupportedConstructCollector:
         self._occurrences[key].append(self._location(obj, source=source, fallback_source=fallback_source))
 
 
+class _ReapplyCallArgumentCoercions(CStructuredCodeWalker):
+    """Restore exact call-boundary conversions after retained variable types change."""
+
+    def handle_CFunctionCall(self, obj: CFunctionCall):
+        prototype = obj.prototype
+        prototype_args = () if prototype is None else prototype.args
+        is_x86_pcode_swi = obj.callee_target == _X86_PCODE_SWI_TARGET and obj.codegen.project.arch.name in {
+            "x86:LE:16:Protected Mode",
+            "x86:LE:16:Real Mode",
+        }
+        is_guest_register_runtime = (
+            is_x86_pcode_swi
+            or obj.tags.get("indirect_far_call_dispatch", False)
+            or obj.tags.get("indirect_near_call_dispatch", False)
+        )
+        converted_argument_indices = set(obj.tags.get(_CONVERTED_POINTER_ARGUMENTS_TAG, ()))
+        for index, (argument, expected_type) in enumerate(zip(obj.args, prototype_args)):
+            if index in converted_argument_indices:
+                continue
+            obj.args[index] = (
+                obj.codegen._coerce_guest_register_argument(argument, expected_type)
+                if is_guest_register_runtime
+                else obj.codegen._coerce_call_argument(argument, expected_type)
+            )
+        return super().handle_CFunctionCall(obj)
+
+
 class MakeTypecastsImplicit(CStructuredCodeWalker):
     @classmethod
     def collapse(cls, dst_ty: SimType, child: CExpression) -> CExpression:
         result = child
-        if isinstance(child, CTypeCast):
+        if isinstance(child, CTypeCast) and not child.tags.get(_REQUIRED_CAST_TAG, False):
             intermediate_ty = child.dst_type
             start_ty = child.src_type
 
-            # step 1: collapse pointer-integer casts of the same size
-            if qualifies_for_simple_cast(intermediate_ty, dst_ty) and qualifies_for_simple_cast(start_ty, dst_ty):
-                result = child.expr
-            # step 2: collapse integer conversions which are redundant
+            # Pointer/integer casts are never implicit in the C operators that consume them. Removing one can turn
+            # valid machine-word arithmetic into invalid C (for example ``(uint16_t)ptr & 0xff`` into
+            # ``ptr & 0xff``). Only collapse redundant integer conversions here.
             if (
                 isinstance(dst_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
                 and isinstance(intermediate_ty, (SimTypeChar, SimTypeInt, SimTypeNum))
@@ -4764,6 +7232,8 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
     def handle_CTypeCast(self, obj: CTypeCast):
         # note that the expression that this method returns may no longer be a CTypeCast
         obj = super().handle_CTypeCast(obj)
+        if obj.tags.get(_REQUIRED_CAST_TAG, False):
+            return obj
         inner = self.collapse(obj.dst_type, obj.expr)
         assert inner.type is not None
         if inner is not obj.expr:

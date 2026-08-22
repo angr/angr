@@ -73,7 +73,7 @@ def _parse_binop_operators(entries):
 
 
 def _serialize_parameters(params: dict, out_msg) -> None:
-    """Translate the 15-key parameters dict into a DecompilationParameters cmessage."""
+    """Translate the normalized parameters dict into a DecompilationParameters cmessage."""
     from angr.analyses.decompiler.optimization_pass_registry import (  # pylint:disable=import-outside-toplevel
         pass_to_name,
     )
@@ -114,10 +114,123 @@ def _serialize_parameters(params: dict, out_msg) -> None:
     if params.get("static_buffers"):
         out_msg.static_buffers.CopyFrom(pack_static_buffers(params["static_buffers"]))
     out_msg.save_unoptimized_graph = bool(params.get("save_unoptimized_graph"))
+    for register_offset, size, c_lvalue in params.get("register_state_bindings") or ():
+        binding = out_msg.register_state_bindings.add()
+        binding.register_offset = register_offset
+        binding.size = size
+        binding.c_lvalue = c_lvalue
+    for register_offset, size, c_identifier in params.get("initial_register_state_bindings") or ():
+        binding = out_msg.initial_register_state_bindings.add()
+        binding.register_offset = register_offset
+        binding.size = size
+        binding.c_lvalue = c_identifier
+    for selector_kind, selector_value, register_offset, size, c_identifier in (
+        params.get("post_call_register_state_bindings") or ()
+    ):
+        binding = out_msg.post_call_register_state_bindings.add()
+        binding.selector_kind = selector_kind
+        if selector_kind == "callee_name":
+            binding.selector_name = selector_value
+        else:
+            binding.selector_addr = selector_value
+        binding.register_offset = register_offset
+        binding.size = size
+        binding.c_identifier = c_identifier
+    for address_kind, endness, size, load_helper, store_helper in params.get("segmented_memory_bindings") or ():
+        binding = out_msg.segmented_memory_bindings.add()
+        binding.address_kind = address_kind
+        binding.endness = endness
+        binding.size = size
+        if load_helper is not None:
+            binding.load_helper = load_helper
+        if store_helper is not None:
+            binding.store_helper = store_helper
+    for target_addr, kind, target_symbol, begin_helper, end_helper in params.get("far_call_bindings") or ():
+        binding = out_msg.far_call_bindings.add()
+        binding.target_addr = target_addr
+        binding.kind = kind
+        binding.target_symbol = target_symbol
+        if begin_helper is not None:
+            binding.begin_helper = begin_helper
+        if end_helper is not None:
+            binding.end_helper = end_helper
+    for (
+        callsite,
+        dispatcher,
+        address_kind,
+        selector_offset,
+        selector_size,
+        slot_offset_source,
+        site_identifier,
+        input_ranges,
+    ) in params.get("indirect_far_call_bindings") or ():
+        binding = out_msg.indirect_far_call_bindings.add()
+        binding.callsite_addr = callsite
+        binding.dispatcher = dispatcher
+        binding.address_kind = address_kind
+        binding.slot_selector_offset = selector_offset
+        binding.slot_selector_size = selector_size
+        slot_offset_kind, slot_offset_value, slot_offset_size = slot_offset_source
+        if slot_offset_kind == "constant":
+            binding.slot_offset = slot_offset_value
+        else:
+            binding.slot_offset_register.register_offset = slot_offset_value
+            binding.slot_offset_register.size = slot_offset_size
+        if site_identifier is not None:
+            binding.site_identifier = site_identifier
+        for register_offset, size in input_ranges:
+            input_range = binding.register_inputs.add()
+            input_range.register_offset = register_offset
+            input_range.size = size
+    for (
+        callsite,
+        dispatcher,
+        address_kind,
+        selector_offset,
+        selector_size,
+        target_offset,
+        target_size,
+        site_identifier,
+    ) in params.get("indirect_near_call_bindings") or ():
+        binding = out_msg.indirect_near_call_bindings.add()
+        binding.callsite_addr = callsite
+        binding.dispatcher = dispatcher
+        binding.address_kind = address_kind
+        binding.target_selector_offset = selector_offset
+        binding.target_selector_size = selector_size
+        binding.target_offset = target_offset
+        binding.target_size = target_size
+        binding.site_identifier = site_identifier
+    for (
+        callsite,
+        argument_index,
+        helper,
+        span,
+        address_kind,
+        selector_register,
+        selector_offset,
+        selector_size,
+        contract,
+        native_stack_offset,
+        native_stack_evidence,
+    ) in params.get("converted_pointer_bindings") or ():
+        binding = out_msg.converted_pointer_bindings.add()
+        binding.callsite_addr = callsite
+        binding.argument_index = argument_index
+        binding.helper = helper
+        binding.span = span
+        binding.address_kind = address_kind
+        binding.selector_register = selector_register
+        binding.selector_offset = selector_offset
+        binding.selector_size = selector_size
+        binding.contract = contract
+        if native_stack_offset is not None:
+            binding.native_stack_offset = native_stack_offset
+            binding.native_stack_evidence = native_stack_evidence
 
 
 def _parse_parameters(msg) -> dict:
-    """Always populate every one of the 15 keys in the returned dict; scalar fields that were not set come back as
+    """Always populate every normalized key in the returned dict; scalar fields that were not set come back as
     None and collection fields come back empty, except peephole_optimizations where None means "use the default
     peephole set". This matches the decompiler's normalized _cache_parameters, which _can_use_decompilation_cache
     compares key by key against the deserialized cache."""
@@ -154,6 +267,88 @@ def _parse_parameters(msg) -> dict:
         "static_vvars": parse_static_vvars(msg.static_vvars) if msg.HasField("static_vvars") else {},
         "static_buffers": parse_static_buffers(msg.static_buffers) if msg.HasField("static_buffers") else {},
         "save_unoptimized_graph": msg.save_unoptimized_graph,
+        "register_state_bindings": tuple(
+            (binding.register_offset, binding.size, binding.c_lvalue) for binding in msg.register_state_bindings
+        ),
+        "initial_register_state_bindings": tuple(
+            (binding.register_offset, binding.size, binding.c_lvalue) for binding in msg.initial_register_state_bindings
+        ),
+        "post_call_register_state_bindings": tuple(
+            (
+                binding.selector_kind,
+                binding.selector_name if binding.selector_kind == "callee_name" else binding.selector_addr,
+                binding.register_offset,
+                binding.size,
+                binding.c_identifier,
+            )
+            for binding in msg.post_call_register_state_bindings
+        ),
+        "segmented_memory_bindings": tuple(
+            (
+                binding.address_kind,
+                binding.endness,
+                binding.size,
+                binding.load_helper if binding.HasField("load_helper") else None,
+                binding.store_helper if binding.HasField("store_helper") else None,
+            )
+            for binding in msg.segmented_memory_bindings
+        ),
+        "far_call_bindings": tuple(
+            (
+                binding.target_addr,
+                binding.kind,
+                binding.target_symbol,
+                binding.begin_helper if binding.HasField("begin_helper") else None,
+                binding.end_helper if binding.HasField("end_helper") else None,
+            )
+            for binding in msg.far_call_bindings
+        ),
+        "indirect_far_call_bindings": tuple(
+            (
+                binding.callsite_addr,
+                binding.dispatcher,
+                binding.address_kind,
+                binding.slot_selector_offset,
+                binding.slot_selector_size,
+                (
+                    ("register", binding.slot_offset_register.register_offset, binding.slot_offset_register.size)
+                    if binding.HasField("slot_offset_register")
+                    else ("constant", binding.slot_offset, 2)
+                ),
+                binding.site_identifier if binding.HasField("site_identifier") else None,
+                tuple((register.register_offset, register.size) for register in binding.register_inputs),
+            )
+            for binding in msg.indirect_far_call_bindings
+        ),
+        "indirect_near_call_bindings": tuple(
+            (
+                binding.callsite_addr,
+                binding.dispatcher,
+                binding.address_kind,
+                binding.target_selector_offset,
+                binding.target_selector_size,
+                binding.target_offset,
+                binding.target_size,
+                binding.site_identifier,
+            )
+            for binding in msg.indirect_near_call_bindings
+        ),
+        "converted_pointer_bindings": tuple(
+            (
+                binding.callsite_addr,
+                binding.argument_index,
+                binding.helper,
+                binding.span,
+                binding.address_kind,
+                binding.selector_register,
+                binding.selector_offset,
+                binding.selector_size,
+                binding.contract,
+                binding.native_stack_offset if binding.HasField("native_stack_offset") else None,
+                binding.native_stack_evidence if binding.HasField("native_stack_offset") else None,
+            )
+            for binding in msg.converted_pointer_bindings
+        ),
     }
 
 

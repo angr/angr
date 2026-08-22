@@ -1211,6 +1211,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     StmtInner::Jump {
                         target: CFGTarget::Expr(Arc::new(target)),
                         target_idx: None,
+                        transfer_kind: "unknown".to_string(),
                     },
                 ));
             }
@@ -1246,6 +1247,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                         target: CFGTarget::Expr(Arc::new(target)),
                         args: Some(Vec::new()),
                         arg_vvars: None,
+                        transfer_kind: "unknown".to_string(),
                     },
                 }
             };
@@ -1358,6 +1360,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     target: CFGTarget::Expr(Arc::new(target)),
                     args: None,
                     arg_vvars: None,
+                    transfer_kind: "unknown".to_string(),
                 },
             }
         };

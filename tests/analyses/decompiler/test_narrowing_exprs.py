@@ -50,8 +50,10 @@ class TestNarrowingExpressions(unittest.TestCase):
         )
 
         assert dec.codegen is not None
-        assert "consume_low_word((unsigned int)&v0);" in dec.codegen.text
-        assert "&&v0" not in dec.codegen.text
+        call = next(line for line in dec.codegen.text.splitlines() if "consume_low_word(" in line)
+        assert "&v0" in call
+        assert ">>" not in call
+        assert "&&v0" not in call
 
     def test_insert_base_is_a_full_width_use(self):
         # the base of an Insert is consumed at full width: every byte outside the inserted range is

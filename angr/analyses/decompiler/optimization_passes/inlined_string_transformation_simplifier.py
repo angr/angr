@@ -31,7 +31,6 @@ from angr.storage.memory_mixins import (
     SimpleInterfaceMixin,
     UltraPagesMixin,
 )
-from angr.utils.bits import zeroextend_on_demand
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -45,6 +44,22 @@ def _make_binop(compute: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.
             return compute(a, b)
         except (ZeroDivisionError, claripy.ClaripyZeroDivisionError):
             return None
+
+    return inner
+
+
+def _make_shift(compute: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]):
+    def inner(self, expr: BinaryOp) -> claripy.ast.BV | None:
+        value, amount = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+        if value is None or amount is None:
+            return None
+
+        if amount.size() < value.size():
+            amount = claripy.ZeroExt(value.size() - amount.size(), amount)
+        elif amount.size() > value.size():
+            amount = claripy.Extract(value.size() - 1, 0, amount)
+
+        return compute(value, amount)
 
     return inner
 
@@ -355,6 +370,7 @@ class InlinedStringTransformationAILEngine(
 
     _handle_unop_Clz = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
+    _handle_unop_PopCount = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_Reference = _handle_unop_Default
     _handle_unop_GetMSBs = _handle_unop_Default
@@ -459,11 +475,11 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_Mod = _make_binop(lambda a, b: a % b)
     _handle_binop_Mul = _make_binop(lambda a, b: a * b)
     _handle_binop_Or = _make_binop(lambda a, b: a | b)
-    _handle_binop_Rol = _make_binop(lambda a, b: claripy.RotateLeft(a, zeroextend_on_demand(a, b)))
-    _handle_binop_Ror = _make_binop(lambda a, b: claripy.RotateRight(a, zeroextend_on_demand(a, b)))
-    _handle_binop_Sar = _make_binop(lambda a, b: a >> zeroextend_on_demand(a, b))
-    _handle_binop_Shl = _make_binop(lambda a, b: a << zeroextend_on_demand(a, b))
-    _handle_binop_Shr = _make_binop(lambda a, b: a.LShR(zeroextend_on_demand(a, b)))
+    _handle_binop_Rol = _make_shift(claripy.RotateLeft)
+    _handle_binop_Ror = _make_shift(claripy.RotateRight)
+    _handle_binop_Sar = _make_shift(lambda a, b: a >> b)
+    _handle_binop_Shl = _make_shift(lambda a, b: a << b)
+    _handle_binop_Shr = _make_shift(claripy.LShR)
     _handle_binop_Sub = _make_binop(lambda a, b: a - b)
     _handle_binop_Xor = _make_binop(lambda a, b: a ^ b)
 

@@ -91,12 +91,18 @@ message MemoryData {
     optional uint32 reference_size = 4; // Reference size of the data
 }
 
+message JumptableResolutionEvidence {
+    string resolver = 1; // Stable resolver identifier
+    string proof = 2; // Resolver-specific proof kind
+}
+
 message JumptableInfo {
-    optional uint64 addr = 1; // Address of the jump table (None if unknown)
-    int32           size = 2; // Size of the jump table
-    int32           entry_size = 3; // Size of each entry
-    repeated uint64 entries = 4; // Target addresses
-    bool            entries_guessed = 5; // Are entries of this jump table guessed
+    optional uint64                   addr = 1; // Address of the jump table (None if unknown)
+    int32                             size = 2; // Size of the jump table
+    int32                             entry_size = 3; // Size of each entry
+    repeated uint64                   entries = 4; // Target addresses
+    bool                              entries_guessed = 5; // Are entries of this jump table guessed
+    optional JumptableResolutionEvidence resolution_evidence = 6; // Resolver provenance and proof kind
 }
 
 message IndirectJump {

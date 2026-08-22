@@ -25,10 +25,12 @@ from angr.analyses.typehoon.typeconsts import (
     Int8,
     Int32,
     IntVar,
+    Pointer16,
     Pointer64,
     SInt32,
     SInt64,
     Struct,
+    UInt8,
 )
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
@@ -95,6 +97,7 @@ class TestTypehoon(unittest.TestCase):
         assert "->field_4 = 20;" in dec.codegen.text
         assert "->field_8 = 0x30303030;" in dec.codegen.text
         assert "->field_c = 0;" in dec.codegen.text
+        assert "(unsigned int)ptr & 0xff" in dec.codegen.text
 
     def test_function_call_argument_type_propagation(self):
         # ensure that UNICODE_STRING is propagated to stack variables from calls to RtlInitUnicodeString
@@ -214,6 +217,24 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(t0_solution.basetype.fields[0], Pointer64)
         assert t0_solution.basetype.fields[0].basetype is t0_solution.basetype
         assert isinstance(t0_solution.basetype.fields[4], Int32)
+
+    def test_type_inference_16bit_pointer(self):
+        func_f = TypeVariable(name="F")
+        value = TypeVariable(name="value")
+        base = TypeVariable(name="base")
+        stored_value = DerivedTypeVariable(base, None, labels=[Store(), HasField(8, 0)])
+        type_constraints = {
+            func_f: {
+                Subtype(UInt8(), value),
+                Subtype(value, stored_value),
+            },
+        }
+        solver = SimpleSolver(16, type_constraints, {func_f: {value, base}})
+
+        solution = solver.solution[base]
+        assert isinstance(solution, Pointer16)
+        assert isinstance(solution.basetype, Struct)
+        assert isinstance(solution.basetype.fields[0], UInt8)
 
     def test_type_inference_function_without_output(self):
         func_f = TypeVariable(name="F")
@@ -354,8 +375,10 @@ class TestTypehoon(unittest.TestCase):
             and dec.clinic.typehoon is not None
         )
         print_decompilation_result(dec)
-        assert "->field_0 = NULL;\n" in dec.codegen.text
-        assert "->field_8 = NULL;\n" in dec.codegen.text
+        # Explicit casts on NULL preserve independently recovered pointer types and are semantically equivalent to a
+        # bare null pointer constant. Do not couple this type-inference regression to that code-generation spelling.
+        assert re.search(r"->field_0 = (?:\([^;\n]+\))?NULL;\n", dec.codegen.text)
+        assert re.search(r"->field_8 = (?:\([^;\n]+\))?NULL;\n", dec.codegen.text)
 
         # it has five struct classes (I would love to have one, but we don't have enough information to force that):
         #
@@ -481,6 +504,25 @@ class TestTypeTranslator(unittest.TestCase):
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)
+
+    def test_16bit_pointer_round_trip(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        tx = TypeTranslator(arch)
+        st = SimTypePointer(SimTypeChar(signed=False), label="char_ptr").with_arch(arch)
+
+        tc = tx.simtype2tc(st)
+        assert isinstance(tc, Pointer16)
+        assert tc.size == 2
+        assert isinstance(tc.basetype, UInt8)
+        assert tc.name == "char_ptr"
+
+        restored, has_nonexistent_ref = tx.tc2simtype(tc)
+        assert not has_nonexistent_ref
+        assert isinstance(restored, SimTypePointer)
+        assert restored.size == 16
+        assert isinstance(restored.pts_to, SimTypeChar)
+        assert restored.pts_to.signed is False
+        assert restored.label == "char_ptr"
 
     def test_simtypenum_struct_round_trip(self):
         arch = archinfo.arch_from_id("amd64")

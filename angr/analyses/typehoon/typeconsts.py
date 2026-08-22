@@ -222,6 +222,13 @@ class Float64(Float):
         return "float64"
 
 
+class Float80(Float):
+    SIZE = 10
+
+    def __repr__(self, memo=None):
+        return "float80"
+
+
 class Pointer(TypeConstant):
     def __init__(self, basetype: TypeConstant | None, name: str | None = None):
         super().__init__(name=name)
@@ -254,6 +261,22 @@ class Pointer(TypeConstant):
         if new_basetype is self.basetype:
             return self
         return self.new(new_basetype, name=self.name)
+
+
+class Pointer16(Pointer, Int16):
+    """
+    16-bit pointers.
+    """
+
+    def __init__(self, basetype=None, name: str | None = None):
+        Pointer.__init__(self, basetype, name=name)
+        Int16.__init__(self, name=name)
+
+    @memoize
+    def __repr__(self, memo=None):
+        bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
+        name_str = f"{self.name}#" if self.name else ""
+        return f"{name_str}ptr16({bt})"
 
 
 class Pointer32(Pointer, Int32):
@@ -624,4 +647,6 @@ def float_type(bits: int) -> Float | None:
         return Float32()
     if bits == 64:
         return Float64()
+    if bits == 80:
+        return Float80()
     return None

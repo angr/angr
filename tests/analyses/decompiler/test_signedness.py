@@ -259,6 +259,7 @@ class TestTranslator(unittest.TestCase):
         st, _ = self.translator.tc2simtype(UInt8())
         assert isinstance(st, SimTypeChar)
         assert st.signed is False
+        assert st.c_repr("value") == "unsigned char value"
 
     def test_simtype_to_sint32(self):
         """SimTypeInt(signed=True) should translate to SInt32."""
@@ -289,6 +290,18 @@ class TestTranslator(unittest.TestCase):
         st, _ = self.translator.tc2simtype(Int32())
         assert isinstance(st, SimTypeInt)
         assert st.signed is False
+
+    def test_char_c_repr_preserves_unsigned_qualifier(self):
+        assert SimTypeChar(signed=False).c_repr() == "unsigned char"
+        assert SimTypeChar(signed=True).c_repr() == "char"
+
+    def test_glibc_termios_and_signal_typedefs(self):
+        from angr.sim_type import ALL_TYPES, SimTypeFunction, SimTypePointer
+
+        assert ALL_TYPES["tcflag_t"].c_repr() == "unsigned int"
+        assert ALL_TYPES["speed_t"].c_repr() == "unsigned int"
+        assert isinstance(ALL_TYPES["sighandler_t"], SimTypePointer)
+        assert isinstance(ALL_TYPES["sighandler_t"].pts_to, SimTypeFunction)
 
 
 if __name__ == "__main__":

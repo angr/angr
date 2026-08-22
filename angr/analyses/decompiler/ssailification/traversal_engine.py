@@ -16,12 +16,17 @@ from angr.ailment.expression import (
     Insert,
     Load,
     Register,
+    SegmentedAddress,
     StackBaseOffset,
     Tmp,
     VEXCCallExpression,
     VirtualVariable,
 )
 from angr.ailment.statement import CAS, ConditionalJump, SideEffectStatement, Store
+from angr.analyses.decompiler.register_state import (
+    PostCallRegisterStateBindings,
+    post_call_register_state_bindings_for_call,
+)
 from angr.calling_conventions import call_clobbered_regs, default_cc
 from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
@@ -87,6 +92,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         stackvars: bool = False,
         use_tmps: bool = False,
         functions: Callable[[int | str], Function | None] | None = None,
+        register_state_ranges: tuple[tuple[int, int], ...] = (),
+        initial_register_state_ranges: tuple[tuple[int, int], ...] = (),
+        post_call_register_state_bindings: PostCallRegisterStateBindings = (),
         variable_map=None,
     ):
         super().__init__(project)
@@ -96,8 +104,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.stackvars = stackvars
         self.use_tmps = use_tmps
         self.functions = functions
+        self.register_state_ranges = register_state_ranges
+        self.initial_register_state_ranges = initial_register_state_ranges
+        self.post_call_register_state_bindings = post_call_register_state_bindings
         self.variable_map: VariableMap | None = variable_map
         self.def_info: dict[Def, DefInfo] = {}
+        self.post_call_effect_defs: dict[tuple[int, int, int], Register] = {}
         # stack offset -> code location, StackBaseOffset expr, set of (offset, size) tuples, required, no_reaching_def
         self.pending_ptr_defines_nonlocal: dict[
             int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool, bool]
@@ -450,16 +462,27 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         )
 
     def register_set(self, offset: int, size: int, value: Value, def_: Def):
-        self.state.live_registers[offset] = value
+        variable_offset, variable_size = next(
+            (
+                (bound_offset, bound_size)
+                for bound_offset, bound_size in (*self.register_state_ranges, *self.initial_register_state_ranges)
+                if bound_offset <= offset and offset + size <= bound_offset + bound_size
+            ),
+            (offset, size),
+        )
+        self.state.register_unify(variable_offset, variable_size)
+        self.state.live_registers[variable_offset] = (
+            value if (offset, size) == (variable_offset, variable_size) else set()
+        )
 
-        for suboff in range(offset, offset + size):
+        for suboff in range(variable_offset, variable_offset + variable_size):
             self.state.register_defs.pop(suboff, None)
-            self.state.register_bases[suboff] = (offset, size)
+            self.state.register_bases[suboff] = (variable_offset, variable_size)
             self.state.register_blackout.discard(suboff)
 
-        self.perform_def("reg", def_, offset, size, offset, size)
+        self.perform_def("reg", def_, variable_offset, variable_size, offset, size)
 
-        for suboff in range(offset, offset + size):
+        for suboff in range(variable_offset, variable_offset + variable_size):
             self.state.register_defs[suboff] = {def_}
 
     def _handle_stmt_Assignment(self, stmt):
@@ -521,6 +544,49 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
             self.register_set(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size, result, stmt.fp_ret_expr)
 
+        for register_offset, size, _ in self._post_call_bindings(stmt.expr):
+            key = stmt.expr.idx, register_offset, size
+            effect_def = self.post_call_effect_defs.get(key)
+            if effect_def is None:
+                effect_def = Register(stmt.expr.idx, register_offset, size * self.arch.byte_width)
+                self.post_call_effect_defs[key] = effect_def
+            # Explicit effects refine the conventional return register too, so they are applied after ret_expr.
+            self.register_set(register_offset, size, set(), effect_def)
+
+    def _resolve_call_target(self, expr):
+        target = expr.target
+        if isinstance(target, Const) and isinstance(target.value, int):
+            return self.functions(target.value) if self.functions is not None else None
+        if isinstance(target, str):
+            return self.functions(target) if self.functions is not None else None
+        return None
+
+    def _post_call_bindings(self, expr):
+        if not self.post_call_register_state_bindings:
+            return ()
+
+        resolved_target = self._resolve_call_target(expr)
+        raw_target = expr.target
+        callee_name = (
+            resolved_target.name if resolved_target is not None else raw_target if isinstance(raw_target, str) else None
+        )
+        callee_addr = (
+            resolved_target.addr
+            if resolved_target is not None
+            else raw_target.value
+            if isinstance(raw_target, Const) and isinstance(raw_target.value, int)
+            else None
+        )
+        callsite_addr = expr.tags.get("ins_addr")
+        if not isinstance(callsite_addr, int):
+            callsite_addr = None
+        return post_call_register_state_bindings_for_call(
+            self.post_call_register_state_bindings,
+            callee_name=callee_name,
+            callee_addr=callee_addr,
+            callsite_addr=callsite_addr,
+        )
+
     def _handle_expr_Call(self, expr):
         target = expr.target
         if isinstance(target, Expression):
@@ -536,9 +602,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 def_size = max(def_size_values)[1]
                 def_size_arg = expr.args[2]
 
-        if isinstance(target, Const) and isinstance(target.value, int):
-            target = target.value
-        target = self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
+        target = self._resolve_call_target(expr)
         expr_prototype = self.variable_map.prototype(expr) if self.variable_map is not None else None
         if expr_prototype is not None:
             proto = expr_prototype
@@ -618,6 +682,21 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             for suboff in range(base_off, base_off + base_size):
                 self.state.register_blackout.add(suboff)
                 self.state.register_defs.pop(suboff, None)
+        # External register-state bindings are mutable ambient state. A callee
+        # may update them even though they are deliberately absent from the
+        # recovered machine ABI, so no pre-call SSA value may reach a read
+        # after the call.
+        for reg_offset, reg_size in self.register_state_ranges:
+            bases = {
+                self.state.register_bases.get(suboff, (reg_offset, reg_size))[0]
+                for suboff in range(reg_offset, reg_offset + reg_size)
+            }
+            for base in bases:
+                self.state.live_registers.pop(base, None)
+            for suboff in range(reg_offset, reg_offset + reg_size):
+                self.state.register_bases[suboff] = (reg_offset, reg_size)
+                self.state.register_blackout.add(suboff)
+                self.state.register_defs.pop(suboff, None)
         for reg in cc.arch.vex_cc_regs or []:
             self.state.live_registers.pop(reg.vex_offset, None)
             for suboff in range(reg.vex_offset, reg.vex_offset + reg.size):
@@ -667,6 +746,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         )
 
     def _handle_expr_Register(self, expr: Register):
+        if isinstance(expr.tags.get("post_call_register_state"), str):
+            return set()
         return self.register_get(expr.reg_offset, expr.size, expr)
 
     def _handle_expr_Load(self, expr: Load):
@@ -806,6 +887,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self._expr(expr.base)
         self._expr(expr.offset)
         self._expr(expr.value)
+        return set()
+
+    def _handle_expr_SegmentedAddress(self, expr: SegmentedAddress):
+        self._expr(expr.selector)
+        self._expr(expr.offset)
         return set()
 
     # pylint: disable=unused-argument,no-self-use

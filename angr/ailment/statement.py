@@ -125,8 +125,14 @@ else:
 
         _kind = SK.Jump
 
-        def __new__(cls, idx, target, target_idx=None, **tags) -> _Statement:  # type: ignore[misc]
-            return _Statement._new_jump(idx, target, target_idx=target_idx, **tags)
+        def __new__(cls, idx, target, target_idx=None, transfer_kind="unknown", **tags) -> _Statement:  # type: ignore[misc]
+            return _Statement._new_jump(
+                idx,
+                target,
+                target_idx=target_idx,
+                transfer_kind=transfer_kind,
+                **tags,
+            )
 
     class ConditionalJump(metaclass=_AilStmtMarkerMeta):
         """Marker for ``Statement`` instances whose variant is ``ConditionalJump``."""

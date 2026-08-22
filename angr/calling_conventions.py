@@ -2685,10 +2685,9 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
 }
 
 
-def register_default_cc(arch: str, cc: type[SimCC], platform: str = "Linux"):
-    if arch not in DEFAULT_CC:
-        DEFAULT_CC[arch] = {}
-    DEFAULT_CC[arch][platform] = cc
+def register_cc(arch: str, cc: type[SimCC], platform: str = "Linux") -> None:
+    """Register a calling convention candidate without changing the platform default."""
+
     if arch not in CC:
         CC[arch] = {}
     if platform not in CC[arch]:
@@ -2698,6 +2697,13 @@ def register_default_cc(arch: str, cc: type[SimCC], platform: str = "Linux"):
     else:
         if cc not in CC[arch][platform]:
             CC[arch][platform].append(cc)
+
+
+def register_default_cc(arch: str, cc: type[SimCC], platform: str = "Linux"):
+    if arch not in DEFAULT_CC:
+        DEFAULT_CC[arch] = {}
+    DEFAULT_CC[arch][platform] = cc
+    register_cc(arch, cc, platform)
 
 
 ARCH_NAME_ALIASES = {

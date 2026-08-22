@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Convert, Extract
+from angr.ailment.utils import is_lsb_extract
 
 from .base import PeepholeOptimizationExprBase
 
@@ -13,6 +14,11 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
     expr_classes = (Convert, Extract)
 
     def optimize(self, expr: Convert | Extract, **kwargs):
+        # The conversion identities below all select the low bits. An Extract may instead select a byte range from
+        # the middle or high end of its base; applying them there silently changes which bits are returned.
+        if isinstance(expr, Extract) and not is_lsb_extract(expr):
+            return None
+
         if isinstance(expr, Convert):
             inner = expr.operand
             signed = expr.is_signed

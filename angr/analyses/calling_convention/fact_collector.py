@@ -1,10 +1,11 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Container, Iterator
 from typing import TYPE_CHECKING
 
+import pypcode
 import pyvex
 
 from angr.analyses.analysis import AnalysesHub, Analysis
@@ -12,6 +13,15 @@ from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
+from angr.engines.pcode.lifter import IRSB as PcodeIRSB
+from angr.engines.pcode.userop import (
+    X86_PROTECTED_MODE_SEGMENT_USEROP_KEY,
+    X86_PROTECTED_MODE_SWI_USEROP_KEY,
+    X86_REAL_MODE_SEGMENT_USEROP_KEY,
+    X86_REAL_MODE_SWI_USEROP_KEY,
+    get_named_userop_key,
+    get_x86_segment_varnodes,
+)
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.bits import u2s
@@ -62,7 +72,7 @@ class FactCollectorState:
     )
 
     def __init__(self):
-        self.tmps: dict[int, FactData] = {}
+        self.tmps: dict[int | tuple[int, int], FactData] = {}
         self.simple_stack: dict[int, FactData] = {}
         self.simple_regs: dict[int, FactData] = {}
         self.ins_addr = 0
@@ -300,6 +310,311 @@ class SimEngineFactCollectorVEX(
         return None
 
 
+class SimEngineFactCollectorPcode:
+    """Collect the value-flow facts needed for ABI recovery from raw p-code.
+
+    P-code IRSBs intentionally expose no VEX-compatible ``statements``. Running
+    the VEX light engine on them therefore produced an empty fact set, after
+    which call-site heuristics could invent very large stack prototypes. This
+    engine interprets only FactCollector's small value domain and leaves all
+    unrelated operations at top.
+    """
+
+    _CONTROL_FLOW_OPS = {
+        pypcode.OpCode.BRANCH,
+        pypcode.OpCode.CBRANCH,
+        pypcode.OpCode.BRANCHIND,
+        pypcode.OpCode.CALL,
+        pypcode.OpCode.CALLIND,
+        pypcode.OpCode.RETURN,
+    }
+    _COPY_OPS = {
+        pypcode.OpCode.COPY,
+        pypcode.OpCode.INT_ZEXT,
+        pypcode.OpCode.INT_SEXT,
+        pypcode.OpCode.CAST,
+    }
+
+    def __init__(
+        self,
+        project,
+        bp_as_gpr: bool,
+        track_arg_uses: bool,
+        seen_reg_uses: defaultdict[int, int],
+    ):
+        self.project = project
+        self.arch = project.arch
+        self.bp_as_gpr = bp_as_gpr
+        self.track_arg_uses = track_arg_uses
+        self.seen_reg_uses = seen_reg_uses
+        self.state: FactCollectorState | None = None
+
+    @staticmethod
+    def _tmp_key(varnode) -> tuple[int, int]:
+        return int(varnode.offset), int(varnode.size)
+
+    def _value(self, varnode, *, count_register_use: bool = True) -> FactData:
+        assert self.state is not None
+        space_name = varnode.space.name
+        if space_name == "const":
+            return KIND_CONST, 0, int(varnode.offset)
+        if space_name == "unique":
+            return self.state.tmps.get(self._tmp_key(varnode))
+        if space_name != "register":
+            return None
+
+        offset = int(varnode.offset)
+        size = int(varnode.size)
+        if offset == self.arch.sp_offset:
+            return (KIND_SP, SUBKIND_SP, self.state.sp_value) if self.state.sp_value is not None else None
+        if offset == self.arch.bp_offset and not self.bp_as_gpr:
+            return (KIND_SP, SUBKIND_BP, self.state.bp_value) if self.state.bp_value is not None else None
+
+        if count_register_use:
+            self.state.register_read(offset, size)
+            self.seen_reg_uses[offset] += 1
+        return self.state.simple_regs.get(offset, (KIND_REG, offset, 0))
+
+    @staticmethod
+    def _varnode_identity(varnode) -> tuple[str, int, int]:
+        return varnode.space.name, int(varnode.offset), int(varnode.size)
+
+    @classmethod
+    def _zero_idiom_input_registers(cls, operations) -> set[tuple[str, int, int]]:
+        """Find register inputs canceled by an x-x zeroing instruction."""
+
+        canceled = set()
+        written = {
+            cls._varnode_identity(op.output)
+            for op in operations
+            if op.output is not None and op.output.space.name == "register"
+        }
+        for op in operations:
+            if op.opcode not in {pypcode.OpCode.INT_XOR, pypcode.OpCode.INT_SUB} or len(op.inputs) != 2:
+                continue
+            left = cls._varnode_identity(op.inputs[0])
+            right = cls._varnode_identity(op.inputs[1])
+            if left == right and left[0] == "register" and left in written:
+                canceled.add(left)
+        return canceled
+
+    def _set_value(self, varnode, value: FactData) -> None:
+        assert self.state is not None
+        space_name = varnode.space.name
+        if space_name == "unique":
+            self.state.tmps[self._tmp_key(varnode)] = value
+            return
+        if space_name != "register":
+            return
+
+        offset = int(varnode.offset)
+        size = int(varnode.size)
+        if offset == self.arch.sp_offset:
+            self.state.sp_value = value[2] if value is not None and value[0] == KIND_SP else None
+            return
+        if offset == self.arch.bp_offset and not self.bp_as_gpr and value is not None and value[0] == KIND_SP:
+            self.state.bp_value = value[2]
+            return
+        self.state.register_written(offset, size)
+        self.state.simple_regs[offset] = value
+
+    @staticmethod
+    def _add(left: FactData, right: FactData) -> FactData:
+        if left is None or right is None or left[2] is None or right[2] is None:
+            return None
+        if left[0] == KIND_CONST and right[0] == KIND_CONST:
+            return KIND_CONST, 0, left[2] + right[2]
+        if left[0] == KIND_CONST:
+            return right[0], right[1], right[2] + left[2]
+        if right[0] == KIND_CONST:
+            return left[0], left[1], left[2] + right[2]
+        return None
+
+    @staticmethod
+    def _sub(left: FactData, right: FactData) -> FactData:
+        if left is None or right is None or left[2] is None or right[2] is None:
+            return None
+        if left[0] == KIND_CONST and right[0] == KIND_CONST:
+            return KIND_CONST, 0, left[2] - right[2]
+        if right[0] == KIND_CONST:
+            return left[0], left[1], left[2] - right[2]
+        return None
+
+    @staticmethod
+    def _and(left: FactData, right: FactData) -> FactData:
+        if left is None or right is None or left[2] is None or right[2] is None:
+            return None
+        if left[0] == KIND_CONST and right[0] == KIND_CONST:
+            return KIND_CONST, 0, left[2] & right[2]
+        if left[0] == KIND_SP:
+            return left
+        if right[0] == KIND_SP:
+            return right
+        return None
+
+    def _load(self, op) -> None:
+        assert self.state is not None and op.output is not None
+        address = self._value(op.inputs[1])
+        value: FactData = None
+        if address is not None and address[0] == KIND_SP:
+            size = int(op.output.size)
+            self.state.stack_read(address[2], size)
+            value = self.state.simple_stack.get(address[2], (KIND_STACKVAL, address[2], 0))
+        elif address is not None and address[0] in {KIND_REG, KIND_STACKVAL} and self.track_arg_uses:
+            self.state.pointer_arg_derefs[address] |= 1
+        self._set_value(op.output, value)
+
+    def _store(self, op) -> None:
+        assert self.state is not None
+        address = self._value(op.inputs[1])
+        value = self._value(op.inputs[2])
+        if address is None:
+            return
+        if address[0] == KIND_SP:
+            size = int(op.inputs[2].size)
+            self.state.stack_written(address[2], size)
+            if value is not None and value[0] == KIND_REG and value[2] == 0:
+                self.state.callee_stored_regs[value[1]] = u2s(address[2], self.arch.bits)
+            self.state.simple_stack[address[2]] = value
+        elif address[0] in {KIND_REG, KIND_STACKVAL} and self.track_arg_uses:
+            self.state.pointer_arg_derefs[address] |= 2
+
+    def _callother(self, op) -> None:
+        assert self.state is not None
+        try:
+            key = get_named_userop_key(self.arch.name, op)
+        except ValueError:
+            if op.output is not None:
+                self._set_value(op.output, None)
+            return
+        if key in {
+            X86_REAL_MODE_SWI_USEROP_KEY,
+            X86_PROTECTED_MODE_SWI_USEROP_KEY,
+        }:
+            # SLEIGH represents an x86 software interrupt as ``swi`` followed by
+            # CALLIND.  The interrupt handler's machine-level outputs are opaque
+            # to p-code, but they are still a call boundary: values subsequently
+            # read from caller-saved registers are outputs/clobbers of the
+            # interrupt, not inputs inherited from this function's entry.
+            cc_cls = default_cc(
+                self.arch.name,
+                platform=(self.project.simos.name if self.project.simos is not None else None),
+            )
+            if cc_cls is not None:
+                cc = cc_cls(self.arch)
+                for reg_name in cc.CALLER_SAVED_REGS:
+                    try:
+                        offset, size = self.arch.registers[reg_name]
+                    except KeyError:
+                        continue
+                    self.state.register_written(offset, size)
+                    # ``simple_regs`` may contain independently tracked partial
+                    # aliases such as DH.  Invalidate every possible starting
+                    # byte so a later partial read cannot resurrect an entry fact.
+                    for byte_offset in range(offset, offset + size):
+                        self.state.simple_regs[byte_offset] = None
+            if op.output is not None:
+                self._set_value(op.output, None)
+            return
+        if key not in {
+            X86_REAL_MODE_SEGMENT_USEROP_KEY,
+            X86_PROTECTED_MODE_SEGMENT_USEROP_KEY,
+        }:
+            if op.output is not None:
+                self._set_value(op.output, None)
+            return
+
+        try:
+            output, segment, offset = get_x86_segment_varnodes(op)
+        except ValueError:
+            if op.output is not None:
+                self._set_value(op.output, None)
+            return
+        offset_value = self._value(offset)
+        is_stack_segment = segment.space.name == "register" and int(segment.offset) == self.arch.get_register_offset(
+            "ss"
+        )
+        value = offset_value if is_stack_segment and offset_value is not None and offset_value[0] == KIND_SP else None
+        self._set_value(output, value)
+
+    def process(self, state: FactCollectorState, *, block: Block) -> None:
+        self.state = state
+        # Unique-space offsets are reusable scratch locations, not values that
+        # survive a basic-block boundary.
+        state.tmps.clear()
+        operations = list(block.vex._ops)
+        ignored_input_registers: set[tuple[str, int, int]] = set()
+        for op_index, op in enumerate(operations):
+            opcode = op.opcode
+            if opcode == pypcode.OpCode.IMARK:
+                if op.inputs:
+                    state.ins_addr = int(op.inputs[0].offset)
+                instruction_end = next(
+                    (
+                        index
+                        for index in range(op_index + 1, len(operations))
+                        if operations[index].opcode == pypcode.OpCode.IMARK
+                    ),
+                    len(operations),
+                )
+                ignored_input_registers = self._zero_idiom_input_registers(operations[op_index + 1 : instruction_end])
+                continue
+            if opcode in self._CONTROL_FLOW_OPS:
+                continue
+            if opcode == pypcode.OpCode.LOAD:
+                self._load(op)
+                continue
+            if opcode == pypcode.OpCode.STORE:
+                self._store(op)
+                continue
+            if opcode == pypcode.OpCode.CALLOTHER:
+                self._callother(op)
+                continue
+
+            values = [
+                self._value(
+                    varnode,
+                    count_register_use=(self._varnode_identity(varnode) not in ignored_input_registers),
+                )
+                for varnode in op.inputs
+            ]
+            value: FactData = None
+            same_inputs = len(op.inputs) == 2 and self._varnode_identity(op.inputs[0]) == self._varnode_identity(
+                op.inputs[1]
+            )
+            if same_inputs and opcode in {
+                pypcode.OpCode.INT_XOR,
+                pypcode.OpCode.INT_SUB,
+                pypcode.OpCode.INT_LESS,
+                pypcode.OpCode.INT_SLESS,
+                pypcode.OpCode.INT_NOTEQUAL,
+                pypcode.OpCode.INT_SBORROW,
+            }:
+                value = KIND_CONST, 0, 0
+            elif same_inputs and opcode in {
+                pypcode.OpCode.INT_EQUAL,
+                pypcode.OpCode.INT_LESSEQUAL,
+                pypcode.OpCode.INT_SLESSEQUAL,
+            }:
+                value = KIND_CONST, 0, 1
+            elif opcode in self._COPY_OPS and values:
+                value = values[0]
+            elif opcode == pypcode.OpCode.SUBPIECE and values:
+                zero_offset = len(values) == 1 or (
+                    values[1] is not None and values[1][0] == KIND_CONST and values[1][2] == 0
+                )
+                if zero_offset:
+                    value = values[0]
+            elif opcode == pypcode.OpCode.INT_ADD and len(values) == 2:
+                value = self._add(values[0], values[1])
+            elif opcode == pypcode.OpCode.INT_SUB and len(values) == 2:
+                value = self._sub(values[0], values[1])
+            elif opcode == pypcode.OpCode.INT_AND and len(values) == 2:
+                value = self._and(values[0], values[1])
+            if op.output is not None:
+                self._set_value(op.output, value)
+
+
 class FactCollector(Analysis):
     """
     An extremely fast analysis that extracts necessary facts of a function for CallingConventionAnalysis to make
@@ -318,9 +633,13 @@ class FactCollector(Analysis):
         self.input_args: list[SimRegArg | SimStackArg] | None = None
         self.unused_args: list[SimRegArg] = []
         self.retval_size: int | None = None
+        self.retval_size_indeterminate = False
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
         self.extra_pop: int | None = None
+        self.return_address_size: int | None = None
+        self.return_address_size_ambiguous = False
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
+        self._is_pcode = self._function_uses_pcode()
 
         self._analyze()
 
@@ -328,6 +647,7 @@ class FactCollector(Analysis):
         # breadth-first search using function graph, collect registers and stack variables that are written to as well
         # as read from, until max_depth is reached
 
+        self.return_address_size = self._analyze_endpoints_for_return_address_size()
         end_states = self._analyze_startpoint()
         self._analyze_endpoints_for_retval_size(end_states)
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
@@ -341,10 +661,24 @@ class FactCollector(Analysis):
             return []
 
         bp_as_gpr = self.function.info.get("bp_as_gpr", False)
-        engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr, self._track_arg_uses, self._seen_reg_uses)
+        engine = (
+            SimEngineFactCollectorPcode(
+                self.project,
+                bp_as_gpr,
+                self._track_arg_uses,
+                self._seen_reg_uses,
+            )
+            if self._is_pcode
+            else SimEngineFactCollectorVEX(
+                self.project,
+                bp_as_gpr,
+                self._track_arg_uses,
+                self._seen_reg_uses,
+            )
+        )
         init_state = FactCollectorState()
         if self.project.arch.call_pushes_ret:
-            init_state.sp_value = self.project.arch.bytes
+            init_state.sp_value = self.return_address_size or self.project.arch.bytes
         init_state.bp_value = init_state.sp_value
 
         traversed = set()
@@ -354,11 +688,12 @@ class FactCollector(Analysis):
                 FactCollectorState,
                 CodeNode | BlockNode | HookNode | FuncNode,
                 BlockNode | HookNode | FuncNode | None,
+                bool,
             ]
-        ] = [(0, init_state, startpoint, None)]
+        ] = [(0, init_state, startpoint, None, True)]
         end_states: list[FactCollectorState] = []
         while queue:
-            depth, state, node, retnode = queue.pop(0)
+            depth, state, node, retnode, call_pushes_return_address = queue.pop(0)
             if isinstance(node, BlockNode) and node in traversed:
                 continue
             traversed.add(node)
@@ -379,16 +714,23 @@ class FactCollector(Analysis):
             if func is not None:
                 if func.calling_convention is not None and func.prototype is not None:
                     # consume args and overwrite the return register
-                    self._handle_function(state, func)
+                    stack_pop = self._handle_function(state, func)
+                else:
+                    stack_pop = None
                 if func.returning is False or retnode is None:
                     # the function call does not return
                     end_states.append(state)
                 else:
                     # enqueue the retnode, but we don't increment the depth
                     new_state = state.copy()
-                    if self.project.arch.call_pushes_ret and not func.is_syscall:
-                        new_state.sp_value += self.project.arch.bytes
-                    queue.append((depth, new_state, retnode, None))
+                    if (
+                        call_pushes_return_address
+                        and self.project.arch.call_pushes_ret
+                        and not func.is_syscall
+                        and new_state.sp_value is not None
+                    ):
+                        new_state.sp_value += stack_pop or self.project.arch.bytes
+                    queue.append((depth, new_state, retnode, None, True))
                 continue
 
             block = self.project.factory.block(node.addr, size=node.size)
@@ -406,7 +748,7 @@ class FactCollector(Analysis):
                     elif edge_type == "transition" and not outside:
                         if succ not in traversed:
                             successor_added = True
-                            queue.append((depth + 1, state.copy(), succ, None))
+                            queue.append((depth + 1, state.copy(), succ, None, True))
                     elif edge_type in {"call", "syscall"} or (edge_type == "transition" and outside):
                         # a call or a tail-call
                         # note that it's ok to traverse a called function multiple times
@@ -416,14 +758,47 @@ class FactCollector(Analysis):
                         call_succ = succ
             if call_succ is not None:
                 successor_added = True
-                queue.append((depth + 1, state.copy(), call_succ, ret_succ))
+                queue.append(
+                    (
+                        depth + 1,
+                        state.copy(),
+                        call_succ,
+                        ret_succ,
+                        not self._pcode_block_ends_in_swi(block),
+                    )
+                )
 
             if not successor_added:
                 end_states.append(state)
 
         return end_states
 
-    def _handle_function(self, state: FactCollectorState, func: Function) -> None:
+    def _pcode_block_ends_in_swi(self, block: Block) -> bool:
+        """Return whether a p-code call edge is the synthetic edge for an x86 SWI.
+
+        Unlike CALL/CALLF, INT's handler round trip has no net caller-visible
+        return-address adjustment.  FactCollector normally balances the return
+        address modeled by a call instruction when it traverses the fake-return
+        edge; doing that for SLEIGH's synthetic SWI CALLIND shifts every later
+        stack access by one word.
+        """
+
+        if not self._is_pcode or not isinstance(block.vex, PcodeIRSB):
+            return False
+        for op in reversed(block.vex._ops):
+            if op.opcode != pypcode.OpCode.CALLOTHER:
+                continue
+            try:
+                key = get_named_userop_key(self.project.arch.name, op)
+            except ValueError:
+                continue
+            return key in {
+                X86_REAL_MODE_SWI_USEROP_KEY,
+                X86_PROTECTED_MODE_SWI_USEROP_KEY,
+            }
+        return False
+
+    def _handle_function(self, state: FactCollectorState, func: Function) -> int | None:
         try:
             if func.calling_convention is not None and func.prototype is not None:
                 func_prototype = (
@@ -433,12 +808,12 @@ class FactCollector(Analysis):
                 )
                 arg_locs = func.calling_convention.arg_locs(func_prototype)
             else:
-                return
+                return None
         except (TypeError, ValueError):
-            return
+            return None
 
         if None in arg_locs:
-            return
+            return None
 
         if self._track_arg_passthru:
             self.callsites[state.ins_addr] = (func, [])
@@ -467,6 +842,40 @@ class FactCollector(Analysis):
             offset = self.project.arch.registers[reg_name][0]
             state.register_written(offset, self.project.arch.registers[reg_name][1])
             state.simple_regs[offset] = None
+
+        if func.calling_convention.CALLEE_CLEANUP:
+            return int(func.calling_convention.stack_space(arg_locs))
+        return int(func.calling_convention.STACKARG_SP_DIFF)
+
+    def _function_uses_pcode(self) -> bool:
+        startpoint = self.function.startpoint
+        if not isinstance(startpoint, BlockNode) or startpoint.size == 0:
+            return ":" in self.project.arch.name
+        block = self.project.factory.block(startpoint.addr, size=startpoint.size)
+        return isinstance(block.vex, PcodeIRSB)
+
+    def _analyze_endpoints_for_return_address_size(self) -> int | None:
+        if not self.project.arch.call_pushes_ret:
+            return 0
+        if not self._is_pcode or not self.project.arch.name.startswith("x86:LE:16:"):
+            return self.project.arch.bytes
+
+        sizes = set()
+        for endpoint in self.function.endpoints:
+            if not isinstance(endpoint, BlockNode) or endpoint.size == 0:
+                continue
+            block = self.project.factory.block(endpoint.addr, size=endpoint.size)
+            if not block.disassembly.insns:
+                continue
+            mnemonic = block.disassembly.insns[-1].mnemonic.upper()
+            if mnemonic == "RET":
+                sizes.add(2)
+            elif mnemonic == "RETF":
+                sizes.add(4)
+        if len(sizes) > 1:
+            self.return_address_size_ambiguous = True
+            return None
+        return next(iter(sizes)) if sizes else None
 
     @staticmethod
     def _resolve_vex_tmp(
@@ -607,6 +1016,10 @@ class FactCollector(Analysis):
         """
         Analyze all endpoints to determine the return value size.
         """
+        if self._is_pcode:
+            self._analyze_pcode_endpoints_for_retval_size()
+            return
+
         func_graph = self.function.transition_graph
         cc_cls = default_cc(
             self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
@@ -793,6 +1206,159 @@ class FactCollector(Analysis):
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
 
+    def _analyze_pcode_endpoints_for_retval_size(self) -> None:
+        cc_cls = default_cc(
+            self.project.arch.name,
+            platform=self.project.simos.name if self.project.simos is not None else None,
+        )
+        if cc_cls is None:
+            return
+        cc = cc_cls(self.project.arch)
+        if not isinstance(cc.RETURN_VAL, SimRegArg):
+            return
+        return_offset = cc.RETURN_VAL.check_offset(self.project.arch)
+        retval_sizes = []
+        retval_size_indeterminate = False
+        func_graph = self.function.transition_graph
+
+        def block_ends_in_opaque_transfer(node: BlockNode) -> bool:
+            block = self.project.factory.block(node.addr, size=node.size)
+            return any(op.opcode in {pypcode.OpCode.BRANCHIND, pypcode.OpCode.CALLIND} for op in block.vex._ops)
+
+        def known_function_return_size(node: CodeNode) -> tuple[bool, int | None]:
+            if not self.kb.functions.contains_addr(node.addr):
+                return False, None
+            function = self.kb.functions.get_by_addr(node.addr)
+            if function.calling_convention is None or function.prototype is None:
+                return False, None
+            prototype = (
+                dereference_simtype_by_lib(function.prototype, function.prototype_libname)
+                if function.prototype_libname is not None
+                else function.prototype
+            )
+            if not isinstance(prototype, SimTypeFunction) or prototype.returnty is None:
+                return False, None
+            if isinstance(prototype.returnty, SimTypeBottom):
+                return True, None
+            returnty_size = prototype.returnty.with_arch(self.project.arch).size
+            return (
+                True,
+                self.project.arch.bytes if returnty_size is None else returnty_size // self.project.arch.byte_width,
+            )
+
+        endpoints = list(self.function.endpoints)
+        endpoint_set = set(endpoints)
+        for node in func_graph.nodes:
+            if (
+                isinstance(node, BlockNode)
+                and node.size > 0
+                and node not in endpoint_set
+                and func_graph.out_degree(node) == 0
+                and block_ends_in_opaque_transfer(node)
+            ):
+                # CFG recovery may omit the unresolved-target edge entirely.
+                # The terminal indirect transfer is still an incomplete return
+                # path, rather than evidence that the function is void.
+                endpoints.append(node)
+                endpoint_set.add(node)
+
+        for endpoint in endpoints:
+            traversed = set()
+            queue = deque([(0, endpoint)])
+            while queue:
+                depth, node = queue.popleft()
+                if node in traversed:
+                    continue
+                if depth > self._max_depth:
+                    retval_size_indeterminate = True
+                    continue
+                traversed.add(node)
+
+                if isinstance(node, (FuncNode, HookNode)):
+                    known, size = known_function_return_size(node)
+                    if known and size is not None:
+                        retval_sizes.append(size)
+                    elif not known:
+                        retval_size_indeterminate = True
+                    continue
+
+                if not isinstance(node, BlockNode) or node.size == 0:
+                    continue
+
+                # An endpoint may be a jump out of this function, including a
+                # shared epilogue or a direct tail call. Its target determines
+                # the return value; writes before the jump do not if the target
+                # overwrites the return register.
+                tail_successors = [
+                    successor
+                    for _, successor, data in func_graph.out_edges(node, data=True)
+                    if data.get("type") == "transition" and data.get("outside", False)
+                ]
+                if tail_successors:
+                    for successor in tail_successors:
+                        known, size = known_function_return_size(successor)
+                        if known:
+                            if size is not None:
+                                retval_sizes.append(size)
+                        elif (
+                            isinstance(successor, BlockNode)
+                            and successor.size > 0
+                            and self.project.factory.block(successor.addr, size=successor.size).vex.jumpkind
+                            == "Ijk_Ret"
+                            and successor not in traversed
+                        ):
+                            # A shared epilogue is safe to inspect directly.
+                            # Do not mistake an unanalysed function entry for
+                            # its complete return behavior.
+                            queue.append((depth + 1, successor))
+                        else:
+                            retval_size_indeterminate = True
+                    continue
+
+                # A call immediately before a return forwards the callee's
+                # result. Treat every call as a barrier: an unknown or void
+                # callee cannot justify a return-register write that happened
+                # before the call.
+                call_successors = [
+                    successor
+                    for _, successor, data in func_graph.out_edges(node, data=True)
+                    if data.get("type") in {"call", "syscall"}
+                ]
+                if call_successors:
+                    for successor in call_successors:
+                        known, size = known_function_return_size(successor)
+                        if known and size is not None:
+                            retval_sizes.append(size)
+                        elif not known:
+                            retval_size_indeterminate = True
+                    continue
+
+                block = self.project.factory.block(node.addr, size=node.size)
+                if func_graph.out_degree(node) == 0 and block_ends_in_opaque_transfer(node):
+                    retval_size_indeterminate = True
+                    continue
+                size = next(
+                    (
+                        int(op.output.size)
+                        for op in reversed(block.vex._ops)
+                        if op.output is not None
+                        and op.output.space.name == "register"
+                        and int(op.output.offset) == return_offset
+                    ),
+                    None,
+                )
+                if size is not None:
+                    retval_sizes.append(size)
+                    continue
+                for pred, _, data in func_graph.in_edges(node, data=True):
+                    if pred not in traversed and data.get("type") in {
+                        "transition",
+                        "fake_return",
+                    }:
+                        queue.append((depth + 1, pred))
+        self.retval_size = max(retval_sizes) if retval_sizes else None
+        self.retval_size_indeterminate = retval_size_indeterminate
+
     def _analyze_endpoints_for_restored_regs(self):
         """
         Analyze all endpoints to determine the restored registers.
@@ -940,7 +1506,8 @@ class FactCollector(Analysis):
             if sp_off_after is None or sp_off_before is None:
                 continue
             sp_diff = sp_off_after - sp_off_before
-            sp_diffs.add(sp_diff - self.project.arch.bytes)
+            return_address_size = self.return_address_size or self.project.arch.bytes
+            sp_diffs.add(sp_diff - return_address_size)
 
         return 0 if not sp_diffs else max(sp_diffs)
 
@@ -957,9 +1524,18 @@ class FactCollector(Analysis):
 
         # determine callee-saved registers
         unused_hint_offsets = set()
+        def_cc = default_cc(
+            self.project.arch.name,
+            platform=(self.project.simos.name if self.project.simos is not None else None),
+        )
         for state in end_states:
             for reg_offset, stack_offset in state.callee_stored_regs.items():
-                if reg_offset in callee_restored_regs:
+                restored_original_value = state.simple_regs.get(reg_offset) == (
+                    KIND_REG,
+                    reg_offset,
+                    0,
+                )
+                if reg_offset in callee_restored_regs or restored_original_value:
                     callee_saved_regs.add(reg_offset)
                     callee_saved_reg_stack_offsets.add(stack_offset)
                 elif self._seen_reg_uses[reg_offset] < 2:
@@ -970,7 +1546,12 @@ class FactCollector(Analysis):
                 if (
                     offset in reg_offset_created
                     or offset == self.project.arch.bp_offset
-                    or not is_sane_register_variable(self.project.arch, offset, size)
+                    or not is_sane_register_variable(
+                        self.project.arch,
+                        offset,
+                        size,
+                        def_cc=def_cc,
+                    )
                     or offset in callee_saved_regs
                 ):
                     continue
@@ -982,16 +1563,15 @@ class FactCollector(Analysis):
                     self.unused_args.append(arg)
 
         stack_offset_created = set()
-        ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
-        # handle shadow stack args
-        cc_cls = default_cc(
-            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+        ret_addr_offset = (
+            0 if not self.project.arch.call_pushes_ret else self.return_address_size or self.project.arch.bytes
         )
-        stackarg_sp_buff = cc_cls.STACKARG_SP_BUFF if cc_cls is not None else 0
+        # handle shadow stack args
+        stackarg_sp_buff = def_cc.STACKARG_SP_BUFF if def_cc is not None else 0
         for state in end_states:
             for offset, size in state.stack_reads.items():
                 offset = u2s(offset & ((1 << self.project.arch.bits) - 1), self.project.arch.bits)
-                if offset - ret_addr_offset > stackarg_sp_buff:
+                if offset - ret_addr_offset >= ret_addr_offset + stackarg_sp_buff:
                     if offset in stack_offset_created or offset in callee_saved_reg_stack_offsets:
                         continue
                     stack_offset_created.add(offset)

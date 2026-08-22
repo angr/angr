@@ -757,7 +757,9 @@ def _parse_cassignment(pb, ctx):
 
 def _ser_cexprstmt(node, pb, ctx):
     pb.cexpression_stmt.expr_id = ctx.serialize(node.expr)
-    pb.cexpression_stmt.returning = node.returning
+    # Older/in-process nodes may still carry Function.returning's unknown value.  The wire representation is
+    # intentionally boolean: only a proven non-returning call is False.
+    pb.cexpression_stmt.returning = node.returning is not False
 
 
 def _parse_cexprstmt(pb, ctx):
@@ -1130,8 +1132,13 @@ def _ser_cconst(node, pb, ctx):
     body.type_ref = ctx.intern_type(node._type)
     if node.reference_values:
         for ty, val in node.reference_values.items():
+            if not isinstance(ty, (SimType, str)):
+                continue
             entry = body.reference_values.add()
-            entry.type_ref = ctx.intern_type(ty)
+            if isinstance(ty, SimType):
+                entry.type_ref = ctx.intern_type(ty)
+            else:
+                entry.special_key = ty
             if isinstance(val, bool):
                 entry.int_value = int(val)
             elif isinstance(val, int):
@@ -1142,6 +1149,8 @@ def _ser_cconst(node, pb, ctx):
                 entry.str_value = val
             elif isinstance(val, MemoryData):
                 entry.memory_data = val.serialize()
+            elif isinstance(val, CConstruct):
+                entry.construct_id = ctx.serialize(val)
             # other types intentionally dropped
 
 
@@ -1161,7 +1170,7 @@ def _parse_cconst(pb, ctx):
     if body.reference_values:
         refs = {}
         for entry in body.reference_values:
-            key = ctx.resolve_type(entry.type_ref)
+            key = entry.special_key or ctx.resolve_type(entry.type_ref)
             w = entry.WhichOneof("value")
             if w == "int_value":
                 refs[key] = entry.int_value
@@ -1176,6 +1185,8 @@ def _parse_cconst(pb, ctx):
                 if md.content is None and ctx.project is not None:
                     md.fill_content(ctx.project.loader)
                 refs[key] = md
+            elif w == "construct_id":
+                refs[key] = ctx.resolve(entry.construct_id)
         obj.reference_values = refs
     else:
         obj.reference_values = None
@@ -1198,6 +1209,8 @@ def _ser_cfuncall(node, pb, ctx):
         body.callee_func_addr = node.callee_func.addr
     for a in node.args:
         body.args_ids.append(ctx.serialize(a))
+    body.callsite_prototype_ref = ctx.intern_type(node.callsite_prototype)
+    body.result_used = node.result_used
     # show_demangled_name / show_disambiguated_name default to True; only record an override when either is False.
     if not (node.show_demangled_name and node.show_disambiguated_name):
         ctx.add_cfuncall_config(pb.node_id, node.show_demangled_name, node.show_disambiguated_name)
@@ -1220,6 +1233,8 @@ def _parse_cfuncall(pb, ctx):
     else:
         obj.callee_func = None
     obj.args = [ctx.resolve(i) for i in body.args_ids]
+    obj.callsite_prototype = ctx.resolve_type(body.callsite_prototype_ref)
+    obj.result_used = body.result_used
     obj.show_demangled_name, obj.show_disambiguated_name = ctx.cfuncall_config(pb.node_id)
     return obj
 

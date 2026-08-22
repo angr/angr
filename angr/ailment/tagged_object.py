@@ -27,9 +27,12 @@ class TagDict(TypedDict, total=False):
     extra_def: bool
     extra_defs: list[int]
     ins_addr: int
+    initial_register_state: str
     is_prototype_guessed: bool
     keep_in_slice: bool
     orig_ins_addr: int
+    post_call_register_state_effect: bool
+    post_call_register_state: str
     reg_name: str
     uninitialized: bool
     vex_block_addr: int

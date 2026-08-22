@@ -54,6 +54,7 @@ if TYPE_CHECKING:
         Register,
         Reinterpret,
         RustEnum,
+        SegmentedAddress,
         StackBaseOffset,
         StringLiteral,
         Struct,
@@ -401,6 +402,29 @@ else:
         def __new__(cls, idx, bits, offset, **tags) -> _Expression:  # type: ignore[misc]
             return _Expression._new_stack_base_offset(idx, bits, offset, **tags)
 
+    class SegmentedAddress(metaclass=_AilMarkerMeta):
+        """A guest segmented address that must be translated before memory access."""
+
+        _kind = EK.SegmentedAddress
+
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            selector,
+            offset,
+            address_kind,
+            bits=32,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_segmented_address(
+                idx,
+                selector,
+                offset,
+                address_kind,
+                bits=bits,
+                **tags,
+            )
+
     class Call(metaclass=_AilMarkerMeta):
         """Marker for ``Expression`` instances whose variant is ``Call``.
 
@@ -418,6 +442,7 @@ else:
             args=None,
             bits=None,
             arg_vvars=None,
+            transfer_kind="unknown",
             **tags,
         ) -> _Expression:
             return _Expression._new_call(
@@ -426,6 +451,7 @@ else:
                 args=args,
                 bits=bits,
                 arg_vvars=arg_vvars,
+                transfer_kind=transfer_kind,
                 **tags,
             )
 
@@ -580,6 +606,7 @@ if not TYPE_CHECKING:
             MultiStatementExpression,
             BasePointerOffset,
             StackBaseOffset,
+            SegmentedAddress,
             StringLiteral,
             Struct,
             RustEnum,
@@ -696,6 +723,7 @@ __all__ = [
     "Register",
     "Reinterpret",
     "RustEnum",
+    "SegmentedAddress",
     "StackBaseOffset",
     "StringLiteral",
     "Struct",

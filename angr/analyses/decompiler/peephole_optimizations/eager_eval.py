@@ -3,9 +3,9 @@ from __future__ import annotations
 from math import gcd
 
 from angr.ailment.expression import BinaryOp, Const, Convert, StackBaseOffset, UnaryOp
-from angr.utils.bits import sign_extend
 
 from .base import PeepholeOptimizationExprBase
+from .utils import evaluate_const_int_conversion
 
 
 class EagerEvaluation(PeepholeOptimizationExprBase):
@@ -132,6 +132,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return StackBaseOffset(expr.idx, op1.bits, op1.offset + op0.value_int, **expr.tags)
 
         elif expr.op == "Sub":
+            if op0.likes(op1):
+                # x - x ==> 0. Besides simplifying the arithmetic, this breaks
+                # false data dependencies on undefined ABI return registers.
+                return Const(expr.idx, 0, expr.bits, **expr.tags)
             if (
                 isinstance(op0, Const)
                 and isinstance(op0.value, int)
@@ -194,6 +198,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return StackBaseOffset(expr.idx, op0.bits, op0.offset - op1.value_int, **expr.tags)
             if isinstance(op1, StackBaseOffset) and isinstance(op0, Const) and op0.is_int:
                 return StackBaseOffset(expr.idx, op1.bits, op1.offset - op0.value_int, **expr.tags)
+
+        elif expr.op == "Xor":
+            if op0.likes(op1):
+                return Const(expr.idx, 0, expr.bits, **expr.tags)
 
         elif expr.op == "And":
             op0, op1 = expr.operands
@@ -410,30 +418,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
 
     @staticmethod
     def _optimize_convert(expr: Convert):
-        if (
-            isinstance(expr.operand, Const)
-            and expr.operand.is_int
-            and expr.from_type == Convert.TYPE_INT
-            and expr.to_type == Convert.TYPE_INT
-            and expr.from_bits > expr.to_bits
-        ):
-            assert isinstance(expr.operand.value, int)
-            # truncation
-            mask = (1 << expr.to_bits) - 1
-            v = expr.operand.value & mask
-            return Const(expr.idx, v, expr.to_bits, **expr.operand.tags)
-        if (
-            isinstance(expr.operand, Const)
-            and expr.operand.is_int
-            and expr.from_type == Convert.TYPE_INT
-            and expr.to_type == Convert.TYPE_INT
-            and expr.from_bits <= expr.to_bits
-        ):
-            assert isinstance(expr.operand.value, int)
-            if expr.is_signed is False:
-                # unsigned extension
-                return Const(expr.idx, expr.operand.value, expr.to_bits, **expr.operand.tags)
-            # signed extension
-            v = sign_extend(expr.operand.value, expr.to_bits)
-            return Const(expr.idx, v, expr.to_bits, **expr.operand.tags)
-        return None
+        value = evaluate_const_int_conversion(expr)
+        if value is None:
+            return None
+        return Const(expr.idx, value, expr.to_bits, **expr.operand.tags)

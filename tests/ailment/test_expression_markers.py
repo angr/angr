@@ -86,6 +86,23 @@ class TestExpressionMarkers(unittest.TestCase):
         call = spike.Call(2, c, args=(arg,), bits=64)
         assert isinstance(call, spike.Call)
         assert len(call.args) == 1 and call.op == "call"
+        assert call.transfer_kind == "unknown"
+
+        near_call = spike.Call(2, c, args=(arg,), bits=64, transfer_kind="near")
+        far_call = spike.Call(2, c, args=(arg,), bits=64, transfer_kind="far")
+        assert self._roundtrip(near_call).transfer_kind == "near"
+        assert self._roundtrip(far_call).transfer_kind == "far"
+        assert near_call != far_call
+        assert hash(near_call) != hash(far_call)
+        with self.assertRaises(ValueError):
+            spike.Call(2, c, transfer_kind="flat")
+
+    def test_legacy_serialized_call_defaults_transfer_kind_to_unknown(self):
+        # Serialized by the legacy three-field Call wire variant: Call(Const(0x42, 16)).
+        payload = bytes.fromhex("02000100000000000b000010000000000000000084010000")
+        call = Expression.from_bytes(payload)
+        assert isinstance(call, spike.Call)
+        assert call.transfer_kind == "unknown"
 
     def test_ite(self):
         c = spike.Const(0, 1, 1)

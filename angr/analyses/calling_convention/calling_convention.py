@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import capstone
 import networkx
+import pypcode
+from archinfo import ArchError, ArchPcode
 from pyvex.expr import Get, RdTmp
 from pyvex.stmt import Put, WrTmp
 
@@ -17,13 +19,16 @@ from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_
 from angr.calling_conventions import (
     SimCC,
     SimCCMicrosoftThiscall,
+    SimCCUsercall,
     SimFunctionArgument,
     SimRegArg,
     SimStackArg,
     default_cc,
 )
 from angr.code_location import ExternalCodeLocation
-from angr.errors import SimTranslationError
+from angr.codenode import BlockNode
+from angr.engines.pcode.lifter import IRSB as PcodeIRSB
+from angr.errors import AngrError, SimTranslationError
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
@@ -62,6 +67,25 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.uses import Uses
 
 l = logging.getLogger(name=__name__)
+
+_PCODE_RETVAL_USE_MAX_STATES = 64
+_PCODE_RETVAL_USE_MAX_OPS = 4096
+_PCODE_ARG_SETUP_MAX_STATES = 128
+_PCODE_ARG_SETUP_MAX_OPS = 8192
+_PCODE_VALUE_INDEPENDENT_SELF_OPS = frozenset(
+    {
+        pypcode.OpCode.BOOL_XOR,
+        pypcode.OpCode.INT_EQUAL,
+        pypcode.OpCode.INT_LESSEQUAL,
+        pypcode.OpCode.INT_LESS,
+        pypcode.OpCode.INT_NOTEQUAL,
+        pypcode.OpCode.INT_SBORROW,
+        pypcode.OpCode.INT_SLESSEQUAL,
+        pypcode.OpCode.INT_SLESS,
+        pypcode.OpCode.INT_SUB,
+        pypcode.OpCode.INT_XOR,
+    }
+)
 
 
 class CallSiteFact:
@@ -136,7 +160,10 @@ class CallingConventionAnalysis(Analysis):
         self._input_args = input_args
         self._unused_args: list[SimRegArg] = []
         self._retval_size = retval_size
+        self._retval_size_indeterminate = False
         self._extra_pop: int | None = extra_pop
+        self._return_address_size: int | None = None
+        self._return_address_size_ambiguous = False
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
         self._collect_facts_arg_passthru = collect_facts_arg_passthru
@@ -287,10 +314,13 @@ class CallingConventionAnalysis(Analysis):
             )
             self._input_args = facts.input_args
             self._retval_size = facts.retval_size
+            self._retval_size_indeterminate = facts.retval_size_indeterminate
             self._callsites = facts.callsites
             self._pointer_arg_derefs = facts.pointer_arg_derefs
             self._unused_args = facts.unused_args
             self._extra_pop = facts.extra_pop
+            self._return_address_size = facts.return_address_size
+            self._return_address_size_ambiguous = facts.return_address_size_ambiguous
 
         r = self._analyze_function()
         if r is None:
@@ -500,7 +530,9 @@ class CallingConventionAnalysis(Analysis):
             retval_size = vm.ret_val_size
             input_variables = vm.input_variables()
             input_args = self._args_from_vars(input_variables, vm)
+            ordered_input_args = sorted(input_args, key=self._argument_location_sort_key)
         else:
+            ordered_input_args = list(self._input_args)
             input_args = set(self._input_args)
             retval_size = self._retval_size
 
@@ -511,10 +543,22 @@ class CallingConventionAnalysis(Analysis):
             is_variadic = False
             fixed_args = None
 
-        # TODO: properly determine sp_delta
-        sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
+        if self._return_address_size_ambiguous:
+            l.warning(
+                "_analyze_function(): Function %r mixes return-address widths.",
+                self._function,
+            )
+            return None
+        sp_delta = (
+            self._return_address_size
+            if self._return_address_size is not None
+            else self.project.arch.bytes
+            if self.project.arch.call_pushes_ret
+            else 0
+        )
 
         full_input_args = self._consolidate_input_args(input_args)
+        fallback_input_args = set(full_input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
         cc = SimCC.find_cc(
             self.project.arch,
@@ -531,13 +575,19 @@ class CallingConventionAnalysis(Analysis):
                 input_args.remove(a)
 
         if cc is None:
-            l.warning(
-                "_analyze_function(): Cannot find a calling convention for %r that fits the given arguments.",
-                self._function,
+            cc = self._infer_pcode_win16_usercall(
+                ordered_input_args,
+                fallback_input_args,
+                retval_size,
             )
-            return None
+            if cc is None:
+                l.warning(
+                    "_analyze_function(): Cannot find a calling convention for %r that fits the given arguments.",
+                    self._function,
+                )
+                return None
         # reorder args
-        args = self._reorder_args(input_args, cc)
+        args = list(cc.args) if isinstance(cc, SimCCUsercall) else self._reorder_args(input_args, cc)
         if fixed_args is not None:
             args = args[:fixed_args]
 
@@ -552,7 +602,11 @@ class CallingConventionAnalysis(Analysis):
                 arg_uses[(carg[0], carg[1])].append((None, use))
 
         # guess the type of the return value -- it's going to be a wild guess...
-        ret_type = self._guess_retval_type(cc, retval_size)
+        ret_type = (
+            None
+            if retval_size is None and self._retval_size_indeterminate
+            else self._guess_retval_type(cc, retval_size)
+        )
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
@@ -561,6 +615,359 @@ class CallingConventionAnalysis(Analysis):
         )
 
         return cc, prototype
+
+    def _argument_location_sort_key(self, arg: SimFunctionArgument) -> tuple[int, int, int]:
+        if isinstance(arg, SimRegArg):
+            return 0, arg.check_offset(self.project.arch), arg.size
+        if isinstance(arg, SimStackArg):
+            return 1, arg.stack_offset, arg.size
+        return 2, 0, arg.size
+
+    @staticmethod
+    def _pcode_varnode_byte_keys(varnode) -> set[tuple[str, int]]:
+        space_name = varnode.space.name
+        if space_name not in {"register", "unique"}:
+            return set()
+        offset = int(varnode.offset)
+        return {(space_name, offset + index) for index in range(int(varnode.size))}
+
+    @classmethod
+    def _reverse_pcode_register_dependencies(
+        cls,
+        dependencies: frozenset[tuple[str, int]],
+        operations,
+        abi_return_bytes: frozenset[tuple[str, int]],
+        caller_saved_bytes: frozenset[tuple[str, int]],
+    ) -> frozenset[tuple[str, int]] | None:
+        """Trace one register value backwards through a p-code block.
+
+        ``None`` means an opaque call could have clobbered a still-live ABI
+        register.  Direct calls define the platform's scalar and overflow return
+        locations; other caller-saved locations deliberately remain unknown.
+        """
+
+        current = set(dependencies)
+        for op in reversed(operations):
+            if op.opcode in {pypcode.OpCode.CALL, pypcode.OpCode.CALLIND}:
+                is_direct = op.opcode == pypcode.OpCode.CALL and bool(op.inputs) and op.inputs[0].space.name == "ram"
+                if is_direct:
+                    current.difference_update(abi_return_bytes)
+                if not current.isdisjoint(caller_saved_bytes):
+                    return None
+                continue
+
+            if op.output is None:
+                continue
+            output_bytes = cls._pcode_varnode_byte_keys(op.output)
+            overlap = current.intersection(output_bytes)
+            if not overlap:
+                continue
+            current.difference_update(overlap)
+
+            # A load is itself an explicit definition of the destination. Its
+            # address influences the selected value, but does not make that
+            # destination an uninitialized register input.
+            if op.opcode == pypcode.OpCode.LOAD:
+                continue
+
+            same_inputs = (
+                len(op.inputs) == 2
+                and op.inputs[0].space.name == op.inputs[1].space.name
+                and int(op.inputs[0].offset) == int(op.inputs[1].offset)
+                and int(op.inputs[0].size) == int(op.inputs[1].size)
+            )
+            if same_inputs and op.opcode in _PCODE_VALUE_INDEPENDENT_SELF_OPS:
+                continue
+
+            # Over-approximating every output byte as depending on every input
+            # byte can reject a valid helper, but cannot invent one.
+            for varnode in op.inputs:
+                current.update(cls._pcode_varnode_byte_keys(varnode))
+
+        return frozenset(current)
+
+    def _pcode_register_setup_is_proven(
+        self,
+        caller: Function,
+        transfer_node: BlockNode,
+        transfer_insn_addr: int,
+        arg: SimRegArg,
+        abi_return_bytes: frozenset[tuple[str, int]],
+        caller_saved_bytes: frozenset[tuple[str, int]],
+    ) -> bool:
+        """Prove that every path to one transfer defines ``arg`` first."""
+
+        arg_offset = arg.check_offset(self.project.arch)
+        entry_bytes = frozenset(("register", arg_offset + index) for index in range(arg.size))
+        worklist = deque([(transfer_node, entry_bytes, True)])
+        traversed: set[tuple[BlockNode, frozenset[tuple[str, int]], bool]] = set()
+        total_ops = 0
+
+        while worklist:
+            node, dependencies, is_transfer_block = worklist.popleft()
+            state_key = node, dependencies, is_transfer_block
+            if state_key in traversed:
+                continue
+            if len(traversed) >= _PCODE_ARG_SETUP_MAX_STATES:
+                return False
+            traversed.add(state_key)
+
+            if not isinstance(node, BlockNode) or node.size is None or node.size <= 0:
+                return False
+            block_size = transfer_insn_addr - node.addr if is_transfer_block else node.size
+            if block_size < 0:
+                return False
+            if block_size:
+                try:
+                    irsb = self.project.factory.block(node.addr, size=block_size).vex
+                except AngrError:
+                    return False
+                if not isinstance(irsb, PcodeIRSB) or irsb.jumpkind == "Ijk_NoDecode":
+                    return False
+                total_ops += len(irsb._ops)
+                if total_ops > _PCODE_ARG_SETUP_MAX_OPS:
+                    return False
+                traced = self._reverse_pcode_register_dependencies(
+                    dependencies,
+                    irsb._ops,
+                    abi_return_bytes,
+                    caller_saved_bytes,
+                )
+                if traced is None:
+                    return False
+                dependencies = traced
+
+            # Unique-space temporaries may not cross a block boundary. An
+            # unresolved one means lifting/data flow was incomplete.
+            if any(space_name == "unique" for space_name, _ in dependencies):
+                return False
+            if dependencies.isdisjoint(entry_bytes):
+                continue
+
+            predecessors = [
+                predecessor
+                for predecessor in caller.graph.predecessors(node)
+                if isinstance(predecessor, BlockNode) and predecessor.size is not None and predecessor.size > 0
+            ]
+            if not predecessors:
+                return False
+            worklist.extend((predecessor, dependencies, False) for predecessor in predecessors)
+
+        return True
+
+    def _is_direct_near_pcode_transfer(
+        self,
+        source: BlockNode,
+        transfer_insn_addr: int,
+        target_addr: int,
+        edge_type: str,
+    ) -> bool:
+        if source.size is None or source.size <= 0:
+            return False
+        try:
+            block = self.project.factory.block(source.addr, size=source.size)
+            irsb = block.vex
+        except AngrError:
+            return False
+        if not isinstance(irsb, PcodeIRSB):
+            return False
+
+        expected_mnemonic = "CALL" if edge_type == "call" else "JMP"
+        instruction = next(
+            (insn for insn in block.disassembly.insns if insn.address == transfer_insn_addr),
+            None,
+        )
+        if instruction is None or instruction.mnemonic.upper() != expected_mnemonic:
+            # In particular, reject CALLF/JMPF and every indirect spelling.
+            return False
+
+        expected_opcode = pypcode.OpCode.CALL if edge_type == "call" else pypcode.OpCode.BRANCH
+        in_transfer_instruction = False
+        for op in irsb._ops:
+            if op.opcode == pypcode.OpCode.IMARK:
+                in_transfer_instruction = bool(op.inputs) and int(op.inputs[0].offset) == transfer_insn_addr
+                continue
+            if not in_transfer_instruction or op.opcode not in {
+                pypcode.OpCode.BRANCH,
+                pypcode.OpCode.BRANCHIND,
+                pypcode.OpCode.CALL,
+                pypcode.OpCode.CALLIND,
+            }:
+                continue
+            return (
+                op.opcode == expected_opcode
+                and bool(op.inputs)
+                and op.inputs[0].space.name == "ram"
+                and int(op.inputs[0].offset) == target_addr
+            )
+        return False
+
+    def _pcode_win16_incoming_transfers(self) -> list[tuple[Function, BlockNode, int]] | None:
+        """Collect every exact direct near transfer recorded by the function graph.
+
+        A callgraph predecessor without an exact entry transfer commonly denotes
+        an overlapping/shared-tail function.  That is not enough evidence for a
+        custom register ABI, so the entire inference fails closed.
+        """
+
+        assert self._function is not None
+        try:
+            caller_addrs = list(self.kb.functions.callgraph.predecessors(self._function.addr))
+        except networkx.NetworkXError:
+            return None
+        if not caller_addrs:
+            return None
+
+        transfers: list[tuple[Function, BlockNode, int]] = []
+        seen: set[tuple[int, int, int]] = set()
+        for caller_addr in caller_addrs:
+            if not self.kb.functions.contains_addr(caller_addr):
+                return None
+            caller = self.kb.functions[caller_addr]
+            caller_transfers: list[tuple[Function, BlockNode, int]] = []
+            for source, destination, data in caller.transition_graph.edges(data=True):
+                if destination.addr != self._function.addr or not isinstance(source, BlockNode):
+                    continue
+                edge_type = data.get("type")
+                if edge_type == "transition":
+                    if not data.get("outside", False):
+                        continue
+                elif edge_type != "call":
+                    continue
+                transfer_insn_addr = data.get("ins_addr")
+                if not isinstance(transfer_insn_addr, int) or not self._is_direct_near_pcode_transfer(
+                    source,
+                    transfer_insn_addr,
+                    self._function.addr,
+                    edge_type,
+                ):
+                    return None
+                key = caller.addr, source.addr, transfer_insn_addr
+                if key not in seen:
+                    seen.add(key)
+                    caller_transfers.append((caller, source, transfer_insn_addr))
+            if not caller_transfers:
+                return None
+            transfers.extend(caller_transfers)
+        return transfers or None
+
+    def _infer_pcode_win16_usercall(
+        self,
+        ordered_input_args: list[SimRegArg | SimStackArg],
+        input_args: set[SimRegArg | SimStackArg],
+        retval_size: int | None,
+    ) -> SimCCUsercall | None:
+        """Infer an exact Win16 usercall only from closed machine-code evidence.
+
+        Standard registered conventions remain authoritative. This fallback is
+        considered only when they reject real register inputs, and only when all
+        CFG-recorded incoming transfers are direct near CALL/JMP instructions
+        whose callers definitely establish every register location.
+        """
+
+        if (
+            not isinstance(self.project.arch, ArchPcode)
+            or self.project.arch.name != "x86:LE:16:Protected Mode"
+            or self.project.simos.name != "Win16"
+            or self._function is None
+        ):
+            return None
+
+        register_args = [arg for arg in input_args if isinstance(arg, SimRegArg)]
+        if not register_args:
+            return None
+        if self._return_address_size not in {None, 2}:
+            return None
+        if self._extra_pop not in {None, 0} and not (
+            self._return_address_size is None and self._extra_pop == -self.project.arch.bytes
+        ):
+            return None
+        if retval_size is not None and not 1 <= retval_size <= 4:
+            return None
+
+        transfers = self._pcode_win16_incoming_transfers()
+        if transfers is None:
+            return None
+
+        default_cc_cls = default_cc(self.project.arch.name, platform=self.project.simos.name)
+        if default_cc_cls is None:
+            return None
+        platform_cc = default_cc_cls(self.project.arch)
+
+        def register_bytes(location: SimFunctionArgument | None) -> set[tuple[str, int]]:
+            result: set[tuple[str, int]] = set()
+            if location is None:
+                return result
+            for part in location.get_footprint():
+                if isinstance(part, SimRegArg):
+                    offset = part.check_offset(self.project.arch)
+                    result.update(("register", offset + index) for index in range(part.size))
+            return result
+
+        abi_return_bytes = frozenset(
+            register_bytes(platform_cc.RETURN_VAL) | register_bytes(platform_cc.OVERFLOW_RETURN_VAL)
+        )
+        caller_saved_bytes: set[tuple[str, int]] = set()
+        for reg_name in platform_cc.CALLER_SAVED_REGS:
+            try:
+                offset, size = self.project.arch.registers[reg_name]
+            except KeyError:
+                return None
+            caller_saved_bytes.update(("register", offset + index) for index in range(size))
+        frozen_caller_saved_bytes = frozenset(caller_saved_bytes)
+
+        for caller, transfer_node, transfer_insn_addr in transfers:
+            for arg in register_args:
+                if not self._pcode_register_setup_is_proven(
+                    caller,
+                    transfer_node,
+                    transfer_insn_addr,
+                    arg,
+                    abi_return_bytes,
+                    frozen_caller_saved_bytes,
+                ):
+                    return None
+
+        ordered_args: list[SimRegArg | SimStackArg] = []
+        for arg in ordered_input_args:
+            if arg in input_args and arg not in ordered_args:
+                ordered_args.append(arg)
+        ordered_args.extend(
+            sorted(
+                (arg for arg in input_args if arg not in ordered_args),
+                key=self._argument_location_sort_key,
+            )
+        )
+
+        if retval_size is None:
+            return_location = None
+        else:
+            return_type: SimType
+            if retval_size == 1:
+                return_type = SimTypeChar()
+            elif retval_size == 2:
+                return_type = SimTypeShort()
+            else:
+                return_type = SimTypeInt()
+            return_location = platform_cc.return_val(return_type.with_arch(self.project.arch))
+
+        cc = SimCCUsercall(self.project.arch, ordered_args, return_location)
+        # SimCCUsercall describes the exact locations; copy the surrounding near
+        # ABI contract so stack accounting, return analysis, and call rewriting
+        # keep the same machine semantics as ordinary Win16 near calls.
+        for attribute in (
+            "STACKARG_SP_DIFF",
+            "STACKARG_SP_BUFF",
+            "STACK_ALIGNMENT",
+            "CALLER_SAVED_REGS",
+            "RETURN_ADDR",
+            "RETURN_VAL",
+            "OVERFLOW_RETURN_VAL",
+            "FP_RETURN_VAL",
+        ):
+            setattr(cc, attribute, getattr(platform_cc, attribute))
+        cc.CALLEE_CLEANUP = False
+        return cc
 
     def _analyze_callsite(
         self,
@@ -740,10 +1147,171 @@ class CallingConventionAnalysis(Analysis):
         )
         if default_cc_cls is not None:
             cc: SimCC = default_cc_cls(self.project.arch)
-            self._analyze_callsite_return_value_uses(cc, caller, caller_block.addr, rda, fact)
+            if isinstance(self.project.arch, ArchPcode):
+                # ReachingDefinitionsAnalysis currently executes VEX statements. A PcodeIRSB intentionally exposes
+                # no VEX statements, so its empty result cannot prove that an ABI return register is unused.
+                self._analyze_pcode_callsite_return_value_uses(cc, caller, caller_block, fact)
+            else:
+                self._analyze_callsite_return_value_uses(cc, caller, caller_block.addr, rda, fact)
             self._analyze_callsite_arguments(cc, caller_block, call_insn_addr, rda, fact)
 
         return fact
+
+    @staticmethod
+    def _pcode_register_byte_range(varnode) -> range | None:
+        if varnode.space.name != "register":
+            return None
+        offset = int(varnode.offset)
+        return range(offset, offset + int(varnode.size))
+
+    @classmethod
+    def _pcode_op_reads_return_value(cls, op, live_return_bytes: set[int]) -> bool:
+        overlapping_inputs = [
+            varnode
+            for varnode in op.inputs
+            if (byte_range := cls._pcode_register_byte_range(varnode)) is not None
+            and not live_return_bytes.isdisjoint(byte_range)
+        ]
+        if not overlapping_inputs:
+            return False
+
+        # SLEIGH emits flag calculations before the destination write for instructions such as `sub ax, ax`.
+        # Equal-input operations in this set have a result that is independent of the input value, so none of those
+        # reads consume the old return value. The eventual AX write below then kills it.
+        if op.opcode in _PCODE_VALUE_INDEPENDENT_SELF_OPS and len(op.inputs) == 2:
+            left, right = op.inputs
+            if (
+                left.space.name == right.space.name
+                and int(left.offset) == int(right.offset)
+                and int(left.size) == int(right.size)
+            ):
+                return False
+
+        return True
+
+    def _analyze_pcode_callsite_return_value_uses(
+        self,
+        cc: SimCC,
+        caller: Function,
+        caller_block,
+        fact: CallSiteFact,
+    ) -> None:
+        """Boundedly prove whether a p-code caller consumes, forwards, or kills an ABI return register.
+
+        The initial ``return_value_used=True`` is deliberately retained whenever lifting, control flow, or the
+        traversal bound leaves the answer indeterminate. Only a closed traversal where every surviving value is
+        overwritten can classify the return as unused.
+        """
+
+        return_val = cc.RETURN_VAL
+        if not isinstance(return_val, SimRegArg):
+            return
+
+        return_offset = return_val.check_offset(self.project.arch)
+        initial_live_bytes = frozenset(range(return_offset, return_offset + return_val.size))
+        if not initial_live_bytes:
+            return
+
+        caller_graph = caller.graph
+        callsite_node = next(
+            (
+                node
+                for node in caller_graph
+                if node.addr == caller_block.addr
+                and (getattr(caller_block, "size", None) is None or node.size == caller_block.size)
+            ),
+            None,
+        )
+        if callsite_node is None:
+            return
+
+        continuations = [
+            dst
+            for _, dst, data in caller_graph.out_edges(callsite_node, data=True)
+            if data.get("type") == "fake_return"
+        ]
+        if not continuations:
+            return
+
+        worklist = deque((node, initial_live_bytes) for node in continuations)
+        traversed: set[tuple[BlockNode, frozenset[int]]] = set()
+        total_ops = 0
+        return_value_forwarded = False
+        indeterminate = False
+
+        while worklist:
+            node, initial_node_live_bytes = worklist.popleft()
+            state_key = node, initial_node_live_bytes
+            if state_key in traversed:
+                continue
+            if len(traversed) >= _PCODE_RETVAL_USE_MAX_STATES:
+                indeterminate = True
+                break
+            traversed.add(state_key)
+
+            if not isinstance(node, BlockNode) or node.size is None or node.size <= 0:
+                indeterminate = True
+                continue
+            try:
+                irsb = self.project.factory.block(node.addr, size=node.size).vex
+            except AngrError:
+                indeterminate = True
+                continue
+            if not isinstance(irsb, PcodeIRSB) or not irsb._ops or irsb.jumpkind == "Ijk_NoDecode":
+                indeterminate = True
+                continue
+
+            live_return_bytes = set(initial_node_live_bytes)
+            path_finished = False
+            for op in irsb._ops:
+                total_ops += 1
+                if total_ops > _PCODE_RETVAL_USE_MAX_OPS:
+                    indeterminate = True
+                    path_finished = True
+                    break
+
+                if self._pcode_op_reads_return_value(op, live_return_bytes):
+                    fact.return_value_used = True
+                    fact.return_value_forwarded = False
+                    return
+
+                if op.output is not None:
+                    output_byte_range = self._pcode_register_byte_range(op.output)
+                    if output_byte_range is not None:
+                        live_return_bytes.difference_update(output_byte_range)
+
+                if op.opcode in {pypcode.OpCode.CALL, pypcode.OpCode.CALLIND}:
+                    # A later call defines a fresh value in the ABI return register. Any surviving bytes from the
+                    # callsite under analysis are dead at this point.
+                    live_return_bytes.clear()
+
+                if not live_return_bytes:
+                    path_finished = True
+                    break
+
+                if op.opcode == pypcode.OpCode.RETURN:
+                    return_value_forwarded = True
+                    path_finished = True
+                    break
+
+            if path_finished:
+                continue
+
+            if irsb.jumpkind == "Ijk_Ret":
+                return_value_forwarded = True
+                continue
+
+            successors = list(caller_graph.successors(node))
+            if not successors:
+                indeterminate = True
+                continue
+            worklist.extend((successor, frozenset(live_return_bytes)) for successor in successors)
+
+        if indeterminate:
+            return
+
+        fact.return_value_used = False
+        fact.return_value_forwarded = return_value_forwarded
 
     def _analyze_callsite_return_value_uses(
         self,
@@ -902,8 +1470,11 @@ class CallingConventionAnalysis(Analysis):
         target use as evidence for an additional argument produces a spurious trailing argument whose value is the
         callback itself.
         """
+        block_size = getattr(caller_block, "size", None)
+        if block_size is None:
+            block_size = getattr(caller_block, "original_size", None)
         try:
-            block = self.project.factory.block(caller_block.addr, size=caller_block.size)
+            block = self.project.factory.block(caller_block.addr, size=block_size)
             irsb = block.vex
         except SimTranslationError:
             return set()
@@ -913,7 +1484,7 @@ class CallingConventionAnalysis(Analysis):
 
         try:
             capstone_insns = block.capstone.insns
-        except (AttributeError, capstone.CsError):
+        except (ArchError, AttributeError, capstone.CsError):
             capstone_insns = ()
 
         for insn in capstone_insns:
@@ -968,11 +1539,17 @@ class CallingConventionAnalysis(Analysis):
     ) -> SimTypeFunction:
         # is the return value used anywhere?
         if facts:
-            if all(not fact.return_value_used and not fact.return_value_forwarded for fact in facts):
-                proto.returnty = SimTypeBottom(label="void")
-            elif any(fact.return_value_used for fact in facts) and (
+            if all(not fact.return_value_used and not fact.return_value_forwarded for fact in facts) and (
                 proto.returnty is None or isinstance(proto.returnty, SimTypeBottom)
             ):
+                # A caller that discards a result cannot prove that the callee does not return one. Preserve a
+                # concrete return type recovered from the callee body (or an authoritative declaration); call-site
+                # facts may only resolve an otherwise unknown return type to void.
+                proto.returnty = SimTypeBottom(label="void")
+            elif (
+                any(fact.return_value_used for fact in facts)
+                or (proto.returnty is None and any(fact.return_value_forwarded for fact in facts))
+            ) and (proto.returnty is None or isinstance(proto.returnty, SimTypeBottom)):
                 returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
                     self.project.arch.bits, SimTypeInt
                 )(signed=True)

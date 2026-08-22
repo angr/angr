@@ -9,6 +9,7 @@ from .jumptable import JumpTableResolver
 from .memload_resolver import MemoryLoadResolver
 from .mips_elf_fast import MipsElfFastResolver
 from .mips_elf_got import MipsElfGotResolver
+from .pcode_x86_jumptable import PcodeX86JumpTableResolver
 from .syscall_resolver import SyscallResolver
 from .x86_elf_pic_plt import X86ElfPicPltResolver
 from .x86_pe_iat import X86PeIatResolver
@@ -23,6 +24,7 @@ __all__ = (
     "MemoryLoadResolver",
     "MipsElfFastResolver",
     "MipsElfGotResolver",
+    "PcodeX86JumpTableResolver",
     "SyscallResolver",
     "X86ElfPicPltResolver",
     "X86PeIatResolver",

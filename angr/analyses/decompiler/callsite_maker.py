@@ -19,6 +19,7 @@ from angr.calling_conventions import (
     SimStackArg,
     SimStructArg,
 )
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
@@ -27,6 +28,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeFloat,
     SimTypeFunction,
+    SimTypeInt,
     SimTypePointer,
 )
 from angr.utils.types import dereference_simtype_by_lib
@@ -56,6 +58,7 @@ class CallSiteMaker(Analysis):
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
         self._ail_manager: Manager = ail_manager
+        self._call_stmt_idx = -1
 
         self.result_block = None
         # block addr, call ins addr, stack offset, arg size (in bytes)
@@ -68,7 +71,17 @@ class CallSiteMaker(Analysis):
         if not self.block.statements:
             return
 
-        last_stmt = self.block.statements[-1]
+        call_stmt_idx = len(self.block.statements) - 1
+        while call_stmt_idx >= 0 and self.block.statements[call_stmt_idx].tags.get(
+            "post_call_register_state_effect", False
+        ):
+            call_stmt_idx -= 1
+        if call_stmt_idx < 0:
+            self.result_block = self.block
+            return
+        self._call_stmt_idx = call_stmt_idx
+        last_stmt = self.block.statements[call_stmt_idx]
+        trailing_stmts = self.block.statements[call_stmt_idx + 1 :]
 
         if isinstance(last_stmt, Stmt.SideEffectStatement):
             call_expr = last_stmt.expr
@@ -96,8 +109,15 @@ class CallSiteMaker(Analysis):
             self.result_block = self.block
             return
 
-        if isinstance(call_expr.target, str):
-            # custom function calls
+        custom_call = isinstance(call_expr.target, str)
+
+        if call_expr.tags.get("indirect_far_call_dispatch", False) or call_expr.tags.get(
+            "indirect_near_call_dispatch", False
+        ):
+            # Clinic has already replaced an exactly authorized dynamic CALLF
+            # or CALL with a logical runtime ABI. Machine-level callsite facts
+            # belong to the original target and must not guess a prototype,
+            # return expression, or argument layout for the dispatcher.
             self.result_block = self.block
             return
 
@@ -119,6 +139,10 @@ class CallSiteMaker(Analysis):
 
         # manually-specified call-site prototype
         has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(self.block.addr)
+        if custom_call and not has_callsite_prototype:
+            # There is no machine-level ABI to apply to an opaque intrinsic. Preserve the original AIL exactly.
+            self.result_block = self.block
+            return
         if has_callsite_prototype:
             manually_specified = self.kb.callsite_prototypes.is_prototype_manual(self.block.addr)
             if manually_specified:
@@ -145,7 +169,9 @@ class CallSiteMaker(Analysis):
             if prototype_libname is not None:
                 prototype = cast(SimTypeFunction, dereference_simtype_by_lib(prototype, prototype_libname))
 
-        args = []
+        # String-named intrinsics carry logical metadata arguments that are not passed through the machine calling
+        # convention. Preserve them verbatim while still applying any per-callsite return-value fact below.
+        args = list(call_expr.args) if custom_call and call_expr.args is not None else []
         arg_vvars = []
         arg_locs = None
         if cc is None:
@@ -164,9 +190,17 @@ class CallSiteMaker(Analysis):
                         callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
                         arg_locs = cc.arg_locs(callsite_ty)
 
-        if arg_locs is not None and cc is not None:
+        if arg_locs is not None and cc is not None and not custom_call:
             expanded_arg_locs = self._expand_arglocs(arg_locs)
+            arguments_already_logical = call_expr.args is not None and len(call_expr.args) == len(arg_locs)
+            if arguments_already_logical:
+                # CallSiteMaker can run more than once in the decompilation pipeline. A prior run has already folded
+                # every SimComboArg when the call carries exactly one expression per logical prototype argument.
+                args.extend(call_expr.args)
+                stack_arg_locs.extend(arg_loc for arg_loc in expanded_arg_locs if isinstance(arg_loc, SimStackArg))
             for arg_idx, arg_loc in enumerate(expanded_arg_locs):
+                if arguments_already_logical:
+                    break
                 if call_expr.args is not None and arg_idx < len(call_expr.args):
                     args.append(call_expr.args[arg_idx])
                     continue
@@ -242,7 +276,11 @@ class CallSiteMaker(Analysis):
                         arg_expr = reg
                 elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
-                    _, the_arg = self._resolve_stack_argument(call_expr, arg_loc)
+                    _, the_arg = self._resolve_stack_argument(
+                        call_expr,
+                        arg_loc,
+                        stackarg_sp_diff,
+                    )
                     arg_expr = the_arg if the_arg is not None else None
                 elif isinstance(arg_loc, SimStructArg):
                     arg_expr = None
@@ -258,8 +296,30 @@ class CallSiteMaker(Analysis):
                 if arg_expr is not None:
                     args.append(arg_expr)
 
+            # ``SimComboArg`` is one source-level argument spread across multiple ABI locations, ordered least-
+            # significant piece first. The resolver above must visit the physical locations individually, but passing
+            # those pieces to C as separate arguments changes both the prototype and the call ABI. Reassemble a combo
+            # only when every physical location was recovered; otherwise leave the pieces visible so downstream
+            # completeness checks can reject the malformed call instead of inventing missing bits.
+            if (
+                not arguments_already_logical
+                and len(args) == len(expanded_arg_locs)
+                and any(isinstance(arg_loc, SimComboArg) and not arg_loc.is_fp for arg_loc in arg_locs)
+            ):
+                logical_args: list[Expr.Expression] = []
+                physical_idx = 0
+                for arg_loc in arg_locs:
+                    physical_locs = self._expand_arglocs([arg_loc])
+                    physical_args = args[physical_idx : physical_idx + len(physical_locs)]
+                    physical_idx += len(physical_locs)
+                    if isinstance(arg_loc, SimComboArg) and not arg_loc.is_fp:
+                        logical_args.append(self._combine_integer_argument(arg_loc, physical_args))
+                    else:
+                        logical_args.extend(physical_args)
+                args = logical_args
+
         # Remove the old call statement
-        new_stmts = self.block.statements[:-1]
+        new_stmts = self.block.statements[:call_stmt_idx]
 
         # remove the statement that stores the return address
         if self.project.arch.call_pushes_ret:
@@ -349,6 +409,38 @@ class CallSiteMaker(Analysis):
         # if ret_expr and fp_ret_expr are None, it means in previous steps (such as during AIL simplification) we have
         # deemed the return value of this call statement as useless and is removed.
 
+        inferred_callsite_prototype = (
+            self.kb.callsite_prototypes.get_prototype(self.block.addr) if has_callsite_prototype else None
+        )
+        callsite_proves_return_unused = (
+            inferred_callsite_prototype is not None
+            and isinstance(inferred_callsite_prototype.returnty, SimTypeBottom)
+            and inferred_callsite_prototype.returnty.label == "void"
+        )
+        if (
+            prototype is not None
+            and isinstance(prototype.returnty, SimTypeBottom)
+            and prototype.returnty.label == "void"
+            and (
+                callsite_proves_return_unused
+                or (
+                    func is not None
+                    and func.prototype_source
+                    in {
+                        PrototypeSource.SIMPROC,
+                        PrototypeSource.SIGNATURES,
+                        PrototypeSource.USER,
+                    }
+                )
+            )
+        ):
+            # A low-level call writes the architecture's return-value registers even when the source declaration is
+            # void. Keeping those synthetic definitions turns a valid call such as ``srand(seed);`` into the invalid
+            # C expression ``tmp = srand(seed);``. Either the declaration is authoritative or a bounded call-site
+            # analysis proved that the caller discards the machine result, so no source-level value is lost here.
+            ret_expr = None
+            fp_ret_expr = None
+
         if (
             ret_expr is not None
             and fp_ret_expr is not None
@@ -378,6 +470,7 @@ class CallSiteMaker(Analysis):
 
         tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
+        transfer_kind = tags.pop("transfer_kind", getattr(call_expr, "transfer_kind", "unknown"))
         if func is not None:
             tags["is_prototype_guessed"] = func.is_prototype_guessed
         new_call = Expr.Call(
@@ -385,6 +478,7 @@ class CallSiteMaker(Analysis):
             call_expr.target,
             args=args,
             arg_vvars=arg_vvars,
+            transfer_kind=transfer_kind,
             **tags,
         )
         vm = variable_map_of(self._ail_manager)
@@ -409,6 +503,7 @@ class CallSiteMaker(Analysis):
             )
 
         new_stmts.append(new_stmt)
+        new_stmts.extend(trailing_stmts)
 
         new_block = self.block.copy(statements=new_stmts)
 
@@ -447,7 +542,7 @@ class CallSiteMaker(Analysis):
                 arg_loc.size,
                 self.block.addr,
                 self.block.idx,
-                len(self.block.statements) - 1,
+                self._call_stmt_idx,
                 OP_BEFORE,
             )
 
@@ -459,14 +554,22 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
+    def _resolve_stack_argument(
+        self,
+        call_stmt: Expr.Call,
+        arg_loc: SimStackArg,
+        stackarg_sp_diff: int,
+    ) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
         offset = arg_loc.stack_offset
         if self.project.arch.call_pushes_ret:
-            # adjust the offset
-            offset -= self.project.arch.bytes
+            # ``SimStackArg`` offsets are relative to the callee's stack pointer, after the call instruction has
+            # materialized its return frame. Resolve them against the caller's pre-call stack pointer by removing the
+            # selected calling convention's complete return-frame width. This is usually one architecture word, but
+            # segmented far calls can push a wider return address (for example, CS:IP on 16-bit x86).
+            offset -= stackarg_sp_diff
 
         call_addr = call_stmt.tags.get("ins_addr", None)
         assert call_addr is not None
@@ -596,7 +699,11 @@ class CallSiteMaker(Analysis):
                     value = value_and_def[0]
 
             elif isinstance(arg_loc, SimStackArg):
-                value, _ = self._resolve_stack_argument(call_expr, arg_loc)
+                value, _ = self._resolve_stack_argument(
+                    call_expr,
+                    arg_loc,
+                    cc.STACKARG_SP_DIFF,
+                )
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
@@ -619,6 +726,9 @@ class CallSiteMaker(Analysis):
         #
 
         parser = FormatParser(project=self.project)
+        if "printf" in func.name:
+            return self._determine_printf_argument_types(parser, fmt_str)
+
         fmt_str_list = [bytes([b]) for b in fmt_str]
         components = parser.extract_components(fmt_str_list)
 
@@ -626,6 +736,111 @@ class CallSiteMaker(Analysis):
         if not specifiers:
             return []
         return [spec.ty for spec in specifiers]
+
+    @staticmethod
+    def _determine_printf_argument_types(parser: FormatParser, fmt_str: bytes) -> list[SimType]:
+        """Recover the promoted argument sequence consumed by a printf-style format string."""
+
+        argument_types: list[SimType] = []
+        flags = b"#0- +'I"
+        length_modifiers = (b"hh", b"ll", b"h", b"l", b"j", b"z", b"t", b"L")
+        idx = 0
+
+        while (percent_idx := fmt_str.find(b"%", idx)) != -1:
+            idx = percent_idx + 1
+            if idx >= len(fmt_str):
+                break
+            if fmt_str[idx] == ord("%"):
+                idx += 1
+                continue
+
+            # POSIX positional conversions begin with ``n$``. They do not consume an
+            # extra argument; the following width/precision/conversion still do.
+            positional_end = idx
+            while positional_end < len(fmt_str) and chr(fmt_str[positional_end]).isdigit():
+                positional_end += 1
+            if positional_end < len(fmt_str) and fmt_str[positional_end] == ord("$"):
+                idx = positional_end + 1
+
+            while idx < len(fmt_str) and fmt_str[idx] in flags:
+                idx += 1
+
+            if idx < len(fmt_str) and fmt_str[idx] == ord("*"):
+                argument_types.append(SimTypeInt().with_arch(parser.arch))
+                idx += 1
+                positional_end = idx
+                while positional_end < len(fmt_str) and chr(fmt_str[positional_end]).isdigit():
+                    positional_end += 1
+                if positional_end < len(fmt_str) and fmt_str[positional_end] == ord("$"):
+                    idx = positional_end + 1
+            else:
+                while idx < len(fmt_str) and chr(fmt_str[idx]).isdigit():
+                    idx += 1
+
+            if idx < len(fmt_str) and fmt_str[idx] == ord("."):
+                idx += 1
+                if idx < len(fmt_str) and fmt_str[idx] == ord("*"):
+                    argument_types.append(SimTypeInt().with_arch(parser.arch))
+                    idx += 1
+                    positional_end = idx
+                    while positional_end < len(fmt_str) and chr(fmt_str[positional_end]).isdigit():
+                        positional_end += 1
+                    if positional_end < len(fmt_str) and fmt_str[positional_end] == ord("$"):
+                        idx = positional_end + 1
+                else:
+                    while idx < len(fmt_str) and chr(fmt_str[idx]).isdigit():
+                        idx += 1
+
+            length_modifier = b""
+            for candidate in length_modifiers:
+                if fmt_str.startswith(candidate, idx):
+                    length_modifier = candidate
+                    idx += len(candidate)
+                    break
+
+            if idx >= len(fmt_str):
+                break
+            conversion = fmt_str[idx : idx + 1]
+            idx += 1
+
+            # ``%m`` is a GNU extension that prints strerror(errno) and consumes no
+            # argument. Unknown conversions are left alone instead of guessing an
+            # ABI location.
+            argument_type = parser._all_spec.get(length_modifier + conversion)  # pylint:disable=protected-access
+            if argument_type is not None:
+                argument_types.append(argument_type.with_arch(parser.arch))
+
+        return argument_types
+
+    def _combine_integer_argument(self, arg_loc: SimComboArg, physical_args: list[Expr.Expression]) -> Expr.Expression:
+        """Reassemble the least-significant-first pieces of an integer ``SimComboArg``."""
+
+        assert physical_args and len(physical_args) == len(arg_loc.locations)
+        pieces = []
+        for location, physical_arg in zip(arg_loc.locations, physical_args):
+            piece_bits = location.size * self.project.arch.byte_width
+            piece = physical_arg
+            if piece.bits != piece_bits:
+                piece = Expr.Convert(
+                    self._ail_manager.next_atom(),
+                    piece.bits,
+                    piece_bits,
+                    False,
+                    piece,
+                    **piece.tags,
+                )
+            pieces.append(piece)
+
+        combined = pieces[0]
+        for more_significant_piece in pieces[1:]:
+            combined = Expr.BinaryOp(
+                self._ail_manager.next_atom(),
+                "Concat",
+                [more_significant_piece, combined],
+                **combined.tags,
+            )
+        assert combined.bits == arg_loc.size * self.project.arch.byte_width
+        return combined
 
     def _expand_arglocs(
         self, arg_locs: list[SimFunctionArgument]

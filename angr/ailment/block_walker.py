@@ -33,6 +33,7 @@ from .expression import (
     Register,
     Reinterpret,
     RustEnum,
+    SegmentedAddress,
     StackBaseOffset,
     StringLiteral,
     Struct,
@@ -92,6 +93,7 @@ _DEFAULT_EXPR_HANDLER_TYPES = {
     Array,
     FunctionLikeMacro,
     StringLiteral,
+    SegmentedAddress,
 }
 
 
@@ -139,6 +141,7 @@ _EXPR_MARKERS = (
     FunctionLikeMacro,
     BasePointerOffset,
     StackBaseOffset,
+    SegmentedAddress,
 )
 _STMT_MARKERS = (
     Assignment,
@@ -494,6 +497,13 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_SegmentedAddress(
+        self, expr_idx: int, expr: SegmentedAddress, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.selector, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
     def _handle_RustEnum(
         self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
@@ -690,6 +700,12 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+
+    def _handle_SegmentedAddress(
+        self, expr_idx: int, expr: SegmentedAddress, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self._handle_expr(0, expr.selector, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
 
     def _handle_RustEnum(
         self, expr_idx: int, expr: RustEnum, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -1067,7 +1083,17 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         changed = new_operand != operand_in
 
         if changed:
-            return Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **expr.tags)
+            return Convert(
+                expr.idx,
+                expr.from_bits,
+                expr.to_bits,
+                expr.is_signed,
+                new_operand,
+                from_type=expr.from_type,
+                to_type=expr.to_type,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
         return expr
 
     def _handle_Reinterpret(
@@ -1222,6 +1248,21 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             result.base = new_base
             result.offset = new_offset
             result.value = new_value
+            return result
+        return expr
+
+    def _handle_SegmentedAddress(
+        self, expr_idx: int, expr: SegmentedAddress, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        selector_in = expr.selector
+        offset_in = expr.offset
+        new_selector = self._handle_expr(0, selector_in, stmt_idx, stmt, block)
+        new_offset = self._handle_expr(1, offset_in, stmt_idx, stmt, block)
+
+        if new_selector != selector_in or new_offset != offset_in:
+            result = expr.copy()
+            result.selector = new_selector
+            result.offset = new_offset
             return result
         return expr
 

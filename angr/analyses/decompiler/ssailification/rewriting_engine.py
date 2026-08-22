@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 from typing import TYPE_CHECKING
 
 import archinfo
@@ -23,6 +23,7 @@ from angr.ailment.expression import (
     Load,
     Register,
     Reinterpret,
+    SegmentedAddress,
     StackBaseOffset,
     Tmp,
     UnaryOp,
@@ -44,6 +45,10 @@ from angr.ailment.statement import (
     WeakAssignment,
 )
 from angr.ailment.tagged_object import TaggedObject
+from angr.analyses.decompiler.register_state import (
+    PostCallRegisterStateBindings,
+    post_call_register_state_bindings_for_call,
+)
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.calling_conventions import call_clobbered_regs
 from angr.engines.light.engine import SimEngineNostmtAIL
@@ -73,6 +78,9 @@ class SimEngineSSARewriting(
         ail_manager: Manager,
         def_to_udef: MutableMapping[Def, UDef],
         incomplete_defs: set[Def],
+        register_state_ranges: tuple[tuple[int, int], ...] = (),
+        post_call_register_state_bindings: PostCallRegisterStateBindings = (),
+        post_call_effect_defs: Mapping[tuple[int, int, int], Register] | None = None,
         vvar_id_start: int = 0,
         rewrite_tmps: bool = False,
         stackvars: bool = False,
@@ -89,11 +97,16 @@ class SimEngineSSARewriting(
         self.def_to_udef = def_to_udef
         self.stackvars = stackvars
         self.incomplete_defs = incomplete_defs
+        self.register_state_ranges = register_state_ranges
+        self.post_call_register_state_bindings = post_call_register_state_bindings
+        self.post_call_effect_defs = post_call_effect_defs or {}
         self._fail_fast = fail_fast
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
         self._varid_to_combo_reg = {}
+        self._ambient_reload_statements: list[Assignment] = []
+        self._ambient_reloaded_vvar_ids: set[int] = set()
 
     @property
     def current_vvar_id(self) -> int:
@@ -146,6 +159,8 @@ class SimEngineSSARewriting(
 
     def _stmt(self, stmt: Statement):
         self._extra_defs = []
+        self._ambient_reload_statements = []
+        self._ambient_reloaded_vvar_ids = set()
         result = super()._stmt(stmt)
         for rstmt in result if isinstance(result, tuple) else [result] if isinstance(result, Statement) else []:
             if self._extra_defs:
@@ -153,7 +168,19 @@ class SimEngineSSARewriting(
             else:
                 rstmt.tags.pop("extra_defs", None)
 
-        return result
+        if not self._ambient_reload_statements:
+            return result
+
+        rewritten = list(self._ambient_reload_statements)
+        if isinstance(result, tuple):
+            rewritten.extend(result)
+        elif isinstance(result, Statement):
+            rewritten.append(result)
+        else:
+            # The current statement still has to execute after the reload even when SSA rewriting did not otherwise
+            # change it.
+            rewritten.append(stmt)
+        return tuple(rewritten)
 
     def _handle_expr_VirtualVariable(self, expr):
         return None
@@ -248,7 +275,13 @@ class SimEngineSSARewriting(
     def _handle_stmt_Jump(self, stmt: Jump) -> Jump | None:
         new_target = self._expr(stmt.target)
         if new_target is not None:
-            return Jump(stmt.idx, new_target, stmt.target_idx, **stmt.tags)
+            return Jump(
+                stmt.idx,
+                new_target,
+                stmt.target_idx,
+                transfer_kind=getattr(stmt, "transfer_kind", "unknown"),
+                **stmt.tags,
+            )
         return None
 
     def _handle_stmt_ConditionalJump(self, stmt: ConditionalJump) -> ConditionalJump | None:
@@ -292,7 +325,33 @@ class SimEngineSSARewriting(
                 return None
         return None
 
-    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
+    def _post_call_bindings(self, expr):
+        if not self.post_call_register_state_bindings:
+            return ()
+
+        resolved_target = self._resolve_call_target(expr)
+        raw_target = expr.target
+        callee_name = (
+            resolved_target.name if resolved_target is not None else raw_target if isinstance(raw_target, str) else None
+        )
+        callee_addr = (
+            resolved_target.addr
+            if resolved_target is not None
+            else raw_target.value
+            if isinstance(raw_target, Const) and isinstance(raw_target.value, int)
+            else None
+        )
+        callsite_addr = expr.tags.get("ins_addr")
+        if not isinstance(callsite_addr, int):
+            callsite_addr = None
+        return post_call_register_state_bindings_for_call(
+            self.post_call_register_state_bindings,
+            callee_name=callee_name,
+            callee_addr=callee_addr,
+            callsite_addr=callsite_addr,
+        )
+
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | tuple[Statement, ...] | None:
         new_expr = self._expr(stmt.expr)
         vm = variable_map_of(self.ail_manager)
         cc = vm.calling_convention(stmt.expr)
@@ -313,6 +372,9 @@ class SimEngineSSARewriting(
                 base_off, base_size = self.arch.registers[reg_name]
                 for suboff in range(base_off, base_off + base_size):
                     self.state.registers.pop(suboff, None)
+        for reg_offset, reg_size in self.register_state_ranges:
+            for suboff in range(reg_offset, reg_offset + reg_size):
+                self.state.registers.pop(suboff, None)
 
         new_stmt = None
         if stmt.ret_expr is not None:
@@ -328,6 +390,27 @@ class SimEngineSSARewriting(
             # only create a new SideEffectStatement if we get a new inner expr
             new_stmt = SideEffectStatement(self.ail_manager.next_atom(), new_expr, **stmt.tags)
 
+        effect_statements: list[Assignment] = []
+        for register_offset, size, expression in self._post_call_bindings(stmt.expr):
+            effect_def = self.post_call_effect_defs.get((stmt.expr.idx, register_offset, size))
+            if effect_def is None:
+                if self._fail_fast:
+                    raise KeyError((stmt.expr.idx, register_offset, size))
+                continue
+            vvar = self._expr_to_vvar(effect_def, False)
+            source = Register(
+                self.ail_manager.next_atom(),
+                register_offset,
+                size * self.arch.byte_width,
+                post_call_register_state=expression,
+                ins_addr=self.ins_addr,
+            )
+            effect_stmt = self._vvar_update(vvar, register_offset - vvar.reg_offset, source, stmt)
+            effect_stmt.tags["post_call_register_state_effect"] = True
+            effect_statements.append(effect_stmt)
+
+        if effect_statements:
+            return (stmt if new_stmt is None else new_stmt, *effect_statements)
         return new_stmt
 
     def _handle_stmt_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
@@ -353,6 +436,10 @@ class SimEngineSSARewriting(
         return expr
 
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
+        if expr.tags.get("ambient_register_state_reload", False) or isinstance(
+            expr.tags.get("post_call_register_state"), str
+        ):
+            return None
         vvar = self._expr_to_vvar(expr, True)
         return self._vvar_extract(vvar, expr.size, expr.reg_offset - vvar.reg_offset, expr)
 
@@ -498,12 +585,15 @@ class SimEngineSSARewriting(
         new_target = self._expr(expr.target) if not isinstance(expr.target, str) else None
         if new_target is not None or new_args is not None:
             # The new call reuses expr.idx, so its VariableMap entry (calling_convention/prototype) stays valid.
+            tags = expr.tags.copy()
+            transfer_kind = tags.pop("transfer_kind", getattr(expr, "transfer_kind", "unknown"))
             return Call(
                 expr.idx,
                 expr.target if new_target is None else new_target,
                 args=new_args if new_args is not None else expr.args,
                 bits=expr.bits,
-                **expr.tags,
+                transfer_kind=transfer_kind,
+                **tags,
             )
         return None
 
@@ -582,7 +672,7 @@ class SimEngineSSARewriting(
         return BinaryOp(
             expr.idx,
             "Add",
-            [refers, Const(self.ail_manager.next_atom(), vvar.stack_offset - expr.offset, refers.bits)],
+            [refers, Const(self.ail_manager.next_atom(), expr.offset - vvar.stack_offset, refers.bits)],
         )
 
     def _handle_expr_Extract(self, expr: Extract):
@@ -600,6 +690,21 @@ class SimEngineSSARewriting(
 
         if base is not expr.base or offset is not expr.offset or value is not expr.value:
             return Insert(expr.idx, base, offset, value, expr.endness, **expr.tags)
+        return None
+
+    def _handle_expr_SegmentedAddress(self, expr: SegmentedAddress):
+        selector = self._expr(expr.selector) or expr.selector
+        offset = self._expr(expr.offset) or expr.offset
+
+        if selector is not expr.selector or offset is not expr.offset:
+            return SegmentedAddress(
+                expr.idx,
+                selector,
+                offset,
+                expr.address_kind,
+                bits=expr.bits,
+                **expr.tags,
+            )
         return None
 
     #
@@ -709,9 +814,11 @@ class SimEngineSSARewriting(
             # unpack udef
             kind, offset, size = udef
 
+        created = False
         if (varid := self.def_to_vvid_cache.get(expr, None)) is None:
             varid = self.def_to_vvid_cache[expr] = self._current_vvar_id
             self._current_vvar_id += 1
+            created = True
         idx = self.ail_manager.next_atom()
         # TODO replace these str kinds with VirtualVariableCategory I guess
         if kind == "stack":
@@ -736,6 +843,32 @@ class SimEngineSSARewriting(
             elif kind == "reg":
                 for suboff in range(offset, offset + size):
                     self.state.registers[suboff] = vvar
+                if (
+                    created
+                    and (offset, size) in self.register_state_ranges
+                    and vvar.varid not in self._ambient_reloaded_vvar_ids
+                ):
+                    # Calls invalidate every ambient-bound register. Materialize the first subsequent implicit read
+                    # as a point-in-time SSA snapshot before the statement that consumes it. This prevents later
+                    # write-throughs in the same instruction (XCHG and flag-producing operations in particular) from
+                    # changing an older SSA value through a shared C lvalue.
+                    source = Register(
+                        self.ail_manager.next_atom(),
+                        offset,
+                        size * self.arch.byte_width,
+                        ambient_register_state_reload=True,
+                        ins_addr=self.ins_addr,
+                    )
+                    self._ambient_reload_statements.append(
+                        Assignment(
+                            self.ail_manager.next_atom(),
+                            vvar,
+                            source,
+                            ambient_register_state_reload=True,
+                            ins_addr=self.ins_addr,
+                        )
+                    )
+                    self._ambient_reloaded_vvar_ids.add(vvar.varid)
         return vvar
 
     def _vvar_extract(

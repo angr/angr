@@ -100,6 +100,11 @@ class Register:
             return OffsetVal(self, other.val)
         raise CouldNotResolveException
 
+    def __sub__(self, other) -> OffsetVal:
+        if type(other) is Constant:
+            return OffsetVal(self, -other.val & (2**self.bitlen - 1))
+        raise CouldNotResolveException
+
     def __repr__(self):
         return str(self.offset)
 
@@ -162,6 +167,73 @@ class OffsetVal:
 
     def __repr__(self):
         return f"reg({self.reg}){(self.offset - 2**self.reg.bitlen) if self.offset != 0 else 0:+}"
+
+
+class DynamicOffsetVal:
+    """A coherent but non-constant displacement from an affine register value.
+
+    Stack-pointer writes such as ``sub sp, dx`` lose a numeric stack offset, but they do not create contradictory
+    abstract states. Keeping the derivation distinct from TOP lets later constant push/pop adjustments propagate and
+    lets callers distinguish a deliberate dynamic stack layout from an inconsistent control-flow merge.
+    """
+
+    __slots__ = ("_adjustment", "_base", "_instruction_addr", "_opcode", "_operand")
+
+    def __init__(self, base, opcode, operand, instruction_addr, adjustment=0):
+        self._base = base
+        self._opcode = opcode
+        self._operand = operand
+        self._instruction_addr = instruction_addr
+        self._adjustment = adjustment
+
+    @property
+    def reg(self):
+        return self._base.reg if isinstance(self._base, (OffsetVal, DynamicOffsetVal)) else self._base
+
+    def __add__(self, other):
+        if type(other) is Constant:
+            mask = 2**self.reg.bitlen - 1
+            return DynamicOffsetVal(
+                self._base,
+                self._opcode,
+                self._operand,
+                self._instruction_addr,
+                (self._adjustment + other.val) & mask,
+            )
+        raise CouldNotResolveException
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if type(other) is Constant:
+            return self + Constant(-other.val)
+        raise CouldNotResolveException
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, DynamicOffsetVal)
+            and self._base == other._base
+            and self._opcode == other._opcode
+            and self._operand == other._operand
+            and self._instruction_addr == other._instruction_addr
+            and self._adjustment == other._adjustment
+        )
+
+    def __hash__(self):
+        return hash(
+            (
+                DynamicOffsetVal,
+                self._base,
+                self._opcode,
+                self._operand,
+                self._instruction_addr,
+                self._adjustment,
+            )
+        )
+
+    def __repr__(self):
+        return f"dynamic({self._base!r} {self._opcode} {self._operand!r}){self._adjustment:+}"
 
 
 class Eq:
@@ -451,7 +523,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
     def _offset_for(self, addr, pre_or_post, reg):
         regval = self._value_for(addr, pre_or_post, self.reg_values, self.reg_deltas, reg)
-        if regval is TOP or regval is BOTTOM or type(regval) is Constant:
+        if not isinstance(regval, OffsetVal):
             return TOP
         return regval.offset
 
@@ -512,7 +584,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def inconsistent_for(self, reg):
         if self._func is None:
             raise ValueError("inconsistent_for() is only supported in function mode")
-        return any(self.offset_after_block(endpoint.addr, reg) is TOP for endpoint in self._func.endpoints)
+        for endpoint in self._func.endpoints:
+            if endpoint.addr not in self._blocks:
+                return True
+            instr_addrs = self._blocks[endpoint.addr].instruction_addrs
+            if not instr_addrs:
+                return True
+            value = self._value_for(instr_addrs[-1], "post", self.reg_values, self.reg_deltas, reg)
+            if value is TOP or value is BOTTOM or type(value) is Constant:
+                return True
+        return False
 
     def offsets_for(self, reg):
         if self._func is None:
@@ -535,7 +616,12 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         pass
 
     def _get_register(self, offset) -> Register:
-        name = self.project.arch.register_names[offset]
+        if offset == self.project.arch.sp_offset and self.project.arch.registers.get("sp", (None,))[0] == offset:
+            name = "sp"
+        elif offset == self.project.arch.bp_offset and self.project.arch.registers.get("bp", (None,))[0] == offset:
+            name = "bp"
+        else:
+            name = self.project.arch.register_names[offset]
         size = self.project.arch.registers[name][1]
         return Register(offset, size * self.project.arch.byte_width)
 
@@ -896,6 +982,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _process_pcode_irsb(self, node, pcode_irsb: pcode.lifter.IRSB, state: StackPointerTrackerState) -> int | None:
         unique = {}
         curr_stmt_start_addr = None
+        current_instruction_sp = None
 
         def _resolve_expr(varnode: pypcode.Varnode):
             if varnode.space.name == "register":
@@ -916,12 +1003,30 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 return TOP
 
         def resolve_op(op: pypcode.PcodeOp):
-            if op.opcode == pypcode.OpCode.INT_ADD and len(op.inputs) == 2:
+            if op.opcode in {pypcode.OpCode.INT_ADD, pypcode.OpCode.INT_SUB} and len(op.inputs) == 2:
                 input0, input1 = op.inputs
                 input0_v = resolve_expr(input0)
                 input1_v = resolve_expr(input1)
-                if isinstance(input0_v, (Register, OffsetVal)) and isinstance(input1_v, Constant):
-                    v = input0_v + input1_v
+                if input0_v is BOTTOM and isinstance(input1_v, Constant):
+                    v = BOTTOM
+                elif isinstance(input0_v, (Register, OffsetVal, DynamicOffsetVal)) and isinstance(input1_v, Constant):
+                    v = input0_v + input1_v if op.opcode == pypcode.OpCode.INT_ADD else input0_v - input1_v
+                elif isinstance(input0_v, (Register, OffsetVal, DynamicOffsetVal)):
+                    v = DynamicOffsetVal(
+                        input0_v,
+                        op.opcode.name,
+                        (input1.space.name, int(input1.offset), int(input1.size)),
+                        curr_stmt_start_addr,
+                    )
+                elif op.opcode == pypcode.OpCode.INT_ADD and isinstance(
+                    input1_v, (Register, OffsetVal, DynamicOffsetVal)
+                ):
+                    v = DynamicOffsetVal(
+                        input1_v,
+                        op.opcode.name,
+                        (input0.space.name, int(input0.offset), int(input0.size)),
+                        curr_stmt_start_addr,
+                    )
                 else:
                     raise CouldNotResolveException
             elif op.opcode == pypcode.OpCode.COPY:
@@ -939,7 +1044,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise CouldNotResolveException
 
-        is_call = False
+        def invalidate_output(op: pypcode.PcodeOp):
+            output = op.output
+            if output is None:
+                return
+            if output.space.name == "unique":
+                unique[(output.offset, output.size)] = TOP
+            elif output.space.name == "register":
+                state.put(output.offset, TOP)
+
+        is_call = pcode_irsb.jumpkind == "Ijk_Call"
         for op in pcode_irsb._ops:
             if op.opcode == pypcode.OpCode.IMARK:
                 if curr_stmt_start_addr is not None:
@@ -947,24 +1061,28 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     reg_delta, mem_delta = state.pop_dirty()
                     self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
                 curr_stmt_start_addr = op.inputs[0].offset
+                if self.project.arch.sp_offset in self.reg_offsets:
+                    current_instruction_sp = None
+                    with contextlib.suppress(CouldNotResolveException):
+                        current_instruction_sp = state.get(self.project.arch.sp_offset)
             else:
-                with contextlib.suppress(CouldNotResolveException):
+                try:
                     resolve_op(op)
-
-                is_call |= op.opcode == pypcode.OpCode.CALL
+                except CouldNotResolveException:
+                    # An unsupported or unresolved write must kill any stale tracked value. Keeping the old value
+                    # would make a later stack access look exact after an unknown SP transformation.
+                    invalidate_output(op)
 
         # stack pointer adjustment
         if self.project.arch.sp_offset in self.reg_offsets and is_call:
-            if self.project.arch.call_pushes_ret:
-                # pop the return address on the stack
-                try:
-                    v = state.get(self.project.arch.sp_offset)
-                    incremented = BOTTOM if v is BOTTOM else v + Constant(self.project.arch.bytes)
-                    state.put(self.project.arch.sp_offset, incremented)
-                except CouldNotResolveException:
-                    pass
+            if self.project.arch.call_pushes_ret and current_instruction_sp is not None:
+                # A p-code call instruction explicitly materializes its return frame. Restore the exact SP from the
+                # start of that instruction to model the fake-return continuation. This handles near and far return
+                # frames without guessing their width; a CALL-to-fallthrough block has Ijk_Boring and deliberately
+                # keeps its pushed return address.
+                state.put(self.project.arch.sp_offset, current_instruction_sp)
             # who are we calling?
-            callees = self._find_callees(node)
+            callees = [] if self._func is None else self._find_callees(node)
             if callees:
                 callee_cleanups = [
                     callee
@@ -998,11 +1116,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if self._func is None:
             raise ValueError("find_callees() is only supported in function mode")
 
+        function_manager = self._func._function_manager  # pylint:disable=protected-access
+        if function_manager is None:
+            function_manager = self.kb.functions
+
         callees: list[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
             if data.get("type") == "call" and isinstance(dst, FuncNode):
-                func = self.kb.functions.get_by_addr(dst.addr)
-                callees.append(func)
+                func = function_manager.function(addr=dst.addr)
+                if func is not None:
+                    callees.append(func)
         return callees
 
 

@@ -10,6 +10,7 @@ from .callee_cleanup_finder import CalleeCleanupFinder
 from .calling_convention import CallingConventionAnalysis, FactCollector
 from .cdg import CDG
 from .cfg import CFG, CFGArchOptions, CFGEmulated, CFGFast, CFGFastSoot
+from .cfg.pcode_x86_near_call_tables import PcodeX86NearCallTableCandidates
 from .class_identifier import ClassIdentifier
 from .code_tagging import CodeTagging
 from .codecave import CodeCaveAnalysis
@@ -92,6 +93,7 @@ __all__ = (
     "PackingDetector",
     "PatchFinderAnalysis",
     "Pathfinder",
+    "PcodeX86NearCallTableCandidates",
     "PropagatorAnalysis",
     "ProximityGraphAnalysis",
     "ReachingDefinitionsAnalysis",

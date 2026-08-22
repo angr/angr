@@ -49,6 +49,22 @@ class TestAILExec(unittest.TestCase):
             and bv_result.args[0].startswith("ail_engine_top")
         )
 
+    def test_popcount_expression(self):
+        class _Engine(SimEngineAILSimState):
+            def _expr(self, expr):  # pylint: disable=unused-argument
+                return claripy.BVV(0b10110100, 8)
+
+        engine = object.__new__(_Engine)
+        expr = SimpleNamespace(operand=object(), bits=8)
+
+        result = engine._handle_unop_PopCount(  # pyright: ignore[reportArgumentType]  # pylint: disable=protected-access
+            expr
+        )
+
+        assert result.concrete
+        assert result.concrete_value == 4
+        assert len(result) == 8
+
     def test_haddv_expression(self):
         p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
         state = p.factory.blank_state()

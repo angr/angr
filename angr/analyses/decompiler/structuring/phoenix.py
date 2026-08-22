@@ -1658,22 +1658,32 @@ class PhoenixStructurer(StructurerBase):
         graph = graph_raw.filtered()
         full_graph = full_graph_raw.filtered()
 
-        # ensure _match_acyclic_switch_cases_address_load_from_memory cannot structure its predecessor (and this node)
+        # Prefer folding a one-successor predecessor into the switch. If the
+        # regular matcher could not do that, a dispatch reached through a
+        # two-way bounds check can still be structured on its own when the
+        # table length was proven instead of guessed. The surrounding
+        # condition then remains as the switch's range guard.
         preds = list(graph.predecessors(node))
         if len(preds) != 1:
             return False
         pred = preds[0]
-        if full_graph.out_degree[pred] != 1:
+        pred_out_degree = full_graph.out_degree[pred]
+        if pred_out_degree not in {1, 2}:
             return False
         jump_table: IndirectJump = self.jump_tables[node.addr]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
+            return False
+        if pred_out_degree == 2 and jump_table.jumptable_entries_guessed is not False:
             return False
 
         # extract the comparison expression, lower-, and upper-bounds from the last statement
         last_stmt = self.cond_proc.get_last_statement(node.head)
         if not isinstance(last_stmt, Jump):
             return False
-        cmp_expr = switch_extract_switch_expr_from_jump_target(last_stmt.target)
+        cmp_expr = switch_extract_switch_expr_from_jump_target(
+            last_stmt.target,
+            self._switch_target_local_statements(node.head),
+        )
         if cmp_expr is None:
             return False
         cmp_lb = 0
@@ -1702,9 +1712,23 @@ class PhoenixStructurer(StructurerBase):
 
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node, IncompleteSwitchCaseNode):
-            if len(set(jump_table.jumptable_entries)) > len(node.cases):
-                # it has a missing default case node! we cannot structure it as a no-default switch-case
-                return False
+            case_addrs = {case.addr for case in node.cases}
+            missing_case_addrs = set(jump_table.jumptable_entries) - case_addrs
+            node_b_addr = None
+            if missing_case_addrs:
+                # A bounds-check default is commonly also used for sparse table
+                # entries. In that shape the default has two predecessors and
+                # is intentionally absent from IncompleteSwitchCaseNode.cases.
+                # Recover it from the other edge of the proven two-way guard.
+                if pred_out_degree != 2 or len(missing_case_addrs) != 1:
+                    return False
+                missing_addr = next(iter(missing_case_addrs))
+                other_successors = [
+                    succ for succ in full_graph.successors(pred) if succ is not node and succ.addr == missing_addr
+                ]
+                if len(other_successors) != 1:
+                    return False
+                node_b_addr = missing_addr
 
             r = self._unpack_incompleteswitchcasenode_overlay(node, jump_table.jumptable_entries)
             if not r:
@@ -1717,22 +1741,22 @@ class PhoenixStructurer(StructurerBase):
 
         case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
 
-        cases, _, to_remove = self._switch_build_cases(
+        cases, node_default, to_remove = self._switch_build_cases(
             case_and_entry_addrs,
             node,
             node,
-            None,
+            node_b_addr,
             graph_raw,
         )
 
         # we don't know what the end address of this switch-case structure is. let's figure it out
-        switch_end_addr = self._switch_find_switch_end_addr(cases, None, {nn.addr for nn in self._region.graph})
+        switch_end_addr = self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
         r = self._make_switch_cases_core(
             node,
             cmp_expr,
             cases,
-            None,
-            None,
+            node_b_addr,
+            node_default,
             last_stmt.tags["ins_addr"],
             to_remove,
             graph_raw,
@@ -1768,8 +1792,27 @@ class PhoenixStructurer(StructurerBase):
         # extract the index expression, lower-, and upper-bounds from the last statement
         index = switch_extract_bitwiseand_jumptable_info(last_stmt)
         if not index:
-            return False
-        index_expr, cmp_lb, cmp_ub = index  # pylint:disable=unused-variable
+            # An exact, non-guessed table may already carry its range proof in
+            # the CFG resolver. This is important for dispatches whose case
+            # bodies jump back into an already structured parent region: the
+            # usual predecessor-folding matcher cannot see every entry node,
+            # but missing entries can be represented as explicit gotos.
+            if jump_table.jumptable_entries_guessed is not False:
+                return False
+            index_expr = switch_extract_switch_expr_from_jump_target(
+                last_stmt.target,
+                self._switch_target_local_statements(node),
+            )
+            if index_expr is None:
+                return False
+            expected_entry_addrs = set(jump_table.jumptable_entries or ())
+            graph = graph_raw.filtered()
+            if not {succ.addr for succ in graph.successors(node)}.issubset(expected_entry_addrs):
+                return False
+            cmp_lb = 0
+            cmp_ub = len(jump_table.jumptable_entries or ()) - 1
+        else:
+            index_expr, cmp_lb, cmp_ub = index  # pylint:disable=unused-variable
         case_count = cmp_ub - cmp_lb + 1
 
         # ensure we have the same number of cases
@@ -1837,6 +1880,14 @@ class PhoenixStructurer(StructurerBase):
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         return True
+
+    @staticmethod
+    def _switch_target_local_statements(node) -> tuple[Statement, ...]:
+        """Return the statements in the single block that owns an indirect switch jump."""
+
+        while isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+            node = node.nodes[-1]
+        return tuple(node.statements[:-1]) if isinstance(node, Block) else ()
 
     def _match_acyclic_switch_cases_address_computed(
         self, node, graph_raw: networkx.DiGraph, full_graph_raw: networkx.DiGraph
@@ -3073,11 +3124,13 @@ class PhoenixStructurer(StructurerBase):
         # graph via a deterministic multi-source DFS seeded with all entries -- this reproduces the old
         # synthetic-head traversal (entries visited in _sort_node order) with no temporary node.
         graph_entries = [nn for nn in acyclic_graph if acyclic_graph.in_degree[nn] == 0]
-        if len(graph_entries) > 1:
+        if graph_entries:
             ordered_nodes = list(
                 reversed(list(GraphUtils.dfs_postorder_nodes_deterministic_multi(acyclic_graph, graph_entries)))
             )
         else:
+            # A nonempty DAG always has an entry. Keep the region head as a defensive fallback for an empty view or
+            # a malformed graph instead of silently omitting nodes when the sole entry differs from a stale head.
             ordered_nodes = list(reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, head))))
         node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
         if len(node_seq) < len(acyclic_graph):

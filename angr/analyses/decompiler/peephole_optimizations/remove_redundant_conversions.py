@@ -21,8 +21,20 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
         return None
 
     def _optimize_BinaryOp(self, expr: BinaryOp):
+        # This peephole implements bit-vector identities. Floating-point
+        # conversions and arithmetic have different rounding semantics: for
+        # example, narrowing (float80)(float64)a + (float80)(float64)b to
+        # float64 is not equivalent to adding the operands as float64. Leave
+        # all floating-point expressions intact.
+        if expr.floating_point:
+            return None
+
         # TODO make this lhs/rhs agnostic
-        if isinstance(expr.operands[0], Convert):  # noqa: SIM102
+        if (  # noqa: SIM102
+            isinstance(expr.operands[0], Convert)
+            and expr.operands[0].from_type == Convert.TYPE_INT
+            and expr.operands[0].to_type == Convert.TYPE_INT
+        ):
             # check: is the lhs convert an up-cast and is rhs a const?
             if expr.operands[0].to_bits > expr.operands[0].from_bits and isinstance(expr.operands[1], Const):
                 to_bits = expr.operands[0].to_bits
@@ -157,6 +169,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
         return None
 
     def _optimize_Convert(self, expr: Convert):
+        if expr.from_type != Convert.TYPE_INT or expr.to_type != Convert.TYPE_INT:
+            return None
+
         operand_expr = expr.operand
         if (
             expr.from_type == expr.to_type == Convert.TYPE_INT

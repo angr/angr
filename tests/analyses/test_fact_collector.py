@@ -14,6 +14,7 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
     default_cc,
 )
+from angr.engines.pcode.cc import register_pcode_arch_default_cc
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -112,6 +113,81 @@ class TestFactCollector(unittest.TestCase):
         facts = self._collect_shellcode_facts(code)
 
         self.assertEqual(facts.retval_size, 8)
+
+    @staticmethod
+    def _pcode_cfg(code: bytes, function_starts: list[int], resolve_indirect_jumps: bool = False):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        register_pcode_arch_default_cc(arch)
+        project = angr.load_shellcode(
+            code,
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        project.simos.name = "Win16"
+        cfg = project.analyses.CFGFast(
+            function_starts=function_starts,
+            regions=[(0, len(code))],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=resolve_indirect_jumps,
+            indirect_calls_always_return=True,
+        )
+        return project, cfg
+
+    def test_pcode_return_value_search_uses_fact_collector_depth(self):
+        # mov ax, 7; four basic-block-ending jumps; ret
+        project, cfg = self._pcode_cfg(bytes.fromhex("b80700" + "eb00" * 4 + "c3"), [0])
+        function = cfg.functions[0]
+
+        bounded_facts = project.analyses.FunctionFactCollector(function, max_depth=3)
+        facts = project.analyses.FunctionFactCollector(function)
+
+        self.assertIsNone(bounded_facts.retval_size)
+        self.assertEqual(facts.retval_size, 2)
+
+    def test_pcode_return_value_propagates_from_known_direct_callee(self):
+        # call 0x10; ret; padding; mov ax, 7; ret
+        code = bytes.fromhex("e80d00c3" + "90" * 12 + "b80700c3")
+        project, cfg = self._pcode_cfg(code, [0, 0x10])
+        leaf = cfg.functions[0x10]
+        self.assertIsNone(project.analyses.FunctionFactCollector(cfg.functions[0]).retval_size)
+        leaf_analysis = project.analyses.CallingConvention(leaf, cfg=cfg.model, collect_facts=True)
+        self.assertIsNotNone(leaf_analysis.cc)
+        self.assertIsNotNone(leaf_analysis.prototype)
+        leaf.calling_convention = leaf_analysis.cc
+        leaf.prototype = leaf_analysis.prototype
+
+        wrapper_facts = project.analyses.FunctionFactCollector(cfg.functions[0])
+
+        self.assertEqual(wrapper_facts.retval_size, 2)
+
+    def test_pcode_return_value_follows_shared_tail_entry(self):
+        # Both function starts jump to the same `mov ax, 7; ret` tail.
+        code = bytes.fromhex("ba3412eb05ba7856eb00b80700c3")
+        project, cfg = self._pcode_cfg(code, [0, 5])
+
+        thunk_facts = project.analyses.FunctionFactCollector(cfg.functions[5])
+
+        self.assertEqual(thunk_facts.retval_size, 2)
+
+    def test_pcode_opaque_return_flow_is_indeterminate(self):
+        for code in (bytes.fromhex("ffe3"), bytes.fromhex("ffd1c3")):  # jmp bx; call cx; ret
+            with self.subTest(code=code.hex()):
+                project, cfg = self._pcode_cfg(code, [0], resolve_indirect_jumps=True)
+
+                facts = project.analyses.FunctionFactCollector(cfg.functions[0])
+
+                self.assertIsNone(facts.retval_size)
+                self.assertTrue(facts.retval_size_indeterminate)
+
+        project, cfg = self._pcode_cfg(bytes.fromhex("c3"), [0])  # ret
+        facts = project.analyses.FunctionFactCollector(cfg.functions[0])
+        self.assertIsNone(facts.retval_size)
+        self.assertFalse(facts.retval_size_indeterminate)
 
     def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, arch, "fauxware")

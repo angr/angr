@@ -12,10 +12,14 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)
 
     def optimize(self, expr: Convert, **kwargs):
+        # Every identity implemented below is a bit-vector identity. In
+        # particular, floating-point widen/narrow pairs cannot be collapsed
+        # because the intermediate precision and rounding are observable.
+        if expr.from_type != Convert.TYPE_INT or expr.to_type != Convert.TYPE_INT:
+            return None
+
         if (
-            expr.from_type == Convert.TYPE_INT
-            and expr.to_type == Convert.TYPE_INT
-            and isinstance(expr.operand, Convert)
+            isinstance(expr.operand, Convert)
             and expr.operand.from_type == Convert.TYPE_INT
             and expr.operand.to_type == Convert.TYPE_INT
         ):

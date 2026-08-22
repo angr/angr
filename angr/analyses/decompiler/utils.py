@@ -246,18 +246,63 @@ def switch_extract_cmp_bounds_from_condition(cond: ailment.Expr.Expression) -> t
     return None
 
 
-def switch_extract_switch_expr_from_jump_target(target: ailment.Expr.Expression) -> ailment.Expr.Expression | None:
+class _SwitchTargetExpander(ailment.AILBlockRewriter):
+    """Expand same-block SSA definitions solely for recognizing a switch target."""
+
+    def __init__(self, definitions: dict[int, ailment.Expr.Expression]):
+        super().__init__(update_block=False)
+        self._definitions = definitions
+        self._expanding: set[int] = set()
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+        replacement = self._definitions.get(expr.varid)
+        if replacement is None or expr.varid in self._expanding:
+            return expr
+        self._expanding.add(expr.varid)
+        try:
+            return self._handle_expr(expr_idx, replacement, stmt_idx, stmt, block)
+        finally:
+            self._expanding.remove(expr.varid)
+
+
+def switch_extract_switch_expr_from_jump_target(
+    target: ailment.Expr.Expression,
+    local_statements: Iterable[ailment.Stmt.Statement] = (),
+) -> ailment.Expr.Expression | None:
     """
     Extract the switch expression from the indirect jump target expression.
 
-    :param target:  The target of the indirect jump statement.
-    :return:        The extracted expression if successful, or None otherwise.
+    :param target:            The target of the indirect jump statement.
+    :param local_statements:  Statements preceding the jump in the same SSA block. Local virtual-variable definitions
+                              are expanded without modifying the block so table loads split out by SSA remain visible.
+    :return:                  The extracted expression if successful, or None otherwise.
     """
 
     # e.g.: Jump (Conv(32->64, (Load(addr=((0x140000000<64> + (vvar_229{reg 80} * 0x4<64>)) + 0x2290<64>),
     #               size=4,
     #               endness=Iend_LE
     #             ) + 0x140000000<32>)))
+
+    def _is_segment_base(expr: ailment.Expr.Expression) -> bool:
+        if not (isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Mul"):
+            return False
+        for constant, value in (expr.operands, expr.operands[::-1]):
+            if (
+                isinstance(constant, ailment.Expr.Const)
+                and isinstance(constant.value, int)
+                and constant.value >= 0x100
+                and constant.value & (constant.value - 1) == 0
+                and isinstance(value, (ailment.Expr.Convert, ailment.Expr.VirtualVariable))
+            ):
+                return True
+        return False
+
+    definitions = {}
+    for stmt in local_statements:
+        if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.VirtualVariable):
+            definitions[stmt.dst.varid] = stmt.src
+    if definitions:
+        target = _SwitchTargetExpander(definitions).walk_expression(target)
 
     found_load = False
     while True:
@@ -272,6 +317,10 @@ def switch_extract_switch_expr_from_jump_target(target: ailment.Expr.Expression)
                 if isinstance(target.operands[0], ailment.Expr.Const):
                     target = target.operands[1]
                 elif isinstance(target.operands[1], ailment.Expr.Const):
+                    target = target.operands[0]
+                elif _is_segment_base(target.operands[0]):
+                    target = target.operands[1]
+                elif _is_segment_base(target.operands[1]):
                     target = target.operands[0]
                 else:
                     return None
@@ -294,12 +343,21 @@ def switch_extract_switch_expr_from_jump_target(target: ailment.Expr.Expression)
                 ):
                     break
                 return None
+            elif found_load and target.op == "Sub" and isinstance(target.operands[1], ailment.Expr.Const):
+                # The table index itself may be normalized by subtracting a
+                # lower bound before scaling. Keep that subtraction as part of
+                # the C switch expression.
+                break
             else:
                 return None
         elif isinstance(target, ailment.Expr.Load):
             # we want the address!
             found_load = True
             target = target.addr
+        elif isinstance(target, ailment.Expr.SegmentedAddress):
+            # A segmented jump-table load still indexes through the offset component. The selector identifies the
+            # address space (typically the current code segment); it does not change the table subscript.
+            target = target.offset
         elif isinstance(target, ailment.Expr.VirtualVariable):
             break
         else:

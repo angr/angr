@@ -203,6 +203,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     expr.target,
                     args=new_args,
                     bits=expr.bits,
+                    transfer_kind=getattr(expr, "transfer_kind", "unknown"),
                     **expr.tags,
                 )
 

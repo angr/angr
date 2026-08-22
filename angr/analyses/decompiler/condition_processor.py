@@ -1053,17 +1053,22 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
 
-        lambda_expr = _ail2claripy_op_mapping.get(condition.verbose_op)
+        # Not every AIL expression has an operation.  Opaque value expressions
+        # such as SegmentedAddress must still reach the catch-all below when
+        # they are used as indirect control-flow targets.
+        verbose_op = getattr(condition, "verbose_op", None)
+        op = getattr(condition, "op", None)
+        lambda_expr = _ail2claripy_op_mapping.get(verbose_op)
         if lambda_expr is None:
             # fall back to op
-            lambda_expr = _ail2claripy_op_mapping.get(condition.op)
+            lambda_expr = _ail2claripy_op_mapping.get(op)
         if lambda_expr is None:
             # fall back to the catch-all option
             l.debug(
                 "Unsupported AIL expression operation %s (or verbose: %s). Fall back to the default catch-all dummy "
                 "option. Consider implementing.",
-                condition.op,
-                condition.verbose_op,
+                op,
+                verbose_op,
             )
             lambda_expr = _ail2claripy_op_mapping["_DUMMY_"]
         r = lambda_expr(

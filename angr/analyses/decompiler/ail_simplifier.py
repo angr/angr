@@ -458,8 +458,17 @@ class AILSimplifier(Analysis):
         extractor_cache: dict[AILCodeLocation, EffectiveSizeExtractor] = {}
 
         narrowing_candidates: dict[int, tuple[Definition, ExprNarrowingInfo]] = {}
+        authoritative_arg_varids = (
+            {vvar.varid for vvar, _ in self._arg_vvars.values()}
+            if self._arg_vvars and self.func.prototype is not None and not self.func.is_prototype_guessed
+            else set()
+        )
         for def_ in sorted_defs:
             if isinstance(def_.atom, atoms.VirtualVariable) and (def_.atom.was_reg or def_.atom.was_parameter):
+                if def_.atom.varid in authoritative_arg_varids:
+                    # Signature-backed ABI parameters have a fixed storage width. Narrowing one to its observed use
+                    # changes the function contract and can select the wrong byte or word of a split argument.
+                    continue
                 # only do this for general purpose register
                 skip_def = False
                 reg = None
@@ -1607,15 +1616,24 @@ class AILSimplifier(Analysis):
         ):
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
+                if eq.atom0.varid in self._avoid_vvar_ids:
+                    # Avoided virtual variables have definitions that must remain observable at their original
+                    # program points. Moving a call into the sole use while retaining such a definition would
+                    # evaluate the call twice; removing the definition would violate the caller's preservation
+                    # contract. Keep the call result in its SSA local instead.
+                    continue
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call: Expression = eq.atom1
+                    semantic_call = eq.atom1
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif isinstance(eq.atom1, SideEffectStatement):
                     call: Expression = eq.atom1.expr
+                    semantic_call = eq.atom1.expr
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
+                    semantic_call = eq.atom1.operand
                     # call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
                 elif (
                     isinstance(eq.atom1, Convert)
@@ -1625,15 +1643,26 @@ class AILSimplifier(Analysis):
                 ):
                     # register variable = Convert(&Call())
                     call = eq.atom1.operand.operand
+                    semantic_call = eq.atom1.operand.operand
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif isinstance(eq.atom1, Load) and isinstance(eq.atom1.addr, Call):
                     # register variable = Load(Call)
                     call = eq.atom1.addr
+                    semantic_call = eq.atom1.addr
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
                 elif eq.is_weakassignment:
                     # variable =w something else
                     call = eq.atom1
+                    semantic_call = None
                 else:
+                    continue
+
+                # A far call must retain a statement boundary. Its eventual C
+                # lowering may need to restore guest control-transfer state
+                # after capturing the return value; folding it into a return,
+                # condition, or argument would make that ordering impossible
+                # in portable C without a statement expression.
+                if semantic_call is not None and getattr(semantic_call, "transfer_kind", "unknown") == "far":
                     continue
 
                 if self._is_expr_using_temporaries(call):
@@ -1917,7 +1946,11 @@ class AILSimplifier(Analysis):
 
             # traverse all virtual variable definitions
             for vvar_id, codeloc in rd.all_vvar_definitions.items():
-                if vvar_id in dead_vvar_ids:
+                if vvar_id in dead_vvar_ids or vvar_id in self._avoid_vvar_ids:
+                    # An avoided destination is an observable definition even when ordinary SSA liveness finds no
+                    # later use. It must not participate in deadness propagation either: otherwise definitions used
+                    # only by this statement are first classified as dead and removed, while the avoided statement is
+                    # retained below with dangling virtual-variable references.
                     continue
                 uses = None
                 if vvar_id in self._propagator_dead_vvar_ids:
@@ -2013,6 +2046,16 @@ class AILSimplifier(Analysis):
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
             assert codeloc.block_addr is not None and codeloc.stmt_idx is not None
             stmts_to_remove_per_block[codeloc.block_addr, codeloc.block_idx].add(codeloc.stmt_idx)
+
+        # A single statement can define multiple vvars (most notably integer and floating-point call results).
+        # Deadness classification for one result may have marked the shared statement removable after an avoided
+        # sibling result was visited. Reassert avoided definitions only after all removal classification is complete,
+        # so the surgical multi-result path below retains the observable result independent of iteration order.
+        for vvar_id in self._avoid_vvar_ids:
+            codeloc = rd.all_vvar_definitions.get(vvar_id)
+            if codeloc is not None and not codeloc.is_extern:
+                assert codeloc.block_addr is not None and codeloc.stmt_idx is not None
+                stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
 
         simplified = False
         changed_block_keys: set[tuple[int, int | None]] = set()

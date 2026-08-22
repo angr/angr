@@ -104,7 +104,13 @@ class SimplifierAILEngine(
     def _handle_stmt_Jump(self, stmt):
         target = self._expr(stmt.target)
 
-        return ailment.statement.Jump(stmt.idx, target, **stmt.tags)
+        return ailment.statement.Jump(
+            stmt.idx,
+            target,
+            target_idx=stmt.target_idx,
+            transfer_kind=getattr(stmt, "transfer_kind", "unknown"),
+            **stmt.tags,
+        )
 
     def _handle_stmt_ConditionalJump(self, stmt):  # pylint: disable=no-self-use
         condition = self._expr(stmt.condition)
@@ -144,6 +150,7 @@ class SimplifierAILEngine(
                 target,
                 args=new_args,
                 bits=stmt.expr.bits,
+                transfer_kind=getattr(stmt.expr, "transfer_kind", "unknown"),
                 **stmt.tags,
             ),
             ret_expr=stmt.ret_expr,
@@ -176,6 +183,20 @@ class SimplifierAILEngine(
     # handle expr
 
     def _handle_expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
+        return expr
+
+    def _handle_expr_SegmentedAddress(self, expr):
+        selector = self._expr(expr.selector)
+        offset = self._expr(expr.offset)
+        if selector != expr.selector or offset != expr.offset:
+            return ailment.Expr.SegmentedAddress(
+                expr.idx,
+                selector,
+                offset,
+                expr.address_kind,
+                bits=expr.bits,
+                **expr.tags,
+            )
         return expr
 
     def _handle_expr_VirtualVariable(self, expr):  # pylint:disable=no-self-use

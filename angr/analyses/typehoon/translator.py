@@ -130,6 +130,14 @@ class TypeTranslator:
             internal = self._tc2simtype(tc.basetype)
         return sim_type.SimTypePointer(internal, label=tc.name).with_arch(self.arch)
 
+    def _translate_Pointer16(self, tc):
+        if isinstance(tc.basetype, typeconsts.BottomType):
+            # void *
+            internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
+        else:
+            internal = self._tc2simtype(tc.basetype)
+        return sim_type.SimTypePointer(internal, label=tc.name).with_arch(self.arch)
+
     def _translate_Function(self, tc):
         args = [self._tc2simtype(param) for param in tc.params]
         returnty = (
@@ -227,6 +235,9 @@ class TypeTranslator:
 
     def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimTypeDouble:
         return sim_type.SimTypeDouble(label=tc.name).with_arch(self.arch)
+
+    def _translate_Float80(self, tc: typeconsts.Float80) -> sim_type.SimTypeFloat80:
+        return sim_type.SimTypeFloat80(label=tc.name).with_arch(self.arch)
 
     def _translate_Enum(self, tc: typeconsts.Enum) -> sim_type.SimTypeEnum:
         """Convert Enum type constant to SimTypeEnum."""
@@ -397,8 +408,12 @@ class TypeTranslator:
         elem_type = self._simtype2tc(st.elem_type)
         return typeconsts.Array(elem_type, count=st.length, name=st.label)
 
-    def _translate_SimTypePointer(self, st: sim_type.SimTypePointer) -> typeconsts.Pointer32 | typeconsts.Pointer64:
+    def _translate_SimTypePointer(
+        self, st: sim_type.SimTypePointer
+    ) -> typeconsts.Pointer16 | typeconsts.Pointer32 | typeconsts.Pointer64:
         base = self._simtype2tc(st.pts_to)
+        if self.arch.bits == 16:
+            return typeconsts.Pointer16(base, name=st.label)
         if self.arch.bits == 32:
             return typeconsts.Pointer32(base, name=st.label)
         if self.arch.bits == 64:
@@ -415,6 +430,9 @@ class TypeTranslator:
 
     def _translate_SimTypeDouble(self, st: sim_type.SimTypeDouble) -> typeconsts.Float64:
         return typeconsts.Float64(name=st.label)
+
+    def _translate_SimTypeFloat80(self, st: sim_type.SimTypeFloat80) -> typeconsts.Float80:
+        return typeconsts.Float80(name=st.label)
 
     def _translate_SimTypeEnum(self, st: sim_type.SimTypeEnum) -> typeconsts.Enum:
         """Convert SimTypeEnum to Enum type constant."""
@@ -434,6 +452,7 @@ class TypeTranslator:
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
     typeconsts.Pointer32: TypeTranslator._translate_Pointer32,
+    typeconsts.Pointer16: TypeTranslator._translate_Pointer16,
     typeconsts.Function: TypeTranslator._translate_Function,
     typeconsts.Array: TypeTranslator._translate_Array,
     typeconsts.Struct: TypeTranslator._translate_Struct,
@@ -456,6 +475,7 @@ TypeConstHandlers = {
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
     typeconsts.Float32: TypeTranslator._translate_Float32,
     typeconsts.Float64: TypeTranslator._translate_Float64,
+    typeconsts.Float80: TypeTranslator._translate_Float80,
     typeconsts.Fd: TypeTranslator._translate_Fd,
 }
 
@@ -477,6 +497,7 @@ SimTypeHandlers = {
     sim_type.SimTypeArray: TypeTranslator._translate_SimTypeArray,
     sim_type.SimTypeFloat: TypeTranslator._translate_SimTypeFloat,
     sim_type.SimTypeDouble: TypeTranslator._translate_SimTypeDouble,
+    sim_type.SimTypeFloat80: TypeTranslator._translate_SimTypeFloat80,
     sim_type.SimTypeEnum: TypeTranslator._translate_SimTypeEnum,
     sim_type.SimCppClass: TypeTranslator._translate_SimCppClass,
     sim_type.SimTypeFd: TypeTranslator._translate_SimTypeFd,

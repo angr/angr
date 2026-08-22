@@ -20,7 +20,7 @@ message StackvarMaxSizeEntry {
 }
 
 // =====================================================================================================================
-// DecompilationParameters: closed schema for the 15-key ``parameters`` dict.
+// DecompilationParameters: closed schema for the normalized ``parameters`` dict.
 // =====================================================================================================================
 
 message OptionEntry {
@@ -60,6 +60,14 @@ message DecompilationParameters {
     optional StaticBuffers static_buffers = 15;
 
     bool save_unoptimized_graph = 16;
+    repeated RegisterStateBinding register_state_bindings = 17;
+    repeated SegmentedMemoryBinding segmented_memory_bindings = 18;
+    repeated RegisterStateBinding initial_register_state_bindings = 19;
+    repeated PostCallRegisterStateBinding post_call_register_state_bindings = 20;
+    repeated FarCallBinding far_call_bindings = 21;
+    repeated IndirectFarCallBinding indirect_far_call_bindings = 22;
+    repeated IndirectNearCallBinding indirect_near_call_bindings = 23;
+    repeated ConvertedPointerBinding converted_pointer_bindings = 24;
 }
 
 // =====================================================================================================================

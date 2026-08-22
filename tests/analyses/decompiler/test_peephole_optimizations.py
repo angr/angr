@@ -35,7 +35,9 @@ from angr.analyses.decompiler.peephole_optimizations import (
     ConcatSimplifier,
     ConstantDereferences,
     EagerEvaluation,
+    EvaluateConstConversions,
     OptimizedDivisionSimplifier,
+    RemoveNoopConversions,
     RemoveRedundantShifts,
     SarToSignedDiv,
     SimplifyBitwiseInserts,
@@ -99,6 +101,153 @@ class TestPeepholeOptimizations(unittest.TestCase):
         )
         expr_opt = opt.optimize(expr)
         assert expr_opt is None
+
+    def test_eager_eval_self_canceling_integer_operations(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+        value = Register(manager.next_atom(), 0, 32)
+
+        for operation in ("Sub", "Xor"):
+            expr = BinaryOp(
+                manager.next_atom(),
+                operation,
+                [value, value.copy()],
+                False,
+                bits=32,
+            )
+            optimized = opt.optimize(expr)
+            assert isinstance(optimized, Const)
+            assert optimized.value == 0
+
+        floating = BinaryOp(
+            manager.next_atom(),
+            "Sub",
+            [value, value.copy()],
+            False,
+            bits=32,
+            floating_point=True,
+        )
+        assert opt.optimize(floating) is None
+
+    def test_constant_integer_conversions_respect_source_width_and_signedness(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+
+        cases = (
+            (16, 32, True, 0x7F00, 0x7F00),
+            (16, 32, True, 0x8000, -0x8000),
+            (16, 32, True, 0xFFFF, -1),
+            (16, 32, False, -1, 0xFFFF),
+            (16, 8, True, 0xFFFF, -1),
+        )
+        for optimization_type in (EagerEvaluation, EvaluateConstConversions):
+            optimization = optimization_type(proj, proj.kb, manager)
+            for from_bits, to_bits, signed, constant, expected in cases:
+                with self.subTest(
+                    optimization=optimization_type.__name__,
+                    from_bits=from_bits,
+                    to_bits=to_bits,
+                    signed=signed,
+                    constant=constant,
+                ):
+                    expr = Convert(
+                        manager.next_atom(),
+                        from_bits,
+                        to_bits,
+                        signed,
+                        Const(manager.next_atom(), constant, from_bits),
+                    )
+                    optimized = optimization.optimize(expr)
+                    assert isinstance(optimized, Const)
+                    assert optimized.value == expected
+
+    def test_constant_extract_respects_offset_endness_and_bounds(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager(arch=proj.arch)
+        optimization = EvaluateConstConversions(proj, proj.kb, manager)
+
+        cases = (
+            (archinfo.Endness.LE, 0, 0x3344),
+            (archinfo.Endness.LE, 2, 0x1122),
+            (archinfo.Endness.BE, 0, 0x1122),
+            (archinfo.Endness.BE, 2, 0x3344),
+        )
+        for endness, offset, expected in cases:
+            with self.subTest(endness=endness, offset=offset):
+                expr = Extract(
+                    manager.next_atom(),
+                    16,
+                    Const(manager.next_atom(), 0x11223344, 32),
+                    Const(manager.next_atom(), offset, 8),
+                    endness,
+                )
+                optimized = optimization.optimize(expr)
+                assert isinstance(optimized, Const)
+                assert optimized.value == expected
+
+        # Exact CWD/SUBPIECE shape: the high word of signed-extended 0x7f00 is zero, not 0x7f00.
+        expr = Extract(
+            manager.next_atom(),
+            16,
+            Const(manager.next_atom(), 0x00007F00, 32),
+            Const(manager.next_atom(), 2, 8),
+            archinfo.Endness.LE,
+        )
+        optimized = optimization.optimize(expr)
+        assert isinstance(optimized, Const)
+        assert optimized.value == 0
+
+        dynamic_offset = Extract(
+            manager.next_atom(),
+            16,
+            Const(manager.next_atom(), 0x11223344, 32),
+            Register(manager.next_atom(), 0, 8),
+            archinfo.Endness.LE,
+        )
+        assert optimization.optimize(dynamic_offset) is None
+
+        out_of_bounds = Extract(
+            manager.next_atom(),
+            16,
+            Const(manager.next_atom(), 0x11223344, 32),
+            Const(manager.next_atom(), 3, 8),
+            archinfo.Endness.LE,
+        )
+        assert optimization.optimize(out_of_bounds) is None
+
+    def test_noop_conversion_removal_only_rewrites_low_bit_extracts(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager(arch=proj.arch)
+        optimization = RemoveNoopConversions(proj, proj.kb, manager)
+        value = Register(manager.next_atom(), 0, 16)
+
+        widened = Convert(manager.next_atom(), 16, 32, True, value)
+        high_word = Extract(
+            manager.next_atom(),
+            16,
+            widened,
+            Const(manager.next_atom(), 2, 8),
+            archinfo.Endness.LE,
+        )
+        assert optimization.optimize(high_word) is None
+
+        low_word_le = Extract(
+            manager.next_atom(),
+            16,
+            widened,
+            Const(manager.next_atom(), 0, 8),
+            archinfo.Endness.LE,
+        )
+        low_word_be = Extract(
+            manager.next_atom(),
+            16,
+            widened,
+            Const(manager.next_atom(), 2, 8),
+            archinfo.Endness.BE,
+        )
+        assert optimization.optimize(low_word_le).likes(value)
+        assert optimization.optimize(low_word_be).likes(value)
 
     def test_eager_eval_mul_div_cancellation_requires_integers(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")

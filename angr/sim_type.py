@@ -700,6 +700,14 @@ class SimTypeChar(SimTypeReg):
     def __repr__(self) -> str:
         return "char"
 
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
+        out = "char" if self.signed else "unsigned char"
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        if name is None:
+            return out
+        return f"{out} {name}"
+
     def store(self, state, addr, value: StoreType):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
@@ -1612,6 +1620,47 @@ class SimTypeDouble(SimTypeFloat):
 
     def copy(self):
         return SimTypeDouble(align_double=self.align_double)
+
+
+class SimTypeFloat80(SimTypeReg):
+    """An x87 80-bit extended-precision floating-point value.
+
+    Claripy does not currently expose the x87 explicit-integer-bit encoding as
+    an FP sort.  SimState loads and stores therefore retain the exact 80-bit
+    encoding as a bit-vector, while the C decompiler renders this type as
+    ``long double`` for semantic floating-point expressions.
+    """
+
+    _base_name = "long double"
+    _args = ("label", "qualifier")
+    _ident = "float80"
+    signed = True
+
+    def __init__(self, label=None, qualifier: Iterable | None = None):
+        super().__init__(80, label=label, qualifier=qualifier)
+
+    @property
+    def size(self) -> int:
+        return 80
+
+    def extract(self, state, addr, concrete=False):
+        value = state.memory.load(addr, 10, endness=state.arch.memory_endness)
+        return state.solver.eval(value) if concrete else value
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
+        out = self._base_name
+        if self.qualifier:
+            out = f"{' '.join(self.qualifier)} {out}"
+        return out if name is None else f"{out} {name}"
+
+    def __repr__(self):
+        return self._base_name
+
+    def _init_str(self):
+        return f"{self.__class__.__name__}()"
+
+    def copy(self):
+        return SimTypeFloat80(label=self.label, qualifier=self.qualifier)
 
 
 class SimStruct(NamedTypeMixin, SimType):
@@ -2760,11 +2809,11 @@ GLIBC_EXTERNAL_BASIC_TYPES = {
     # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/inet/netinet/in.h#L123
     "in_port_t": ALL_TYPES["uint16_t"],
     # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/termios.h#L102
-    "tcflag_t": ALL_TYPES["unsigned long int"],
+    "tcflag_t": ALL_TYPES["unsigned int"],
     # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/termios.h#L105
     "cc_t": ALL_TYPES["unsigned char"],
     # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/termios.h#L108
-    "speed_t": ALL_TYPES["long int"],
+    "speed_t": ALL_TYPES["unsigned int"],
     "clock_t": ALL_TYPES["__clock_t"],
     "rlim_t": ALL_TYPES["unsigned long int"],
     "rlim64_t": ALL_TYPES["uint64_t"],
@@ -2772,7 +2821,10 @@ GLIBC_EXTERNAL_BASIC_TYPES = {
     "error_t": ALL_TYPES["int"],
     "sigset_t": ALL_TYPES["int"],
     "sem_t": ALL_TYPES["int"],
-    "sighandler_t": SimTypePointer(ALL_TYPES["void"], label="sighandler_t"),
+    "sighandler_t": SimTypePointer(
+        SimTypeFunction((ALL_TYPES["int"],), ALL_TYPES["void"]),
+        label="sighandler_t",
+    ),
     "comparison_fn_t": SimTypePointer(ALL_TYPES["void"], label="comparison_fn_t"),
     "DIR": SimStruct({}, name="DIR"),
     "glob_t": SimStruct({}, name="glob_t"),

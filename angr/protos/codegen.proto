@@ -216,6 +216,8 @@ message CFunctionCallMsg {
     }
     optional uint64 callee_func_addr = 4;         // Function reference; resolved from KB at parse time
     repeated uint32 args_ids = 5;
+    uint32 callsite_prototype_ref = 6;            // SimTypeFunction type-pool reference; 0 means absent
+    bool result_used = 7;
     // show_demangled_name / show_disambiguated_name live in Codegen.node_config; only nodes that override the
     // defaults store a NodeConfigEntry.
 }
@@ -291,7 +293,8 @@ message CTypeCastMsg {
     uint32 expr_id = 3;
 }
 
-// CConstant. ``value`` is int | float | str. ``reference_values`` is dict[SimType, int|MemoryData|bytes|str].
+// CConstant. ``value`` is int | float | str. Most ``reference_values`` entries map a SimType to a literal or
+// MemoryData. Internal rendering aliases may instead use a string key and another CConstruct as their value.
 message CConstantReferenceValue {
     uint32 type_ref = 1;
     oneof value {
@@ -299,7 +302,9 @@ message CConstantReferenceValue {
         bytes raw_bytes = 3;
         string str_value = 4;
         bytes memory_data = 5;                    // serialized MemoryData via its existing Serializable
+        uint32 construct_id = 7;
     }
+    string special_key = 6;
 }
 message CConstantMsg {
     oneof value {

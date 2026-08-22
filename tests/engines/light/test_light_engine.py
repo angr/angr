@@ -56,6 +56,24 @@ class TestLightEngine(TestCase):
 
         assert seen == [operand]
 
+    def test_inlined_string_shift_normalizes_amount_width(self):
+        engine: Any = object.__new__(InlinedStringTransformationAILEngine)
+        engine._expr = lambda expr: claripy.BVV(expr.value, expr.bits)
+
+        for value_bits, amount_bits in ((16, 8), (16, 32)):
+            shift = ailment.Expr.BinaryOp(
+                0,
+                "Shr",
+                [ailment.Expr.Const(1, 0x8000, value_bits), ailment.Expr.Const(2, 15, amount_bits)],
+                False,
+                bits=value_bits,
+            )
+
+            result = engine._handle_binop_Shr(shift)
+
+            assert result.size() == value_bits
+            assert result.concrete_value == 1
+
     def test_rda_abs_visits_operand(self):
         engine: Any = object.__new__(SimEngineRDAIL)
         seen = []

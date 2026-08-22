@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
 import networkx
@@ -26,12 +26,23 @@ from angr.utils import timethis
 from .ailgraph_walker import AILGraphWalker
 from .clinic import ClinicStage
 from .condition_processor import ConditionProcessor
+from .converted_pointers import ConvertedPointerSelector, normalize_converted_pointer_bindings
 from .decompilation_cache import DecompilationCache
 from .decompilation_options import PARAM_TO_OPTION, DecompilationOption
+from .far_calls import normalize_far_call_bindings, normalize_indirect_far_call_bindings
+from .near_calls import normalize_indirect_near_call_bindings
 from .notes import DecompilationNote
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .region_identifier import RegionIdentifier
+from .register_state import (
+    PostCallRegisterStateSelector,
+    RegisterStateBindingKey,
+    normalize_initial_register_state_bindings,
+    normalize_post_call_register_state_bindings,
+    normalize_register_state_bindings,
+)
+from .segmented_memory import normalize_segmented_memory_bindings
 from .sequence_walker import SequenceWalker
 from .structured_codegen import DummyStructuredCodeGenerator
 from .structured_codegen.c import CStructuredCodeGenerator
@@ -71,6 +82,52 @@ class Decompiler(Analysis):
     - ``unoptimized_ail_graph`` (= ``clinic.unoptimized_graph``): a snapshot before the first structure-altering
       optimization pass; use it for an exact instruction-to-AIL mapping. Only built when
       ``save_unoptimized_graph=True`` is passed; otherwise this attribute is None on both fresh runs and cache hits.
+
+    ``register_state_bindings`` is an opt-in mapping from architecture register names (or exact ``(offset, size)``
+    byte ranges) to caller-supplied C lvalue expressions. Bound accesses are emitted as those external lvalues rather
+    than local declarations. Writes are observable state changes, and calls conservatively invalidate the current
+    value because a callee may update the same external state.
+
+    ``initial_register_state_bindings`` provides stable C identifiers for otherwise-unmodeled register values at
+    function entry. Only reads reached by the entry external definition use those identifiers; later definitions are
+    ordinary locals. A containing binding supplies subregister reads and preserves untouched bytes on partial writes.
+
+    ``post_call_register_state_bindings`` provides stable C identifiers for register values produced by selected
+    calls. Selectors explicitly identify an exact callee name, direct callee address, or callsite instruction address.
+    Ordinary and unresolved calls are unchanged, and multiple matching selectors must bind disjoint register ranges.
+    An exact overlap with ``register_state_bindings`` updates that ambient C lvalue after the call; partial overlaps
+    are rejected.
+
+    ``segmented_memory_bindings`` maps semantic guest address kinds to
+    width-specific load/store helpers. Unbound segmented accesses are emitted
+    as structured unsupported constructs, never native pointer dereferences.
+
+    ``far_call_bindings`` is an exact allowlist for direct known far calls.
+    Internal targets name logical segment identifiers and are emitted between
+    configurable runtime-owned begin/end helpers; external targets name exact
+    host wrappers and receive no synthetic CS transition. Unmapped, indirect,
+    and segmented-expression far calls remain structured unsupported evidence.
+
+    ``indirect_far_call_bindings`` authorizes dynamic 16:16 far calls only at
+    exact instruction addresses and only when their AIL dataflow loads the
+    target from the declared DS/SS slot. Authorized calls become void,
+    string-named dispatcher intrinsics with explicit current-register inputs;
+    every other indirect far call remains unsupported. It maps each callsite
+    address to ``dispatcher``, the exact ``"x86-protected-16:16"``
+    ``address_kind``, a ``slot_selector_register`` of ``"ds"`` or ``"ss"``,
+    a 16-bit ``slot_offset``, and an ordered ``register_inputs`` sequence.
+
+    ``indirect_near_call_bindings`` authorizes dynamic protected-mode near
+    calls only at exact instruction addresses and only when the original AIL
+    target is ``CS:<declared 16-bit register>``. Authorized calls become
+    binding-authenticated dispatcher calls returning the post-call AX value;
+    all other indirect near calls remain unsupported.
+
+    ``converted_pointer_bindings`` authorizes a native stack-object borrow for
+    one argument at one exact external far-call instruction. The code generator
+    still proves the machine 16:16 carrier, SS selector origin, and complete
+    local storage span. Clearly guest-native far values remain 32-bit carriers;
+    native truncations without a successful exact binding fail closed.
     """
 
     def __init__(
@@ -105,6 +162,16 @@ class Decompiler(Analysis):
         clinic_skip_stages=(),
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        register_state_bindings: Mapping[RegisterStateBindingKey, str] | None = None,
+        initial_register_state_bindings: Mapping[RegisterStateBindingKey, str] | None = None,
+        post_call_register_state_bindings: (
+            Mapping[PostCallRegisterStateSelector, Mapping[RegisterStateBindingKey, str]] | None
+        ) = None,
+        segmented_memory_bindings: Mapping[str, Mapping[str, Any]] | None = None,
+        far_call_bindings: Mapping[str, Any] | None = None,
+        indirect_far_call_bindings: Mapping[int, Mapping[str, Any]] | None = None,
+        indirect_near_call_bindings: Mapping[int, Mapping[str, Any]] | None = None,
+        converted_pointer_bindings: (Mapping[ConvertedPointerSelector, Mapping[int, Mapping[str, Any]]] | None) = None,
         codegen_cls=CStructuredCodeGenerator,
         save_unoptimized_graph: bool = False,
     ):
@@ -159,6 +226,58 @@ class Decompiler(Analysis):
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
+        self._register_state_bindings = normalize_register_state_bindings(self.project.arch, register_state_bindings)
+        self._initial_register_state_bindings = normalize_initial_register_state_bindings(
+            self.project.arch, initial_register_state_bindings
+        )
+        self._post_call_register_state_bindings = normalize_post_call_register_state_bindings(
+            self.project.arch, post_call_register_state_bindings
+        )
+        self._segmented_memory_bindings = normalize_segmented_memory_bindings(segmented_memory_bindings)
+        self._far_call_bindings = normalize_far_call_bindings(far_call_bindings)
+        self._indirect_far_call_bindings = normalize_indirect_far_call_bindings(
+            self.project.arch, indirect_far_call_bindings
+        )
+        self._indirect_near_call_bindings = normalize_indirect_near_call_bindings(
+            self.project.arch, indirect_near_call_bindings
+        )
+        self._converted_pointer_bindings = normalize_converted_pointer_bindings(
+            self.project.arch, converted_pointer_bindings
+        )
+        for initial_offset, initial_size, _ in self._initial_register_state_bindings:
+            for ambient_offset, ambient_size, _ in self._register_state_bindings:
+                if initial_offset < ambient_offset + ambient_size and ambient_offset < initial_offset + initial_size:
+                    raise ValueError(
+                        "initial_register_state_bindings and register_state_bindings ranges must not overlap: "
+                        f"{initial_offset, initial_size!r} and {ambient_offset, ambient_size!r}"
+                    )
+        for _, _, post_call_offset, post_call_size, _ in self._post_call_register_state_bindings:
+            for ambient_offset, ambient_size, _ in self._register_state_bindings:
+                if (
+                    post_call_offset < ambient_offset + ambient_size
+                    and ambient_offset < post_call_offset + post_call_size
+                    and (post_call_offset, post_call_size) != (ambient_offset, ambient_size)
+                ):
+                    raise ValueError(
+                        "post_call_register_state_bindings and register_state_bindings ranges must be disjoint or "
+                        "exactly equal: "
+                        f"{post_call_offset, post_call_size!r} and {ambient_offset, ambient_size!r}"
+                    )
+        if (
+            self._register_state_bindings
+            or self._initial_register_state_bindings
+            or self._post_call_register_state_bindings
+            or self._segmented_memory_bindings
+            or self._far_call_bindings
+            or self._indirect_far_call_bindings
+            or self._indirect_near_call_bindings
+            or self._converted_pointer_bindings
+        ) and self._flavor != "pseudocode":
+            raise ValueError(
+                "register_state_bindings, initial_register_state_bindings, post_call_register_state_bindings, and "
+                "segmented_memory_bindings, far_call_bindings, indirect_far_call_bindings, and "
+                "indirect_near_call_bindings, and converted_pointer_bindings currently require C pseudocode output"
+            )
         self._save_unoptimized_graph = save_unoptimized_graph
         # ``cfg`` is not in this dict: it is an input, not part of the decompilation result. Its identity is
         # checked separately in :meth:`_can_use_decompilation_cache`.
@@ -181,6 +300,14 @@ class Decompiler(Analysis):
                 "desired_variables": self._desired_variables,
                 "static_vvars": self._static_vvars,
                 "static_buffers": self._static_buffers,
+                "register_state_bindings": self._register_state_bindings,
+                "initial_register_state_bindings": self._initial_register_state_bindings,
+                "post_call_register_state_bindings": self._post_call_register_state_bindings,
+                "segmented_memory_bindings": self._segmented_memory_bindings,
+                "far_call_bindings": self._far_call_bindings,
+                "indirect_far_call_bindings": self._indirect_far_call_bindings,
+                "indirect_near_call_bindings": self._indirect_near_call_bindings,
+                "converted_pointer_bindings": self._converted_pointer_bindings,
                 "save_unoptimized_graph": self._save_unoptimized_graph,
             }
             if use_cache
@@ -296,7 +423,7 @@ class Decompiler(Analysis):
         self.unoptimized_ail_graph = clinic.unoptimized_graph
         self._variable_map = clinic.variable_map
         self.vvar_id_start = clinic.vvar_id_start
-        self._copied_var_ids = clinic.copied_var_ids
+        self._copied_var_ids = clinic.copied_var_ids | clinic._preserve_vvar_ids
 
         if self.update_cache:
             self.kb.decompilations[(self.func.addr, self._flavor)] = cache
@@ -429,6 +556,11 @@ class Decompiler(Analysis):
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
+                register_state_bindings=self._register_state_bindings,
+                initial_register_state_bindings=self._initial_register_state_bindings,
+                post_call_register_state_bindings=self._post_call_register_state_bindings,
+                indirect_far_call_bindings=self._indirect_far_call_bindings,
+                indirect_near_call_bindings=self._indirect_near_call_bindings,
                 save_unoptimized_graph=self._save_unoptimized_graph,
                 flavor=self._flavor,
                 variable_map=variable_map,
@@ -436,6 +568,11 @@ class Decompiler(Analysis):
             )
         else:
             clinic = old_clinic
+            clinic.register_state_bindings = self._register_state_bindings
+            clinic.initial_register_state_bindings = self._initial_register_state_bindings
+            clinic.post_call_register_state_bindings = self._post_call_register_state_bindings
+            clinic.indirect_far_call_bindings = self._indirect_far_call_bindings
+            clinic.indirect_near_call_bindings = self._indirect_near_call_bindings
             # the deserialized clinic may carry peephole-optimization names that were unresolvable at parse time
             # (their defining module was not imported then); retry resolving before its passes run again
             clinic.resolve_peephole_optimizations()
@@ -454,7 +591,7 @@ class Decompiler(Analysis):
         self._variable_map = clinic.variable_map
         self._update_progress(70.0, text="Identifying regions")
         self.vvar_id_start = clinic.vvar_id_start
-        self._copied_var_ids = clinic.copied_var_ids
+        self._copied_var_ids = clinic.copied_var_ids | clinic._preserve_vvar_ids
 
         if clinic.graph is None:
             # the function is empty
@@ -473,6 +610,7 @@ class Decompiler(Analysis):
             clinic.graph,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
+            avoid_vvar_ids=self._copied_var_ids,
         )
 
         # recover regions, delay updating when we have optimizations that may update regions themselves
@@ -539,6 +677,7 @@ class Decompiler(Analysis):
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
+                avoid_vvar_ids=self._copied_var_ids,
                 simplify_ifelse=self._flavor != "rust",
                 **region_simplifier_params,
             )
@@ -549,6 +688,7 @@ class Decompiler(Analysis):
                 goto_manager=s.goto_manager,
                 graph=clinic.graph,
                 kb=self.kb,
+                avoid_vvar_ids=self._copied_var_ids,
             )
 
             # rewrite the sequence node to remove phi expressions
@@ -574,6 +714,17 @@ class Decompiler(Analysis):
                     externs=clinic.externs,
                     binop_depth_cutoff=self.expr_collapse_depth,
                     notes=self.notes,
+                    **(
+                        {
+                            "register_state_bindings": self._register_state_bindings,
+                            "segmented_memory_bindings": self._segmented_memory_bindings,
+                            "far_call_bindings": self._far_call_bindings,
+                            "converted_pointer_bindings": self._converted_pointer_bindings,
+                            "stack_pointer_tracker": clinic._spt,
+                        }
+                        if issubclass(self._codegen_cls, CStructuredCodeGenerator)
+                        else {}
+                    ),
                     **self.options_to_params(self.options_by_class["codegen"]),
                 )
 

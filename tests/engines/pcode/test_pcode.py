@@ -8,6 +8,17 @@ import archinfo
 from pypcode import OpCode
 
 import angr
+from angr.calling_conventions import SimCC, SimComboArg, SimRegArg, SimStackArg, default_cc
+from angr.codenode import BlockNode, FuncNode
+from angr.engines.pcode.cc import (
+    SimCCPCodeX86Win16FarCdecl,
+    SimCCPCodeX86Win16FarPascal,
+    SimCCPCodeX86Win16NearCdecl,
+    SimCCPCodeX86Win16NearPascal,
+    register_pcode_arch_default_cc,
+)
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import SimTypeBottom, SimTypeChar, SimTypeFunction, SimTypeLong, SimTypeShort
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
@@ -15,6 +26,408 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestPcodeEngine(TestCase):
+    def test_x86_win16_near_cdecl(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        project = angr.load_shellcode(
+            b"\xc3",
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        cc_type = default_cc(arch.name, platform="Win16")
+        assert cc_type is SimCCPCodeX86Win16NearCdecl
+        cc = project.factory.cc()
+        assert isinstance(cc, SimCCPCodeX86Win16NearCdecl)
+        assert cc.STACKARG_SP_DIFF == 2
+        assert SimRegArg("ax", 2) == cc.RETURN_VAL
+        assert SimStackArg(0, 2) == cc.RETURN_ADDR
+        assert arch.call_pushes_ret is True
+        assert arch.call_sp_fix == -2
+
+        cfg = project.analyses.CFGFast(
+            function_starts=[0],
+            regions=[(0, 1)],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+        function = cfg.functions[0]
+        project.analyses.VariableRecoveryFast(function)
+        analysis = project.analyses.CallingConvention(function, cfg=cfg.model)
+        assert isinstance(analysis.cc, SimCCPCodeX86Win16NearCdecl)
+
+    def test_x86_win16_far_pascal_argument_order_and_cleanup(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        cc = SimCCPCodeX86Win16FarPascal(arch)
+        prototype = SimTypeFunction(
+            [
+                SimTypeShort(signed=False),
+                SimTypeLong(signed=False),
+                SimTypeChar(signed=False),
+            ],
+            SimTypeLong(signed=False),
+        ).with_arch(arch)
+
+        first, second, third = cc.arg_locs(prototype)
+        assert first == SimStackArg(10, 2)
+        assert isinstance(second, SimComboArg)
+        assert second.locations == [SimStackArg(6, 2), SimStackArg(8, 2)]
+        assert third == SimStackArg(4, 1)
+        assert cc.stack_space([first, second, third]) == 12
+        assert cc.CALLEE_CLEANUP is True
+        assert SimStackArg(0, 4) == cc.RETURN_ADDR
+        assert cc.return_val(prototype.returnty) == SimComboArg([SimRegArg("ax", 2), SimRegArg("dx", 2)])
+
+    def test_x86_win16_authoritative_far_callback_renders_complete_prototype(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        project = angr.load_shellcode(
+            bytes.fromhex("8a460c8b4604ca0a00"),  # byte use of hwnd; word use of lparam; retf 10
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        cfg = project.analyses.CFGFast(
+            function_starts=[0],
+            regions=[(0, 9)],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+        function = cfg.functions[0]
+        facts = project.analyses.FunctionFactCollector(function)
+        assert facts.return_address_size == 4
+        assert facts.return_address_size_ambiguous is False
+        assert facts.extra_pop == 10
+
+        function.calling_convention = SimCCPCodeX86Win16FarPascal(arch)
+        function.prototype = SimTypeFunction(
+            [
+                SimTypeShort(signed=False),
+                SimTypeShort(signed=False),
+                SimTypeShort(signed=False),
+                SimTypeLong(signed=True),
+            ],
+            SimTypeLong(signed=True),
+            arg_names=["hwnd", "message", "wparam", "lparam"],
+        ).with_arch(arch)
+        function.prototype_source = PrototypeSource.SIGNATURES
+
+        decompilation = project.analyses.Decompiler(
+            function,
+            cfg=cfg.model,
+            fail_fast=False,
+            use_cache=False,
+            update_cache=False,
+        )
+
+        assert decompilation.codegen is not None
+        assert (
+            "long _start(unsigned short hwnd, unsigned short message, unsigned short wparam, long lparam)"
+            in decompilation.codegen.text
+        )
+        assert "|" in decompilation.codegen.text
+        assert "<< 16" in decompilation.codegen.text
+        assert "(unsigned long)" in decompilation.codegen.text
+        assert not decompilation.codegen.unsupported_constructs
+        assert [argument.size for argument in decompilation.clinic.arg_list] == [2, 2, 2, 4]
+        assert [argument.offset for argument in decompilation.clinic.arg_list] == [12, 10, 8, 4]
+
+    def test_x86_win16_near_pascal_argument_order_cleanup_and_detection(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        register_pcode_arch_default_cc(arch)
+        cc = SimCCPCodeX86Win16NearPascal(arch)
+        prototype = SimTypeFunction(
+            [
+                SimTypeShort(signed=False),
+                SimTypeLong(signed=False),
+                SimTypeChar(signed=False),
+            ],
+            SimTypeLong(signed=False),
+        ).with_arch(arch)
+
+        first, second, third = cc.arg_locs(prototype)
+        assert first == SimStackArg(8, 2)
+        assert isinstance(second, SimComboArg)
+        assert second.locations == [SimStackArg(4, 2), SimStackArg(6, 2)]
+        assert third == SimStackArg(2, 1)
+        assert cc.stack_space([first, second, third]) == 10
+        assert cc.CALLEE_CLEANUP is True
+        assert SimStackArg(0, 2) == cc.RETURN_ADDR
+        assert isinstance(
+            SimCC.find_cc(
+                arch,
+                [SimStackArg(2, 2), SimStackArg(4, 2)],
+                2,
+                platform="Win16",
+                extra_pop=4,
+            ),
+            SimCCPCodeX86Win16NearPascal,
+        )
+
+    def test_x86_win16_combo_argument_is_one_c_argument(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        code = bytes.fromhex("6811116844336866556a77e81200c3") + b"\x90" * (0x20 - 15) + bytes.fromhex("c20800")
+        project = angr.load_shellcode(
+            code,
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        project.simos.name = "Win16"
+        cfg = project.analyses.CFGFast(
+            function_starts=[0, 0x20],
+            regions=[(0, len(code))],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+        callee = cfg.functions[0x20]
+        callee.calling_convention = SimCCPCodeX86Win16NearPascal(arch)
+        callee.prototype = SimTypeFunction(
+            [SimTypeShort(signed=False), SimTypeLong(signed=False), SimTypeChar(signed=False)],
+            SimTypeBottom(label="void"),
+        ).with_arch(arch)
+        callee.prototype_source = PrototypeSource.SIGNATURES
+
+        caller = cfg.functions[0]
+        caller.calling_convention = SimCCPCodeX86Win16NearPascal(arch)
+        caller.prototype = SimTypeFunction([], SimTypeBottom(label="void")).with_arch(arch)
+        caller.prototype_source = PrototypeSource.SIGNATURES
+        decompilation = project.analyses.Decompiler(
+            caller,
+            cfg=cfg.model,
+            fail_fast=True,
+            use_cache=False,
+            update_cache=False,
+        )
+
+        assert decompilation.codegen is not None
+        call_line = next(line for line in decompilation.codegen.text.splitlines() if "sub_20(" in line)
+        assert call_line.count(",") == 2
+        assert " | " in call_line
+        assert "<< 16" in call_line
+        assert "(unsigned long)" in call_line
+
+    def test_x86_win16_pcode_facts_recover_stack_arguments_and_return_width(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        project = angr.load_shellcode(
+            bytes.fromhex("5589e58b46040346065dc20400"),
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        project.simos.name = "Win16"
+        cfg = project.analyses.CFGFast(
+            function_starts=[0],
+            regions=[(0, 13)],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+        function = cfg.functions[0]
+
+        facts = project.analyses.FunctionFactCollector(function)
+        assert facts.input_args == [SimStackArg(2, 2), SimStackArg(4, 2)]
+        assert facts.retval_size == 2
+        assert facts.return_address_size == 2
+        assert facts.return_address_size_ambiguous is False
+        assert facts.extra_pop == 4
+
+        analysis = project.analyses.CallingConvention(
+            function,
+            cfg=cfg.model,
+            collect_facts=True,
+        )
+        assert isinstance(analysis.cc, SimCCPCodeX86Win16NearPascal)
+        assert analysis.prototype is not None
+        assert len(analysis.prototype.args) == 2
+
+    def test_x86_win16_pcode_facts_ignore_zero_idiom_inputs_but_keep_register_helpers(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+
+        def facts(machine_code: bytes):
+            project = angr.load_shellcode(
+                machine_code,
+                arch=arch,
+                load_address=0,
+                engine=angr.engines.UberEnginePcode,
+                rebase_granularity=0x10,
+            )
+            project.simos.name = "Win16"
+            cfg = project.analyses.CFGFast(
+                function_starts=[0],
+                regions=[(0, len(machine_code))],
+                start_at_entry=False,
+                force_complete_scan=False,
+                force_smart_scan=False,
+                normalize=True,
+                resolve_indirect_jumps=False,
+            )
+            return project.analyses.FunctionFactCollector(cfg.functions[0])
+
+        # Both paths zero CX before use. The branch makes this a regression for
+        # per-instruction p-code flag operations, not merely a straight-line
+        # write-before-read case. Only [BP+4] is an ABI argument.
+        conventional = facts(bytes.fromhex("5589e58b5e0483fb00740633c98bc1eb0233c05dc3"))
+        assert conventional.input_args == [SimStackArg(2, 2)]
+
+        # A true register-entry helper must remain unclassifiable as the
+        # stack-only Win16 C ABI instead of silently losing its AX input.
+        register_helper = facts(bytes.fromhex("050100c3"))  # add ax, 1; ret
+        assert register_helper.input_args == [SimRegArg("ax", 2)]
+
+        # Segment, flags, x87 control state, and ST0 are ambient machine state,
+        # not C arguments. The only ABI input in this machine-code fixture is
+        # the word at [BP+4].
+        ambient_code = bytes.fromhex("5589e583ec021e9cd97efed9c0ddd8d96efe9d1f8b460489ec5dc3")
+        project = angr.load_shellcode(
+            ambient_code,
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        project.simos.name = "Win16"
+        cfg = project.analyses.CFGFast(
+            function_starts=[0],
+            regions=[(0, len(ambient_code))],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+        ambient_facts = project.analyses.FunctionFactCollector(cfg.functions[0])
+        assert ambient_facts.input_args == [SimStackArg(2, 2)]
+        ambient_cc = project.analyses.CallingConvention(cfg.functions[0], cfg=cfg.model, collect_facts=True)
+        assert isinstance(ambient_cc.cc, SimCCPCodeX86Win16NearCdecl)
+        assert ambient_cc.prototype is not None
+        assert len(ambient_cc.prototype.args) == 1
+
+    def test_x86_win16_swi_clobbers_caller_saved_registers_without_shifting_the_stack(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        register_pcode_arch_default_cc(arch)
+        # push bp; mov bp,sp; mov ah,2ah; int 21h; mov bx,dx;
+        # mov si,cx; mov ax,[bp+4]; pop bp; ret
+        code = bytes.fromhex("5589e5b42acd2189d389ce8b46045dc3")
+        project = angr.load_shellcode(
+            code,
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        project.simos.name = "Win16"
+        cfg = project.analyses.CFGFast(
+            function_starts=[0],
+            regions=[(0, len(code))],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+
+        # Shellcode has no Win16 interrupt-vector environment, so CFGFast cannot
+        # resolve SLEIGH's synthetic SWI CALLIND. Add exactly the call/fake-return
+        # shape a resolved binary supplies; all instruction semantics remain the
+        # raw bytes above.
+        function = cfg.functions[0]
+        assert function.startpoint is not None
+        swi_target = project.kb.functions.function(addr=0x100, create=True)
+        assert swi_target is not None
+        swi_target.returning = True
+        continuation = BlockNode(7, len(code) - 7)
+        function._call_to(  # pylint:disable=protected-access
+            function.startpoint,
+            FuncNode(0x100),
+            continuation,
+            ins_addr=5,
+        )
+        function._add_return_site(continuation)  # pylint:disable=protected-access
+
+        facts = project.analyses.FunctionFactCollector(function)
+        assert facts.input_args == [SimStackArg(2, 2)]
+        assert facts.return_address_size == 2
+        assert facts.extra_pop == 0
+
+        analysis = project.analyses.CallingConvention(function, cfg=cfg.model, collect_facts=True)
+        assert isinstance(analysis.cc, SimCCPCodeX86Win16NearCdecl)
+        assert analysis.prototype is not None
+        assert len(analysis.prototype.args) == 1
+
+    def test_x86_win16_pcode_facts_distinguish_far_cdecl_and_pascal(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        cases = (
+            ("5589e58b46065dcb", SimCCPCodeX86Win16FarCdecl, 0),
+            ("5589e58b46065dca0200", SimCCPCodeX86Win16FarPascal, 2),
+        )
+        for code, expected_cc, expected_extra_pop in cases:
+            project = angr.load_shellcode(
+                bytes.fromhex(code),
+                arch=arch,
+                load_address=0,
+                engine=angr.engines.UberEnginePcode,
+                rebase_granularity=0x10,
+            )
+            project.simos.name = "Win16"
+            cfg = project.analyses.CFGFast(
+                function_starts=[0],
+                regions=[(0, len(bytes.fromhex(code)))],
+                start_at_entry=False,
+                force_complete_scan=False,
+                force_smart_scan=False,
+                normalize=True,
+                resolve_indirect_jumps=False,
+            )
+            function = cfg.functions[0]
+            facts = project.analyses.FunctionFactCollector(function)
+            assert facts.input_args == [SimStackArg(4, 2)]
+            assert facts.return_address_size == 4
+            assert facts.extra_pop == expected_extra_pop
+
+            analysis = project.analyses.CallingConvention(
+                function,
+                cfg=cfg.model,
+                collect_facts=True,
+            )
+            assert isinstance(analysis.cc, expected_cc)
+            assert analysis.prototype is not None
+            assert len(analysis.prototype.args) == 1
+
+    def test_x86_win16_block_stack_tracking_tolerates_call(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        project = angr.load_shellcode(
+            bytes.fromhex("e80000"),  # call the following instruction
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        block = project.factory.block(0, num_inst=1)
+
+        tracker = project.analyses.StackPointerTracker(
+            None,
+            {arch.sp_offset},
+            block=block,
+            track_memory=False,
+        )
+
+        assert tracker.offset_after(0, arch.sp_offset) is not None
+
     def test_x86_real_mode_segment_userop(self):
         arch = archinfo.ArchPcode("x86:LE:16:Real Mode")
         project = angr.load_shellcode(
@@ -40,6 +453,89 @@ class TestPcodeEngine(TestCase):
         successor = successors.successors[0]
         assert successor.solver.eval(successor.regs.ax) == 0x1234
         assert successor.solver.eval(successor.regs.pc) == 3
+
+    def test_x86_protected_mode_segment_userop(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        project = angr.load_shellcode(
+            bytes.fromhex("a10010"),  # mov ax, word ptr ds:[0x1000]
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        irsb = project.factory.block(0, size=3).vex
+        segment_op = next(op for op in irsb._ops if op.opcode == OpCode.CALLOTHER)
+        assert segment_op.inputs[0].getUserDefinedOpName() == "segment"
+
+        state = project.factory.blank_state(addr=0)
+        state.regs.ds = 3
+        state.memory.store(0x31000, b"\x34\x12")
+
+        successors = project.factory.successors(state, num_inst=1)
+
+        assert len(successors.successors) == 1
+        successor = successors.successors[0]
+        assert successor.solver.eval(successor.regs.ax) == 0x1234
+        assert successor.solver.eval(successor.regs.pc) == 3
+
+    def test_x86_protected_mode_lock_markers_execute_sequential_update(self):
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        project = angr.load_shellcode(
+            bytes.fromhex("f0ff07"),  # lock inc word ptr [bx]
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+
+        state = project.factory.blank_state(addr=0)
+        state.regs.ds = 3
+        state.regs.bx = 0x1000
+        state.memory.store(0x31000, b"\x34\x12")
+
+        successors = project.factory.successors(state, num_inst=1)
+
+        assert len(successors.successors) == 1
+        successor = successors.successors[0]
+        value = successor.memory.load(0x31000, 2, endness=arch.memory_endness)
+        assert successor.solver.eval(value) == 0x1235
+        assert successor.solver.eval(successor.regs.pc) == 3
+
+    def test_cfg_preserves_return_path_after_unresolved_far_jump(self):
+        code = bytearray(b"\x90" * 0x50)
+        code[0:3] = bytes.fromhex("e80d00")  # call 0x10
+        code[3:8] = bytes.fromhex("9a40000000")  # callf 0000:0040
+        code[8] = 0xC3
+        code[0x10:0x14] = bytes.fromhex("ff2e3000")  # jmpf [0030]
+        code[0x30:0x34] = bytes.fromhex("03000000")
+        code[0x40] = 0xC3
+
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        project = angr.load_shellcode(
+            bytes(code),
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        cfg = project.analyses.CFGFast(
+            resolve_indirect_jumps=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+            function_prologues=False,
+            symbols=False,
+            data_references=False,
+        )
+
+        assert 0x10 in cfg.kb.unresolved_indirect_jumps
+        assert cfg.kb.functions[0x10].returning is None
+        call_node = cfg.model.get_any_node(0)
+        continuation_node = cfg.model.get_any_node(3)
+        assert continuation_node is not None
+        assert cfg.graph.get_edge_data(call_node, continuation_node)["jumpkind"] == "Ijk_FakeRet"
+        assert cfg.model.get_any_node(0x40) is not None
+        assert cfg.kb.functions[0].returning is True
 
     def test_x86_real_mode_unknown_userop_fails_closed(self):
         arch = archinfo.ArchPcode("x86:LE:16:Real Mode")

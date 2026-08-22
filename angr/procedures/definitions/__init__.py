@@ -150,6 +150,7 @@ class SimLibrary:
         self.non_returning = set()
         self.prototypes: dict[str, SimTypeFunction] = {}
         self.prototypes_json: dict[str, Any] = {}
+        self.canonical_names: dict[str, str] = {}
         self.default_ccs: dict[str, type[SimCC]] = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
@@ -176,6 +177,8 @@ class SimLibrary:
             lib.set_non_returning(*d["non_returning"])
         if "functions" in d:
             lib.prototypes_json = {k: v["proto"] for k, v in d["functions"].items() if "proto" in v}
+        if "canonical_names" in d:
+            lib.canonical_names = dict(d["canonical_names"])
         return lib
 
     def copy(self):
@@ -189,6 +192,7 @@ class SimLibrary:
         o.non_returning = set(self.non_returning)
         o.prototypes = dict(self.prototypes)
         o.prototypes_json = self.prototypes_json
+        o.canonical_names = dict(self.canonical_names)
         o.default_ccs = dict(self.default_ccs)
         o.names = list(self.names)
         return o
@@ -202,6 +206,7 @@ class SimLibrary:
         self.procedures.update(other.procedures)
         self.non_returning.update(other.non_returning)
         self.prototypes.update(other.prototypes)
+        self.canonical_names.update(other.canonical_names)
         self.default_ccs.update(other.default_ccs)
 
     @property
@@ -261,6 +266,33 @@ class SimLibrary:
         :param protos:   Dictionary mapping function names to SimTypeFunction objects
         """
         self.prototypes.update(protos)
+
+    def add_export_alias(self, canonical_name: str, *export_names: str) -> None:
+        """
+        Associate ABI-level exported symbol names with the public source-level function name.
+
+        This differs from :meth:`add_alias`, which says that multiple APIs can share one SimProcedure implementation.
+        An export alias describes one API whose linker symbol has a different name (for example, glibc declares
+        ``signal`` in C but directs references to the ELF symbol ``__sysv_signal``). Export aliases share the
+        canonical prototype and let source generators render the public name without changing loader symbol identity.
+
+        :param canonical_name: The public function name used in source declarations.
+        :param export_names:   One or more ABI symbol names for the same function.
+        """
+        if not self.has_prototype(canonical_name):
+            raise KeyError(f"Cannot alias unknown prototype {canonical_name!r}")
+        for export_name in export_names:
+            self.canonical_names[export_name] = canonical_name
+
+    def get_canonical_name(self, name: str) -> str:
+        """
+        Return the public source-level name for an ABI symbol, or ``name`` when no export alias is registered.
+        """
+        seen = set()
+        while name in self.canonical_names and name not in seen:
+            seen.add(name)
+            name = self.canonical_names[name]
+        return name
 
     def set_c_prototype(self, c_decl: str) -> tuple[str, SimTypeFunction]:
         """
@@ -376,6 +408,7 @@ class SimLibrary:
         :param deref:   True if any SimTypeRefs in the prototype should be dereferenced using library information.
         :return:        Prototype of the function, or None if the prototype does not exist.
         """
+        name = self.get_canonical_name(name)
         if name not in self.prototypes and name in self.prototypes_json:
             d = self.prototypes_json[name]
             if isinstance(d, str):
@@ -412,7 +445,13 @@ class SimLibrary:
         :param name:    The name of the function as a string
         :return:        A bool indicating if anything is known about the function
         """
-        return self.has_implementation(name) or name in self.non_returning or self.has_prototype(name)
+        canonical_name = self.get_canonical_name(name)
+        return (
+            self.has_implementation(name)
+            or name in self.non_returning
+            or canonical_name in self.non_returning
+            or self.has_prototype(name)
+        )
 
     def has_implementation(self, name):
         """
@@ -436,6 +475,7 @@ class SimLibrary:
         :rtype:               bool
         """
 
+        func_name = self.get_canonical_name(func_name)
         return self.prototypes.get(func_name) is not None or func_name in self.prototypes_json
 
     def is_returning(self, name: str) -> bool:
@@ -445,7 +485,7 @@ class SimLibrary:
         :param name:    The name of the function.
         :return:        A bool indicating if the function is known to return or not.
         """
-        return name not in self.non_returning
+        return name not in self.non_returning and self.get_canonical_name(name) not in self.non_returning
 
 
 class SimCppLibrary(SimLibrary):
@@ -1012,6 +1052,7 @@ def _update_libntoskrnl(lib: SimLibrary):
 
 def _update_glibc(libc: SimLibrary):
     from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+    from angr.sim_type import ALL_TYPES, SimTypeInt, SimTypePointer  # pylint:disable=import-outside-toplevel
 
     libc.add_all_from_dict(P["libc"])
     libc.add_all_from_dict(P["posix"])
@@ -1030,6 +1071,36 @@ def _update_glibc(libc: SimLibrary):
     libc.add_alias("exit", "_exit", "_Exit")
     libc.add_alias("sprintf", "siprintf")
     libc.add_alias("snprintf", "sniprintf")
+
+    # The generated angr-data snapshot historically flattened sighandler_t to
+    # void * and encoded Linux termios scalar typedefs with LP64 widths. Keep
+    # these ABI-sensitive declarations structural at runtime so source recovery
+    # does not emit invalid callback or struct layouts.
+    void = SimTypeBottom(label="void")
+    signal_handler = SimTypePointer(
+        SimTypeFunction((SimTypeInt(),), void),
+        label="sighandler_t",
+    )
+    libc.set_prototype(
+        "signal",
+        SimTypeFunction((SimTypeInt(), signal_handler), signal_handler),
+    )
+    termios_pointer = SimTypePointer(ALL_TYPES["termios"])
+    libc.set_prototype(
+        "tcgetattr",
+        SimTypeFunction((SimTypeInt(), termios_pointer), SimTypeInt()),
+    )
+    libc.set_prototype(
+        "tcsetattr",
+        SimTypeFunction(
+            (SimTypeInt(), SimTypeInt(), termios_pointer),
+            SimTypeInt(),
+        ),
+    )
+
+    # glibc's public ``signal`` declaration redirects calls to this internal ELF export. Preserve the ABI symbol for
+    # loading and relocation, but use the public API name and prototype when recovering source.
+    libc.add_export_alias("signal", "__sysv_signal")
 
 
 def load_win32api_definitions():

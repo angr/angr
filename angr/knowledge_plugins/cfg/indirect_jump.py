@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from angr.protos import cfg_pb2
 from angr.serializable import Serializable
 
@@ -15,21 +17,53 @@ class IndirectJumpType:
     Unknown = 255
 
 
+@dataclass(frozen=True)
+class JumptableResolutionEvidence:
+    """Machine-readable provenance for a resolved jump table."""
+
+    resolver: str
+    proof: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.resolver, str) or not self.resolver:
+            raise ValueError("jump-table resolver must be a non-empty string")
+        if not isinstance(self.proof, str) or not self.proof:
+            raise ValueError("jump-table proof must be a non-empty string")
+
+    def serialize_to_cmessage(self):
+        cmsg = cfg_pb2.JumptableResolutionEvidence()
+        cmsg.resolver = self.resolver
+        cmsg.proof = self.proof
+        return cmsg
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg) -> JumptableResolutionEvidence:
+        return cls(cmsg.resolver, cmsg.proof)
+
+
 class JumptableInfo:
     """
     Describes a jump table or a vtable.
     """
 
-    __slots__ = ("addr", "entries", "entries_guessed", "entry_size", "size")
+    __slots__ = ("addr", "entries", "entries_guessed", "entry_size", "resolution_evidence", "size")
 
     def __init__(
-        self, addr: int | None, size: int, entry_size: int, entries: list[int], *, entries_guessed: bool = False
+        self,
+        addr: int | None,
+        size: int,
+        entry_size: int,
+        entries: list[int],
+        *,
+        entries_guessed: bool = False,
+        resolution_evidence: JumptableResolutionEvidence | None = None,
     ):
         self.addr = addr
         self.size = size
         self.entry_size = entry_size
         self.entries = entries
         self.entries_guessed = entries_guessed
+        self.resolution_evidence = resolution_evidence
 
     def serialize_to_cmessage(self):
         cmsg = cfg_pb2.JumptableInfo()
@@ -39,12 +73,26 @@ class JumptableInfo:
         cmsg.entry_size = self.entry_size
         cmsg.entries.extend(self.entries)
         cmsg.entries_guessed = self.entries_guessed
+        if self.resolution_evidence is not None:
+            cmsg.resolution_evidence.CopyFrom(self.resolution_evidence.serialize_to_cmessage())
         return cmsg
 
     @classmethod
     def parse_from_cmessage(cls, cmsg) -> JumptableInfo:
         addr = cmsg.addr if cmsg.HasField("addr") else None
-        return cls(addr, cmsg.size, cmsg.entry_size, list(cmsg.entries), entries_guessed=cmsg.entries_guessed)
+        resolution_evidence = (
+            JumptableResolutionEvidence.parse_from_cmessage(cmsg.resolution_evidence)
+            if cmsg.HasField("resolution_evidence")
+            else None
+        )
+        return cls(
+            addr,
+            cmsg.size,
+            cmsg.entry_size,
+            list(cmsg.entries),
+            entries_guessed=cmsg.entries_guessed,
+            resolution_evidence=resolution_evidence,
+        )
 
 
 class IndirectJump(Serializable):
@@ -79,6 +127,7 @@ class IndirectJump(Serializable):
         jumptable_entries: list[int] | None = None,
         jumptable_entries_guessed: bool = False,
         type_: int | None = IndirectJumpType.Unknown,
+        jumptable_resolution_evidence: JumptableResolutionEvidence | None = None,
     ):
         self.addr = addr
         self.ins_addr = ins_addr
@@ -100,6 +149,7 @@ class IndirectJump(Serializable):
                 jumptable_entry_size,
                 jumptable_entries,
                 entries_guessed=jumptable_entries_guessed,
+                resolution_evidence=jumptable_resolution_evidence,
             )
         self.type = type_
 
@@ -112,8 +162,16 @@ class IndirectJump(Serializable):
         is_primary: bool = False,
         *,
         entries_guessed: bool = False,
+        resolution_evidence: JumptableResolutionEvidence | None = None,
     ) -> None:
-        ji = JumptableInfo(addr, size, entry_size, entries, entries_guessed=entries_guessed)
+        ji = JumptableInfo(
+            addr,
+            size,
+            entry_size,
+            entries,
+            entries_guessed=entries_guessed,
+            resolution_evidence=resolution_evidence,
+        )
         if is_primary:
             self.jumptables.insert(0, ji)
         else:
@@ -149,6 +207,12 @@ class IndirectJump(Serializable):
     def jumptable_entries_guessed(self) -> bool | None:
         if self.jumptables:
             return self.jumptables[0].entries_guessed
+        return None
+
+    @property
+    def jumptable_resolution_evidence(self) -> JumptableResolutionEvidence | None:
+        if self.jumptables:
+            return self.jumptables[0].resolution_evidence
         return None
 
     @classmethod

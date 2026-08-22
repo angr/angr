@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable, MutableMapping
+from collections.abc import Callable, Iterable, Mapping, MutableMapping
 from functools import partial
 from itertools import chain
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -15,7 +15,6 @@ from angr.ailment.statement import Assignment, Label, Statement
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions.function import Function
-from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.ssa import is_phi_assignment
 
 from .rewriting_engine import SimEngineSSARewriting
@@ -23,6 +22,8 @@ from .rewriting_state import RewritingState
 
 if TYPE_CHECKING:
     from angr.ailment import Manager
+    from angr.ailment.expression import Register
+    from angr.analyses.decompiler.register_state import PostCallRegisterStateBindings
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
     from angr.project import Project
 
@@ -50,6 +51,10 @@ class RewritingAnalysis:
         def_to_udef: MutableMapping[Def, UDef],
         extern_defs: set[UDef],
         incomplete_defs: set[Def],
+        register_state_ranges: tuple[tuple[int, int], ...] = (),
+        initial_register_state_bindings: tuple[tuple[int, int, str], ...] = (),
+        post_call_register_state_bindings: PostCallRegisterStateBindings = (),
+        post_call_effect_defs: Mapping[tuple[int, int, int], Register] | None = None,
         vvar_id_start: int = 0,
         stackvars: bool = False,
         fail_fast: bool = False,
@@ -65,6 +70,10 @@ class RewritingAnalysis:
         self._ail_manager = ail_manager
         self._func_args = func_args
         self._extern_defs = extern_defs
+        self._initial_register_state_bindings = {
+            (register_offset, size): expression for register_offset, size, expression in initial_register_state_bindings
+        }
+        self._register_state_ranges = set(register_state_ranges)
         self._engine_ail = SimEngineSSARewriting(
             self.project,
             rewrite_tmps=self._rewrite_tmps,
@@ -72,11 +81,16 @@ class RewritingAnalysis:
             ail_manager=ail_manager,
             vvar_id_start=vvar_id_start,
             def_to_udef=def_to_udef,
+            register_state_ranges=register_state_ranges,
+            post_call_register_state_bindings=post_call_register_state_bindings,
+            post_call_effect_defs=post_call_effect_defs,
             stackvars=stackvars,
             fail_fast=self._fail_fast,
         )
 
         self._pending_states: dict[ailment.Block, RewritingState] = {}
+        self._entry_block: ailment.Block | None = None
+        self._entry_initial_state: RewritingState | None = None
         self.out_blocks = {}
         self.out_states = {}
         self.resized_func_args: dict[VirtualVariable, VirtualVariable] = {}
@@ -94,8 +108,9 @@ class RewritingAnalysis:
         self.out_graph = self._make_new_graph(ail_graph)
 
     def _analyze(self):
-        self._pre_analysis()
         entry_block = next((n for n in self._graph if n.addr == self._function.addr), None)
+        self._entry_block = entry_block
+        self._pre_analysis()
         entry_blocks = {n for n in self._graph if not self._graph.pred[n]}
         if entry_block is not None:
             entry_blocks.add(entry_block)
@@ -143,6 +158,16 @@ class RewritingAnalysis:
                         src_and_vvars=[],  # back patch later
                         ins_addr=node.addr,
                     )
+                    initial_register_state = (
+                        self._initial_register_state_bindings.get((reg_offset, reg_bytes))
+                        if node is self._entry_block
+                        else None
+                    )
+                    tags = {}
+                    if initial_register_state is not None:
+                        tags["initial_register_state_seed"] = initial_register_state
+                    if node is self._entry_block and (reg_offset, reg_bytes) in self._register_state_ranges:
+                        tags["ambient_register_state_seed"] = True
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
                         self._engine_ail._current_vvar_id,
@@ -150,6 +175,7 @@ class RewritingAnalysis:
                         VirtualVariableCategory.REGISTER,
                         oident=reg_offset,
                         ins_addr=node.addr,
+                        **tags,
                     )
                     self._engine_ail._current_vvar_id += 1
 
@@ -197,10 +223,11 @@ class RewritingAnalysis:
         else:
             node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
 
-    def _reg_predicate(self, node_: Block, *, reg_offset: int) -> tuple[bool, Any]:
+    def _reg_predicate(self, node_: Block, *, reg_offset: int, use_loop_outstate: bool = False) -> tuple[bool, Any]:
+        block_key = node_.addr, node_.idx
         out_state: RewritingState = (
-            self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
-            if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
+            self.head_controlled_loop_outstates[block_key]
+            if use_loop_outstate and block_key in self.head_controlled_loop_outstates
             else self.out_states[(node_.addr, node_.idx)]
         )
         if reg_offset in out_state.registers:
@@ -214,10 +241,11 @@ class RewritingAnalysis:
 
         return False, None
 
-    def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, Any]:
+    def _stack_predicate(self, node_: Block, *, stack_offset: int, use_loop_outstate: bool = False) -> tuple[bool, Any]:
+        block_key = node_.addr, node_.idx
         out_state: RewritingState = (
-            self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
-            if is_head_controlled_loop_block(node_)
+            self.head_controlled_loop_outstates[block_key]
+            if use_loop_outstate and block_key in self.head_controlled_loop_outstates
             else self.out_states[(node_.addr, node_.idx)]
         )
         if stack_offset in out_state.stackvars:
@@ -294,14 +322,21 @@ class RewritingAnalysis:
             node,
         )
         more_args: list[VirtualVariable] = []
+        authoritative_arguments = self._function.prototype is not None and not self._function.is_prototype_guessed
         for kind, offset, size in sorted(self._extern_defs):
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
             vvar = None
             if (arg_vvar := func_args_map.get((category, offset))) is not None:
                 unused_func_args.discard(combo_reg_vvar_to_arg.get(arg_vvar.varid, arg_vvar))
-                if arg_vvar.varid in combo_reg_vvar_to_arg or arg_vvar.size == size:
+                if (
+                    (authoritative_arguments and arg_vvar.size >= size)
+                    or arg_vvar.varid in combo_reg_vvar_to_arg
+                    or arg_vvar.size == size
+                ):
                     # never resize constituent register vvars of combo-register arguments; they stay full-width, and
-                    # narrower uses are handled by extraction
+                    # narrower uses are handled by extraction. Authoritative ABI arguments likewise retain their
+                    # declared storage width when it contains the machine read. A wider machine read needs its own
+                    # full-width SSA value; seeding it with the narrower argument would violate the vvar invariant.
                     vvar = arg_vvar
                 elif (
                     (arg_offset := arg_offset_by_varid[arg_vvar.varid]) <= offset
@@ -337,7 +372,23 @@ class RewritingAnalysis:
             if vvar is None:
                 varid = self._engine_ail._current_vvar_id
                 self._engine_ail._current_vvar_id += 1
-                vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
+                initial_register_state = (
+                    self._initial_register_state_bindings.get((offset, size)) if kind == "reg" else None
+                )
+                tags = {"initial_register_state": initial_register_state} if initial_register_state is not None else {}
+                vvar = VirtualVariable(
+                    self._engine_ail.ail_manager.next_atom(),
+                    varid,
+                    size * 8,
+                    category,
+                    offset,
+                    **tags,
+                )
+            if kind == "reg" and (offset, size) in self._register_state_ranges:
+                # Ambient register state is mutable across recovered calls, but each SSA version must remain a
+                # distinct C value. Mark only the external entry definition for snapshot initialization; ordinary
+                # definitions are mirrored back to the ambient lvalue by code generation.
+                vvar.tags["ambient_register_state_seed"] = True
             more_args.append(vvar)
 
         # update state with function arguments
@@ -376,7 +427,15 @@ class RewritingAnalysis:
         """
 
         state = self._pending_states.get(node, None)
-        state = self._initial_abstract_state(node) if state is None else state.copy()
+        if state is None:
+            state = self._initial_abstract_state(node)
+            if node is self._entry_block:
+                # The function entry has a synthetic predecessor representing machine state at invocation. Preserve
+                # that state separately: when the entry is also a loop header, its real CFG predecessors contain only
+                # backedges and cannot supply the initial value to the entry phi.
+                self._entry_initial_state = state.copy()
+        else:
+            state = state.copy()
         block_key = (node.addr, node.idx)
 
         state.loc = AILCodeLocation(node.addr, node.idx, 0, node.addr)
@@ -429,11 +488,23 @@ class RewritingAnalysis:
                     src_and_vvars = []
                     if stmt.dst.was_reg:
                         perfect_matches = []
+                        if original_node is self._entry_block and self._entry_initial_state is not None:
+                            vvar = self._entry_initial_state.registers.get(stmt.dst.reg_offset)
+                            src_and_vvars.append(((-1, None), vvar))
+                            perfect_matches.append(
+                                (vvar.reg_offset == stmt.dst.reg_offset and vvar.size == stmt.dst.size)
+                                if vvar is not None
+                                else True
+                            )
                         for pred in self._graph.predecessors(original_node):
                             vvar = self._follow_one_path_backward(
                                 self._graph,
                                 pred,
-                                partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset),
+                                partial(
+                                    self._reg_predicate,
+                                    reg_offset=stmt.dst.reg_offset,
+                                    use_loop_outstate=pred is original_node,
+                                ),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                             perfect_matches.append(
@@ -457,6 +528,7 @@ class RewritingAnalysis:
                                 partial(
                                     self._stack_predicate,
                                     stack_offset=stmt.dst.stack_offset,
+                                    use_loop_outstate=pred is original_node,
                                 ),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))

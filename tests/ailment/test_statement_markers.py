@@ -58,6 +58,23 @@ class TestStatementMarkers(unittest.TestCase):
         j = su.Jump(0, addr)
         assert isinstance(j, su.Jump)
         assert j.target_idx is None
+        assert j.transfer_kind == "unknown"
+
+        near_jump = su.Jump(0, addr, transfer_kind="near")
+        far_jump = su.Jump(0, addr, transfer_kind="far")
+        assert self._roundtrip(near_jump).transfer_kind == "near"
+        assert self._roundtrip(far_jump).transfer_kind == "far"
+        assert near_jump != far_jump
+        assert hash(near_jump) != hash(far_jump)
+        with self.assertRaises(ValueError):
+            su.Jump(0, addr, transfer_kind="flat")
+
+    def test_legacy_serialized_jump_defaults_transfer_kind_to_unknown(self):
+        # Serialized by the legacy two-field Jump wire variant: Jump(Const(0x42, 16)).
+        payload = bytes.fromhex("020000000000040000100000000000000000840100")
+        jump = Statement.from_bytes(payload)
+        assert isinstance(jump, su.Jump)
+        assert jump.transfer_kind == "unknown"
 
     def test_conditional_jump(self):
         dst, src, addr = self._atoms()

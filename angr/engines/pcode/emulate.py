@@ -15,10 +15,13 @@ from angr.utils.constants import DEFAULT_STATEMENT
 from .behavior import OpBehavior
 from .lifter import IRSB
 from .userop import (
+    X86_LOCK_MARKER_USEROP_KEYS,
+    X86_PROTECTED_MODE_SEGMENT_USEROP_KEY,
     X86_REAL_MODE_ADDRESS_MASK,
     X86_REAL_MODE_SEGMENT_USEROP_KEY,
     get_named_userop_key,
-    get_x86_real_mode_segment_varnodes,
+    get_x86_segment_varnodes,
+    validate_x86_lock_marker,
 )
 
 l = logging.getLogger(__name__)
@@ -439,8 +442,15 @@ class PcodeEmulatorMixin(SimEngine):
 
         handlers: dict[tuple[str, str], Callable[[], None]] = {
             X86_REAL_MODE_SEGMENT_USEROP_KEY: self._execute_x86_real_mode_segment,
+            X86_PROTECTED_MODE_SEGMENT_USEROP_KEY: self._execute_x86_protected_mode_segment,
         }
         handler = handlers.get(key)
+        if key in X86_LOCK_MARKER_USEROP_KEYS:
+            try:
+                validate_x86_lock_marker(op)
+            except ValueError as ex:
+                raise AngrError(f"Invalid x86 lock marker: {ex}") from ex
+            return
         if handler is None:
             language_id, name = key
             raise AngrError(f"CALLOTHER userop {name!r} is not supported for p-code language {language_id!r}")
@@ -450,15 +460,43 @@ class PcodeEmulatorMixin(SimEngine):
         op = self._current_op
         assert op is not None
         try:
-            output, segment_varnode, offset_varnode = get_x86_real_mode_segment_varnodes(op)
+            output, segment_varnode, offset_varnode = get_x86_segment_varnodes(op)
         except ValueError as ex:
             raise AngrError(f"Invalid x86 real-mode segment userop: {ex}") from ex
 
+        self._execute_x86_segment_address(
+            output,
+            segment_varnode,
+            offset_varnode,
+            segment_shift=4,
+            address_mask=X86_REAL_MODE_ADDRESS_MASK,
+        )
+
+    def _execute_x86_protected_mode_segment(self) -> None:
+        op = self._current_op
+        assert op is not None
+        try:
+            output, segment_varnode, offset_varnode = get_x86_segment_varnodes(op)
+        except ValueError as ex:
+            raise AngrError(f"Invalid x86 protected-mode segment userop: {ex}") from ex
+
+        self._execute_x86_segment_address(output, segment_varnode, offset_varnode, segment_shift=16)
+
+    def _execute_x86_segment_address(
+        self,
+        output: Varnode,
+        segment_varnode: Varnode,
+        offset_varnode: Varnode,
+        *,
+        segment_shift: int,
+        address_mask: int | None = None,
+    ) -> None:
         output_bits = output.size * 8
         segment = self._get_value(segment_varnode).zero_extend(output_bits - segment_varnode.size * 8)
         offset = self._get_value(offset_varnode).zero_extend(output_bits - offset_varnode.size * 8)
-        linear_address = (segment << 4) + offset
-        address = linear_address & claripy.BVV(X86_REAL_MODE_ADDRESS_MASK, output_bits)
+        address = (segment << segment_shift) + offset
+        if address_mask is not None:
+            address &= claripy.BVV(address_mask, output_bits)
         self._set_value(output, address)
 
     def _execute_multiequal(self) -> None:  # pylint:disable=no-self-use

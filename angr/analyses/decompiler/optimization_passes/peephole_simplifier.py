@@ -35,6 +35,7 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
     DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, peephole_optimizations=None, **kwargs):
+        self._preserve_vvar_ids = kwargs.get("avoid_vvar_ids")
         super().__init__(*args, **kwargs)
         self._peephole_optimizations = peephole_optimizations
         # one bundle for all BlockSimplifier invocations of this pass
@@ -43,6 +44,7 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
             self.kb,
             self.manager,
             func_addr=self._func.addr,
+            preserve_vvar_ids=self._preserve_vvar_ids,
             peephole_optimizations=self._peephole_optimizations,
         )
         self._expr_peephole_opts = self._peephole_bundle.expr_opts
@@ -72,6 +74,7 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
                 new_block,
                 func_addr=self._func.addr,
                 ail_manager=self.manager,
+                preserve_vvar_ids=self._preserve_vvar_ids,
                 peephole_bundle=self._peephole_bundle,
             )
             assert simp.result_block is not None

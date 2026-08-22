@@ -26,9 +26,19 @@ def is_sane_register_variable(
 
     arch_name = arch.name
     if ":" in arch_name:
-        # for pcode architectures, we only leave registers that are known to be used as input arguments
+        # P-code exposes every SLEIGH register, including ambient segment,
+        # flag, and FPU-control state. Retain only declared argument registers
+        # and caller-saved registers: the latter are important negative
+        # evidence for stack ABIs and identify register-entry helpers.
         if def_cc is not None:
-            return arch.translate_register_name(reg_offset, size=reg_size) in def_cc.ARG_REGS
+            sane_registers = set(def_cc.ARG_REGS) | set(def_cc.CALLER_SAVED_REGS)
+            for register_name in sane_registers:
+                if register_name not in arch.registers:
+                    continue
+                sane_offset, sane_size = arch.registers[register_name]
+                if sane_offset <= reg_offset and reg_offset + reg_size <= sane_offset + sane_size:
+                    return True
+            return False
         return True
 
     # VEX

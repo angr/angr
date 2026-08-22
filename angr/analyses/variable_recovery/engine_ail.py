@@ -141,7 +141,17 @@ class SimEngineVRAIL(
             self._expr(stmt.expd_hi)
 
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store):
-        addr_r = self._expr_bv(stmt.addr)
+        if isinstance(stmt.addr, ailment.Expr.SegmentedAddress) and (
+            stmt.addr.tags.get("segment_register") == "ss" or stmt.addr.tags.get("segment_register_origin") == "ss"
+        ):
+            # A recovered C stack object abstracts the task's SS-backed stack
+            # storage. Analyze the near component for stack-variable recovery,
+            # while retaining the SegmentedAddress in AIL for every access that
+            # cannot be proved to be a stack object.
+            self._expr(stmt.addr.selector)
+            addr_r = self._expr_bv(stmt.addr.offset)
+        else:
+            addr_r = self._expr_bv(stmt.addr)
         data = self._expr(stmt.data)
         size = stmt.size
         self._store(addr_r, data, size, atom=stmt)
@@ -597,7 +607,13 @@ class SimEngineVRAIL(
         return self._read_from_register(offset, size, expr=expr)
 
     def _handle_expr_Load(self, expr):
-        addr_r = self._expr_bv(expr.addr)
+        if isinstance(expr.addr, ailment.Expr.SegmentedAddress) and (
+            expr.addr.tags.get("segment_register") == "ss" or expr.addr.tags.get("segment_register_origin") == "ss"
+        ):
+            self._expr(expr.addr.selector)
+            addr_r = self._expr_bv(expr.addr.offset)
+        else:
+            addr_r = self._expr_bv(expr.addr)
         size = expr.size
 
         if size != UNDETERMINED_SIZE:

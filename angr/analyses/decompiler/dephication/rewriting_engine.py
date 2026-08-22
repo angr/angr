@@ -18,6 +18,7 @@ from angr.ailment.expression import (
     Load,
     Phi,
     Reinterpret,
+    SegmentedAddress,
     UnaryOp,
     VEXCCallExpression,
     VirtualVariable,
@@ -410,6 +411,21 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             return Insert(expr.idx, base, offset, value, expr.endness, **expr.tags)
         return None
 
+    def _handle_expr_SegmentedAddress(self, expr: SegmentedAddress):
+        selector = self._expr(expr.selector) or expr.selector
+        offset = self._expr(expr.offset) or expr.offset
+
+        if selector is not expr.selector or offset is not expr.offset:
+            return SegmentedAddress(
+                expr.idx,
+                selector,
+                offset,
+                expr.address_kind,
+                bits=expr.bits,
+                **expr.tags,
+            )
+        return None
+
     def _handle_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:
         new_operands = []
         updated = False
@@ -472,12 +488,15 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         new_target = self._expr(expr.target) if expr.target is not None and not isinstance(expr.target, str) else None
 
         if new_target is not None:
+            tags = expr.tags.copy()
+            transfer_kind = tags.pop("transfer_kind", getattr(expr, "transfer_kind", "unknown"))
             return Call(
                 expr.idx,
                 new_target,
                 args=expr.args,
                 bits=expr.bits,
-                **expr.tags,
+                transfer_kind=transfer_kind,
+                **tags,
             )
         return None
 

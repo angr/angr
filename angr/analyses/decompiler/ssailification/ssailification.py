@@ -14,6 +14,7 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.register_state import PostCallRegisterStateBindings
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
@@ -46,6 +47,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         ssa_stackvars: bool = False,
         ssa_tmps: bool = False,
         func_args: set[VirtualVariable] | None = None,
+        register_state_ranges: tuple[tuple[int, int], ...] = (),
+        initial_register_state_bindings: tuple[tuple[int, int, str], ...] = (),
+        post_call_register_state_bindings: PostCallRegisterStateBindings = (),
         rewrite_vvars: set[int] | None = None,
         vvar_id_start: int = 0,
     ):
@@ -68,6 +72,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._ssa_tmps = ssa_tmps
         self._rewrite_vvars = rewrite_vvars or set()
         self._func_args = func_args if func_args is not None else set()
+        initial_register_state_ranges = tuple(
+            (reg_offset, reg_size) for reg_offset, reg_size, _ in initial_register_state_bindings
+        )
         self._entry = (
             entry
             if entry is not None
@@ -88,6 +95,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             ssa_tmps,
             set(),
             self.kb.functions.get,
+            register_state_ranges=register_state_ranges,
+            initial_register_state_ranges=initial_register_state_ranges,
+            post_call_register_state_bindings=post_call_register_state_bindings,
             variable_map=variable_map_of(self._ail_manager) if self._ail_manager is not None else None,
         )
 
@@ -113,6 +123,15 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 blockkey = (definfo.loc.addr, definfo.loc.block_idx)
                 def_to_udef[def_] = udef
                 udef_to_blockkeys[udef].add(blockkey)
+
+        entry_register_ranges = [*register_state_ranges]
+        entry_register_ranges.extend(
+            (register_offset, size) for register_offset, size, _ in initial_register_state_bindings
+        )
+        for register_offset, size in entry_register_ranges:
+            udef = ("reg", register_offset, size)
+            extern_defs.add(udef)
+            udef_to_blockkeys[udef].add((-1, None))
 
         # Computer the dominance frontier for each node in the graph
         df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
@@ -166,6 +185,10 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             def_to_udef,
             extern_defs,
             incomplete_defs=incomplete_defs,
+            register_state_ranges=register_state_ranges,
+            initial_register_state_bindings=initial_register_state_bindings,
+            post_call_register_state_bindings=post_call_register_state_bindings,
+            post_call_effect_defs=traversal.post_call_effect_defs,
             vvar_id_start=next(phi_id_ctr),
             stackvars=self._ssa_stackvars,
             fail_fast=self._fail_fast,

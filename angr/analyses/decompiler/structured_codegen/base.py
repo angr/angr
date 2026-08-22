@@ -220,6 +220,9 @@ class BaseStructuredCodeGenerator:
     def reload_variable_types(self) -> None:
         pass
 
+    def reload_function_metadata(self, function=None) -> None:
+        """Refresh the owning function metadata used by an existing structured-code result."""
+
     def next_ident(self, key: str) -> str:
         if key not in self.ident_counters:
             self.ident_counters[key] = count()

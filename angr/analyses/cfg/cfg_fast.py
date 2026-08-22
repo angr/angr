@@ -63,6 +63,7 @@ from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
+from .pcode_x86_return_thunk import is_pcode_x86_return_thunk
 from .pe_msvc_eh_structs import (
     FUNCINFO_SIZE,
     HANDLERTYPE_SIZE,
@@ -2671,8 +2672,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         for func_addr in sorted(self.functions.unknown_returning_func_addrs()):
             f = self.functions.get_by_addr(func_addr)
-            # Scan all functions, and make sure .returning for all functions are either True or False
-            if f.returning is None:
+            # Resolve functions with complete control flow. A function ending in an unresolved transfer remains
+            # unknown: absence of a recovered return edge is not proof that it does not return.
+            if f.returning is None and not f.has_unresolved_jumps:
                 f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
 
         # optional: find and mark functions that must be alignments
@@ -3372,6 +3374,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     self._pending_jobs.add_returning_function(current_function_addr)
 
                 self.model.mark_node_addr_has_return(addr)
+
+            elif not self._resolve_indirect_jumps and jumpkind == "Ijk_Boring":
+                # Keep enough information to distinguish an unresolved terminal transfer from a proven no-return
+                # function. In particular, this preserves callers' tentative fake-return paths when jump resolution
+                # is deliberately disabled.
+                self.kb.unresolved_indirect_jumps.add(addr)
 
             elif self._resolve_indirect_jumps and (
                 jumpkind in ("Ijk_Boring", "Ijk_Call", "Ijk_InvalICache") or jumpkind.startswith("Ijk_Sys")
@@ -4293,6 +4301,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         :return:    None
         """
+
+        if is_pcode_x86_return_thunk(self.project, self, jump):
+            l.debug("Classified indirect jump at %#x as a p-code return thunk.", jump.addr)
+            self.indirect_jumps.pop(jump.addr, None)
+            self.kb.unresolved_indirect_jumps.discard(jump.addr)
+            self._function_exits[jump.func_addr].add(jump.addr)
+            self._function_add_return_site(jump.addr, jump.func_addr)
+            self.functions[jump.func_addr].returning = True
+            self._pending_jobs.add_returning_function(jump.func_addr)
+            self.model.mark_node_addr_has_return(jump.addr)
+            self._deregister_analysis_job(jump.func_addr, jump)
+            self._transitory_resolved_indirect_jumps += 1
+            self._calculate_progress_and_notify(skip_percentage=True)
+            return
 
         # add a node from this node to UnresolvableJumpTarget or UnresolvableCallTarget node,
         # depending on its jump kind

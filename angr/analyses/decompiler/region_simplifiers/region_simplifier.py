@@ -19,6 +19,7 @@ from .expr_folding import (
     ExpressionCounter,
     ExpressionFolder,
     ExpressionLocation,
+    ExpressionSpotter,
     InterferenceChecker,
     LoopNodeFinder,
     StoreStatementFinder,
@@ -45,6 +46,7 @@ class RegionSimplifier(Analysis):
         region,
         ail_manager: Manager,
         arg_vvars: set[int] | None = None,
+        avoid_vvar_ids: set[int] | None = None,
         simplify_switches: bool = True,
         simplify_ifelse: bool = True,
         variable_manager: VariableManagerInternal | None = None,
@@ -53,6 +55,7 @@ class RegionSimplifier(Analysis):
         self.func = func
         self.region = region
         self.arg_vvars = arg_vvars
+        self._avoid_vvar_ids = avoid_vvar_ids or set()
         self.ail_manager = ail_manager
         self._simplify_switches = simplify_switches
         self._should_simplify_ifelses = simplify_ifelse
@@ -143,6 +146,8 @@ class RegionSimplifier(Analysis):
         var_with_loads = {}
         single_use_variables = []
         for var, outerscope_uses in expr_counter.outerscope_uses.items():
+            if var in self._avoid_vvar_ids:
+                continue
             all_uses = expr_counter.all_uses[var]
             if (
                 len(outerscope_uses) == 1
@@ -151,6 +156,16 @@ class RegionSimplifier(Analysis):
                 and len(expr_counter.assignments[var]) == 1
             ):
                 definition, deps, loc, has_loads = next(iter(expr_counter.assignments[var]))
+                expression_spotter = ExpressionSpotter()
+                if isinstance(definition, ailment.Stmt.Statement):
+                    expression_spotter.walk_statement(definition)
+                else:
+                    expression_spotter.walk_expression(definition)
+                if expression_spotter.has_far_calls:
+                    # Preserve a statement boundary so code generation can
+                    # perform any required guest transfer-state restoration
+                    # after consuming the call result.
+                    continue
                 _, use_expr_loc = next(iter(outerscope_uses))
                 if isinstance(use_expr_loc, ExpressionLocation) and use_expr_loc.phi_stmt:
                     # we cannot fold expressions that are used in phi statements

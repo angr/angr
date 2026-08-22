@@ -20,7 +20,9 @@ use pyo3::exceptions::{PyAttributeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 
-use crate::ailment::ail_expr::{AilExpression, CFGTarget, Expression, VariantIdx, next};
+use crate::ailment::ail_expr::{
+    AilExpression, CFGTarget, Expression, VariantIdx, next, validate_transfer_kind,
+};
 use crate::ailment::enums::StatementKind;
 use crate::ailment::tags::{Tags, TagsView};
 use crate::ailment::{CachedHash, hash_of};
@@ -98,6 +100,7 @@ pub enum StmtInner {
         /// rationale.
         target: CFGTarget,
         target_idx: Option<i64>,
+        transfer_kind: String,
     },
     ConditionalJump {
         condition: Arc<AilExpression>,
@@ -195,9 +198,14 @@ impl Hash for AilStatement {
                 size.hash(h);
                 endness.hash(h);
             }
-            StmtInner::Jump { target, target_idx } => {
+            StmtInner::Jump {
+                target,
+                target_idx,
+                transfer_kind,
+            } => {
                 target.hash(h);
                 target_idx.hash(h);
+                transfer_kind.hash(h);
             }
             StmtInner::ConditionalJump {
                 condition,
@@ -316,9 +324,14 @@ impl AilStatement {
                 endness: endness.clone(),
                 guard: recurse_opt(guard)?,
             },
-            StmtInner::Jump { target, target_idx } => StmtInner::Jump {
+            StmtInner::Jump {
+                target,
+                target_idx,
+                transfer_kind,
+            } => StmtInner::Jump {
                 target: dc_target(target)?,
                 target_idx: *target_idx,
+                transfer_kind: transfer_kind.clone(),
             },
             StmtInner::ConditionalJump {
                 condition,
@@ -601,7 +614,11 @@ impl AilStatement {
             // ``Goto(Conv(Load(...)))`` so the structurer can recognize
             // a jumptable -- has to be able to walk into it. Recurse if
             // the slot wraps an ``Expression``.
-            StmtInner::Jump { target, target_idx } => {
+            StmtInner::Jump {
+                target,
+                target_idx,
+                transfer_kind,
+            } => {
                 let (changed, new_target) = target.replace_ail(old_expr, new_expr);
                 if !changed {
                     return (false, self.clone());
@@ -613,6 +630,7 @@ impl AilStatement {
                         inner: StmtInner::Jump {
                             target: new_target,
                             target_idx: *target_idx,
+                            transfer_kind: transfer_kind.clone(),
                         },
                     },
                 )
@@ -669,12 +687,14 @@ impl AilStatement {
                 StmtInner::Jump {
                     target: a_t,
                     target_idx: a_ti,
+                    transfer_kind: a_transfer_kind,
                 },
                 StmtInner::Jump {
                     target: b_t,
                     target_idx: b_ti,
+                    transfer_kind: b_transfer_kind,
                 },
-            ) => a_ti == b_ti && a_t.likes(b_t),
+            ) => a_ti == b_ti && a_transfer_kind == b_transfer_kind && a_t.likes(b_t),
             (
                 StmtInner::ConditionalJump {
                     condition: a_c,
@@ -819,12 +839,14 @@ impl AilStatement {
                 StmtInner::Jump {
                     target: a_t,
                     target_idx: a_ti,
+                    transfer_kind: a_transfer_kind,
                 },
                 StmtInner::Jump {
                     target: b_t,
                     target_idx: b_ti,
+                    transfer_kind: b_transfer_kind,
                 },
-            ) => a_ti == b_ti && a_t.matches(b_t),
+            ) => a_ti == b_ti && a_transfer_kind == b_transfer_kind && a_t.matches(b_t),
             (
                 StmtInner::ConditionalJump {
                     condition: a_c,
@@ -1048,17 +1070,23 @@ impl Statement {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, target, target_idx=None, **kwargs))]
+    #[pyo3(signature = (idx, target, target_idx=None, transfer_kind="unknown", **kwargs))]
     fn _new_jump(
         idx: i64,
         target: CFGTarget,
         target_idx: Option<i64>,
+        transfer_kind: &str,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        validate_transfer_kind(transfer_kind)?;
         let tags = Tags::from_kwargs(kwargs)?;
         Ok(Self::wrap(AilStatement {
             header: StmtHeader::new(idx, tags),
-            inner: StmtInner::Jump { target, target_idx },
+            inner: StmtInner::Jump {
+                target,
+                target_idx,
+                transfer_kind: transfer_kind.to_owned(),
+            },
         }))
     }
 
@@ -1358,6 +1386,17 @@ impl Statement {
         }
     }
 
+    /// Jump.transfer_kind
+    #[getter]
+    fn transfer_kind(&self) -> PyResult<String> {
+        match &self.stmt.inner {
+            StmtInner::Jump { transfer_kind, .. } => Ok(transfer_kind.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'transfer_kind' on this Statement",
+            )),
+        }
+    }
+
     /// ConditionalJump.condition
     #[getter]
     fn condition(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
@@ -1421,6 +1460,21 @@ impl Statement {
             }
             _ => Err(PyAttributeError::new_err(
                 "no 'target_idx' on this Statement",
+            )),
+        }
+    }
+
+    #[setter]
+    fn set_transfer_kind(&mut self, value: &str) -> PyResult<()> {
+        validate_transfer_kind(value)?;
+        match &mut self.stmt.inner {
+            StmtInner::Jump { transfer_kind, .. } => {
+                self.stmt.header.cached_hash.clear();
+                *transfer_kind = value.to_owned();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'transfer_kind' on this Statement",
             )),
         }
     }
@@ -2118,9 +2172,10 @@ const STMT_VARIANTS: &[&str] = &[
     "CAS",
     "DirtyStatement",
     "NoOp",
+    "JumpWithTransfer",
 ];
 #[rustfmt::skip]
-const STMT_FIELD_COUNTS: &[usize] = &[2, 2, 1, 5, 2, 5, 3, 1, 8, 1, 0];
+const STMT_FIELD_COUNTS: &[usize] = &[2, 2, 1, 5, 2, 5, 3, 1, 8, 1, 0, 3];
 
 const NOOP_TAG: u32 = 10;
 
@@ -2159,10 +2214,15 @@ impl Serialize for StmtInner {
                 tv.serialize_field(guard)?;
                 tv.end()
             }
-            StmtInner::Jump { target, target_idx } => {
-                let mut tv = s.serialize_tuple_variant("StmtInner", 4, "Jump", 2)?;
+            StmtInner::Jump {
+                target,
+                target_idx,
+                transfer_kind,
+            } => {
+                let mut tv = s.serialize_tuple_variant("StmtInner", 11, "JumpWithTransfer", 3)?;
                 tv.serialize_field(target)?;
                 tv.serialize_field(target_idx)?;
+                tv.serialize_field(transfer_kind)?;
                 tv.end()
             }
             StmtInner::ConditionalJump {
@@ -2284,6 +2344,12 @@ impl<'de> Deserialize<'de> for StmtInner {
                     4 => StmtInner::Jump {
                         target: next(&mut seq)?,
                         target_idx: next(&mut seq)?,
+                        transfer_kind: "unknown".to_string(),
+                    },
+                    11 => StmtInner::Jump {
+                        target: next(&mut seq)?,
+                        target_idx: next(&mut seq)?,
+                        transfer_kind: next(&mut seq)?,
                     },
                     5 => StmtInner::ConditionalJump {
                         condition: next(&mut seq)?,

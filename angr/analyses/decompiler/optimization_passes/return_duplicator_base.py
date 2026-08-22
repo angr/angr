@@ -241,7 +241,11 @@ class ReturnDuplicatorBase:
                 if isinstance(last_stmt, Jump):
                     if isinstance(last_stmt.target, Const) and last_stmt.target.value == node_copy.addr:
                         updated_last_stmt = Jump(
-                            last_stmt.idx, last_stmt.target, target_idx=node_copy.idx, **last_stmt.tags
+                            last_stmt.idx,
+                            last_stmt.target,
+                            target_idx=node_copy.idx,
+                            transfer_kind=getattr(last_stmt, "transfer_kind", "unknown"),
+                            **last_stmt.tags,
                         )
                         pred.statements[-1] = updated_last_stmt
                 elif isinstance(last_stmt, ConditionalJump):

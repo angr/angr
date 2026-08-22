@@ -6,7 +6,7 @@ import enum
 import importlib
 import logging
 from collections import defaultdict, namedtuple
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -20,6 +20,7 @@ from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
+from angr.analyses.cfg.pcode_x86_return_thunk import PcodeX86ReturnThunk, prove_pcode_x86_return_thunk
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
@@ -62,6 +63,7 @@ from angr.sim_type import (
     SimTypeFunction,
     SimTypeInt,
     SimTypeLongLong,
+    SimTypeNum,
     SimTypePointer,
     SimTypeShort,
 )
@@ -84,11 +86,13 @@ from angr.utils.ail_serialization import (
     simvar_to_bytes_polymorphic,
 )
 from angr.utils.graph import GraphUtils
-from angr.utils.ssa import is_phi_assignment
+from angr.utils.ssa import get_vvar_deflocs, get_vvar_uselocs, is_phi_assignment
 from angr.utils.types import dereference_simtype_by_lib
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .far_calls import IndirectFarCallBindings, indirect_far_call_binding_map
+from .near_calls import IndirectNearCallBindings, indirect_near_call_binding_map
 from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
@@ -97,7 +101,20 @@ from .optimization_passes import (
     StackCanarySimplifier,
     TagSlicer,
 )
+from .register_state import (
+    InitialRegisterStateBindings,
+    PostCallRegisterStateBindings,
+    PostCallRegisterStateSelector,
+    RegisterStateBindingKey,
+    RegisterStateBindings,
+    normalize_initial_register_state_bindings,
+    normalize_post_call_register_state_bindings,
+    normalize_register_state_bindings,
+    post_call_register_state_bindings_for_call,
+    register_state_ranges,
+)
 from .return_maker import ReturnMaker
+from .segmented_memory import segmented_stack_variable, stack_offset_from_segmented_offset
 from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
@@ -114,6 +131,129 @@ l = logging.getLogger(name=__name__)
 
 
 BlockCache = namedtuple("BlockCache", ("rd", "prop"))
+
+
+class _PointerBaseCollector(AILBlockViewer):
+    """
+    Recover pointer types for function arguments used as unscaled address bases.
+
+    An additive term reached through Mul/Shl is an index, not a base. Likewise,
+    an argument added to a mapped constant or the stack base is an offset into
+    that fixed object. Ambiguous addresses with multiple argument candidates
+    are left to the ordinary type solver.
+    """
+
+    def __init__(self, project, kb, variable_map: VariableMap, candidate_varids: set[int]):
+        super().__init__()
+        self._project = project
+        self._kb = kb
+        self._variable_map = variable_map
+        self._candidate_varids = candidate_varids
+        self.base_types: dict[int, tuple[int, SimTypePointer]] = {}
+
+    @staticmethod
+    def _additive_terms(expr):
+        if isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Add":
+            yield from _PointerBaseCollector._additive_terms(expr.operands[0])
+            yield from _PointerBaseCollector._additive_terms(expr.operands[1])
+        elif isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Sub":
+            # Only the minuend can be the address base.
+            yield from _PointerBaseCollector._additive_terms(expr.operands[0])
+        else:
+            yield expr
+
+    def _candidate(self, expr) -> int | None:
+        if (
+            isinstance(expr, ailment.Expr.VirtualVariable)
+            and expr.varid in self._candidate_varids
+            and expr.bits == self._project.arch.bits
+        ):
+            return expr.varid
+        if (
+            isinstance(expr, (ailment.Expr.Convert, ailment.Expr.Reinterpret))
+            and expr.bits == self._project.arch.bits
+            and expr.operand.bits == self._project.arch.bits
+        ):
+            return self._candidate(expr.operand)
+        return None
+
+    def _is_fixed_base(self, expr) -> bool:
+        if isinstance(expr, (ailment.Expr.BasePointerOffset, ailment.Expr.StackBaseOffset)):
+            return True
+        return (
+            isinstance(expr, ailment.Expr.Const)
+            and isinstance(expr.value, int)
+            and self._project.loader.find_object_containing(expr.value) is not None
+        )
+
+    def _record_address(self, expr, pointer_type: SimTypePointer, priority: int) -> None:
+        terms = tuple(self._additive_terms(expr))
+        if any(self._is_fixed_base(term) for term in terms):
+            return
+        candidates = {varid for term in terms if (varid := self._candidate(term)) is not None}
+        if len(candidates) == 1:
+            varid = next(iter(candidates))
+            current = self.base_types.get(varid)
+            if current is None or priority > current[0]:
+                self.base_types[varid] = priority, pointer_type
+
+    def _access_pointer_type(self, size: int) -> SimTypePointer:
+        if size == 1:
+            # A raw byte access is an integer byte, not evidence of text. Calls
+            # to trusted string APIs still win at priority 2 and recover char *.
+            pts_to = SimTypeChar(signed=False)
+        elif size == 2:
+            pts_to = SimTypeShort(signed=False)
+        elif size == 4:
+            pts_to = SimTypeInt(signed=False)
+        elif size == 8:
+            pts_to = SimTypeLongLong(signed=False)
+        else:
+            pts_to = SimTypeChar(signed=False)
+        return SimTypePointer(pts_to).with_arch(self._project.arch)
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._record_address(expr.addr, self._access_pointer_type(expr.size), 1)
+        self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
+        if expr.guard is not None:
+            self._handle_expr(1, expr.guard, stmt_idx, stmt, block)
+        if expr.alt is not None:
+            self._handle_expr(2, expr.alt, stmt_idx, stmt, block)
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        self._record_address(stmt.addr, self._access_pointer_type(stmt.size), 1)
+        self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
+        self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
+        if stmt.guard is not None:
+            self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
+
+    def _handle_CAS(self, stmt_idx, stmt, block):
+        self._record_address(
+            stmt.addr,
+            SimTypePointer(SimTypeChar(signed=False)).with_arch(self._project.arch),
+            1,
+        )
+        super()._handle_CAS(stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        prototype = self._variable_map.prototype(expr)
+        prototype_libname = None
+        trusted = prototype is not None
+        if isinstance(expr.target, ailment.Expr.Const) and expr.target.value in self._kb.functions:
+            function = self._kb.functions[expr.target.value]
+            if prototype is None:
+                prototype = function.prototype
+            prototype_libname = function.prototype_libname
+            trusted |= not function.is_prototype_guessed
+
+        if trusted and prototype is not None and expr.args is not None:
+            for arg_expr, arg_type in zip(expr.args, prototype.args):
+                if prototype_libname is not None:
+                    arg_type = dereference_simtype_by_lib(arg_type, prototype_libname)
+                if isinstance(arg_type, SimTypePointer):
+                    self._record_address(arg_expr, arg_type.with_arch(self._project.arch), 2)
+
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class ClinicMode(enum.Enum):
@@ -268,6 +408,17 @@ class Clinic(Analysis, Serializable):
         notes: dict[str, DecompilationNote] | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        register_state_bindings: Mapping[RegisterStateBindingKey, str] | RegisterStateBindings | None = None,
+        initial_register_state_bindings: (
+            Mapping[RegisterStateBindingKey, str] | InitialRegisterStateBindings | None
+        ) = None,
+        post_call_register_state_bindings: (
+            Mapping[PostCallRegisterStateSelector, Mapping[RegisterStateBindingKey, str]]
+            | PostCallRegisterStateBindings
+            | None
+        ) = None,
+        indirect_far_call_bindings: IndirectFarCallBindings = (),
+        indirect_near_call_bindings: IndirectNearCallBindings = (),
         flatten_args=False,
         constrain_callee_prototypes: bool = False,
         semvar_naming: bool = True,
@@ -343,6 +494,23 @@ class Clinic(Analysis, Serializable):
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
         self.static_buffers = static_buffers if static_buffers is not None else {}
+        self.register_state_bindings = (
+            normalize_register_state_bindings(self.project.arch, register_state_bindings)
+            if isinstance(register_state_bindings, Mapping) or register_state_bindings is None
+            else tuple(register_state_bindings)
+        )
+        self.initial_register_state_bindings = (
+            normalize_initial_register_state_bindings(self.project.arch, initial_register_state_bindings)
+            if isinstance(initial_register_state_bindings, Mapping) or initial_register_state_bindings is None
+            else tuple(initial_register_state_bindings)
+        )
+        self.post_call_register_state_bindings = (
+            normalize_post_call_register_state_bindings(self.project.arch, post_call_register_state_bindings)
+            if isinstance(post_call_register_state_bindings, Mapping) or post_call_register_state_bindings is None
+            else tuple(post_call_register_state_bindings)
+        )
+        self.indirect_far_call_bindings = tuple(indirect_far_call_bindings)
+        self.indirect_near_call_bindings = tuple(indirect_near_call_bindings)
         self._flatten_args = flatten_args
         self._semvar_naming = semvar_naming
 
@@ -531,6 +699,8 @@ class Clinic(Analysis, Serializable):
             self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
             self._recover_calling_conventions(func_graph=ail_graph)
 
+        ail_graph = self._rewrite_bound_indirect_far_calls(ail_graph)
+        ail_graph = self._rewrite_bound_indirect_near_calls(ail_graph)
         return self._apply_callsite_prototype_and_calling_convention(ail_graph)
 
     def _slice_variables(self, ail_graph: networkx.DiGraph[ailment.Block]) -> networkx.DiGraph[ailment.Block]:
@@ -819,6 +989,7 @@ class Clinic(Analysis, Serializable):
         self._update_progress(35.0, text="Transforming to partial-SSA form (registers)")
         assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level0(self._ail_graph, self.func_args)
+        self._preserve_bound_register_state_vvars()
 
     def _stage_constant_propagation(self) -> None:
         # full-function constant-only propagation
@@ -832,6 +1003,7 @@ class Clinic(Analysis, Serializable):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             max_iterations=1,
             simplify_blocks=False,
+            preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
     def _stage_track_stack_pointers(self) -> None:
@@ -896,6 +1068,7 @@ class Clinic(Analysis, Serializable):
             narrow_expressions=False,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
+            preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
         # Run simplification passes
@@ -912,6 +1085,7 @@ class Clinic(Analysis, Serializable):
             narrow_expressions=False,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
+            preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
     def _stage_make_function_callsites(self) -> None:
@@ -1246,6 +1420,17 @@ class Clinic(Analysis, Serializable):
             # A call to a jmp_rax thunk (e.g. the Windows Control-Flow-Guard __guard_dispatch_icall dispatcher) is
             # really an indirect call through rax; _rewrite_jump_rax_calls rewrites it as such.
             is_indirect_call_thunk = target_func.info.get("jmp_rax", False) is True
+            inferred_void_needs_callsite_proof = (
+                target_func.prototype is not None
+                and isinstance(target_func.prototype.returnty, SimTypeBottom)
+                and target_func.prototype.returnty.label == "void"
+                and target_func.prototype_source
+                not in {
+                    PrototypeSource.SIMPROC,
+                    PrototypeSource.SIGNATURES,
+                    PrototypeSource.USER,
+                }
+            )
 
             # case 0: the calling convention and prototype are available
             if (
@@ -1253,6 +1438,7 @@ class Clinic(Analysis, Serializable):
                 and target_func.calling_convention is not None
                 and target_func.prototype is not None
                 and not (target_func.is_plt and target_func.is_prototype_guessed)
+                and not inferred_void_needs_callsite_proof
             ):
                 continue
 
@@ -1376,6 +1562,13 @@ class Clinic(Analysis, Serializable):
                 prioritize_func_addrs=[self.function.addr],
                 skip_other_funcs=True,
                 skip_signature_matched_functions=False,
+                cfg=self._cfg,
+                # The earlier whole-program pass may have resolved an otherwise unknown return type from a proven
+                # use of the ABI return register in a caller.  Re-running CCA here without the CFG silently discards
+                # that cross-call fact and turns the callee back into void.  Keep call-site evidence in the
+                # decompiler refinement pass whenever the caller graph is available; unresolved/missing continuations
+                # remain fail-closed in CallingConventionAnalysis.
+                analyze_callsites=self._cfg is not None,
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
             )
 
@@ -1431,6 +1624,8 @@ class Clinic(Analysis, Serializable):
         """
         assert self._func_graph is not None
         assert self._blocks_by_addr_and_size is not None
+        return_site_addresses = {site.addr for site in self.function.ret_sites}
+        return_thunk = self._proven_pcode_return_thunk()
 
         for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
@@ -1448,7 +1643,91 @@ class Clinic(Analysis, Serializable):
                     )
                 ]
 
+                # CFG recovery can prove that an instruction sequence is a
+                # return even when the lifter must represent its final machine
+                # instruction as an indirect jump.  Carry that per-function
+                # fact into AIL; otherwise structuring emits a computed goto
+                # and discards the proof already recorded in Function.ret_sites.
+                if (
+                    block_node.addr in return_site_addresses
+                    and self._func_graph.out_degree(block_node) == 0
+                    and ail_block.statements
+                    and isinstance(ail_block.statements[-1], ailment.Stmt.Jump)
+                ):
+                    terminal = ail_block.statements[-1]
+                    ail_block.statements[-1] = ailment.Stmt.Return(
+                        self._ail_manager.next_atom(),
+                        [],
+                        **terminal.tags,
+                    )
+
+                if return_thunk is not None and block_node.addr == return_thunk.entry_addr:
+                    # The machine proof establishes that the first instruction's non-SP dataflow only transports
+                    # the caller's continuation token to the terminal indirect branch. Return is already explicit in
+                    # AIL, so exposing that control-only token as an uninitialized C local and a guest-memory store is
+                    # both redundant and misleading. Keep the POP's real SP increment: later dynamic stack effects
+                    # remain ordinary dataflow and are not covered by this rewrite.
+                    entry_ins_addr = return_thunk.entry_addr
+                    sp_offset, sp_size = self.project.arch.registers["sp"]
+                    ail_block.statements = [
+                        stmt
+                        for stmt in ail_block.statements
+                        if stmt.tags.get("ins_addr") != entry_ins_addr
+                        or isinstance(stmt, ailment.Stmt.Label)
+                        or (
+                            isinstance(stmt, ailment.Stmt.Assignment)
+                            and isinstance(stmt.dst, ailment.Expr.Register)
+                            and stmt.dst.reg_offset == sp_offset
+                            and stmt.dst.size == sp_size
+                        )
+                    ]
+
                 self._blocks_by_addr_and_size[(block_node.addr, block_node.size)] = ail_block
+
+    def _proven_pcode_return_thunk(self) -> PcodeX86ReturnThunk | None:
+        """Return uniform exact thunk evidence only when it accounts for every function endpoint."""
+        if self._cfg is None:
+            return None
+
+        return_sites = tuple(self.function.ret_sites)
+        if not return_sites or {site.addr for site in self.function.endpoints} != {site.addr for site in return_sites}:
+            return None
+
+        proofs = []
+        for site in return_sites:
+            proof = prove_pcode_x86_return_thunk(
+                self.project,
+                self._cfg,
+                function_addr=self.function.addr,
+                jump_addr=site.addr,
+            )
+            if proof is None:
+                return None
+            proofs.append(proof)
+
+        first = proofs[0]
+        token_key = (
+            first.entry_addr,
+            first.token_kind,
+            first.token_register,
+            first.token_segment_register,
+            first.token_memory_offset,
+            first.token_size,
+        )
+        if any(
+            (
+                proof.entry_addr,
+                proof.token_kind,
+                proof.token_register,
+                proof.token_segment_register,
+                proof.token_memory_offset,
+                proof.token_size,
+            )
+            != token_key
+            for proof in proofs[1:]
+        ):
+            return None
+        return first
 
     def _convert(self, block_node):
         """
@@ -1574,6 +1853,21 @@ class Clinic(Analysis, Serializable):
                 and isinstance(last_stmt.expr, ailment.Expr.Call)
                 and not isinstance(last_stmt.expr.target, ailment.Expr.Const)
             ):
+                old_target = last_stmt.expr.target
+                direct_segmented_far_call = (
+                    getattr(last_stmt.expr, "transfer_kind", "unknown") == "far"
+                    and isinstance(old_target, ailment.Expr.SegmentedAddress)
+                    and isinstance(old_target.selector, ailment.Expr.Const)
+                    and isinstance(old_target.selector.value, int)
+                    and isinstance(old_target.offset, ailment.Expr.Const)
+                    and isinstance(old_target.offset.value, int)
+                )
+                if isinstance(old_target, ailment.Expr.SegmentedAddress) and not direct_segmented_far_call:
+                    # A nonconstant segmented target is still indirect even if
+                    # a particular CFG run happened to resolve one successor.
+                    # Preserve that evidence so far-call code generation can
+                    # never mistake it for an immediate CALLF operand.
+                    continue
                 # indirect call
                 # consult CFG to see if this is a call with a single successor
                 node = self._cfg.get_any_node(block.addr)
@@ -1595,12 +1889,20 @@ class Clinic(Analysis, Serializable):
                         old_call = last_stmt.expr
                         old_cc = self.variable_map.calling_convention(old_call)
                         old_proto = self.variable_map.prototype(old_call)
+                        call_tags = old_call.tags.copy()
+                        if getattr(old_call, "transfer_kind", "unknown") == "far":
+                            call_tags[
+                                "far_call_direct_segmented"
+                                if direct_segmented_far_call
+                                else "far_call_resolved_indirect"
+                            ] = True
                         new_call = ailment.Expr.Call(
                             old_call.idx,
                             ailment.Expr.Const(self._ail_manager.next_atom(), successors[0].addr, old_call.target.bits),
                             args=old_call.args,
                             bits=old_call.bits,
-                            **old_call.tags,
+                            transfer_kind=getattr(old_call, "transfer_kind", "unknown"),
+                            **call_tags,
                         )
                         new_last_stmt = ailment.Stmt.SideEffectStatement(
                             self._ail_manager.next_atom(),
@@ -1659,8 +1961,15 @@ class Clinic(Analysis, Serializable):
             else:
                 continue
 
+            successor_addrs = {successor.addr for successor in ail_graph.successors(block)}
             for slot_name, target in slots:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
+                    continue
+
+                # A function record at the jump target is not sufficient evidence of a tail call. In particular,
+                # function entries are also ordinary loop targets. Preserve jumps to this function and to successor
+                # blocks that are proven to be part of its AIL graph.
+                if target.value == self.function.addr or target.value in successor_addrs:
                     continue
 
                 target_func = self.kb.functions.get_by_addr(target.value)
@@ -1684,6 +1993,11 @@ class Clinic(Analysis, Serializable):
                     ailment.Expr.Call(
                         self._ail_manager.next_atom(),
                         target.copy(),
+                        transfer_kind=(
+                            getattr(last_stmt, "transfer_kind", "unknown")
+                            if isinstance(last_stmt, ailment.Stmt.Jump)
+                            else "unknown"
+                        ),
                         **last_stmt.tags,
                     ),
                     ret_expr=ret_expr,
@@ -1743,6 +2057,7 @@ class Clinic(Analysis, Serializable):
                     self._ail_manager.next_atom(),
                     last_stmt.expr.target.copy(),
                     args=[arg_expr],
+                    transfer_kind=getattr(last_stmt.expr, "transfer_kind", "unknown"),
                     **call_tags,
                 )
                 self.variable_map.set_calling_convention(new_call, SimCCUsercall(self.project.arch, [arg], []))
@@ -1760,6 +2075,511 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    @staticmethod
+    def _resolve_indirect_far_call_tmp(expr, tmp_definitions):
+        seen = set()
+        while isinstance(expr, ailment.Expr.Tmp) and expr.tmp_idx not in seen:
+            seen.add(expr.tmp_idx)
+            replacement = tmp_definitions.get(expr.tmp_idx)
+            if replacement is None:
+                break
+            expr = replacement
+        return expr
+
+    def _matches_indirect_far_call_slot(
+        self,
+        target,
+        tmp_definitions,
+        *,
+        callsite: int,
+        address_kind: str,
+        selector_offset: int,
+        selector_size: int,
+        slot_offset_source: tuple[str, int, int],
+    ) -> bool:
+        if not (
+            isinstance(target, ailment.Expr.SegmentedAddress)
+            and target.address_kind == address_kind
+            and target.bits == 32
+            and target.selector.bits == 16
+            and target.offset.bits == 16
+            and target.tags.get("ins_addr") == callsite
+            and not isinstance(target.selector, ailment.Expr.Const)
+            and not isinstance(target.offset, ailment.Expr.Const)
+        ):
+            return False
+
+        dynamic_selector = self._resolve_indirect_far_call_tmp(target.selector, tmp_definitions)
+        dynamic_offset = self._resolve_indirect_far_call_tmp(target.offset, tmp_definitions)
+
+        def matches_slot_selector(expr) -> bool:
+            expr = self._resolve_indirect_far_call_tmp(expr, tmp_definitions)
+            return (
+                isinstance(expr, ailment.Expr.Register)
+                and expr.reg_offset == selector_offset
+                and expr.size == selector_size
+            )
+
+        def matches_slot_offset(expr) -> bool:
+            expr = self._resolve_indirect_far_call_tmp(expr, tmp_definitions)
+            offset_kind, offset_value, offset_size = slot_offset_source
+            if offset_kind == "constant":
+                return (
+                    isinstance(expr, ailment.Expr.Const)
+                    and expr.bits == offset_size * self.project.arch.byte_width
+                    and isinstance(expr.value, int)
+                    and not isinstance(expr.value, bool)
+                    and expr.value == offset_value
+                )
+            if offset_kind == "register":
+                return (
+                    isinstance(expr, ailment.Expr.Register)
+                    and expr.reg_offset == offset_value
+                    and expr.size == offset_size
+                )
+            return False
+
+        def slot_base(expr):
+            expr = self._resolve_indirect_far_call_tmp(expr, tmp_definitions)
+            if not (
+                isinstance(expr, ailment.Expr.SegmentedAddress)
+                and expr.address_kind == address_kind
+                and expr.bits == 32
+                and expr.selector.bits == 16
+                and expr.offset.bits == 16
+                and expr.tags.get("ins_addr") == callsite
+            ):
+                return None
+            if not matches_slot_selector(expr.selector) or not matches_slot_offset(expr.offset):
+                return None
+            return expr
+
+        def is_two(expr) -> bool:
+            expr = self._resolve_indirect_far_call_tmp(expr, tmp_definitions)
+            return (
+                isinstance(expr, ailment.Expr.Const)
+                and expr.bits == 16
+                and isinstance(expr.value, int)
+                and not isinstance(expr.value, bool)
+                and expr.value == 2
+            )
+
+        def slot_selector_word_address(expr) -> bool:
+            """Match the selector word at the exact ``slot + 2`` address.
+
+            P-code conversion may preserve segmented-address arithmetic either
+            outside the address (``SegAddr(base) + 2``) or inside its 16-bit
+            offset (``SegAddr(selector, offset + 2)``). Both spellings retain
+            the same segment selector and exact slot provenance.
+            """
+
+            expr = self._resolve_indirect_far_call_tmp(expr, tmp_definitions)
+            if isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Add":
+                lhs, rhs = expr.operands
+                return (slot_base(lhs) is not None and is_two(rhs)) or (slot_base(rhs) is not None and is_two(lhs))
+            if not (
+                isinstance(expr, ailment.Expr.SegmentedAddress)
+                and expr.address_kind == address_kind
+                and expr.bits == 32
+                and expr.selector.bits == 16
+                and expr.offset.bits == 16
+                and expr.tags.get("ins_addr") == callsite
+                and matches_slot_selector(expr.selector)
+            ):
+                return False
+
+            offset = self._resolve_indirect_far_call_tmp(expr.offset, tmp_definitions)
+            if isinstance(offset, ailment.Expr.BinaryOp) and offset.op == "Add":
+                lhs, rhs = offset.operands
+                return (matches_slot_offset(lhs) and is_two(rhs)) or (matches_slot_offset(rhs) and is_two(lhs))
+
+            offset_kind, offset_value, offset_size = slot_offset_source
+            return (
+                offset_kind == "constant"
+                and offset_value <= (1 << (offset_size * self.project.arch.byte_width)) - 3
+                and isinstance(offset, ailment.Expr.Const)
+                and offset.bits == offset_size * self.project.arch.byte_width
+                and isinstance(offset.value, int)
+                and not isinstance(offset.value, bool)
+                and offset.value == offset_value + 2
+            )
+
+        if not (
+            isinstance(dynamic_offset, ailment.Expr.Load)
+            and dynamic_offset.size == 2
+            and dynamic_offset.endness == self.project.arch.memory_endness
+            and dynamic_offset.tags.get("ins_addr") == callsite
+            and slot_base(dynamic_offset.addr) is not None
+        ):
+            return False
+        if not (
+            isinstance(dynamic_selector, ailment.Expr.Load)
+            and dynamic_selector.size == 2
+            and dynamic_selector.endness == self.project.arch.memory_endness
+            and dynamic_selector.tags.get("ins_addr") == callsite
+        ):
+            return False
+
+        return slot_selector_word_address(dynamic_selector.addr)
+
+    def _rewrite_bound_indirect_far_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        bindings = indirect_far_call_binding_map(self.indirect_far_call_bindings)
+        if not bindings:
+            return ail_graph
+
+        for block in ail_graph.nodes():
+            tmp_definitions = {}
+            for statement_index, statement in enumerate(block.statements):
+                if isinstance(statement, ailment.Stmt.Assignment) and isinstance(statement.dst, ailment.Expr.Tmp):
+                    tmp_definitions[statement.dst.tmp_idx] = statement.src
+                    continue
+                if isinstance(statement, ailment.Stmt.SideEffectStatement):
+                    call = statement.expr
+                    assignment_dst = None
+                elif isinstance(statement, ailment.Stmt.Assignment):
+                    call = statement.src
+                    assignment_dst = statement.dst
+                else:
+                    continue
+                if not (
+                    isinstance(call, ailment.Expr.Call)
+                    and getattr(call, "transfer_kind", "unknown") == "far"
+                    and isinstance(call.target, ailment.Expr.SegmentedAddress)
+                ):
+                    continue
+
+                callsite = call.tags.get("ins_addr")
+                if not isinstance(callsite, int) or isinstance(callsite, bool):
+                    continue
+                if statement.tags.get("ins_addr") != callsite:
+                    continue
+                binding = bindings.get(callsite)
+                if binding is None:
+                    continue
+                (
+                    dispatcher,
+                    address_kind,
+                    selector_offset,
+                    selector_size,
+                    slot_offset_source,
+                    site_identifier,
+                    input_ranges,
+                ) = binding
+                if not self._matches_indirect_far_call_slot(
+                    call.target,
+                    tmp_definitions,
+                    callsite=callsite,
+                    address_kind=address_kind,
+                    selector_offset=selector_offset,
+                    selector_size=selector_size,
+                    slot_offset_source=slot_offset_source,
+                ):
+                    continue
+                if assignment_dst is not None:
+                    return_offset = self.project.arch.ret_offset
+                    post_call_outputs = post_call_register_state_bindings_for_call(
+                        self.post_call_register_state_bindings,
+                        callee_name=None,
+                        callee_addr=None,
+                        callsite_addr=callsite,
+                    )
+                    if not (
+                        isinstance(assignment_dst, ailment.Expr.Register)
+                        and return_offset is not None
+                        and assignment_dst.reg_offset == return_offset
+                        and (assignment_dst.reg_offset, assignment_dst.size)
+                        in {(offset, size) for offset, size, _ in post_call_outputs}
+                    ):
+                        # The dispatcher ABI is deliberately void. An assignment-valued
+                        # machine CALLF is safe to erase only when the same exact site has
+                        # an authoritative replacement for that return register.
+                        continue
+
+                argument_tags = {
+                    "ins_addr": callsite,
+                    "vex_block_addr": call.tags.get("vex_block_addr", block.addr),
+                }
+                args = [
+                    ailment.Expr.Register(
+                        self._ail_manager.next_atom(),
+                        selector_offset,
+                        selector_size * self.project.arch.byte_width,
+                        **argument_tags,
+                    ),
+                ]
+                slot_offset_kind, slot_offset_value, slot_offset_size = slot_offset_source
+                if slot_offset_kind == "constant":
+                    args.append(
+                        ailment.Expr.Const(
+                            self._ail_manager.next_atom(),
+                            slot_offset_value,
+                            slot_offset_size * self.project.arch.byte_width,
+                            **argument_tags,
+                        )
+                    )
+                else:
+                    args.append(
+                        ailment.Expr.Register(
+                            self._ail_manager.next_atom(),
+                            slot_offset_value,
+                            slot_offset_size * self.project.arch.byte_width,
+                            **argument_tags,
+                        )
+                    )
+                if site_identifier is not None:
+                    args.append(
+                        ailment.Expr.Const(
+                            self._ail_manager.next_atom(),
+                            site_identifier,
+                            32,
+                            **argument_tags,
+                        )
+                    )
+                args.extend(
+                    ailment.Expr.Register(
+                        self._ail_manager.next_atom(),
+                        register_offset,
+                        register_size * self.project.arch.byte_width,
+                        **argument_tags,
+                    )
+                    for register_offset, register_size in input_ranges
+                )
+
+                call_tags = call.tags.copy()
+                call_tags.pop("transfer_kind", None)
+                call_tags.pop("is_prototype_guessed", None)
+                call_tags["indirect_far_call_dispatch"] = True
+                call_tags["indirect_far_call_binding_authoritative"] = True
+                call_tags["indirect_far_call_address_kind"] = address_kind
+                call_tags["indirect_far_call_slot_offset_kind"] = slot_offset_kind
+                if slot_offset_kind == "constant":
+                    call_tags["indirect_far_call_slot_offset"] = slot_offset_value
+                else:
+                    call_tags["indirect_far_call_slot_offset_register"] = slot_offset_value
+                    call_tags["indirect_far_call_slot_offset_register_size"] = slot_offset_size
+                if site_identifier is not None:
+                    call_tags["indirect_far_call_site_identifier"] = site_identifier
+                    call_tags["indirect_far_call_noreturn"] = True
+                new_call = ailment.Expr.Call(
+                    self._ail_manager.next_atom(),
+                    dispatcher,
+                    args=args,
+                    bits=None,
+                    transfer_kind="far",
+                    **call_tags,
+                )
+
+                def runtime_scalar_type(size: int) -> SimType:
+                    # The runtime ABI is a guest-bit contract, not the host C data model. In particular, the
+                    # protected-mode x86-16 model gives ``int`` 16 bits and ``long long`` 32 bits. Fixed-width
+                    # types keep 32- and 64-bit register inputs exact on every host; char/short are already exact
+                    # for the 8- and 16-bit values that dominate this interface and yield idiomatic C.
+                    if size == 1:
+                        return SimTypeChar(signed=False)
+                    if size == 2:
+                        return SimTypeShort(signed=False)
+                    return SimTypeNum(size * self.project.arch.byte_width, signed=False)
+
+                runtime_prototype = SimTypeFunction(
+                    [
+                        runtime_scalar_type(selector_size),
+                        runtime_scalar_type(slot_offset_size),
+                        *([runtime_scalar_type(4)] if site_identifier is not None else []),
+                        *(runtime_scalar_type(register_size) for _, register_size in input_ranges),
+                    ],
+                    SimTypeBottom(label="void"),
+                ).with_arch(self.project.arch)
+                self.variable_map.set_calling_convention(call, None)
+                self.variable_map.set_prototype(call, None)
+                self.variable_map.set_calling_convention(new_call, None)
+                self.variable_map.set_prototype(new_call, runtime_prototype)
+
+                statement_tags = statement.tags.copy()
+                statement_tags.pop("is_prototype_guessed", None)
+                statement_tags["indirect_far_call_dispatch"] = True
+                statement_tags["indirect_far_call_binding_authoritative"] = True
+                block.statements[statement_index] = ailment.Stmt.SideEffectStatement(
+                    self._ail_manager.next_atom(),
+                    new_call,
+                    ret_expr=None,
+                    fp_ret_expr=None,
+                    **statement_tags,
+                )
+
+        return ail_graph
+
+    def _matches_indirect_near_call_target(
+        self,
+        target,
+        tmp_definitions,
+        *,
+        callsite: int,
+        address_kind: str,
+        selector_offset: int,
+        selector_size: int,
+        target_offset: int,
+        target_size: int,
+    ) -> bool:
+        if not (
+            isinstance(target, ailment.Expr.SegmentedAddress)
+            and target.address_kind == address_kind
+            and target.bits == 32
+            and target.selector.bits == selector_size * self.project.arch.byte_width
+            and target.offset.bits == target_size * self.project.arch.byte_width
+            and target.tags.get("ins_addr") == callsite
+            and target.tags.get("segment_register", "cs") == "cs"
+        ):
+            return False
+
+        selector = self._resolve_indirect_far_call_tmp(target.selector, tmp_definitions)
+        offset = self._resolve_indirect_far_call_tmp(target.offset, tmp_definitions)
+        return (
+            isinstance(selector, ailment.Expr.Register)
+            and selector.reg_offset == selector_offset
+            and selector.size == selector_size
+            and isinstance(offset, ailment.Expr.Register)
+            and offset.reg_offset == target_offset
+            and offset.size == target_size
+        )
+
+    def _rewrite_bound_indirect_near_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        bindings = indirect_near_call_binding_map(self.indirect_near_call_bindings)
+        if not bindings:
+            return ail_graph
+
+        return_offset = self.project.arch.ret_offset
+        if return_offset is None:
+            return ail_graph
+
+        for block in ail_graph.nodes():
+            tmp_definitions = {}
+            for statement_index, statement in enumerate(block.statements):
+                if isinstance(statement, ailment.Stmt.Assignment) and isinstance(statement.dst, ailment.Expr.Tmp):
+                    tmp_definitions[statement.dst.tmp_idx] = statement.src
+                    continue
+
+                if isinstance(statement, ailment.Stmt.SideEffectStatement):
+                    call = statement.expr
+                    return_expr = statement.ret_expr
+                    assignment_dst = None
+                elif isinstance(statement, ailment.Stmt.Assignment):
+                    call = statement.src
+                    return_expr = statement.dst
+                    assignment_dst = statement.dst
+                else:
+                    continue
+                if not (
+                    isinstance(call, ailment.Expr.Call)
+                    and getattr(call, "transfer_kind", "unknown") == "near"
+                    and isinstance(call.target, ailment.Expr.SegmentedAddress)
+                    and not call.args
+                    and isinstance(return_expr, ailment.Expr.Register)
+                    and return_expr.reg_offset == return_offset
+                    and return_expr.size == 2
+                ):
+                    continue
+
+                callsite = call.tags.get("ins_addr")
+                if not isinstance(callsite, int) or isinstance(callsite, bool):
+                    continue
+                if statement.tags.get("ins_addr") != callsite:
+                    continue
+                binding = bindings.get(callsite)
+                if binding is None:
+                    continue
+                (
+                    dispatcher,
+                    address_kind,
+                    selector_offset,
+                    selector_size,
+                    target_offset,
+                    target_size,
+                    site_identifier,
+                ) = binding
+                if not self._matches_indirect_near_call_target(
+                    call.target,
+                    tmp_definitions,
+                    callsite=callsite,
+                    address_kind=address_kind,
+                    selector_offset=selector_offset,
+                    selector_size=selector_size,
+                    target_offset=target_offset,
+                    target_size=target_size,
+                ):
+                    continue
+
+                argument_tags = {
+                    "ins_addr": callsite,
+                    "vex_block_addr": call.tags.get("vex_block_addr", block.addr),
+                }
+                args = [
+                    ailment.Expr.Register(
+                        self._ail_manager.next_atom(),
+                        target_offset,
+                        target_size * self.project.arch.byte_width,
+                        **argument_tags,
+                    ),
+                    ailment.Expr.Const(
+                        self._ail_manager.next_atom(),
+                        site_identifier,
+                        32,
+                        **argument_tags,
+                    ),
+                ]
+                call_tags = call.tags.copy()
+                call_tags.pop("transfer_kind", None)
+                call_tags.pop("is_prototype_guessed", None)
+                call_tags.update(
+                    {
+                        "indirect_near_call_dispatch": True,
+                        "indirect_near_call_binding_authoritative": True,
+                        "indirect_near_call_address_kind": address_kind,
+                        "indirect_near_call_selector_register": selector_offset,
+                        "indirect_near_call_selector_register_size": selector_size,
+                        "indirect_near_call_target_register": target_offset,
+                        "indirect_near_call_target_register_size": target_size,
+                        "indirect_near_call_site_identifier": site_identifier,
+                    }
+                )
+                new_call = ailment.Expr.Call(
+                    self._ail_manager.next_atom(),
+                    dispatcher,
+                    args=args,
+                    bits=target_size * self.project.arch.byte_width,
+                    transfer_kind="near",
+                    **call_tags,
+                )
+                runtime_prototype = SimTypeFunction(
+                    [SimTypeShort(signed=False), SimTypeNum(32, signed=False)],
+                    SimTypeShort(signed=False),
+                ).with_arch(self.project.arch)
+                self.variable_map.set_calling_convention(call, None)
+                self.variable_map.set_prototype(call, None)
+                self.variable_map.set_calling_convention(new_call, None)
+                self.variable_map.set_prototype(new_call, runtime_prototype)
+
+                statement_tags = statement.tags.copy()
+                statement_tags.pop("is_prototype_guessed", None)
+                statement_tags["indirect_near_call_dispatch"] = True
+                statement_tags["indirect_near_call_binding_authoritative"] = True
+                if assignment_dst is None:
+                    block.statements[statement_index] = ailment.Stmt.SideEffectStatement(
+                        self._ail_manager.next_atom(),
+                        new_call,
+                        ret_expr=return_expr.copy(),
+                        fp_ret_expr=None,
+                        **statement_tags,
+                    )
+                else:
+                    block.statements[statement_index] = ailment.Stmt.Assignment(
+                        self._ail_manager.next_atom(),
+                        assignment_dst.copy(),
+                        new_call,
+                        **statement_tags,
+                    )
+
+        return ail_graph
+
     def _apply_callsite_prototype_and_calling_convention(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         for block in ail_graph.nodes():
             if not block.statements:
@@ -1770,6 +2590,11 @@ class Clinic(Analysis, Serializable):
                 isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
                 and isinstance(last_stmt.expr, ailment.Expr.Call)
             ):
+                continue
+            if last_stmt.expr.tags.get("indirect_far_call_dispatch", False) or last_stmt.expr.tags.get(
+                "indirect_near_call_dispatch", False
+            ):
+                self.variable_map.set_calling_convention(last_stmt.expr, None)
                 continue
 
             cc = self.variable_map.calling_convention(last_stmt.expr)
@@ -2076,6 +2901,10 @@ class Clinic(Analysis, Serializable):
         stack_pointer_tracker=None,
         **kwargs,
     ):
+        avoid_vvar_ids = set(kwargs.pop("avoid_vvar_ids", ()))
+        avoid_vvar_ids.update(self._preserve_vvar_ids)
+        kwargs["avoid_vvar_ids"] = avoid_vvar_ids
+
         addr_and_idx_to_blocks: dict[ailment.Address, ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
@@ -2200,12 +3029,28 @@ class Clinic(Analysis, Serializable):
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
             func_args=func_args,
+            register_state_ranges=register_state_ranges(self.register_state_bindings),
+            initial_register_state_bindings=self.initial_register_state_bindings,
+            post_call_register_state_bindings=self.post_call_register_state_bindings,
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
         assert ssailification.out_graph is not None
         return ssailification.out_graph
+
+    def _preserve_bound_register_state_vvars(self) -> None:
+        bound_ranges = set(register_state_ranges(self.register_state_bindings))
+        if not bound_ranges:
+            return
+
+        definitions = get_vvar_deflocs(self._ail_graph.nodes())
+        uses = get_vvar_uselocs(self._ail_graph.nodes())
+        vvars = [vvar for vvar, _ in definitions.values()]
+        vvars.extend(vvar for vvar_uses in uses.values() for vvar, _ in vvar_uses)
+        self._preserve_vvar_ids.update(
+            vvar.varid for vvar in vvars if vvar.was_reg and (vvar.reg_offset, vvar.size) in bound_ranges
+        )
 
     @timethis
     def _transform_to_ssa_level1(
@@ -2219,6 +3064,7 @@ class Clinic(Analysis, Serializable):
             ssa_tmps=True,
             ssa_stackvars=True,
             func_args=func_args,
+            register_state_ranges=register_state_ranges(self.register_state_bindings),
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
@@ -2312,6 +3158,33 @@ class Clinic(Analysis, Serializable):
                             name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                         )
+                    elif isinstance(arg, SimComboArg) and all(
+                        isinstance(location, SimStackArg) for location in arg.locations
+                    ):
+                        stack_locations = sorted(arg.locations, key=lambda location: location.stack_offset)
+                        stack_start = stack_locations[0].stack_offset
+                        stack_end = max(location.stack_offset + location.size for location in stack_locations)
+                        covered_bytes = {
+                            byte_offset
+                            for location in stack_locations
+                            for byte_offset in range(location.stack_offset, location.stack_offset + location.size)
+                        }
+                        if stack_end - stack_start == arg.size and len(covered_bytes) == arg.size:
+                            argvar = SimStackVariable(
+                                stack_start,
+                                arg.size,
+                                base="bp",
+                                ident=f"arg_{idx}",
+                                name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
+                                region=self.function.addr,
+                            )
+                        else:
+                            argvar = SimVariable(
+                                ident=f"arg_{idx}",
+                                name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
+                                region=self.function.addr,
+                                size=arg.size,
+                            )
                     elif isinstance(arg, SimStructArg):
                         locs = self._expand_argloc(arg)
                         if locs and all(isinstance(loc, SimRegArg) for loc in locs):
@@ -2432,6 +3305,16 @@ class Clinic(Analysis, Serializable):
                 # FIXME: remove this branch once type inference supports floating point variables
                 return
 
+        arg_vvars = {variable: vvar for vvar, variable in self.arg_vvars.values()} if self.arg_vvars is not None else {}
+        pointer_bases = _PointerBaseCollector(
+            self.project,
+            self.kb,
+            self.variable_map,
+            {vvar.varid for vvar in arg_vvars.values()},
+        )
+        for block in self._ail_graph:
+            pointer_bases.walk(block)
+
         variables = self.kb.dec_variables[self.function.addr]
         func_args = []
         for arg in arg_list:
@@ -2452,6 +3335,14 @@ class Clinic(Analysis, Serializable):
                         l.warning("Unsupported argument size %d.", arg.size)
             else:
                 func_arg = arg_ty
+
+            arg_vvar = arg_vvars.get(arg)
+            if (
+                arg_vvar is not None
+                and arg_vvar.varid in pointer_bases.base_types
+                and (func_arg is None or isinstance(func_arg, (SimTypeBottom, SimTypeChar, SimTypeInt, SimTypeNum)))
+            ):
+                func_arg = pointer_bases.base_types[arg_vvar.varid][1]
 
             func_args.append(func_arg)
 
@@ -2611,14 +3502,13 @@ class Clinic(Analysis, Serializable):
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
 
-        # combo-register argument vvars only appear inside Reference expressions (created by
-        # _rewrite_combo_reg_param_references), which variable recovery does not track, so no accesses were recorded
-        # for them; link them to their argument variables directly. the variable map is keyed by expression idx and
-        # every occurrence in the graph is the same expression object, so one call covers all of them.
+        # Argument vvars are authoritative aliases for the ABI variables created above. Some survive later SSA and
+        # structuring passes without an access record (combo-register references and narrow stack-argument slices
+        # are both examples). Link every argument directly; VariableMap's varid index then covers replacement
+        # wrappers created by those passes as well.
         if arg_vvars is not None:
             for vvar, var in arg_vvars.values():
-                if vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER:
-                    self._set_expr_variable(vvar, var, 0)
+                self._set_expr_variable(vvar, var, 0)
 
         if self._cache is not None:
             self._cache.variable_map = self.variable_map
@@ -2644,6 +3534,9 @@ class Clinic(Analysis, Serializable):
     def _set_reference_values(self, expr, reference_values) -> None:
         self.variable_map.set_reference_values(expr, reference_values)
 
+    _stack_offset_from_segmented_offset = staticmethod(stack_offset_from_segmented_offset)
+    _segmented_stack_variable = staticmethod(segmented_stack_variable)
+
     def _link_variables_on_block(self, block, kb):
         """
         Link atoms (AIL expressions) in the given block to corresponding variables identified previously.
@@ -2657,9 +3550,16 @@ class Clinic(Analysis, Serializable):
 
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, ailment.Stmt.Store):
-                # find a memory variable
+                # An exact SS-based address is authoritative. Variable recovery may associate the Store atom with
+                # a different stack variable after register/stack equivalence propagation, while the final-SSA
+                # address still names the original byte exactly. Prefer that machine-derived location so adjacent
+                # fields and reused outgoing-argument slots cannot be coalesced into one local.
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
-                if len(mem_vars) == 1:
+                stack_binding = self._segmented_stack_variable(variable_manager, stmt.addr, stmt.size)
+                if stack_binding is not None:
+                    var, offset = stack_binding
+                    self._set_store_variable(stmt, var, offset)
+                elif len(mem_vars) == 1:
                     var, offset = next(iter(mem_vars))
                     self._set_store_variable(stmt, var, offset)
                 else:
@@ -2775,6 +3675,14 @@ class Clinic(Analysis, Serializable):
 
         elif isinstance(expr, ailment.Expr.Load):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
+            # As with Store atoms above, the exact final-SSA SS address outranks a potentially coalesced variable-
+            # recovery association.
+            stack_binding = self._segmented_stack_variable(variable_manager, expr.addr, expr.size)
+            if stack_binding is not None:
+                var, offset = stack_binding
+                self._set_expr_variable(expr, var, offset)
+                return
+
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
                 base_addr, offset = self.parse_variable_addr(expr.addr)
@@ -2843,6 +3751,13 @@ class Clinic(Analysis, Serializable):
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.value)
+
+        elif isinstance(expr, ailment.Expr.SegmentedAddress):
+            # Variable recovery visits both components, but a SegmentedAddress is an address value rather than a
+            # host pointer and therefore has no variable of its own. Link its children explicitly so selector-only
+            # SSA inputs (DS/ES in particular) keep their recovered variable and ambient-entry snapshot.
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.selector)
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
 
         elif isinstance(expr, ailment.Expr.ITE):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
@@ -3067,6 +3982,7 @@ class Clinic(Analysis, Serializable):
                             args=old_call.args,
                             arg_vvars=old_call.arg_vvars,
                             bits=old_call.bits,
+                            transfer_kind=getattr(old_call, "transfer_kind", "unknown"),
                             **old_call.tags,
                         )
                         if old_cc is not None:
@@ -3577,6 +4493,7 @@ class Clinic(Analysis, Serializable):
                         new_head.statements[-1].idx,
                         ailment.Expr.Const(self._ail_manager.next_atom(), intended_head_1.addr, self.project.arch.bits),
                         target_idx=intended_head_1.idx,
+                        transfer_kind=getattr(new_head.statements[-1], "transfer_kind", "unknown"),
                         **new_head.statements[-1].tags,
                     )
 
@@ -4373,6 +5290,79 @@ class Clinic(Analysis, Serializable):
             msg._removed_vvar_ids_set = True
             msg.removed_vvar_ids.extend(sorted(self._removed_vvar_ids))
         msg._preserve_vvar_ids.extend(sorted(self._preserve_vvar_ids))
+        for register_offset, size, c_lvalue in self.register_state_bindings:
+            binding = msg.register_state_bindings.add()
+            binding.register_offset = register_offset
+            binding.size = size
+            binding.c_lvalue = c_lvalue
+        for register_offset, size, c_identifier in self.initial_register_state_bindings:
+            binding = msg.initial_register_state_bindings.add()
+            binding.register_offset = register_offset
+            binding.size = size
+            binding.c_lvalue = c_identifier
+        for (
+            selector_kind,
+            selector_value,
+            register_offset,
+            size,
+            c_identifier,
+        ) in self.post_call_register_state_bindings:
+            binding = msg.post_call_register_state_bindings.add()
+            binding.selector_kind = selector_kind
+            if selector_kind == "callee_name":
+                binding.selector_name = selector_value
+            else:
+                binding.selector_addr = selector_value
+            binding.register_offset = register_offset
+            binding.size = size
+            binding.c_identifier = c_identifier
+        for (
+            callsite,
+            dispatcher,
+            address_kind,
+            selector_offset,
+            selector_size,
+            slot_offset_source,
+            site_identifier,
+            input_ranges,
+        ) in self.indirect_far_call_bindings:
+            binding = msg.indirect_far_call_bindings.add()
+            binding.callsite_addr = callsite
+            binding.dispatcher = dispatcher
+            binding.address_kind = address_kind
+            binding.slot_selector_offset = selector_offset
+            binding.slot_selector_size = selector_size
+            slot_offset_kind, slot_offset_value, slot_offset_size = slot_offset_source
+            if slot_offset_kind == "constant":
+                binding.slot_offset = slot_offset_value
+            else:
+                binding.slot_offset_register.register_offset = slot_offset_value
+                binding.slot_offset_register.size = slot_offset_size
+            if site_identifier is not None:
+                binding.site_identifier = site_identifier
+            for register_offset, size in input_ranges:
+                input_range = binding.register_inputs.add()
+                input_range.register_offset = register_offset
+                input_range.size = size
+        for (
+            callsite,
+            dispatcher,
+            address_kind,
+            selector_offset,
+            selector_size,
+            target_offset,
+            target_size,
+            site_identifier,
+        ) in self.indirect_near_call_bindings:
+            binding = msg.indirect_near_call_bindings.add()
+            binding.callsite_addr = callsite
+            binding.dispatcher = dispatcher
+            binding.address_kind = address_kind
+            binding.target_selector_offset = selector_offset
+            binding.target_selector_size = selector_size
+            binding.target_offset = target_offset
+            binding.target_size = target_size
+            binding.site_identifier = site_identifier
         for k, v in self._inlined_counts.items():
             msg._inlined_counts[k] = v
         msg._inlining_parents.extend(sorted(self._inlining_parents))
@@ -4526,6 +5516,52 @@ class Clinic(Analysis, Serializable):
         clinic._stackarg_offset_manager = StackArgOffsetManager(project.arch.bits if project is not None else 64)
         clinic._removed_vvar_ids = set(msg.removed_vvar_ids) if msg._removed_vvar_ids_set else None
         clinic._preserve_vvar_ids = set(msg._preserve_vvar_ids)
+        clinic.register_state_bindings = tuple(
+            (binding.register_offset, binding.size, binding.c_lvalue) for binding in msg.register_state_bindings
+        )
+        clinic.initial_register_state_bindings = tuple(
+            (binding.register_offset, binding.size, binding.c_lvalue) for binding in msg.initial_register_state_bindings
+        )
+        clinic.post_call_register_state_bindings = tuple(
+            (
+                binding.selector_kind,
+                binding.selector_name if binding.selector_kind == "callee_name" else binding.selector_addr,
+                binding.register_offset,
+                binding.size,
+                binding.c_identifier,
+            )
+            for binding in msg.post_call_register_state_bindings
+        )
+        clinic.indirect_far_call_bindings = tuple(
+            (
+                binding.callsite_addr,
+                binding.dispatcher,
+                binding.address_kind,
+                binding.slot_selector_offset,
+                binding.slot_selector_size,
+                (
+                    ("register", binding.slot_offset_register.register_offset, binding.slot_offset_register.size)
+                    if binding.HasField("slot_offset_register")
+                    else ("constant", binding.slot_offset, 2)
+                ),
+                binding.site_identifier if binding.HasField("site_identifier") else None,
+                tuple((register.register_offset, register.size) for register in binding.register_inputs),
+            )
+            for binding in msg.indirect_far_call_bindings
+        )
+        clinic.indirect_near_call_bindings = tuple(
+            (
+                binding.callsite_addr,
+                binding.dispatcher,
+                binding.address_kind,
+                binding.target_selector_offset,
+                binding.target_selector_size,
+                binding.target_offset,
+                binding.target_size,
+                binding.site_identifier,
+            )
+            for binding in msg.indirect_near_call_bindings
+        )
         clinic._inlined_counts = dict(msg._inlined_counts)
         clinic._inlining_parents = set(msg._inlining_parents)
         clinic._must_struct = set(msg._must_struct) if msg._must_struct_set else None

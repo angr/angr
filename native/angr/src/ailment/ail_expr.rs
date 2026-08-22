@@ -21,7 +21,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use pyo3::IntoPyObjectExt;
-use pyo3::exceptions::{PyAttributeError, PyTypeError};
+use pyo3::exceptions::{PyAttributeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
@@ -33,6 +33,15 @@ use indexmap::IndexMap;
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+pub(crate) fn validate_transfer_kind(transfer_kind: &str) -> PyResult<()> {
+    match transfer_kind {
+        "unknown" | "near" | "far" => Ok(()),
+        _ => Err(PyValueError::new_err(format!(
+            "transfer_kind must be 'unknown', 'near', or 'far', not {transfer_kind:?}"
+        ))),
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Header
@@ -219,6 +228,7 @@ pub enum ExprInner {
         target: CFGTarget,
         args: Option<Vec<AilExpression>>,
         arg_vvars: Option<Vec<AilExpression>>,
+        transfer_kind: String,
     },
     DirtyExpression {
         callee: String,
@@ -322,6 +332,15 @@ pub enum ExprInner {
     StackBaseOffset {
         offset: i64,
     },
+    /// A guest address whose interpretation requires architecture-specific
+    /// segmented-memory state. Keeping the selector and offset separate
+    /// prevents downstream code generation from treating a packed 16:16
+    /// value as a host pointer.
+    SegmentedAddress {
+        selector: Arc<AilExpression>,
+        offset: Arc<AilExpression>,
+        address_kind: String,
+    },
 }
 
 impl ExprInner {
@@ -356,6 +375,7 @@ impl ExprInner {
             ExprInner::StringLiteral { .. } => ExpressionKind::StringLiteral,
             ExprInner::BasePointerOffset { .. } => ExpressionKind::BasePointerOffset,
             ExprInner::StackBaseOffset { .. } => ExpressionKind::StackBaseOffset,
+            ExprInner::SegmentedAddress { .. } => ExpressionKind::SegmentedAddress,
         }
     }
 }
@@ -922,8 +942,14 @@ impl Hash for AilExpression {
                 }
                 expr.cached_hash_or_compute().hash(h);
             }
-            ExprInner::Call { target, args, .. } => {
+            ExprInner::Call {
+                target,
+                args,
+                transfer_kind,
+                ..
+            } => {
                 target.hash(h);
+                transfer_kind.hash(h);
                 match args {
                     Some(a) => {
                         true.hash(h);
@@ -979,6 +1005,16 @@ impl Hash for AilExpression {
             }
             ExprInner::StackBaseOffset { offset } => {
                 offset.hash(h);
+                bits.hash(h);
+            }
+            ExprInner::SegmentedAddress {
+                selector,
+                offset,
+                address_kind,
+            } => {
+                selector.cached_hash_or_compute().hash(h);
+                offset.cached_hash_or_compute().hash(h);
+                address_kind.hash(h);
                 bits.hash(h);
             }
         }
@@ -1055,6 +1091,9 @@ impl AilExpression {
             ExprInner::Extract { base, offset, .. } | ExprInner::Insert { base, offset, .. } => {
                 base.header.depth.max(offset.header.depth) + 1
             }
+            ExprInner::SegmentedAddress {
+                selector, offset, ..
+            } => selector.header.depth.max(offset.header.depth) + 1,
         }
     }
 
@@ -1299,10 +1338,30 @@ impl AilExpression {
                     }),
                 )
             }
+            ExprInner::SegmentedAddress {
+                selector,
+                offset,
+                address_kind,
+            } => {
+                let (cs, rs) = walk(selector);
+                let (co, ro) = walk(offset);
+                if !cs && !co {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    self.rebuilt(ExprInner::SegmentedAddress {
+                        selector: rs,
+                        offset: ro,
+                        address_kind: address_kind.clone(),
+                    }),
+                )
+            }
             ExprInner::Call {
                 target,
                 args,
                 arg_vvars,
+                transfer_kind,
             } => {
                 // Walk the polymorphic ``target`` slot. ``CFGTarget::replace_ail``
                 // recurses into the inner ``Expr`` and leaves ``Symbol`` alone.
@@ -1330,6 +1389,7 @@ impl AilExpression {
                         target: rt,
                         args: ra,
                         arg_vvars: rav,
+                        transfer_kind: transfer_kind.clone(),
                     }),
                 )
             }
@@ -1590,6 +1650,9 @@ impl AilExpression {
                 value,
                 ..
             } => any(&[base, offset, value]),
+            ExprInner::SegmentedAddress {
+                selector, offset, ..
+            } => any(&[selector, offset]),
             ExprInner::Call {
                 args, arg_vvars, ..
             } => {
@@ -1779,6 +1842,7 @@ impl AilExpression {
                 target,
                 args,
                 arg_vvars,
+                transfer_kind,
             } => ExprInner::Call {
                 target: dc_target(target)?,
                 args: match args {
@@ -1789,6 +1853,7 @@ impl AilExpression {
                     Some(v) => Some(recurse_vec(v)?),
                     None => None,
                 },
+                transfer_kind: transfer_kind.clone(),
             },
             ExprInner::ITE {
                 cond,
@@ -1825,6 +1890,15 @@ impl AilExpression {
                 offset: *offset,
             },
             ExprInner::StackBaseOffset { offset } => ExprInner::StackBaseOffset { offset: *offset },
+            ExprInner::SegmentedAddress {
+                selector,
+                offset,
+                address_kind,
+            } => ExprInner::SegmentedAddress {
+                selector: recurse(selector)?,
+                offset: recurse(offset)?,
+                address_kind: address_kind.clone(),
+            },
             ExprInner::DirtyExpression {
                 callee,
                 operands,
@@ -2258,17 +2332,19 @@ impl AilExpression {
                 ExprInner::Call {
                     target: a_t,
                     args: a_args,
+                    transfer_kind: a_transfer_kind,
                     ..
                 },
                 ExprInner::Call {
                     target: b_t,
                     args: b_args,
+                    transfer_kind: b_transfer_kind,
                     ..
                 },
             ) => {
                 // ``CFGTarget::likes`` already dispatches structurally;
                 // for the Expr arm it routes through ``AilExpression::likes``.
-                if !a_t.likes(b_t) {
+                if a_transfer_kind != b_transfer_kind || !a_t.likes(b_t) {
                     return false;
                 }
                 match (a_args, b_args) {
@@ -2341,6 +2417,23 @@ impl AilExpression {
                 ExprInner::StackBaseOffset { offset: a },
                 ExprInner::StackBaseOffset { offset: b },
             ) => a == b && self.header.bits == other.header.bits,
+            (
+                ExprInner::SegmentedAddress {
+                    selector: a_s,
+                    offset: a_o,
+                    address_kind: a_k,
+                },
+                ExprInner::SegmentedAddress {
+                    selector: b_s,
+                    offset: b_o,
+                    address_kind: b_k,
+                },
+            ) => {
+                self.header.bits == other.header.bits
+                    && a_k == b_k
+                    && a_s.likes(b_s)
+                    && a_o.likes(b_o)
+            }
             _ => false,
         }
     }
@@ -2570,15 +2663,17 @@ impl AilExpression {
                 ExprInner::Call {
                     target: a_t,
                     args: a_args,
+                    transfer_kind: a_transfer_kind,
                     ..
                 },
                 ExprInner::Call {
                     target: b_t,
                     args: b_args,
+                    transfer_kind: b_transfer_kind,
                     ..
                 },
             ) => {
-                if !a_t.matches(b_t) {
+                if a_transfer_kind != b_transfer_kind || !a_t.matches(b_t) {
                     return false;
                 }
                 match (a_args, b_args) {
@@ -2663,6 +2758,23 @@ impl AilExpression {
                 ExprInner::ComboRegister { registers: a, .. },
                 ExprInner::ComboRegister { registers: b, .. },
             ) => a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.matches(y)),
+            (
+                ExprInner::SegmentedAddress {
+                    selector: a_s,
+                    offset: a_o,
+                    address_kind: a_k,
+                },
+                ExprInner::SegmentedAddress {
+                    selector: b_s,
+                    offset: b_o,
+                    address_kind: b_k,
+                },
+            ) => {
+                self.header.bits == other.header.bits
+                    && a_k == b_k
+                    && a_s.matches(b_s)
+                    && a_o.matches(b_o)
+            }
             // -- All other variants: no identifying info distinguishes
             // -- ``matches`` from ``likes``. Defer to ``likes``.
             _ => self.likes(other),
@@ -2706,7 +2818,7 @@ impl Clone for Expression {
 /// still pays the boundary on every call -- skipping that recovers
 /// the ~50-75 ms construction tax seen in the per-instance
 /// ``Py<int>`` cache.
-static EXPR_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 27]> =
+static EXPR_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 28]> =
     pyo3::sync::PyOnceLock::new();
 
 fn expr_pykind_for(py: Python<'_>, kind: ExpressionKind) -> Py<pyo3::types::PyAny> {
@@ -3143,6 +3255,33 @@ impl Expression {
     }
 
     #[staticmethod]
+    #[pyo3(signature = (idx, selector, offset, address_kind, bits=32, **kwargs))]
+    fn _new_segmented_address(
+        idx: i64,
+        selector: AilExpression,
+        offset: AilExpression,
+        address_kind: String,
+        bits: u32,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        if address_kind.is_empty() {
+            return Err(PyValueError::new_err(
+                "SegmentedAddress address_kind must not be empty",
+            ));
+        }
+        let tags = Tags::from_kwargs(kwargs)?;
+        let depth = selector.header.depth.max(offset.header.depth) + 1;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::SegmentedAddress {
+                selector: Arc::new(selector),
+                offset: Arc::new(offset),
+                address_kind,
+            },
+        }))
+    }
+
+    #[staticmethod]
     #[pyo3(signature = (idx, addr, size, endness, *, guard=None, alt=None, **kwargs))]
     #[allow(clippy::too_many_arguments)]
     fn _new_load(
@@ -3170,15 +3309,19 @@ impl Expression {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, target, args=None, bits=None, arg_vvars=None, **kwargs))]
+    #[pyo3(signature = (
+        idx, target, args=None, bits=None, arg_vvars=None, transfer_kind="unknown", **kwargs
+    ))]
     fn _new_call(
         idx: i64,
         target: CFGTarget,
         args: Option<Bound<'_, PyAny>>,
         bits: Option<u32>,
         arg_vvars: Option<Bound<'_, PyAny>>,
+        transfer_kind: &str,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        validate_transfer_kind(transfer_kind)?;
         let tags = Tags::from_kwargs(kwargs)?;
         // target depth +1 -- for expression targets, use the operand's
         // depth; for symbol targets (str), depth = 1.
@@ -3214,6 +3357,7 @@ impl Expression {
                 target,
                 args: args_vec,
                 arg_vvars: arg_vvars_vec,
+                transfer_kind: transfer_kind.to_owned(),
             },
         }))
     }
@@ -4559,6 +4703,31 @@ impl Expression {
         }
     }
 
+    /// Call.transfer_kind
+    #[getter]
+    fn transfer_kind(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::Call { transfer_kind, .. } => Ok(transfer_kind.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'transfer_kind' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_transfer_kind(&mut self, value: &str) -> PyResult<()> {
+        validate_transfer_kind(value)?;
+        match &mut self.expr.inner {
+            ExprInner::Call { transfer_kind, .. } => {
+                self.expr.header.cached_hash.clear();
+                *transfer_kind = value.to_owned();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'transfer_kind' on this Expression",
+            )),
+        }
+    }
+
     /// Call.arg_vvars / Macro.arg_vvars (always None) -- tuple of
     /// VirtualVariable Expression instances
     #[getter]
@@ -4923,13 +5092,72 @@ impl Expression {
         }
     }
 
+    /// SegmentedAddress.selector
+    #[getter]
+    fn selector(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.expr.inner {
+            ExprInner::SegmentedAddress { selector, .. } => {
+                Ok(Py::new(py, Expression::wrap((**selector).clone()))?.into_any())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'selector' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_selector(&mut self, value: AilExpression) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::SegmentedAddress { selector, .. } => {
+                self.expr.header.cached_hash.clear();
+                *selector = Arc::new(value);
+                self.expr.header.depth = self.expr.compute_depth();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'selector' on this Expression",
+            )),
+        }
+    }
+
+    /// SegmentedAddress.address_kind
+    #[getter]
+    fn address_kind(&self) -> PyResult<String> {
+        match &self.expr.inner {
+            ExprInner::SegmentedAddress { address_kind, .. } => Ok(address_kind.clone()),
+            _ => Err(PyAttributeError::new_err(
+                "no 'address_kind' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_address_kind(&mut self, value: String) -> PyResult<()> {
+        if value.is_empty() {
+            return Err(PyValueError::new_err(
+                "SegmentedAddress address_kind must not be empty",
+            ));
+        }
+        match &mut self.expr.inner {
+            ExprInner::SegmentedAddress { address_kind, .. } => {
+                self.expr.header.cached_hash.clear();
+                *address_kind = value;
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'address_kind' on this Expression",
+            )),
+        }
+    }
+
     /// Extract.offset (Expression) / Insert.offset (Expression) /
+    /// SegmentedAddress.offset (Expression) /
     /// BasePointerOffset.offset (int) /
     /// StackBaseOffset.offset (int).
     #[getter]
     fn offset(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.expr.inner {
-            ExprInner::Extract { offset, .. } | ExprInner::Insert { offset, .. } => {
+            ExprInner::Extract { offset, .. }
+            | ExprInner::Insert { offset, .. }
+            | ExprInner::SegmentedAddress { offset, .. } => {
                 Ok(Py::new(py, Expression::wrap((**offset).clone()))?.into_any())
             }
             ExprInner::BasePointerOffset { offset, .. } => {
@@ -4946,7 +5174,9 @@ impl Expression {
     #[setter]
     fn set_offset(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
         match &mut self.expr.inner {
-            ExprInner::Extract { offset, .. } | ExprInner::Insert { offset, .. } => {
+            ExprInner::Extract { offset, .. }
+            | ExprInner::Insert { offset, .. }
+            | ExprInner::SegmentedAddress { offset, .. } => {
                 let ail = value.extract::<AilExpression>()?;
                 self.expr.header.cached_hash.clear();
                 *offset = Arc::new(ail);
@@ -5326,6 +5556,15 @@ impl Expression {
                 Ok(format!("{}{:+}", base, offset))
             }
             ExprInner::StackBaseOffset { offset } => Ok(format!("sp{:+}", offset)),
+            ExprInner::SegmentedAddress {
+                selector,
+                offset,
+                address_kind,
+            } => {
+                let s = Expression::wrap((**selector).clone()).__str__(py)?;
+                let o = Expression::wrap((**offset).clone()).__str__(py)?;
+                Ok(format!("SegmentedAddress({}, {}, {})", address_kind, s, o))
+            }
             ExprInner::DirtyExpression {
                 callee, operands, ..
             } => {
@@ -5632,9 +5871,9 @@ impl<'py> IntoPyObject<'py> for AilExpression {
 // * ``ExprInner::Struct::field_names`` is derived data; it is
 //   skipped on write and rebuilt from ``field_offsets`` on read.
 //
-// Keep the variant order and per-variant field lists in sync with
-// the [`ExprInner`] declaration; any change to either is a wire
-// format break (pickled AIL nodes from older builds stop loading).
+// Existing wire variants are immutable. New payload shapes get an appended
+// wire variant so current readers can still load pickled nodes from older
+// builds and supply conservative defaults for fields that did not exist.
 
 // -- Shared helpers (also used by ail_stmt.rs) ---------------------
 
@@ -5744,10 +5983,12 @@ const EXPR_VARIANTS: &[&str] = &[
     "StringLiteral",
     "BasePointerOffset",
     "StackBaseOffset",
+    "SegmentedAddress",
+    "CallWithTransfer",
 ];
 #[rustfmt::skip]
 const EXPR_FIELD_COUNTS: &[usize] = &[
-    1, 1, 1, 1, 1, 4, 2, 7, 5, 7, 5, 3, 6, 2, 2, 3, 2, 1, 2, 2, 3, 3, 3, 4, 1, 2, 1,
+    1, 1, 1, 1, 1, 4, 2, 7, 5, 7, 5, 3, 6, 2, 2, 3, 2, 1, 2, 2, 3, 3, 3, 4, 1, 2, 1, 3, 4,
 ];
 
 impl Serialize for ExprInner {
@@ -5869,11 +6110,13 @@ impl Serialize for ExprInner {
                 target,
                 args,
                 arg_vvars,
+                transfer_kind,
             } => {
-                let mut tv = s.serialize_tuple_variant("ExprInner", 11, "Call", 3)?;
+                let mut tv = s.serialize_tuple_variant("ExprInner", 28, "CallWithTransfer", 4)?;
                 tv.serialize_field(target)?;
                 tv.serialize_field(args)?;
                 tv.serialize_field(arg_vvars)?;
+                tv.serialize_field(transfer_kind)?;
                 tv.end()
             }
             ExprInner::DirtyExpression {
@@ -6004,6 +6247,17 @@ impl Serialize for ExprInner {
                 tv.serialize_field(offset)?;
                 tv.end()
             }
+            ExprInner::SegmentedAddress {
+                selector,
+                offset,
+                address_kind,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 27, "SegmentedAddress", 3)?;
+                tv.serialize_field(selector)?;
+                tv.serialize_field(offset)?;
+                tv.serialize_field(address_kind)?;
+                tv.end()
+            }
         }
     }
 }
@@ -6101,6 +6355,13 @@ impl<'de> Deserialize<'de> for ExprInner {
                         target: next(&mut seq)?,
                         args: next(&mut seq)?,
                         arg_vvars: next(&mut seq)?,
+                        transfer_kind: "unknown".to_string(),
+                    },
+                    28 => ExprInner::Call {
+                        target: next(&mut seq)?,
+                        args: next(&mut seq)?,
+                        arg_vvars: next(&mut seq)?,
+                        transfer_kind: next(&mut seq)?,
                     },
                     12 => ExprInner::DirtyExpression {
                         callee: next(&mut seq)?,
@@ -6178,6 +6439,11 @@ impl<'de> Deserialize<'de> for ExprInner {
                     },
                     26 => ExprInner::StackBaseOffset {
                         offset: next(&mut seq)?,
+                    },
+                    27 => ExprInner::SegmentedAddress {
+                        selector: next(&mut seq)?,
+                        offset: next(&mut seq)?,
+                        address_kind: next(&mut seq)?,
                     },
                     // visit_enum validated the tag before dispatching here.
                     _ => unreachable!(),

@@ -7,15 +7,18 @@ from angr.ailment.expression import (
     Array,
     ComboRegister,
     Const,
+    Convert,
     Expression,
     FunctionLikeMacro,
     Register,
     RustEnum,
+    SegmentedAddress,
     Struct,
     VirtualVariable,
     VirtualVariableCategory,
 )
 from angr.ailment.statement import Assignment, Statement
+from angr.rustylib.ailment import RoundingMode
 
 
 class RecordingWalker(AILBlockWalker[None, None, list[str]]):
@@ -100,3 +103,57 @@ def test_block_rewriter_rebuilds_rust_ail_expression_containers():
     assert not new_enum.likes(enum)
     assert not new_struct.likes(struct)
     assert new_struct.fields[0].value == 2
+
+
+def test_block_rewriter_preserves_float_conversion_metadata():
+    src = Convert(
+        1,
+        64,
+        80,
+        True,
+        Const(0, 1, 64),
+        from_type=Convert.TYPE_FP,
+        to_type=Convert.TYPE_FP,
+        rounding_mode=RoundingMode.RM_NearestTiesEven,
+    )
+    dst = VirtualVariable(2, 1, 80, VirtualVariableCategory.REGISTER, 16)
+    block = Block(0x400020, 0, statements=[Assignment(3, dst, src)])
+
+    rewritten = ConstIncrementingRewriter(update_block=False).walk(block)
+    rewritten_src = rewritten.statements[0].src
+
+    assert isinstance(rewritten_src, Convert)
+    assert rewritten_src.from_type == Convert.TYPE_FP
+    assert rewritten_src.to_type == Convert.TYPE_FP
+    assert rewritten_src.rounding_mode == RoundingMode.RM_NearestTiesEven
+
+
+def test_block_walkers_preserve_and_rewrite_segmented_address_children():
+    selector = Register(0, 16, 16)
+    offset = Const(1, 1, 16)
+    address = SegmentedAddress(
+        2,
+        selector,
+        offset,
+        "x86-protected-16:16",
+        bits=32,
+        segment_register="ds",
+    )
+    dst = VirtualVariable(3, 1, 32, VirtualVariableCategory.REGISTER, 20)
+    block = Block(0x400030, 0, statements=[Assignment(4, dst, address)])
+
+    seen = RecordingWalker().walk(block)
+    rewritten = ConstIncrementingRewriter(update_block=False).walk(block)
+    rewritten_address = rewritten.statements[0].src
+
+    assert "SegmentedAddress" in seen
+    assert "Register" in seen
+    assert "Const" in seen
+    assert isinstance(rewritten_address, SegmentedAddress)
+    assert rewritten_address is not address
+    assert rewritten_address.selector == selector
+    assert rewritten_address.offset.value == 2
+    assert rewritten_address.address_kind == address.address_kind
+    assert rewritten_address.bits == address.bits
+    assert rewritten_address.tags == address.tags
+    assert offset.value == 1

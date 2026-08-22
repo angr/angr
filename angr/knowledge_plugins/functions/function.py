@@ -2055,6 +2055,20 @@ class Function(Serializable):
             n += self.binary_name + separator
         return n + (display_name or self.name)
 
+    def get_declaration_name(self) -> str:
+        """
+        Return the public source-level name associated with this function's library declaration.
+
+        Dynamic linkers may expose an ABI symbol that is not the identifier applications use in source. Libraries
+        retain that distinction as export aliases; function identity and loader lookup continue to use ``self.name``.
+        """
+        if self.prototype_libname is not None:
+            for library in SIM_LIBRARIES.get(self.prototype_libname, ()):
+                declaration_name = library.get_canonical_name(self.name)
+                if declaration_name != self.name and library.has_prototype(self.name):
+                    return declaration_name
+        return self.name
+
     def apply_definition(self, definition: str, calling_convention: SimCC | type[SimCC] | None = None) -> None:
         assert self.project is not None
         if not definition.endswith(";"):

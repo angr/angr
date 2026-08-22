@@ -10,6 +10,7 @@ import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    BinaryOp,
     Const,
     Convert,
     Expression,
@@ -26,6 +27,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, St
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
+from angr.utils.bits import sign_extend
 from angr.utils.ssa import (
     CONST_VVAR_LOAD_DIRTY_WHITELIST,
     CONST_VVAR_LOAD_WHITELIST,
@@ -462,13 +464,38 @@ class SPropagator:
                         if "sp" in self.project.arch.registers
                         else None
                     )
+                    tracked_sp_bits = sp_bits if sp_bits is not None else self.project.arch.bits
                     for vvar_at_use, useloc in vvar_uselocs_set:
+                        # Keep a more precise SSA-derived replacement when one already exists. A p-code PUSH, for
+                        # example, defines ``sp_after = sp_before - width`` and uses ``sp_after`` for its store in
+                        # the same instruction. The instruction-granular tracker can provide only ``sp_before`` at
+                        # that use; overwriting the propagated subtraction aliases consecutive push slots.
+                        if vvar_at_use in replacements[useloc]:
+                            continue
+                        if vvar_at_use.bits > tracked_sp_bits:
+                            # The tracker cannot prove bits outside the architecture's canonical SP storage.
+                            continue
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
                         if sb_offset is not None:
-                            v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
-                            if sp_bits is not None and vvar.bits < sp_bits:
+                            local_adjustment = self._stack_pointer_adjustment_within_instruction(
+                                vvar_at_use,
+                                useloc,
+                                vvar_deflocs,
+                                blocks,
+                            )
+                            if local_adjustment is None:
+                                continue
+                            sb_offset = sign_extend(sb_offset + local_adjustment, tracked_sp_bits)
+                            v = StackBaseOffset(self._ail_manager.next_atom(), tracked_sp_bits, sb_offset)
+                            if vvar_at_use.bits < tracked_sp_bits:
                                 # truncation needed
-                                v = Convert(self._ail_manager.next_atom(), sp_bits, vvar.bits, False, v)
+                                v = Convert(
+                                    self._ail_manager.next_atom(),
+                                    tracked_sp_bits,
+                                    vvar_at_use.bits,
+                                    False,
+                                    v,
+                                )
                             self.replace(replacements, useloc, vvar_at_use, v)
                     continue
                 if not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
@@ -540,6 +567,98 @@ class SPropagator:
                                 self.replace(replacements, loc, tmp_used, stmt.src)
 
         self.model.replacements = replacements
+
+    def _stack_pointer_adjustment_within_instruction(
+        self,
+        vvar: VirtualVariable,
+        useloc: AILCodeLocation,
+        vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
+        blocks: Mapping[tuple[int, int | None], Block],
+    ) -> int | None:
+        """Return the exact adjustment from instruction-entry SP to ``vvar`` at one use.
+
+        StackPointerTracker records instruction boundaries. P-code commonly exposes an intra-instruction value such
+        as ``sp_after = sp_before - 2`` and then uses ``sp_after`` as the address of a PUSH store. Follow only that
+        same-instruction SSA chain; once a definition comes from an earlier instruction, the tracker's entry value
+        is authoritative. Unknown writes fail closed instead of being replaced by the instruction-entry SP.
+        """
+
+        if useloc.block_addr is None or useloc.stmt_idx is None or useloc.ins_addr is None:
+            return None
+
+        use_block = (useloc.block_addr, useloc.block_idx)
+        previous_stmt_idx = useloc.stmt_idx
+        adjustment = 0
+        current = vvar
+        seen: set[int] = set()
+        while current.varid not in seen:
+            seen.add(current.varid)
+            definition = vvar_deflocs.get(current.varid)
+            if definition is None or definition[1].is_extern:
+                return adjustment
+
+            _, defloc = definition
+            if defloc.block_addr is None or defloc.stmt_idx is None:
+                return None
+            if (defloc.block_addr, defloc.block_idx) != use_block:
+                return adjustment
+            if not 0 <= defloc.stmt_idx < previous_stmt_idx:
+                return None
+            block = blocks.get(use_block)
+            if block is None or defloc.stmt_idx >= len(block.statements):
+                return None
+            stmt = block.statements[defloc.stmt_idx]
+            def_ins_addr = stmt.tags.get("ins_addr", defloc.ins_addr)
+            if def_ins_addr != useloc.ins_addr:
+                return adjustment
+            if not (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.varid == current.varid
+            ):
+                return None
+
+            src = stmt.src
+            if isinstance(src, Phi):
+                # SSA phis are control-flow merge artifacts, not writes performed by the instruction whose address
+                # tags the block head. StackPointerTracker has already merged the incoming machine states and
+                # returned an exact instruction-entry offset; stop the intra-instruction walk here instead of
+                # mistaking the phi for an unknown same-instruction SP transformation.
+                return adjustment
+            while isinstance(src, Convert) and src.from_bits == src.to_bits:
+                src = src.operand
+            if isinstance(src, VirtualVariable):
+                base = src
+                delta = 0
+            elif (
+                isinstance(src, BinaryOp)
+                and src.op in {"Add", "Sub"}
+                and src.bits == current.bits
+                and len(src.operands) == 2
+            ):
+                left, right = src.operands
+                if src.op == "Add" and isinstance(left, Const) and isinstance(right, VirtualVariable):
+                    base, constant = right, left
+                elif isinstance(left, VirtualVariable) and isinstance(right, Const):
+                    base, constant = left, right
+                else:
+                    return None
+                if not isinstance(constant.value, int) or isinstance(constant.value, bool):
+                    return None
+                delta = constant.value if src.op == "Add" else -constant.value
+            else:
+                return None
+
+            if not (
+                base.category == VirtualVariableCategory.REGISTER
+                and base.oident == self.project.arch.sp_offset
+                and base.bits == current.bits
+            ):
+                return None
+            adjustment += delta
+            current = base
+            previous_stmt_idx = defloc.stmt_idx
+        return None
 
     @staticmethod
     def is_global_variable_updated(

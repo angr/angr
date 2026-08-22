@@ -562,6 +562,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "MultiStatementExpression": self._handle_expr_MultiStatementExpression,
             "BasePointerOffset": self._handle_expr_BasePointerOffset,
             "StackBaseOffset": self._handle_expr_StackBaseOffset,
+            "SegmentedAddress": self._handle_expr_SegmentedAddress,
             "StringLiteral": self._handle_expr_StringLiteral,
             "Struct": self._handle_expr_Struct,
             "Array": self._handle_expr_Array,
@@ -579,10 +580,15 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "Dereference": self._handle_unop_Dereference,
             "Clz": self._handle_unop_Clz,
             "Ctz": self._handle_unop_Ctz,
+            "PopCount": self._handle_unop_PopCount,
             "GetMSBs": self._handle_unop_GetMSBs,
             "unpack": self._handle_unop_unpack,
             "Sqrt": self._handle_unop_Sqrt,
             "RSqrtEst": self._handle_unop_RSqrtEst,
+            "IsNaN": self._handle_unop_IsNaN,
+            "Ceil": self._handle_unop_Ceil,
+            "Floor": self._handle_unop_Floor,
+            "Round": self._handle_unop_Round,
         }
         self._binop_handlers: dict[str, Callable[[ailment.BinaryOp], DataType_co]] = {
             "Add": self._handle_binop_Add,
@@ -818,6 +824,11 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     @abstractmethod
     def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co: ...
 
+    def _handle_expr_SegmentedAddress(self, expr: ailment.expression.SegmentedAddress) -> DataType_co:
+        self._expr(expr.selector)
+        self._expr(expr.offset)
+        return self._top(expr.bits)
+
     def _handle_expr_StringLiteral(self, expr):
         return self._top(expr.bits)
 
@@ -878,6 +889,10 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     @abstractmethod
     def _handle_unop_Ctz(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
+    def _handle_unop_PopCount(self, expr: ailment.expression.UnaryOp) -> DataType_co:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
+
     @abstractmethod
     def _handle_unop_GetMSBs(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
@@ -889,6 +904,22 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
 
     @abstractmethod
     def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+
+    def _handle_unop_IsNaN(self, expr: ailment.expression.UnaryOp) -> DataType_co:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
+
+    def _handle_unop_Ceil(self, expr: ailment.expression.UnaryOp) -> DataType_co:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
+
+    def _handle_unop_Floor(self, expr: ailment.expression.UnaryOp) -> DataType_co:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
+
+    def _handle_unop_Round(self, expr: ailment.expression.UnaryOp) -> DataType_co:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
 
     #
     # BinOps
@@ -1172,6 +1203,9 @@ class SimEngineNoexprAIL[StateType, DataType_co, StmtDataType, ResultType](
         pass
 
     def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co | None:
+        pass
+
+    def _handle_expr_SegmentedAddress(self, expr: ailment.expression.SegmentedAddress) -> DataType_co | None:
         pass
 
     def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:

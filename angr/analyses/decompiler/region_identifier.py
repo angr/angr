@@ -8,7 +8,6 @@ from typing import Any, Literal, cast, overload
 
 import networkx
 
-from angr import ailment
 from angr.ailment import Block, Manager
 from angr.ailment.expression import Const
 from angr.ailment.statement import ConditionalJump, Jump
@@ -21,7 +20,7 @@ from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_bet
 from .condition_processor import ConditionProcessor
 from .region_overlay import OverlayManager, RegionOverlay
 from .structurer_nodes import ConditionNode, IncompleteSwitchCaseHeadStatement, MultiNode
-from .utils import copy_graph, first_nonlabel_nonphi_statement, replace_last_statement
+from .utils import copy_graph, first_nonlabel_nonphi_statement
 
 l = logging.getLogger(name=__name__)
 
@@ -634,7 +633,10 @@ class RegionIdentifier(Analysis):
         # recover reaching conditions
         self.cond_proc.recover_reaching_conditions(region, with_successors=True)
 
-        successors = list(region.successor_nodes())
+        # successor_nodes() is a set. Its iteration order must not choose the semantic priority of the guard chain:
+        # overlapping recovered conditions use the first matching child, so identity-hash order would make output
+        # and behavior process-dependent. RegionIdentifier's quasi-topological order is the canonical order here.
+        successors = self._sort_nodes(region.successor_nodes())
 
         condnode_addr = next(CONDITIONNODE_ADDR)
         # create a new successor
@@ -659,67 +661,98 @@ class RegionIdentifier(Analysis):
         parent = region.parent
         assert parent is not None
 
+        # Resolve and validate every quotient edge before mutating either AIL or the shared graph. P-code instructions
+        # may put an exit ConditionalJump in the middle of a block and a self-loop Jump at the end (REP is a common
+        # example), so "last statement" is neither a sufficient owner lookup nor safe evidence for redirecting an
+        # edge. If an edge has no exact semantic owner, abort this refinement instead of leaving stale AIL behind a
+        # redirected CFG edge.
+        transfer_rewrites: defaultdict[tuple[Block, int], set[str]] = defaultdict(set)
+        condition_rewrites: list[tuple[ConditionNode, str]] = []
+        condition_rewrite_set: set[tuple[ConditionNode, str]] = set()
+        claimed_owners: dict[tuple[Any, ...], tuple[TNode, TNode]] = {}
+        graph_redirects: dict[tuple[TNode, TNode], dict[str, Any]] = {}
+        redirect_data_by_source: dict[TNode, dict[str, Any]] = {}
+        for succ in successors:
+            incoming_edges = sorted(g.in_edges(succ, data=True), key=lambda edge: self._node_order[edge[0]])
+            for src, _, _data in incoming_edges:
+                # The full cyclic-region view also contains edges between successor nodes. They are context for
+                # reaching-condition recovery, not loop exits, and must not be rewritten as if they belonged to the
+                # loop body.
+                if src not in region.members:
+                    continue
+
+                # Modify the concrete sources that own this quotient edge. A source can itself be a RegionOverlay;
+                # asking ConditionProcessor for that overlay's last statements returns no owner and previously left
+                # the AIL jump stale. A ConditionNode is different again: its graph edges are represented by semantic
+                # child references, not by the terminal statements inside those children.
+                underlying_pairs = sorted(
+                    region.underlying_edge_pairs(src, succ),
+                    key=lambda edge: (self._node_order[edge[0]], self._node_order[edge[1]]),
+                )
+                if not underlying_pairs:
+                    raise AngrRuntimeError(f"Loop-exit edge {src!r} -> {succ!r} has no underlying CFG edge")
+
+                for concrete_src, concrete_dst in underlying_pairs:
+                    edge = concrete_src, concrete_dst
+                    if isinstance(concrete_src, ConditionNode):
+                        owner_slots = [
+                            ("condition", owner, attr)
+                            for owner, attr in self._condition_successor_slots(concrete_src, (succ, concrete_dst))
+                        ]
+                    else:
+                        owner_slots = [
+                            ("transfer", block, stmt_idx, field)
+                            for block, stmt_idx, field in self._transfer_slots_to_destination(
+                                concrete_src, concrete_dst
+                            )
+                        ]
+                    if not owner_slots:
+                        raise AngrRuntimeError(
+                            f"Loop-exit edge {concrete_src!r} -> {concrete_dst!r} has no exact AIL transfer owner"
+                        )
+                    for owner_slot in owner_slots:
+                        previous_edge = claimed_owners.setdefault(owner_slot, edge)
+                        if previous_edge != edge:
+                            raise AngrRuntimeError(
+                                f"Loop-exit edges {previous_edge!r} and {edge!r} share an ambiguous AIL transfer owner"
+                            )
+                        if owner_slot[0] == "condition":
+                            condition_rewrite = owner_slot[1], owner_slot[2]
+                            if condition_rewrite not in condition_rewrite_set:
+                                condition_rewrite_set.add(condition_rewrite)
+                                condition_rewrites.append(condition_rewrite)
+                        else:
+                            transfer_rewrites[(owner_slot[1], owner_slot[2])].add(owner_slot[3])
+                    edge_data = dict(mgr.graph[concrete_src][concrete_dst])
+                    graph_redirects.setdefault(edge, edge_data)
+                    previous_data = redirect_data_by_source.setdefault(concrete_src, edge_data)
+                    if previous_data != edge_data:
+                        # A DiGraph has only one concrete_src -> cond edge. Silently applying both mappings would
+                        # merge or overwrite attributes in traversal order and falsely claim that both old edges were
+                        # preserved. Reject the unrepresentable refinement before changing statements or topology.
+                        raise AngrRuntimeError(
+                            f"Loop-exit edges from {concrete_src!r} have conflicting metadata that cannot be "
+                            "represented by one guarded-successor edge"
+                        )
+
         # add the condition node to the shared graph as a member of the enclosing region
         parent.add_node(cond)
 
-        for succ in successors:
-            for src, _, data in list(g.in_edges(succ, data=True)):
-                # TODO: rewrite the conditional jumps in src so that it goes to cond-node instead.
+        for owner, attr in condition_rewrites:
+            child = getattr(owner, attr)
+            setattr(owner, attr, cond)
+            mgr._record(  # pylint:disable=protected-access
+                lambda owner_=owner, attr_=attr, child_=child: setattr(owner_, attr_, child_)
+            )
 
-                # modify the last statement of src so that it jumps to cond
-                replaced_any_stmt = False
-                last_stmts = self.cond_proc.get_last_statements(src)
-                for last_stmt in last_stmts:
-                    if isinstance(last_stmt, ConditionalJump):
-                        if (
-                            isinstance(last_stmt.true_target, ailment.Expr.Const)
-                            and last_stmt.true_target.value == succ.addr
-                        ):
-                            new_last_stmt = ConditionalJump(
-                                last_stmt.idx,
-                                last_stmt.condition,
-                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
-                                last_stmt.false_target,
-                                ins_addr=last_stmt.tags["ins_addr"],
-                            )
-                        elif (
-                            isinstance(last_stmt.false_target, ailment.Expr.Const)
-                            and last_stmt.false_target.value == succ.addr
-                        ):
-                            new_last_stmt = ConditionalJump(
-                                last_stmt.idx,
-                                last_stmt.condition,
-                                last_stmt.true_target,
-                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
-                                ins_addr=last_stmt.tags["ins_addr"],
-                            )
-                        else:
-                            # none of the two branches is jumping out of the loop
-                            continue
-                    elif isinstance(last_stmt, Jump):
-                        if isinstance(last_stmt.target, ailment.Expr.Const):
-                            new_last_stmt = Jump(
-                                last_stmt.idx,
-                                ailment.Expr.Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits),
-                                ins_addr=last_stmt.tags["ins_addr"],
-                            )
-                        else:
-                            # an indirect jump - might be a jump table. ignore it
-                            continue
-                    else:
-                        l.error("Unexpected last_stmt type %s. Ignore.", type(last_stmt))
-                        continue
-                    replace_last_statement(src, last_stmt, new_last_stmt)
-                    replaced_any_stmt = True
-                if not replaced_any_stmt:
-                    l.warning("No statement was replaced. Is there anything wrong?")
-                    # raise Exception()
+        for (block, stmt_idx), fields in transfer_rewrites.items():
+            self._rewrite_transfer_slot_to_guard(block, stmt_idx, fields, condnode_addr)
 
-                if src in region.members:
-                    # redirect the underlying loop-exit edges to the condition node
-                    for u, v in region.underlying_edge_pairs(src, succ):
-                        mgr.graph_remove_edge(u, v)
-                        mgr.graph_add_edge(u, cond, **data)
+        # redirect only the physical loop-exit edges whose exact semantic owners were proven above
+        for u, v in graph_redirects:
+            mgr.graph_remove_edge(u, v)
+        for u, data in redirect_data_by_source.items():
+            mgr.graph_add_edge(u, cond, **data)
 
         # connect the condition node to the (former) successors in the shared graph
         for succ in successors:
@@ -738,6 +771,102 @@ class RegionIdentifier(Analysis):
         # compute the node order of newly created nodes
         self._node_order[region] = region_node_order = min(self._node_order[node_] for node_ in region.members)
         self._node_order[cond] = region_node_order[0], region_node_order[1] + 1
+
+    @classmethod
+    def _condition_successor_slots(
+        cls, node: ConditionNode, destinations: Iterable[TNode]
+    ) -> list[tuple[ConditionNode, str]]:
+        destinations = tuple(destinations)
+        slots = []
+        for attr in ("true_node", "false_node"):
+            child = getattr(node, attr)
+            if any(child is destination for destination in destinations):
+                slots.append((node, attr))
+            elif isinstance(child, ConditionNode):
+                slots.extend(cls._condition_successor_slots(child, destinations))
+        return slots
+
+    @staticmethod
+    def _iter_transfer_statement_slots(node: TNode):
+        if isinstance(node, Block):
+            for stmt_idx, stmt in enumerate(node.statements):
+                if isinstance(stmt, (Jump, ConditionalJump)):
+                    yield node, stmt_idx, stmt
+        elif isinstance(node, MultiNode):
+            for child in node.nodes:
+                yield from RegionIdentifier._iter_transfer_statement_slots(child)
+
+    def _transfer_target_matches_destination(self, source: TNode, target, target_idx, destination: TNode) -> bool:
+        if not isinstance(target, Const):
+            return False
+        if target.value != getattr(destination, "addr", None):
+            return False
+        destination_idx = getattr(destination, "idx", None)
+        if target_idx is not None:
+            return destination_idx is not None and target_idx == destination_idx
+
+        # Address-only AIL targets are exact only when the concrete CFG has a unique destination at that address.
+        # Otherwise two same-address nodes could both claim the same statement field during preflight.
+        assert self.overlay_manager is not None
+        matching_destinations = [
+            candidate
+            for candidate in self.overlay_manager.graph.successors(source)
+            if getattr(candidate, "addr", None) == target.value
+        ]
+        return len(matching_destinations) == 1 and matching_destinations[0] is destination
+
+    def _transfer_slots_to_destination(self, source: TNode, destination: TNode) -> list[tuple[Block, int, str]]:
+        slots = []
+        for block, stmt_idx, stmt in self._iter_transfer_statement_slots(source):
+            if isinstance(stmt, Jump):
+                if self._transfer_target_matches_destination(source, stmt.target, stmt.target_idx, destination):
+                    slots.append((block, stmt_idx, "target"))
+            else:
+                if self._transfer_target_matches_destination(
+                    source, stmt.true_target, stmt.true_target_idx, destination
+                ):
+                    slots.append((block, stmt_idx, "true_target"))
+                if self._transfer_target_matches_destination(
+                    source, stmt.false_target, stmt.false_target_idx, destination
+                ):
+                    slots.append((block, stmt_idx, "false_target"))
+        return slots
+
+    def _rewrite_transfer_slot_to_guard(
+        self, block: Block, stmt_idx: int, fields: set[str], condnode_addr: int
+    ) -> None:
+        assert self.overlay_manager is not None
+        stmt = block.statements[stmt_idx]
+
+        def guard_target():
+            return Const(self.ail_manager.next_atom(), condnode_addr, self.project.arch.bits)
+
+        if isinstance(stmt, Jump):
+            assert fields == {"target"}
+            new_stmt = Jump(
+                stmt.idx,
+                guard_target(),
+                target_idx=None,
+                transfer_kind=getattr(stmt, "transfer_kind", "unknown"),
+                **stmt.tags,
+            )
+        else:
+            assert isinstance(stmt, ConditionalJump)
+            assert fields <= {"true_target", "false_target"}
+            new_stmt = ConditionalJump(
+                stmt.idx,
+                stmt.condition,
+                guard_target() if "true_target" in fields else stmt.true_target,
+                guard_target() if "false_target" in fields else stmt.false_target,
+                true_target_idx=None if "true_target" in fields else stmt.true_target_idx,
+                false_target_idx=None if "false_target" in fields else stmt.false_target_idx,
+                **stmt.tags,
+            )
+
+        block.statements[stmt_idx] = new_stmt
+        self.overlay_manager._record(  # pylint:disable=protected-access
+            lambda block_=block, stmt_idx_=stmt_idx, stmt_=stmt: block_.statements.__setitem__(stmt_idx_, stmt_)
+        )
 
     #
     # Acyclic regions

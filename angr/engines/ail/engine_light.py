@@ -536,14 +536,19 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                     return child.zero_extend(expr.to_bits - expr.from_bits)
                 return child[expr.to_bits - 1 : 0]
             if expr.to_type == ailment.expression.Convert.TYPE_FP:
+                if expr.to_bits not in {32, 64}:
+                    return self._top(expr.to_bits)
                 to_sort = claripy.FSORT_DOUBLE if expr.to_bits == 64 else claripy.FSORT_FLOAT
                 return child.val_to_fp(to_sort, expr.is_signed, _claripy_rm(expr.rounding_mode))
             assert False
         elif expr.from_type == ailment.expression.Convert.TYPE_FP:
-            assert isinstance(child, claripy.ast.FP)
+            if not isinstance(child, claripy.ast.FP):
+                return self._top(expr.to_bits)
             if expr.to_type == ailment.expression.Convert.TYPE_INT:
                 return child.val_to_bv(expr.to_bits, expr.is_signed)
             if expr.to_type == ailment.expression.Convert.TYPE_FP:
+                if expr.to_bits not in {32, 64}:
+                    return self._top(expr.to_bits)
                 to_sort = claripy.FSORT_DOUBLE if expr.to_bits == 64 else claripy.FSORT_FLOAT
                 return child.to_fp(to_sort, _claripy_rm(expr.rounding_mode))
             assert False
@@ -553,21 +558,23 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType:
         child = self._expr_bits(expr.operand)
         assert len(child) == expr.from_bits
-        if expr.from_type == ailment.expression.Convert.TYPE_INT:
+        if expr.from_type == "I":
             assert isinstance(child, claripy.ast.BV)
-            if expr.to_type == ailment.expression.Convert.TYPE_INT:
+            if expr.to_type == "I":
                 assert False, "I think this is unreachable"
-            elif expr.to_type == ailment.expression.Convert.TYPE_FP:
-                assert expr.from_size == expr.to_size
-                return child.raw_to_fp()
-            else:
-                assert False
-        elif expr.from_type == ailment.expression.Convert.TYPE_FP:
-            assert isinstance(child, claripy.ast.FP)
-            if expr.to_type == ailment.expression.Convert.TYPE_INT:
-                assert expr.from_size == expr.to_size
-                return child.raw_to_bv()
-            if expr.to_type == ailment.expression.Convert.TYPE_FP:
+            if expr.to_type == "F":
+                assert expr.from_bits == expr.to_bits
+                if expr.to_bits in {32, 64}:
+                    return child.raw_to_fp()
+                return self._top(expr.to_bits)
+            assert False
+        elif expr.from_type == "F":
+            if expr.to_type == "I":
+                assert expr.from_bits == expr.to_bits
+                if isinstance(child, claripy.ast.FP):
+                    return child.raw_to_bv()
+                return child
+            if expr.to_type == "F":
                 assert False, "I think this is unreachable"
             else:
                 assert False
@@ -631,8 +638,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return claripy.BVV(self.frame.stack_ptr + expr.offset, expr.bits)
 
     def _handle_unop_Neg(self, expr: ailment.UnaryOp):
-        v = self._expr_bv(expr.operand)
-        return -v
+        value = self._expr(expr.operand)
+        return claripy.fpNeg(value) if isinstance(value, claripy.ast.FP) else -value
 
     def _handle_unop_Not(self, expr: ailment.UnaryOp):
         v = self._expr_bv(expr.operand)
@@ -694,6 +701,14 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             wtf_expr = claripy.If(bit == 1, claripy.BVV(a, expr.bits), wtf_expr)
         return wtf_expr
 
+    def _handle_unop_PopCount(self, expr: ailment.expression.UnaryOp) -> DataType:
+        operand = self._expr(expr.operand)
+        result = claripy.BVV(0, expr.bits)
+        for bit_index in range(len(operand)):
+            bit = claripy.Extract(bit_index, bit_index, operand)
+            result += claripy.ZeroExt(expr.bits - 1, bit)
+        return result
+
     def _handle_unop_GetMSBs(self, expr: ailment.expression.UnaryOp) -> DataType:
         operand = self._expr(expr.operand)
         size = expr.bits
@@ -704,21 +719,62 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         raise NotImplementedError("Not sure what the semantics of this op are")
 
     def _handle_unop_Sqrt(self, expr: ailment.expression.UnaryOp) -> DataType:
-        raise NotImplementedError("Not sure how to express this in claripy")
+        value = self._expr(expr.operand)
+        if isinstance(value, claripy.ast.FP):
+            return claripy.fpSqrt(claripy.fp.RM.default(), value)
+        return self._top(expr.bits)
+
+    def _handle_unop_IsNaN(self, expr: ailment.expression.UnaryOp) -> DataType:
+        value = self._expr(expr.operand)
+        if isinstance(value, claripy.ast.FP):
+            return claripy.fpIsNaN(value)
+        return self._top(expr.bits)
+
+    def _handle_unop_Ceil(self, expr: ailment.expression.UnaryOp) -> DataType:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
+
+    def _handle_unop_Floor(self, expr: ailment.expression.UnaryOp) -> DataType:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
+
+    def _handle_unop_Round(self, expr: ailment.expression.UnaryOp) -> DataType:
+        self._expr(expr.operand)
+        return self._top(expr.bits)
 
     def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
 
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpAdd(_claripy_rm(expr.rounding_mode), left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) + self._expr_bv(expr.operands[1])
 
     def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpSub(_claripy_rm(expr.rounding_mode), left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) - self._expr_bv(expr.operands[1])
 
     def _handle_binop_Mul(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpMul(_claripy_rm(expr.rounding_mode), left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) * self._expr_bv(expr.operands[1])
 
     def _handle_binop_Div(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpDiv(_claripy_rm(expr.rounding_mode), left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) / self._expr_bv(expr.operands[1])
 
     def _handle_binop_Mod(self, expr: ailment.expression.BinaryOp) -> DataType:
@@ -844,15 +900,35 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         raise NotImplementedError("Not sure what the semantics of this op are")
 
     def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpEQ(left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) == self._expr_bv(expr.operands[1])
 
     def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpNEQ(left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) != self._expr_bv(expr.operands[1])
 
     def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpLT(left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) < self._expr_bv(expr.operands[1])
 
     def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType:
+        if expr.floating_point:
+            left, right = self._expr(expr.operands[0]), self._expr(expr.operands[1])
+            if isinstance(left, claripy.ast.FP) and isinstance(right, claripy.ast.FP):
+                return claripy.fpLEQ(left, right)
+            return self._top(expr.bits)
         return self._expr_bv(expr.operands[0]) <= self._expr_bv(expr.operands[1])
 
     def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType:

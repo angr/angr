@@ -10,9 +10,12 @@ from angr.calling_conventions import (
     SimCCARM,
     SimCCO32,
     SimCCUnknown,
+    SimComboArg,
+    SimFunctionArgument,
     SimRegArg,
     SimStackArg,
     default_cc,
+    register_cc,
     register_default_cc,
 )
 
@@ -43,6 +46,113 @@ class SimCCM68k(SimCCPCodeBase):
     STACKARG_SP_DIFF = 4  # Return address is pushed on to stack by call
     RETURN_VAL = SimRegArg("d0", 4)
     RETURN_ADDR = SimStackArg(0, 4)
+
+
+class SimCCPCodeX86Win16NearCdecl(SimCCPCodeBase):
+    """The code-segment-local 16-bit C ABI used by ordinary Win16 near calls.
+
+    This does not model far calls, Pascal/stdcall cleanup, callbacks, or process
+    entry. It gives analyses an exact contract for the narrower near-cdecl case:
+    arguments and the two-byte return address are on the stack, and scalar
+    16-bit results are returned in AX.
+    """
+
+    LANGUAGE = "x86:LE:16:Protected Mode"
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    STACKARG_SP_DIFF = 2
+    CALLER_SAVED_REGS = ["ax", "cx", "dx"]
+    RETURN_VAL = SimRegArg("ax", 2)
+    OVERFLOW_RETURN_VAL = SimRegArg("dx", 2)
+    RETURN_ADDR = SimStackArg(0, 2)
+
+
+class SimCCPCodeX86Win16NearPascal(SimCCPCodeBase):
+    """The 16-bit near Pascal ABI used by callee-cleanup routines inside Win16 modules."""
+
+    LANGUAGE = "x86:LE:16:Protected Mode"
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    STACKARG_SP_DIFF = 2
+    STACK_ALIGNMENT = 2
+    CALLEE_CLEANUP = True
+    CALLER_SAVED_REGS = ["ax", "cx", "dx"]
+    RETURN_VAL = SimRegArg("ax", 2)
+    OVERFLOW_RETURN_VAL = SimRegArg("dx", 2)
+    RETURN_ADDR = SimStackArg(0, 2)
+
+    def arg_locs(self, prototype) -> list[SimFunctionArgument]:
+        if prototype._arch is None:
+            prototype = prototype.with_arch(self.arch)
+        session = self.arg_session(prototype.returnty)
+        reversed_locations = [self.next_arg(session, arg_type) for arg_type in reversed(prototype.args)]
+        return list(reversed(reversed_locations))
+
+    def stack_space(self, args):
+        return _win16_stack_frame_size(self.STACKARG_SP_DIFF, self.STACKARG_SP_BUFF, args)
+
+
+class SimCCPCodeX86Win16FarCdecl(SimCCPCodeBase):
+    """The 16-bit far C ABI used by caller-cleanup routines inside Win16 modules."""
+
+    LANGUAGE = "x86:LE:16:Protected Mode"
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    STACKARG_SP_DIFF = 4
+    STACK_ALIGNMENT = 2
+    CALLER_SAVED_REGS = ["ax", "cx", "dx"]
+    RETURN_VAL = SimRegArg("ax", 2)
+    OVERFLOW_RETURN_VAL = SimRegArg("dx", 2)
+    RETURN_ADDR = SimStackArg(0, 4)
+
+
+class SimCCPCodeX86Win16FarPascal(SimCCPCodeBase):
+    """The Win16 far Pascal ABI used by imported APIs and exported callbacks.
+
+    A far call pushes a four-byte CS:IP return address. Pascal arguments are pushed left-to-right, so the final
+    declared argument is nearest the return address, and the callee removes the complete frame on return.
+    """
+
+    LANGUAGE = "x86:LE:16:Protected Mode"
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    STACKARG_SP_DIFF = 4
+    STACK_ALIGNMENT = 2
+    CALLEE_CLEANUP = True
+    CALLER_SAVED_REGS = ["ax", "cx", "dx"]
+    RETURN_VAL = SimRegArg("ax", 2)
+    OVERFLOW_RETURN_VAL = SimRegArg("dx", 2)
+    RETURN_ADDR = SimStackArg(0, 4)
+
+    def arg_locs(self, prototype) -> list[SimFunctionArgument]:
+        if prototype._arch is None:
+            prototype = prototype.with_arch(self.arch)
+        session = self.arg_session(prototype.returnty)
+        reversed_locations = [self.next_arg(session, arg_type) for arg_type in reversed(prototype.args)]
+        return list(reversed(reversed_locations))
+
+    def stack_space(self, args):
+        """Return the complete frame size, including the far return address."""
+
+        return _win16_stack_frame_size(self.STACKARG_SP_DIFF, self.STACKARG_SP_BUFF, args)
+
+
+def _win16_stack_frame_size(return_address_size, stack_arg_buffer, args):
+    """Account for every word of a Win16 stack frame, including split long arguments."""
+
+    end = return_address_size
+
+    def account(location: SimFunctionArgument) -> None:
+        nonlocal end
+        if isinstance(location, SimStackArg):
+            end = max(end, location.stack_offset + location.size)
+        elif isinstance(location, SimComboArg):
+            for part in location.locations:
+                account(part)
+
+    for argument in args:
+        account(argument)
+    return end + stack_arg_buffer
 
 
 class SimCCRISCV(SimCCPCodeBase):
@@ -132,6 +242,7 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
             "PowerPC:BE:32:MPC8270": SimCCPowerPC,
             "Xtensa:LE:32:default": SimCCXtensa,
             "MIPS:LE:32:default": SimCCO32,
+            "x86:LE:16:Protected Mode": SimCCPCodeX86Win16NearCdecl,
         }
         if arch.name in manual_cc_mapping:
             # first attempt: manually specified mappings
@@ -146,3 +257,9 @@ def register_pcode_arch_default_cc(arch: ArchPcode):
         if cc is SimCCUnknown:
             l.warning("Unknown default cc for arch %s", arch.name)
         register_default_cc(arch.name, cc)
+    if arch.name == "x86:LE:16:Protected Mode":
+        cc = DEFAULT_CC[arch.name].get("default", SimCCPCodeX86Win16NearCdecl)
+        register_default_cc(arch.name, cc, platform="Win16")
+        register_cc(arch.name, SimCCPCodeX86Win16NearPascal, platform="Win16")
+        register_cc(arch.name, SimCCPCodeX86Win16FarCdecl, platform="Win16")
+        register_cc(arch.name, SimCCPCodeX86Win16FarPascal, platform="Win16")

@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
-from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
+from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, Reinterpret, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
@@ -177,6 +177,15 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
+        if expr.floating_point:
+            # Floating-point operands are semantic values, not integer bit-vectors. Even if only a narrower result is
+            # eventually stored, evaluating the operation at reduced precision changes its value.
+            self._update_effective_bits(expr.operands[0], 0, expr.operands[0].bits)
+            self._update_effective_bits(expr.operands[1], 0, expr.operands[1].bits)
+            self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
+            self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
+            return
+
         effective_bits = self._node_effective_bits.get(expr.idx)
         if effective_bits is None:
             effective_bits = 0, expr.bits
@@ -205,7 +214,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        if expr.op == "Reference":
+        if expr.op in {"Abs", "Sqrt", "IsNaN", "Ceil", "Floor", "Round"}:
+            self._update_effective_bits(expr.operand, 0, expr.operand.bits)
+        elif expr.op == "Reference":
             # we really only need 1 byte of the target variable :)
             pass
         else:
@@ -213,10 +224,20 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        if expr.from_type == Convert.TYPE_FP or expr.to_type == Convert.TYPE_FP:
+            self._update_effective_bits(expr.operand, 0, expr.from_bits)
+            self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
+            return
         effective_bits = self._node_effective_bits.get(expr.idx)
         if effective_bits is None or effective_bits[1] > expr.to_bits:
             effective_bits = 0, expr.to_bits
         self._update_effective_bits(expr.operand, effective_bits[0], effective_bits[1])
+        self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
+
+    def _handle_Reinterpret(
+        self, expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self._update_effective_bits(expr.operand, 0, expr.from_bits)
         self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
 
     def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None):

@@ -14,6 +14,8 @@ from .traversal_state import TraversalState
 if TYPE_CHECKING:
     import networkx
 
+    from angr.ailment.expression import Register
+    from angr.analyses.decompiler.register_state import PostCallRegisterStateBindings
     from angr.knowledge_plugins.functions.function import Function
     from angr.project import Project
 
@@ -37,6 +39,9 @@ class TraversalAnalysis:
         tmps: bool,
         func_args: set[ailment.Expr.VirtualVariable],
         functions: Callable[[int | str], Function | None] | None,
+        register_state_ranges: tuple[tuple[int, int], ...] = (),
+        initial_register_state_ranges: tuple[tuple[int, int], ...] = (),
+        post_call_register_state_bindings: PostCallRegisterStateBindings = (),
         variable_map=None,
     ):
         self.project = project
@@ -45,6 +50,8 @@ class TraversalAnalysis:
         self._function = func
         self._ail_graph = ail_graph
         self._func_args = func_args
+        self._register_state_ranges = register_state_ranges
+        self._initial_register_state_ranges = initial_register_state_ranges
         self.input_states: dict[ailment.Block, dict[ailment.Block | None, TraversalState]] = {}
         self.start_states: dict[ailment.Block, TraversalState] = {}
         self._pending: set[ailment.Block] = set()
@@ -57,12 +64,16 @@ class TraversalAnalysis:
             stackvars=self._stackvars,
             use_tmps=self._tmps,
             functions=functions,
+            register_state_ranges=register_state_ranges,
+            initial_register_state_ranges=initial_register_state_ranges,
+            post_call_register_state_bindings=post_call_register_state_bindings,
             variable_map=variable_map,
         )
 
         self._analyze()
 
         self.def_info = self._engine_ail.def_info
+        self.post_call_effect_defs: dict[tuple[int, int, int], Register] = self._engine_ail.post_call_effect_defs
 
     #
     # Main analysis routines
@@ -81,6 +92,8 @@ class TraversalAnalysis:
 
     def _initial_abstract_state(self) -> TraversalState:
         state = TraversalState(self.project.arch, self._function)
+        for reg_offset, reg_size in (*self._register_state_ranges, *self._initial_register_state_ranges):
+            state.register_unify(reg_offset, reg_size)
         # update it with function arguments
         if self._func_args:
             for func_arg in self._func_args:
@@ -146,6 +159,8 @@ class TraversalAnalysis:
                 self._pending.add(succ)
         self._engine_ail.hclb_side_exit_state = None
 
-        # memory optimization:
-        if self._ail_graph.in_degree[node] <= 1:
+        # memory optimization: a self-loop has one real CFG predecessor but also needs the synthetic entry state
+        # from the first visit. Keep both states until the second traversal pass so loop-carried definitions reach
+        # the entry/header and its phi candidates are discovered.
+        if self._ail_graph.in_degree[node] <= 1 and not self._ail_graph.has_edge(node, node):
             del self.input_states[node]

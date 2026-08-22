@@ -13,6 +13,7 @@ from . import (
     JumpTableResolver,
     MipsElfFastResolver,
     MipsElfGotResolver,
+    PcodeX86JumpTableResolver,
     SyscallResolver,
     X86ElfPicPltResolver,
     X86PeIatResolver,
@@ -69,7 +70,13 @@ DEFAULT_RESOLVERS = {
             AArch64MachOGotResolver,
         ]
     },
-    "ALL": [MemoryLoadResolver, JumpTableResolver, ConstantResolver, SyscallResolver],
+    "ALL": [
+        MemoryLoadResolver,
+        PcodeX86JumpTableResolver,
+        JumpTableResolver,
+        ConstantResolver,
+        SyscallResolver,
+    ],
 }
 
 

@@ -28,7 +28,7 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from angr.analyses.decompiler.structured_codegen.c import CConstruct
+from angr.analyses.decompiler.structured_codegen.c import CConstant, CConstruct, CVariable, c_variable_identifier
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
@@ -226,6 +226,22 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         # nodes created after deserialization must not collide with deserialized ones
         assert back._next_node_idx > max(node_ids)
 
+    def test_codegen_roundtrip_with_internal_constant_reference(self):
+        codegen = self.decompiler.codegen
+        live_nodes = [elem.obj for _, elem in codegen.map_pos_to_node.items() if isinstance(elem.obj, CConstruct)]
+        constant = next(node for node in live_nodes if isinstance(node, CConstant))
+        variable = next(node for node in live_nodes if isinstance(node, CVariable))
+        old_reference_values = constant.reference_values
+        try:
+            constant.reference_values = {"offset": variable}
+            codegen.regenerate_text()
+            back = type(codegen).parse(codegen.serialize(), project=self.proj, kb=self.proj.kb)
+            assert back.text == codegen.text
+            assert c_variable_identifier(variable.variable) in back.text
+        finally:
+            constant.reference_values = old_reference_values
+            codegen.regenerate_text()
+
     def test_clinic_roundtrip(self):
         clinic = self.decompiler.clinic
         back = type(clinic).parse(
@@ -255,6 +271,9 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back._end_stage == clinic._end_stage
         assert back._skip_stages == clinic._skip_stages
         assert back.flavor == clinic.flavor
+        assert back.register_state_bindings == clinic.register_state_bindings == ()
+        assert back.initial_register_state_bindings == clinic.initial_register_state_bindings == ()
+        assert back.post_call_register_state_bindings == clinic.post_call_register_state_bindings == ()
         # regenerable / runtime-only state is not serialized, so the deserialized clinic comes back with the
         # default (the caller's fast-path reuse regenerates whatever it needs)
         for attr in (
@@ -345,9 +364,16 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert cache.timestamp > 0
         assert back.version == cache.version
         assert back.timestamp == cache.timestamp
-        # parameters preserves the 15 keys
+        # parameters preserves every normalized cache-identity key
         assert set(back.parameters.keys()) == set(cache.parameters.keys())
-        assert len(back.parameters) == 15
+        assert back.parameters["segmented_memory_bindings"] == ()
+        assert back.parameters["initial_register_state_bindings"] == ()
+        assert back.parameters["post_call_register_state_bindings"] == ()
+        assert back.parameters["far_call_bindings"] == ()
+        assert back.parameters["indirect_far_call_bindings"] == ()
+        assert back.parameters["indirect_near_call_bindings"] == ()
+        assert back.parameters["converted_pointer_bindings"] == ()
+        assert len(back.parameters) == 23
 
     def test_cache_hit_on_deserialized_cache(self):
         cache = self.decompiler.cache

@@ -108,6 +108,7 @@ class ExpressionKind:
     FunctionLikeMacro: ClassVar[ExpressionKind]
     BasePointerOffset: ClassVar[ExpressionKind]
     StackBaseOffset: ClassVar[ExpressionKind]
+    SegmentedAddress: ClassVar[ExpressionKind]
     @property
     def value(self) -> int: ...
     @property
@@ -275,6 +276,15 @@ class Expression:
     def _new_base_pointer_offset(idx: int, bits: int, base: str, offset: Any, **tags: Any) -> Expression: ...
     @staticmethod
     def _new_stack_base_offset(idx: int, bits: int, offset: Any, **tags: Any) -> Expression: ...
+    @staticmethod
+    def _new_segmented_address(
+        idx: int,
+        selector: Expression,
+        offset: Expression,
+        address_kind: str,
+        bits: int = ...,
+        **tags: Any,
+    ) -> Expression: ...
     @staticmethod
     def _new_load(
         idx: int,
@@ -849,6 +859,23 @@ class StackBaseOffset(Expression):
     offset: Any
     """StackBaseOffset.offset (int)"""
     def __init__(self, idx: int | None, bits: int, offset: Any, **tags: Any) -> None: ...
+
+class SegmentedAddress(Expression):
+    selector: Expression
+    """Segment selector expression."""
+    offset: Expression
+    """Guest offset expression."""
+    address_kind: str
+    """Architecture-specific segmented-address interpretation."""
+    def __init__(
+        self,
+        idx: int | None,
+        selector: Expression,
+        offset: Expression,
+        address_kind: str,
+        bits: int = ...,
+        **tags: Any,
+    ) -> None: ...
 
 class Call(Expression):
     """Call expression. Represents a function call that produces a value.

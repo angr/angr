@@ -20,11 +20,13 @@ from angr.analyses.complete_calling_conventions import (
 from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
+    SimCCUsercall,
     SimRegArg,
     SimStackArg,
 )
+from angr.engines.pcode.cc import register_pcode_arch_default_cc
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeShort
 from tests.common import bin_location, requires_binaries_private
 
 test_location = os.path.join(bin_location, "tests")
@@ -46,6 +48,190 @@ def cca_mode(modes: str):
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
+    def test_pcode_win16_usercall_requires_definite_setup_at_every_transfer(self):
+        def recover(code: bytes, function_starts: list[int], target: int):
+            arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+            register_pcode_arch_default_cc(arch)
+            project = angr.load_shellcode(
+                code,
+                arch=arch,
+                load_address=0,
+                engine=angr.engines.UberEnginePcode,
+                rebase_granularity=0x10,
+            )
+            project.simos.name = "Win16"
+            cfg = project.analyses.CFGFast(
+                function_starts=function_starts,
+                regions=[(0, len(code))],
+                start_at_entry=False,
+                force_complete_scan=False,
+                force_smart_scan=False,
+                normalize=True,
+                resolve_indirect_jumps=False,
+            )
+            return project.analyses.CallingConvention(
+                cfg.functions[target],
+                cfg=cfg.model,
+                collect_facts=True,
+            )
+
+        # mov cx, 3; mov dl, 0x20; call 0x20; ret; ...
+        # 0x20: jcxz ret; mov al, dl; ret
+        proven_code = bytes.fromhex("b90300b220e81800c3")
+        proven_code += b"\x90" * (0x20 - len(proven_code))
+        proven_code += bytes.fromhex("e30288d0c3")
+        proven = recover(proven_code, [0, 0x20], 0x20)
+        assert isinstance(proven.cc, SimCCUsercall)
+        assert proven.cc.args == [SimRegArg("cx", 2), SimRegArg("dl", 1)]
+        assert proven.cc.STACKARG_SP_DIFF == 2
+        assert SimStackArg(0, 2) == proven.cc.RETURN_ADDR
+        assert proven.prototype is not None
+        assert len(proven.prototype.args) == 2
+
+        # A partial write to CL does not establish the complete CX input.
+        partial_code = bytes.fromhex("b103e81b00c3")
+        partial_code += b"\x90" * (0x20 - len(partial_code))
+        partial_code += bytes.fromhex("09c9c3")  # or cx, cx; ret
+        partial = recover(partial_code, [0, 0x20], 0x20)
+        assert partial.cc is None
+        assert partial.prototype is None
+
+        # Every incoming transfer must prove the same location. The first caller
+        # sets AX; the second intentionally leaves it as an entry value.
+        first_caller = bytes.fromhex("b80100e81a00c3")
+        second_caller = bytes.fromhex("e80d00c3")
+        mixed_code = first_caller + b"\x90" * (0x10 - len(first_caller))
+        mixed_code += second_caller + b"\x90" * (0x20 - 0x10 - len(second_caller))
+        mixed_code += bytes.fromhex("09c0c3")  # or ax, ax; ret
+        mixed = recover(mixed_code, [0, 0x10, 0x20], 0x20)
+        assert mixed.cc is None
+        assert mixed.prototype is None
+
+    def test_pcode_callsite_return_value_use_and_zeroing_kill(self):
+        def recover_return_type(
+            after_call: bytes,
+            callee: bytes = b"\xc3",
+            before_call: bytes = b"",
+            resolve_indirect_jumps: bool = False,
+        ):
+            arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+            register_pcode_arch_default_cc(arch)
+            call_displacement = 0x10 - len(before_call) - 3
+            code = before_call + b"\xe8" + call_displacement.to_bytes(2, "little") + after_call
+            code += b"\x90" * (0x10 - len(code))
+            code += callee
+            project = angr.load_shellcode(
+                code,
+                arch=arch,
+                load_address=0,
+                engine=angr.engines.UberEnginePcode,
+                rebase_granularity=0x10,
+            )
+            project.simos.name = "Win16"
+            cfg = project.analyses.CFGFast(
+                function_starts=[0, 0x10],
+                regions=[(0, len(code))],
+                start_at_entry=False,
+                force_complete_scan=False,
+                force_smart_scan=False,
+                normalize=True,
+                resolve_indirect_jumps=resolve_indirect_jumps,
+                indirect_calls_always_return=True,
+            )
+            analysis = project.analyses.CallingConvention(
+                cfg.functions[0x10],
+                cfg=cfg.model,
+                analyze_callsites=True,
+                collect_facts=True,
+            )
+            assert analysis.prototype is not None
+            return analysis.prototype.returnty
+
+        # The first caller consumes AX by copying it into BX. The second caller
+        # overwrites AX with a zero idiom; the flag-producing p-code operations
+        # emitted before the subtraction are not uses of the old AX value.
+        assert isinstance(recover_return_type(bytes.fromhex("89c3c3")), SimTypeShort)
+        assert isinstance(recover_return_type(bytes.fromhex("29c0c3")), SimTypeBottom)
+
+        # Discarding a concrete result at every sampled call site does not make the callee void. The callee's raw
+        # endpoint writes AX before returning, which is stronger evidence than the caller's lack of interest in it.
+        assert isinstance(recover_return_type(bytes.fromhex("29c0c3"), bytes.fromhex("b80700c3")), SimTypeShort)
+
+        # An unresolved continuation is not evidence that the return is dead.
+        assert isinstance(recover_return_type(bytes.fromhex("ffe3")), SimTypeShort)
+
+        # An unresolved tail transfer and an opaque indirect call leave the callee's result unknown. A forwarding
+        # caller can resolve that unknown to the 16-bit scalar ABI return type. Neither case is body-level proof of
+        # void. CX is initialized so the indirect-call wrapper has a provable Win16 usercall convention.
+        assert isinstance(
+            recover_return_type(bytes.fromhex("c3"), bytes.fromhex("ffe3"), resolve_indirect_jumps=True),
+            SimTypeShort,
+        )
+        assert isinstance(
+            recover_return_type(
+                bytes.fromhex("c3"),
+                bytes.fromhex("ffd1c3"),
+                before_call=bytes.fromhex("b92000"),
+                resolve_indirect_jumps=True,
+            ),
+            SimTypeShort,
+        )
+
+        # Forwarding prevents an explicit body-level void fact from being upgraded, but it is positive return-value
+        # evidence when analyzing only the call site (where no callee-body fact exists).
+        assert isinstance(recover_return_type(bytes.fromhex("c3")), SimTypeBottom)
+
+        arch = archinfo.ArchPcode("x86:LE:16:Protected Mode")
+        register_pcode_arch_default_cc(arch)
+        project = angr.load_shellcode(
+            bytes.fromhex("e80d00c3") + b"\x90" * 12 + b"\xc3",
+            arch=arch,
+            load_address=0,
+            engine=angr.engines.UberEnginePcode,
+            rebase_granularity=0x10,
+        )
+        project.simos.name = "Win16"
+        cfg = project.analyses.CFGFast(
+            function_starts=[0, 0x10],
+            regions=[(0, 0x11)],
+            start_at_entry=False,
+            force_complete_scan=False,
+            force_smart_scan=False,
+            normalize=True,
+            resolve_indirect_jumps=False,
+        )
+        callsite_analysis = project.analyses.CallingConvention(
+            None,
+            analyze_callsites=True,
+            caller_func_addr=0,
+            callsite_block_addr=0,
+            callsite_insn_addr=0,
+            cfg=cfg.model,
+        )
+        assert callsite_analysis.prototype is not None
+        assert isinstance(callsite_analysis.prototype.returnty, SimTypeShort)
+
+    def test_indirect_call_target_from_ailment_block(self):
+        project = angr.load_shellcode(b"\xff\xd0", arch="x86", load_address=0x1000)
+        analysis = object.__new__(angr.analyses.CallingConventionAnalysis)
+        analysis.project = project
+        caller_block = angr.ailment.Block(0x1000, 2)
+
+        assert analysis._indirect_call_target_register_offsets(caller_block, 0x1000) == {
+            project.arch.get_register_offset("eax")
+        }
+
+    def test_indirect_call_target_without_capstone(self):
+        project = angr.load_shellcode(
+            b"\xff\xd0",
+            arch=archinfo.ArchPcode("x86:LE:16:Real Mode"),
+            load_address=0x1000,
+        )
+        analysis = object.__new__(angr.analyses.CallingConventionAnalysis)
+        analysis.project = project
+
+        assert analysis._indirect_call_target_register_offsets(angr.ailment.Block(0x1000, 2), 0x1000) == set()
+
     def test_itanium_qualified_free_function_does_not_gain_this(self):
         """Machine facts must disambiguate namespace functions from members."""
         binary = os.path.join(test_location, "x86_64", "cpp_qualified_symbols.so")
@@ -208,8 +394,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             "func_1": None,
             "func_2": None,
             "func_3": "rax",
-            "func_4": None,
-            "func_5": None,
+            # These functions leave a body-derived value in EAX after using it
+            # for a side effect. Callers discard it, but that cannot prove the
+            # machine-level result is void.
+            "func_4": "rax",
+            "func_5": "rax",
             "func_6": "rax",
         }
 
