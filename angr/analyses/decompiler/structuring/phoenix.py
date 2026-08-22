@@ -20,6 +20,7 @@ from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     BaseNode,
     BreakNode,
+    CodeNode,
     ConditionalBreakNode,
     ConditionNode,
     ContinueNode,
@@ -89,6 +90,7 @@ class PhoenixStructurer(StructurerBase):
 
     NAME = "phoenix"
     SUPPORTS_OVERLAYS = True
+    _SWITCH_ENTRY_IDX_UNKNOWN = object()
 
     def __init__(
         self,
@@ -161,6 +163,82 @@ class PhoenixStructurer(StructurerBase):
             assert len([nn for nn in g if g.in_degree[nn] == 0]) <= 1, (
                 f"{msg}: More than one graph entrance. Please report this."
             )
+
+    @classmethod
+    def _switch_entry_idx(cls, node):
+        """Recover the index of a structured node's entry block."""
+
+        if isinstance(node, (Block, MultiNode)):
+            return node.idx
+        if isinstance(node, CodeNode):
+            return cls._switch_entry_idx(node.node)
+        if isinstance(node, SequenceNode) and node.nodes and node.nodes[0].addr == node.addr:
+            return cls._switch_entry_idx(node.nodes[0])
+        if isinstance(node, IncompleteSwitchCaseNode) and node.head is not None and node.head.addr == node.addr:
+            return cls._switch_entry_idx(node.head)
+        return cls._SWITCH_ENTRY_IDX_UNKNOWN
+
+    @classmethod
+    def _switch_resolve_entry_nodes(
+        cls, nodes, expected_entries: set[tuple[int, int | None]]
+    ) -> dict[tuple[int, int | None], Any] | None:
+        """Resolve switch metadata identities against direct successor nodes as a group."""
+
+        candidates_by_addr = defaultdict(list)
+        for candidate in nodes:
+            candidates_by_addr[candidate.addr].append(candidate)
+
+        expected_indices_by_addr = defaultdict(set)
+        for entry_addr, entry_idx in expected_entries:
+            expected_indices_by_addr[entry_addr].add(entry_idx)
+
+        resolved: dict[tuple[int, int | None], Any] = {}
+        for entry_addr, expected_indices in expected_indices_by_addr.items():
+            candidates = candidates_by_addr.get(entry_addr, [])
+            if not candidates:
+                for entry_idx in expected_indices:
+                    resolved[entry_addr, entry_idx] = None
+                continue
+
+            if len(expected_indices) == 1 and len(candidates) == 1:
+                resolved[entry_addr, next(iter(expected_indices))] = candidates[0]
+                continue
+
+            candidates_by_idx = {}
+            for candidate in candidates:
+                candidate_idx = cls._switch_entry_idx(candidate)
+                if candidate_idx is cls._SWITCH_ENTRY_IDX_UNKNOWN or candidate_idx in candidates_by_idx:
+                    return None
+                candidates_by_idx[candidate_idx] = candidate
+
+            remaining_indices = set(expected_indices)
+            for entry_idx in expected_indices:
+                exact_match = candidates_by_idx.pop(entry_idx, None)
+                if exact_match is not None:
+                    resolved[entry_addr, entry_idx] = exact_match
+                    remaining_indices.remove(entry_idx)
+
+            if not candidates_by_idx:
+                for entry_idx in remaining_indices:
+                    resolved[entry_addr, entry_idx] = None
+            else:
+                return None
+
+        return resolved
+
+    @classmethod
+    def _switch_entries_match(cls, left, right) -> bool:
+        if left is right:
+            return True
+        if left.addr != right.addr:
+            return False
+        left_idx = cls._switch_entry_idx(left)
+        right_idx = cls._switch_entry_idx(right)
+        return (
+            left_idx is not cls._SWITCH_ENTRY_IDX_UNKNOWN
+            and right_idx is not cls._SWITCH_ENTRY_IDX_UNKNOWN
+            and left_idx == right_idx
+        )
 
     def _analyze(self):
         # iterate until there is only one node in the region
@@ -1305,37 +1383,50 @@ class PhoenixStructurer(StructurerBase):
         if not isinstance(last_stmt, IncompleteSwitchCaseHeadStatement):
             return False
 
+        # make a fake jumptable
+        node_default_addr = None
+        node_default_idx = None
+        case_entries: dict[int, tuple[int, int | None]] = {}
+        for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
+            if isinstance(case_value, str):
+                if case_value == "default":
+                    node_default_addr = case_target_addr
+                    node_default_idx = case_target_idx
+                    continue
+                raise ValueError(f"Unsupported 'case_value' {case_value}")
+            case_entries[case_value] = (case_target_addr, case_target_idx)
+
         # sanity check: all case nodes must have at most one common successor at this point
-        # note that we are ignoring AIL blocks with block ID != None
-        nodes = {(nn.addr, nn.idx if isinstance(nn, Block) else None): nn for nn in graph_raw.successors(node)}
+        expected_entries = set(case_entries.values())
+        default_entry = None
+        if node_default_addr is not None:
+            default_entry = node_default_addr, node_default_idx
+            expected_entries.add(default_entry)
+        entry_nodes = self._switch_resolve_entry_nodes(graph_raw.successors(node), expected_entries)
+        if entry_nodes is None:
+            return False
+
         successors: set[int] = set()
         case_nodes: set[int] = set()
         for _, _, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             case_nodes.add(case_target_addr)
-            case_node = nodes.get((case_target_addr, case_target_idx))
+            case_node = entry_nodes[case_target_addr, case_target_idx]
             if case_node is None:
                 continue
             successors.update(nn.addr for nn in graph_raw.successors(case_node))
         if len(successors.difference(case_nodes)) > 1:
             return False
 
-        # make a fake jumptable
-        node_default_addr = None
-        case_entries: dict[int, int | tuple[int, int | None]] = {}
-        for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
-            if isinstance(case_value, str):
-                if case_value == "default":
-                    node_default_addr = case_target_addr
-                    continue
-                raise ValueError(f"Unsupported 'case_value' {case_value}")
-            case_entries[case_value] = (case_target_addr, case_target_idx)
-
+        selected_entry_to_case = {}
         cases, node_default, to_remove = self._switch_build_cases(
             case_entries,
             node,
             node,
             node_default_addr,
             graph_raw,
+            entry_nodes=entry_nodes,
+            default_entry=default_entry,
+            selected_entry_to_case=selected_entry_to_case,
         )
         fake_node_default = False
         if node_default_addr is not None and node_default is None:
@@ -1344,7 +1435,7 @@ class PhoenixStructurer(StructurerBase):
             jmp_to_default_node = Jump(
                 self.ail_manager.next_atom(),
                 Const(self.ail_manager.next_atom(), node_default_addr, self.project.arch.bits),
-                None,
+                target_idx=node_default_idx,
                 ins_addr=SWITCH_MISSING_DEFAULT_NODE_ADDR,
             )
             node_default = Block(SWITCH_MISSING_DEFAULT_NODE_ADDR, 0, statements=[jmp_to_default_node])
@@ -1363,6 +1454,7 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
             full_graph_raw,
             bail_on_nonhead_outedges=True,
+            selected_entry_to_case=selected_entry_to_case,
         )
         if not r:
             if fake_node_default:
@@ -1376,7 +1468,7 @@ class PhoenixStructurer(StructurerBase):
         if node_default is not None and self._region.graph.out_degree[node] > 1:
             other_out_nodes = list(self._region.graph.successors(node))
             for o in other_out_nodes:
-                if o.addr == node_default.addr and o is not node_default:
+                if o is not node_default and self._switch_entries_match(o, node_default):
                     self._region.remove_node(o, absorbed_into=node_default, absorb_out_edges=True)
 
         switch_end_addr = self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
@@ -1974,49 +2066,59 @@ class PhoenixStructurer(StructurerBase):
         node_a: BaseNode,
         node_b_addr: int | None,
         graph_raw: networkx.DiGraph,
+        *,
+        entry_nodes: dict[tuple[int, int | None], Any] | None = None,
+        default_entry: tuple[int, int | None] | None = None,
+        selected_entry_to_case: dict[int, SequenceNode] | None = None,
     ) -> tuple[OrderedDict, Any, set[Any]]:
         cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
 
         graph = graph_raw.filtered()
+        default_node_candidates = []
+        node_a_successors = []
+        node_b_in_node_a_successors = False
 
-        default_node_candidates = (
-            [nn for nn in graph.nodes if nn.addr == node_b_addr] if node_b_addr is not None else []
-        )
-        node_default = (
-            self._switch_find_default_node(graph, head_node, node_b_addr) if node_b_addr is not None else None
-        )
+        if entry_nodes is None:
+            default_node_candidates = (
+                [nn for nn in graph.nodes if nn.addr == node_b_addr] if node_b_addr is not None else []
+            )
+            node_default = (
+                self._switch_find_default_node(graph, head_node, node_b_addr) if node_b_addr is not None else None
+            )
+        else:
+            node_default = entry_nodes[default_entry] if default_entry is not None else None
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
             self.replace_nodes_both(node_default, new_node)
             node_default = new_node
+        if entry_nodes is not None and node_default is not None and selected_entry_to_case is not None:
+            selected_entry_to_case[id(node_default)] = node_default
 
         converted_nodes: dict[tuple[int, int | None], Any] = {}
         entry_addr_to_ids: defaultdict[tuple[int, int | None], set[int]] = defaultdict(set)
 
-        # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default node
-        # (node b) is a successor node of node a. we only skip those entries going to the default node if no duplicate
-        # of default node exists in node a's successors.
-        node_a_successors = list(graph.successors(node_a))
-        if len(default_node_candidates) > 1:
-            node_b_in_node_a_successors = any(nn for nn in node_a_successors if nn in default_node_candidates)
-        else:
-            # the default node is not duplicated
-            node_b_in_node_a_successors = False
+        if entry_nodes is None:
+            # the default node might get duplicated (e.g., by EagerReturns). we detect if a duplicate of the default
+            # node (node b) is a successor node of node a. we only skip those entries going to the default node if no
+            # duplicate of default node exists in node a's successors.
+            node_a_successors = list(graph.successors(node_a))
+            if len(default_node_candidates) > 1:
+                node_b_in_node_a_successors = any(nn for nn in node_a_successors if nn in default_node_candidates)
 
-        for case_idx, entry_addr in case_and_entryaddrs.items():
-            if isinstance(entry_addr, tuple):
-                entry_addr, entry_idx = entry_addr
-            else:
-                entry_idx = None
+        for case_idx, entry_addr_and_idx in case_and_entryaddrs.items():
+            entry_key = entry_addr_and_idx if isinstance(entry_addr_and_idx, tuple) else (entry_addr_and_idx, None)
+            entry_addr, entry_idx = entry_key
 
-            if not node_b_in_node_a_successors and entry_addr == node_b_addr:
+            if entry_nodes is not None and entry_key == default_entry:
+                continue
+            if entry_nodes is None and not node_b_in_node_a_successors and entry_addr == node_b_addr:
                 # jump to default or end of the switch-case structure - ignore this case
                 continue
 
-            entry_addr_to_ids[(entry_addr, entry_idx)].add(case_idx)
-            if (entry_addr, entry_idx) in converted_nodes:
+            entry_addr_to_ids[entry_key].add(case_idx)
+            if entry_key in converted_nodes:
                 continue
 
             if entry_addr in {self._region.head.addr, head_node.addr}:
@@ -2024,6 +2126,8 @@ class PhoenixStructurer(StructurerBase):
                 # lead to the removal of the region head node or the switch head node). replace this entry with a
                 # goto statement later.
                 entry_node = None
+            elif entry_nodes is not None:
+                entry_node = entry_nodes[entry_key]
             else:
                 entry_node = next(
                     iter(
@@ -2050,7 +2154,7 @@ class PhoenixStructurer(StructurerBase):
                     ],
                 )
                 case_node = SequenceNode(0, nodes=[case_inner_node])
-                converted_nodes[(entry_addr, entry_idx)] = case_node
+                converted_nodes[entry_key] = case_node
                 continue
 
             if isinstance(entry_node, SequenceNode):
@@ -2059,7 +2163,9 @@ class PhoenixStructurer(StructurerBase):
                 case_node = SequenceNode(entry_node.addr, nodes=[entry_node])
             to_remove.add(entry_node)
 
-            converted_nodes[(entry_addr, entry_idx)] = case_node
+            converted_nodes[entry_key] = case_node
+            if entry_nodes is not None and selected_entry_to_case is not None:
+                selected_entry_to_case[id(entry_node)] = case_node
 
         for entry_addr_and_idx, converted_node in converted_nodes.items():
             assert entry_addr_and_idx in entry_addr_to_ids
@@ -2087,8 +2193,11 @@ class PhoenixStructurer(StructurerBase):
         full_graph: networkx.DiGraph,
         node_a=None,
         bail_on_nonhead_outedges: bool = False,
+        selected_entry_to_case: dict[int, SequenceNode] | None = None,
     ) -> bool:
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
+        if selected_entry_to_case is not None:
+            to_remove = set(to_remove)
 
         # insert the switch-case node to the graph
         other_nodes_inedges = []
@@ -2163,9 +2272,15 @@ class PhoenixStructurer(StructurerBase):
                 [edge for edge in out_edges if edge[1] is not head], key=lambda edge: (edge[0].addr, edge[1].addr)
             )
 
-            # for all out edges going to head, we ensure there is a goto at the end of each corresponding case node
+            resolved_out_edges_to_head: list[tuple[Any, SequenceNode]] = []
             for out_src, out_dst in out_edges_to_head:
                 assert out_dst is head
+                if selected_entry_to_case is not None:
+                    selected_case_node = selected_entry_to_case.get(id(out_src))
+                    if selected_case_node is None:
+                        return False
+                    resolved_out_edges_to_head.append((out_src, selected_case_node))
+                    continue
                 all_case_nodes = list(cases.values())
                 if node_default is not None:
                     all_case_nodes.append(node_default)
@@ -2227,6 +2342,21 @@ class PhoenixStructurer(StructurerBase):
                         scnode.addr,
                         out_dst_succ_fullgraph.addr,
                     )
+
+            for out_src, case_node in resolved_out_edges_to_head:
+                try:
+                    case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
+                except EmptyBlockNotice:
+                    case_node_last_stmt = None
+                if not isinstance(case_node_last_stmt, Jump):
+                    jump_stmt = Jump(
+                        self.ail_manager.next_atom(),
+                        Const(self.ail_manager.next_atom(), head.addr, self.project.arch.bits),
+                        None,
+                        ins_addr=out_src.addr,
+                    )
+                    jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
+                    case_node.nodes.append(jump_node)
 
             if out_dst_succ is not None:
                 self._region.add_edge(scnode, out_dst_succ)
