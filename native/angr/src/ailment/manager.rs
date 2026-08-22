@@ -8,6 +8,8 @@
 
 use pyo3::prelude::*;
 
+use crate::ailment::Addr;
+
 #[pyclass(
     name = "Manager",
     module = "angr.rustylib.ailment",
@@ -25,10 +27,10 @@ pub struct Manager {
     /// Attached by Clinic so that optimization passes, peephole optimizations,
     /// and region simplifiers can use VariableMap.
     pub variable_map: Option<Py<PyAny>>,
-    pub ins_addr: Option<i64>,
+    pub ins_addr: Option<Addr>,
     pub vex_stmt_idx: Option<i64>,
     pub tyenv: Option<Py<PyAny>>,
-    pub block_addr: Option<i64>,
+    pub block_addr: Option<Addr>,
 }
 
 #[pymethods]
