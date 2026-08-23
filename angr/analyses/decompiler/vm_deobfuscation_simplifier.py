@@ -70,8 +70,13 @@ class _StackReferenceUndoer(ailment.AILBlockRewriter):
         self._ail_manager = ail_manager
         self._arch_bits = arch_bits
 
-    @staticmethod
-    def _referenced_stack_vvar(expr):
+    @classmethod
+    def _resolve(cls, expr):
+        """
+        ``(vvar, absolute stack offset)`` for a chain of constant adds and subtracts over the
+        address of a stack variable, or None. The VM builds its addresses one ``+8`` at a time, so
+        the chain can be several deep.
+        """
         if (
             isinstance(expr, Expr.UnaryOp)
             and expr.op == "Reference"
@@ -79,21 +84,26 @@ class _StackReferenceUndoer(ailment.AILBlockRewriter):
             and expr.operand.was_stack
             and expr.operand.stack_offset is not None
         ):
-            return expr.operand
+            return expr.operand, expr.operand.stack_offset
+        if isinstance(expr, Expr.BinaryOp) and expr.op in ("Add", "Sub"):
+            base, offset = expr.operands
+            if expr.op == "Add" and isinstance(base, Expr.Const):
+                base, offset = offset, base
+            if isinstance(offset, Expr.Const):
+                resolved = cls._resolve(base)
+                if resolved is not None:
+                    vvar, value = resolved
+                    return vvar, (value + offset.value if expr.op == "Add" else value - offset.value)
         return None
 
     def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        if expr.op in ("Add", "Sub"):
-            base, offset = expr.operands
-            if isinstance(offset, Expr.UnaryOp) and isinstance(base, Expr.Const) and expr.op == "Add":
-                base, offset = offset, base
-            vvar = self._referenced_stack_vvar(base)
-            if vvar is not None and isinstance(offset, Expr.Const):
-                value = vvar.stack_offset + offset.value if expr.op == "Add" else vvar.stack_offset - offset.value
-                if value > (1 << (self._arch_bits - 1)) - 1:
-                    value -= 1 << self._arch_bits
-                if not vvar.stack_offset <= value < vvar.stack_offset + vvar.size:
-                    return Expr.StackBaseOffset(self._ail_manager.next_atom(), expr.bits, value, **expr.tags)
+        resolved = self._resolve(expr)
+        if resolved is not None:
+            vvar, value = resolved
+            if value > (1 << (self._arch_bits - 1)) - 1:
+                value -= 1 << self._arch_bits
+            if not vvar.stack_offset <= value < vvar.stack_offset + vvar.size:
+                return Expr.StackBaseOffset(self._ail_manager.next_atom(), expr.bits, value, **expr.tags)
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
