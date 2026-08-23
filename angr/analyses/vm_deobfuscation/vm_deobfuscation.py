@@ -653,7 +653,7 @@ class VMDeobfuscation(Analysis):
         # the Windows targets reach msvcrt through imports with no declarations
         msvcr_defs.publish_procedure_prototypes()
 
-        # (vm_vpc, addr, stmt_idx) -> synthetic address; see convert_addr_to_int
+        # (vm_vpc, addr) -> base of that block's synthetic address range; see convert_addr_to_int
         self._synthetic_addrs = {}
 
         # This is the address of the node where the virtual machine implementation starts
@@ -1988,7 +1988,7 @@ class VMDeobfuscation(Analysis):
             if not node.is_simprocedure:
                 for stmt_idx, stmt in enumerate(node.irsb.statements):
                     if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in calls_as_rets:
-                        calls_as_rets[self.convert_addr_to_int(stmt.addr, node.block_id, stmt_idx)] = calls_as_rets[stmt.addr]
+                        calls_as_rets[self.convert_addr_to_int(node.addr, node.block_id, stmt_idx)] = calls_as_rets[stmt.addr]
 
         ## Populate nodes in the VM_1 func
         while len(node_stack) > 0:
@@ -2358,13 +2358,21 @@ class VMDeobfuscation(Analysis):
             ## Last node return from here?
 
 
-        for stmt_idx, stmt in enumerate(new_statements):
-            if isinstance(stmt, pyvex.stmt.IMark):
-                stmt.addr = self.convert_addr_to_int(stmt.addr, old_node.block_id, stmt_idx)
-
-
+        # Every instruction of this node is numbered inside the node's own reserved range, so that
+        # the node's address (which is what branch targets are encoded from) is also the address of
+        # its first instruction. The AIL block takes its address from the first IMark.
         block_id_int = self.convert_addr_to_int(old_node.addr, old_node.block_id)
         new_addr = block_id_int#<<36 + old_node.addr
+        synthetic_ins_addrs = []
+        for stmt_idx, stmt in enumerate(new_statements):
+            if isinstance(stmt, pyvex.stmt.IMark):
+                enc_addr = new_addr if not synthetic_ins_addrs else new_addr + stmt_idx
+                self.project.enc_stmt_addr_to_original[enc_addr] = (stmt.addr, stmt_idx, old_node.block_id)
+                stmt.addr = enc_addr
+                synthetic_ins_addrs.append(enc_addr)
+
+        # The node covers its synthetic instruction addresses, not the original byte range.
+        synthetic_size = (max(synthetic_ins_addrs) - new_addr + 1) if synthetic_ins_addrs else old_node.size
         # for stmt in old_node.irsb.statements:
         #     if type(stmt) is pyvex.IRStmt.IMark:
         #         stmt.addr = block_id_int<<36+stmt.addr
@@ -2382,16 +2390,16 @@ class VMDeobfuscation(Analysis):
                                            nxt=new_next,
                                            direct_next=old_node.irsb.direct_next,
                                            jumpkind=new_jumpkind,
-                                           size=old_node.irsb.size)
+                                           size=synthetic_size)
         new_cur_node = CFGENode(new_addr,
-                                old_node.size,
+                                synthetic_size,
                                 new_model,
                                 simprocedure_name=old_node.simprocedure_name,
                                 no_ret=old_node.no_ret,
                                 function_address=old_node.function_address,
                                 block_id=old_node.block_id,
                                 irsb=new_irsb,
-                                instruction_addrs=old_node.instruction_addrs,
+                                instruction_addrs=synthetic_ins_addrs or old_node.instruction_addrs,
                                 thumb=old_node.thumb,
                                 byte_string=old_node.byte_string,
                                 is_syscall=old_node.is_syscall,
@@ -2402,7 +2410,11 @@ class VMDeobfuscation(Analysis):
     #: Synthetic block addresses are allocated from here upwards. Chosen to sit far above any real
     #: mapping while still fitting in 64 bits, which AIL requires.
     SYNTHETIC_ADDR_BASE = 0x7000_0000_0000_0000
-    SYNTHETIC_ADDR_STRIDE = 0x100
+    #: Each (block context, address) pair reserves this much address space, so that every
+    #: instruction of a block lands inside [block addr, block addr + block size). Analyses that map
+    #: an instruction address back to its block -- the stack pointer tracker, most importantly --
+    #: rely on that containment.
+    SYNTHETIC_BLOCK_STRIDE = 0x1_0000
 
     def convert_addr_to_int(self, addr, block_id, stmt_idx=0):
         """
@@ -2410,14 +2422,16 @@ class VMDeobfuscation(Analysis):
 
         The original encoding packed the decimal digits of the VM program counter, the address and
         the statement index into one integer, which routinely ran past 64 bits; AIL addresses are
-        u64. Allocate sequentially instead and keep the reverse map, which is the only thing any
-        caller reads back.
+        u64. Reserve one contiguous range per block instead and keep the reverse map, which is the
+        only thing any caller reads back.
         """
-        key = (block_id.vm_vpc if block_id else None, addr, stmt_idx)
-        enc_addr = self._synthetic_addrs.get(key)
-        if enc_addr is None:
-            enc_addr = self.SYNTHETIC_ADDR_BASE + len(self._synthetic_addrs) * self.SYNTHETIC_ADDR_STRIDE
-            self._synthetic_addrs[key] = enc_addr
+        key = (block_id.vm_vpc if block_id else None, addr)
+        block_base = self._synthetic_addrs.get(key)
+        if block_base is None:
+            block_base = self.SYNTHETIC_ADDR_BASE + len(self._synthetic_addrs) * self.SYNTHETIC_BLOCK_STRIDE
+            self._synthetic_addrs[key] = block_base
+        assert stmt_idx < self.SYNTHETIC_BLOCK_STRIDE
+        enc_addr = block_base + stmt_idx
         self.project.enc_stmt_addr_to_original[enc_addr] = (addr, stmt_idx, block_id)
         return enc_addr
 
