@@ -5,14 +5,12 @@ import copy
 
 import networkx
 
-import ailment
+from angr import ailment
 import claripy
 import pyvex
 from angr.utils.graph import GraphUtils
-from ..propagator.top_checker_mixin import TopCheckerMixin
 from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveU64, DataSensitiveU32
 from pyvex.expr import DataSensitiveRdTmp
-from ...engines.light import SimEngineLightVEXMixin
 from ...errors import SimUnsatError, SimValueError
 from ...code_location import CodeLocation
 from ...engines import HeavyVEXMixin

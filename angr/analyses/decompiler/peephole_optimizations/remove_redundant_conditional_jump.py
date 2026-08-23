@@ -1,4 +1,4 @@
-from ailment.statement import ConditionalJump, Jump
+from angr.ailment.statement import ConditionalJump, Jump
 
 from .base import PeepholeOptimizationStmtBase
 

@@ -37,11 +37,12 @@ from ...engines.hook import HooksMixin
 from ...engines.soot import SootMixin
 from ...engines import HeavyVEXMixin
 
-from ..cfg.cfg_job_base import BlockID
+from angr.knowledge_plugins.cfg.block_id import BlockID
 from ..reaching_definitions.dep_graph import DepGraph
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements, VMStackVariableAnnotation
-from ... import BP, BP_BEFORE, BP_AFTER, state_plugins
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
+from angr import state_plugins
 from ...knowledge_plugins import Function
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset

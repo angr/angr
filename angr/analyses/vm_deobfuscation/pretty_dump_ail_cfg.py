@@ -3,7 +3,7 @@ import logging
 from typing import Any, List, Union, Dict
 import pickle
 
-import ailment
+from angr import ailment
 import networkx as nx
 
 l = logging.getLogger(__name__)

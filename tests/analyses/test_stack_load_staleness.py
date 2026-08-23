@@ -4,7 +4,7 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import types
 import unittest
 
-import ailment
+from angr import ailment
 import archinfo
 
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier
