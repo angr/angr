@@ -1169,10 +1169,33 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # finds nothing new.
         previous = None
         for round_idx in range(self.VM_DEOBF_SSA_ROUNDS):
+            # Round 0 only rebuilds SSA, which the transforms above invalidated. Later rounds also
+            # put address-taken stack variables back in memory so the pass can re-derive them --
+            # but the partition it re-derives is not guaranteed to line up with the old one: when a
+            # VM's operand stack straddles the boundary of such a variable, storage ends up split
+            # between the two views and values are lost. Keep such a round only if it did not
+            # introduce a stack read that nothing defines.
+            desugar = round_idx > 0
+            snapshot = self.copy_graph(self._ail_graph) if desugar else None
+            before = self._vm_undefined_stack_reads(self._ail_graph) if desugar else set()
+
             self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
             self._ail_graph = self._vm_repair_phis(self._ail_graph)
+            if desugar:
+                self._ail_graph = self._vm_desugar_referenced_stackvars(self._ail_graph)
             self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
             self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
+
+            if desugar and (introduced := self._vm_undefined_stack_reads(self._ail_graph) - before):
+                l.warning(
+                    "VM stack-SSA round %d lost the value of %d stack slot(s); rolling it back",
+                    round_idx,
+                    len(introduced),
+                )
+                assert snapshot is not None
+                self._ail_graph = snapshot
+                break
+
             fingerprint = self._vm_graph_fingerprint(self._ail_graph)
             l.info("VM stack-SSA round %d: %s", round_idx, fingerprint)
             self._dump_vm_transform(90 + round_idx, "stack_ssa", self._ail_graph)

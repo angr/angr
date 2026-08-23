@@ -8,7 +8,7 @@ import networkx
 
 from angr import ailment
 from angr.ailment import Expr, Stmt
-from angr.ailment.block_walker import AILBlockWalker
+from angr.ailment.block_walker import AILBlockViewer, AILBlockWalker
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
@@ -52,6 +52,148 @@ class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
             if (expr.operands[1].value & 0x40) >> 6 == 1:
                 return expr.operands[0]
         return None
+
+
+class _ReferencedStackSlotFinder(AILBlockViewer):
+    """The stack offsets whose address is taken somewhere in the graph."""
+
+    def __init__(self):
+        super().__init__()
+        self.offsets: set[int] = set()
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if (
+            expr.op == "Reference"
+            and isinstance(expr.operand, Expr.VirtualVariable)
+            and expr.operand.was_stack
+            and expr.operand.stack_offset is not None
+        ):
+            self.offsets.add(expr.operand.stack_offset)
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _StackVValueReadFinder(AILBlockViewer):
+    """Stack virtual variables whose *value* is read: ``varid -> stack offset``."""
+
+    def __init__(self):
+        super().__init__()
+        self.reads: dict[int, int] = {}
+
+    def _handle_Assignment(self, stmt_idx, stmt, block):
+        # the destination is a definition, not a read
+        self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, Expr.VirtualVariable):
+            return None  # the address, not the value
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.was_stack and expr.stack_offset is not None:
+            self.reads[expr.varid] = expr.stack_offset
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _StackSlotDesugarer(ailment.AILBlockRewriter):
+    """
+    Turn every *value* use of an address-taken stack variable back into a memory access.
+
+    A variable whose address escapes is read and written both as a virtual variable and through
+    that address. Ssailification cannot reconcile the two, so a devirtualized VM that walks its
+    operand stack past such a variable keeps the whole pointer dance. Putting the variable back in
+    memory leaves exactly one view, which the next stack-variable SSA pass can then re-derive
+    consistently -- this time with the addresses the propagation has since made static.
+    """
+
+    def __init__(self, ail_manager, offsets, arch):
+        super().__init__(update_block=True)
+        self._m = ail_manager
+        self._offsets = offsets
+        self._arch = arch
+
+    def affected(self, vvar) -> bool:
+        return (
+            isinstance(vvar, Expr.VirtualVariable)
+            and vvar.was_stack
+            and vvar.stack_offset is not None
+            and vvar.stack_offset in self._offsets
+        )
+
+    def stack_addr(self, offset, tags=None):
+        return Expr.StackBaseOffset(self._m.next_atom(), self._arch.bits, offset, **(tags or {}))
+
+    def load(self, offset, size, tags):
+        return Expr.Load(self._m.next_atom(), self.stack_addr(offset), size, self._arch.memory_endness, **tags)
+
+    def stores_for(self, dst, src, tags):
+        """The memory writes an assignment to an address-taken stack variable stands for."""
+        if isinstance(src, Expr.Insert):
+            base = [] if self.affected(src.base) or self._uninitialized(src.base) else self.stores_for(dst, src.base, tags)
+            value = src.value
+            return [
+                *base,
+                Stmt.Store(
+                    self._m.next_atom(),
+                    self.stack_addr(dst.stack_offset + src.offset.value),
+                    value,
+                    value.size,
+                    self._arch.memory_endness,
+                    **tags,
+                ),
+            ]
+        if self.affected(src) and src.stack_offset == dst.stack_offset:
+            # a copy of the same slot; in memory form there is nothing to do
+            return []
+        return [
+            Stmt.Store(
+                self._m.next_atom(),
+                self.stack_addr(dst.stack_offset),
+                src,
+                dst.size,
+                self._arch.memory_endness,
+                **tags,
+            )
+        ]
+
+    @staticmethod
+    def _uninitialized(expr) -> bool:
+        return isinstance(expr, Expr.Const) and (
+            expr.tags.get("uninitialized") or expr.tags.get("uninitalized")
+        )
+
+    #
+    # expression rewriting
+    #
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "Reference" and self.affected(expr.operand):
+            return self.stack_addr(expr.operand.stack_offset, expr.tags)
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.affected(expr.base):
+            return self.load(expr.base.stack_offset + expr.offset.value, expr.bits // 8, expr.tags)
+        return super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.affected(expr):
+            return self.load(expr.stack_offset, expr.size, expr.tags)
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        new_expr = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        if not isinstance(new_expr, Expr.BinaryOp) or new_expr.op not in ("Add", "Sub"):
+            return new_expr
+        base, offset = new_expr.operands
+        if new_expr.op == "Add" and isinstance(base, Expr.Const):
+            base, offset = offset, base
+        if not (isinstance(base, Expr.StackBaseOffset) and isinstance(offset, Expr.Const)):
+            return new_expr
+        # the stack-variable SSA pass only recognizes a plain stack address
+        value = base.offset + offset.value if new_expr.op == "Add" else base.offset - offset.value
+        if value > (1 << (self._arch.bits - 1)) - 1:
+            value -= 1 << self._arch.bits
+        return self.stack_addr(value, new_expr.tags)
 
 
 class VMDeobfuscationSimplifierMixin:
@@ -177,6 +319,48 @@ class VMDeobfuscationSimplifierMixin:
             text = block.dbg_repr()
             memory_ops += text.count("Load(") + text.count("STORE(")
         return stmts, memory_ops
+
+    def _vm_undefined_stack_reads(self, ail_graph) -> set[int]:
+        """
+        The stack offsets whose *value* is read without any definition in the graph.
+
+        A devirtualized body legitimately has a few — the pointers its caller set up — but a
+        transform that adds one has lost a value, and the result is not usable.
+        """
+        defined = {arg.varid for arg in (self.func_args or set())}
+        for block in ail_graph.nodes():
+            for stmt in block.statements:
+                if isinstance(stmt, Stmt.Assignment) and isinstance(stmt.dst, Expr.VirtualVariable):
+                    defined.add(stmt.dst.varid)
+        finder = _StackVValueReadFinder()
+        for block in ail_graph.nodes():
+            finder.walk(block)
+        return {offset for varid, offset in finder.reads.items() if varid not in defined}
+
+    def _vm_desugar_referenced_stackvars(self, ail_graph):
+        """
+        Put every address-taken stack variable back in memory, so that the next stack-variable SSA
+        pass sees a single view of that storage. See :class:`_StackSlotDesugarer`.
+        """
+        finder = _ReferencedStackSlotFinder()
+        for block in ail_graph.nodes():
+            finder.walk(block)
+        if not finder.offsets:
+            return ail_graph
+
+        desugarer = _StackSlotDesugarer(self._ail_manager, finder.offsets, self.project.arch)
+        for block in list(ail_graph.nodes()):
+            statements = []
+            for stmt in block.statements:
+                if isinstance(stmt, Stmt.Assignment) and desugarer.affected(stmt.dst):
+                    if not isinstance(stmt.src, Expr.Phi):
+                        # a phi of a slot that lives in memory carries no information
+                        statements.extend(desugarer.stores_for(stmt.dst, stmt.src, stmt.tags))
+                    continue
+                statements.append(stmt)
+            block.statements = statements
+            desugarer.walk(block)
+        return ail_graph
 
     def _vm_drop_unreachable(self, ail_graph):
         """
