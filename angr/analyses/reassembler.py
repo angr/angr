@@ -14,6 +14,7 @@ import networkx
 import pyvex
 
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.block import CapstoneBlock, CapstoneInsn
 from angr.codenode import CodeNode, FuncNode
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
@@ -928,7 +929,7 @@ class BasicBlock:
 
         # re-lifting
         block = self.project.factory.fresh_block(self.addr, self.size)
-        capstone_obj = block.capstone
+        capstone_obj = self.binary.disassemble_block(block)
 
         # Fill in instructions
         for idx, instr in enumerate(capstone_obj.insns):
@@ -1708,6 +1709,9 @@ class Reassembler(Analysis):
         self.syntax = syntax
         self._remove_cgc_attachments = remove_cgc_attachments
 
+        # a dedicated capstone instance for AT&T syntax; created on demand in disassemble_block()
+        self._att_capstone = None
+
         self.symbol_manager = None
         self.cfg = None
         self._cgc_attachments_removed = False
@@ -1843,6 +1847,29 @@ class Reassembler(Analysis):
     #
     # Public methods
     #
+
+    def disassemble_block(self, block):
+        """
+        Disassemble a block using the assembly syntax configured for this Reassembler.
+
+        When AT&T syntax is requested, a capstone instance dedicated to this analysis is used, so that neither the
+        project-wide Arch object nor the capstone instance cached on it is modified.
+
+        :param block: The angr Block to disassemble.
+        :return: A CapstoneBlock instance.
+        :rtype: CapstoneBlock
+        """
+
+        arch = self.project.arch
+        if self.syntax == "at&t" and arch.name in {"X86", "AMD64"}:
+            if self._att_capstone is None:
+                self._att_capstone = capstone.Cs(arch.cs_arch, arch.cs_mode)
+                self._att_capstone.syntax = capstone.CS_OPT_SYNTAX_ATT
+                self._att_capstone.detail = True
+            block_bytes = block.bytes if block.size is None else block.bytes[: block.size]
+            insns = [CapstoneInsn(insn) for insn in self._att_capstone.disasm(block_bytes, block.addr)]
+            return CapstoneBlock(block.addr, insns, block.thumb, arch)
+        return block.capstone
 
     def section_alignment(self, section_name):
         """
@@ -2403,16 +2430,6 @@ class Reassembler(Analysis):
 
         self.cfg = cfg
 
-        old_capstone_syntax = self.project.arch.capstone_x86_syntax
-        if old_capstone_syntax is None:
-            old_capstone_syntax = "intel"
-
-        if self.syntax == "at&t":
-            # switch capstone to AT&T style
-            self.project.arch.capstone_x86_syntax = "at&t"
-            # clear the block cache in lifter!
-            self.project.factory.default_engine.clear_cache()
-
         # initialize symbol manager
         self.symbol_manager = SymbolManager(self, cfg)
 
@@ -2625,11 +2642,6 @@ class Reassembler(Analysis):
 
         # CGC-specific data filtering
         self.data = [d for d in self.data if d.section_name not in section_names_to_ignore]
-
-        # restore capstone X86 syntax at the end
-        if self.project.arch.capstone_x86_syntax != old_capstone_syntax:
-            self.project.arch.capstone_x86_syntax = old_capstone_syntax
-            self.project.factory.default_engine.clear_cache()
 
         l.debug("Initialized.")
 
