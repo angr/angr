@@ -1396,7 +1396,7 @@ class VMDeobfuscation(Analysis):
                             if keep_sp_changes_dae and d.atom.reg_offset == self.project.arch.sp_offset:
                                 continue
                             try:
-                                vs = live_defs.register_definitions.load(
+                                vs = live_defs.registers.load(
                                     d.atom.reg_offset, size=d.atom.size
                                 )
                             except SimMemoryMissingError:
@@ -1405,7 +1405,7 @@ class VMDeobfuscation(Analysis):
                         elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                             stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
                             try:
-                                vs = live_defs.stack_definitions.load(
+                                vs = live_defs.stack.load(
                                     stack_addr, size=d.atom.size, endness=d.atom.endness
                                 )
                             except SimMemoryMissingError:
@@ -1415,7 +1415,7 @@ class VMDeobfuscation(Analysis):
                                 isinstance(node.irsb.statements[si], pyvex.stmt.Store) and \
                                 isinstance(node.irsb.statements[si].addr, pyvex.expr.Const):
                             try:
-                                vs = live_defs.memory_definitions.load(
+                                vs = live_defs.memory.load(
                                     d.atom.addr, size=d.atom.size, endness=d.atom.endness
                                 )
                             except SimMemoryMissingError:
@@ -4766,7 +4766,7 @@ class VMDeobfuscation(Analysis):
             #     if no_uses == 0 and d.atom.is_on_stack:
             #
             #         stack_addr = merged_live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
-            #         vs: 'MultiValues' = merged_live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
+            #         vs: 'MultiValues' = merged_live_defs.stack.load(stack_addr, size=d.atom.size,
             #                                                              endness=d.atom.endness)
 
             # is entirely possible that at the end of the block, a register definition is not used.
@@ -4780,7 +4780,7 @@ class VMDeobfuscation(Analysis):
                         if d.atom.reg_offset == self.project.arch.sp_offset:
                             continue
                     try:
-                        vs: 'MultiValues' = merged_live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                        vs: 'MultiValues' = merged_live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
                     except:
                         vs = None
                 # ##THIS IS AN UNSAFE SIMPLIFICATION, ASSUMES ALL CONSTANT ADDRESSES HAVE BEEN PROPAGATED CORRECTLY AND COMPLETELY
@@ -4790,7 +4790,7 @@ class VMDeobfuscation(Analysis):
                     #Only for store at const address in the binary, cannot check d.atom.addr since it's values are not correct for whole cfg rda
 
                     try:
-                        vs: 'MultiValues' = merged_live_defs.memory_definitions.load(d.atom.addr, size=d.atom.size,
+                        vs: 'MultiValues' = merged_live_defs.memory.load(d.atom.addr, size=d.atom.size,
                                                                               endness=d.atom.endness)
                     except SimMemoryMissingError:
                         vs = None
@@ -4959,7 +4959,7 @@ class VMDeobfuscation(Analysis):
                                 if d.atom.reg_offset == self.project.arch.sp_offset:
                                     continue
                             try:
-                                vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                                vs: 'MultiValues' = live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
                             except SimMemoryMissingError:
                                 vs = None
 
@@ -4970,7 +4970,7 @@ class VMDeobfuscation(Analysis):
                                 import ipdb;
                                 ipdb.set_trace()
                             try:
-                                vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
+                                vs: 'MultiValues' = live_defs.stack.load(stack_addr, size=d.atom.size,
                                                                                  endness=d.atom.endness)
                             except SimMemoryMissingError:
                                 vs = None
@@ -4978,7 +4978,7 @@ class VMDeobfuscation(Analysis):
                             isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                             isinstance(node.irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
                             try:
-                                vs: 'MultiValues' = live_defs.memory_definitions.load(d.atom.addr, size=d.atom.size,
+                                vs: 'MultiValues' = live_defs.memory.load(d.atom.addr, size=d.atom.size,
                                                                                  endness=d.atom.endness)
                             except SimMemoryMissingError:
                                 vs = None
