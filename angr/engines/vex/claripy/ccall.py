@@ -614,8 +614,9 @@ def pc_actions_SMULQ(*args, **kwargs):
 
 def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform: Platform):
     # sanity check
-    if not isinstance(cc_op, int) and cc_op.symbolic:
-        # cc_op becomes conditional after an obfuscated shr; symbolize the flags instead
+    if not isinstance(cc_op, int) and cc_op.symbolic and "cur_block_id" in state.globals:
+        # In the VM-deobfuscation pipeline cc_op becomes conditional after an obfuscated shr;
+        # symbolize the flags rather than concretizing an arbitrary branch of it.
         return state.solver.BVS("symbolized_flag_" + str(state.globals["cur_block_id"]), state.arch.bits)
     cc_op = op_concretize(cc_op)
 
@@ -1008,8 +1009,9 @@ def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep,
 
 
 def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform: Platform):
-    if not isinstance(cc_op, int) and cc_op.symbolic:
-        # cc_op becomes conditional after an obfuscated shr; symbolize the flags instead
+    if not isinstance(cc_op, int) and cc_op.symbolic and "cur_block_id" in state.globals:
+        # In the VM-deobfuscation pipeline cc_op becomes conditional after an obfuscated shr;
+        # symbolize the flags rather than concretizing an arbitrary branch of it.
         return state.solver.BVS("symbolized_flag_" + str(state.globals["cur_block_id"]), state.arch.bits)
     cc_op = op_concretize(cc_op)
 
