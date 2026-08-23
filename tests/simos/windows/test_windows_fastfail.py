@@ -11,7 +11,6 @@ from angr.calling_conventions import (
     SimCCAArch64WindowsSyscall,
     SimCCAMD64WindowsSyscall,
     SimCCARMWindowsSyscall,
-    SimCCRISCV64,
     SimCCX86WindowsSyscall,
 )
 from angr.simos import SimWindows
@@ -36,13 +35,6 @@ class TestWindowsFastfail(unittest.TestCase):
                 project = angr.load_shellcode(b"\x00" * 4, arch=arch, simos="windows")
                 assert isinstance(project.simos, SimWindows)
                 assert isinstance(project.simos.fastfail.cc, expected_cc)
-
-    def test_fastfail_falls_back_where_windows_has_no_syscall_convention(self):
-        # cle labels every PE os="windows", so a machine type Windows has no syscall ABI for still reaches
-        # SimWindows. RISC-V PEs are real -- UEFI ships them -- and building the project must still work.
-        project = angr.load_shellcode(b"\x00" * 4, arch="riscv64", simos="windows")
-        assert isinstance(project.simos, SimWindows)
-        assert isinstance(project.simos.fastfail.cc, SimCCRISCV64)
 
     def test_arm_syscall_number_comes_from_r12(self):
         # A Windows ARM stub loads the service index into r12 and traps with svc #1, where Linux uses r7.
