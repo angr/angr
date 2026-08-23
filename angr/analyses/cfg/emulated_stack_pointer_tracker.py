@@ -19,8 +19,10 @@ from ...engines.syscall import SimEngineSyscall
 from ...engines.hook import HooksMixin
 from ...engines.soot import SootMixin
 
-from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
-from ... import options as o
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
+from angr.procedures import SIM_PROCEDURES
+from angr import procedures
+from angr import sim_options as o
 from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
@@ -37,7 +39,8 @@ from ..forward_analysis import ForwardAnalysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ...engines.successors import SimSuccessors
 from .cfg_base import CFGBase
-from .cfg_job_base import BlockID, CFGJobBase
+from angr.knowledge_plugins.cfg.block_id import BlockID
+from .cfg_job_base import CFGJobBase
 from .cfg_vm_deobfuscation import CFGVMDeobfuscation
 from .cfg_emulated import CFGEmulated
 
@@ -3770,5 +3773,5 @@ class EmulatedStackPointerTracker(ForwardAnalysis, CFGBase):    # pylint: disabl
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub
 AnalysesHub.register_default('EmulatedStackPointerTracker', EmulatedStackPointerTracker)

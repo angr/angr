@@ -65,6 +65,7 @@ class CFGJobBase:
         addr,
         state: SimState,
         context_sensitivity_level,
+        vm_vpc=None,
         block_id=None,
         src_block_id=None,
         src_exit_stmt_idx=None,
@@ -88,6 +89,7 @@ class CFGJobBase:
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level
         self.is_narrowing = is_narrowing
+        self.vm_vpc = vm_vpc
 
         if call_stack is None:
             self._call_stack = CallStack()

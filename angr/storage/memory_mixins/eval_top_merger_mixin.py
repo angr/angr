@@ -1,6 +1,9 @@
-from typing import Iterable, Tuple, Any, Callable
+from __future__ import annotations
 
-from . import MemoryMixin
+from collections.abc import Callable, Iterable
+from typing import Any
+
+from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 import time
 def cur_time():
     return time.perf_counter_ns() / 1000000
@@ -134,7 +137,7 @@ class EvalTopMergerMixin(MemoryMixin):
 
         return latest_value
 
-    def _merge_values(self, values: Iterable[Tuple[Any, Any]], merged_size: int, all_states=None, page_addr=None, offset=None, size=None, **kwargs):
+    def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, all_states=None, page_addr=None, offset=None, size=None, **kwargs):
         if len(all_states) != len(values):
             print("We have a problem!")
             import ipdb;ipdb.set_trace()

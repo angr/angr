@@ -1,6 +1,6 @@
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from ailment import Block, Expr, Stmt
+from angr.ailment import Block, Expr, Stmt
 
 from angr.code_location import CodeLocation
 
