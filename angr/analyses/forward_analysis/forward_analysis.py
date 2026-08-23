@@ -527,12 +527,23 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
         """
 
         to_remove = []
+        kept: deque[JobInfo[JobType, JobKey]] = deque()
         for job_info in self._job_info_queue:
             if predicate(job_info.job):
                 to_remove.append(job_info)
+            else:
+                kept.append(job_info)
+
+        if not to_remove:
+            return
+
+        # Rebuild the queue in a single pass. Deleting the matches one at a time costs a scan of the whole queue per
+        # match, and each step of that scan runs JobInfo.__eq__, which compares every field of the underlying job. On
+        # an analysis that removes jobs often -- CFGFast on ARM discards a block's jobs whenever a decoding assumption
+        # is invalidated -- that makes one call quadratic in the length of the queue.
+        self._job_info_queue = kept
 
         for job_info in to_remove:
-            self._job_info_queue.remove(job_info)
             key = self._job_key(job_info.job)
             if key in self._job_map:
                 del self._job_map[key]
