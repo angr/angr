@@ -2357,6 +2357,18 @@ class VMDeobfuscation(Analysis):
             new_jumpkind = "Ijk_Ret"
             ## Last node return from here?
 
+        # A block that just falls through to one successor still carries the original jump target.
+        # angr's structuring reads that target to tell which successor a branch reaches, so leaving
+        # an address that names no block in the graph costs us the whole region.
+        if (
+            new_jumpkind == "Ijk_Boring"
+            and len(successors) == 1
+            and isinstance(new_next, pyvex.expr.Const)
+            and not successors[0].is_simprocedure
+            and successors[0].addr not in decomp_function_addresses
+        ):
+            succ_addr_enc = self.convert_addr_to_int(successors[0].addr, successors[0].block_id)
+            new_next = pyvex.expr.Const(U64(succ_addr_enc) if self.project.arch.bits == 64 else U32(succ_addr_enc))
 
         # Every instruction of this node is numbered inside the node's own reserved range, so that
         # the node's address (which is what branch targets are encoded from) is also the address of

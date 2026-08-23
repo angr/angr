@@ -79,7 +79,12 @@ class VMDeobfuscationSimplifierMixin:
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
         )
-        return ail_graph
+        return self._simplify_blocks(
+            ail_graph,
+            stack_pointer_tracker=self._spt,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+            type_hints=self._type_hints,
+        )
 
     def tmp_peephole_optimizations(self, ail_graph):
         # tmp_426 = 32 - tmp_267;

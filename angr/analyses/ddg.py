@@ -856,8 +856,11 @@ class DDG(Analysis):
             if last_statement_id is None or last_statement_id != a.stmt_idx:
                 # update statement ID
                 last_statement_id = a.stmt_idx
+                # stmt_idx is a sentinel (DEFAULT_STATEMENT) for the default exit, so it can be negative
                 statement = (
-                    statements[last_statement_id] if statements and last_statement_id < len(statements) else None
+                    statements[last_statement_id]
+                    if statements and 0 <= last_statement_id < len(statements)
+                    else None
                 )
 
                 # initialize all per-statement data structures
