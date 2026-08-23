@@ -299,11 +299,10 @@ class SimSolver(SimStatePlugin):
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
         # pushan runs its CFG states in fastpath mode (no SYMBOLIC) but still needs the replacement
-        # solver, so inside the VM-deobfuscation pipeline REPLACEMENT_SOLVER alone is enough. Keep it
-        # in the same elif chain: as a second `if` it silently overwrote the VSA solver chosen above.
-        elif o.REPLACEMENT_SOLVER in self.state.options and (
-            o.SYMBOLIC in self.state.options or getattr(self.state.project, "vm_deobfuscation", False)
-        ):
+        # solver -- preconstraining asks it for add_replacement -- so REPLACEMENT_SOLVER alone is
+        # enough. Keep it in the same elif chain: as a second `if` it silently overwrote the VSA
+        # solver chosen just above.
+        elif o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.SYMBOLIC in self.state.options and o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless(track=track)

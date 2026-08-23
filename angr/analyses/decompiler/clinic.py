@@ -871,7 +871,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         with open(f"{directory}/stage_{int(stage):02d}_{stage.name}.txt", "w") as fp:
             fp.write(f"nodes={self._ail_graph.number_of_nodes()} edges={self._ail_graph.number_of_edges()}\n")
             for block in sorted(self._ail_graph.nodes(), key=lambda b: (b.addr, b.idx or 0)):
-                fp.write(block.dbg_repr() + "\n")
+                succs = ", ".join(f"{s.addr:x}" for s in self._ail_graph.successors(block))
+                fp.write(f"-> [{succs}]\n{block.dbg_repr()}\n")
 
     def _stage_make_return_sites(self) -> None:
         self._update_progress(30.0, text="Making return sites")
