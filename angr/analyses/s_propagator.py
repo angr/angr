@@ -140,6 +140,9 @@ class SPropagator:
         self._sp_tracker = stack_pointer_tracker
         self._ail_manager = ail_manager
         self.stack_arg_offsets = stack_arg_offsets
+        # a devirtualized VM body keeps its operand-stack pointer in a stack slot; nothing
+        # downstream can see the slots it addresses until that pointer is folded into its uses
+        self._propagate_stack_addresses = getattr(project, "vm_deobfuscation", False)
 
         bp_as_gpr = False
         the_func = None
@@ -437,7 +440,7 @@ class SPropagator:
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         continue
 
-                if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets):
+                if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
                         assert vvar_useloc.block_addr is not None and vvar_useloc.stmt_idx is not None

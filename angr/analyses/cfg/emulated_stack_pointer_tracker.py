@@ -10,6 +10,7 @@ import networkx
 import pyvex
 from archinfo import ArchARM
 from angr.utils.graph import GraphUtils, as_networkx
+from angr.analyses.stack_pointer_tracker import Constant
 
 from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
