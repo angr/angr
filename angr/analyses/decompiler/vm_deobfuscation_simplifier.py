@@ -54,6 +54,49 @@ class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
         return None
 
 
+class _StackReferenceUndoer(ailment.AILBlockRewriter):
+    """
+    Rewrite ``Reference(vvar{stack N}) ± k`` into the plain stack address it denotes, so that the
+    next stack-variable SSA pass can turn that slot into a virtual variable of its own.
+
+    Only offsets that land **outside** the referenced variable are rewritten. An offset inside it
+    names storage that already lives in the virtual variable rather than in memory; converting it
+    would give the same bytes two independent SSA names, and every value written through one and
+    read through the other would be lost.
+    """
+
+    def __init__(self, ail_manager, arch_bits):
+        super().__init__(update_block=True)
+        self._ail_manager = ail_manager
+        self._arch_bits = arch_bits
+
+    @staticmethod
+    def _referenced_stack_vvar(expr):
+        if (
+            isinstance(expr, Expr.UnaryOp)
+            and expr.op == "Reference"
+            and isinstance(expr.operand, Expr.VirtualVariable)
+            and expr.operand.was_stack
+            and expr.operand.stack_offset is not None
+        ):
+            return expr.operand
+        return None
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op in ("Add", "Sub"):
+            base, offset = expr.operands
+            if isinstance(offset, Expr.UnaryOp) and isinstance(base, Expr.Const) and expr.op == "Add":
+                base, offset = offset, base
+            vvar = self._referenced_stack_vvar(base)
+            if vvar is not None and isinstance(offset, Expr.Const):
+                value = vvar.stack_offset + offset.value if expr.op == "Add" else vvar.stack_offset - offset.value
+                if value > (1 << (self._arch_bits - 1)) - 1:
+                    value -= 1 << self._arch_bits
+                if not vvar.stack_offset <= value < vvar.stack_offset + vvar.size:
+                    return Expr.StackBaseOffset(self._ail_manager.next_atom(), expr.bits, value, **expr.tags)
+        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class VMDeobfuscationSimplifierMixin:
     """
     The AIL graph transforms pushan runs on a devirtualized function, lifted out of its Clinic._analyze
@@ -66,6 +109,10 @@ class VMDeobfuscationSimplifierMixin:
     #
     # Driver
     #
+
+    #: How many un-reference / stack-SSA / simplify rounds to run after the transforms. Each one
+    #: resolves a further level of indirection through a VM's emulated operand stack.
+    VM_DEOBF_SSA_ROUNDS = 6
 
     #: (transform name, whether to re-simplify the function afterwards), in pushan's order
     VM_DEOBF_TRANSFORMS = (
@@ -101,6 +148,36 @@ class VMDeobfuscationSimplifierMixin:
             if resimplify:
                 ail_graph = self._vm_deobf_resimplify(ail_graph)
             self._dump_vm_transform(idx, name, ail_graph)
+        return ail_graph
+
+    @staticmethod
+    def _vm_graph_fingerprint(ail_graph):
+        """
+        Statements plus unresolved memory accesses. Each stack-SSA round turns loads and stores at
+        addresses that just became static into virtual variables, so the second number falls even
+        when the first does not.
+        """
+        stmts = 0
+        memory_ops = 0
+        for block in ail_graph.nodes():
+            stmts += len(block.statements)
+            text = block.dbg_repr()
+            memory_ops += text.count("Load(") + text.count("STORE(")
+        return stmts, memory_ops
+
+    def _vm_unreference_stack_addrs(self, ail_graph):
+        """
+        Rewrite ``Reference(vvar{stack N})`` back into ``StackBaseOffset(N)``.
+
+        Ssailification turns a stack address that escapes a Load/Store into a Reference and stops
+        treating that region as stack variables. Once the VM's operand-stack pointer has been
+        propagated, those references sit inside Load/Store addresses again, where a fresh
+        stack-variable SSA pass can turn each slot into a virtual variable -- but only if the
+        address is a StackBaseOffset once more.
+        """
+        rewriter = _StackReferenceUndoer(self._ail_manager, self.project.arch.bits)
+        for block in list(ail_graph.nodes()):
+            rewriter.walk(block)
         return ail_graph
 
     def _vm_drop_unreachable(self, ail_graph):
