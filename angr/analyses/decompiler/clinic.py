@@ -1156,7 +1156,17 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         if not self.vm_deobfuscation:
             return
         self._ail_graph = self._run_vm_deobfuscation_simplifications(self._ail_graph)
-        # the transforms rewrote blocks, so the de-phi mapping the previous stage collected is stale
+        # The transforms move statements between blocks and rewire edges, which invalidates SSA:
+        # phi statements end up naming blocks that are no longer predecessors, and dephication
+        # indexes its liveness model by those keys. Rebuild SSA, then repair whatever the final
+        # simplification round leaves behind.
+        assert self.func_args is not None
+        self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
+        self._ail_graph = self._vm_repair_phis(self._ail_graph)
+        self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
+        self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
+        self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
+        self._ail_graph = self._vm_repair_phis(self._ail_graph)
         self.vvar_to_vvar, self.copied_var_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
             self._ail_graph, self.arg_vvars
         )
