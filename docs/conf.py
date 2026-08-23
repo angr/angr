@@ -283,15 +283,27 @@ _patch_directive_header_for_reexports()
 # that the wrapper is installed before the theme reads it.
 
 
-def limit_global_toctree(_app, _pagename, _templatename, context, _doctree):
-    """Collapse the global toctree that the theme renders into the sidebar."""
+def limit_global_toctree(_app, pagename, _templatename, context, _doctree):
+    """Bound the global toctree that the theme renders into the sidebar.
+
+    Rendering the fully expanded tree into all 1245 pages dominates the build.
+    The 1192 pages under api/ are the reason, so they keep a collapsed tree,
+    which still expands the branch the reader is in. The 53 narrative pages are
+    cheap enough to show every section's children.
+    """
     original = context.get("toctree")
     if original is None:
         return
 
+    is_api = pagename == "api" or pagename.startswith("api/")
+
     def bounded(**kwargs):
-        kwargs["maxdepth"] = -1
-        kwargs["collapse"] = True
+        if is_api:
+            kwargs["maxdepth"] = -1
+            kwargs["collapse"] = True
+        else:
+            kwargs["maxdepth"] = 2
+            kwargs["collapse"] = False
         return original(**kwargs)
 
     context["toctree"] = bounded
