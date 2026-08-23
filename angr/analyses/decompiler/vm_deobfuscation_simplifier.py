@@ -54,66 +54,6 @@ class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
         return None
 
 
-class _StackReferenceUndoer(ailment.AILBlockRewriter):
-    """
-    Rewrite ``Reference(vvar{stack N}) ± k`` into the plain stack address it denotes, so that the
-    next stack-variable SSA pass can turn that slot into a virtual variable of its own.
-
-    Only offsets that land **outside** the referenced variable are rewritten. An offset inside it
-    names storage that already lives in the virtual variable rather than in memory; converting it
-    would give the same bytes two independent SSA names, and every value written through one and
-    read through the other would be lost.
-    """
-
-    def __init__(self, ail_manager, arch_bits):
-        super().__init__(update_block=True)
-        self._ail_manager = ail_manager
-        self._arch_bits = arch_bits
-
-    @classmethod
-    def _resolve(cls, expr):
-        """
-        ``(vvar, absolute stack offset)`` for a chain of constant adds and subtracts over the
-        address of a stack variable, or None. The VM builds its addresses one ``+8`` at a time, so
-        the chain can be several deep.
-        """
-        if (
-            isinstance(expr, Expr.UnaryOp)
-            and expr.op == "Reference"
-            and isinstance(expr.operand, Expr.VirtualVariable)
-            and expr.operand.was_stack
-            and expr.operand.stack_offset is not None
-        ):
-            return expr.operand, expr.operand.stack_offset
-        if isinstance(expr, Expr.BinaryOp) and expr.op in ("Add", "Sub"):
-            base, offset = expr.operands
-            if expr.op == "Add" and isinstance(base, Expr.Const):
-                base, offset = offset, base
-            if isinstance(offset, Expr.Const):
-                resolved = cls._resolve(base)
-                if resolved is not None:
-                    vvar, value = resolved
-                    return vvar, (value + offset.value if expr.op == "Add" else value - offset.value)
-        return None
-
-    def _convert(self, expr):
-        resolved = self._resolve(expr)
-        if resolved is None:
-            return None
-        vvar, value = resolved
-        if value > (1 << (self._arch_bits - 1)) - 1:
-            value -= 1 << self._arch_bits
-        if vvar.stack_offset <= value < vvar.stack_offset + vvar.size:
-            return None
-        return Expr.StackBaseOffset(self._ail_manager.next_atom(), expr.bits, value, **expr.tags)
-
-    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        converted = self._convert(expr)
-        if converted is not None:
-            return converted
-        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
-
-
 class VMDeobfuscationSimplifierMixin:
     """
     The AIL graph transforms pushan runs on a devirtualized function, lifted out of its Clinic._analyze
@@ -237,21 +177,6 @@ class VMDeobfuscationSimplifierMixin:
             text = block.dbg_repr()
             memory_ops += text.count("Load(") + text.count("STORE(")
         return stmts, memory_ops
-
-    def _vm_unreference_stack_addrs(self, ail_graph):
-        """
-        Rewrite ``Reference(vvar{stack N})`` back into ``StackBaseOffset(N)``.
-
-        Ssailification turns a stack address that escapes a Load/Store into a Reference and stops
-        treating that region as stack variables. Once the VM's operand-stack pointer has been
-        propagated, those references sit inside Load/Store addresses again, where a fresh
-        stack-variable SSA pass can turn each slot into a virtual variable -- but only if the
-        address is a StackBaseOffset once more.
-        """
-        rewriter = _StackReferenceUndoer(self._ail_manager, self.project.arch.bits)
-        for block in list(ail_graph.nodes()):
-            rewriter.walk(block)
-        return ail_graph
 
     def _vm_drop_unreachable(self, ail_graph):
         """
