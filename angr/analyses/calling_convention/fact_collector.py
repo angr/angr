@@ -639,7 +639,9 @@ class FactCollector(Analysis):
                     queue.append((depth, new_state, retnode, None, False))
                 continue
 
-            if not node.size or self.project.is_hooked(node.addr):
+            if getattr(self.project, "vm_deobfuscation", False) and (
+                not node.size or self.project.is_hooked(node.addr)
+            ):
                 # nothing to lift: a hook, or a synthesized node with no body
                 continue
 
