@@ -40,11 +40,81 @@ def cur_time():
     return time.perf_counter_ns() / 1000000
 
 # class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+_EVAL_MISSING = object()      # AST not in the eval cache
+_EVAL_NOT_UNIQUE = object()   # AST cached as having no single solution
+
+
 class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin,
                                SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def _eval_solver_sig(sim_solver):
+        if sim_solver is None:
+            return None
+        sig = ()
+        try:
+            sig += (len(sim_solver.constraints),)
+        except Exception:
+            sig += (None,)
+        # _perform_vex_expr_Load installs replacements as it goes; those change eval results
+        # without touching the constraint list.
+        try:
+            sig += (len(sim_solver._solver._replacements),)
+        except Exception:
+            sig += (None,)
+        return sig
+
+    def _eval_cache_sig(self):
+        state = self.state
+        return (
+            self._eval_solver_sig(getattr(state, "solver", None)),
+            self._eval_solver_sig(getattr(state, "partial_symbolic_constraint_solver", None)),
+        )
+
+    def _eval_one_cached(self, ast):
+        """
+        eval_one costs two solver checks -- find a model, then prove there is no second one --
+        and it runs on essentially every expression, where the same ASTs recur constantly.
+        Cache by AST for as long as the owning state and its solvers are unchanged. Failures
+        are cached too: eval_one raising on a non-unique value cost a full solve as well.
+
+        Disable with project.symbolizer_cache_evals = False.
+        """
+        solver = self.state.partial_symbolic_constraint_solver
+        if not getattr(self.project, "symbolizer_cache_evals", True):
+            return solver.eval_one(ast)
+
+        try:
+            key = ast.cache_key
+        except AttributeError:
+            return solver.eval_one(ast)
+
+        # The strong reference makes the identity check reliable: the state cannot be freed
+        # and its id reused while we still hold it.
+        if getattr(self, "_eval_cache_state", None) is not self.state:
+            self._eval_cache_state = self.state
+            self._eval_cache = {}
+
+        full_key = (key, self._eval_cache_sig())
+        hit = self._eval_cache.get(full_key, _EVAL_MISSING)
+        if hit is not _EVAL_MISSING:
+            if hit is _EVAL_NOT_UNIQUE:
+                raise SimValueError("expression has multiple solutions (cached)")
+            return hit
+
+        if len(self._eval_cache) >= getattr(self.project, "symbolizer_eval_cache_size", 200000):
+            self._eval_cache.clear()
+
+        try:
+            value = solver.eval_one(ast)
+        except SimValueError:
+            self._eval_cache[full_key] = _EVAL_NOT_UNIQUE
+            raise
+        self._eval_cache[full_key] = value
+        return value
 
     def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
         return self._handle_vex_expr_RdTmp(expr)
@@ -98,7 +168,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                         if not self.state.solver.symbolic(self.state.scratch.temps[cur_stmt.data.addr.tmp]):
                                             self.state.memory.store(self.state.scratch.temps[cur_stmt.data.addr.tmp], simp_result, endness=self.project.arch.memory_endness)
                                         else:
-                                            addr = self.state.partial_symbolic_constraint_solver.eval_one(self.state.scratch.temps[cur_stmt.data.addr.tmp])
+                                            addr = self._eval_one_cached(self.state.scratch.temps[cur_stmt.data.addr.tmp])
                                             self.state.memory.store(addr, simp_result, endness=self.project.arch.memory_endness)
                                     elif isinstance(cur_stmt.data.addr, pyvex.expr.Const):
                                         self.state.memory.store(cur_stmt.data.addr.con.value, simp_result, endness=self.project.arch.memory_endness)
@@ -136,7 +206,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                             if isinstance(self.state.scratch.irsb.statements[self.stmt_idx], pyvex.stmt.Exit) and \
                                     not len(list(simp_result.variables)) == 1:
                                 try:
-                                    eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
+                                    eval_result = self._eval_one_cached(simp_result)
                                     if eval_result in [0,1]:
                                         simp_result = claripy.BVV(eval_result, simp_result.size())
                                 except (SimValueError):
@@ -146,7 +216,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                         if (not skip) or (expr in cur_abstract_state._replacements[code_loc] and not (cur_abstract_state._replacements[code_loc][expr] == "TOP")):
                             # if it's already been added to constants once, it means precon_sp was not in that old expression, so we try to solve it again
                             try:
-                                eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
+                                eval_result = self._eval_one_cached(simp_result)
                                 simp_result = claripy.BVV(eval_result, simp_result.size())
                             except (SimValueError):
                                 pass
@@ -203,7 +273,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         simplified_addr = addr
         if self.state.solver.symbolic(addr):
             try:
-                simplified_addr = self.state.partial_symbolic_constraint_solver.eval_one(addr)
+                simplified_addr = self._eval_one_cached(addr)
             except SimValueError:
                 pass
             except claripy.ClaripyError as e:
@@ -351,7 +421,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                                           endness=self.state.arch.memory_endness)
                     if self.state.solver.symbolic(loaded_value):
                         try:
-                            new_val = self.state.partial_symbolic_constraint_solver.eval_one(loaded_value)
+                            new_val = self._eval_one_cached(loaded_value)
                             loaded_value = claripy.BVV(new_val, loaded_value.size())
                         except:
                             pass
@@ -415,7 +485,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
                         else:
                             try:
-                                conc_val = self.state.partial_symbolic_constraint_solver.eval_one(addr.args[0])
+                                conc_val = self._eval_one_cached(addr.args[0])
                                 if addr.op == "__add__":
                                     self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_addrs[0] - conc_val, conc_addrs[1] - conc_val))
                                 elif addr.op == "__sub__":
