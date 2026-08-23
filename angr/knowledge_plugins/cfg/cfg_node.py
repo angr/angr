@@ -517,8 +517,12 @@ class CFGENode(CFGNode):
             name=name,
         )
 
-        # each CFGENode owns its IRSB: the VM-deobfuscation passes rewrite statements per node
-        self.irsb = copy.deepcopy(irsb)
+        # each CFGENode owns its IRSB: the VM-deobfuscation passes rewrite statements per node.
+        # Some lifters (pcode) hold native objects that cannot be copied; share those instead.
+        try:
+            self.irsb = copy.deepcopy(irsb)
+        except (TypeError, ValueError):
+            self.irsb = irsb
         self.vm_vpc = vm_vpc
         self.input_state = input_state
         self._syscall_name = syscall_name
