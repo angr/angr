@@ -1,18 +1,57 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections import defaultdict
 
 import networkx
 
 from angr import ailment
 from angr.ailment import Expr, Stmt
+from angr.ailment.block_walker import AILBlockWalker
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 
-from .ailgraph_walker import AILGraphWalker
+from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
+from .peephole_optimizations.base import PeepholeOptimizationExprBase
 
 l = logging.getLogger(name=__name__)
+
+
+class ThemidaCondSimplify2(PeepholeOptimizationExprBase):
+    """
+    Drop the mask a Themida flag check ors/ands onto amd64g_calculate_rflags_all when the mask
+    leaves the zero bit alone.
+    """
+
+    __slots__ = ()
+
+    NAME = "Themida flag check simplifications"
+    expr_classes = (ailment.expression.BinaryOp,)
+
+    def optimize(self, expr, **kwargs):
+        if not (
+            isinstance(expr.operands[0], ailment.expression.DirtyExpression)
+            and expr.operands[0].dirty_expr.cee_name == "amd64g_calculate_rflags_all"
+        ):
+            return None
+        if expr.op == "Or" and isinstance(expr.operands[1], ailment.expression.Const):
+            if (expr.operands[1].value & 0x40) >> 6 == 0:
+                return expr.operands[0]
+        elif (
+            expr.op == "Or"
+            and isinstance(expr.operands[1], ailment.expression.BinaryOp)
+            and expr.operands[1].op == "And"
+            and isinstance(expr.operands[1].operands[1], ailment.expression.Const)
+        ):
+            if (expr.operands[1].operands[1].value & 0x40) >> 6 == 0:
+                return expr.operands[0]
+        elif expr.op == "And" and isinstance(expr.operands[1], ailment.expression.Const):
+            if (expr.operands[1].value & 0x40) >> 6 == 1:
+                return expr.operands[0]
+        return None
 
 
 class VMDeobfuscationSimplifierMixin:
@@ -50,7 +89,7 @@ class VMDeobfuscationSimplifierMixin:
         Run pushan's devirtualization clean-ups, re-simplifying the function between them the way
         its own Clinic._analyze did.
         """
-        for name, resimplify in self.VM_DEOBF_TRANSFORMS:
+        for idx, (name, resimplify) in enumerate(self.VM_DEOBF_TRANSFORMS):
             transform = getattr(self, name)
             try:
                 returned = transform(ail_graph)
@@ -61,7 +100,18 @@ class VMDeobfuscationSimplifierMixin:
                 ail_graph = returned
             if resimplify:
                 ail_graph = self._vm_deobf_resimplify(ail_graph)
+            self._dump_vm_transform(idx, name, ail_graph)
         return ail_graph
+
+    def _dump_vm_transform(self, idx, name, ail_graph):
+        directory = os.environ.get("CLINIC_STAGE_DUMP")
+        if not directory:
+            return
+        with open(f"{directory}/vm_{idx:02d}_{name.lstrip('_')}.txt", "w") as fp:
+            fp.write(f"nodes={ail_graph.number_of_nodes()} edges={ail_graph.number_of_edges()}\n")
+            for block in sorted(ail_graph.nodes(), key=lambda b: (b.addr, b.idx or 0)):
+                succs = ", ".join(f"{s.addr:x}" for s in ail_graph.successors(block))
+                fp.write(f"-> [{succs}]\n{block.dbg_repr()}\n")
 
     def _vm_deobf_resimplify(self, ail_graph):
         """
@@ -873,7 +923,7 @@ class VMDeobfuscationSimplifierMixin:
                     # update the last statement of pred
                     if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.Jump):
                         last_stmt = pred.statements[-1]
-                        last_stmt.target = Expr.Const(None, None, succ.addr, last_stmt.target.bits)
+                        last_stmt.target = Expr.Const(None, succ.addr, last_stmt.target.bits)
                         ail_graph.add_edge(pred, succ)
                         raise RemoveNodeNotice()
 
@@ -885,13 +935,13 @@ class VMDeobfuscationSimplifierMixin:
                             isinstance(last_stmt.true_target, ailment.Expr.Const)
                             and last_stmt.true_target.value == node.addr
                         ):
-                            last_stmt.true_target = Expr.Const(None, None, succ.addr, last_stmt.true_target.bits)
+                            last_stmt.true_target = Expr.Const(None, succ.addr, last_stmt.true_target.bits)
                             value_updated = True
                         if (
                             isinstance(last_stmt.false_target, ailment.Expr.Const)
                             and last_stmt.false_target.value == node.addr
                         ):
-                            last_stmt.false_target = Expr.Const(None, None, succ.addr, last_stmt.false_target.bits)
+                            last_stmt.false_target = Expr.Const(None, succ.addr, last_stmt.false_target.bits)
                             value_updated = True
 
                         if value_updated:
@@ -907,7 +957,7 @@ class VMDeobfuscationSimplifierMixin:
                         # update the last statement of pred
                         if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.Jump):
                             last_stmt = pred.statements[-1]
-                            last_stmt.target = Expr.Const(None, None, succ.addr, last_stmt.target.bits)
+                            last_stmt.target = Expr.Const(None, succ.addr, last_stmt.target.bits)
                             edges_to_add.add((pred, succ))
 
                         # update the last statement of pred
@@ -918,13 +968,13 @@ class VMDeobfuscationSimplifierMixin:
                                 isinstance(last_stmt.true_target, ailment.Expr.Const)
                                 and last_stmt.true_target.value == node.addr
                             ):
-                                last_stmt.true_target = Expr.Const(None, None, succ.addr, last_stmt.true_target.bits)
+                                last_stmt.true_target = Expr.Const(None, succ.addr, last_stmt.true_target.bits)
                                 value_updated = True
                             if (
                                 isinstance(last_stmt.false_target, ailment.Expr.Const)
                                 and last_stmt.false_target.value == node.addr
                             ):
-                                last_stmt.false_target = Expr.Const(None, None, succ.addr, last_stmt.false_target.bits)
+                                last_stmt.false_target = Expr.Const(None, succ.addr, last_stmt.false_target.bits)
                                 value_updated = True
 
                             if value_updated:
@@ -1073,7 +1123,7 @@ class VMDeobfuscationSimplifierMixin:
                         if isinstance(node.statements[-1], ailment.statement.ConditionalJump):
                             new_stmts = node.statements[::]
                             new_stmts = new_stmts[:-1]
-                            target_addr = ailment.Expr.Const(None, None, succ_0.addr, node.statements[-1].true_target.bits)
+                            target_addr = ailment.Expr.Const(None, succ_0.addr, node.statements[-1].true_target.bits)
                             new_stmts.append(ailment.statement.Jump(None, target_addr, **node.statements[-1].tags))
                             #node.statements = new_stmts
 
