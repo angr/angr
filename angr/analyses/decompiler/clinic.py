@@ -350,7 +350,14 @@ class Clinic(Analysis, Serializable):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: ailment.Address = self.function.addr, None
+        # Normally the function's address is also its entry block's address. The VM deobfuscator
+        # builds a function whose start point can be an interior node of the recovered graph, so
+        # follow the start point when the two disagree.
+        entry_addr = self.function.addr
+        startpoint = self.function.startpoint
+        if startpoint is not None and startpoint.addr != entry_addr:
+            entry_addr = startpoint.addr
+        self.entry_node_addr: ailment.Address = entry_addr, None
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._fold_expressions = fold_expressions
