@@ -96,6 +96,7 @@ class LiveDefinitions:
     __slots__ = (
         "__weakref__",
         "_canonical_size",
+        "_merge_stripped_annotations",
         "arch",
         "heap",
         "heap_uses",
@@ -133,11 +134,13 @@ class LiveDefinitions:
         other_uses=None,
         element_limit=5,
         merge_into_tops: bool = True,
+        merge_stripped_annotations: bool = False,
     ):
         self.project: Project | None = None
         self.arch = arch
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
+        self._merge_stripped_annotations = merge_stripped_annotations
 
         self.registers: MultiValuedMemory = (
             MultiValuedMemory(
@@ -148,6 +151,7 @@ class LiveDefinitions:
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 endness=self.arch.register_endness,
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if registers is None
@@ -161,6 +165,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if stack is None
@@ -174,6 +179,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if memory is None
@@ -187,6 +193,7 @@ class LiveDefinitions:
                 skip_missing_values_during_merging=False,
                 page_kwargs={"mo_cmp": self._mo_cmp},
                 element_limit=element_limit,
+                merge_stripped_annotations=merge_stripped_annotations,
                 merge_into_top=merge_into_tops,
             )
             if heap is None
@@ -233,6 +240,7 @@ class LiveDefinitions:
             memory_uses=self.memory_uses.copy(),
             tmp_uses=self.tmp_uses.copy() if not discard_tmpdefs else None,
             other_uses=self.other_uses.copy(),
+            merge_stripped_annotations=self._merge_stripped_annotations,
         )
 
         rd.project = self.project

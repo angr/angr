@@ -73,6 +73,8 @@ class CodeLocation[BlockAddr: int | None, StmtIdx: int | None, Context]:
         return getattr(self, "__dict__", None), slotstate
 
     def __setstate__(self, state):
+        # states pickled before block_id existed do not carry it
+        self.block_id = None
         dictstate, slotstate = state if isinstance(state, tuple) else (None, state)
         if dictstate:
             self.__dict__.update(dictstate)

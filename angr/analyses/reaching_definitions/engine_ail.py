@@ -369,7 +369,9 @@ class SimEngineRDAIL(
 
         # base pointer
         # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not
-        # self.state.add_register_use(self.project.arch.bp_offset, self.project.arch.bytes)
+        if not getattr(self.project, "vm_deobfuscation", False):
+            # pushan drops this use: the devirtualized body carries its own bp handling
+            self.state.add_register_use(self.project.arch.bp_offset, self.project.arch.bytes)
         # We don't add sp since stack pointers are supposed to be get rid of in AIL. this is definitely a hack though
         # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8))
 
@@ -475,7 +477,9 @@ class SimEngineRDAIL(
             top = self.state.top(size * self.state.arch.byte_width)
             # annotate it
             extloc = self._external_codeloc()
-            top = self.state.annotate_with_def(top, Definition(reg_atom, extloc, dummy=True))
+            # pushan marks the synthesized definition dummy so it is not reported as a real def
+            dummy = getattr(self.project, "vm_deobfuscation", False)
+            top = self.state.annotate_with_def(top, Definition(reg_atom, extloc, dummy=dummy))
             value = MultiValues(top)
             # write it back
             self.state.kill_and_add_definition(reg_atom, value, override_codeloc=extloc)

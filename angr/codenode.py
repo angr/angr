@@ -106,7 +106,12 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         return self.addr, self.size, self.bytestr, self.block_id, self.thumb
 
     def __setstate__(self, dat: tuple):
-        addr, size, bytestr, block_id, thumb = dat
+        # states pickled before block_id existed carry four elements
+        if len(dat) == 4:
+            addr, size, bytestr, thumb = dat
+            block_id = None
+        else:
+            addr, size, bytestr, block_id, thumb = dat
         self.__init__(addr, size, bytestr=bytestr, block_id=block_id, thumb=thumb)
 
 

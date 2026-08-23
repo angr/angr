@@ -188,29 +188,6 @@ class VariableRecoveryBase(Analysis):
                 varman._variables.discard(single_byte_var)
 
 
-def compare_object_without_annotations( obj1, obj2):
-    if obj1.is_bytes != obj2.is_bytes:
-        return False
-
-    if obj1.is_bytes:
-        return obj1.object == obj2.object
-    else:
-        without_annotations_other = obj2.object.__class__(obj2.object.op, obj2.object.args,
-                                                               length=obj2.object.length,  skip_child_annotations=True)
-        without_annotations_self = obj1.object.__class__(obj1.object.op, obj1.object.args,
-                                                             length=obj1.object.length,  skip_child_annotations=True)
-        return without_annotations_self.cache_key == without_annotations_other.cache_key
-def _remove_annotations_from_all_mo(mos):
-    new_mos = set()
-    for mo in mos:
-        ast = mo.object
-        without_annotations_ast = ast.__class__(ast.op, ast.args,
-                                                               length=ast.length,  skip_child_annotations=True)
-        without_annotations_mo = mo.__class__(without_annotations_ast, mo.base, mo.endness, mo.length)
-        new_mos.add(without_annotations_mo)
-    return new_mos
-
-
 class VariableRecoveryStateBase:
     """
     The base abstract state for variable recovery analysis.
@@ -477,26 +454,6 @@ class VariableRecoveryStateBase:
     def _mo_cmp(mos_self: set[SimMemoryObject], mos_other: set[SimMemoryObject], addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
-
-        # for var in mos_other.variables:
-        #     if var != 'top':
-        #         for var2 in mos_self.variables:
-        #             if var2 != "top":
-        #                 import ipdb;ipdb.set_trace()
-        # if mos_self == mos_other:
-        #     return True
-        # elif type(mos_other) != type(mos_self):
-        #     return False
-        # elif isinstance(mos_self, set):
-        #     if len(mos_self) != len(mos_other):
-        #         return False
-        #     else:
-        #         mos_self_no_annotations = _remove_annotations_from_all_mo(mos_self)
-        #         mos_other_no_annotations = _remove_annotations_from_all_mo(mos_self)
-        #         import ipdb;ipdb.set_trace()
-        #         return mos_other_no_annotations == mos_self_no_annotations
-        # else:
-        #     return mos_self.base == mos_other.base and compare_object_without_annotations(mos_self, mos_other) and mos_self._length_equals(mos_other)
 
         return mos_self == mos_other
 
