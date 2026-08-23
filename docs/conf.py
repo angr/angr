@@ -264,5 +264,51 @@ def _patch_directive_header_for_reexports() -> None:
 _patch_directive_header_for_reexports()
 
 
+# -- Global navigation sidebar ----------------------------------------------
+# ``index.rst`` declares ``:maxdepth: 2``, but furo asks for the global toctree
+# with an explicit ``maxdepth=-1``, and Sphinx lets an explicit argument
+# override the option written in the directive. The full recursive API tree is
+# therefore expanded into the sidebar of every one of the roughly 1,250 pages,
+# which accounts for most of the build's wall clock and pushes Read the Docs
+# past its build timeout on slower builders.
+#
+# Wrapping the context callable puts that choice back in this file. ``collapse``
+# is the part that saves the time: bounding the depth alone still resolves and
+# deep-copies the whole tree before pruning it, whereas collapsing stops sibling
+# packages from being expanded at all. The depth is left unbounded on purpose,
+# so the branch the reader is in is still shown in full. Page bodies, the search
+# index and the object inventory are unaffected; only the sidebar changes.
+#
+# The priority has to be below furo's, which connects at the default of 500, so
+# that the wrapper is installed before the theme reads it.
+
+
+def limit_global_toctree(_app, pagename, _templatename, context, _doctree):
+    """Bound the global toctree that the theme renders into the sidebar.
+
+    Rendering the fully expanded tree into all 1245 pages dominates the build.
+    The 1192 pages under api/ are the reason, so they keep a collapsed tree,
+    which still expands the branch the reader is in. The 53 narrative pages are
+    cheap enough to show every section's children.
+    """
+    original = context.get("toctree")
+    if original is None:
+        return
+
+    is_api = pagename == "api" or pagename.startswith("api/")
+
+    def bounded(**kwargs):
+        if is_api:
+            kwargs["maxdepth"] = -1
+            kwargs["collapse"] = True
+        else:
+            kwargs["maxdepth"] = 2
+            kwargs["collapse"] = False
+        return original(**kwargs)
+
+    context["toctree"] = bounded
+
+
 def setup(app):
     app.connect("autodoc-skip-member", skip_inherited_undocumented)
+    app.connect("html-page-context", limit_global_toctree, priority=400)
