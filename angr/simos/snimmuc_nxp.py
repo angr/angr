@@ -145,6 +145,3 @@ class SimSnimmucNxp(SimOS):
                 arch=self.project.arch,
             )
             self.project.loader.dynamic_load(blob)
-
-        # FIXME: Use ret_offset from the calling convention
-        self.project.arch.ret_offset = self.project.arch.registers["r3"][0]
