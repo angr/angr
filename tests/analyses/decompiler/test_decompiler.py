@@ -2980,6 +2980,34 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("switch") == 0
 
     @structuring_algo("sailr")
+    def test_touch_shifted_goto_destination_preserves_errno_path(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "touch_touch_no_switch.o")
+        proj = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = cfg.kb.functions.function(name="touch", plt=False)
+        assert f is not None
+
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f,
+            cfg=cfg.model,
+            options=decompiler_options,
+            preset="full",
+            use_cache=False,
+            update_cache=False,
+        )
+
+        assert d.codegen is not None and d.codegen.text is not None
+        error_region = re.search(
+            r'else if \(!no_create\)\s*\{(?P<body>.*?dcgettext\(NULL, "setting times of %s", 5\).*?)\n\s*\}',
+            d.codegen.text,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(error_region)
+        error_region_body = error_region.group("body")
+        self.assertNotIn("else if (!v2)", error_region_body)
+        self.assertIn('error(0, v5, dcgettext(NULL, "setting times of %s", 5));', error_region_body)
+
+    @structuring_algo("sailr")
     def disabled_test_continuous_small_switch_cluster(self, decompiler_options=None):
         # FIXME: Fish does not think this test case was supposed to pass in the first place. will need more time and
         #  energy to nvestigate
