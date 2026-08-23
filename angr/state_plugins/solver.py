@@ -6,6 +6,8 @@ import os
 import time
 from typing import Any, TypeVar, overload
 
+from claripy.errors import ClaripyZ3Error
+
 from angr import claripy
 from angr import sim_options as o
 from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
@@ -305,7 +307,10 @@ class SimSolver(SimStatePlugin, SupportsMerge):
 
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
-        if o.REPLACEMENT_SOLVER in self.state.options:
+        # pushan runs its CFG states in fastpath mode (no SYMBOLIC) but still needs the replacement
+        # solver, so REPLACEMENT_SOLVER alone is enough here. Keep it in the same elif chain: as a
+        # second `if` it silently overwrote the VSA solver chosen just above.
+        elif o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.SYMBOLIC in self.state.options and o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless(track=track)
@@ -937,6 +942,28 @@ class SimSolver(SimStatePlugin, SupportsMerge):
             if "default" in kwargs:
                 return kwargs.pop("default")
             raise
+        # NEW: catch Z3 timeouts/interrupts only
+        except (ClaripyZ3Error, claripy.ClaripySolverInterruptError):
+            # Reload the frontend (fresh Z3), restore replacements, empty caches, then retry once.
+            self._reload_frontend_preserve_replacements()
+            raise
+
+    def _reload_frontend_preserve_replacements(self):
+        """
+        Rebuild the underlying Claripy frontend (fresh Z3 context) and
+        restore replacement rules. Keep the cache empty to avoid slow reseeding.
+        """
+        rf = self._solver  # e.g., ReplacementFrontend
+
+        self.reload_solver()  # rebuild Claripy/Z3
+
+        rf2 = self._solver
+        if hasattr(rf2, "_replacements"):
+            repl = dict(getattr(rf, "_replacements", {}))  # copy the rules
+            rf2._replacements = repl
+        if hasattr(rf2, "_replacement_cache"):
+            repl = dict(getattr(rf, "_replacements", {}))  # copy the rules
+            rf2._replacement_cache = repl
 
     @overload
     def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
