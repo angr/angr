@@ -3878,13 +3878,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else_node = (
             None
             if stmt.false_target is None
-            else RustGoto(self._handle(stmt.false_target), None, tags=stmt.tags, codegen=self)
+            else RustGoto(self._handle(stmt.false_target), stmt.false_target_idx, tags=stmt.tags, codegen=self)
         )
         return RustIfElse(
             [
                 (
                     self._handle(stmt.condition),
-                    RustGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self),
+                    RustGoto(self._handle(stmt.true_target), stmt.true_target_idx, tags=stmt.tags, codegen=self),
                 )
             ],
             else_node=else_node,

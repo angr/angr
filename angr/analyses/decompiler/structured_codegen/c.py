@@ -4080,10 +4080,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         else_node = (
             None
             if stmt.false_target is None
-            else CGoto(self._handle(stmt.false_target), None, tags=stmt.tags, codegen=self)
+            else CGoto(self._handle(stmt.false_target), stmt.false_target_idx, tags=stmt.tags, codegen=self)
         )
         return CIfElse(
-            [(self._handle(stmt.condition), CGoto(self._handle(stmt.true_target), None, tags=stmt.tags, codegen=self))],
+            [
+                (
+                    self._handle(stmt.condition),
+                    CGoto(self._handle(stmt.true_target), stmt.true_target_idx, tags=stmt.tags, codegen=self),
+                )
+            ],
             else_node=else_node,
             cstyle_ifs=self.cstyle_ifs,
             tags=stmt.tags,
