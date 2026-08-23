@@ -5,6 +5,7 @@ import time
 import objgraph
 import tracemalloc
 import angr
+from angr.procedures.definitions import msvcr as msvcr_defs
 from angr.utils.graph import as_networkx
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
 import logging
@@ -649,6 +650,8 @@ class VMDeobfuscation(Analysis):
                  enable_pre_decompilation_vex_simplifications=False):
 
         self.project.vm_deobfuscation = True
+        # the Windows targets reach msvcrt through imports with no declarations
+        msvcr_defs.publish_procedure_prototypes()
 
         # (vm_vpc, addr, stmt_idx) -> synthetic address; see convert_addr_to_int
         self._synthetic_addrs = {}

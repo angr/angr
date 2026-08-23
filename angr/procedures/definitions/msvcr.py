@@ -26,8 +26,16 @@ libc.add_alias("_initterm", "_initterm_e")
 
 libc.set_default_cc("AMD64", SimCCMicrosoftAMD64)
 
-# publish each SimProcedure's own prototype as the library prototype, so callers of msvcrt
-# functions get argument/return atoms even without a header-derived signature
-for _name, _procedure in libc.procedures.items():
-    if _procedure.prototype is not None:
-        libc.set_prototype(_name, _procedure.prototype)
+def publish_procedure_prototypes() -> None:
+    """
+    Publish each SimProcedure's own prototype as the library prototype, so that callers of msvcrt
+    functions get argument and return atoms even without a header-derived signature.
+
+    The VM deobfuscator calls this because its Windows targets reach msvcrt through imports it has
+    no declarations for. It is deliberately not done at import time: library prototypes are
+    process-global, and changing them changes what every other analysis infers about these
+    functions.
+    """
+    for name, procedure in libc.procedures.items():
+        if procedure.prototype is not None:
+            libc.set_prototype(name, procedure.prototype)
