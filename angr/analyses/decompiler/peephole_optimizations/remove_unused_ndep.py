@@ -1,4 +1,4 @@
-from ailment.expression import DirtyExpression, Const, VEXCCallExpression
+from angr.ailment.expression import DirtyExpression, Const, VEXCCallExpression
 
 from .base import PeepholeOptimizationExprBase
 

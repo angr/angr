@@ -9,7 +9,7 @@ import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
-from angr import options as o
+from angr import sim_options as o
 from angr.utils.graph import GraphUtils
 from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
@@ -19,8 +19,10 @@ from ...engines.syscall import SimEngineSyscall
 from ...engines.hook import HooksMixin
 from ...engines.soot import SootMixin
 from ...engines.successors import SimSuccessors
-from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures, state_plugins
-from ... import options as o
+from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
+from angr.procedures import SIM_PROCEDURES
+from angr import procedures
+from angr import state_plugins
 from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
@@ -36,7 +38,8 @@ from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from .cfg_base import CFGBase
-from .cfg_job_base import BlockID, CFGJobBase
+from angr.knowledge_plugins.cfg.block_id import BlockID
+from .cfg_job_base import CFGJobBase
 
 l = logging.getLogger(name=__name__)
 
@@ -4665,5 +4668,5 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
 
-from angr.analyses import AnalysesHub
+from angr.analyses.analysis import AnalysesHub
 AnalysesHub.register_default('CFGVMDeobfuscation', CFGVMDeobfuscation)

@@ -1,7 +1,7 @@
 import logging
 
-import ailment
-from ailment.statement import Assignment, Call, ConditionalJump, DirtyStatement, Jump, Label, Store
+from angr import ailment
+from angr.ailment.statement import Assignment, Call, ConditionalJump, DirtyStatement, Jump, Label, Store
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 

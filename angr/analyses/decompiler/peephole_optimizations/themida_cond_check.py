@@ -1,10 +1,10 @@
 from typing import Optional
 
-from ailment.statement import ConditionalJump
-from ailment.expression import ITE, Convert, DirtyExpression, VEXCCallExpression, Tmp, BinaryOp, Const
+from angr.ailment.statement import ConditionalJump
+from angr.ailment.expression import ITE, Convert, DirtyExpression, VEXCCallExpression, Tmp, BinaryOp, Const
 
-from ailment import AILBlockWalker, Expression
-from ailment.statement import Statement
+from angr.ailment import AILBlockWalker, Expression
+from angr.ailment.statement import Statement
 from .themida_cond_simpifier import ThemidaCondSimplify
 from .base import PeepholeOptimizationStmtBase
 
