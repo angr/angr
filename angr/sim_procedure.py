@@ -136,7 +136,7 @@ class SimProcedure:
         self.addr = None
         self.cc = cc
         if isinstance(prototype, str):
-            prototype = parse_signature(prototype)
+            prototype = parse_signature(prototype, arch=self.arch)
         self.prototype = prototype
         self.canonical = self
 
