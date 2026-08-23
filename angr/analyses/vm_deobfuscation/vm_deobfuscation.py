@@ -5,6 +5,8 @@ import time
 import objgraph
 import tracemalloc
 import angr
+from angr.utils.graph import as_networkx
+from angr.analyses.cfg.vm_cfg_model import VMCFGModel
 import logging
 import pyvex
 import claripy
@@ -1287,7 +1289,7 @@ class VMDeobfuscation(Analysis):
     def faster_eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
 
         def remove_path(cur_cfg, start_node):
-            reachable = set(networkx.dfs_preorder_nodes(cur_cfg.graph, source=start_node))
+            reachable = set(networkx.dfs_preorder_nodes(as_networkx(cur_cfg.graph), source=start_node))
             to_prune = [n for n in cur_cfg.graph.nodes if n not in reachable]
             return to_prune
 
@@ -2003,7 +2005,7 @@ class VMDeobfuscation(Analysis):
                 VM_1_func.startpoint = new_cur_node
             if len(new_cfg.nodes()) == 1:
                 #ONLY ONE NODE IN THE FUNCTION
-                VM_1_func._register_nodes(True, new_cur_node)
+                VM_1_func._register_node(True, new_cur_node)
             for succ in succs:
                 if succ.is_simprocedure:
                     succ_func = None
@@ -2210,7 +2212,7 @@ class VMDeobfuscation(Analysis):
                     and virt_func.transition_graph.get_edge_data(edge[0], edge[1])['type'] == 'fake_return':
                 virt_func.transition_graph.remove_edge(edge[0],edge[1])
 
-        A = nx.nx_agraph.to_agraph(virt_func.transition_graph)
+        A = nx.nx_agraph.to_agraph(as_networkx(virt_func.transition_graph))
 
         for node in virt_func.transition_graph.nodes():
             graphviz_node = A.get_node(str(node))
@@ -2708,7 +2710,7 @@ class VMDeobfuscation(Analysis):
 
     @logtime
     def keep_only_one_graph(self, cfg, start_addr):
-        conn_comps = nx.weakly_connected_components(cfg.graph)
+        conn_comps = nx.weakly_connected_components(as_networkx(cfg.graph))
         conn_comps = list(conn_comps)
         if len(conn_comps) == 1:
             return cfg
@@ -4897,7 +4899,7 @@ class VMDeobfuscation(Analysis):
     def _eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
 
         def remove_path(cur_cfg, start_node):
-            reachable = set(networkx.dfs_preorder_nodes(cur_cfg.graph, source= start_node))
+            reachable = set(networkx.dfs_preorder_nodes(as_networkx(cur_cfg.graph), source= start_node))
             # Nodes dominated by the edge are now unreachable
             to_prune = [n for n in cur_cfg.graph.nodes if n not in reachable]
             return to_prune
@@ -5645,7 +5647,7 @@ class VMDeobfuscation(Analysis):
                             stmt_graph.add_edge(load_node, store_node)
 
                 ## split the graph into connected components
-                conn_comps = nx.weakly_connected_components(stmt_graph.graph)
+                conn_comps = nx.weakly_connected_components(as_networkx(stmt_graph.graph))
                 conn_comps = list(conn_comps)
 
                 sub_graphs = []
@@ -5922,14 +5924,15 @@ class VMDeobfuscation(Analysis):
         return new_model
 
     def new_model_without_fakeret(self, old_graph, proj, identifier):
-        new_cfg_graph = old_graph.__class__()
+        # the CFG graph is owned by its model in modern angr, so take the new model's graph
+        # instead of instantiating the graph class directly
         new_nodes = []
         node_map = {}
         node_map_by_addr = defaultdict(list)
 
         # not setting the attributes for the model since they will *most likely* be not used on the analysis
-        new_model = proj.kb.cfgs.new_model(identifier)
-        new_model.graph = new_cfg_graph
+        new_model = VMCFGModel.from_model(proj.kb.cfgs.new_model(identifier, addr_type="block_id"))
+        new_cfg_graph = new_model.graph
 
         new_edges = []
         for src, dst, data in old_graph.edges(data=True):
@@ -5973,24 +5976,25 @@ class VMDeobfuscation(Analysis):
         for block_id, node in node_map.items():
             new_nodes.append(node)
 
-        new_cfg_graph.add_nodes_from(new_nodes)
+        for block_id, node in node_map.items():
+            new_model.add_node(block_id, node)
         new_cfg_graph.add_edges_from(new_edges)
 
-        new_model._nodes = node_map
         new_model._nodes_by_addr = node_map_by_addr
 
         return new_model
 
 
     def new_model_without_terminator_graph(self, old_graph, proj, identifier):
-        new_cfg_graph = old_graph.__class__()
+        # the CFG graph is owned by its model in modern angr, so take the new model's graph
+        # instead of instantiating the graph class directly
         new_nodes = []
         node_map = {}
         node_map_by_addr = defaultdict(list)
 
         # not setting the attributes for the model since they will *most likely* be not used on the analysis
-        new_model = proj.kb.cfgs.new_model(identifier)
-        new_model.graph = new_cfg_graph
+        new_model = VMCFGModel.from_model(proj.kb.cfgs.new_model(identifier, addr_type="block_id"))
+        new_cfg_graph = new_model.graph
 
         for node in old_graph.nodes():
             if "PathTerminator" not in str(node.name):
@@ -6016,24 +6020,25 @@ class VMDeobfuscation(Analysis):
             if "PathTerminator" not in str(src.name) and "PathTerminator" not in str(dst.name):
                 new_edges.append((node_map[src.block_id], node_map[dst.block_id], {'jumpkind': data['jumpkind']}))
 
-        new_cfg_graph.add_nodes_from(new_nodes)
+        for block_id, node in node_map.items():
+            new_model.add_node(block_id, node)
         new_cfg_graph.add_edges_from(new_edges)
 
-        new_model._nodes = node_map
         new_model._nodes_by_addr = node_map_by_addr
 
         return new_model
     ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
     ## and keeps certain attributes
     def new_model_graph(self, old_graph, proj, identifier):
-        new_cfg_graph = old_graph.__class__()
+        # the CFG graph is owned by its model in modern angr, so take the new model's graph
+        # instead of instantiating the graph class directly
         new_nodes = []
         node_map = {}
         node_map_by_addr = defaultdict(list)
 
         # not setting the attributes for the model since they will *most likely* be not used on the analysis
-        new_model = proj.kb.cfgs.new_model(identifier)
-        new_model.graph = new_cfg_graph
+        new_model = VMCFGModel.from_model(proj.kb.cfgs.new_model(identifier, addr_type="block_id"))
+        new_cfg_graph = new_model.graph
 
         for node in old_graph.nodes():
             new_node = CFGENode(irsb=copy.deepcopy(node.irsb),
@@ -6057,10 +6062,10 @@ class VMDeobfuscation(Analysis):
         for src, dst, data in old_graph.edges(data=True):
             new_edges.append((node_map[src.block_id], node_map[dst.block_id], {'jumpkind': data['jumpkind']}))
 
-        new_cfg_graph.add_nodes_from(new_nodes)
+        for block_id, node in node_map.items():
+            new_model.add_node(block_id, node)
         new_cfg_graph.add_edges_from(new_edges)
 
-        new_model._nodes = node_map
         new_model._nodes_by_addr = node_map_by_addr
 
         return new_model
@@ -6214,7 +6219,7 @@ class VMDeobfuscation(Analysis):
         ## do the actual replacements
         for loc, repl_pair in prop.replacements.items():
             key = loc.block_id
-            node = new_model._nodes[key]
+            node = new_model.get_node(key)
             if not node.is_simprocedure:
                 new_stmts = node.irsb.statements
                 if node.addr == 0x44e41b:
@@ -6524,7 +6529,7 @@ class VMDeobfuscation(Analysis):
 
                 queue = queue + list(cfg.graph.successors(node))
 
-            A = nx.nx_agraph.to_agraph(sub_graph)
+            A = nx.nx_agraph.to_agraph(as_networkx(sub_graph))
 
             for node in sub_graph.nodes():
                 stmt_str = str(node)
@@ -6537,7 +6542,7 @@ class VMDeobfuscation(Analysis):
                 graphviz_node.attr["shape"] = "box"
         elif super_graph_only:
             sub_graph = self.super_graph(cfg)
-            A = nx.nx_agraph.to_agraph(sub_graph)
+            A = nx.nx_agraph.to_agraph(as_networkx(sub_graph))
             for node in sub_graph.nodes():
                 stmt_str = str(node)
                 if not without_insts and node.irsb != None:
@@ -6548,7 +6553,7 @@ class VMDeobfuscation(Analysis):
                 graphviz_node.attr["label"] = stmt_str
                 graphviz_node.attr["shape"] = "box"
         else:
-            A = nx.nx_agraph.to_agraph(cfg.graph)
+            A = nx.nx_agraph.to_agraph(as_networkx(cfg.graph))
 
             for node in cfg.graph.nodes():
                 stmt_str = str(node)
@@ -6564,7 +6569,7 @@ class VMDeobfuscation(Analysis):
 
     def draw_png_graph(self, cfg, filename):
         print("saving graph "+str(filename))
-        A = nx.nx_agraph.to_agraph(cfg.graph)
+        A = nx.nx_agraph.to_agraph(as_networkx(cfg.graph))
         for node in cfg.graph.nodes():
             stmt_str = str(node)
             # if node.irsb != None:
@@ -6580,7 +6585,7 @@ class VMDeobfuscation(Analysis):
     ### Drawing a graph comparing the removed x86 instructions vs the instructions that were kept(or a part of their statemnts was left beind after simplifications)
     def draw_original_graph(self, cfg, filename, proj):
         print("Drawing graph")
-        A = nx.nx_agraph.to_agraph(cfg.graph)
+        A = nx.nx_agraph.to_agraph(as_networkx(cfg.graph))
         for node in cfg.graph.nodes():
             original_addresses = proj.factory.block(node.addr).instruction_addrs
             original_instructions = proj.factory.block(node.addr).capstone.insns
@@ -6609,8 +6614,8 @@ class VMDeobfuscation(Analysis):
     ############### !!!! This only works under the assumption that no new statements are added to the final graph, i.e. statements are only removed from the final graph ################
     def compare_vex(self, initial_cfg, final_cfg, folder_name):
         print("Comparing VEX")
-        A = nx.nx_agraph.to_agraph(initial_cfg.graph)
-        B = nx.nx_agraph.to_agraph(final_cfg.graph)
+        A = nx.nx_agraph.to_agraph(as_networkx(initial_cfg.graph))
+        B = nx.nx_agraph.to_agraph(as_networkx(final_cfg.graph))
 
         initial_cfg_node_map = {}
         for node in initial_cfg.graph.nodes():
@@ -6748,7 +6753,7 @@ class VMDeobfuscation(Analysis):
 
     def pattern_match_to_x86_instructions(self, final_cfg, orig_cfg, proj, folder_name):
         print("Pattern match to x86")
-        A = nx.nx_agraph.to_agraph(final_cfg.graph)
+        A = nx.nx_agraph.to_agraph(as_networkx(final_cfg.graph))
         original_addresses = []
         original_instructions = []
         for orig_cfg_node in orig_cfg.graph.nodes():

@@ -210,6 +210,7 @@ class Block(Serializable):
         size=None,
         max_size=None,
         byte_string=None,
+        vex=None,
         thumb=False,
         backup_state=None,
         extra_stop_points=None,
@@ -255,7 +256,10 @@ class Block(Serializable):
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
 
-        self._vex = None
+        # `vex` lets a caller hand in an already-lifted (and possibly rewritten) IRSB instead of
+        # lifting the bytes at `addr`. The VM-deobfuscation analyses rewrite IRSBs in place and then
+        # need a Block around the result.
+        self._vex = vex
         self._vex_nostmt = None
         self._disassembly = None
         self._capstone = None
@@ -273,7 +277,9 @@ class Block(Serializable):
         self.size = size
 
         if size is None:
-            if byte_string is not None:
+            if vex is not None:
+                size = vex.size
+            elif byte_string is not None:
                 size = len(byte_string)
             else:
                 vex = self._lift_nocache(skip_stmts)
