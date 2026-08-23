@@ -43,6 +43,7 @@ from angr.utils.ssa import (
     is_const_vvar_load_dirty_assignment,
     is_const_vvar_tmp_assignment,
     is_phi_assignment,
+    is_stack_address_expr,
     is_vvar_propagatable,
 )
 
@@ -349,6 +350,20 @@ class SPropagator:
                         # mark the vvar as dead and should be removed
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
+
+                if (
+                    self._propagate_stack_addresses
+                    and isinstance(stmt, Assignment)
+                    and is_stack_address_expr(stmt.src)
+                    and not has_tmp_expr(stmt.src)
+                ):
+                    # A devirtualized VM walks its operand stack through a pointer it keeps in a
+                    # stack slot. The definition is a Reference plus a constant, so copying it into
+                    # every use costs nothing, and it is the only way the slots that pointer
+                    # addresses ever become statically known.
+                    for vvar_used, vvar_useloc in vvar_uselocs_set:
+                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                    continue
 
                 if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
                     if len(vvar_uselocs_set) == 1:

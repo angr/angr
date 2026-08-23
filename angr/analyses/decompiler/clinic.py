@@ -1161,10 +1161,22 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # indexes its liveness model by those keys. Rebuild SSA, then repair whatever the final
         # simplification round leaves behind.
         assert self.func_args is not None
-        self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
-        self._ail_graph = self._vm_repair_phis(self._ail_graph)
-        self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
-        self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
+        # Each round also un-references the stack addresses the VM's operand-stack pointer now
+        # carries, so the following stack-variable SSA pass sees one more level of the emulated
+        # stack as real slots. Stop once a round finds nothing new.
+        previous = None
+        for round_idx in range(self.VM_DEOBF_SSA_ROUNDS):
+            self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
+            self._ail_graph = self._vm_repair_phis(self._ail_graph)
+            self._ail_graph = self._vm_unreference_stack_addrs(self._ail_graph)
+            self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
+            self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
+            fingerprint = self._vm_graph_fingerprint(self._ail_graph)
+            l.info("VM stack-SSA round %d: %s", round_idx, fingerprint)
+            self._dump_vm_transform(90 + round_idx, "stack_ssa", self._ail_graph)
+            if fingerprint == previous:
+                break
+            previous = fingerprint
         self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
         self._ail_graph = self._vm_repair_phis(self._ail_graph)
         self.vvar_to_vvar, self.copied_var_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
