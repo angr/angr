@@ -7,6 +7,7 @@ import time
 from typing import TypeVar, overload
 
 import claripy
+from claripy.errors import ClaripyZ3Error
 
 from angr import sim_options as o
 from angr.errors import SimSolverModeError, SimSolverOptionError, SimUnsatError, SimValueError
@@ -297,7 +298,10 @@ class SimSolver(SimStatePlugin):
 
         if o.ABSTRACT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverVSA()
-        if o.REPLACEMENT_SOLVER in self.state.options:
+        # pushan runs its CFG states in fastpath mode (no SYMBOLIC) but still needs the replacement
+        # solver, so REPLACEMENT_SOLVER alone is enough here. Keep it in the same elif chain: as a
+        # second `if` it silently overwrote the VSA solver chosen just above.
+        elif o.REPLACEMENT_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverReplacement(auto_replace=False)
         elif o.SYMBOLIC in self.state.options and o.CACHELESS_SOLVER in self.state.options:
             self._stored_solver = claripy.SolverCacheless(track=track)
@@ -918,7 +922,7 @@ class SimSolver(SimStatePlugin):
                     return kwargs.pop("default")
                 raise
         # NEW: catch Z3 timeouts/interrupts only
-        except (claripy.ClaripyZ3Error, claripy.ClaripySolverInterruptError) as ex:
+        except (ClaripyZ3Error, claripy.ClaripySolverInterruptError):
             # Reload the frontend (fresh Z3), restore replacements, empty caches, then retry once.
             self._reload_frontend_preserve_replacements()
             raise
