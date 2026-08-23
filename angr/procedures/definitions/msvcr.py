@@ -25,3 +25,9 @@ libc.set_non_returning("_exit", "abort", "exit", "_invoke_watson")
 libc.add_alias("_initterm", "_initterm_e")
 
 libc.set_default_cc("AMD64", SimCCMicrosoftAMD64)
+
+# publish each SimProcedure's own prototype as the library prototype, so callers of msvcrt
+# functions get argument/return atoms even without a header-derived signature
+for _name, _procedure in libc.procedures.items():
+    if _procedure.prototype is not None:
+        libc.set_prototype(_name, _procedure.prototype)
