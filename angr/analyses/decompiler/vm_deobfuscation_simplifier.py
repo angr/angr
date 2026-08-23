@@ -96,14 +96,21 @@ class _StackReferenceUndoer(ailment.AILBlockRewriter):
                     return vvar, (value + offset.value if expr.op == "Add" else value - offset.value)
         return None
 
-    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+    def _convert(self, expr):
         resolved = self._resolve(expr)
-        if resolved is not None:
-            vvar, value = resolved
-            if value > (1 << (self._arch_bits - 1)) - 1:
-                value -= 1 << self._arch_bits
-            if not vvar.stack_offset <= value < vvar.stack_offset + vvar.size:
-                return Expr.StackBaseOffset(self._ail_manager.next_atom(), expr.bits, value, **expr.tags)
+        if resolved is None:
+            return None
+        vvar, value = resolved
+        if value > (1 << (self._arch_bits - 1)) - 1:
+            value -= 1 << self._arch_bits
+        if vvar.stack_offset <= value < vvar.stack_offset + vvar.size:
+            return None
+        return Expr.StackBaseOffset(self._ail_manager.next_atom(), expr.bits, value, **expr.tags)
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        converted = self._convert(expr)
+        if converted is not None:
+            return converted
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
