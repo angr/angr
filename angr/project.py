@@ -143,6 +143,40 @@ class Project:
     ):
         self.rustc_version = rustc_version
         self.rustc_optimization_level = rustc_optimization_level
+
+        # VM-deobfuscation scratch state. These live on the Project because the CFG, symbolizer and
+        # decompilation stages all need to see the same values across analyses.
+        self.merger_top_dict_debug = {}
+        self.symbolizer_top_expr_values = {}
+        self.symbolizer_solve_times = []
+        self.to_symbolize = defaultdict(dict)
+        self.breakpoint_flag = False
+        self.breakpoint_flag_2 = False
+        self.load_addr_mba_to_jump_addr_mapping = {}
+        self.initial_sp_value = None
+        self.new_block_id_embed_dict = None
+        self.enc_stmt_addr_to_original = {}
+        self.simprocedures_to_remove = set()
+        self.byte_code_regions = None
+        self.min_entropy_threshold = None
+        self.start_deobfuscation_immediately = None
+        self.global_counter = 0
+        self.bt_ins_addrs = set()
+        self.rdtsc_ins_addrs = set()
+        self.unsolvable_expr_cache = {}
+        self.split_same_ips_block_addrs = defaultdict(list)
+        self.symbolic_reads = {}
+        self.loop_start_nodes = set()
+        self.vpc_reg_at_merge_points = {}
+        self.semantically_same_branch_points = set()
+        self.updated_block_id_map = {}
+        self.existing_vpc_values = set()
+
+        self.enable_rep_movsb_shortcut = False
+        self.rep_movsb_addr = set()
+
+        self.prev_symbolic_expr_locations = None
+
         # Step 1: Load the binary
 
         if load_options is None:

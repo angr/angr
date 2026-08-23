@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+import claripy
 import time
 def cur_time():
     return time.perf_counter_ns() / 1000000
@@ -212,7 +213,7 @@ class EvalTopMergerMixin(MemoryMixin):
                     is_sp_addr2 = True
                     break
             if not is_sp_addr1 or not is_sp_addr2:
-                conc_ast = self.state.solver.BVV(conc_addr1, value0.size())
+                conc_ast = claripy.BVV(conc_addr1, value0.size())
                 return conc_ast
             else:
                 # merged_val = self.state.solver.BVV(0, merged_size * self.state.arch.byte_width)

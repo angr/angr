@@ -25,13 +25,16 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     The base class of nodes in a function graph.
     """
 
-    __slots__ = ["_graph", "_hash", "addr", "size", "thumb"]
+    __slots__ = ["_graph", "_hash", "addr", "block_id", "size", "thumb"]
 
-    def __init__(self, addr: K, size: int, graph=None, thumb=False):
+    def __init__(self, addr: K, size: int, block_id=None, graph=None, thumb=False):
         self.addr = addr
         self.size: int = size
         self.thumb = thumb
         self._graph = weakref.proxy(graph) if graph is not None else None
+        # VM-deobfuscation: the same address can appear once per VM program-counter context, so the
+        # block ID has to take part in identity. It is None for every ordinary angr code node.
+        self.block_id = block_id
 
         self._hash = None
 
@@ -47,6 +50,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
             and self.size == other.size
             and self.is_hook == other.is_hook
             and self.thumb == other.thumb
+            and self.block_id == other.block_id
         )
 
     def __ne__(self, other):
@@ -57,7 +61,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash((self.addr, self.size))
+            self._hash = hash((self.addr, self.size, self.block_id))
         return self._hash
 
     def set_graph(self, graph):
@@ -91,18 +95,19 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
 
     is_hook = False
 
-    def __init__(self, addr: int, size, bytestr=None, **kwargs):
-        super().__init__(addr, size, **kwargs)
+    def __init__(self, addr: int, size, bytestr=None, block_id=None, **kwargs):
+        super().__init__(addr, size, block_id=block_id, **kwargs)
         self.bytestr = bytestr
 
     def __repr__(self):
-        return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
+        return f"<BlockNode at {repr_addr(self.addr)} (size {self.size}) VM-VPC is {self.block_id}>"
 
     def __getstate__(self) -> tuple:
-        return self.addr, self.size, self.bytestr, self.thumb
+        return self.addr, self.size, self.bytestr, self.block_id, self.thumb
 
     def __setstate__(self, dat: tuple):
-        self.__init__(*dat[:-1], thumb=dat[-1])
+        addr, size, bytestr, block_id, thumb = dat
+        self.__init__(addr, size, bytestr=bytestr, block_id=block_id, thumb=thumb)
 
 
 class SootBlockNode(BlockNode[SootMethodDescriptor]):

@@ -7,14 +7,14 @@ from typing import TYPE_CHECKING, Any, Self, overload
 import archinfo
 import claripy
 
-from angr.code_location import CodeLocation
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions import Definition, DerefSize, LiveDefinitions
 from angr.knowledge_plugins.key_definitions.atoms import Atom, ConstantSrc, GuardUse, MemoryLocation, Register
 from angr.knowledge_plugins.key_definitions.definition import A, CodeLoc
 from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
-from angr.knowledge_plugins.key_definitions.tag import Tag
+from angr.knowledge_plugins.key_definitions.tag import InitialValueTag, Tag
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues, MVType
 
@@ -317,11 +317,6 @@ class ReachingDefinitionsState:
             sp_def = Definition(sp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
             sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
             self.register_definitions.store(self.arch.sp_offset, sp)
-
-            if self.arch.bits == 32:
-                initial_bp = claripy.BVS("initial_bp", 32, explicit_name=True)
-            elif self.arch.bits == 64:
-                initial_bp = claripy.BVS("initial_bp", 64, explicit_name=True)
 
             bp_atom = Register(self.arch.bp_offset, self.arch.bytes)
             bp_def = Definition(bp_atom, ExternalCodeLocation(), tags={InitialValueTag()})

@@ -35,7 +35,7 @@ def amd64g_dirtyhelper_RDTSC(state):
         val = claripy.BVV(int(time.process_time() * 1000000) + 12345678, 64)
     else:
         val = state.solver.BVS("RDTSC", 64, key=("hardware", "rdtsc"))
-    val = state.solver.BVV(0x213281064CF1E, 64)
+    val = claripy.BVV(0x213281064CF1E, 64)
     return val, []
 
 

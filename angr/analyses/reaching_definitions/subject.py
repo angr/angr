@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 
 from angr import ailment
-from angr.analyses.forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor
+from angr.analyses.forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, DataSensitiveFunctionSubGraphVisitor
 from angr.block import Block
 from angr.knowledge_plugins.functions.function_manager import Function
 
@@ -12,6 +12,7 @@ class SubjectType(Enum):
     Function = 1
     Block = 2
     CallTrace = 3
+    Tuple = 4
 
 
 class Subject:
@@ -37,6 +38,10 @@ class Subject:
         elif isinstance(content, (ailment.Block, Block)):
             self._type = SubjectType.Block
             self._visitor = SingleNodeGraphVisitor(content)
+        elif isinstance(content, tuple):
+            # (graph, start_node): a slice of a data-sensitive CFG
+            self._type = SubjectType.Tuple
+            self._visitor = DataSensitiveFunctionSubGraphVisitor(content)
         else:
             raise TypeError("Unsupported analysis target.")
 

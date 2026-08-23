@@ -9,7 +9,7 @@ import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
-from angr.utils.graph import GraphUtils
+from angr.utils.graph import GraphUtils, as_networkx
 
 
 from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
@@ -32,6 +32,7 @@ from ..forward_analysis import ForwardAnalysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ...engines.successors import SimSuccessors
 from .cfg_base import CFGBase
+from .vm_cfg_model import VMCFGModel
 from angr.knowledge_plugins.cfg.block_id import BlockID
 from .cfg_job_base import CFGJobBase
 from .cfg_vm_deobfuscation import CFGVMDeobfuscation, StorageState, DataSensitiveEngine
@@ -168,6 +169,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
     """
 
     tag = "CFGEmulated"
+    addr_type = "block_id"
 
     def __init__(self,
                  context_sensitivity_level=1,
@@ -259,6 +261,11 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                          indirect_jump_target_limit=indirect_jump_target_limit,
                          model=model,
         )
+
+        if model is None:
+            # this analysis rewrites its CFG with plain networkx idioms; SpillingCFG cannot stand in
+            self._model = VMCFGModel.from_model(self._model)
+            self._graph = self._model.graph
 
         if start is not None:
             l.warning("`start` is deprecated. Please consider using `starts` instead in your code.")
@@ -527,7 +534,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         if start_node is None:
             raise AngrCFGError('Cannot find start node when trying to unroll loops. The CFG might be empty.')
 
-        graph_copy = networkx.DiGraph(self.graph)
+        graph_copy = networkx.DiGraph(as_networkx(self.graph))
 
         while True:
             cycles_iter = networkx.simple_cycles(graph_copy)
@@ -1129,7 +1136,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             state = self._initial_state
             state.history.jumpkind = jumpkind
             self._reset_state_mode(state, 'fastpath')
-            state._ip = state.solver.BVV(ip, self.project.arch.bits)
+            state._ip = claripy.BVV(ip, self.project.arch.bits)
 
         if jumpkind is not None:
             state.history.jumpkind = jumpkind
@@ -1162,8 +1169,8 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
 
         # Let's check whether this address has been traced before.
-        if pending_job_key in self._nodes:
-            node = self._nodes[pending_job_key]
+        if self.model.has_node_id(pending_job_key):
+            node = self.model.get_node(pending_job_key)
             if node in self.graph:
                 pending_exit_addr = self._block_id_addr(pending_job_key)
                 # That block has been traced before. Let's forget about it
@@ -1202,7 +1209,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             f = self._pending_function_hints.pop()
             if f not in analyzed_addrs:
                 new_state = self.project.factory.entry_state(mode='fastpath')
-                new_state.ip = new_state.solver.BVV(f, self.project.arch.bits)
+                new_state.ip = claripy.BVV(f, self.project.arch.bits)
 
                 # TOOD: Specially for MIPS
                 if new_state.arch.name in ('MIPS32', 'MIPS64'):
@@ -1304,19 +1311,19 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                 # oh this is the very first basic block on this path
                 depth = 0
             else:
-                src_cfgnode = self._nodes[src_block_id]
+                src_cfgnode = self.model.get_node(src_block_id)
                 depth = src_cfgnode.depth + 1
                 # the depth will not be updated later on even if this block has a greater depth on another path.
                 # consequently, the `max_steps` limit is not veyr precise - I didn't see a need to make it precise
                 # though.
 
-        if block_id not in self._nodes:
+        if not self.model.has_node_id(block_id):
             # Create the CFGNode object
             cfg_node = self._create_cfgnode(sim_successors, job.call_stack, job.func_addr, block_id=block_id,
                                             depth=depth
                                             )
 
-            self._nodes[block_id] = cfg_node
+            self._model.add_node(block_id, cfg_node)
             self._nodes_by_addr[cfg_node.addr].append(cfg_node)
 
         else:
@@ -1337,7 +1344,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             # "call eax" should be traced twice with *different* sim_successors keys, which requires block ID being flow
             # sensitive, but it is way too expensive.
 
-            cfg_node = self._nodes[block_id]
+            cfg_node = self.model.get_node(block_id)
 
         # Increment tracing count for this block
         self._traced_addrs[job.call_stack_suffix][addr] += 1
@@ -1561,7 +1568,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                     # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
-                    if return_target_key in self._nodes:
+                    if self.model.has_node_id(return_target_key):
                         self._graph_add_edge(job.block_id, return_target_key, jumpkind='Ijk_Ret',
                                              stmt_id=DEFAULT_STATEMENT, ins_addr=ret_ins_addr)
                     else:
@@ -1855,7 +1862,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             if suc_jumpkind == "Ijk_Ret":
                 target_addr = job.call_stack.current_return_target
                 if target_addr is not None:
-                    new_state.ip = new_state.solver.BVV(target_addr, new_state.arch.bits)
+                    new_state.ip = claripy.BVV(target_addr, new_state.arch.bits)
 
         if target_addr is None:
             # Unlucky...
@@ -2086,7 +2093,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         :return:
         """
 
-        if node_key not in self._nodes:
+        if not self.model.has_node_id(node_key):
             if not terminator_for_nonexistent_node:
                 return None
             # Generate a PathTerminator node
@@ -2113,7 +2120,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                 # PathTerminator). This is just a trick to make get_any_irsb() happy.
                 pt.input_state = self.project.factory.entry_state()
                 pt.input_state.ip = pt.addr
-            self._nodes[node_key] = pt
+            self._model.add_node(node_key, pt)
             self._nodes_by_addr[pt.addr].append(pt)
 
             if is_thumb:
@@ -2123,7 +2130,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             l.debug("Block ID %s does not exist. Create a PathTerminator instead.",
                     self._block_id_repr(node_key))
 
-        return self._nodes[node_key]
+        return self.model.get_node(node_key)
 
     def _graph_add_edge(self, src_node_key, dst_node_key, **kwargs):
         """
@@ -2173,9 +2180,9 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         if src_node_key is None:
             if dst_node is None:
                 raise ValueError("Either src_node_key or dst_node_key must be specified.")
-            self.kb.functions.function(dst_node.function_address, create=True)._register_nodes(True,
-                                                                                               dst_codenode
-                                                                                               )
+            self.kb.functions.function(dst_node.function_address, create=True)._register_node(
+                True, dst_codenode
+            )
             return
 
         src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
@@ -2520,7 +2527,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                             resolved = True
                             for t in targets:
                                 new_ex = suc.copy()
-                                new_ex.ip = suc.solver.BVV(t, suc.ip.size())
+                                new_ex.ip = claripy.BVV(t, suc.ip.size())
                                 all_successors.append(new_ex)
                         else:
                             break
@@ -2615,7 +2622,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         next_node = next_nodes[0]
 
         # Get the weakly-connected subgraph that contains `next_node`
-        all_subgraphs = ( networkx.induced_subgraph(taint_graph, nodes) for nodes in networkx.weakly_connected_components(taint_graph))
+        all_subgraphs = ( networkx.induced_subgraph(as_networkx(taint_graph), nodes) for nodes in networkx.weakly_connected_components(as_networkx(taint_graph)))
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
@@ -3426,7 +3433,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
 
         idom = {node: node}
 
-        order = list(networkx.dfs_postorder_nodes(graph, node))
+        order = list(networkx.dfs_postorder_nodes(as_networkx(graph), node))
         dfn = {u: i for i, u in enumerate(order)}
         order.pop()
         order.reverse()
@@ -3588,7 +3595,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             raise AngrCFGError("from and to should be of the same type")
 
         self.remove_fakerets()
-        return networkx.all_shortest_paths(self.graph, n_begin, n_end)
+        return networkx.all_shortest_paths(as_networkx(self.graph), n_begin, n_end)
 
     def _quasi_topological_sort(self):
         """
@@ -3609,7 +3616,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             if not ep_node:
                 continue
 
-            for n in networkx.dfs_postorder_nodes(self._graph, source=ep_node):
+            for n in networkx.dfs_postorder_nodes(as_networkx(self._graph), source=ep_node):
                 if n not in self._quasi_topological_order:
                     self._quasi_topological_order[n] = ctr
                     ctr -= 1

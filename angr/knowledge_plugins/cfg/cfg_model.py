@@ -1,6 +1,8 @@
 # pylint:disable=no-member,protected-access
 from __future__ import annotations
 
+from collections import defaultdict
+
 import logging
 import string
 from collections.abc import Callable, Iterator
@@ -53,6 +55,7 @@ class CFGModel(Serializable):
         "_edge_db_batch_size",
         "_iropt_level",
         "_node_addrs",
+        "_nodes_by_addr",
         "_node_function_addrs_complete",
         "edges_to_repair",
         "graph",
@@ -84,6 +87,9 @@ class CFGModel(Serializable):
         self._edge_db_batch_size = edge_db_batch_size
         self.graph: SpillingCFG = None  # type:ignore
         self._addr_type: CFG_ADDR_TYPES = addr_type
+        # addr -> [CFGNode]. The VM-deobfuscation CFGs keep several nodes per address (one per
+        # VM program-counter context), so they maintain this index themselves.
+        self._nodes_by_addr: defaultdict[int, list[CFGNode]] = defaultdict(list)
 
         # Necessary settings
         self._iropt_level = None

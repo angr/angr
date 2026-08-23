@@ -305,6 +305,10 @@ class CFGBase(Analysis):
         return self._model._nodes
 
     @property
+    def _nodes_by_addr(self):
+        return self._model._nodes_by_addr
+
+    @property
     def model(self) -> CFGModel:
         """
         Get the CFGModel instance.

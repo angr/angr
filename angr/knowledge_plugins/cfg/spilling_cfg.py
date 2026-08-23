@@ -997,6 +997,19 @@ class SpillingCFG:
 
         self.add_edge_by_key(src_block_key, dst_block_key, **attr)
 
+    def add_nodes_from(self, nodes) -> None:
+        for node in nodes:
+            self.add_node(node)
+
+    def add_edges_from(self, edges) -> None:
+        for edge in edges:
+            if len(edge) == 3:
+                src, dst, data = edge
+                self.add_edge(src, dst, **(data or {}))
+            else:
+                src, dst = edge
+                self.add_edge(src, dst)
+
     def add_edge_by_key(self, src_block_key: K, dst_block_key: K, **attr) -> None:
         # Ensure nodes exist in the graph structure
         if src_block_key not in self._graph:
@@ -1020,6 +1033,14 @@ class SpillingCFG:
         src_block_key = get_block_key(src)
         dst_block_key = get_block_key(dst)
         self.remove_edge_by_key(src_block_key, dst_block_key)
+
+    def remove_edges_from(self, edges) -> None:
+        for edge in edges:
+            self.remove_edge(edge[0], edge[1])
+
+    def remove_nodes_from(self, nodes) -> None:
+        for node in list(nodes):
+            self.remove_node(node)
 
     def remove_edge_by_key(self, src_block_key: K, dst_block_key: K) -> None:
         # Update call destination cache before removing the edge

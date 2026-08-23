@@ -14,6 +14,18 @@ if TYPE_CHECKING:
 l = logging.getLogger(__name__)
 
 
+def as_networkx(graph) -> networkx.DiGraph:
+    """
+    Return a plain networkx DiGraph for ``graph``.
+
+    A CFGModel's graph is a SpillingCFG, which keeps its nodes out of the networkx graph (it stores
+    block keys and loads CFGNodes on demand), so networkx algorithms cannot be run on it directly.
+    Anything that already is a networkx graph is returned unchanged.
+    """
+    to_networkx = getattr(graph, "to_networkx", None)
+    return to_networkx() if to_networkx is not None else graph
+
+
 def shallow_reverse[T](g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
     """
     Make a shallow copy of a directional graph and reverse the edges. This is a workaround to solve the issue that one
