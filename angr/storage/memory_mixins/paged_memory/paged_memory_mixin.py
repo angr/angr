@@ -299,7 +299,7 @@ class PagedMemoryMixin[PageType: PageBase](
         symbolizer / constant-propagation merge.
         """
         globs = getattr(self.state, "globals", None)
-        if globs is None or getattr(self, "category", None) == "file":
+        if globs is None or not isinstance(getattr(self, "id", None), str) or self.category == "file":
             return None
         if "is_symbolizer" not in globs or "is_constant_propagation" not in globs:
             return None
