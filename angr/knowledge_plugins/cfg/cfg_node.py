@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 import traceback
 from typing import TYPE_CHECKING
@@ -348,6 +349,7 @@ class CFGNode(Serializable):
             "_name": self._name,
             "instruction_addrs": self.instruction_addrs,
             "is_syscall": self.is_syscall,
+            "irsb": self.irsb,
         }
 
     def __setstate__(self, state):
@@ -471,6 +473,7 @@ class CFGENode(CFGNode):
         "looping_times",
         "return_target",
         "syscall",
+        "vm_vpc",
     ]
 
     def __init__(
@@ -489,6 +492,7 @@ class CFGENode(CFGNode):
         is_syscall=None,
         name=None,
         # CFGENode specific
+        vm_vpc=None,
         input_state=None,
         final_states=None,
         syscall_name=None,
@@ -513,6 +517,9 @@ class CFGENode(CFGNode):
             name=name,
         )
 
+        # each CFGENode owns its IRSB: the VM-deobfuscation passes rewrite statements per node
+        self.irsb = copy.deepcopy(irsb)
+        self.vm_vpc = vm_vpc
         self.input_state = input_state
         self._syscall_name = syscall_name
         self.looping_times = looping_times
@@ -555,7 +562,13 @@ class CFGENode(CFGNode):
         s = "<CFGENode "
         if self.name is not None:
             s += self.name
-        s += hex(self.addr)+ " " + "data-offset:"+str(self.data_offset)+" "
+        s += hex(self.addr) + " "
+        if self.callstack_key is not None:
+            s += "("
+            for frame in self.callstack_key:
+                s += (str(hex(frame)) + " ") if frame is not None else str(frame)
+            s += ")"
+        s += "vm-vpc:" + str(self.vm_vpc) + " "
         if self.size is not None:
             s += f"[{self.size}]"
         if self.looping_times > 0:
@@ -572,6 +585,7 @@ class CFGENode(CFGNode):
             return False
         return (
             self.callstack_key == other.callstack_key
+            and self.vm_vpc == other.vm_vpc
             and self.addr == other.addr
             and self.size == other.size
             and self.looping_times == other.looping_times
@@ -580,7 +594,14 @@ class CFGENode(CFGNode):
 
     def __hash__(self):
         return hash(
-            (self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info)
+            (
+                self.callstack_key,
+                self.vm_vpc,
+                self.addr,
+                self.looping_times,
+                self.simprocedure_name,
+                self.creation_failure_info,
+            )
         )
 
     #
@@ -705,10 +726,10 @@ class CFGENode(CFGNode):
         return node
 
     def to_codenode(self):
-        if self.is_syscall:
-            return SyscallNode(self.addr, self.size, self.simprocedure_name)
-        if self.is_simprocedure:
-            return HookNode(self.addr, self.size, self.simprocedure_name)
+        # same as CFGNode.to_codenode, except the block node carries the block ID: the VM CFGs hold
+        # one node per VM program-counter context, all sharing an address
+        if self.is_syscall or self.is_simprocedure:
+            return super().to_codenode()
         return BlockNode(self.addr, self.size, thumb=self.thumb, block_id=self.block_id)
 
     #
@@ -723,6 +744,7 @@ class CFGENode(CFGNode):
         s["creation_failure_info"] = self.creation_failure_info
         s["_callstack_key"] = self.callstack_key
         s["return_target"] = self.return_target
+        s["vm_vpc"] = self.vm_vpc
         return s
 
     def __setstate__(self, state):
@@ -744,6 +766,8 @@ class CFGENode(CFGNode):
             depth=state["depth"],
             callstack_key=state["_callstack_key"],
             creation_failure_info=state["creation_failure_info"],
+            irsb=state["irsb"],
+            vm_vpc=state["vm_vpc"],
         )
 
     def copy(self):
@@ -759,6 +783,7 @@ class CFGENode(CFGNode):
             instruction_addrs=self.instruction_addrs,
             thumb=self.thumb,
             byte_string=self.byte_string,
+            vm_vpc=self.vm_vpc,
             input_state=self.input_state,
             syscall_name=self.syscall_name,
             looping_times=self.looping_times,

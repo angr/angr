@@ -67,6 +67,11 @@ class VEXMixin(SimEngine):
 
     # expressions dependent on the state impl
 
+    def _handle_vex_expr_DataSensitiveRdTmp(self, expr):
+        # pyvex's DataSensitiveRdTmp is an RdTmp tagged with its originating block; the tag is only
+        # read by the data-sensitive analyses, so evaluation is identical.
+        return self._handle_vex_expr_RdTmp(expr)
+
     def _handle_vex_expr_RdTmp(self, expr: pyvex.expr.RdTmp):
         return self._perform_vex_expr_RdTmp(expr.tmp)
 
