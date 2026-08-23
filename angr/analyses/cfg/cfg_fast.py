@@ -3211,11 +3211,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         default_branch_ins_addr = None
         if irsb.instruction_addresses:
             if self.project.arch.branch_delay_slot and len(irsb.instruction_addresses) > 1:
-                # the last instruction is the delay slot of the branch that ends this block
+                # step back over the delay slot to the branch that owns it. This assumes the block ends in a
+                # terminator that has a delay slot, which is not true of all of them -- a syscall has none, so the
+                # step-back names the instruction before it. That is longstanding behaviour and is left alone here.
                 default_branch_ins_addr = irsb.instruction_addresses[-2]
             else:
-                # either this architecture has no delay slots, or the block holds a single instruction and therefore
-                # contains no delay slot (e.g. the block was truncated at a known block boundary, or decoding the
+                # either this architecture has no delay slots, or the block holds a single instruction and so cannot
+                # hold both a branch and its delay slot (the block was truncated at a known boundary, or decoding the
                 # delay slot failed). Either way the last instruction is the source of the default exit.
                 default_branch_ins_addr = irsb.instruction_addresses[-1]
 
