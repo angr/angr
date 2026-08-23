@@ -502,7 +502,13 @@ class Block(Serializable):
                     if self._project.loader.memory_ro_view is not None
                     else self._project.loader.memory
                 )
-                self._bytes = mem.load(addr, self.size)
+                try:
+                    self._bytes = mem.load(addr, self.size)
+                except KeyError:
+                    if self._vex is None:
+                        raise
+                    # a block built from an injected IRSB has no bytes behind its address
+                    self._bytes = b""
         return self._bytes
 
     @property

@@ -873,7 +873,8 @@ class Function(Serializable):
 
     @property
     def size(self):
-        return sum(self._block_sizes[addr] for addr in self._local_blocks)
+        # synthesized blocks may have no size
+        return sum(self._block_sizes[addr] or 0 for addr in self._local_blocks)
 
     @property
     def binary(self):

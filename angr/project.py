@@ -176,6 +176,8 @@ class Project:
         self.rep_movsb_addr = set()
 
         self.prev_symbolic_expr_locations = None
+        # address -> IRSB for blocks that were synthesized rather than lifted from the binary
+        self.synthetic_irsbs = {}
 
         # Step 1: Load the binary
 

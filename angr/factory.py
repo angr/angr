@@ -380,6 +380,13 @@ class AngrObjectFactory:
         if insn_bytes is not None:
             byte_string = insn_bytes
 
+        # Blocks synthesized by the VM deobfuscator live at addresses with no bytes behind them; the
+        # IRSB the deobfuscator built for each one is registered on the project instead.
+        if byte_string is None:
+            synthetic = self.project.synthetic_irsbs.get(addr, None)
+            if synthetic is not None:
+                return Block(addr, project=self.project, vex=synthetic, thumb=thumb)
+
         return Block(
             addr,
             project=self.project,
