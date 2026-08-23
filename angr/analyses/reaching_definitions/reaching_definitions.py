@@ -506,9 +506,10 @@ class ReachingDefinitionsAnalysis(
             block = node
             block_key = (node.addr, node.idx)
             engine = self._engine_ail
-        elif isinstance(node, Block):
+        elif isinstance(node, Block) and node._vex is not None:
             # the VM-deobfuscation analyses hand in Blocks wrapping rewritten IRSBs; re-lifting the
-            # bytes at node.addr would discard the rewrite
+            # bytes at node.addr would discard the rewrite. Any other Block is re-lifted the way
+            # stock angr does, with its own lifting options.
             block = node
             engine = self._engine_vex
             block_key = node.addr

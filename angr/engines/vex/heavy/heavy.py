@@ -33,7 +33,7 @@ class SimStateStorageMixin(VEXMixin):
         return self.state.scratch.tmp_expr(tmp)
 
     def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, condition=None, **kwargs):
-        if not self.state.solver.symbolic(addr):
+        if getattr(self.project, "vm_deobfuscation", False) and not self.state.solver.symbolic(addr):
             conc_addr = addr if isinstance(addr, int) else addr.concrete_value
             # some protectors read back the bytes of an imported function to check for tampering;
             # a hooked address has no bytes, so give it one plausible byte instead of a symbol

@@ -176,6 +176,9 @@ class Project:
         self.rep_movsb_addr = set()
 
         self.prev_symbolic_expr_locations = None
+        # True while a VMDeobfuscation analysis owns this project. Several pushan behaviours are
+        # deliberate deviations from stock angr and are gated on it.
+        self.vm_deobfuscation = False
         # address -> IRSB for blocks that were synthesized rather than lifted from the binary
         self.synthetic_irsbs = {}
 

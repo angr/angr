@@ -648,6 +648,8 @@ class VMDeobfuscation(Analysis):
                  remove_vmp_semantically_same_branch=False, use_ctf_vpc_finder=False,
                  enable_pre_decompilation_vex_simplifications=False):
 
+        self.project.vm_deobfuscation = True
+
         # (vm_vpc, addr, stmt_idx) -> synthetic address; see convert_addr_to_int
         self._synthetic_addrs = {}
 

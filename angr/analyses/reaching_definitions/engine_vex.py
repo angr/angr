@@ -49,10 +49,12 @@ class SimEngineRDVEX(
     Implements the VEX execution engine for reaching definition analysis.
     """
 
-    # The VM-deobfuscation CFGs inline callee bodies into the caller, so a call to a non-hooked
-    # address has already been walked through; running the function handler on it too would double
-    # count its effects. pushan sets this unconditionally.
-    _skip_inlined_functions = True
+    @property
+    def _skip_inlined_functions(self) -> bool:
+        # The VM-deobfuscation CFGs inline callee bodies into the caller, so a call to a non-hooked
+        # address has already been walked through; running the function handler on it too would
+        # double count its effects.
+        return getattr(self.project, "vm_deobfuscation", False)
 
     def __init__(self, project, function_handler: FunctionHandler, functions: FunctionManager):
         super().__init__(project)
@@ -258,7 +260,9 @@ class SimEngineRDVEX(
 
     def _handle_stmt_CAS(self, stmt):
         # Themida lowers xchg to a CAS. We do not model the comparison, only the swap: the value
-        # read out lands in oldLo and dataLo is written back.
+        # read out lands in oldLo and dataLo is written back. Stock angr treats CAS as a no-op.
+        if not getattr(self.project, "vm_deobfuscation", False):
+            return None
         addr = self._expr_bv(stmt.addr)
         data = self._expr(stmt.dataLo)
         _ = self._expr(stmt.expdLo)

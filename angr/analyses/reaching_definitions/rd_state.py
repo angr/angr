@@ -306,7 +306,9 @@ class ReachingDefinitionsState:
             )
         elif subject.type == SubjectType.Block:
             # block-wise RDA still has to track stack variables, so seed sp (and a TOP bp, since the
-            # distance from sp is unknown at a block boundary)
+            # distance from sp is unknown at a block boundary). Stock angr seeds nothing here.
+            if project is None or not getattr(project, "vm_deobfuscation", False):
+                return self
             ex_loc = ExternalCodeLocation()
             sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
             sp_def = Definition(sp_atom, ex_loc, tags={InitialValueTag()})
