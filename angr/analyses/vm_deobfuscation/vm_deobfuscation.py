@@ -6018,6 +6018,9 @@ class VMDeobfuscation(Analysis):
         new_edges = []
         for src, dst, data in old_graph.edges(data=True):
             if "PathTerminator" not in str(src.name) and "PathTerminator" not in str(dst.name):
+                if src.block_id not in node_map or dst.block_id not in node_map:
+                    # an edge endpoint that is no longer a node in the graph
+                    continue
                 new_edges.append((node_map[src.block_id], node_map[dst.block_id], {'jumpkind': data['jumpkind']}))
 
         for block_id, node in node_map.items():
