@@ -181,7 +181,12 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         return self.addr, self.size, self._bytestr, self.thumb, self.delta, self.block_id
 
     def __setstate__(self, dat: tuple):
-        addr, size, bytestr, thumb, delta, block_id = dat
+        # states pickled by stock angr carry no block_id
+        if len(dat) == 5:
+            addr, size, bytestr, thumb, delta = dat
+            block_id = None
+        else:
+            addr, size, bytestr, thumb, delta, block_id = dat
         self.__init__(addr, size, bytestr=bytestr, thumb=thumb, delta=delta, block_id=block_id)
 
 
