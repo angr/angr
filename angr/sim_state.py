@@ -534,6 +534,10 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
         You may pass in any number of symbolic booleans as variadic positional arguments.
         """
+        # VM state merges can produce constraints that simplify to False; adding them would make
+        # the whole state unsat, so drop them here.
+        constraints = tuple(c for c in constraints if not self.solver.is_false(c))
+
         return self.solver.add(*constraints)
 
     def satisfiable(self, **kwargs):

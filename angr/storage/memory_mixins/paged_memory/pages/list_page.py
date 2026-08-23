@@ -14,6 +14,16 @@ from .cooperation import MemoryObjectMixin
 l = logging.getLogger(name=__name__)
 
 
+def _concrete_byte(state, byte, sentinel):
+    """Solve `byte` under `state`, or return `sentinel` when it has no single solution."""
+    if not state.solver.symbolic(byte):
+        return byte.concrete_value
+    try:
+        return state.partial_symbolic_constraint_solver.eval_one(byte)
+    except Exception:  # pylint:disable=broad-except
+        return sentinel
+
+
 class ListPage(MemoryObjectMixin, PageBase):
     """
     This class implements a page memory mixin with lists as the main content store.
@@ -120,6 +130,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         page_addr: int | None = None,
         memory=None,
         changed_offsets: set[int] | None = None,
+        all_states=None,
     ):
         if changed_offsets is None:
             changed_offsets = set()
@@ -171,7 +182,10 @@ class ListPage(MemoryObjectMixin, PageBase):
                 size = mo_length - (page_addr + b - mo_base)
                 merged_to = b + size
 
-                merged_val = self._merge_values(to_merge, mo_length, memory=memory)
+                merged_val = self._merge_values(
+                    to_merge, mo_length, memory=memory, all_states=all_states, page_addr=page_addr, offset=b,
+                    size=size,
+                )
                 if merged_val is None:
                     # merge_values() determines that we should not attempt to merge this value
                     continue
@@ -221,7 +235,10 @@ class ListPage(MemoryObjectMixin, PageBase):
                 ]
                 to_merge = extracted + created
 
-                merged_val = self._merge_values(to_merge, min_size, memory=memory)
+                merged_val = self._merge_values(
+                    to_merge, min_size, memory=memory, all_states=all_states, page_addr=page_addr, offset=b,
+                    size=min_size,
+                )
                 if merged_val is None:
                     continue
 
@@ -241,7 +258,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def changed_bytes(self, other: ListPage, page_addr: int | None = None):
+    def changed_bytes(self, other: ListPage, page_addr: int | None = None, all_states=None):
         candidates = super().changed_bytes(other)
         if candidates is None:
             candidates: set[int] = set()
@@ -288,13 +305,20 @@ class ListPage(MemoryObjectMixin, PageBase):
                     if self._mo_cmp is not None:
                         same = self._mo_cmp(self.content[c], other.content[c], page_addr + c, 1)
                     if same is None:
-                        # Try to see if the bytes are equal
+                        # Compare by value, not by identity: two ASTs can hold the same value and
+                        # differ only in their annotations. When the pre-merge states are available,
+                        # fall back to solving each byte so that symbolic-but-determined bytes that
+                        # agree are not reported as a difference.
                         self_byte = self.content[c].bytes_at(page_addr + c, 1)
                         other_byte = other.content[c].bytes_at(page_addr + c, 1)
-                    #    same = self_byte is other_byte
-                    # Ashwin added this to remove the problem that arises from comparing same valued asts with different(only hash is different) annotations
                         if not (self_byte == other_byte).is_true():
-                            differences.add(c)
+                            if all_states:
+                                conc_self = _concrete_byte(all_states[0], self_byte, "mismatch1")
+                                conc_other = _concrete_byte(all_states[1], other_byte, "mismatch2")
+                                if conc_self != conc_other:
+                                    differences.add(c)
+                            else:
+                                differences.add(c)
 
                     if same is False:
                         differences.add(c)

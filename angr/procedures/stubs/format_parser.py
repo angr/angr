@@ -10,6 +10,7 @@ import claripy
 import angr
 from angr import sim_type
 from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
+from angr import sim_options as o
 from angr.sim_procedure import SimProcedure
 from angr.storage.file import SimPackets
 
@@ -607,6 +608,17 @@ class FormatParser(SimProcedure):
         :returns:       A FormatString object which can be used for replacing the format specifiers with arguments or
                         for scanning into arguments.
         """
+
+        if o.REPLACEMENT_SOLVER in self.state.options:
+            # under a replacement solver the pointer is usually only nominally symbolic
+            conc_fmtstr_ptr = claripy.replace_dict(
+                self.state.solver.simplify(fmtstr_ptr), self.state.solver._solver._replacement_cache
+            )
+            if not self.state.solver.symbolic(conc_fmtstr_ptr):
+                fmtstr_ptr = conc_fmtstr_ptr
+            else:
+                l.warning("Symbolic pointer to (format) string; continuing execution")
+                return "symbolic pointer"
 
         if self.state.solver.symbolic(fmtstr_ptr):
             raise SimProcedureError("Symbolic pointer to (format) string :(")
