@@ -1238,6 +1238,7 @@ class Unicorn(SimStatePlugin):
             and options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options
         ):
             vex_archinfo = copy.deepcopy(self.state.arch.vex_archinfo)
+            vex_archinfo["x86_cr0"] = self.state.globals.get("x86_cr0", vex_archinfo["x86_cr0"])
             vex_archinfo["hwcache_info"]["caches"] = 0
             vex_archinfo["hwcache_info"] = _VexCacheInfo(**vex_archinfo["hwcache_info"])
             _UC_NATIVE.enable_symbolic_reg_tracking(
