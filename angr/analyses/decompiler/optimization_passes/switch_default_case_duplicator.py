@@ -45,7 +45,9 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
 
     def _check(self):
         cfg = self.kb.cfgs.get_most_accurate()
-        assert cfg is not None, "Must have built a CFG already"
+        if cfg is None:
+            # no CFG to consult (e.g. a synthesized function graph)
+            return False, None
         jumptables = cfg.jump_tables
         switch_jump_block_addrs = {
             jumptable.addr
