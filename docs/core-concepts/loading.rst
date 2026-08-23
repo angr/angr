@@ -235,7 +235,7 @@ Basic Options
 ^^^^^^^^^^^^^
 
 We've discussed ``auto_load_libs`` already - it enables or disables CLE's
-attempt to automatically resolve shared library dependencies, and is on by
+attempt to automatically resolve shared library dependencies, and is off by
 default. Additionally, there is the opposite, ``except_missing_libs``, which, if
 set to true, will cause an exception to be thrown whenever a binary has a shared
 library dependency that cannot be resolved.
@@ -337,15 +337,15 @@ inaccuracies <Gotchas when using angr>`.
 When no such summary is available for a given function:
 
 
-* if ``auto_load_libs`` is ``True`` (this is the default), then the *real*
-  library function is executed instead. This may or may not be what you want,
-  depending on the actual function. For example, some of libc's functions are
-  extremely complex to analyze and will most likely cause an explosion of the
-  number of states for the path trying to execute them.
-* if ``auto_load_libs`` is ``False``, then external functions are unresolved,
-  and Project will resolve them to a generic "stub" SimProcedure called
-  ``ReturnUnconstrained``. It does what its name says: it returns a unique
-  unconstrained symbolic value each time it is called.
+* if ``auto_load_libs`` is ``True``, then the *real* library function is
+  executed instead. This may or may not be what you want, depending on the
+  actual function. For example, some of libc's functions are extremely complex
+  to analyze and will most likely cause an explosion of the number of states for
+  the path trying to execute them.
+* if ``auto_load_libs`` is ``False`` (this is the default), then external
+  functions are unresolved, and Project will resolve them to a generic "stub"
+  SimProcedure called ``ReturnUnconstrained``. It does what its name says: it
+  returns a unique unconstrained symbolic value each time it is called.
 * if ``use_sim_procedures`` (this is a parameter to ``angr.Project``, not
   ``cle.Loader``) is ``False`` (it is ``True`` by default), then only symbols
   provided by the extern object will be replaced with SimProcedures, and they
