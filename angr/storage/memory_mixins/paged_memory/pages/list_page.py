@@ -311,14 +311,16 @@ class ListPage(MemoryObjectMixin, PageBase):
                         # agree are not reported as a difference.
                         self_byte = self.content[c].bytes_at(page_addr + c, 1)
                         other_byte = other.content[c].bytes_at(page_addr + c, 1)
-                        if not (self_byte == other_byte).is_true():
-                            if all_states:
+                        if all_states:
+                            # a symbolizer / constant-propagation merge: compare solved values, so
+                            # that two ASTs holding the same value do not read as a difference
+                            if not (self_byte == other_byte).is_true():
                                 conc_self = _concrete_byte(all_states[0], self_byte, "mismatch1")
                                 conc_other = _concrete_byte(all_states[1], other_byte, "mismatch2")
                                 if conc_self != conc_other:
                                     differences.add(c)
-                            else:
-                                differences.add(c)
+                        else:
+                            same = self_byte is other_byte
 
                     if same is False:
                         differences.add(c)
