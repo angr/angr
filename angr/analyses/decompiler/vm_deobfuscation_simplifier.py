@@ -150,6 +150,62 @@ class VMDeobfuscationSimplifierMixin:
             self._dump_vm_transform(idx, name, ail_graph)
         return ail_graph
 
+    def _vm_seed_initial_values(self, ail_graph):
+        """
+        Materialize ``ail_propagator_init_values`` as statements at the top of the entry block.
+
+        The deobfuscator starts in the middle of a function, so pointers its caller set up -- for
+        Tigress, the addresses of the VM's input and output buffers -- are read before anything in
+        the recovered graph writes them. pushan seeded them into its AIL propagator's initial
+        state; on the SSA pipeline the same information is an assignment at the entry.
+        """
+        init = self.ail_propagator_init_values
+        if not init:
+            return ail_graph
+        entry = next((bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr), None)
+        if entry is None:
+            return ail_graph
+
+        arch = self.project.arch
+        ins_addr = next((stmt.tags.get("ins_addr") for stmt in entry.statements if stmt.tags.get("ins_addr")), entry.addr)
+
+        def _fresh(expr):
+            # the caller built these expressions; give them ids from our manager
+            if isinstance(expr, Expr.StackBaseOffset):
+                return Expr.StackBaseOffset(self._ail_manager.next_atom(), expr.bits, expr.offset)
+            return expr
+
+        seeded = []
+        for stack_offset, propvalue in init.get("stack", []):
+            value = propvalue.one_expr
+            if value is None:
+                continue
+            addr = Expr.StackBaseOffset(self._ail_manager.next_atom(), arch.bits, stack_offset)
+            seeded.append(
+                Stmt.Store(
+                    self._ail_manager.next_atom(),
+                    addr,
+                    _fresh(value),
+                    value.bits // arch.byte_width,
+                    arch.memory_endness,
+                    ins_addr=ins_addr,
+                )
+            )
+        for reg_offset, propvalue in init.get("reg", []):
+            value = propvalue.one_expr
+            if value is None or reg_offset in (arch.sp_offset, arch.bp_offset):
+                # the stack pointer tracker already seeds sp and bp with the frame base
+                continue
+            dst = Expr.Register(self._ail_manager.next_atom(), None, reg_offset, value.bits)
+            seeded.append(Stmt.Assignment(self._ail_manager.next_atom(), dst, _fresh(value), ins_addr=ins_addr))
+
+        if not seeded:
+            return ail_graph
+        at = 1 if entry.statements and isinstance(entry.statements[0], Stmt.Label) else 0
+        entry.statements = entry.statements[:at] + seeded + entry.statements[at:]
+        l.info("Seeded %d initial value(s) at the devirtualized entry block", len(seeded))
+        return ail_graph
+
     @staticmethod
     def _vm_graph_fingerprint(ail_graph):
         """

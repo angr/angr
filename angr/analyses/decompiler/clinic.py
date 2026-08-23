@@ -830,6 +830,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # recovered variable-length arrays: (buffer virtual-variable ids, size/dimension Load) per alloca
         self._vla_allocas: list[tuple[frozenset[int], ailment.Expr.Load]] = []
 
+        if self.vm_deobfuscation:
+            self._ail_graph = self._vm_seed_initial_values(self._ail_graph)
+
         stages = {
             ClinicStage.MAKE_RETURN_SITES: self._stage_make_return_sites,
             ClinicStage.MAKE_ARGUMENT_LIST: self._stage_make_function_argument_list,
