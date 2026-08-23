@@ -56,7 +56,10 @@ class CallSiteMaker:
         ail_manager: Manager,
         reaching_definitions: SRDAModel | None = None,
         stack_pointer_tracker=None,
+        calls_as_rets=None,
     ):
+        # call sites the VM deobfuscator rewrote from returns; their stack args sit one slot higher
+        self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
         self.project = project
         self.kb = project.kb
         self.block = block
@@ -472,6 +475,8 @@ class CallSiteMaker:
 
         size = arg_loc.size
         offset = arg_loc.stack_offset
+        if call_stmt.tags.get("ins_addr", None) in self.calls_as_rets:
+            offset += 8
         if self.project.arch.call_pushes_ret:
             # adjust the offset
             offset -= self.project.arch.bytes
