@@ -625,6 +625,13 @@ class VEXMixin(SimEngine):
         if not self._ctf_finder_enabled():
             return
 
+        self._ctf_obs_begin()
+        try:
+            self._ctf_observe_put_inner(offset_expr, data_expr, stmt)
+        finally:
+            self._ctf_obs_end()
+
+    def _ctf_observe_put_inner(self, offset_expr, data_expr, stmt):
         offset = self._ctf_eval_one(offset_expr)
         reg_info = self._ctf_reg_tup_from_offset(offset)
         if reg_info is None:
@@ -689,6 +696,13 @@ class VEXMixin(SimEngine):
         if not self._ctf_finder_enabled():
             return
 
+        self._ctf_obs_begin()
+        try:
+            self._ctf_observe_store_inner(addr_expr, data_expr, stmt)
+        finally:
+            self._ctf_obs_end()
+
+    def _ctf_observe_store_inner(self, addr_expr, data_expr, stmt):
         if self.state.globals.get("ctf_cur_vpc_kind", None) == "reg_index" and \
                 self._ctf_locked_entropy_regions() and \
                 getattr(self.project, "ctf_vpc_skip_store_candidates_when_reg_index_locked", True):
@@ -1036,6 +1050,54 @@ class VEXMixin(SimEngine):
 
         return expr
 
+    def _ctf_obs_begin(self):
+        """
+        Open an observation scope. Register/stack snapshots are re-derived several times per
+        observation from a state that does not change in between, so they are memoized here.
+        """
+        depth = getattr(self, "_ctf_obs_depth", 0)
+        self._ctf_obs_depth = depth + 1
+        if depth == 0:
+            self._ctf_obs_memo = {}
+
+    def _ctf_obs_end(self):
+        depth = getattr(self, "_ctf_obs_depth", 1) - 1
+        self._ctf_obs_depth = max(depth, 0)
+        if self._ctf_obs_depth == 0:
+            self._ctf_obs_memo = None
+
+    @staticmethod
+    def _ctf_solver_sig(sim_solver):
+        if sim_solver is None:
+            return None
+
+        sig = ()
+        try:
+            sig += (len(sim_solver.constraints),)
+        except Exception:
+            sig += (None,)
+
+        # _perform_vex_expr_Load installs replacements as it goes; those change eval results
+        # without touching the constraint list.
+        try:
+            sig += (len(sim_solver._solver._replacements),)
+        except Exception:
+            sig += (None,)
+
+        return sig
+
+    def _ctf_eval_cache_sig(self):
+        """
+        Identity of the solver state an eval result is valid under. Results are only reused
+        while this is unchanged; memory/register updates need no invalidation, because a
+        rewritten location loads as a different AST and therefore a different key.
+        """
+        state = self.state
+        return (
+            self._ctf_solver_sig(getattr(state, "solver", None)),
+            self._ctf_solver_sig(getattr(state, "partial_symbolic_constraint_solver", None)),
+        )
+
     def _ctf_eval_one(self, expr):
         expr = self._ctf_unwrap_expr(expr)
         if expr is None:
@@ -1043,6 +1105,39 @@ class VEXMixin(SimEngine):
         if isinstance(expr, int):
             return expr
 
+        cache = None
+        key = None
+        if getattr(self.project, "ctf_vpc_cache_evals", True):
+            # The cache is only ever served to the state it was built from. The strong
+            # reference makes the identity check reliable: the state cannot be freed and its
+            # id reused while we still hold it.
+            if getattr(self, "_ctf_eval_cache_state", None) is not self.state:
+                self._ctf_eval_cache_state = self.state
+                self._ctf_eval_cache = {}
+            cache = self._ctf_eval_cache
+            try:
+                key = (expr.cache_key, self._ctf_eval_cache_sig())
+            except AttributeError:
+                key = None
+            if key is not None and key in cache:
+                hit = cache[key]
+                if not getattr(self.project, "ctf_vpc_verify_eval_cache", False):
+                    return hit
+                fresh = self._ctf_eval_one_uncached(expr)
+                if fresh != hit:
+                    raise AssertionError(
+                        f"ctf eval cache returned a stale value: cached={hit!r} fresh={fresh!r}"
+                    )
+                return hit
+
+        val = self._ctf_eval_one_uncached(expr)
+        if key is not None:
+            if len(cache) >= getattr(self.project, "ctf_vpc_eval_cache_size", 200000):
+                cache.clear()
+            cache[key] = val
+        return val
+
+    def _ctf_eval_one_uncached(self, expr):
         try:
             poss_vals = self.state.partial_symbolic_constraint_solver.eval_upto(expr, 2)
             if len(poss_vals) == 1:
@@ -1136,6 +1231,18 @@ class VEXMixin(SimEngine):
         return None
 
     def _ctf_register_values(self):
+        memo = getattr(self, "_ctf_obs_memo", None)
+        if memo is not None:
+            cached = memo.get("reg_values", None)
+            if cached is not None:
+                return cached
+
+        reg_vals = self._ctf_register_values_uncached()
+        if memo is not None:
+            memo["reg_values"] = reg_vals
+        return reg_vals
+
+    def _ctf_register_values_uncached(self):
         if self.project.arch.bits == 64:
             candidate_regs = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp',
                               'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
@@ -2314,6 +2421,18 @@ class VEXMixin(SimEngine):
         return self._ctf_static_entropy_regions() + self._ctf_dynamic_entropy_regions(reg_vals, stack_words)
 
     def _ctf_stack_words(self):
+        memo = getattr(self, "_ctf_obs_memo", None)
+        if memo is not None:
+            cached = memo.get("stack_words", None)
+            if cached is not None:
+                return cached
+
+        stack_words = self._ctf_stack_words_uncached()
+        if memo is not None:
+            memo["stack_words"] = stack_words
+        return stack_words
+
+    def _ctf_stack_words_uncached(self):
         anchors = []
         for reg in ("sp", "bp", "rsp", "rbp", "esp", "ebp"):
             if reg not in self.project.arch.registers:
@@ -2824,6 +2943,13 @@ class VEXMixin(SimEngine):
         return []
 
     def find_ctf_vpc(self):
+        self._ctf_obs_begin()
+        try:
+            self._find_ctf_vpc_inner()
+        finally:
+            self._ctf_obs_end()
+
+    def _find_ctf_vpc_inner(self):
         self._ctf_restore_reg_index_source()
         if self._ctf_try_stack_store_ptr_store_only_fast_path():
             return
