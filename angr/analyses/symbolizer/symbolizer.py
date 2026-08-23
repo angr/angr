@@ -884,7 +884,8 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self.debug = False
         self.debug_two = False
 
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_widening=False,
+        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_state_merging=True,
+                                 allow_widening=False,
                                  graph_visitor=graph_visitor)
         self._graph=graph
         self._base_state = base_state

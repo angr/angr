@@ -1242,10 +1242,12 @@ class Function(Serializable):
             self.transition_graph.add_node(node)
 
         # this is either a new node or a different node at the same address
-        node.set_graph(self.transition_graph)
+        if isinstance(node, CodeNode):
+            node.set_graph(self.transition_graph)
         if self._block_sizes.get(node.addr, 0) == 0:
             self._block_sizes[node.addr] = node.size
-        if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
+        if node.addr == self.addr and self.startpoint is None:
+            # the VM function's entry block may be a hook; do not replace it later
             self.startpoint = node
         if is_local and node.addr not in self._local_blocks:
             # update the _local_blocks dict and _local_block_addrs set

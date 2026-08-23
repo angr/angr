@@ -30,7 +30,16 @@ MAGIC_CONSTANTS = frozenset(
 
 
 def is_alignment_mask(n):
-    return n in {0xFFFFFFFFFFFFFFE0, 0xFFFFFFFFFFFFFFF0, 0xFFFFFFC0, 0xFFFFFFE0, 0xFFFFFFF0, 0xFFFFFFFC, 0xFFFFFFF8}
+    return n in {
+        0xFFFFFFFFFFFFFFE0,
+        0xFFFFFFFFFFFFFFF0,
+        0xFFFFFFC0,
+        0xFFFFFFE0,
+        0xFFFFFFF0,
+        0xFFFFFFF8,
+        0xFFFFFFFC,
+        0xF0,
+    }
 
 
 def _max_consecutive_run(s: str, ch: str) -> int:

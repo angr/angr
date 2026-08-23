@@ -205,6 +205,11 @@ class FunctionCallData:
                 args_atoms_from_values |= atoms_set
         elif self.args_atoms is None and self.cc is not None and self.prototype is not None:
             self.args_atoms = FunctionHandler.c_args_as_atoms(state, self.cc, self.prototype)
+        elif self.args_atoms is None and self.cc is not None and self.prototype is None:
+            # without a prototype, record a use of every argument register
+            self.args_atoms = [
+                {Register(*state.arch.registers[arg_name], arch=state.arch)} for arg_name in self.cc.ARG_REGS
+            ]
         if (
             self.ret_atoms is None
             and self.cc is not None
@@ -444,7 +449,8 @@ class FunctionHandler:
                             # we should subtract this negative number from the current stack pointer to keep the stack
                             # balanced.
                             new_sp = MultiValues(one_sp_val - state.arch.call_sp_fix)
-                    data.depends(sp_atom, value=new_sp)
+                    # the stack pointer is used as well as defined here
+                    data.depends(sp_atom, sp_atom, value=new_sp)
 
         # OUTPUT
         args_defns = [

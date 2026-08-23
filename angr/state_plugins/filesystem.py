@@ -371,7 +371,7 @@ class SimConcreteFilesystem(SimMount):
                 raise SimMergeError("Can't merge concrete filesystems with disparate deleted files")
 
         deck = [self, *others]
-        all_files = set.union(*(set(o._files.keys()) for o in deck))
+        all_files = set.union(*(set(o.cache.keys()) for o in deck))
         for fname in all_files:
             subdeck = []
             basecase = None
