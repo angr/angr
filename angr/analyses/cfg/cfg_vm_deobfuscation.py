@@ -3305,7 +3305,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :return:                    None
         """
 
-        for callee_func in noreturns:
+        for callee in noreturns:
+            # _iteratively_analyze_function_features now reports addresses, not Function objects
+            callee_func = self.functions[callee] if isinstance(callee, int) else callee
             # consult the callgraph to find callers of each function
             if callee_func.addr not in self.functions.callgraph:
                 continue
