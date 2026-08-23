@@ -103,6 +103,59 @@ class VMDeobfuscationSimplifierMixin:
             self._dump_vm_transform(idx, name, ail_graph)
         return ail_graph
 
+    def _vm_drop_unreachable(self, ail_graph):
+        """
+        Rewiring blocks can orphan a region. Liveness only covers what the entry reaches, so an
+        orphan makes dephication index its model with a key that is not there.
+        """
+        entry = next((bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr), None)
+        if entry is None:
+            return ail_graph
+        reachable = networkx.descendants(ail_graph, entry) | {entry}
+        unreachable = [bb for bb in ail_graph if bb not in reachable]
+        if unreachable:
+            l.debug("Dropping %d block(s) the devirtualized entry no longer reaches", len(unreachable))
+            ail_graph.remove_nodes_from(unreachable)
+        return ail_graph
+
+    def _vm_repair_phis(self, ail_graph):
+        """
+        The transforms remove and rewire blocks, which leaves phi statements naming source blocks
+        that are no longer predecessors. Dephication indexes its liveness model by those keys and
+        raises, so drop the stale entries; a phi that keeps a single source becomes a plain copy.
+        """
+        new_blocks = {}
+        for block in ail_graph.nodes():
+            preds = {(p.addr, p.idx) for p in ail_graph.predecessors(block)}
+            new_statements = None
+            for idx, stmt in enumerate(block.statements):
+                if not (isinstance(stmt, Stmt.Assignment) and isinstance(stmt.src, Expr.Phi)):
+                    continue
+                kept = [(src, vvar) for src, vvar in stmt.src.src_and_vvars if src in preds]
+                if len(kept) == len(stmt.src.src_and_vvars):
+                    continue
+                if not kept:
+                    # nothing survived: keep one entry per current predecessor so that the block
+                    # keys at least exist, with no value flowing in along them
+                    kept = [(src, None) for src in sorted(preds)]
+                    if not kept:
+                        continue
+                if new_statements is None:
+                    new_statements = list(block.statements)
+                if len(kept) == 1 and kept[0][1] is not None:
+                    new_src = kept[0][1]
+                else:
+                    new_src = Expr.Phi(stmt.src.idx, stmt.src.bits, kept, **stmt.src.tags)
+                new_statements[idx] = Stmt.Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
+            if new_statements is not None:
+                new_block = block.copy()
+                new_block.statements = new_statements
+                new_blocks[block] = new_block
+
+        if new_blocks:
+            AILGraphWalker(ail_graph, lambda node: new_blocks.get(node, None), replace_nodes=True).walk()
+        return ail_graph
+
     def _dump_vm_transform(self, idx, name, ail_graph):
         directory = os.environ.get("CLINIC_STAGE_DUMP")
         if not directory:
