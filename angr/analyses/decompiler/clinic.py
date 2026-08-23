@@ -5,6 +5,7 @@ import copy
 import enum
 import importlib
 import logging
+import os
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -851,6 +852,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             if stage < self._start_stage or stage > self._end_stage or stage in self._skip_stages:
                 continue
             stages[stage]()
+            self._dump_stage(stage)
 
         # remove empty nodes from the graph
         self._ail_graph = self.remove_empty_nodes(self._ail_graph)
@@ -858,6 +860,18 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
 
         self.cc_graph = self.copy_graph(self._ail_graph)
         return self._ail_graph
+
+    def _dump_stage(self, stage: ClinicStage) -> None:
+        """
+        Write the AIL graph after ``stage`` to $CLINIC_STAGE_DUMP. Diagnostics for the VM pipeline.
+        """
+        directory = os.environ.get("CLINIC_STAGE_DUMP")
+        if not directory:
+            return
+        with open(f"{directory}/stage_{int(stage):02d}_{stage.name}.txt", "w") as fp:
+            fp.write(f"nodes={self._ail_graph.number_of_nodes()} edges={self._ail_graph.number_of_edges()}\n")
+            for block in sorted(self._ail_graph.nodes(), key=lambda b: (b.addr, b.idx or 0)):
+                fp.write(block.dbg_repr() + "\n")
 
     def _stage_make_return_sites(self) -> None:
         self._update_progress(30.0, text="Making return sites")
@@ -1141,6 +1155,10 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         if not self.vm_deobfuscation:
             return
         self._ail_graph = self._run_vm_deobfuscation_simplifications(self._ail_graph)
+        # the transforms rewrote blocks, so the de-phi mapping the previous stage collected is stale
+        self.vvar_to_vvar, self.copied_var_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
+            self._ail_graph, self.arg_vvars
+        )
 
     def _stage_collect_externs(self) -> None:
         self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map)

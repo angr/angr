@@ -50,7 +50,7 @@ class SimStateStorageMixin(VEXMixin):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
-        if self.state.solver.symbolic(addr):
+        if getattr(self.project, "vm_deobfuscation", False) and self.state.solver.symbolic(addr):
             addr = self._concretize_store_addr(addr, data)
 
         if (
