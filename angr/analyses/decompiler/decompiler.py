@@ -118,11 +118,13 @@ class Decompiler(Analysis):
         calls_as_rets=None,
         allow_global_dead_ass_elim: bool = False,
         ail_propagator_init_values=None,
+        vm_deobfuscation: bool = False,
     ):
         # VM-deobfuscation options
         self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
         self.allow_global_dead_ass_elim = allow_global_dead_ass_elim
         self.ail_propagator_init_values = ail_propagator_init_values
+        self.vm_deobfuscation = vm_deobfuscation
 
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -451,6 +453,7 @@ class Decompiler(Analysis):
                 calls_as_rets=self.calls_as_rets,
                 allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
                 ail_propagator_init_values=self.ail_propagator_init_values,
+                vm_deobfuscation=self.vm_deobfuscation,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:

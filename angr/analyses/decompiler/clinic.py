@@ -21,6 +21,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
@@ -171,9 +172,13 @@ class ClinicStage(enum.IntEnum):
     PRE_SSA_LEVEL1_SIMPLIFICATIONS = 10
     SSA_LEVEL1_TRANSFORMATION = 11
     POST_SSA_LEVEL1_SIMPLIFICATIONS = 12
-    RECOVER_VARIABLES = 13
-    SEMANTIC_VARIABLE_NAMING = 14
-    COLLECT_EXTERNS = 15
+    #: pushan's devirtualization clean-ups; only run when Clinic is told the function is a
+    #: devirtualized VM body (see Clinic.vm_deobfuscation). They sit right after the post-SSA
+    #: simplifications, which is where pushan's own Clinic interleaved them.
+    VM_DEOBFUSCATION_SIMPLIFICATIONS = 13
+    RECOVER_VARIABLES = 14
+    SEMANTIC_VARIABLE_NAMING = 15
+    COLLECT_EXTERNS = 16
 
 
 class ComboRegReferenceWalker(AILBlockRewriter):
@@ -244,7 +249,7 @@ class _VLABufferBinder(AILBlockViewer):
         return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class Clinic(Analysis, Serializable):
+class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
     """
     A Clinic deals with AILments: it lifts a function to AIL and runs the decompiler's simplification pipeline on it.
 
@@ -312,6 +317,7 @@ class Clinic(Analysis, Serializable):
         calls_as_rets=None,
         allow_global_dead_ass_elim: bool = False,
         ail_propagator_init_values=None,
+        vm_deobfuscation: bool = False,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -323,6 +329,7 @@ class Clinic(Analysis, Serializable):
         self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
         self.allow_global_dead_ass_elim = allow_global_dead_ass_elim
         self.ail_propagator_init_values = ail_propagator_init_values
+        self.vm_deobfuscation = vm_deobfuscation
 
         self.graph = None
         self.flavor = flavor
@@ -834,6 +841,7 @@ class Clinic(Analysis, Serializable):
             ClinicStage.RECOVER_VARIABLES: self._stage_recover_variables,
             ClinicStage.SEMANTIC_VARIABLE_NAMING: self._stage_semantic_variable_naming,
             ClinicStage.COLLECT_EXTERNS: self._stage_collect_externs,
+            ClinicStage.VM_DEOBFUSCATION_SIMPLIFICATIONS: self._stage_vm_deobfuscation_simplifications,
         }
 
         for stage in sorted(stages):
@@ -1125,6 +1133,11 @@ class Clinic(Analysis, Serializable):
         )
         var_name_mapping = orchestrator.analyze()
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
+
+    def _stage_vm_deobfuscation_simplifications(self) -> None:
+        if not self.vm_deobfuscation:
+            return
+        self._ail_graph = self._run_vm_deobfuscation_simplifications(self._ail_graph)
 
     def _stage_collect_externs(self) -> None:
         self.externs = self._collect_externs(self._ail_graph, self.kb, self.variable_map)

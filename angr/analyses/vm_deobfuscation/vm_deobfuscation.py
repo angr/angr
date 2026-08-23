@@ -2142,7 +2142,8 @@ class VMDeobfuscation(Analysis):
                 self.project.synthetic_irsbs[node.addr] = node_irsb
 
         dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim,
-                                               ail_propagator_init_values=ail_propagator_init_values)
+                                               ail_propagator_init_values=ail_propagator_init_values,
+                                               vm_deobfuscation=True)
 
         # import ipdb;ipdb.set_trace()
         with open("last_decomp_result.c", "w") as f:
