@@ -735,6 +735,9 @@ class VEXMixin(SimEngine):
         if self._ctf_try_stack_store_ptr_fast_path(addr, size, value):
             return
 
+        if self._ctf_try_stack_store_raw_fast_path(addr, size, value):
+            return
+
         word = {
             "addr": addr,
             "size": size,
@@ -2158,6 +2161,96 @@ class VEXMixin(SimEngine):
             origin=origin,
         )
 
+    def _ctf_stack_raw_current_source(self):
+        """
+        The raw-offset stack slot the VPC is currently sourced from, or None.
+        """
+        if not getattr(self.project, "ctf_vpc_allow_stack_store_raw_offset", False):
+            return None
+        if self.state.globals.get("ctf_cur_vpc_kind", None) != "stack_store_raw_offset":
+            return None
+
+        cur_source = self.state.globals.get("ctf_cur_vpc_source", None)
+        if not isinstance(cur_source, tuple) or len(cur_source) < 4 or \
+                cur_source[0] != "stack_store_raw_offset":
+            return None
+
+        return cur_source
+
+    def _ctf_commit_stack_raw_source(self, cur_source, value, score, origin):
+        """
+        Re-commit the current raw-offset source at ``value``, mirroring what the full search
+        would derive for it (namespace bookkeeping included). Returns False if the slot no
+        longer looks like a VPC, in which case the caller must fall back to the full search.
+        """
+        if value is None or value < 0 or value > getattr(self.project, "ctf_vpc_max_index", 0x100000):
+            return False
+
+        addr, size, base_addr = cur_source[1], cur_source[2], cur_source[3]
+        raw_info = self._ctf_stack_raw_info_for_slot(addr, size)
+        if raw_info is None:
+            return False
+        base_addr = raw_info.get("base", base_addr)
+
+        candidates = []
+        self._ctf_add_candidate(
+            candidates,
+            ("stack_store_raw_offset", addr, size, base_addr),
+            self._ctf_stack_raw_namespace_bias(base_addr, value) + value,
+            score + raw_info.get("score", 0),
+            "stack_store_raw_offset",
+            origin=origin,
+        )
+        if not candidates:
+            return False
+
+        self._ctf_commit_candidate(candidates[0])
+        return True
+
+    def _ctf_try_stack_store_raw_fast_path(self, addr, size, value):
+        """
+        Store-time shortcut for a settled raw-offset source, mirroring
+        _ctf_try_stack_store_ptr_fast_path. Once the VPC slot is known, a store either lands
+        on that slot (commit the new index directly) or cannot affect it at all -- neither
+        case needs the register/stack/entropy scan.
+        """
+        if not getattr(self.project, "ctf_vpc_stack_raw_store_fast_path", True):
+            return False
+
+        cur_source = self._ctf_stack_raw_current_source()
+        if cur_source is None:
+            return False
+
+        if (cur_source[1], cur_source[2]) != (addr, size):
+            return getattr(self.project, "ctf_vpc_stack_raw_skip_non_current_stores", True)
+
+        return self._ctf_commit_stack_raw_source(
+            cur_source,
+            value,
+            getattr(self.project, "ctf_vpc_stack_raw_source_score", 40),
+            "stack_store",
+        )
+
+    def _ctf_try_stack_store_raw_block_fast_path(self):
+        """
+        Block-end shortcut for a settled raw-offset source: read the slot the VPC already
+        comes from instead of re-running the whole candidate search. Falls through to the
+        full search if the slot stops looking like a VPC index.
+        """
+        if not getattr(self.project, "ctf_vpc_stack_raw_block_fast_path", True):
+            return False
+
+        cur_source = self._ctf_stack_raw_current_source()
+        if cur_source is None:
+            return False
+
+        return self._ctf_commit_stack_raw_source(
+            cur_source,
+            self._ctf_read_state_int(cur_source[1], cur_source[2]),
+            getattr(self.project, "ctf_vpc_stack_raw_current_slot_score", 36),
+            "stack_slot_current",
+        )
+
     def _ctf_stack_raw_slot_candidates(self):
         if not getattr(self.project, "ctf_vpc_allow_stack_store_raw_offset", False):
             return []
@@ -2951,6 +3044,9 @@ class VEXMixin(SimEngine):
 
     def _find_ctf_vpc_inner(self):
         self._ctf_restore_reg_index_source()
+        if self._ctf_try_stack_store_raw_block_fast_path():
+            return
+
         if self._ctf_try_stack_store_ptr_store_only_fast_path():
             return
 
