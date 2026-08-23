@@ -12,7 +12,7 @@ class MultiValueMergerMixin(MemoryMixin):
         self,
         *args,
         element_limit=5,
-        annotation_limit=256,
+        annotation_limit=40,  # pushan: cap annotation growth during VM-state merges
         top_func=None,
         is_top_func=None,
         phi_maker=None,
@@ -70,9 +70,14 @@ class MultiValueMergerMixin(MemoryMixin):
 
         # This is to deal with values that are the same but have different annotations, and only one value exists
         # This was added because of issues in variable recovery and reaching defs after merging when two stack pointers have same value but different annots
-        stripped_values_set = {v._apply_to_annotations(lambda alist: None).cache_key for v in values_set}
-        if len(stripped_values_set) == 1:
-            ret_val = next(iter(stripped_values_set)).ast
+        # claripy ASTs no longer expose cache_key, and `==` on an AST builds a constraint rather
+        # than comparing, so key the set on hash() and keep the AST as the value
+        stripped_values = {}
+        for v in values_set:
+            stripped = v._apply_to_annotations(lambda alist: ())
+            stripped_values[stripped.hash()] = stripped
+        if len(stripped_values) == 1:
+            ret_val = next(iter(stripped_values.values()))
             # migrate annotations
             annotations = []
             annotations_set = set()

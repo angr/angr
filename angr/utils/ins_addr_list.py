@@ -14,10 +14,14 @@ class InsAddrList:
     length, membership testing, concatenation, etc.).
     """
 
-    __slots__ = ("_base_addr", "_ins_sizes")
+    __slots__ = ("_addrs", "_base_addr", "_ins_sizes")
 
     def __init__(self, base_addr: int = 0, ins_sizes: bytes | bytearray | list[int] = b""):
         self._base_addr: int = base_addr
+        # Set when the addresses are not a monotonically increasing run of byte-sized steps -- the
+        # VM-deobfuscation passes stitch instructions from unrelated addresses into one IRSB. In
+        # that case the compact representation cannot hold them and we keep the list verbatim.
+        self._addrs: tuple[int, ...] | None = None
         if isinstance(ins_sizes, (list, bytearray)):
             self._ins_sizes: bytes = bytes(ins_sizes)
         else:
@@ -34,10 +38,20 @@ class InsAddrList:
             return cls(base, b"\x00")
         sizes = bytearray(n)
         for i in range(n - 1):
-            sizes[i] = addrs[i + 1] - addrs[i]
+            delta = addrs[i + 1] - addrs[i]
+            if not 0 <= delta <= 255:
+                return cls.from_explicit_addr_list(addrs)
+            sizes[i] = delta
         # Last instruction size is unknown from addresses alone; store 0
         sizes[n - 1] = 0
         return cls(base, bytes(sizes))
+
+    @classmethod
+    def from_explicit_addr_list(cls, addrs) -> InsAddrList:
+        """Keep the addresses verbatim; used when they do not form a compact increasing run."""
+        obj = cls(addrs[0], bytes(len(addrs)))
+        obj._addrs = tuple(addrs)
+        return obj
 
     @property
     def base_addr(self) -> int:
@@ -60,9 +74,14 @@ class InsAddrList:
             idx += len(self._ins_sizes)
         if idx < 0 or idx >= len(self._ins_sizes):
             raise IndexError(idx)
+        if self._addrs is not None:
+            return self._addrs[idx]
         return self._base_addr + sum(self._ins_sizes[:idx])
 
     def __iter__(self) -> Generator[int]:
+        if self._addrs is not None:
+            yield from self._addrs
+            return
         addr = self._base_addr
         for size in self._ins_sizes:
             yield addr
@@ -74,6 +93,8 @@ class InsAddrList:
     def __contains__(self, addr) -> bool:
         if not self._ins_sizes:
             return False
+        if self._addrs is not None:
+            return addr in self._addrs
         if addr < self._base_addr:
             return False
         cur = self._base_addr
@@ -85,6 +106,8 @@ class InsAddrList:
 
     def __eq__(self, other):
         if isinstance(other, InsAddrList):
+            if self._addrs is not None or other._addrs is not None:
+                return list(self) == list(other)
             return self._base_addr == other._base_addr and self._ins_sizes == other._ins_sizes
         if isinstance(other, list):
             if len(other) != len(self._ins_sizes):
@@ -115,9 +138,16 @@ class InsAddrList:
 
     def extend(self, other: InsAddrList) -> None:
         addrs = list(self) + list(other)
+        if any(not 0 <= addrs[i + 1] - addrs[i] <= 255 for i in range(len(addrs) - 1)):
+            self._addrs = tuple(addrs)
+            self._ins_sizes = bytes(len(addrs))
+            return
+        self._addrs = None
         self._ins_sizes = bytes([addrs[i + 1] - addrs[i] for i in range(len(addrs) - 1)] + [0])
 
     def index(self, value, start=0, stop=None):
+        if self._addrs is not None:
+            return self._addrs.index(value, start, len(self._addrs) if stop is None else stop)
         if stop is None:
             stop = len(self._ins_sizes)
         addr = self._base_addr + sum(self._ins_sizes[:start])
@@ -131,8 +161,12 @@ class InsAddrList:
         return sum(1 for a in self if a == value)
 
     def copy(self) -> InsAddrList:
+        if self._addrs is not None:
+            return InsAddrList.from_explicit_addr_list(self._addrs)
         return InsAddrList(self._base_addr, self._ins_sizes)
 
     def __reduce__(self):
+        if self._addrs is not None:
+            return (InsAddrList.from_explicit_addr_list, (list(self._addrs),))
         # Pickle as (base_addr, list_of_sizes) for readability and compatibility
         return (InsAddrList, (self._base_addr, list(self._ins_sizes)))

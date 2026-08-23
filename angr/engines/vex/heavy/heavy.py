@@ -201,6 +201,12 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
                     opt_level=opt_level,
                     strict_block_end=strict_block_end,
                 )
+                # the VM-deobfuscation statement loop needs the disassembly of the block it is
+                # about to walk
+                self.state.globals["cur_bbl"] = self.state.block(addr)
+
+                irsb = self._relift_around_nodecode(irsb, addr, insn_bytes, thumb, size, num_inst,
+                                                    extra_stop_points, opt_level, strict_block_end)
 
             if (
                 irsb.jumpkind == "Ijk_NoDecode"
@@ -403,6 +409,64 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
             result = concrete_value
 
         return super()._instrument_vex_expr(result)
+
+    def _relift_around_nodecode(
+        self, irsb, addr, insn_bytes, thumb, size, num_inst, extra_stop_points, opt_level, strict_block_end
+    ):
+        """
+        Themida/VMProtect emit instruction encodings libVEX refuses to decode. When a block ends in
+        Ijk_NoDecode we temporarily patch the offending bytes with an equivalent encoding, re-lift,
+        and put the original bytes back. Two patterns are handled: a stray byte in front of a
+        ``pushfq``, and the ``66 0f b7`` (movzx) form.
+        """
+        if irsb.jumpkind != "Ijk_NoDecode":
+            return irsb
+
+        def _relift():
+            new_irsb = self.lift_vex(
+                addr=addr,
+                state=self.state,
+                insn_bytes=insn_bytes,
+                thumb=thumb,
+                size=size,
+                num_inst=num_inst,
+                extra_stop_points=extra_stop_points,
+                opt_level=opt_level,
+                strict_block_end=strict_block_end,
+            )
+            self.state.globals["cur_bbl"] = self.state.block(addr)
+            return new_irsb
+
+        try:
+            if self.state.block(addr + irsb.size).size == 0 and self.state.block(addr + irsb.size + 1).size != 0:
+                if self.state.block(addr + irsb.size + 1).disassembly.insns[0].mnemonic == "pushfq":
+                    saved_byte = self.state.memory.load(addr + irsb.size, 1)
+                    old_size = irsb.size
+                    self.state.memory.store(addr + irsb.size, b"\x90")
+                    irsb = _relift()
+                    self.state.memory.store(addr + old_size, saved_byte)
+        except (errors.SimError, IndexError):
+            pass
+
+        if irsb.jumpkind != "Ijk_NoDecode":
+            return irsb
+
+        try:
+            if self.state.block(addr + irsb.size, 5).disassembly.insns[0].mnemonic == "movzx":
+                saved_bytes = self.state.memory.load(addr + irsb.size, 5)
+                old_size = irsb.size
+                first_three_bytes = self.state.memory.load(addr + irsb.size, 3).concrete_value
+                last_two_bytes = self.state.memory.load(addr + irsb.size + 3, 2).concrete_value.to_bytes(
+                    2, byteorder="big"
+                )
+                if first_three_bytes == 0x660FB7:
+                    self.state.memory.store(addr + irsb.size, b"\x66\x8b" + last_two_bytes + b"\x90")
+                irsb = _relift()
+                self.state.memory.store(addr + old_size, saved_bytes)
+        except (errors.SimError, IndexError):
+            pass
+
+        return irsb
 
     def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
         result = super()._perform_vex_expr_Load(addr, ty, endness, **kwargs)
