@@ -539,6 +539,18 @@ class CFGENode(CFGNode):
         self.return_target = None
 
     @property
+    def block(self) -> Block | SootBlock | None:
+        # the VM-deobfuscation passes rewrite each node's IRSB in place; re-lifting the bytes at
+        # self.addr (what CFGNode.block does) would throw the rewrite away
+        if self.irsb is not None and not (self.is_simprocedure or self.is_syscall):
+            project = self._cfg_model.project if self._cfg_model is not None else None
+            if project is not None:
+                from angr.block import Block as _Block  # local import: angr.block imports this module
+
+                return _Block(self.irsb.addr, project=project, vex=self.irsb)
+        return CFGNode.block.fget(self)
+
+    @property
     def callstack_key(self):
         return self._callstack_key
 
