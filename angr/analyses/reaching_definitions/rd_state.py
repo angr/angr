@@ -135,6 +135,9 @@ class ReachingDefinitionsState:
                 canonical_size=canonical_size,
                 element_limit=element_limit,
                 merge_into_tops=merge_into_tops,
+                merge_stripped_annotations=getattr(
+                    analysis.project if analysis is not None else None, "vm_deobfuscation", False
+                ),
             )
             if self.analysis is not None:
                 self.live_definitions.project = self.analysis.project
