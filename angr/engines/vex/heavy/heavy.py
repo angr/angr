@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import claripy
+from claripy.errors import ClaripyZ3Error
 import pyvex
 
 from angr import errors
@@ -32,6 +33,15 @@ class SimStateStorageMixin(VEXMixin):
         return self.state.scratch.tmp_expr(tmp)
 
     def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, condition=None, **kwargs):
+        if not self.state.solver.symbolic(addr):
+            conc_addr = addr if isinstance(addr, int) else addr.concrete_value
+            # some protectors read back the bytes of an imported function to check for tampering;
+            # a hooked address has no bytes, so give it one plausible byte instead of a symbol
+            if not self.state.project.loader.main_object.contains_addr(conc_addr) and self.project.is_hooked(
+                conc_addr
+            ):
+                if self.state.solver.symbolic(self.state.memory.load(conc_addr, 1)):
+                    self.state.memory.store(conc_addr, b"\x48")
         return self.state.memory.load(
             addr, self._ty_to_bytes(ty), endness=endness, action=action, inspect=inspect, condition=condition
         )
@@ -40,6 +50,9 @@ class SimStateStorageMixin(VEXMixin):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
+        if self.state.solver.symbolic(addr):
+            addr = self._concretize_store_addr(addr, data)
+
         if (
             o.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options
             or o.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options
@@ -57,6 +70,56 @@ class SimStateStorageMixin(VEXMixin):
 
     def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
         self.state.scratch.store_tmp(tmp, data, deps=deps)
+
+    def _concretize_store_addr(self, addr, data):
+        """
+        Resolve a symbolic store address. If it has a single solution under the partial-symbolic
+        constraints, store to that address. VMProtect's MBA-obfuscated jumps produce addresses with
+        exactly two solutions that depend on the last state-split condition; in that case write a
+        conditional value to both so that whichever branch is taken sees the right memory.
+        """
+        solver = getattr(self.state, "partial_symbolic_constraint_solver", None)
+        if solver is None:
+            return addr
+
+        try:
+            return claripy.BVV(solver.eval_one(addr), addr.size())
+        except Exception:  # pylint:disable=broad-except
+            pass
+
+        try:
+            addrs = solver.eval_upto(addr, 3)
+        except Exception:  # pylint:disable=broad-except
+            return addr
+        if len(addrs) != 2:
+            return addr
+
+        state_split_cond = self.state.globals.get("last_added_state_split_cond", None)
+        if state_split_cond is None:
+            return addr
+        if not any(var.startswith(state_split_cond.args[0]) for var in addr.variables):
+            return addr
+
+        try:
+            solns = solver._solver.batch_eval([state_split_cond, addr], 2)
+        except (errors.SimValueError, ClaripyZ3Error):
+            return addr
+
+        # solns[i] == (cond_value, addr_value); the address paired with cond==True takes the new
+        # data when the condition holds, the other one when it does not
+        (cond0, addr0), (cond1, addr1) = solns[0], solns[1]
+        true_addr, false_addr = (addr0, addr1) if cond0 is True else (addr1, addr0)
+        size_bytes = data.size() // 8
+        endness = self.state.arch.memory_endness
+        for target, take_new_when_true in ((true_addr, True), (false_addr, False)):
+            existing = self.state.memory.load(target, size_bytes, endness=endness)
+            to_store = (
+                claripy.If(state_split_cond, data, existing)
+                if take_new_when_true
+                else claripy.If(state_split_cond, existing, data)
+            )
+            self.state.memory.store(target, to_store, endness=endness)
+        return addr
 
 
 # pylint:disable=arguments-differ

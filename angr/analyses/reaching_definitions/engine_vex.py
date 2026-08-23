@@ -49,20 +49,36 @@ class SimEngineRDVEX(
     Implements the VEX execution engine for reaching definition analysis.
     """
 
+    # The VM-deobfuscation CFGs inline callee bodies into the caller, so a call to a non-hooked
+    # address has already been walked through; running the function handler on it too would double
+    # count its effects. pushan sets this unconditionally.
+    _skip_inlined_functions = True
+
     def __init__(self, project, function_handler: FunctionHandler, functions: FunctionManager):
         super().__init__(project)
         self.functions = functions
         self._function_handler = function_handler
         self._visited_blocks = None
         self._dep_graph = None
+        self._block_id = None
 
         self.state: ReachingDefinitionsState
 
     def process(
-        self, state, *, block=None, fail_fast=False, visited_blocks=None, dep_graph=None, whitelist=None, **kwargs
+        self,
+        state,
+        *,
+        block=None,
+        fail_fast=False,
+        visited_blocks=None,
+        dep_graph=None,
+        whitelist=None,
+        block_id=None,
+        **kwargs,
     ):
         self._visited_blocks = visited_blocks
         self._dep_graph = dep_graph
+        self._block_id = block_id
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
@@ -82,13 +98,21 @@ class SimEngineRDVEX(
         self._set_codeloc()
 
         function_handled = False
+        # the VM-deobfuscation CFGs inline callee bodies, so only hooked targets are still opaque
+        # calls that need the function handler
         if self.block.vex.jumpkind == "Ijk_Call" and self.block.vex.next is not None:
             # it has to be a function
             block_next = self.block.vex.next
             assert isinstance(block_next, pyvex.expr.IRExpr)
             addr = self._expr_bv(block_next)
-            self._handle_function(addr)
-            function_handled = True
+            if not self._skip_inlined_functions:
+                self._handle_function(addr)
+                function_handled = True
+            else:
+                addr_v = addr.one_value()
+                if addr_v is not None and addr_v.concrete and self.project.is_hooked(addr_v.concrete_value):
+                    self._handle_function(addr)
+                    function_handled = True
         elif self.block.vex.jumpkind == "Ijk_Boring" and self.block.vex.next is not None:
             # test if the target addr is a function or not
             block_next = self.block.vex.next
@@ -97,7 +121,9 @@ class SimEngineRDVEX(
             addr_v = addr.one_value()
             if addr_v is not None and addr_v.concrete:
                 addr_int = addr_v.concrete_value
-                if addr_int in self.functions:
+                if addr_int in self.functions and (
+                    not self._skip_inlined_functions or self.project.is_hooked(addr_int)
+                ):
                     # yes it's a jump to a function
                     self._handle_function(addr)
                     function_handled = True
@@ -139,7 +165,11 @@ class SimEngineRDVEX(
     def _set_codeloc(self):
         # TODO do we want a better mechanism to specify context updates?
         new_codeloc = CodeLocation(
-            self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self.state.codeloc.context
+            self.block.addr,
+            self.stmt_idx,
+            ins_addr=self.ins_addr,
+            context=self.state.codeloc.context,
+            block_id=self._block_id,
         )
         self.state.move_codelocs(new_codeloc)
         self.state.analysis.model.at_new_stmt(new_codeloc)
@@ -226,6 +256,20 @@ class SimEngineRDVEX(
             addrs = next(iter(addr.values()))
             self._store_core(addrs, size, data, endness=stmt.endness)
 
+    def _handle_stmt_CAS(self, stmt):
+        # Themida lowers xchg to a CAS. We do not model the comparison, only the swap: the value
+        # read out lands in oldLo and dataLo is written back.
+        addr = self._expr_bv(stmt.addr)
+        data = self._expr(stmt.dataLo)
+        _ = self._expr(stmt.expdLo)
+
+        if addr.count() == 1:
+            addrs = next(iter(addr.values()))
+            self._load_core(addrs, self.tyenv.sizeof(stmt.oldLo) // 8, endness=stmt.endness)
+            self._store_core(addrs, stmt.dataLo.result_size(self.tyenv) // 8, data, endness=stmt.endness)
+
+        self.tmps[stmt.oldLo] = data
+
     def _handle_stmt_StoreG(self, stmt):
         guard = self._expr_bv(stmt.guard)
         guard_v = guard.one_value()
@@ -263,6 +307,11 @@ class SimEngineRDVEX(
             data = data.merge(data_old)
 
         for a in addr:
+            # non-stack, non-heap memory: remember where this address expression was defined
+            if not isinstance(a, int):
+                for leaf in a.leaf_asts():
+                    if leaf.symbolic:
+                        self.state.store_defs_dict[leaf] = self.state.codeloc
             if self.state.is_top(a):
                 l.debug("Memory address undefined, ins_addr = %#x.", self.ins_addr)
             else:
@@ -459,6 +508,12 @@ class SimEngineRDVEX(
         loaded_stack_offsets = set()
 
         for addr in addrs:
+            # non-stack, non-heap memory: record this load as a use of the store that defined the address
+            if not isinstance(addr, int):
+                for leaf in addr.leaf_asts():
+                    if leaf.symbolic and leaf in self.state.store_defs_dict:
+                        store_loc = self.state.store_defs_dict[leaf]
+                        self.state.uses_of_store_def_dict.setdefault(store_loc, []).append(self.state.codeloc)
             if self.state.is_top(addr):
                 l.debug("Memory address undefined, ins_addr = %#x.", self.ins_addr)
             elif self.state.is_stack_address(addr):

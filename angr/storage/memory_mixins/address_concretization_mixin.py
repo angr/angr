@@ -289,7 +289,19 @@ class AddressConcretizationMixin(MemoryMixin):
             )
 
         if options.AVOID_MULTIVALUED_READS in self.state.options:
-            return self._default_value(addr, size, name="symbolic_read_unconstrained", **kwargs)
+            # With a replacement solver the address is often only nominally symbolic (e.g. a
+            # preconstrained stack pointer). Resolve it through the partial-symbolic solver rather
+            # than giving up and returning a fresh unconstrained value, which would lose every
+            # store made at the same address.
+            if options.REPLACEMENT_SOLVER not in self.state.options:
+                return self._default_value(addr, size, name="symbolic_read_unconstrained", **kwargs)
+            try:
+                addr = claripy.BVV(self.state.partial_symbolic_constraint_solver.eval_one(addr), addr.size())
+            except Exception:  # pylint:disable=broad-except
+                return self._default_value(addr, size, name="symbolic_read_unconstrained", **kwargs)
+            return self._load_one_addr(
+                self.state.solver.eval(addr), True, addr, condition, size, read_value=None, **kwargs
+            )
 
         if (
             not addr.variables.intersection(self.state.solver._solver.variables)
@@ -344,7 +356,14 @@ class AddressConcretizationMixin(MemoryMixin):
             return
 
         if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
-            # not completed
+            # see the matching comment in _load(): with a replacement solver, resolve the address
+            # instead of silently dropping the write
+            if options.REPLACEMENT_SOLVER not in self.state.options:
+                return  # not completed
+            addr = claripy.replace_dict(addr, self.state.solver._solver._replacement_cache)
+            if self.state.solver.symbolic(addr):
+                return  # not completed
+            self._store_one_addr(self.state.solver.eval(addr), data, True, addr, condition, size, **kwargs)
             return
 
         try:

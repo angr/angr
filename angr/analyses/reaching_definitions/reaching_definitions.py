@@ -133,6 +133,12 @@ class ReachingDefinitionsAnalysis(
         self._observation_points = observation_points
         self._init_state = init_state
         self._canonical_size = canonical_size
+        # statement-dependency-graph bookkeeping
+        self.all_uses_by_code_loc = {}
+        # where the last store definition of a symbolic variable lives
+        self.store_defs_dict = {}
+        # all uses of a given store definition, keyed by that definition's location
+        self.uses_of_store_def_dict = {}
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._func_addr = func_addr
         self._element_limit = element_limit
@@ -500,7 +506,13 @@ class ReachingDefinitionsAnalysis(
             block = node
             block_key = (node.addr, node.idx)
             engine = self._engine_ail
-        elif isinstance(node, (Block, CodeNode)) and not isinstance(node, (FuncNode, HookNode)):
+        elif isinstance(node, Block):
+            # the VM-deobfuscation analyses hand in Blocks wrapping rewritten IRSBs; re-lifting the
+            # bytes at node.addr would discard the rewrite
+            block = node
+            engine = self._engine_vex
+            block_key = node.addr
+        elif isinstance(node, CodeNode) and not isinstance(node, (FuncNode, HookNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             engine = self._engine_vex
             block_key = node.addr
@@ -524,6 +536,9 @@ class ReachingDefinitionsAnalysis(
             self.node_observe(node.addr, state.copy(), OP_BEFORE, node.block_id)
         else:
             self.node_observe(node.addr, state.copy(), OP_BEFORE)
+
+        block_id = getattr(node, "block_id", None)
+        irsb = getattr(node, "irsb", None)
 
         if self.subject.type == SubjectType.Function:
             node_parents = [
@@ -555,9 +570,13 @@ class ReachingDefinitionsAnalysis(
             fail_fast=self._fail_fast,
             visited_blocks=self._visited_blocks,
             dep_graph=self._dep_graph,
+            block_id=block_id,
+            irsb=irsb,
             model=self.model,
         )
 
+        if block_id is not None:
+            block_key = (node.addr, block_id)
         self._node_iterations[block_key] += 1
 
         if isinstance(node, CFGNode):
@@ -570,6 +589,10 @@ class ReachingDefinitionsAnalysis(
         self.all_definitions |= state.all_definitions
         for use in [state.stack_uses, state.heap_uses, state.register_uses, state.memory_uses]:
             self.all_uses.merge(use)
+
+        self.all_uses_by_code_loc.update(state.uses_by_codeloc)
+        self.store_defs_dict.update(state.store_defs_dict)
+        self.uses_of_store_def_dict.update(state.uses_of_store_def_dict)
 
         if self._track_tmps:
             # merge tmp uses to all_uses

@@ -71,6 +71,8 @@ class ReachingDefinitionsState:
         "exit_observed",
         "heap_allocator",
         "live_definitions",
+        "store_defs_dict",
+        "uses_of_store_def_dict",
     )
 
     def __init__(
@@ -109,6 +111,10 @@ class ReachingDefinitionsState:
         self._environment: Environment = environment or Environment()
 
         self.codeloc_uses: set[Definition[Any, Any]] = set()
+
+        # last store definition of each non-stack, non-heap memory location, and its uses
+        self.store_defs_dict = {}
+        self.uses_of_store_def_dict = {}
 
         # have we observed an exit statement or not during the analysis of the *last instruction* of a block? we should
         # not perform any sp updates if it is the case. this is for handling conditional returns in ARM binaries.
@@ -299,37 +305,21 @@ class ReachingDefinitionsState:
                 self, subject.cc, subject.content.current_function_address(), rtoc_value
             )
         elif subject.type == SubjectType.Block:
-
-            # # Ashwin added this to make block wise RDA track stack variables
-            # sp = Register(self.arch.sp_offset, self.arch.bytes)
-            # sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits),
-            #                     tags={InitialValueTag()})
-            # self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
-            # bp = Register(self.arch.bp_offset, self.arch.bytes)
-            # bp_def = Definition(bp, ExternalCodeLocation(),
-            #                     DataSet(SpOffset(self.arch.bits, 0, is_base=True), self.arch.bits),
-            #                     tags={InitialValueTag()})
-            # self.register_definitions.set_object(bp_def.offset, bp_def, bp_def.size)
-            # pass
-            #
-            # Ashwin added this to make block wise RDA track stack variables
+            # block-wise RDA still has to track stack variables, so seed sp (and a TOP bp, since the
+            # distance from sp is unknown at a block boundary)
+            ex_loc = ExternalCodeLocation()
             sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
-            sp_def = Definition(sp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            sp_def = Definition(sp_atom, ex_loc, tags={InitialValueTag()})
             sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
-            self.register_definitions.store(self.arch.sp_offset, sp)
+            self.registers.store(self.arch.sp_offset, sp)
 
             bp_atom = Register(self.arch.bp_offset, self.arch.bytes)
-            bp_def = Definition(bp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
-            # haev to set it to top since we don't know how afr bp is from sp
+            bp_def = Definition(bp_atom, ex_loc, tags={InitialValueTag()})
             bp = self.annotate_with_def(self.top(self.arch.bits), bp_def)
-            self.register_definitions.store(self.arch.bp_offset, bp)
-            # pass
+            self.registers.store(self.arch.bp_offset, bp)
         elif subject.type == SubjectType.Tuple:
-            self._initialize_function(
-                None,
-                subject.content[1].irsb.addr,
-                rtoc_value,
-            )
+            # (graph, start_node) slice of a data-sensitive CFG
+            initializer.initialize_function_state(self, None, subject.content[1].irsb.addr, rtoc_value)
 
         return self
 
