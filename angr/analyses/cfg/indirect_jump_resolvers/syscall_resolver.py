@@ -10,6 +10,7 @@ from angr.errors import (
     SimError,
     SimOperationError,
 )
+from angr.simos import SimOS
 from angr.state_plugins.inspect import BP, BP_AFTER
 
 from .constant_value_manager import ConstantValueManager
@@ -32,12 +33,6 @@ class SyscallResolver(IndirectJumpResolver):
 
     def __init__(self, project):
         super().__init__(project, timeless=True)
-        # Resolving a syscall means asking the OS model to turn a syscall number into a SimProcedure. The base SimOS
-        # cannot do that: SimOS.syscall() unconditionally returns None. So on a project with no OS model -- a firmware
-        # blob or any other bare-metal image -- every resolution attempt is guaranteed to come back empty, and the
-        # symbolic execution below is spent only to reach that conclusion. Decide it once, here.
-        from angr.simos import SimOS  # pylint:disable=import-outside-toplevel
-
         simos = project.simos
         self._os_resolves_syscalls = simos is not None and type(simos).syscall is not SimOS.syscall
 

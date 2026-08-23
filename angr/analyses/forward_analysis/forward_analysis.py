@@ -537,10 +537,6 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
         if not to_remove:
             return
 
-        # Rebuild the queue in a single pass. Deleting the matches one at a time costs a scan of the whole queue per
-        # match, and each step of that scan runs JobInfo.__eq__, which compares every field of the underlying job. On
-        # an analysis that removes jobs often -- CFGFast on ARM discards a block's jobs whenever a decoding assumption
-        # is invalidated -- that makes one call quadratic in the length of the queue.
         self._job_info_queue = kept
 
         for job_info in to_remove:
