@@ -179,6 +179,77 @@ class Eq:
         return hash((type(self), self.val0, self.val1))
 
 
+class Not:
+    """
+    ``~expr + offset``. VMProtect writes ``sub rsp, N`` as ``not(not(rsp) + N)``, so the tracker has
+    to be able to carry a negated register through an expression and fold the pair back.
+    """
+
+    __slots__ = ("expr", "offset")
+
+    def __init__(self, expr, offset):
+        self.expr = expr
+        self.offset = offset
+
+    def __add__(self, other):
+        if type(other) is Constant:
+            return Not(self.expr, (self.offset + other.val) & (2**self.expr.reg.bitlen - 1))
+        raise CouldNotResolveException
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if type(other) is Constant:
+            return Not(self.expr, (self.offset - other.val) & (2**self.expr.reg.bitlen - 1))
+        raise CouldNotResolveException
+
+    def __rsub__(self, other):
+        raise CouldNotResolveException
+
+    def __hash__(self):
+        return hash((Not, self.expr, self.offset))
+
+    def __eq__(self, other):
+        return isinstance(other, Not) and self.expr == other.expr and self.offset == other.offset
+
+    def __repr__(self):
+        return f"NOT({self.expr})+{self.offset}"
+
+
+class Xor:
+    """
+    An unresolved ``a ^ b``, kept only so that ``a ^ b ^ a`` folds back to ``b``.
+    """
+
+    __slots__ = ("arg0", "arg1")
+
+    def __init__(self, arg0, arg1):
+        self.arg0 = arg0
+        self.arg1 = arg1
+
+    def __add__(self, other):
+        raise CouldNotResolveException
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        raise CouldNotResolveException
+
+    def __rsub__(self, other):
+        raise CouldNotResolveException
+
+    def __hash__(self):
+        return hash((Xor, self.arg0, self.arg1))
+
+    def __eq__(self, other):
+        return isinstance(other, Xor) and self.arg0 == other.arg0 and self.arg1 == other.arg1
+
+    def __repr__(self):
+        return f"XOR({self.arg0},{self.arg1})"
+
+
 class FrozenStackPointerTrackerState:
     """
     Abstract state for StackPointerTracker analysis with registers and memory values being in frozensets.
@@ -587,8 +658,15 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             self.mem_deltas.setdefault(block_addr, {})[insn_offset] = mem_delta
 
     def _run_on_node(self, node: BlockNode, state):
-        block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self.cross_insn_opt)
-        self._blocks[node.addr] = block
+        # The VM-deobfuscation function graph is made of nodes that carry their own rewritten IRSB;
+        # there are no bytes to lift at their addresses.
+        node_irsb = getattr(node, "irsb", None)
+        if node_irsb is not None:
+            block = node
+            self._blocks[node.addr] = node
+        else:
+            block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self.cross_insn_opt)
+            self._blocks[node.addr] = block
         if not self._sorted_block_addrs or self._sorted_block_addrs[-1] != node.addr:
             idx = bisect.bisect_left(self._sorted_block_addrs, node.addr)
             if idx >= len(self._sorted_block_addrs) or self._sorted_block_addrs[idx] != node.addr:
@@ -601,8 +679,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         curr_stmt_start_addr = None
 
         vex_block = None
-        with contextlib.suppress(SimTranslationError):
-            vex_block = block.vex
+        if node_irsb is not None:
+            vex_block = node_irsb
+        else:
+            with contextlib.suppress(SimTranslationError):
+                vex_block = block.vex
 
         if node.addr in self._reg_value_at_block_start:
             for reg, val in self._reg_value_at_block_start[node.addr].items():
@@ -686,12 +767,33 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     # also handle bitwise-and between constants
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(arg0_expr.val & arg1_expr.val)
+                    if isinstance(arg0_expr, Not) and arg0_expr == arg1_expr:
+                        # x & x
+                        return arg0_expr
+                elif expr.op.startswith("Iop_Or"):
+                    arg0_expr = _resolve_expr(arg0)
+                    arg1_expr = _resolve_expr(arg1)
+                    if arg0_expr == arg1_expr:
+                        # x | x
+                        return arg1_expr
                 elif expr.op.startswith("Iop_Xor"):
-                    # handle bitwise-xor between constants
+                    # handle bitwise-xor between constants, and fold a ^ b ^ a back to b
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)
                     if isinstance(arg0_expr, Constant) and isinstance(arg1_expr, Constant):
                         return Constant(arg0_expr.val ^ arg1_expr.val)
+                    if isinstance(arg0_expr, Xor) and not isinstance(arg1_expr, Xor):
+                        if arg0_expr.arg0 == arg1_expr:
+                            return arg0_expr.arg1
+                        if arg0_expr.arg1 == arg1_expr:
+                            return arg0_expr.arg0
+                    elif isinstance(arg1_expr, Xor) and not isinstance(arg0_expr, Xor):
+                        if arg1_expr.arg0 == arg0_expr:
+                            return arg1_expr.arg1
+                        if arg1_expr.arg1 == arg0_expr:
+                            return arg1_expr.arg0
+                    elif arg0_expr is not None and arg1_expr is not None:
+                        return Xor(arg0_expr, arg1_expr)
                 elif expr.op.startswith("Iop_CmpEQ"):
                     arg0_expr = _resolve_expr(arg0)
                     arg1_expr = _resolve_expr(arg1)

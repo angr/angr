@@ -369,7 +369,10 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._fold_expressions = fold_expressions
         self._insert_labels = insert_labels
-        self._remove_dead_memdefs = remove_dead_memdefs
+        # A devirtualized VM body is full of dead stack traffic -- the pushes the deobfuscator
+        # could not drop at the VEX level. pushan's own pipeline removed them by simplifying
+        # the function over and over; here it is one flag.
+        self._remove_dead_memdefs = True if vm_deobfuscation else remove_dead_memdefs
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
