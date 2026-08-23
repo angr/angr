@@ -65,7 +65,10 @@ class CallSiteMaker:
         stack_pointer_tracker=None,
         x87_call_ftop: dict[int, int] | None = None,
         flavor: str = Flavors.DEFAULT_FLAVOR,
+        calls_as_rets=None,
     ):
+        # call sites the VM deobfuscator rewrote from returns; their stack args sit one slot higher
+        self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
         self.project = project
         self.kb = project.kb
         self.block = block
@@ -567,6 +570,8 @@ class CallSiteMaker:
 
         size = arg_loc.size
         offset = arg_loc.stack_offset
+        if call_stmt.tags.get("ins_addr", None) in self.calls_as_rets:
+            offset += 8
         # The return address is not on the stack yet at an ordinary call site. A syscall is
         # different: it reaches its handler through a trap, which pushes nothing onto the
         # stack the arguments sit on, so the slot a call would have filled is already
