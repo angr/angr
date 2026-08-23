@@ -162,7 +162,7 @@ class PrettyAilObj(PrettyBlockCodeObj):
             ailment.statement.Jump: PrettyAilJumpObj,
             ailment.statement.ConditionalJump: PrettyAilConditionalJumpObj,
             ailment.statement.Return: PrettyAilReturnObj,
-            ailment.statement.Call: PrettyAilCallObj,
+            ailment.expression.Call: PrettyAilCallObj,
             ailment.expression.Const: PrettyAilConstObj,
             ailment.expression.Tmp: PrettyAilTmpObj,
             ailment.expression.Register: PrettyAilRegisterObj,
