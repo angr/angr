@@ -3210,10 +3210,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # default statement
         default_branch_ins_addr = None
         if irsb.instruction_addresses:
-            if self.project.arch.branch_delay_slot:
-                if len(irsb.instruction_addresses) > 1:
-                    default_branch_ins_addr = irsb.instruction_addresses[-2]
+            if self.project.arch.branch_delay_slot and len(irsb.instruction_addresses) > 1:
+                # the last instruction is the delay slot of the branch that ends this block
+                default_branch_ins_addr = irsb.instruction_addresses[-2]
             else:
+                # either this architecture has no delay slots, or the block holds a single instruction and therefore
+                # contains no delay slot (e.g. the block was truncated at a known block boundary, or decoding the
+                # delay slot failed). Either way the last instruction is the source of the default exit.
                 default_branch_ins_addr = irsb.instruction_addresses[-1]
 
         successors.append((DEFAULT_STATEMENT, default_branch_ins_addr, irsb_next, jumpkind))

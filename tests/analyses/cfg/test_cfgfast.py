@@ -1063,6 +1063,28 @@ class TestCfgfast(unittest.TestCase):
         ):
             assert addr in cfg.kb.functions, f"{name} at {addr:#x} was dropped"
 
+    def test_single_instruction_indirect_jump_on_delay_slot_arch(self):
+        # On a delay-slot architecture the branch that ends a block sits one instruction before the end, so CFGFast
+        # took the block's last instruction to be the delay slot and had no instruction address to attribute the
+        # default exit to when the block held a single instruction. A p-code SPARC word that does not decode lifts
+        # to IllegalInstructionTrap followed by an indirect goto, which is exactly such a block, and the missing
+        # instruction address aborted the entire analysis.
+        proj = angr.load_shellcode(
+            b"\x00" * 4,
+            arch=archinfo.ArchPcode("sparc:BE:32:default"),
+            load_address=0x400000,
+            start_offset=0x400000,
+        )
+        cfg = proj.analyses.CFGFast()
+
+        node = cfg.model.get_any_node(0x400000)
+        assert node is not None
+        assert list(node.instruction_addrs) == [0x400000]
+        # a one-instruction block on a delay-slot architecture cannot hold a real branch and its delay slot, so the
+        # indirect jump is a decoding artifact: it gets no successors and is not queued for resolution
+        assert not list(cfg.graph.successors(node))
+        assert 0x400000 not in cfg.indirect_jumps
+
 
 if __name__ == "__main__":
     unittest.main()
