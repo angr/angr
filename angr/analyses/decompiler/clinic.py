@@ -475,11 +475,20 @@ class Clinic(Analysis, Serializable):
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
         recognize_known_patterns: bool = True,
+        calls_as_rets=None,
+        allow_global_dead_ass_elim: bool = False,
+        ail_propagator_init_values=None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
 
         self.function = func
+
+        # VM-deobfuscation options. calls_as_rets records the call sites the deobfuscator rewrote
+        # from returns, whose stack arguments sit one slot higher than the calling convention says.
+        self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
+        self.allow_global_dead_ass_elim = allow_global_dead_ass_elim
+        self.ail_propagator_init_values = ail_propagator_init_values
 
         self.graph = None
         self.flavor = flavor
@@ -1553,6 +1562,9 @@ class Clinic(Analysis, Serializable):
         """
         assert self._func_graph is not None
         for node in list(self._func_graph.nodes()):
+            if getattr(node, "irsb", None) is not None:
+                # synthetic block: nothing to lift at this address
+                continue
             if self._func_graph.in_degree(node) == 0 and CFGBase._is_noop_block(
                 self.project.arch, self.project.factory.block(node.addr, node.size)
             ):
@@ -2002,6 +2014,12 @@ class Clinic(Analysis, Serializable):
         :return:            A converted AIL block.
         :rtype:             ailment.Block
         """
+
+        # The VM-deobfuscation function graph holds CFGENodes at synthetic addresses, each carrying
+        # the IRSB the deobfuscator built for it. There are no bytes to lift at those addresses.
+        node_irsb = getattr(block_node, "irsb", None)
+        if node_irsb is not None:
+            return ailment.IRSBConverter.convert(node_irsb, self._ail_manager)
 
         if type(block_node) is not BlockNode:
             return block_node
@@ -3047,6 +3065,7 @@ class Clinic(Analysis, Serializable):
                 ail_manager=self._ail_manager,
                 x87_call_ftop=self._x87_call_ftop,
                 flavor=self.flavor,
+                calls_as_rets=self.calls_as_rets,
             )
             stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
