@@ -50,6 +50,7 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
         self,
         order_jobs=False,
         allow_merging=False,
+        allow_state_merging=None,
         allow_widening=False,
         status_callback: Callable[[ForwardAnalysis], Any] | None = None,
         graph_visitor: GraphVisitor[NodeType] | None = None,
@@ -67,6 +68,9 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
 
         self._order_jobs = order_jobs
         self._allow_merging = allow_merging
+        # Merging the input states of a node with several predecessors is a separate concern from
+        # merging *jobs*: the VM-deobfuscation analyses want the former without the latter.
+        self._allow_state_merging = self._allow_merging if allow_state_merging is None else allow_state_merging
         self._allow_widening = allow_widening
         self._status_callback = status_callback
         self._graph_visitor = graph_visitor
@@ -372,7 +376,7 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
             return None
         if len(all_input_states) == 1:
             return all_input_states[0]
-        if self._allow_merging:
+        if self._allow_state_merging:
             merged_state, _ = self._merge_states(node, *all_input_states)
             return merged_state
         return all_input_states[0]
@@ -455,6 +459,7 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
         :return:    None
         """
 
+        inserted_job = job
         key = self._job_key(job)
 
         if self._allow_merging:
@@ -468,6 +473,7 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
                 if self._allow_widening and self._should_widen_jobs(job_info.job, job):
                     try:
                         widened_job = self._widen_jobs(job_info.job, job)
+                        inserted_job = widened_job
                         # remove the old job since now we have a widened one
                         if job_info in self._job_info_queue:
                             self._job_info_queue.remove(job_info)
@@ -481,6 +487,7 @@ class ForwardAnalysis[AnalysisState, NodeType, JobType, JobKey, SuccessorType]:
                 if not job_added:
                     try:
                         merged_job = self._merge_jobs(job_info.job, job)
+                        inserted_job = merged_job
                         # remove the old job since now we have a merged one
                         if job_info in self._job_info_queue:
                             self._job_info_queue.remove(job_info)

@@ -285,7 +285,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 differences.add(c)
             else:
                 if self.content[c] is None:
-                    v = claripy.BVV(0, 8) if self.sinkhole is None else (self.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if self.sinkhole is None else self.sinkhole.bytes_at(page_addr + c, 1)
                     self.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,
@@ -293,7 +293,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                         endness="Iend_BE",
                     )
                 if other.content[c] is None:
-                    v = claripy.BVV(0, 8) if other.sinkhole is None else (other.sinkhole.bytes_at(page_addr + c, 1),)
+                    v = claripy.BVV(0, 8) if other.sinkhole is None else other.sinkhole.bytes_at(page_addr + c, 1)
                     other.content[c] = SimMemoryObject(
                         v,
                         page_addr + c,
