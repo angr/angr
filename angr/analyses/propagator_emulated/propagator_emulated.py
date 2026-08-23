@@ -755,7 +755,8 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=1,
                  load_callback=None, stack_pointer_tracker=None, start=None, graph=None, iropt_level=None):
         graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
-        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_widening=False,
+        ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_state_merging=True,
+                                 allow_widening=False,
                                  graph_visitor=graph_visitor)
         self._graph=graph
         self._base_state = base_state

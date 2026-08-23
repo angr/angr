@@ -608,7 +608,7 @@ class SpOffset(RegisterOffset):
     def __add__(self, other):
         other = ArithmeticExpression.try_unpack_const(other)
         if not self.symbolic and type(other) is int:
-            return SpOffset(self._bits, self._to_signed(self.offset + other))
+            return SpOffset(self._bits, self._to_signed(self.offset + other), is_base=self.is_base)
         if self.symbolic:
             return SpOffset(self._bits, self.offset + other)
         return SpOffset(

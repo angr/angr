@@ -1749,9 +1749,13 @@ class Function(Serializable):
         for a fresh ID becomes the ID's canonical CodeNode object.
         """
         kind, addr, size, thumb = _node_key(node)
+        prev_startpoint = self._graph.startpoint
         idx, created, new_local, changed = self._graph.register_node(
             is_local, kind, addr, size, thumb, _node_delta(node)
         )
+        if prev_startpoint is not None and self._graph.startpoint != prev_startpoint:
+            # VM-deobfuscation: the entry block may be a hook; once chosen, keep it
+            self._graph.startpoint = prev_startpoint
         node.set_owner(self)
         if created:
             self._store_manual_bytes(idx, node)
