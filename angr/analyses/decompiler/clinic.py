@@ -1164,14 +1164,13 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # indexes its liveness model by those keys. Rebuild SSA, then repair whatever the final
         # simplification round leaves behind.
         assert self.func_args is not None
-        # Each round also un-references the stack addresses the VM's operand-stack pointer now
-        # carries, so the following stack-variable SSA pass sees one more level of the emulated
-        # stack as real slots. Stop once a round finds nothing new.
+        # Each round re-runs the stack-variable SSA over what the previous round's propagation
+        # exposed, so one more level of the emulated stack becomes real slots. Stop once a round
+        # finds nothing new.
         previous = None
         for round_idx in range(self.VM_DEOBF_SSA_ROUNDS):
             self._ail_graph = self._vm_drop_unreachable(self._ail_graph)
             self._ail_graph = self._vm_repair_phis(self._ail_graph)
-            self._ail_graph = self._vm_unreference_stack_addrs(self._ail_graph)
             self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
             self._ail_graph = self._vm_deobf_resimplify(self._ail_graph)
             fingerprint = self._vm_graph_fingerprint(self._ail_graph)
