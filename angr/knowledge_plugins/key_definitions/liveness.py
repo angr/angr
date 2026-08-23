@@ -15,11 +15,13 @@ if TYPE_CHECKING:
     from .definition import Definition
 
 
-LocationType = tuple[int, int | None, int | None]  # block addr, block ID, stmt ID
+# block addr, block index, data-sensitive block ID, stmt ID
+LocationType = tuple[int, int | None, object | None, int | None]
 LocationWithPosType = tuple[
     int, int | None, int | None, ObservationPointType
 ]  # block addr, block ID, stmt ID, before/after
-BlockAddrType = tuple[int, int | None]  # block addr, block ID
+# block addr, block index, data-sensitive block ID
+BlockAddrType = tuple[int, int | None, object | None]
 
 
 class Liveness:
@@ -58,14 +60,14 @@ class Liveness:
         """
         Only support moving from a statement to the next statement within one basic block.
         """
-        self.curr_loc = code_loc.block_addr, code_loc.block_idx, code_loc.stmt_idx
-        self.curr_block = code_loc.block_addr, code_loc.block_idx
+        self.curr_loc = code_loc.block_addr, code_loc.block_idx, code_loc.block_id, code_loc.stmt_idx
+        self.curr_block = code_loc.block_addr, code_loc.block_idx, code_loc.block_id
         self.curr_stmt_idx = code_loc.stmt_idx
         if (
             code_loc.stmt_idx is not None
-            and code_loc.stmt_idx > self._node_max_stmt_id[(code_loc.block_addr, code_loc.block_idx)]
+            and code_loc.stmt_idx > self._node_max_stmt_id[(code_loc.block_addr, code_loc.block_idx, code_loc.block_id)]
         ):
-            self._node_max_stmt_id[(code_loc.block_addr, code_loc.block_idx)] = code_loc.stmt_idx
+            self._node_max_stmt_id[(code_loc.block_addr, code_loc.block_idx, code_loc.block_id)] = code_loc.stmt_idx
 
     def at_new_block(self, code_loc: CodeLocation, pred_codelocs: list[CodeLocation]) -> None:
         """
@@ -73,10 +75,10 @@ class Liveness:
         """
         self.make_liveness_snapshot()
 
-        loc = code_loc.block_addr, code_loc.block_idx, code_loc.stmt_idx
-        key = code_loc.block_addr, code_loc.block_idx
+        loc = code_loc.block_addr, code_loc.block_idx, code_loc.block_id, code_loc.stmt_idx
+        key = code_loc.block_addr, code_loc.block_idx, code_loc.block_id
         for pred_codeloc in pred_codelocs:
-            all_pred_defs = self.blockend_to_defs[pred_codeloc.block_addr, pred_codeloc.block_idx]
+            all_pred_defs = self.blockend_to_defs[pred_codeloc.block_addr, pred_codeloc.block_idx, pred_codeloc.block_id]
 
             # remove tmp defs
             pred_defs = set()
@@ -90,12 +92,17 @@ class Liveness:
         self.curr_stmt_idx = 0
 
     def find_defs_at(self, code_loc: CodeLocation, op: int = OP_BEFORE) -> set[Definition]:
-        return self.find_defs_at_raw(code_loc.block_addr, code_loc.block_idx, code_loc.stmt_idx, op=op)
+        return self.find_defs_at_raw(code_loc.block_addr, code_loc.block_idx, code_loc.block_id, code_loc.stmt_idx, op=op)
 
     def find_defs_at_raw(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int | None, op: int = OP_BEFORE
+        self,
+        block_addr: int,
+        block_idx: int | None,
+        block_id=None,
+        stmt_idx: int | None = None,
+        op: int = OP_BEFORE,
     ) -> set[Definition]:
-        block: BlockAddrType = block_addr, block_idx
+        block: BlockAddrType = block_addr, block_idx, block_id
         defs = set() if block not in self.blockstart_to_defs else self.blockstart_to_defs[block].copy()
 
         if stmt_idx is None:
