@@ -137,7 +137,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             #       plugins that are getting toggled (=> mutual dependence).
             self.ip_is_soot_addr = False
         else:
-            self._arch = arch if arch is not None else project.arch.copy() if project is not None else None
+            self._arch = arch if arch is not None else project.arch if project is not None else None
             if type(self._arch) is str:
                 self._arch = archinfo.arch_from_id(self._arch)
 
