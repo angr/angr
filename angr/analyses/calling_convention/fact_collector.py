@@ -639,6 +639,10 @@ class FactCollector(Analysis):
                     queue.append((depth, new_state, retnode, None, False))
                 continue
 
+            if not node.size or self.project.is_hooked(node.addr):
+                # nothing to lift: a hook, or a synthesized node with no body
+                continue
+
             block = self.project.factory.block(node.addr, size=node.size)
             engine.process(state, block=block)
             if block.vex.jumpkind == "Ijk_Ret" and self.project.arch.ret_offset is not None:

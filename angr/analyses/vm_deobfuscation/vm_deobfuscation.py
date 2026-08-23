@@ -648,6 +648,9 @@ class VMDeobfuscation(Analysis):
                  remove_vmp_semantically_same_branch=False, use_ctf_vpc_finder=False,
                  enable_pre_decompilation_vex_simplifications=False):
 
+        # (vm_vpc, addr, stmt_idx) -> synthetic address; see convert_addr_to_int
+        self._synthetic_addrs = {}
+
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
         self.vsp_reg = vsp_reg
@@ -2130,6 +2133,14 @@ class VMDeobfuscation(Analysis):
 
         self.project.new_block_id_embed_dict = new_block_id_embed_dict
 
+        # The nodes of the virtualized function live at synthetic addresses with no bytes behind
+        # them. Register their IRSBs so that every analysis that lifts a block by address (calling
+        # convention recovery, the stack-pointer tracker, ...) sees the deobfuscated code.
+        for node in VM_1_func.transition_graph.nodes():
+            node_irsb = getattr(node, "irsb", None)
+            if node_irsb is not None:
+                self.project.synthetic_irsbs[node.addr] = node_irsb
+
         dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim,
                                                ail_propagator_init_values=ail_propagator_init_values)
 
@@ -2382,11 +2393,25 @@ class VMDeobfuscation(Analysis):
         new_block_id_embed_dict[old_node.block_id] = new_cur_node
         return new_cur_node, calls_as_rets
 
+    #: Synthetic block addresses are allocated from here upwards. Chosen to sit far above any real
+    #: mapping while still fitting in 64 bits, which AIL requires.
+    SYNTHETIC_ADDR_BASE = 0x7000_0000_0000_0000
+    SYNTHETIC_ADDR_STRIDE = 0x100
+
     def convert_addr_to_int(self, addr, block_id, stmt_idx=0):
-        if block_id:
-            enc_addr = int.from_bytes(bytes(str(block_id.vm_vpc) + str(addr) + str(stmt_idx), 'utf-8'), "big")
-        else:
-            enc_addr = int.from_bytes(bytes(str(addr) + str(stmt_idx), 'utf-8'), "big")
+        """
+        Give (block context, address, statement) a unique synthetic address.
+
+        The original encoding packed the decimal digits of the VM program counter, the address and
+        the statement index into one integer, which routinely ran past 64 bits; AIL addresses are
+        u64. Allocate sequentially instead and keep the reverse map, which is the only thing any
+        caller reads back.
+        """
+        key = (block_id.vm_vpc if block_id else None, addr, stmt_idx)
+        enc_addr = self._synthetic_addrs.get(key)
+        if enc_addr is None:
+            enc_addr = self.SYNTHETIC_ADDR_BASE + len(self._synthetic_addrs) * self.SYNTHETIC_ADDR_STRIDE
+            self._synthetic_addrs[key] = enc_addr
         self.project.enc_stmt_addr_to_original[enc_addr] = (addr, stmt_idx, block_id)
         return enc_addr
 
