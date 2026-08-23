@@ -571,7 +571,28 @@ def has_load_expr_in_between_stmts(
     )
 
 
-def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement, stack_arg_offsets: set[int] | None) -> bool:
+def is_stack_address_expr(expr) -> bool:
+    """
+    Is `expr` the address of a stack slot, i.e. a Reference plus or minus a constant?
+    """
+    if isinstance(expr, UnaryOp) and expr.op == "Reference":
+        return True
+    if isinstance(expr, Convert):
+        return is_stack_address_expr(expr.operand)
+    if isinstance(expr, BinaryOp) and expr.op in ("Add", "Sub"):
+        op0, op1 = expr.operands
+        return (is_stack_address_expr(op0) and isinstance(op1, Const)) or (
+            expr.op == "Add" and isinstance(op0, Const) and is_stack_address_expr(op1)
+        )
+    return False
+
+
+def is_vvar_propagatable(
+    vvar: VirtualVariable,
+    def_stmt: Statement,
+    stack_arg_offsets: set[int] | None,
+    propagate_stack_addresses: bool = False,
+) -> bool:
     if isinstance(def_stmt, Assignment) and isinstance(def_stmt.src, Insert):
         # do not create huge insert chains
         return False
@@ -587,6 +608,11 @@ def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement, stack_arg_o
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         return True
     if vvar.was_stack and isinstance(def_stmt, Assignment):
+        if propagate_stack_addresses and is_stack_address_expr(def_stmt.src):
+            # a stack slot holding the address of another stack slot: a devirtualized VM keeps its
+            # operand-stack pointer there, and nothing downstream can see the slots it addresses
+            # until this is folded into its uses
+            return True
         if (
             stack_arg_offsets is not None
             and vvar.stack_offset in stack_arg_offsets

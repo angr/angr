@@ -134,6 +134,9 @@ class SPropagator:
         self._sp_tracker = stack_pointer_tracker
         self._ail_manager = ail_manager
         self.stack_arg_offsets = stack_arg_offsets
+        # a devirtualized VM body keeps its operand-stack pointer in a stack slot; nothing
+        # downstream can see the slots it addresses until that pointer is folded into its uses
+        self._propagate_stack_addresses = getattr(project, "vm_deobfuscation", False)
 
         bp_as_gpr = False
         the_func = None
@@ -347,7 +350,7 @@ class SPropagator:
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
 
-                if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets):
+                if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets, self._propagate_stack_addresses):
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
                         if (
@@ -495,7 +498,11 @@ class SPropagator:
             for tmp_atom, tmp_uses in tmp_and_uses.items():
                 # take a look at the definition and propagate the definition if supported
                 block = blocks[block_loc]
-                tmp_def_stmtidx = tmp_deflocs[block_loc][tmp_atom]
+                tmp_def_stmtidx = tmp_deflocs[block_loc].get(tmp_atom)
+                if tmp_def_stmtidx is None:
+                    # a tmp used without a definition in its block; nothing to propagate. The VM
+                    # deobfuscator can produce these when it splices statements between blocks.
+                    continue
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):

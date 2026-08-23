@@ -2346,11 +2346,14 @@ class VMDeobfuscation(Analysis):
 
                 false_addr_int = self.convert_addr_to_int(old_node.irsb.next.con.value, false_addr_block_id)
 
+                # a synthetic address is as wide as the architecture; typing it as U32 on a 64-bit
+                # target leaves a 32-bit Const holding a 64-bit value
+                addr_const = U64 if self.project.arch.bits == 64 else U32
                 new_exit_stmt = pyvex.stmt.Exit(pyvex.expr.RdTmp(orig_exit_stmt.guard.tmp),
-                                            U32(true_addr_int),
+                                            addr_const(true_addr_int),
                                             "Ijk_Boring",
                                             self.project.arch.registers['ip'][0])
-                new_next = pyvex.expr.Const(U32(false_addr_int))
+                new_next = pyvex.expr.Const(addr_const(false_addr_int))
                 new_statements = new_statements[:orig_exit_stmt_idx] + [new_exit_stmt] + new_statements[orig_exit_stmt_idx+1:]
 
         elif len(successors) == 0 and old_node.irsb.jumpkind == "Ijk_Call":
