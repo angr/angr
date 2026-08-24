@@ -224,7 +224,7 @@ class FunctionParser:
 
         obj = angr.knowledge_plugins.functions.Function(
             function_manager,
-            addr_from_pb(cmsg, "ea"),
+            addr_from_pb(cmsg, "ea"),  # type:ignore
             name=cmsg.name,
             is_plt=cmsg.is_plt,
             syscall=cmsg.is_syscall,

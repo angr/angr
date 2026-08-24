@@ -4,6 +4,9 @@ from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 
 from angr.protos.primitives_pb2 import SootAddress
 
+# An address as the angrDb messages carry it: a native address, or a Soot method or statement address.
+type Address = int | SootAddressDescriptor | SootMethodDescriptor
+
 
 def soot_addr_to_pb(addr: SootAddressDescriptor | SootMethodDescriptor, pb: SootAddress) -> None:
     """
@@ -40,7 +43,7 @@ def addr_to_pb(cmsg, field: str, addr) -> None:
         soot_addr_to_pb(addr, getattr(cmsg, "soot_" + field))
 
 
-def addr_from_pb(cmsg, field: str):
+def addr_from_pb(cmsg, field: str) -> Address:
     """
     Read back an address stored by :func:`addr_to_pb`.
     """
@@ -50,7 +53,7 @@ def addr_from_pb(cmsg, field: str):
     return getattr(cmsg, field)
 
 
-def optional_addr_from_pb(cmsg, field: str):
+def optional_addr_from_pb(cmsg, field: str) -> Address | None:
     """
     Read back an address stored by :func:`addr_to_pb` in an optional field, or None when it was never stored.
     """
