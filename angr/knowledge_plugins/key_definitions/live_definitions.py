@@ -318,6 +318,17 @@ class LiveDefinitions:
         return "stack_base" in addr.variables
 
     @staticmethod
+    def _as_signed_offset(offset: int, bits: int) -> int:
+        """
+        Stack offsets are signed, but the concrete addends inside an address AST are unsigned bitvector values, and
+        simplifiers are free to rewrite `stack_base - 0xc` into `stack_base + 0xfffffff4`. Adding that raw value
+        gives a huge positive offset instead of -0xc, so reinterpret the wrapped-around sum as signed.
+        """
+        mask = (1 << bits) - 1
+        offset &= mask
+        return offset - (1 << bits) if offset > mask >> 1 else offset
+
+    @staticmethod
     def get_stack_offset(addr: claripy.ast.Base, had_stack_base=False) -> int | None:
         if had_stack_base and addr.op == "BVV":
             assert isinstance(addr, claripy.ast.BV)
@@ -332,14 +343,14 @@ class LiveDefinitions:
                     off0 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[0]), had_stack_base=True)
                     off1 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[1]), had_stack_base=True)
                     if off0 is not None and off1 is not None:
-                        return off0 + off1
+                        return LiveDefinitions._as_signed_offset(off0 + off1, addr.size())
                 elif len(addr.args) == 1:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2:
                 off0 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[0]), had_stack_base=True)
                 off1 = LiveDefinitions.get_stack_offset(cast(claripy.ast.BV, addr.args[1]), had_stack_base=True)
                 if off0 is not None and off1 is not None:
-                    return off0 - off1
+                    return LiveDefinitions._as_signed_offset(off0 - off1, addr.size())
         return None
 
     @staticmethod
