@@ -1142,13 +1142,16 @@ class TestCfgfast(unittest.TestCase):
         assert block_size(4096, filler=b"\x90") is not None
 
     def test_function_ending_in_an_undefined_instruction_is_kept(self):
-        # rcsbuf_getrevnum.cold is a three-block function whose last block ends in the ud2 that gcc emits after a
-        # call to a noreturn function; drop_bad_functions() used to read that as the function running into data
-        proj = angr.Project(os.path.join(test_location, "x86_64", "cvs"), auto_load_libs=False)
+        # split-rust is stripped, so no symbol names these three functions, and the ud2 that ends each one is
+        # reached by a jump inside the function rather than as the fall-through of a call. Each is a real
+        # 200-300 byte function that drop_bad_functions() deletes outright, reading the ud2 that rustc emits
+        # for an unreachable path as the function running into data.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "split-rust"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
 
-        assert 0x404D30 in cfg.kb.functions
-        assert {0x404D30, 0x404D39, 0x404D51} <= cfg.kb.functions[0x404D30].block_addrs_set
+        for addr in (0x501610, 0x5019B0, 0x501B20):
+            assert addr in cfg.kb.functions, f"{addr:#x} was dropped"
+            assert cfg.model.get_any_node(addr) is not None, f"no block covers {addr:#x}"
 
 
 if __name__ == "__main__":
