@@ -60,10 +60,13 @@ jobs:
         run: |
           tar -xpf $PWD/env.tzst -C /
           rm env.tzst
+      - id: binaries-ref
+        uses: angr/ci-settings/actions/binaries-ref@master
       - name: Download test binaries
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           repository: angr/binaries
+          ref: ${{ steps.binaries-ref.outputs.ref }}
           path: binaries
       - name: Relocate binaries directory
         run: mv binaries ..
