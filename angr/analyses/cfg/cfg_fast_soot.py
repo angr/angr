@@ -59,8 +59,10 @@ class CFGFastSoot(CFGFast):
 
         self._function_returns = defaultdict(set)
 
-        entry: SootAddressDescriptor = self.project.entry
-        entry_func = entry.method
+        # A jar without a Main-Class manifest attribute (i.e. a library jar) has no entry method, in which case
+        # the loader leaves Project.entry as the default 0 instead of a SootAddressDescriptor.
+        entry = self.project.entry
+        entry_func = entry.method if isinstance(entry, SootAddressDescriptor) else None
 
         obj = self.project.loader.main_object
 
