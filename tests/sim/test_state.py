@@ -157,6 +157,23 @@ class TestState(unittest.TestCase):
         assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 9,))
         assert m.satisfiable(extra_constraints=(m.memory.load(0x400000, 4) == 10,))
 
+    def test_state_merge_with_merge_conditions(self):
+        x = claripy.BVS("x", 32)
+        a = SimState(arch="AMD64", mode="symbolic")
+        a.memory.store(0x400000, x)
+        b = a.copy()
+        a.add_constraints(x == 1)
+        b.add_constraints(x == 2)
+
+        m, conditions, merging_occurred = a.merge(b, merge_conditions=[s.solver.constraints for s in (a, b)])
+
+        assert merging_occurred
+        self.assertSequenceEqual(sorted(m.solver.eval_upto(m.memory.load(0x400000, 4), 5)), (1, 2))
+        for condition, expected in zip(conditions, (1, 2)):
+            branch = m.copy()
+            branch.add_constraints(condition)
+            assert branch.solver.eval(branch.memory.load(0x400000, 4)) == expected
+
     def test_state_merge_optimal_nostrongrefstate(self):
         # We do not specify the state option EFFICIENT_STATE_MERGING, and as a result, state histories do not store
         # strong # references to states. This will result in less efficient state merging since SimStateHistory will be
