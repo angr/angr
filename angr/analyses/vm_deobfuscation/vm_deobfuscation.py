@@ -594,6 +594,43 @@ def _project_bool_attr(project, name, default):
     return bool(value)
 
 
+def _cfg_shape(cfg):
+    """
+    Cheap fingerprint of a CFG: enough to tell whether a graph-editing pass did anything.
+    Catches node/edge changes, statement removals and next-expression rewrites.
+    """
+    graph = getattr(cfg, "graph", None)
+    if graph is None:
+        return None
+
+    parts = []
+    for node in graph.nodes():
+        irsb = getattr(node, "irsb", None)
+        if irsb is None:
+            parts.append((node.addr, -1, ""))
+        else:
+            parts.append((node.addr, len(irsb.statements), type(irsb.next).__name__))
+    parts.sort()
+    return graph.number_of_edges(), parts
+
+
+def detects_changes(func):
+    """
+    For graph-editing passes that have no single mutation site to hook: compare the CFG
+    shape across the call and record a change if it moved.
+    """
+    @wraps(func)
+    def wrapper(self, cfg, *args, **kwargs):
+        before = _cfg_shape(cfg)
+        result = func(self, cfg, *args, **kwargs)
+        after = _cfg_shape(result if getattr(result, "graph", None) is not None else cfg)
+        if before != after:
+            self._note_change()
+        return result
+
+    return wrapper
+
+
 def logtime(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
@@ -668,6 +705,7 @@ class VMDeobfuscation(Analysis):
         self.vpc_loc = vpc_loc
         self.vpc_mem_loc = vpc_mem_loc
         self.draw_graph_flag = False
+        self._pass_changed = False
         self.allow_global_mem_simplifications = allow_global_mem_simplifications
         self.nodes_to_prune = nodes_to_prune
         calls_as_rets = {}
@@ -972,6 +1010,7 @@ class VMDeobfuscation(Analysis):
 
         print("start")
         for i in range(4):
+            self._pass_changed = False
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
             new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
             self.draw_graph(new_cfg, self.project_dir / f"dae_{i}_result.svg")
@@ -983,6 +1022,9 @@ class VMDeobfuscation(Analysis):
 
             new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None, skip_call_ret=skip_call_ret)
 
+            if self._converged():
+                break
+
         #pickled_file_name = os.path.dirname(self.project.filename) + "/two_mid_way_cfg"
         # with open(pickled_file_name,'wb') as mid_way_cfg_pickle:
         #     pickle.dump(new_cfg, mid_way_cfg_pickle)
@@ -993,27 +1035,39 @@ class VMDeobfuscation(Analysis):
         for i in range(4):
             global to_break
             to_break = True
+            self._pass_changed = False
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
             self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
+            if self._converged():
+                break
 
         self.draw_graph_flag = True
         self.draw_graph(new_cfg, self.project_dir / "mid_graph_result")
         self.draw_graph_flag = False
 
         for i in range(4):
+            self._pass_changed = False
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
             self.draw_graph(new_cfg, self.project_dir / f"dae_{i}_result.svg")
+            if self._converged():
+                break
 
 
         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, self.project_dir / "debug_2_result.svg")
 
         for i in range(2):
+            self._pass_changed = False
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
             self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
+            if self._converged():
+                break
         for i in range(2):
+            self._pass_changed = False
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
             self.draw_graph(new_cfg, self.project_dir / f"dae_{i}_result.svg")
+            if self._converged():
+                break
 
         self.draw_graph(new_cfg, self.project_dir / "debug_1_result.svg")
         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
@@ -1024,6 +1078,7 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
         for i in range(8):
+            self._pass_changed = False
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
             self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
 
@@ -1037,7 +1092,8 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, self.project_dir / f"{i}remove_redun_get_put.svg")
 
-
+            if self._converged():
+                break
 
         pickled_file_name = self.project_dir / "after_get_put"
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
@@ -1047,6 +1103,7 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(new_cfg, self.project_dir / "redun_store_load.svg")
 
         for i in range(3):
+            self._pass_changed = False
             new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, self.project_dir / f"{i}remove_redun_get_put.svg")
 
@@ -1058,7 +1115,8 @@ class VMDeobfuscation(Analysis):
 
             new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
 
-
+            if self._converged():
+                break
 
         pickled_file_name = self.project_dir / "pickled_final_cfg"
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
@@ -1073,6 +1131,7 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
 
             for i in range(35):
+                self._pass_changed = False
                 new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
                 self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
 
@@ -1090,6 +1149,8 @@ class VMDeobfuscation(Analysis):
 
                 new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
 
+                if self._converged():
+                    break
 
             pickled_file_name = self.project_dir / "pickled_beyond_final_cfg"
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
@@ -1100,6 +1161,7 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
 
             for i in range(35):
+                self._pass_changed = False
                 new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
 
                 new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
@@ -1116,6 +1178,9 @@ class VMDeobfuscation(Analysis):
                 new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None, skip_call_ret=skip_call_ret)
 
                 self.draw_graph(new_cfg, self.project_dir / f"{i}block_arithmetic_simplifications_using_dep_graph.svg")
+
+                if self._converged():
+                    break
 
             pickled_file_name = self.project_dir / "themida_simplification_cfg"
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
@@ -1164,6 +1229,20 @@ class VMDeobfuscation(Analysis):
         # self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
+
+    def _note_change(self):
+        """
+        Record that a simplification pass actually altered the CFG. The fixed-count
+        simplification loops use this to stop once they stop making progress.
+        """
+        self._pass_changed = True
+
+    def _converged(self):
+        """
+        True when the round that just ran changed nothing, so further rounds cannot either.
+        Set project.vm_deob_converge_loops = False to keep running the full fixed counts.
+        """
+        return not self._pass_changed and _project_bool_attr(self.project, "vm_deob_converge_loops", True)
 
     def remove_vmp_semantic_same_branches(self, cfg):
         """
@@ -1700,6 +1779,7 @@ class VMDeobfuscation(Analysis):
                     isinstance(node.irsb.next, pyvex.expr.Const) and \
                     last_stmt.data.result_size(node.irsb.tyenv) == self.project.arch.bits:
 
+                    self._note_change()
                     new_statements = node.irsb.statements[:-1]
                     node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                        node.irsb.addr,
@@ -2710,6 +2790,7 @@ class VMDeobfuscation(Analysis):
         return cfg, cfg.to_use_symbolic_exprs
 
     @logtime
+    @detects_changes
     def remove_push_ret(self, cfg, proj, start_addr, start_state=None,options=None, decomp_function_addresses=None):
         # this pass is to simplify push x, retn to x kind of jumps
         for node in cfg.graph.nodes():
@@ -2769,6 +2850,7 @@ class VMDeobfuscation(Analysis):
         return cfg
 
     @logtime
+    @detects_changes
     def keep_only_one_graph(self, cfg, start_addr):
         conn_comps = nx.weakly_connected_components(as_networkx(cfg.graph))
         conn_comps = list(conn_comps)
@@ -2939,6 +3021,7 @@ class VMDeobfuscation(Analysis):
                 continue
 
             if len(list(new_model.graph.successors(node))) == 1 and isinstance(node.irsb.statements[-1], pyvex.stmt.Exit):
+                self._note_change()
                 if node.irsb.statements[-1].dst.value == list(new_model.graph.successors(node))[0].addr:
                     new_statements = node.irsb.statements[:-1]
                     new_next = pyvex.expr.Const(DataSensitiveU64(node.irsb.statements[-1].dst.value, node.irsb.statements[-1].dst.block_id))
@@ -3040,6 +3123,7 @@ class VMDeobfuscation(Analysis):
 
 
     @logtime
+    @detects_changes
     def join_basic_blocks(self, cfg, proj, start_addr, start_state, skip_call_ret=False):
         print("Join Basic blocks")
         #new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
@@ -3409,6 +3493,9 @@ class VMDeobfuscation(Analysis):
                 #         # This is an internal function or a sim procedure for which I have not written a rda handler
                 #         if isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.Put) and node.irsb.statements[use.stmt_idx].offset == node.irsb.statements[d.codeloc.stmt_idx].data.offset and (node.irsb.statements[use.stmt_idx].data.result_size(node.irsb.tyenv) == node.irsb.statements[d.codeloc.stmt_idx].data.result_size(node.irsb.tyenv)):
                 #             to_remove.append(use.stmt_idx)
+
+            if replace_get_dict or to_remove:
+                self._note_change()
 
             new_statements = []
             for idx, stmt in enumerate(cur_block.vex.statements):
@@ -4374,6 +4461,9 @@ class VMDeobfuscation(Analysis):
                     if node.irsb.next.tmp == tmp.tmp:
                         new_next = DataSensitiveRdTmp(tmp_replace_dict[tmp].tmp, node.irsb.next.block_id)
 
+            if tmp_replace_dict or new_next is not node.irsb.next:
+                self._note_change()
+
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                node.irsb.addr,
                                                statements=new_statements,
@@ -4721,6 +4811,9 @@ class VMDeobfuscation(Analysis):
 
 
 
+            if replace_stle_dict:
+                self._note_change()
+
             new_statements = []
             # Remove dead assignments
             for idx, stmt in enumerate(cur_block.vex.statements):
@@ -4887,6 +4980,9 @@ class VMDeobfuscation(Analysis):
                         continue
 
                     new_statements.append(stmt)
+
+                if len(new_statements) != len(node.irsb.statements):
+                    self._note_change()
 
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
@@ -5119,6 +5215,7 @@ class VMDeobfuscation(Analysis):
                                 continue
 
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
+                            self._note_change()
                             nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
                         continue
                     elif stmt.guard.con.value == 1:
@@ -5129,6 +5226,7 @@ class VMDeobfuscation(Analysis):
                                 if succ.addr == node.irsb.next.con.value and node.irsb.next.con.block_id == succ.block_id:
                                     edge_to_remove_node = succ
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
+                            self._note_change()
                             nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
                         # else:
                         #     print("Hmmmmm")
@@ -5137,8 +5235,6 @@ class VMDeobfuscation(Analysis):
                         continue
                 new_statements.append(stmt)
 
-            if new_statements != node.irsb.statements:
-                changed = True
             # Dealing with empty blocks i.e. removing them
             if len(new_statements) == 0:
                 if len(list(dsa_new_model.graph.successors(node))) >0:
@@ -5169,9 +5265,13 @@ class VMDeobfuscation(Analysis):
                                 print("Not removing this block, since there the previous block is a Sim Procedure")
                     if to_remove:
                         dsa_new_model.graph.remove_node(node)
+                        self._note_change()
                 else:
                     dsa_new_model.graph.remove_node(node)
+                    self._note_change()
             else:
+                if new_statements != node.irsb.statements:
+                    self._note_change()
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
                                                    statements=new_statements,
@@ -5181,6 +5281,8 @@ class VMDeobfuscation(Analysis):
                                                    jumpkind=node.irsb.jumpkind,
                                                    size=node.irsb.size)
 
+        if nodes_to_remove:
+            self._note_change()
         dsa_new_model.graph.remove_nodes_from(nodes_to_remove)
         # Returning a new CFGVMDeobfuscation object with the updated graph
         # if start_state:
@@ -5616,6 +5718,9 @@ class VMDeobfuscation(Analysis):
                 #         changed_stmt_idx.append(stmt_idx)
 
                 new_stmts.append(new_stmt)
+
+            if changed_stmt_idx:
+                self._note_change()
 
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                node.irsb.addr,
