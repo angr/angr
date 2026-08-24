@@ -616,8 +616,8 @@ class TestPeepholeBlockContextFixpoint(unittest.TestCase):
         ite = ITE(
             manager.next_atom(),
             cond,
-            v5,  # iffalse
             BinaryOp(manager.next_atom(), "Add", [v5, Const(manager.next_atom(), 3, 32)], False, bits=32),  # iftrue
+            v5,  # iffalse
             bits=32,
         )
         stmt0 = Assignment(manager.next_atom(), v10, ite, ins_addr=0x400000)

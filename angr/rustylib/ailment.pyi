@@ -260,7 +260,7 @@ class Expression:
         **tags: Any,
     ) -> Expression: ...
     @staticmethod
-    def _new_ite(idx: int, cond: Expression, iffalse: Expression, iftrue: Expression, **tags: Any) -> Expression: ...
+    def _new_ite(idx: int, cond: Expression, iftrue: Expression, iffalse: Expression, **tags: Any) -> Expression: ...
     @staticmethod
     def _new_extract(
         idx: int, bits: int, base: Expression, offset: Expression, endness: str, **tags: Any
@@ -954,7 +954,7 @@ class ITE(Expression):
     iffalse: Expression
     """ITE.iffalse"""
     def __init__(
-        self, idx: int | None, cond: Expression, iffalse: Expression, iftrue: Expression, **tags: Any
+        self, idx: int | None, cond: Expression, iftrue: Expression, iffalse: Expression, **tags: Any
     ) -> None: ...
 
 class Insert(Expression):

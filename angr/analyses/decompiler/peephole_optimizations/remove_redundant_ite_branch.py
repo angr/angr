@@ -26,6 +26,6 @@ class RemoveRedundantITEBranches(PeepholeOptimizationExprBase):
             cond1_operands = expr.iffalse.cond.operands
             if cond0_operands[0].likes(cond1_operands[0]) and cond0_operands[1].likes(cond1_operands[1]):
                 # YES...
-                return ITE(expr.idx, expr.cond, expr.iffalse.iftrue, expr.iftrue, **expr.tags)
+                return ITE(expr.idx, expr.cond, expr.iftrue, expr.iffalse.iftrue, **expr.tags)
 
         return None

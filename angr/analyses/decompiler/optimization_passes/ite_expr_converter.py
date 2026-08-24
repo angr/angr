@@ -202,8 +202,8 @@ class ITEExprConverter(OptimizationPass):
         new_expr = ITE(
             self.manager.next_atom(),
             cond,
-            expr_1,
             expr_0,
+            expr_1,
             ins_addr=expr_0.tags["ins_addr"],
             vex_block_addr=expr_0.tags["vex_block_addr"],
             vex_stmt_idx=expr_0.tags["vex_stmt_idx"],

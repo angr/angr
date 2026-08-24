@@ -348,11 +348,11 @@ else:
             cls,
             idx,
             cond,
-            iffalse,
             iftrue,
+            iffalse,
             **tags,
         ) -> _Expression:
-            return _Expression._new_ite(idx, cond, iffalse, iftrue, **tags)
+            return _Expression._new_ite(idx, cond, iftrue, iffalse, **tags)
 
     class Extract(metaclass=_AilMarkerMeta):
         """Marker for ``Expression`` instances whose variant is ``Extract``."""

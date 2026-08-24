@@ -2803,20 +2803,20 @@ impl Expression {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, cond, iffalse, iftrue, **kwargs))]
+    #[pyo3(signature = (idx, cond, iftrue, iffalse, **kwargs))]
     fn _new_ite(
         idx: i64,
         cond: AilExpression,
-        iffalse: AilExpression,
         iftrue: AilExpression,
+        iffalse: AilExpression,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
         let depth = cond
             .header
             .depth
-            .max(iffalse.header.depth)
             .max(iftrue.header.depth)
+            .max(iffalse.header.depth)
             + 1;
         let bits = iftrue.header.bits;
         Ok(Self::wrap(AilExpression {
