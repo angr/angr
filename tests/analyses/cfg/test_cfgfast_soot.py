@@ -34,6 +34,19 @@ class TestCfgfastSoot(unittest.TestCase):
         cfg = p.analyses.CFGFastSoot()
         assert cfg.graph.nodes()
 
+    def test_simple2_without_entry_point(self):
+        # simple2.jar has no Main-Class manifest attribute, so without an explicit entry_point the loader leaves
+        # Project.entry at 0. CFGFastSoot must still analyze every method of every class.
+        binary_path = os.path.join(test_location, "java", "simple2.jar")
+        p = angr.Project(binary_path, auto_load_libs=False)
+        assert p.entry == 0
+        cfg = p.analyses.CFGFastSoot()
+        assert cfg.graph.nodes()
+        function_names = {f.name for f in p.kb.functions.values()}
+        assert "simple2.Class1.main(java.lang.String[])" in function_names
+        # methods that no entry point reaches are analyzed too
+        assert "simple2.Class1.unreachable(int)" in function_names
+
 
 if __name__ == "__main__":
     unittest.main()
