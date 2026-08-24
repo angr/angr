@@ -2001,6 +2001,11 @@ class VMDeobfuscation(Analysis):
             return
 
         if dump_or_load == "dump":
+            # Debugging snapshots: nothing in the pipeline or in PUSHAN-evaluation reads them
+            # back, and they run ~25 MB apiece. The commented-out LOAD call sites need them,
+            # so keep a way to turn them back on.
+            if not _project_bool_attr(self.project, "vm_deob_dump_cfg_pickles", False):
+                return cfg
             try:
                 with open(pickled_file_name,'wb') as final_cfg_pickle:
                     pickle.dump(cfg, final_cfg_pickle)
@@ -6161,17 +6166,21 @@ class VMDeobfuscation(Analysis):
         new_model = VMCFGModel.from_model(proj.kb.cfgs.new_model(identifier, addr_type="block_id"))
         new_cfg_graph = new_model.graph
 
+        # All four call sites drop the source graph immediately afterwards, so the new nodes can
+        # take its irsbs over instead of deep-copying them (CFGENode still copies internally).
+        # The rest of the attributes are ints/strs/tuples, where deepcopy was already a no-op.
+        copy_irsbs = _project_bool_attr(self.project, "vm_deob_copy_irsbs_on_model_rebuild", False)
         for node in old_graph.nodes():
             if "PathTerminator" not in str(node.name):
-                new_node = CFGENode(irsb=copy.deepcopy(node.irsb),
+                new_node = CFGENode(irsb=copy.deepcopy(node.irsb) if copy_irsbs else node.irsb,
                                     block_id=copy.deepcopy(node.block_id),
-                                    size=copy.deepcopy(node.size),
-                                    vm_vpc=copy.deepcopy(node.vm_vpc),
-                                    looping_times=copy.deepcopy(node.looping_times),
-                                    callstack_key=copy.deepcopy(node.callstack_key),
-                                    simprocedure_name=copy.deepcopy(node.simprocedure_name),
-                                    addr=copy.deepcopy(node.addr),
-                                    function_address=copy.deepcopy(node.function_address),
+                                    size=node.size,
+                                    vm_vpc=node.vm_vpc,
+                                    looping_times=node.looping_times,
+                                    callstack_key=node.callstack_key,
+                                    simprocedure_name=node.simprocedure_name,
+                                    addr=node.addr,
+                                    function_address=node.function_address,
                                     input_state=None,
                                     final_states=None,
                                     cfg=new_model)
