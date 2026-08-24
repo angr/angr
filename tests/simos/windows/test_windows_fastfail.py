@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.simos.windows"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
 import angr
@@ -14,12 +15,27 @@ from angr.calling_conventions import (
     SimCCX86WindowsSyscall,
 )
 from angr.simos import SimWindows
+from tests.common import bin_location
+
+test_location = os.path.join(bin_location, "tests")
 
 
 class TestWindowsFastfail(unittest.TestCase):
     """
     Tests for the __fastfail handler SimWindows installs.
     """
+
+    def test_fastfail_on_a_real_windows_arm_binary(self):
+        # The convention has to be reachable from a real PE, not only from load_shellcode: cle sets os="windows"
+        # for every PE, so SimWindows is selected from the file's own machine type rather than from an argument.
+        for path, expected_cc in (
+            (os.path.join("aarch64", "windows", "fastfail_arm64.exe"), SimCCAArch64WindowsSyscall),
+            (os.path.join("armel", "windows", "fastfail_armnt.exe"), SimCCARMWindowsSyscall),
+        ):
+            with self.subTest(path=path):
+                project = angr.Project(os.path.join(test_location, path), auto_load_libs=False)
+                assert isinstance(project.simos, SimWindows)
+                assert isinstance(project.simos.fastfail.cc, expected_cc)
 
     def test_fastfail_uses_the_windows_syscall_convention(self):
         # Windows runs on ARM and AArch64 too, so every architecture that has __fastfail has a Windows syscall
