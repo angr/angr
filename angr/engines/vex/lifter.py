@@ -133,6 +133,7 @@ class VEXLifter(SimEngine):
             raise ValueError("Must provide state or addr!")
         if arch is None:
             arch = clemory._arch if clemory else state.arch
+        cr0 = state.globals.get("x86_cr0") if state else None
         if arch.name.startswith("MIPS") and self._single_step:
             l.error("Cannot specify single-stepping on MIPS.")
             self._single_step = False
@@ -187,7 +188,7 @@ class VEXLifter(SimEngine):
         # phase 3: check cache
         cache_key = None
         if use_cache:
-            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt)
+            cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt, cr0)
             if cache_key in self._block_cache:
                 self._block_cache_hits += 1
                 l.debug("Cache hit IRSB of %s at %#x", arch, addr)
@@ -197,7 +198,7 @@ class VEXLifter(SimEngine):
                     return irsb
                 size = stop_point - addr
                 # check the cache again
-                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt)
+                cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt, cr0)
                 if cache_key in self._block_cache:
                     self._block_cache_hits += 1
                     return self._block_cache[cache_key]
@@ -213,6 +214,7 @@ class VEXLifter(SimEngine):
                     opt_level,
                     strict_block_end,
                     cross_insn_opt,
+                    cr0,
                 )
                 try:
                     irsb = self._block_cache[tmp_cache_key]
@@ -264,6 +266,7 @@ class VEXLifter(SimEngine):
                     load_from_ro_regions=load_from_ro_regions,
                     cross_insn_opt=cross_insn_opt,
                     const_prop=const_prop,
+                    **({"vex_archinfo": {**arch.vex_archinfo, "x86_cr0": cr0}} if cr0 is not None else {}),
                 )
 
                 if subphase == 0 and irsb.statements is not None:
