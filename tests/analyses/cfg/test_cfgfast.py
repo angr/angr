@@ -1077,7 +1077,12 @@ class TestCfgfast(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast()
 
-        assert cfg.model.get_any_node(0) is not None
+        node = cfg.model.get_any_node(0)
+        assert node is not None
+        # a block this short cannot hold both a branch and its delay slot, so the indirect goto is an artifact of
+        # the trap rather than a jump to anywhere: the node gets no successors and is not queued for resolution
+        assert not list(cfg.graph.successors(node))
+        assert 0 not in cfg.indirect_jumps
         assert 4 in cfg.kb.functions
 
     def test_single_instruction_indirect_jump_on_sparc(self):
