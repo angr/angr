@@ -631,6 +631,35 @@ def detects_changes(func):
     return wrapper
 
 
+def skip_if_unchanged(func):
+    """
+    These passes are deterministic functions of the CFG, so one that last ran without
+    changing anything cannot change anything until the CFG moves. Only no-op runs are
+    recorded: a pass that did change something may still have more to do next time.
+
+    Only for passes that return the CFG they were handed. Disable with
+    project.vm_deob_skip_unchanged_passes = False.
+    """
+    @wraps(func)
+    def wrapper(self, cfg, *args, **kwargs):
+        if not _project_bool_attr(self.project, "vm_deob_skip_unchanged_passes", True):
+            return func(self, cfg, *args, **kwargs)
+
+        seen = self._pass_seen.get(func.__name__)
+        if seen is not None and seen[0] is cfg and seen[1] == self._change_counter:
+            return cfg
+
+        before = self._change_counter
+        result = func(self, cfg, *args, **kwargs)
+        if self._change_counter == before:
+            self._pass_seen[func.__name__] = (cfg, before)
+        else:
+            self._pass_seen.pop(func.__name__, None)
+        return result
+
+    return wrapper
+
+
 def logtime(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
@@ -706,6 +735,11 @@ class VMDeobfuscation(Analysis):
         self.vpc_mem_loc = vpc_mem_loc
         self.draw_graph_flag = False
         self._pass_changed = False
+        self._change_counter = 0
+        self._coarse_epoch = 0
+        self._pass_seen = {}
+        self._node_dirty = {}
+        self._node_seen = {}
         self.allow_global_mem_simplifications = allow_global_mem_simplifications
         self.nodes_to_prune = nodes_to_prune
         calls_as_rets = {}
@@ -1230,12 +1264,38 @@ class VMDeobfuscation(Analysis):
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
-    def _note_change(self):
+    def _note_change(self, node=None):
         """
         Record that a simplification pass actually altered the CFG. The fixed-count
         simplification loops use this to stop once they stop making progress.
+
+        Pass the node when the change is confined to that block. Anything else -- graph
+        edits, node removals, whole-model rebuilds -- is a coarse change that retires
+        every per-node cache entry by bumping the epoch.
         """
         self._pass_changed = True
+        self._change_counter += 1
+        if node is None:
+            self._coarse_epoch += 1
+        else:
+            self._node_dirty[node] = self._change_counter
+
+    def _node_is_clean(self, pass_name, node):
+        """
+        True when pass_name already examined this exact block without changing it, and
+        nothing has touched the block since. These passes analyse one block in isolation,
+        so a change to some other block cannot give them new work here.
+        """
+        if not _project_bool_attr(self.project, "vm_deob_skip_unchanged_nodes", True):
+            return False
+        seen = self._node_seen.get((pass_name, node))
+        return seen is not None and seen[0] == self._coarse_epoch and \
+            seen[1] >= self._node_dirty.get(node, -1)
+
+    def _mark_node_clean(self, pass_name, node, epoch, counter):
+        """Record a no-op examination. epoch/counter are the values from before the node ran."""
+        if self._node_dirty.get(node, -1) < counter:
+            self._node_seen[(pass_name, node)] = (epoch, counter)
 
     def _converged(self):
         """
@@ -1779,7 +1839,7 @@ class VMDeobfuscation(Analysis):
                     isinstance(node.irsb.next, pyvex.expr.Const) and \
                     last_stmt.data.result_size(node.irsb.tyenv) == self.project.arch.bits:
 
-                    self._note_change()
+                    self._note_change(node)
                     new_statements = node.irsb.statements[:-1]
                     node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                        node.irsb.addr,
@@ -2247,6 +2307,7 @@ class VMDeobfuscation(Analysis):
             pickle.dump(dec.clinic.cc_graph, f)
 
     @logtime
+    @detects_changes
     def CAS_to_mov_simplification(self, cfg, proj):
         # this is specifically for themida to convert CAS stmts to simple store stmts if the comparision is always True
         # only for converting CAS from xchg to simple stores
@@ -2535,6 +2596,7 @@ class VMDeobfuscation(Analysis):
         self.project.enc_stmt_addr_to_original[enc_addr] = (addr, stmt_idx, block_id)
         return enc_addr
 
+    @detects_changes
     def remove_call_to_next_addr(self, cfg):
         #:0429040A call    $+5
         #:0429040F push    [esp+1Ch+var_1C]
@@ -2796,6 +2858,7 @@ class VMDeobfuscation(Analysis):
 
     @logtime
     @detects_changes
+    @skip_if_unchanged
     def remove_push_ret(self, cfg, proj, start_addr, start_state=None,options=None, decomp_function_addresses=None):
         # this pass is to simplify push x, retn to x kind of jumps
         for node in cfg.graph.nodes():
@@ -3015,6 +3078,7 @@ class VMDeobfuscation(Analysis):
 
     @logtime
     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
+    @skip_if_unchanged
     def remove_useless_jump_instructions(self, cfg, keep_sp_changes_dae=None):
         print("Remove useless jmp insts")
         #new_model = self.new_model_graph(cfg.graph, proj, 'remove_useless_jumps')
@@ -3026,7 +3090,7 @@ class VMDeobfuscation(Analysis):
                 continue
 
             if len(list(new_model.graph.successors(node))) == 1 and isinstance(node.irsb.statements[-1], pyvex.stmt.Exit):
-                self._note_change()
+                self._note_change(node)
                 if node.irsb.statements[-1].dst.value == list(new_model.graph.successors(node))[0].addr:
                     new_statements = node.irsb.statements[:-1]
                     new_next = pyvex.expr.Const(DataSensitiveU64(node.irsb.statements[-1].dst.value, node.irsb.statements[-1].dst.block_id))
@@ -3129,6 +3193,7 @@ class VMDeobfuscation(Analysis):
 
     @logtime
     @detects_changes
+    @skip_if_unchanged
     def join_basic_blocks(self, cfg, proj, start_addr, start_state, skip_call_ret=False):
         print("Join Basic blocks")
         #new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
@@ -3437,6 +3502,7 @@ class VMDeobfuscation(Analysis):
             return expr.con.value
 
     @logtime
+    @skip_if_unchanged
     def remove_redundant_Get_Put(self, cfg, proj, start_state=None):
         print("Remove redundant Get Put")
         #PUT(rsp) = t334        ===>      PUT(rsp) = t334
@@ -3452,6 +3518,10 @@ class VMDeobfuscation(Analysis):
         for node in dsa_new_model.nodes():
             if node.is_simprocedure:
                 continue
+            if self._node_is_clean("remove_redundant_Get_Put", node):
+                continue
+            _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
+
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
@@ -3500,7 +3570,7 @@ class VMDeobfuscation(Analysis):
                 #             to_remove.append(use.stmt_idx)
 
             if replace_get_dict or to_remove:
-                self._note_change()
+                self._note_change(node)
 
             new_statements = []
             for idx, stmt in enumerate(cur_block.vex.statements):
@@ -3518,6 +3588,8 @@ class VMDeobfuscation(Analysis):
                                                direct_next=node.irsb.direct_next,
                                                jumpkind=node.irsb.jumpkind,
                                                size=node.irsb.size)
+
+            self._mark_node_clean("remove_redundant_Get_Put", node, _clean_epoch, _clean_counter)
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
         # if start_state:
@@ -4394,6 +4466,7 @@ class VMDeobfuscation(Analysis):
         return cfg
 
     @logtime
+    @skip_if_unchanged
     def remove_redundant_assignment(self, cfg, proj, start_state=None):
         # This looks like
         # t33 = t27
@@ -4467,7 +4540,7 @@ class VMDeobfuscation(Analysis):
                         new_next = DataSensitiveRdTmp(tmp_replace_dict[tmp].tmp, node.irsb.next.block_id)
 
             if tmp_replace_dict or new_next is not node.irsb.next:
-                self._note_change()
+                self._note_change(node)
 
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                node.irsb.addr,
@@ -4737,6 +4810,7 @@ class VMDeobfuscation(Analysis):
         return None
 
     @logtime
+    @skip_if_unchanged
     def remove_redundant_store_load(self, cfg, proj, start_state=None):
         # removing redundant store and loads in a block that look like this
         #------ IMark(0x401212, 0, 0) ------
@@ -4761,6 +4835,10 @@ class VMDeobfuscation(Analysis):
         for node in dsa_new_model.nodes():
             if node.is_simprocedure:
                 continue
+            if self._node_is_clean("remove_redundant_store_load", node):
+                continue
+            _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
+
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
@@ -4817,7 +4895,7 @@ class VMDeobfuscation(Analysis):
 
 
             if replace_stle_dict:
-                self._note_change()
+                self._note_change(node)
 
             new_statements = []
             # Remove dead assignments
@@ -4842,6 +4920,8 @@ class VMDeobfuscation(Analysis):
                                                jumpkind=node.irsb.jumpkind,
                                                size=node.irsb.size)
 
+            self._mark_node_clean("remove_redundant_store_load", node, _clean_epoch, _clean_counter)
+
         # Returning a new CFGVMDeobfuscation object with the updated graph
         # if start_state:
         #     initial_input_state = start_state
@@ -4862,6 +4942,7 @@ class VMDeobfuscation(Analysis):
 
 # Eliminated dead stack-memdefs and regdefs in the whoel CFG
     @logtime
+    @skip_if_unchanged
     def testing_new_improved_whole_vm_RDA_deadassignment_elimination(self, cfg, proj, keep_sp_changes_dae=False):
         print("Whole CFG RDA based dead ass elimination")
         #dsa_new_model = self.new_model_graph(cfg.graph, proj, 'test_rda_dae')
@@ -4987,7 +5068,7 @@ class VMDeobfuscation(Analysis):
                     new_statements.append(stmt)
 
                 if len(new_statements) != len(node.irsb.statements):
-                    self._note_change()
+                    self._note_change(node)
 
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
@@ -5057,6 +5138,7 @@ class VMDeobfuscation(Analysis):
 
     # Eliminates dead memdefs, tmpdefs and regdefs in a single basic block
     @logtime
+    @skip_if_unchanged
     def _eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
 
         def remove_path(cur_cfg, start_node):
@@ -5076,6 +5158,10 @@ class VMDeobfuscation(Analysis):
         for node in list(dsa_new_model.nodes()):
             if node.is_simprocedure:
                 continue
+            if self._node_is_clean("_eliminate_dead_assignments", node):
+                continue
+            _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
+
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             rd = self.project.analyses.ReachingDefinitions(cur_block,
                                                            track_tmps=True,
@@ -5276,7 +5362,7 @@ class VMDeobfuscation(Analysis):
                     self._note_change()
             else:
                 if new_statements != node.irsb.statements:
-                    self._note_change()
+                    self._note_change(node)
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
                                                    statements=new_statements,
@@ -5285,6 +5371,8 @@ class VMDeobfuscation(Analysis):
                                                    direct_next=node.irsb.direct_next,
                                                    jumpkind=node.irsb.jumpkind,
                                                    size=node.irsb.size)
+
+            self._mark_node_clean("_eliminate_dead_assignments", node, _clean_epoch, _clean_counter)
 
         if nodes_to_remove:
             self._note_change()
@@ -5316,6 +5404,7 @@ class VMDeobfuscation(Analysis):
         return imark_ind
 
     @logtime
+    @skip_if_unchanged
     def block_arithmetic_simplifications_using_dep_graph(self, cfg, proj):
         print("Block arithmetic simplification using dep graph")
         def check_stmt_add_sub(stmt):
@@ -5360,6 +5449,10 @@ class VMDeobfuscation(Analysis):
         for node in list(cfg.nodes()):
             if node.is_simprocedure:
                 continue
+
+            if self._node_is_clean("block_arithmetic_simplifications_using_dep_graph", node):
+                continue
+            _clean_epoch, _clean_counter = self._coarse_epoch, self._change_counter
 
             cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
             result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False,
@@ -5725,7 +5818,7 @@ class VMDeobfuscation(Analysis):
                 new_stmts.append(new_stmt)
 
             if changed_stmt_idx:
-                self._note_change()
+                self._note_change(node)
 
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                node.irsb.addr,
@@ -5735,6 +5828,8 @@ class VMDeobfuscation(Analysis):
                                                direct_next=node.irsb.direct_next,
                                                jumpkind=node.irsb.jumpkind,
                                                size=node.irsb.size)
+
+            self._mark_node_clean("block_arithmetic_simplifications_using_dep_graph", node, _clean_epoch, _clean_counter)
 
         return cfg
 
