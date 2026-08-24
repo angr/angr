@@ -10,6 +10,7 @@ from angr.errors import (
     SimError,
     SimOperationError,
 )
+from angr.simos import SimOS
 from angr.state_plugins.inspect import BP, BP_AFTER
 
 from .constant_value_manager import ConstantValueManager
@@ -32,9 +33,11 @@ class SyscallResolver(IndirectJumpResolver):
 
     def __init__(self, project):
         super().__init__(project, timeless=True)
+        simos = project.simos
+        self._os_resolves_syscalls = simos is not None and type(simos).syscall is not SimOS.syscall
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        return jumpkind.startswith("Ijk_Sys")
+        return self._os_resolves_syscalls and jumpkind.startswith("Ijk_Sys")
 
     def resolve(  # pylint:disable=unused-argument
         self, cfg, addr: int, func_addr: int, block: Block, jumpkind: str, func_graph_complete: bool = True, **kwargs
