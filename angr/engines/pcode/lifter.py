@@ -136,8 +136,6 @@ class IRSB:
     _size: int | None
     _statements: Iterable  # Note: currently unused
     _disassembly: PcodeDisassemblerBlock | None
-    # The lifter that decoded this block and the bytes it decoded, kept to disassemble on demand. Both decodes go
-    # through one lifter because Sleigh reads the context variables its own instance recorded.
     _disassembly_source: tuple[PcodeBasicBlockLifter, bytes] | None
     addr: int
     arch: archinfo.Arch
