@@ -55,7 +55,7 @@ EXPR_FACTORIES = {
     "BinaryOp": lambda i, k: eu.BinaryOp(i, "Add", (k.c1, k.c2)),
     "Load": lambda i, k: eu.Load(i, k.addr, 8, "Iend_LE"),
     "Call": lambda i, k: eu.Call(i, k.c1, args=(k.c2,), bits=64),
-    "ITE": lambda i, k: eu.ITE(i, k.c1, k.c2, k.c1),
+    "ITE": lambda i, k: eu.ITE(i, k.c1, k.c1, k.c2),
     "Extract": lambda i, k: eu.Extract(i, 8, k.c1, k.c2, "Iend_LE"),
     "Insert": lambda i, k: eu.Insert(i, k.c1, k.c2, k.c1, "Iend_LE"),
     "StringLiteral": lambda i, k: eu.StringLiteral(i, "x", 8),

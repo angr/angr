@@ -225,7 +225,7 @@ class TestSerialize(unittest.TestCase):
         assert isinstance(ld2.alt, Const) and ld2.alt.value == 0
 
     def test_ite(self):
-        ite = ITE(3, Const(0, 1, 1), Const(0, 5, 32), Const(0, 7, 32))
+        ite = ITE(3, Const(0, 1, 1), Const(0, 7, 32), Const(0, 5, 32))
         ite2 = roundtrip(ite)
         assert isinstance(ite2, ITE)
         assert ite2.iftrue.value == 7 and ite2.iffalse.value == 5

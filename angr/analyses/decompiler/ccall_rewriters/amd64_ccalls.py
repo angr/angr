@@ -869,8 +869,8 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ],
                             False,
                         ),
-                        Expr.Const(self.ail_manager.next_atom(), 0, ccall.bits),
                         Expr.Const(self.ail_manager.next_atom(), 1, ccall.bits),
+                        Expr.Const(self.ail_manager.next_atom(), 0, ccall.bits),
                         **ccall.tags,
                     )
 

@@ -91,7 +91,7 @@ class TestExpressionMarkers(unittest.TestCase):
         c = spike.Const(0, 1, 1)
         t = spike.Const(1, 10, 32)
         f = spike.Const(2, 20, 32)
-        i = spike.ITE(3, c, f, t)
+        i = spike.ITE(3, c, t, f)
         assert isinstance(i, spike.ITE)
 
     def test_extract(self):
@@ -222,7 +222,7 @@ class TestExpressionMarkers(unittest.TestCase):
             spike.BinaryOp(0, "Add", (c1, c2)),
             spike.Load(0, addr, 8, "Iend_LE"),
             spike.Call(0, c1, args=(c2,), bits=64),
-            spike.ITE(0, c1, c2, c1),
+            spike.ITE(0, c1, c1, c2),
             spike.Extract(0, 8, c1, c2, "Iend_LE"),
             spike.Insert(0, c1, c2, c1, "Iend_LE"),
             spike.StringLiteral(0, "x", 8),

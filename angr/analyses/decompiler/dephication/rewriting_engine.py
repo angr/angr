@@ -389,8 +389,8 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             return ITE(
                 expr.idx,
                 expr.cond if new_cond is None else new_cond,
-                expr.iffalse if new_iffalse is None else new_iffalse,
                 expr.iftrue if new_iftrue is None else new_iftrue,
+                expr.iffalse if new_iffalse is None else new_iffalse,
                 **expr.tags,
             )
         return None

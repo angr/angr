@@ -331,8 +331,8 @@ class SimplifierAILEngine(
         return ailment.expression.ITE(
             expr.idx,
             self._expr(expr.cond),
-            self._expr(expr.iffalse),
             self._expr(expr.iftrue),
+            self._expr(expr.iffalse),
             **expr.tags,
         )
 

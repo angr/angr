@@ -218,8 +218,8 @@ class ITERegionConverter(OptimizationPass):
         ternary_expr = ITE(
             self.manager.next_atom(),
             conditional_jump.condition,
-            false_stmt_src,
             true_stmt_src,
+            false_stmt_src,
             **addr_obj.tags,
         )
         dst = VirtualVariable(
