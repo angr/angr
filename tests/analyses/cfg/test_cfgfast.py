@@ -1141,6 +1141,16 @@ class TestCfgfast(unittest.TestCase):
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
 
+    def test_riscv_scanning_resumes_after_an_undecodable_instruction(self):
+        # VEX cannot lift the feq.s at 0x402390. The scan must resume after all four of its bytes; resuming at the
+        # next halfword instead recovers 0x402392, two bytes into that instruction, as an instruction of its own.
+        proj = angr.Project(os.path.join(test_location, "riscv", "autotalent-autotalent.so"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        ins_addrs = {ins_addr for node in cfg.model.nodes() for ins_addr in node.instruction_addrs}
+
+        assert 0x402392 not in ins_addrs, "0x402392 is two bytes into the instruction at 0x402390"
+        assert 0x402394 in ins_addrs, "the scan did not resume at 0x402394"
+
 
 if __name__ == "__main__":
     unittest.main()
