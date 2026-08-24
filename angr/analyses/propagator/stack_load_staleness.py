@@ -10,34 +10,61 @@ AliasKey = Tuple[Any, ...]
 Aliases = Dict[AliasKey, int]
 
 
+_CHILD_ATTRS = (
+    "addr",
+    "data",
+    "dst",
+    "src",
+    "condition",
+    "target",
+    "true_target",
+    "false_target",
+    "args",
+    "ret_expr",
+    "fp_ret_expr",
+    "ret_exprs",
+)
+
+# Which of the above each ailment class actually declares. Probing an attribute an object
+# does not have costs ~0.75us: it misses __getattribute__, goes through
+# TaggedObject.__getattr__ and raises. This walk visits every expression of every block, so
+# blindly probing all twelve names dominated it. Class layout is fixed, so resolve it once.
+_CHILD_ATTRS_BY_CLASS: Dict[type, Tuple[str, ...]] = {}
+
+
 def _children(obj) -> Iterable:
     operands = getattr(obj, "operands", None)
     if operands is not None:
         yield from operands
 
-    for attr in (
-        "addr",
-        "data",
-        "dst",
-        "src",
-        "condition",
-        "target",
-        "true_target",
-        "false_target",
-        "args",
-        "ret_expr",
-        "fp_ret_expr",
-        "ret_exprs",
-    ):
-        if not hasattr(obj, attr):
-            continue
-        child = getattr(obj, attr)
+    cls = type(obj)
+    attrs = _CHILD_ATTRS_BY_CLASS.get(cls)
+    if attrs is None:
+        attrs = _CHILD_ATTRS_BY_CLASS[cls] = tuple(a for a in _CHILD_ATTRS if hasattr(cls, a))
+
+    for attr in attrs:
+        child = getattr(obj, attr, None)
         if child is None:
             continue
         if isinstance(child, (list, tuple)):
             yield from (item for item in child if item is not None)
         else:
             yield child
+
+    # Tags are per-instance, so they cannot be resolved from the class. Cheap to check:
+    # dict lookups, no failed attribute access.
+    tags = getattr(obj, "_tags", None)
+    if tags:
+        for attr in _CHILD_ATTRS:
+            if attr in attrs or attr not in tags:
+                continue
+            child = tags[attr]
+            if child is None:
+                continue
+            if isinstance(child, (list, tuple)):
+                yield from (item for item in child if item is not None)
+            else:
+                yield child
 
 
 def _alias_key(expr) -> Optional[AliasKey]:
