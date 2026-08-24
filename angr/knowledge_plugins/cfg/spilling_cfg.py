@@ -24,7 +24,7 @@ from angr.protos import cfg_pb2
 
 from .block_id import BlockID
 from .cfg_node import CFGENode, CFGNode
-from .spilling_digraph import SpillingDiGraph
+from .spilling_digraph import NO_SPILLING_CACHE_LIMIT, SpillingDiGraph
 from .types import CFG_ADDR_TYPES, CFGENODE_K, CFGNODE_K, SOOTNODE_K, K
 
 if TYPE_CHECKING:
@@ -37,6 +37,12 @@ l = logging.getLogger(name=__name__)
 
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
 USE_SPILLING_CFGNODE_DICT = os.environ.get("USE_SPILLING_CFGNODE_DICT", "True").lower() not in ("0", "false", "no")
+
+# Address types whose CFGs cannot be spilled to LMDB. Block keys are serialized for every address type, but the
+# *values* are not: nodes are stored as cfg_pb2.CFGNode messages whose "ea" field is a uint64, and edge attributes are
+# packed with a struct that stores "ins_addr" as a uint64. Soot addresses are SootAddressDescriptor instances and have
+# no such encoding, so a Soot CFG is kept entirely in memory instead of crashing on the first eviction.
+UNSPILLABLE_ADDR_TYPES: frozenset[str] = frozenset({"soot"})
 
 
 class SpillingCFGNodeDict:
@@ -777,9 +783,9 @@ class SpillingCFG:
         addr_type: CFG_ADDR_TYPES = "int",
     ):
         if USE_SPILLING_CFGNODE_DICT:
-            effective_edge_cache_limit = edge_cache_limit if edge_cache_limit is not None else 2**31 - 1
+            effective_edge_cache_limit = edge_cache_limit if edge_cache_limit is not None else NO_SPILLING_CACHE_LIMIT
         else:
-            effective_edge_cache_limit = 2**31 - 1
+            effective_edge_cache_limit = NO_SPILLING_CACHE_LIMIT
 
         self._addr_type = addr_type
         self._graph: SpillingDiGraph = SpillingDiGraph(
@@ -792,9 +798,9 @@ class SpillingCFG:
         self._rtdb = rtdb
 
         if USE_SPILLING_CFGNODE_DICT:
-            effective_cache_limit = cache_limit if cache_limit is not None else 2**31 - 1
+            effective_cache_limit = cache_limit if cache_limit is not None else NO_SPILLING_CACHE_LIMIT
         else:
-            effective_cache_limit = 2**31 - 1
+            effective_cache_limit = NO_SPILLING_CACHE_LIMIT
 
         self._nodes: SpillingCFGNodeDict = SpillingCFGNodeDict(
             rtdb,
@@ -807,6 +813,7 @@ class SpillingCFG:
         self._out_degree_cache: dict[K, int] = {}
         self._spilling_enabled = cache_limit is not None
         self._edge_spilling_enabled = edge_cache_limit is not None
+        self._disable_spilling_for_addr_type()
 
     @property
     def addr_type(self) -> str:
@@ -820,6 +827,22 @@ class SpillingCFG:
             raise RuntimeError("Cannot change addr_type after nodes have been added")
         self._addr_type = value
         self._graph.addr_type = value
+        self._disable_spilling_for_addr_type()
+
+    def _disable_spilling_for_addr_type(self) -> None:
+        """
+        Turn node and edge spilling off if the current addr_type cannot be serialized.
+
+        See :data:`UNSPILLABLE_ADDR_TYPES`. Called whenever addr_type is established, which is always before the first
+        node is inserted.
+        """
+        if self._addr_type not in UNSPILLABLE_ADDR_TYPES:
+            return
+        if self._spilling_enabled or self._edge_spilling_enabled:
+            l.debug("Disabling CFG spilling: addr_type %s cannot be serialized.", self._addr_type)
+        self.cache_limit = None
+        self._edge_spilling_enabled = False
+        self._graph.disable_edge_spilling()
 
     @property
     def _cfg_model(self) -> CFGModel | None:
@@ -1219,12 +1242,15 @@ class SpillingCFG:
 
     @cache_limit.setter
     def cache_limit(self, value: int | None) -> None:
+        if value is not None and self._addr_type in UNSPILLABLE_ADDR_TYPES:
+            l.warning("Ignoring cache_limit %s: a CFG with addr_type %s cannot be spilled.", value, self._addr_type)
+            value = None
         if value is not None:
             self._nodes.cache_limit = value
             self._spilling_enabled = True
         else:
             # Set to a very large value to effectively disable spilling
-            self._nodes.cache_limit = 2**31 - 1
+            self._nodes.cache_limit = NO_SPILLING_CACHE_LIMIT
             self._spilling_enabled = False
 
     @property
@@ -1304,3 +1330,6 @@ class SpillingCFG:
             jk = edata.get("jumpkind", "")
             if jk == "Ijk_Call" or jk.startswith("Ijk_Sys"):
                 self._call_dst_keys.add(dst_key)
+
+        # a graph pickled before spilling was gated on addr_type may claim spilling is enabled
+        self._disable_spilling_for_addr_type()

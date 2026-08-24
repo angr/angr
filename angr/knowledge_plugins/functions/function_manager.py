@@ -768,7 +768,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
 
-        if cache_limit is None and USE_SPILLING_FUNCTION_DICT:
+        if not self.spillable:
+            cache_limit = None
+        elif cache_limit is None and USE_SPILLING_FUNCTION_DICT:
             cache_limit = self.get_default_cache_limit()
 
         # Use SpillingFunctionDict when caching is enabled, otherwise plain FunctionDict
@@ -906,6 +908,17 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._func_from_signature = {}
         self._old_func_name_to_addrs = defaultdict(set)
         self._key_func_addrs = defaultdict(set)
+
+    @property
+    def spillable(self) -> bool:
+        """
+        Whether functions in this manager can be spilled to LMDB.
+
+        FunctionParser serializes a function's address into a protobuf uint64 field, so only functions with integer
+        addresses can be spilled. Soot methods (Java and Android projects) are addressed by SootMethodDescriptor and
+        are therefore kept in memory.
+        """
+        return self.function_address_types == (int,)
 
     def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
         """
@@ -1619,6 +1632,12 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         if isinstance(self._function_map, SpillingFunctionDict):
             self._function_map.cache_limit = value
+        elif not self.spillable:
+            l.warning(
+                "Ignoring cache_limit %s: functions addressed by %s cannot be spilled.",
+                value,
+                ", ".join(t.__name__ for t in self.function_address_types),
+            )
         else:
             # Need to convert FunctionDict to SpillingFunctionDict
             old_map = self._function_map

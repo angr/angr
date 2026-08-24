@@ -34,6 +34,9 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(__name__)
 
+# The cache limit a spilling container gets when spilling is off: high enough that eviction never fires.
+NO_SPILLING_CACHE_LIMIT = 2**31 - 1
+
 
 class DirtyDict[DK, DV](UserDict[DK, DV]):
     """
@@ -571,6 +574,17 @@ class SpillingDiGraph(networkx.DiGraph):
     #
     #  Spilling helpers
     #
+
+    def disable_edge_spilling(self) -> None:
+        """
+        Stop spilling adjacency data and keep every entry in memory.
+
+        Used when the addresses in this graph have no serializable encoding, so that eviction never attempts to
+        write a record it cannot build.
+        """
+        self._edge_cache_limit = NO_SPILLING_CACHE_LIMIT
+        self._adj._cache_limit = NO_SPILLING_CACHE_LIMIT
+        self._pred._cache_limit = NO_SPILLING_CACHE_LIMIT
 
     def load_all_spilled_edges(self) -> None:
         """Load all spilled adjacency entries back into memory."""
