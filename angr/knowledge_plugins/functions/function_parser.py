@@ -7,9 +7,16 @@ from collections import defaultdict
 
 import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
-from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.codenode import BlockNode, FuncNode, HookNode, SootBlockNode
 from angr.protos import function_pb2, primitives_pb2
 from angr.sim_type import SimType, SimTypeFunction
+from angr.utils.addr_conv import (
+    addr_from_pb,
+    addr_to_pb,
+    optional_addr_from_pb,
+    soot_addr_from_pb,
+    soot_addr_to_pb,
+)
 from angr.utils.enums_conv import (
     _EDGETYPE_MISSING,
     _PB_TO_FUNCTION_EDGETYPES,
@@ -57,7 +64,7 @@ class FunctionParser:
         :return :
         """
         obj = angr.knowledge_plugins.Function._get_cmsg()
-        obj.ea = function.addr
+        addr_to_pb(obj, "ea", function.addr)
         obj.is_entrypoint = False  # TODO: Set this up accordingly
         obj.name = function.name
         obj.is_default_name = function.is_default_name
@@ -89,7 +96,7 @@ class FunctionParser:
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
             for node in endpoint_nodes:
                 ep = primitives_pb2.Endpoint()
-                ep.ea = node.addr
+                addr_to_pb(ep, "ea", node.addr)
                 ep.size = node.size
                 match endpoint_type:
                     case "call":
@@ -117,9 +124,10 @@ class FunctionParser:
         blocks_list = []
         for b in function.code_nodes.values():
             block = primitives_pb2.Block()
-            block.ea = b.addr
+            addr_to_pb(block, "ea", b.addr)
             block.size = b.size
-            if isinstance(b, BlockNode):
+            # a Soot block is a list of statements and carries no bytes
+            if isinstance(b, BlockNode) and not isinstance(b, SootBlockNode):
                 assert b.bytestr is not None, (
                     f"Block bytes cannot be None when serializing a function. Is this function meta-only ({function.meta_only})?"
                 )
@@ -139,7 +147,7 @@ class FunctionParser:
                 external_func_addrs.add(node.addr)
             elif node.addr not in block_addrs_set and isinstance(node, BlockNode):
                 block = primitives_pb2.Block()
-                block.ea = node.addr
+                addr_to_pb(block, "ea", node.addr)
                 block.size = node.size
                 block.bytes = node.bytestr or b""
                 external_blocks.append(block)
@@ -147,8 +155,8 @@ class FunctionParser:
         TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
         for src, dst, data in function.transition_graph.edges(data=True):
             edge = primitives_pb2.Edge()
-            edge.src_ea = src.addr
-            edge.dst_ea = dst.addr
+            addr_to_pb(edge, "src_ea", src.addr)
+            addr_to_pb(edge, "dst_ea", dst.addr)
             edge.jumpkind = TRANSITION_JK
             edge.confirmed = 2  # default value
             for key, value in data.items():
@@ -156,7 +164,7 @@ class FunctionParser:
                     edge.jumpkind = func_edge_type_to_pb(value)
                 elif key == "ins_addr":
                     if value is not None:
-                        edge.ins_addr = value
+                        addr_to_pb(edge, "ins_addr", value)
                 elif key == "stmt_idx":
                     if value is not None:
                         edge.stmt_idx = value
@@ -169,16 +177,20 @@ class FunctionParser:
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
-        obj.external_functions.extend(external_func_addrs)  # pylint:disable=no-member
+        for func_addr in external_func_addrs:
+            if isinstance(func_addr, int):
+                obj.external_functions.append(func_addr)  # pylint:disable=no-member
+            else:
+                soot_addr_to_pb(func_addr, obj.soot_external_functions.add())  # pylint:disable=no-member
         obj.external_blocks.extend(external_blocks)  # pylint:disable=no-member
 
         for call_site_addr, (call_target_addr, retn_addr) in function._call_sites.items():
             call_site = function_pb2.CallSite()
-            call_site.ea = call_site_addr
+            addr_to_pb(call_site, "ea", call_site_addr)
             if call_target_addr is not None:
-                call_site.target_ea = call_target_addr
+                addr_to_pb(call_site, "target_ea", call_target_addr)
             if retn_addr is not None:
-                call_site.return_ea = retn_addr
+                addr_to_pb(call_site, "return_ea", retn_addr)
             obj.call_sites.append(call_site)  # pylint:disable=no-member
 
         return obj
@@ -212,7 +224,7 @@ class FunctionParser:
 
         obj = angr.knowledge_plugins.functions.Function(
             function_manager,
-            cmsg.ea,
+            addr_from_pb(cmsg, "ea"),
             name=cmsg.name,
             is_plt=cmsg.is_plt,
             syscall=cmsg.is_syscall,
@@ -243,7 +255,7 @@ class FunctionParser:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
         if meta_only:
-            startpoint_addr = cmsg.ea
+            startpoint_addr = obj.addr
             obj.startpoint = (
                 HookNode(startpoint_addr, 0, project.hooked_by(startpoint_addr))
                 if project and project.is_hooked(startpoint_addr)
@@ -252,11 +264,11 @@ class FunctionParser:
 
             block_addrs_set = set()
             for b in cmsg.blocks:
-                block_addrs_set.add(b.ea)
+                block_addrs_set.add(addr_from_pb(b, "ea"))
             obj._local_block_addrs = block_addrs_set
 
             for endpoint in cmsg.endpoints:
-                block = BlockNode(endpoint.ea, endpoint.size, bytestr=None)
+                block = BlockNode(addr_from_pb(endpoint, "ea"), endpoint.size, bytestr=None)
                 match endpoint.type:
                     case primitives_pb2.EndpointType.CALL:
                         obj._callout_sites.add(block)
@@ -276,15 +288,16 @@ class FunctionParser:
         blocks = {}
         external_blocks = {}
         for b in cmsg.blocks:
-            block = BlockNode(b.ea, b.size, bytestr=b.bytes)
+            block = BlockNode(addr_from_pb(b, "ea"), b.size, bytestr=b.bytes)
             blocks[block.addr] = block
 
         for b in cmsg.external_blocks:
-            block = BlockNode(b.ea, b.size, bytestr=b.bytes)
+            block = BlockNode(addr_from_pb(b, "ea"), b.size, bytestr=b.bytes)
             external_blocks[block.addr] = block
 
         # addresses of referenced functions that are not inside the current function
         external_func_addrs = set(cmsg.external_functions)
+        external_func_addrs.update(soot_addr_from_pb(pb) for pb in cmsg.soot_external_functions)
 
         # edges
         edges = {}
@@ -293,11 +306,12 @@ class FunctionParser:
         # func_edge_type_from_pb only to log the error for an unrecognized value
         edge_type_of = _PB_TO_FUNCTION_EDGETYPES.get
         for edge_cmsg in cmsg.graph.edges:
-            if edge_cmsg.src_ea in blocks:
-                src = blocks[edge_cmsg.src_ea]
-            else:
+            edge_src_ea = addr_from_pb(edge_cmsg, "src_ea")
+            edge_dst_ea = addr_from_pb(edge_cmsg, "dst_ea")
+            src = blocks.get(edge_src_ea)
+            if src is None:
                 src = FunctionParser._get_hook_or_func_node(
-                    edge_cmsg.src_ea,
+                    edge_src_ea,
                     external_blocks,
                     external_func_addrs,
                     project,
@@ -309,13 +323,12 @@ class FunctionParser:
             assert edge_type is not None
 
             if edge_type == "call":
-                dst = FuncNode(edge_cmsg.dst_ea)
+                dst = FuncNode(edge_dst_ea)
             else:
-                if edge_cmsg.dst_ea in blocks:
-                    dst = blocks[edge_cmsg.dst_ea]
-                else:
+                dst = blocks.get(edge_dst_ea)
+                if dst is None:
                     dst = FunctionParser._get_hook_or_func_node(
-                        edge_cmsg.dst_ea,
+                        edge_dst_ea,
                         external_blocks,
                         external_func_addrs,
                         project,
@@ -323,7 +336,7 @@ class FunctionParser:
 
             data = {
                 "outside": edge_cmsg.is_outside,
-                "ins_addr": edge_cmsg.ins_addr,
+                "ins_addr": addr_from_pb(edge_cmsg, "ins_addr"),
                 "stmt_idx": edge_cmsg.stmt_idx,
             }
             if edge_cmsg.confirmed == 0:
@@ -331,9 +344,9 @@ class FunctionParser:
             elif edge_cmsg.confirmed == 1:
                 data["confirmed"] = True
             if edge_type == "fake_return":
-                fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
+                fake_return_edges[edge_src_ea].append((src, dst, data))
             else:
-                edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
+                edges[(edge_src_ea, edge_dst_ea, edge_type)] = (src, dst, data)
 
         added_nodes = set()
         for k, v in edges.items():
@@ -401,9 +414,10 @@ class FunctionParser:
                 pass
 
         for endpoint in cmsg.endpoints:
-            if endpoint.ea not in blocks:
+            endpoint_ea = addr_from_pb(endpoint, "ea")
+            if endpoint_ea not in blocks:
                 continue
-            block = blocks[endpoint.ea]
+            block = blocks[endpoint_ea]
             match endpoint.type:
                 case primitives_pb2.EndpointType.CALL:
                     obj._callout_sites.add(block)
@@ -423,9 +437,9 @@ class FunctionParser:
         obj.update_func_block_count()
 
         for call_site_cmsg in cmsg.call_sites:
-            obj._call_sites[call_site_cmsg.ea] = (
-                call_site_cmsg.target_ea if call_site_cmsg.HasField("target_ea") else None,
-                call_site_cmsg.return_ea if call_site_cmsg.HasField("return_ea") else None,
+            obj._call_sites[addr_from_pb(call_site_cmsg, "ea")] = (
+                optional_addr_from_pb(call_site_cmsg, "target_ea"),
+                optional_addr_from_pb(call_site_cmsg, "return_ea"),
             )
 
         obj._dirty = False

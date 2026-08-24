@@ -8,7 +8,7 @@ import networkx
 
 from angr.codenode import BlockNode
 
-from .function import Function, FunctionInfo
+from .function import Function, FunctionInfo, PrototypeSource
 
 
 class SootFunction(Function):
@@ -68,8 +68,11 @@ class SootFunction(Function):
             binary_name = os.path.basename(self.binary.binary)
 
         self._name = addr.__repr__()
+        self.is_default_name = True
         self.binary_name = binary_name
 
+        # Register offsets of those arguments passed in registers
+        self._argument_registers = []
         # Stack offsets of those arguments passed in stack variables
         self._argument_stack_variables = []
 
@@ -84,11 +87,13 @@ class SootFunction(Function):
 
         # Function prototype
         self._prototype = None
+        self._prototype_libname = None
+        self._prototype_source = PrototypeSource.NONE
 
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
-        self._is_alignment = None
+        self._is_alignment = False
 
         # Determine returning status for SimProcedures and Syscalls
         hooker = None
@@ -106,7 +111,11 @@ class SootFunction(Function):
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
         self._info = FunctionInfo(self)
+        self._cyclomatic_complexity = None
+        self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
         self._dirty = False
+        self.meta_only = False
+        self.evicted = False
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
     def normalize(self):
