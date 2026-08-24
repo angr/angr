@@ -19,6 +19,9 @@ ffi = cffi.FFI()
 
 l = logging.getLogger(__name__)
 
+_CONCRETIZE_UNSEEN = object()  # AST not decided yet this pass
+_CONCRETIZE_SKIP = object()  # AST must be left symbolic
+
 
 class PagedMemoryMixin[PageType: PageBase](
     MemoryMixin[int | claripy.ast.BV | SimActionObject, claripy.ast.BV, int | claripy.ast.BV | SimActionObject],
@@ -273,25 +276,51 @@ class PagedMemoryMixin[PageType: PageBase](
         concrete value. Merging symbolic-but-determined values would otherwise turn them into
         if-then-else trees that the symbolizer cannot fold back.
         """
+        # A multi-byte SimMemoryObject occupies one page entry per byte, so the same AST comes
+        # back once per byte -- an 8-byte value used to cost eight identical solves. Decide once
+        # per distinct AST; set project.vm_deob_concretize_cache = False to solve every entry.
+        decisions = {} if getattr(getattr(state, "project", None), "vm_deob_concretize_cache", True) else None
         for pageno, _ in pages._pages.items():
             page = pages._get_page(pageno, writing=True)
             for offset in sorted(page.stored_offset):
                 mo = page.content[offset]
-                if mo is None or not state.solver.symbolic(mo.object):
+                if mo is None:
                     continue
-                if any(var.startswith("precon_sp") for var in mo.object.variables):
-                    # the preconstrained stack pointer must stay symbolic
+
+                obj = mo.object
+                key = getattr(obj, "cache_key", None) if decisions is not None else None
+                conc_val = decisions.get(key, _CONCRETIZE_UNSEEN) if key is not None else _CONCRETIZE_UNSEEN
+                if conc_val is _CONCRETIZE_UNSEEN:
+                    conc_val = self._concretize_memory_object(obj, state)
+                    if key is not None:
+                        decisions[key] = conc_val
+
+                if conc_val is _CONCRETIZE_SKIP:
                     continue
-                try:
-                    conc_val = state.partial_symbolic_constraint_solver.eval_one(mo.object)
-                except Exception:  # pylint:disable=broad-except
-                    continue
+
                 page.content[offset] = SimMemoryObject(
-                    claripy.BVV(conc_val, mo.object.size()),
+                    claripy.BVV(conc_val, obj.size()),
                     mo.base,
                     byte_width=mo._byte_width,
                     endness=mo.endness,
                 )
+
+    @staticmethod
+    def _concretize_memory_object(obj, state):
+        """
+        The concrete value `obj` should be pinned to during a symbolizer / constant-propagation
+        merge, or _CONCRETIZE_SKIP to leave it symbolic. Rejections are cached by the caller:
+        eval_one raising on a non-unique value is a full solve too.
+        """
+        if not state.solver.symbolic(obj):
+            return _CONCRETIZE_SKIP
+        if any(var.startswith("precon_sp") for var in obj.variables):
+            # the preconstrained stack pointer must stay symbolic
+            return _CONCRETIZE_SKIP
+        try:
+            return state.partial_symbolic_constraint_solver.eval_one(obj)
+        except Exception:  # pylint:disable=broad-except
+            return _CONCRETIZE_SKIP
 
     def _vm_merge_states(self, others):
         """
