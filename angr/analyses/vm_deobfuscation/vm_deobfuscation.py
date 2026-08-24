@@ -987,7 +987,10 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(new_cfg, self.project_dir / "after_all_symb_and_split.svg")
 
-        # self.draw_graph_flag = False
+        # Leaving this commented out left the flag set for the next ~90 lines, so every
+        # intermediate debug svg inside the simplification loops got rendered: 86s of
+        # graphviz on vmwhere1-uiuctf alone.
+        self.draw_graph_flag = False
 
         import pickle
         pickled_file_name = self.project_dir / "pickled_load_addr_mba_to_jump_addr_mapping"
@@ -6778,6 +6781,10 @@ class VMDeobfuscation(Analysis):
     def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=True):
         if not self.draw_graph_flag:
             print("skip graph drawing")
+            return
+        # dot layout is the single most expensive thing in the run on large graphs
+        # (22% of vmwhere1-uiuctf); set project.vm_deob_draw_graphs = False to skip it.
+        if not _project_bool_attr(self.project, "vm_deob_draw_graphs", True):
             return
         node_limit = 10000
         no_nodes = 0
