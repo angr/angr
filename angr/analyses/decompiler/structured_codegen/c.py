@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use,protected-access
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 import struct
@@ -2587,8 +2588,15 @@ class CConstant(CExpression):
         return self._type
 
     @staticmethod
-    def str_to_c_str(_str, prefix: str = "", maxlen: int | None = None) -> str:
+    def str_to_c_str(_str: str | bytes, prefix: str = "", maxlen: int | None = None) -> str:
+        if isinstance(_str, bytes):
+            # bytes that do not decode stay bytes, so that repr() escapes them as \xNN below
+            with contextlib.suppress(UnicodeDecodeError):
+                _str = _str.decode("utf-8")
+
         repr_str = repr(_str)
+        if isinstance(_str, bytes):
+            repr_str = repr_str[1:]  # drop the b prefix
         base_str = repr_str[1:-1]
 
         if maxlen is not None and len(base_str) > maxlen:
@@ -2602,13 +2610,13 @@ class CConstant(CExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         def _default_output(v) -> str | None:
             if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String and v.content is not None:
-                return CConstant.str_to_c_str(v.content.decode("utf-8"), maxlen=self.codegen.max_str_len)
+                return CConstant.str_to_c_str(v.content, maxlen=self.codegen.max_str_len)
             if isinstance(v, Function):
                 return get_cpp_function_name(v.demangled_name)
             if isinstance(v, str):
                 return CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len)
             if isinstance(v, bytes):
-                return CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8"), maxlen=self.codegen.max_str_len)
+                return CConstant.str_to_c_str(v.replace(b"\x00", b""), maxlen=self.codegen.max_str_len)
             return None
 
         if self.collapsed:
@@ -2640,13 +2648,11 @@ class CConstant(CExpression):
                 if isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                     refval = self.reference_values[self._type]
                     if isinstance(refval, MemoryData):
-                        v = refval.content.decode("utf-8") if refval.content else f"<unknown@{refval.addr:#x}>"
-                    elif isinstance(refval, bytes):
-                        v = refval.decode("latin1")
+                        v = refval.content or f"<unknown@{refval.addr:#x}>"
                     else:
-                        # it must be a string
+                        # it must be raw bytes or a string
                         v = refval
-                        assert isinstance(v, str)
+                        assert isinstance(v, (bytes, str))
                     yield CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len), self
                     return
 
