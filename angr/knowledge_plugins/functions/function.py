@@ -1,7 +1,8 @@
-# pylint:disable=too-many-boolean-expressions
+# pylint:disable=too-many-boolean-expressions,protected-access
 from __future__ import annotations
 
 import contextlib
+import copy
 import itertools
 import json
 import logging
@@ -33,6 +34,7 @@ from angr.sim_type import SimTypeFunction, parse_defns
 from angr.utils.library import get_cpp_function_name_and_metadata
 
 from .function_parser import FunctionParser
+from .observable_graph import ObservableDiGraph
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
@@ -46,6 +48,23 @@ def dirty_func(func):
     def wrapper(self, *args, **kwargs):
         self._dirty = True
         return func(self, *args, **kwargs)
+
+    return wrapper
+
+
+# pylint:disable=protected-access
+def graph_dirty_func(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        if not self._is_managed_by_function_manager():
+            result = func(self, *args, **kwargs)
+            self._dirty = True
+            return result
+        with self._function_manager._function_graph_update():  # pylint:disable=protected-access
+            result = func(self, *args, **kwargs)
+            self._dirty = True
+            self._function_manager._function_graph_modified()  # pylint:disable=protected-access
+            return result
 
     return wrapper
 
@@ -95,7 +114,7 @@ class FunctionInfo(UserDict):
 
     def copy(self, owner: Function) -> FunctionInfo:  # type: ignore[reportIncompatibleMethodOverride]
         new_info = FunctionInfo(owner)
-        new_info.data = self.data.copy()
+        new_info.data = copy.deepcopy(self.data)
         return new_info
 
     def to_json(self) -> str:
@@ -118,6 +137,7 @@ class Function(Serializable):
     """
 
     __slots__ = (
+        "__weakref__",
         "_addr_to_block_node",
         "_argument_registers",
         "_argument_stack_variables",
@@ -147,6 +167,8 @@ class Function(Serializable):
         "_ret_sites",
         "_retout_sites",
         "_returning",
+        "_startpoint",
+        "_transition_graph",
         "addr",
         "binary_name",
         "bp_on_stack",
@@ -158,9 +180,7 @@ class Function(Serializable):
         "ran_cca",
         "retaddr_on_stack",
         "sp_delta",
-        "startpoint",
         "tags",
-        "transition_graph",
     )
 
     _prototype_source: PrototypeSource
@@ -196,7 +216,7 @@ class Function(Serializable):
         :param bool returning:  If this function returns.
         :param bool alignment:  If this function acts as an alignment filler. Such functions usually only contain nops.
         """
-        self.transition_graph = networkx.classes.digraph.DiGraph()
+        self._transition_graph = ObservableDiGraph()
         self._local_transition_graph = None
         self.normalized = False
 
@@ -215,8 +235,9 @@ class Function(Serializable):
         self._call_sites = {}
         self.addr = addr
         # startpoint can be None if the corresponding CFGNode is a syscall node
-        self.startpoint = None
+        self._startpoint = None
         self._function_manager = function_manager
+        self._bind_transition_graph()
         self._is_syscall = False
         self._is_simprocedure = False
         self._is_alignment = alignment
@@ -345,15 +366,30 @@ class Function(Serializable):
     def name(self):
         return self._name
 
+    def _is_managed_by_function_manager(self) -> bool:
+        manager = self._function_manager
+        if manager is None:
+            return False
+        try:
+            function_map = manager._function_map  # pylint:disable=protected-access
+            is_cached = getattr(function_map, "is_cached", None)
+            if is_cached is not None and not is_cached(self.addr):
+                return False
+            return function_map.get(self.addr, None) is self
+        except ReferenceError:
+            return False
+
     @name.setter
     def name(self, v):
         if v == self._name:
             return
         if self._name not in self.previous_names:
             self.previous_names.append(self._name)
-        if self._function_manager is not None:
-            self._function_manager.function_name_changed(self.addr, self._name, v)
-            self._function_manager._kb.labels[self.addr] = v
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager.function_name_changed(self.addr, self._name, v)
+            manager._kb.labels[self.addr] = v
         self._name = v
         self.mark_dirty()
 
@@ -369,8 +405,10 @@ class Function(Serializable):
         self.mark_dirty()
 
         # update the cache
-        if self._function_manager is not None:
-            self._function_manager.set_from_signature(self.addr, v)
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager.set_from_signature(self.addr, v)
 
     @property
     def project(self) -> Project | None:
@@ -391,8 +429,10 @@ class Function(Serializable):
         self.mark_dirty()
 
         # update the cache
-        if self._function_manager is not None:
-            self._function_manager.set_function_returning(self.addr, v)
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager.set_function_returning(self.addr, v)
 
     @property
     def calling_convention(self) -> SimCC | None:
@@ -484,6 +524,10 @@ class Function(Serializable):
             return
         self._is_plt = v
         self.mark_dirty()
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager._function_graph_modified()  # pylint:disable=protected-access
 
     @property
     def is_simprocedure(self) -> bool:
@@ -495,6 +539,10 @@ class Function(Serializable):
             return
         self._is_simprocedure = v
         self.mark_dirty()
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager._function_graph_modified()  # pylint:disable=protected-access
 
     @property
     def is_syscall(self) -> bool:
@@ -506,6 +554,10 @@ class Function(Serializable):
             return
         self._is_syscall = v
         self.mark_dirty()
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager._function_graph_modified()  # pylint:disable=protected-access
 
     @property
     def is_alignment(self) -> bool:
@@ -517,6 +569,10 @@ class Function(Serializable):
             return
         self._is_alignment = v
         self.mark_dirty()
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager._function_graph_modified()
 
     @property
     def blocks(self):
@@ -534,7 +590,7 @@ class Function(Serializable):
 
     @property
     def code_nodes(self) -> dict[int, CodeNode]:
-        return self._local_blocks
+        return self._local_blocks.copy()
 
     @property
     def cyclomatic_complexity(self):
@@ -592,7 +648,7 @@ class Function(Serializable):
         :rtype: set
         """
 
-        return self._local_block_addrs
+        return self._local_block_addrs.copy()
 
     def get_block(self, addr: int, size: int | None = None, byte_string: bytes | None = None):
         """
@@ -835,13 +891,197 @@ class Function(Serializable):
             return f"<Syscall function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
         return f"<Function {self.name} ({hex(self.addr) if isinstance(self.addr, int) else self.addr})>"
 
+    def _transition_graph_modified(self) -> None:
+        self._dirty = True
+        self._local_transition_graph = None
+        self._cyclomatic_complexity = None
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager._transition_graph_modified()  # pylint:disable=protected-access
+
+    def _validate_transition_graph_node(self, node) -> None:
+        if not isinstance(node, CodeNode):
+            return
+        if not node._semantic_identity_sealed:  # pylint:disable=protected-access
+            return
+        if node._graph_owner() is not self._transition_graph:  # pylint:disable=protected-access
+            raise ValueError("A CodeNode already owned by another transition graph must be copied before insertion")
+
+    def _bind_transition_graph_node(self, node):
+        if not isinstance(node, CodeNode):
+            return None
+        binding_state = node._capture_graph_binding_state()  # pylint:disable=protected-access
+        try:
+            node.set_graph(self._transition_graph)
+        except Exception:
+            node._restore_graph_binding_state(binding_state)  # pylint:disable=protected-access
+            raise
+        return lambda: node._restore_graph_binding_state(binding_state)  # pylint:disable=protected-access
+
+    def _canonical_transition_graph_node(self, node: CodeNode) -> CodeNode | None:
+        if node not in self._transition_graph:
+            return None
+        for candidate in (self._local_blocks.get(node.addr), self._addr_to_block_node.get(node.addr)):
+            if candidate is not None and candidate == node and candidate in self._transition_graph:
+                return candidate
+        return next(candidate for candidate in self._transition_graph if candidate == node)
+
+    @property
+    def transition_graph(self) -> ObservableDiGraph:
+        return self._transition_graph
+
+    @transition_graph.setter
+    def transition_graph(self, graph: networkx.DiGraph) -> None:
+        self._set_transition_graph(graph, notify=True)
+
+    @staticmethod
+    def _copy_transition_graph(
+        graph: networkx.DiGraph,
+    ) -> tuple[ObservableDiGraph, dict[object, object]]:
+        node_map = {node: copy.copy(node) for node in graph}
+        transition_graph = ObservableDiGraph()
+        transition_graph.graph.update(graph.graph)
+        transition_graph.add_nodes_from((node_map[node], data.copy()) for node, data in graph.nodes(data=True))
+        transition_graph.add_edges_from(
+            (node_map[src], node_map[dst], data.copy()) for src, dst, data in graph.edges(data=True)
+        )
+        for node in node_map.values():
+            if isinstance(node, CodeNode):
+                node.set_graph(transition_graph)
+        return transition_graph, node_map
+
+    def _set_transition_graph(self, graph: networkx.DiGraph, *, notify: bool) -> None:
+        had_graph = hasattr(self, "_transition_graph")
+        old_graph = self._transition_graph if had_graph else None
+        bound_nodes = []
+
+        def node_is_bound_elsewhere(node) -> bool:
+            if not isinstance(node, CodeNode) or not node._semantic_identity_sealed:  # pylint:disable=protected-access
+                return False
+            return node._graph_owner() is not graph  # pylint:disable=protected-access
+
+        if (isinstance(graph, ObservableDiGraph) and graph is not old_graph and graph.has_mutation_callback) or any(
+            node_is_bound_elsewhere(node) for node in graph
+        ):
+            transition_graph, _ = self._copy_transition_graph(graph)
+        else:
+            transition_graph = graph if isinstance(graph, ObservableDiGraph) else ObservableDiGraph(graph)
+            try:
+                for node in transition_graph:
+                    if isinstance(node, CodeNode):
+                        binding_state = node._capture_graph_binding_state()  # pylint:disable=protected-access
+                        try:
+                            node.set_graph(transition_graph)
+                        except Exception:
+                            # A custom CodeNode may fail after changing its back-reference. Restore that node before
+                            # unwinding the nodes already prepared for this still-uninstalled candidate graph.
+                            node._restore_graph_binding_state(binding_state)  # pylint:disable=protected-access
+                            raise
+                        bound_nodes.append((node, binding_state))
+            except Exception:
+                for node, binding_state in reversed(bound_nodes):
+                    node._restore_graph_binding_state(binding_state)  # pylint:disable=protected-access
+                raise
+
+        transition_graph_callback_state = transition_graph._capture_mutation_callback_state()
+        transition_graph_node_callbacks = (
+            transition_graph._node_validation_callback,  # pylint:disable=protected-access
+            transition_graph._node_insertion_callback,  # pylint:disable=protected-access
+        )
+        old_graph_callback = None
+        old_graph_node_callbacks_new = None
+        if isinstance(old_graph, ObservableDiGraph) and old_graph is not transition_graph:
+            old_graph_callback_state = old_graph._capture_mutation_callback_state()
+            old_graph_node_callbacks = (
+                old_graph._node_validation_callback,  # pylint:disable=protected-access
+                old_graph._node_insertion_callback,  # pylint:disable=protected-access
+            )
+        else:
+            old_graph_callback_state = None
+            old_graph_node_callbacks = None
+        try:
+            transition_graph_callback = transition_graph._prepare_mutation_callback(self._transition_graph_modified)
+            transition_graph_node_callbacks_new = transition_graph._prepare_node_callbacks(
+                self._validate_transition_graph_node, self._bind_transition_graph_node
+            )
+            if isinstance(old_graph, ObservableDiGraph) and old_graph is not transition_graph:
+                old_graph_callback = old_graph._prepare_mutation_callback(None)
+                old_graph_node_callbacks_new = old_graph._prepare_node_callbacks(None, None)
+
+            # Callback preparation invokes public edge-dictionary callback setters, which may run arbitrary code and
+            # add nodes to the candidate graph. Bind one final, stable snapshot after all such calls. If a custom
+            # CodeNode mutates the graph while it is being bound, reject the adoption instead of publishing an
+            # incompletely-owned graph.
+            prepared_nodes = tuple(transition_graph)
+            prepared_node_ids = tuple(map(id, prepared_nodes))
+            for node in prepared_nodes:
+                if isinstance(node, CodeNode):
+                    binding_state = node._capture_graph_binding_state()  # pylint:disable=protected-access
+                    try:
+                        node.set_graph(transition_graph)
+                    except Exception:
+                        node._restore_graph_binding_state(binding_state)  # pylint:disable=protected-access
+                        raise
+                    bound_nodes.append((node, binding_state))
+            if tuple(map(id, transition_graph)) != prepared_node_ids:
+                raise RuntimeError("The candidate transition graph changed while its CodeNodes were being bound")
+        except Exception:
+            transition_graph._restore_mutation_callback_state(transition_graph_callback_state)
+            (
+                transition_graph._node_validation_callback,  # pylint:disable=protected-access
+                transition_graph._node_insertion_callback,  # pylint:disable=protected-access
+            ) = transition_graph_node_callbacks
+            if old_graph_callback_state is not None:
+                assert isinstance(old_graph, ObservableDiGraph)
+                assert old_graph_node_callbacks is not None
+                old_graph._restore_mutation_callback_state(old_graph_callback_state)
+                (
+                    old_graph._node_validation_callback,  # pylint:disable=protected-access
+                    old_graph._node_insertion_callback,  # pylint:disable=protected-access
+                ) = old_graph_node_callbacks
+            for node, binding_state in reversed(bound_nodes):
+                node._restore_graph_binding_state(binding_state)  # pylint:disable=protected-access
+            raise
+        transition_graph._mutation_callback = transition_graph_callback  # pylint:disable=protected-access
+        (
+            transition_graph._node_validation_callback,  # pylint:disable=protected-access
+            transition_graph._node_insertion_callback,  # pylint:disable=protected-access
+        ) = transition_graph_node_callbacks_new
+        if old_graph_callback_state is not None:
+            assert isinstance(old_graph, ObservableDiGraph)
+            assert old_graph_callback is not None
+            assert old_graph_node_callbacks_new is not None
+            old_graph._mutation_callback = old_graph_callback  # pylint:disable=protected-access
+            (
+                old_graph._node_validation_callback,  # pylint:disable=protected-access
+                old_graph._node_insertion_callback,  # pylint:disable=protected-access
+            ) = old_graph_node_callbacks_new
+        self._transition_graph = transition_graph
+        if hasattr(self, "_local_transition_graph"):
+            self._local_transition_graph = None
+        if notify and had_graph and old_graph is not graph and self._is_managed_by_function_manager():
+            self._transition_graph_modified()
+
+    def _bind_transition_graph(self) -> None:
+        self._set_transition_graph(self._transition_graph, notify=False)
+
+    def _set_function_manager(self, function_manager: FunctionManager | None) -> None:
+        self._function_manager = function_manager
+        self._bind_transition_graph()
+
     def __setstate__(self, state):
         for k, v in state.items():
-            setattr(self, k, v)
+            setattr(
+                self,
+                "_transition_graph" if k == "transition_graph" else "_startpoint" if k == "startpoint" else k,
+                v,
+            )
+        self._bind_transition_graph()
 
     def __getstate__(self):
         # self._local_transition_graph is a cache. don't pickle it
-        d = {k: getattr(self, k) for k in self.__slots__}
+        d = {k: getattr(self, k) for k in self.__slots__ if k != "__weakref__"}
         d["_local_transition_graph"] = None
         d["_project"] = None
         d["_function_manager"] = None
@@ -853,7 +1093,26 @@ class Function(Serializable):
 
     @property
     def endpoints_with_type(self):
-        return self._endpoints
+        return defaultdict(set, {sort: set(nodes) for sort, nodes in self._endpoints.items()})
+
+    @property
+    def startpoint(self):
+        return self._startpoint
+
+    @startpoint.setter
+    def startpoint(self, node) -> None:
+        old_node = getattr(self, "_startpoint", None)
+        self._startpoint = node
+        if old_node is node:
+            return
+        self._local_transition_graph = None
+        self._cyclomatic_complexity = None
+        if hasattr(self, "_dirty"):
+            self._dirty = True
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager._function_graph_modified()  # pylint:disable=protected-access
 
     @property
     def ret_sites(self):
@@ -919,7 +1178,7 @@ class Function(Serializable):
     def mark_dirty(self) -> None:
         self._dirty = True
 
-    @dirty_func
+    @graph_dirty_func
     def add_jumpout_site(self, node: CodeNode):
         """
         Add a custom jumpout site.
@@ -932,7 +1191,7 @@ class Function(Serializable):
         self._jumpout_sites.add(node)
         self._add_endpoint(node, "transition")
 
-    @dirty_func
+    @graph_dirty_func
     def add_retout_site(self, node: CodeNode):
         """
         Add a custom retout site.
@@ -1066,14 +1325,14 @@ class Function(Serializable):
                     cc = cc_cls(arch)
         self.calling_convention = cc
 
-    @dirty_func
+    @graph_dirty_func
     def _clear_transition_graph(self):
         self._block_sizes = {}
         self._addr_to_block_node = {}
         self._local_blocks = {}
         self._local_block_addrs = set()
         self.startpoint = None
-        self.transition_graph = networkx.classes.digraph.DiGraph()
+        self.transition_graph = ObservableDiGraph()
         self._local_transition_graph = None
 
         self._ret_sites = set()
@@ -1083,7 +1342,7 @@ class Function(Serializable):
         self._endpoints = defaultdict(set)
         self._call_sites = {}
 
-    @dirty_func
+    @graph_dirty_func
     def _confirm_fakeret(self, src, dst):
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
             raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")
@@ -1099,7 +1358,7 @@ class Function(Serializable):
 
         self.transition_graph[src][dst]["confirmed"] = True
 
-    @dirty_func
+    @graph_dirty_func
     def _transit_to(
         self,
         from_node: CodeNode,
@@ -1146,7 +1405,7 @@ class Function(Serializable):
         # clear the cache
         self._local_transition_graph = None
 
-    @dirty_func
+    @graph_dirty_func
     def _call_to(
         self,
         from_node,
@@ -1173,6 +1432,10 @@ class Function(Serializable):
         :type  ins_addr:    int or None
         """
 
+        self._validate_transition_graph_node(from_node)
+        self._validate_transition_graph_node(to_func)
+        if ret_node is not None:
+            self._validate_transition_graph_node(ret_node)
         from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
 
         self.transition_graph.add_edge(
@@ -1188,8 +1451,10 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
-    @dirty_func
+    @graph_dirty_func
     def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
+        self._validate_transition_graph_node(from_node)
+        self._validate_transition_graph_node(to_node)
         from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
         if confirmed:
             to_node = self._register_node(not to_outside, to_node, update_func_block_count=update_func_block_count)
@@ -1203,16 +1468,18 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
-    @dirty_func
+    @graph_dirty_func
     def _remove_fakeret(self, from_node, to_node):
         self.transition_graph.remove_edge(from_node, to_node)
 
         self._local_transition_graph = None
 
-    @dirty_func
+    @graph_dirty_func
     def _return_from_call(
         self, from_func: FuncNode | HookNode, to_node, to_outside=False, confirm_fakeret: bool = True
     ):
+        self._validate_transition_graph_node(from_func)
+        self._validate_transition_graph_node(to_node)
         self.transition_graph.add_edge(from_func, to_node, type="return", outside=to_outside)
         if confirm_fakeret:
             for _, _, data in self.transition_graph.in_edges(to_node, data=True):
@@ -1223,26 +1490,32 @@ class Function(Serializable):
 
     def update_func_block_count(self) -> None:
         """Update the cached block count of this function in the function manager."""
-        if self._function_manager is not None:
-            self._function_manager.set_func_block_count(self.addr, len(self._local_block_addrs))
+        if self._is_managed_by_function_manager():
+            manager = self._function_manager
+            assert manager is not None
+            manager.set_func_block_count(self.addr, len(self._local_block_addrs))
 
     @dirty_func
     def _update_addr_to_block_cache(self, node: BlockNode):
         if node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
 
+    @graph_dirty_func
     def _register_node(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> CodeNode:
         # if the node already exists and is the same, we reuse the existing node
         if is_local and self._local_blocks.get(node.addr, None) == node:
             return self._local_blocks[node.addr]
 
         self.mark_dirty()
-        if node.addr not in self and node not in self.transition_graph:
+        self._validate_transition_graph_node(node)
+        canonical_node = self._canonical_transition_graph_node(node)
+        if canonical_node is None:
             # only add each node to the graph once
             self.transition_graph.add_node(node)
+        else:
+            node = canonical_node
 
         # this is either a new node or a different node at the same address
-        node.set_graph(self.transition_graph)
         if self._block_sizes.get(node.addr, 0) == 0:
             self._block_sizes[node.addr] = node.size
         if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
@@ -1261,7 +1534,7 @@ class Function(Serializable):
             #    assert node == self._addr_to_block_node[node.addr]
         return node
 
-    @dirty_func
+    @graph_dirty_func
     def _add_return_site(self, return_site: CodeNode):
         """
         Registers a basic block as a site for control flow to return from this function.
@@ -1275,7 +1548,7 @@ class Function(Serializable):
         # after returning
         self._add_endpoint(return_site, "return")
 
-    @dirty_func
+    @graph_dirty_func
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
         Registers a basic block as calling a function and returning somewhere.
@@ -1286,7 +1559,7 @@ class Function(Serializable):
         """
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
 
-    @dirty_func
+    @graph_dirty_func
     def _add_endpoint(self, endpoint_node, sort):
         """
         Registers an endpoint with a type of `sort`. The type can be one of the following:
@@ -1338,6 +1611,7 @@ class Function(Serializable):
 
         self._endpoints[sort].add(endpoint_node)
 
+    @graph_dirty_func
     def mark_nonreturning_calls_endpoints(self):
         """
         Iterate through all call edges in transition graph. For each call a non-returning function, mark the source
@@ -1660,7 +1934,7 @@ class Function(Serializable):
         assert self.project is not None
         return self.project.factory.callable(self.addr)
 
-    @dirty_func
+    @graph_dirty_func
     def normalize(self):
         """
         Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
@@ -2125,13 +2399,58 @@ class Function(Serializable):
         return holes
 
     def copy(self):
-        func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
-        func.transition_graph = networkx.DiGraph(self.transition_graph)
+        metadata_copy_memo = {}
+        for shared_object in (
+            self._project,
+            getattr(self.calling_convention, "arch", None),
+            getattr(self.prototype, "_arch", None),
+        ):
+            if shared_object is not None:
+                metadata_copy_memo[id(shared_object)] = shared_object
+        calling_convention = copy.deepcopy(self.calling_convention, metadata_copy_memo)
+        prototype = copy.deepcopy(self.prototype, metadata_copy_memo)
+
+        func = Function(
+            None,
+            self.addr,
+            name=self.name,
+            syscall=self.is_syscall,
+            is_simprocedure=self.is_simprocedure,
+            binary_name=self.binary_name,
+            is_plt=self.is_plt,
+            returning=self.returning if self.returning is not None else False,
+            alignment=self.is_alignment,
+            calling_convention=calling_convention,
+            prototype=prototype,
+            prototype_libname=self.prototype_libname,
+            prototype_source=self.prototype_source,
+        )
+        transition_graph, node_map = self._copy_transition_graph(self.transition_graph)
+        func._set_transition_graph(transition_graph, notify=False)
+
+        def copied_node(node):
+            if node is None or node in node_map:
+                return node_map.get(node)
+            new_node = copy.copy(node)
+            if isinstance(new_node, CodeNode):
+                new_node.set_graph(transition_graph)
+            node_map[node] = new_node
+            return new_node
+
         func.normalized = self.normalized
-        func._ret_sites = self._ret_sites.copy()
-        func._jumpout_sites = self._jumpout_sites.copy()
-        func._retout_sites = self._retout_sites.copy()
-        func._endpoints = self._endpoints.copy()
+        func._ret_sites = {copied_node(node) for node in self._ret_sites}  # pyright: ignore[reportAttributeAccessIssue]
+        func._jumpout_sites = {  # pyright: ignore[reportAttributeAccessIssue]
+            copied_node(node) for node in self._jumpout_sites
+        }
+        func._callout_sites = {  # pyright: ignore[reportAttributeAccessIssue]
+            copied_node(node) for node in self._callout_sites
+        }
+        func._retout_sites = {  # pyright: ignore[reportAttributeAccessIssue]
+            copied_node(node) for node in self._retout_sites
+        }
+        func._endpoints = defaultdict(
+            set, {sort: {copied_node(node) for node in nodes} for sort, nodes in self._endpoints.items()}
+        )
         func._call_sites = self._call_sites.copy()
         func._project = self._project
         func.previous_names = list(self.previous_names)
@@ -2141,18 +2460,26 @@ class Function(Serializable):
         func.bp_on_stack = self.bp_on_stack
         func.retaddr_on_stack = self.retaddr_on_stack
         func.sp_delta = self.sp_delta
-        func._calling_convention = self.calling_convention
-        func.prototype = self.prototype
+        func._calling_convention = calling_convention
+        func._prototype = prototype
+        func._prototype_libname = self.prototype_libname
+        func._prototype_source = self.prototype_source
         func._returning = self._returning
         func._is_alignment = self.is_alignment
-        func.startpoint = self.startpoint
-        func._addr_to_block_node = self._addr_to_block_node.copy()
+        func.startpoint = copied_node(self.startpoint)
+        func._addr_to_block_node = {addr: copied_node(node) for addr, node in self._addr_to_block_node.items()}
         func._block_sizes = self._block_sizes.copy()
-        func._local_blocks = self._local_blocks.copy()
+        func._local_blocks = {addr: copied_node(node) for addr, node in self._local_blocks.items()}
         func._local_block_addrs = self._local_block_addrs.copy()
         func._info = self.info.copy(func)
-        func.tags = self.tags
+        func._argument_registers = self._argument_registers.copy()
+        func._argument_stack_variables = self._argument_stack_variables.copy()
+        func._from_signature = self._from_signature
+        func.is_default_name = self.is_default_name
+        func.tags = copy.deepcopy(self.tags)
+        func.meta_only = self.meta_only
         func._dirty = self._dirty
+        func.ran_cca = self.ran_cca
 
         return func
 
