@@ -28,6 +28,7 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.analyses.decompiler.structured_codegen.c import CConstruct
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
@@ -39,6 +40,7 @@ from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.ail_serialization import (
+    BlockPool,
     pack_arg_vvars,
     pack_graph,
     pack_ite_exprs,
@@ -139,6 +141,71 @@ class TestAilSerializationHelpers(unittest.TestCase):
         assert back[b0][b1] == {"type": "fake_return", "outside": False, "confirmed": True}
         assert back[b0][b2] == {"type": "transition", "stmt_idx": -2}
         assert back[b1][b2] == {}
+
+    def _switch_head_block(self, idx=7):
+        """A block terminated by the one AIL statement that is still written in Python, as LoweredSwitchSimplifier
+        leaves it: the marker replaces the head block's last statement."""
+        cmp_block = AilBlock(0x2000, 4, statements=[Return(9, [], ins_addr=0x2000)])
+        head = IncompleteSwitchCaseHeadStatement(
+            idx,
+            Const(11, 0x40, 32),
+            [
+                (cmp_block, 1, 0x1100, None, 0x1200),
+                (cmp_block, "default", 0x1300, 4, None),
+            ],
+            ins_addr=0x1000,
+        )
+        return AilBlock(0x1000, 4, statements=[Assignment(0, AilTmp(1, 2, 64), Const(2, 1, 64), ins_addr=0x1000), head])
+
+    def test_graph_roundtrip_with_incomplete_switch_case_head(self):
+        # Block.to_bytes() carries only Rust statements, so the marker is encoded beside the block payload and put
+        # back at its original index on parse.
+        blk = self._switch_head_block()
+        _, b1, _ = self._blocks()
+        g = networkx.DiGraph()
+        g.add_edge(blk, b1, type="transition")
+
+        back = parse_graph(pack_graph(g))
+        restored = next(n for n in back.nodes if n.addr == 0x1000)
+        assert len(restored.statements) == 2
+        head = restored.statements[1]
+        assert isinstance(head, IncompleteSwitchCaseHeadStatement)
+        assert head.idx == 7
+        assert head.tags["ins_addr"] == 0x1000
+        assert head.switch_variable == Const(11, 0x40, 32)
+        assert [(v, ta, ti, na) for _, v, ta, ti, na in head.case_addrs] == [
+            (1, 0x1100, None, 0x1200),
+            ("default", 0x1300, 4, None),
+        ]
+        assert [c.addr for c, *_ in head.case_addrs] == [0x2000, 0x2000]
+
+    def test_block_pool_separates_blocks_differing_only_in_python_statements(self):
+        # The pool deduplicates on the payload, and the marker is not in the payload; two blocks whose Rust
+        # statements are identical must not collapse into one entry.
+        pool = BlockPool()
+        g0 = networkx.DiGraph()
+        g0.add_node(self._switch_head_block(idx=7))
+        g1 = networkx.DiGraph()
+        g1.add_node(self._switch_head_block(idx=8))
+        m0 = pack_graph(g0, pool=pool)
+        m1 = pack_graph(g1, pool=pool)
+        assert m0.block_refs[0] != m1.block_refs[0]
+
+        back0 = parse_graph(m0, pool_payloads=pool.payloads)
+        back1 = parse_graph(m1, pool_payloads=pool.payloads)
+        assert next(iter(back0.nodes)).statements[1].idx == 7
+        assert next(iter(back1.nodes)).statements[1].idx == 8
+
+    def test_graph_rejects_unknown_python_statement(self):
+        # The encoder knows one Python-side statement. Anything else must still raise rather than be dropped.
+        class _Bogus:
+            pass
+
+        blk = AilBlock(0x1000, 4, statements=[_Bogus()])
+        g = networkx.DiGraph()
+        g.add_node(blk)
+        with self.assertRaises(TypeError):
+            pack_graph(g)
 
     def test_graph_rejects_unknown_edge_attr(self):
         b0, b1, _ = self._blocks()
