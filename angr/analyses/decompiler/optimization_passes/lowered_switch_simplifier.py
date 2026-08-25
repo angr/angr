@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, deque
 from typing import TYPE_CHECKING
 
 import networkx
@@ -369,14 +369,19 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # sometimes they overlap
                         # e.g., 0x402cc7 in mv_-O2
                         continue
-                    # ensure all nodes that are only reachable from onode are also removed
-                    # FIXME: Remove the entire path of nodes instead of only the immediate successors
-                    successors = list(graph_copy.successors(onode))
-                    graph_copy.remove_node(onode)
-                    for succ in successors:
-                        in_edges = [(src, dst) for src, dst in graph_copy.in_edges(succ) if src is not succ]
-                        if not in_edges:
-                            graph_copy.remove_node(succ)
+                    # ensure all nodes that are only reachable from onode are also removed, following the
+                    # chain of them: redundant nodes point at one another, so removing one orphans the next
+                    worklist = deque([onode])
+                    while worklist:
+                        node = worklist.popleft()
+                        if node not in graph_copy:
+                            continue
+                        successors = list(graph_copy.successors(node))
+                        graph_copy.remove_node(node)
+                        for succ in successors:
+                            in_edges = [(src, dst) for src, dst in graph_copy.in_edges(succ) if src is not succ]
+                            if not in_edges:
+                                worklist.append(succ)
                 # apply delayed edges
                 for src, dst in delayed_edges:
                     if src is None:
