@@ -474,6 +474,43 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert back.stackvar_max_sizes[big] == 5419868274
         assert len(back.stackvar_max_sizes) == len(saved) + 1
 
+    def test_cache_with_incomplete_switch_case_head_roundtrips(self):
+        # dirname's main has a lowered switch that LoweredSwitchSimplifier reverts, so cc_graph -- the snapshot taken
+        # before structuring -- keeps the Python-side marker statement it leaves behind.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "dirname"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True, analyze_callsites=True)
+        func = proj.kb.functions.function(name="main")
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+
+        def heads(graph):
+            return [
+                stmt
+                for block in graph.nodes
+                for stmt in block.statements
+                if isinstance(stmt, IncompleteSwitchCaseHeadStatement)
+            ]
+
+        assert dec.clinic is not None and dec.cache is not None and dec.clinic.cc_graph is not None
+        original = heads(dec.clinic.cc_graph)
+        assert original, "cc_graph carries no switch-case head; this test would pass without exercising anything"
+
+        back = DecompilationCache.parse(dec.cache.serialize(), project=proj, kb=proj.kb, function=func, cfg=cfg.model)
+        assert back.clinic is not None and back.clinic.cc_graph is not None
+        restored = heads(back.clinic.cc_graph)
+        assert len(restored) == len(original)
+        for before, after in zip(original, restored):
+            assert after.idx == before.idx
+            assert after.tags == before.tags
+            assert after.switch_variable == before.switch_variable
+            assert after.peephole_optimized == before.peephole_optimized
+            # every field, including the cmp_block Block that _pack_switch_head encodes with
+            # to_bytes() and _parse_switch_head rebuilds with from_bytes()
+            assert after.case_addrs == before.case_addrs
+        assert back.clinic.cc_graph.number_of_nodes() == dec.clinic.cc_graph.number_of_nodes()
+        assert back.clinic.cc_graph.number_of_edges() == dec.clinic.cc_graph.number_of_edges()
+
     def test_cache_hit_on_deserialized_cache(self):
         cache = self.decompiler.cache
         blob = cache.serialize()
