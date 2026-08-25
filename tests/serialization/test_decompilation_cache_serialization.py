@@ -28,7 +28,7 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from angr.analyses.decompiler.structured_codegen.c import CConstruct
+from angr.analyses.decompiler.structured_codegen.c import CConstant, CConstruct
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
@@ -37,6 +37,7 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import (
 )
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
+from angr.sim_type import SimType
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.ail_serialization import (
     pack_arg_vvars,
@@ -348,6 +349,33 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         # parameters preserves the 15 keys
         assert set(back.parameters.keys()) == set(cache.parameters.keys())
         assert len(back.parameters) == 15
+
+    def test_constant_below_min_data_addr_keeps_reference_values_typed(self):
+        # A Const that resolves to a global variable renders as a reference to that variable, unless its value is
+        # below min_data_addr, in which case it renders as the constant. __do_global_dtors_aux references a global
+        # at 0x600e38, so raising min_data_addr above it puts it on the second branch. min_data_addr became a
+        # codegen parameter in #5199, which is also where that branch came from.
+        func = self.proj.kb.functions.function(name="__do_global_dtors_aux")
+        dec = self.proj.analyses.Decompiler(func, cfg=self.cfg.model, generate_code=True)
+        codegen = self.proj.analyses.CStructuredCodeGenerator(
+            func,
+            dec.seq_node,
+            cfg=self.cfg.model,
+            ail_graph=dec.clinic.graph,
+            func_args=dec.clinic.arg_list,
+            variable_map=dec.clinic.variable_map,
+            externs=dec.clinic.externs,
+            min_data_addr=1 << 62,
+        )
+
+        constants = [elem.obj for _, elem in codegen.map_pos_to_node.items() if isinstance(elem.obj, CConstant)]
+        assert constants
+        for const in constants:
+            for key in const.reference_values or {}:
+                assert isinstance(key, SimType)
+
+        # reference_values is keyed by SimType, and the serializer interns every key as one
+        assert codegen.serialize()
 
     def test_cache_hit_on_deserialized_cache(self):
         cache = self.decompiler.cache

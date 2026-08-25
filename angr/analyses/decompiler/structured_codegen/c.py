@@ -4201,7 +4201,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self,
         expr: Expr.Const,
         type_=None,
-        reference_values: dict[SimType | str, str | bytes | int | float | Function | CExpression] | None = None,
+        reference_values: dict[SimType, str | bytes | int | float | Function | CExpression] | None = None,
         variable=None,
         likely_signed=True,
         **kwargs,
@@ -4304,16 +4304,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             elif function_pointer:
                 self._function_pointers.add(expr_reference_variable)
 
-        var_access = None
         if variable is not None and not reference_values:
+            # _variable() records the variable as in use, which CFunction reads to emit declarations and
+            # CFunctionCall reads to disambiguate call target names
             cvar = self._variable(variable, None)
             offset = self._variable_map.reference_variable_offset(expr)
             var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
-
-        if var_access is not None:
             if expr.value >= self.min_data_addr:
                 return var_access
-            reference_values["offset"] = var_access
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, type_: SimType | None = None, **kwargs):
