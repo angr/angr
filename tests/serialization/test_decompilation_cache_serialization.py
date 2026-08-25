@@ -28,7 +28,6 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.analyses.decompiler.structured_codegen.c import CConstruct
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
@@ -36,6 +35,7 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _parse_tags,
     _sanitize_tags,
 )
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
@@ -415,6 +415,40 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         # parameters preserves the 15 keys
         assert set(back.parameters.keys()) == set(cache.parameters.keys())
         assert len(back.parameters) == 15
+
+    def test_cache_with_incomplete_switch_case_head_roundtrips(self):
+        # dirname's main has a lowered switch that LoweredSwitchSimplifier reverts, so cc_graph -- the snapshot taken
+        # before structuring -- keeps the Python-side marker statement it leaves behind.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "dirname"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True, analyze_callsites=True)
+        func = proj.kb.functions.function(name="main")
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+
+        def heads(graph):
+            return [
+                stmt
+                for block in graph.nodes
+                for stmt in block.statements
+                if isinstance(stmt, IncompleteSwitchCaseHeadStatement)
+            ]
+
+        original = heads(dec.clinic.cc_graph)
+        assert original, "cc_graph carries no switch-case head; this test would pass without exercising anything"
+
+        back = DecompilationCache.parse(dec.cache.serialize(), project=proj, kb=proj.kb, function=func, cfg=cfg.model)
+        restored = heads(back.clinic.cc_graph)
+        assert len(restored) == len(original)
+        for before, after in zip(original, restored):
+            assert after.idx == before.idx
+            assert after.tags == before.tags
+            assert after.switch_variable == before.switch_variable
+            assert after.peephole_optimized == before.peephole_optimized
+            assert [(v, ta, ti, na) for _, v, ta, ti, na in after.case_addrs] == [
+                (v, ta, ti, na) for _, v, ta, ti, na in before.case_addrs
+            ]
+        assert back.clinic.cc_graph.number_of_nodes() == dec.clinic.cc_graph.number_of_nodes()
+        assert back.clinic.cc_graph.number_of_edges() == dec.clinic.cc_graph.number_of_edges()
 
     def test_cache_hit_on_deserialized_cache(self):
         cache = self.decompiler.cache
