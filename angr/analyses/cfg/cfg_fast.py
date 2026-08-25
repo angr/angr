@@ -1132,11 +1132,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             else:
                 inside_region = addr < region_end
             if not inside_region:
+                is_sz = False
                 break
 
             # l.debug("Searching address %x", addr)
             val = self._load_a_byte_as_int(addr)
             if val is None:
+                is_sz = False
                 break
             if val == 0:
                 break
@@ -1178,14 +1180,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             else:
                 inside_region = addr < region_end
             if not inside_region:
+                is_sz = False
                 break
 
             # l.debug("Searching address %x", addr)
             val0 = self._load_a_byte_as_int(addr)
             if val0 is None:
+                is_sz = False
                 break
             val1 = self._load_a_byte_as_int(addr + 1)
             if val1 is None:
+                is_sz = False
                 break
             if val0 == 0 and val1 == 0:
                 break
