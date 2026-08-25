@@ -46,6 +46,7 @@ class TestWindowsFastfail(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 project = angr.Project(os.path.join(test_location, path), auto_load_libs=False)
+                assert isinstance(project.simos, SimWindows)
                 simgr = project.factory.simulation_manager(project.factory.call_state(project.simos.fastfail.addr, 0))
                 simgr.run()
 
