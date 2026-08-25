@@ -28,6 +28,7 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.analyses.decompiler.structured_codegen.base import BaseStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen.c import CConstant, CConstruct
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
@@ -37,6 +38,7 @@ from angr.analyses.decompiler.structured_codegen.c_serialize import (
 )
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
 from angr.protos import codegen_pb2
+from angr.serializable import Serializable
 from angr.sim_type import SimType
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.ail_serialization import (
@@ -422,6 +424,16 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert d2.codegen.text == d1.codegen.text
 
 
+class FailingCodeGenerator(BaseStructuredCodeGenerator, Serializable):
+    """A code generator that advertises serialization support and then raises, as a buggy serializer would."""
+
+    def __init__(self):
+        super().__init__("pseudocode")
+
+    def serialize_to_cmessage(self):
+        raise ValueError("synthetic serialization failure")
+
+
 class TestSpillingDecompilationDict(unittest.TestCase):
     """Tests for the LRU + RtDb-spilling backing store of StructuredCodeManager."""
 
@@ -486,6 +498,23 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert dummy_key in d._unspillable
         assert d[dummy_key] is dummy_cache
         assert len(d) == 2
+
+    def test_failing_serializer_does_not_retain_the_cache(self):
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        broken_key = (0xDEAD, "pseudocode")
+        broken_cache = DecompilationCache(0xDEAD)
+        broken_cache.codegen = FailingCodeGenerator()
+        d[broken_key] = broken_cache
+
+        # this code generator claims to support serialization, so a failure is a bug rather than a flavor that has
+        # nowhere to spill to: the entry is dropped instead of being held in memory for the rest of the session
+        main_key = (self.main_func.addr, "pseudocode")
+        d[main_key] = self.main_dec.cache
+        assert not d._unspillable
+        assert broken_key not in d
+        assert len(d) == 1
+        with self.assertRaises(KeyError):
+            _ = d[broken_key]
 
     def test_delete_and_discard(self):
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
