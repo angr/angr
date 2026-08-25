@@ -417,6 +417,7 @@ impl Icicle {
         }
         for id in affected_blocks {
             self.vm.jit.invalidate(id);
+            self.vm.code.blocks[id].entry = None;
         }
         self.vm
             .code
