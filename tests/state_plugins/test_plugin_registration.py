@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests.state_plugins"  # pylint:disable=redefined-builtin
