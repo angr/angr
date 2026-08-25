@@ -15,11 +15,12 @@ import cle
 import pypcode
 from archinfo import ArchARM, ArchPcode
 from cachetools import LRUCache
+from pyvex.const import vex_int_class
 
 # FIXME: Reusing these errors from pyvex for compatibility. Eventually these
 # should be refactored to use common error classes.
 from pyvex.errors import LiftingException, PyVEXError, SkipStatementsError
-from pyvex.expr import U8, U16, U32, U64, Const, IRExpr
+from pyvex.expr import Const, IRExpr
 
 from angr import sim_options as o
 from angr.block import DisassemblerBlock, DisassemblerInsn
@@ -474,7 +475,7 @@ class IRSB:
         # pylint: disable=unused-argument
         self._statements = statements if statements is not None else []
         if isinstance(nxt, int):
-            const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[self.arch.bits]
+            const_cls = vex_int_class(self.arch.bits)
             self.next = Const(const_cls(nxt))
         else:
             self.next = nxt
@@ -808,7 +809,7 @@ def lift(
             # We have no more bytes left. Mark the jumpkind of the IRSB as Ijk_Boring
             if final_irsb.size > 0 and final_irsb.jumpkind == "Ijk_NoDecode":
                 final_irsb.jumpkind = "Ijk_Boring"
-                const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[arch.bits]
+                const_cls = vex_int_class(arch.bits)
                 final_irsb.next = Const(const_cls(final_irsb.addr + final_irsb.size))
 
     return final_irsb
@@ -958,7 +959,7 @@ class PcodeBasicBlockLifter:
             next_block = (fallthru_addr, "Ijk_Boring")
 
         irsb._size = fallthru_addr - irsb.addr
-        const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[irsb.arch.bits]
+        const_cls = vex_int_class(irsb.arch.bits)
         irsb.next = Const(const_cls(next_block[0])) if next_block[0] is not None else None
         irsb.jumpkind = next_block[1]
 

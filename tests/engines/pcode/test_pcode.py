@@ -5,6 +5,7 @@ import os
 from unittest import TestCase, main
 
 import archinfo
+from pyvex.expr import Const
 
 import angr
 
@@ -144,6 +145,22 @@ class TestPcodeEngine(TestCase):
                 continue
             func_out = func.graph.out_degree(func_node)
             assert func_out > 0
+
+    def test_lift_architecture_whose_word_is_not_a_power_of_two(self):
+        """
+        A SLEIGH language may declare a word size VEX has no named constant for: the PIC and dsPIC
+        families are 24-bit. Lifting one used to raise KeyError on the width itself.
+        """
+        for language in ("dsPIC33F:LE:24:default", "PIC-24E:LE:24:default"):
+            with self.subTest(language=language):
+                arch = archinfo.ArchPcode(language)
+                assert arch.bits == 24
+                project = angr.load_shellcode(
+                    b"\x00" * 6, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode
+                )
+                irsb = project.factory.block(0x1000).vex
+                assert isinstance(irsb.next, Const)
+                assert irsb.next.con.__class__.__name__ == f"U{arch.bits}"
 
 
 if __name__ == "__main__":
