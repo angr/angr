@@ -37,6 +37,25 @@ class TestWindowsFastfail(unittest.TestCase):
                 assert isinstance(project.simos, SimWindows)
                 assert isinstance(project.simos.fastfail.cc, expected_cc)
 
+    def test_fastfail_runs_on_a_real_windows_arm_binary(self):
+        # Selecting the convention is not the same as being able to use it. Run the handler on both images, which
+        # covers ARMNT end to end -- the shellcode test above only executes the AArch64 one.
+        for path in (
+            os.path.join("aarch64", "windows", "fastfail_arm64.exe"),
+            os.path.join("armel", "windows", "fastfail_armnt.exe"),
+        ):
+            with self.subTest(path=path):
+                project = angr.Project(os.path.join(test_location, path), auto_load_libs=False)
+                simgr = project.factory.simulation_manager(project.factory.call_state(project.simos.fastfail.addr, 0))
+                simgr.run()
+
+                assert len(simgr.deadended) == 1
+                state = simgr.deadended[0]
+                assert state.history.jumpkind == "Ijk_Exit"
+                terminations = [event for event in state.history.events if event.type == "terminate"]
+                assert len(terminations) == 1
+                assert state.solver.eval_one(terminations[0].objects["exit_code"]) == 0xC0000409
+
     def test_fastfail_uses_the_windows_syscall_convention(self):
         # Windows runs on ARM and AArch64 too, so every architecture that has __fastfail has a Windows syscall
         # convention for its handler.
