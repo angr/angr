@@ -234,7 +234,7 @@ class StructurerBase(Analysis):
             # of course, this only works if all nodes either end with a return or a goto that goes to the end of the
             # outer switch-case. we detect it first.
             # TODO: Implement the above logic
-            return walker._handle_Loop(node, parent=parent, index=index, label=label)
+            return None
 
         def _handle_SwitchCase(node: SwitchCaseNode, parent=None, index=0, label=None):
             # if a node inside this switch-case has a goto that goes to the end of the outer switch-case, we will
