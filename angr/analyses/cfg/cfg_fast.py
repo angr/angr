@@ -9,6 +9,7 @@ import string
 import time
 from collections import OrderedDict, defaultdict
 from enum import Enum, unique
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import capstone
@@ -84,6 +85,37 @@ if TYPE_CHECKING:
 VEX_IRSB_MAX_SIZE = 400
 # the minimum interval (in seconds) between two consecutive progress notifications
 PROGRESS_NOTIFY_INTERVAL = 0.05
+# Alignment padding encodings, per architecture, in little-endian byte order; the big-endian variant of an
+# architecture is served by reversing them. Only architectures whose padding has actually been surveyed appear
+# here: deriving the set from archinfo's nop_instruction is unsound, because that field is a single canonical
+# encoding rather than what a linker emits, and on some architectures it is not even that.
+_ALIGNMENT_PADDING: dict[str, frozenset[bytes]] = {
+    # ori r0, r0, 0 and ori r2, r2, 0; both architectural no-ops, both emitted as
+    # inter-function padding. Little-endian PowerPC; reversed for big-endian below.
+    "PPC32": frozenset({b"\x00\x00\x00\x60", b"\x00\x00\x42\x60"}),
+    "PPC64": frozenset({b"\x00\x00\x00\x60", b"\x00\x00\x42\x60"}),
+}
+
+
+@cache
+def alignment_padding_encodings(arch_name: str, memory_endness: str) -> tuple[bytes, ...]:
+    """
+    The alignment padding encodings to scan for on an architecture, in the byte order they appear in memory.
+
+    :param arch_name:       The architecture's name, as in Arch.name.
+    :param memory_endness:  The architecture's memory endness. This is the field that tracks the target's byte
+                            order; instruction_endness is a class-level constant that PowerPC never overrides,
+                            so it still reads BE on a little-endian PowerPC target.
+    :return:                The encodings, sorted so that iteration order is deterministic, or an empty tuple if
+                            this architecture's padding has not been surveyed.
+    """
+
+    encodings = _ALIGNMENT_PADDING.get(arch_name)
+    if not encodings:
+        return ()
+    if memory_endness == Endness.BE:
+        encodings = frozenset(bytes(reversed(encoding)) for encoding in encodings)
+    return tuple(sorted(encodings))
 
 
 l = logging.getLogger(name=__name__)
@@ -1347,9 +1379,30 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 return offset + len(nop)
         return 0
 
+    def _fixed_width_nop_size(self, addr: int) -> int:
+        """
+        Determine whether a fixed-width NOP instruction starts at a given address.
+
+        :param addr:    The address to decode at.
+        :return:        The length of the instruction in bytes, or 0 if no NOP starts at this address.
+        """
+
+        arch = self.project.arch
+        for nop in alignment_padding_encodings(arch.name, arch.memory_endness):
+            if not any(nop):
+                # an all-zero NOP encoding (ARM, MIPS) is indistinguishable from a zeroed data region, and the zero
+                # run is already classified elsewhere, so only distinctive encodings are scanned for here
+                continue
+            if addr % len(nop) != 0:
+                # padding is emitted at its own alignment; a match at any other offset is a coincidence inside data
+                continue
+            if all(self._load_a_byte_as_int(addr + offset) == expected for offset, expected in enumerate(nop)):
+                return len(nop)
+        return 0
+
     def _scan_for_nop_padding(self, start_addr: int) -> int:
         """
-        Scan from a given address for a run of x86 NOP instructions.
+        Scan from a given address for a run of NOP instructions.
 
         Compilers pad with NOPs to align the function or the branch target that follows, and that padding is
         unreachable by construction: whatever transfers control to the aligned address skips over it. A linear scan
@@ -1359,9 +1412,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return:            The length of the run in bytes, or 0 if no NOP starts at start_addr.
         """
 
+        # x86 NOPs are variable-length and come in a table of encodings; everywhere else padding is one of a handful
+        # of fixed-width words, listed per architecture in _ALIGNMENT_PADDING
+        arch = self.project.arch
+        if arch.name in {"X86", "AMD64"}:
+            nop_size_at = self._x86_nop_size
+        elif alignment_padding_encodings(arch.name, arch.memory_endness):
+            nop_size_at = self._fixed_width_nop_size
+        else:
+            # this architecture's padding has not been surveyed, so nothing is scanned for
+            return 0
+
         addr = start_addr
         while self._inside_regions(addr):
-            nop_size = self._x86_nop_size(addr)
+            nop_size = nop_size_at(addr)
             if not nop_size:
                 break
             addr += nop_size
@@ -1637,9 +1701,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     self.model.memory_data[str_addr] = md
                     start_addr = str_addr + string_length
 
-            if not matched_something and self.project.arch.name in {"X86", "AMD64"}:
+            if not matched_something:
                 # find alignment padding: 0xCC is what MSVC pads with, NOPs are what everything else pads with
-                cc_length = self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)
+                cc_length = (
+                    self._scan_for_repeating_bytes(start_addr, 0xCC, threshold=1)
+                    if self.project.arch.name in {"X86", "AMD64"}
+                    else 0
+                )
                 padding_length = cc_length or self._scan_for_nop_padding(start_addr)
                 if padding_length:
                     matched_something = True
@@ -1664,10 +1732,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
-                matched_something = True
-                self._seg_list.occupy(start_addr, zeros_length, "alignment")
-                self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Alignment)
-                start_addr += zeros_length
+                # a data run must not end in the middle of an instruction. on a fixed-width architecture the low
+                # bytes of a little-endian encoding are frequently zero - the ppc64le NOP is 00 00 00 60 - so a run
+                # of zeros walks into the padding that follows and leaves the scan misaligned inside it. the clamp
+                # is scoped to the architectures whose padding _ALIGNMENT_PADDING describes, because on the others
+                # it would move block starts with no evidence that where it moves them to is better.
+                arch = self.project.arch
+                if alignment_padding_encodings(arch.name, arch.memory_endness):
+                    zeros_length -= (start_addr + zeros_length) % (arch.instruction_alignment or 1)
+                if zeros_length > 0:
+                    matched_something = True
+                    self._seg_list.occupy(start_addr, zeros_length, "alignment")
+                    self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Alignment)
+                    start_addr += zeros_length
 
             # we consider over 16 bytes of any repeated bytes to be bad
             repeating_byte_length = self._scan_for_repeating_bytes(start_addr, None, threshold=16)

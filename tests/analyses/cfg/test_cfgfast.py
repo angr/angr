@@ -1188,6 +1188,24 @@ class TestCfgfast(unittest.TestCase):
                 # the real functions are still there
                 assert "main" in cfg.kb.functions
 
+    def test_ppc_nop_padding_does_not_absorb_the_next_function(self):
+        # a stripped inter-function gap: the FDE before it ends at 0x415194, a run of PowerPC NOPs fills the gap up
+        # to the next FDE, and 0x4151a0 is that FDE's start -- an ELFv2 global entry point (addis r2, r12, ...)
+        # that no symbol covers. The linear scan used to seed a function at the padding, which swallowed the real
+        # entry into a block that starts two instructions early.
+        proj = angr.Project(os.path.join(test_location, "ppc64el", "ld64.so.2"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert cfg.model.get_any_node(0x415198) is None, "alignment padding was recovered as a basic block"
+        assert 0x415198 not in cfg.kb.functions, "alignment padding was recovered as a function"
+        assert cfg.model.get_any_node(0x4151A0) is not None, "the function entry point is not a block start"
+        assert 0x4151A0 in cfg.kb.functions, "the function entry point was not recovered as a function"
+
+        # three ori r0, r0, 0 fill the gap from the end of the previous FDE to the aligned entry
+        data = cfg.model.memory_data[0x415194]
+        assert data.sort == MemoryDataSort.Alignment
+        assert data.size == 12
+
 
 if __name__ == "__main__":
     unittest.main()
