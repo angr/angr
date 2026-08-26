@@ -316,10 +316,17 @@ def type_to_c_repr_chunks(
             # struct def preamble
             yield indent_str, None
             if isinstance(ty, SimCppClass):
+                # A class name reaches codegen spelled either way: angr's C++ parser keeps the
+                # elaborated form on the class branch of _cpp_decl_to_type, while the STL
+                # definitions keep the plain one. SimCppClass.__repr__ already accounts for
+                # that; emitting the class-key unconditionally beside the name did not, so an
+                # elaborated name came out as "class class Ns::Type".
+                type_name = ty.name.removeprefix("class ")
                 yield "class ", None
             else:
+                type_name = ty.name
                 yield "typedef struct ", None
-            yield ty.name, ty
+            yield type_name, ty
             yield " {\n", None
 
             # each of the fields
@@ -338,7 +345,7 @@ def type_to_c_repr_chunks(
 
             # struct def postamble
             yield "} ", None
-            yield ty.name, ty
+            yield type_name, ty
             yield ";\n\n", None
 
         else:
