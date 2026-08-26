@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Iterable
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -1958,14 +1958,110 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions.canonical_form() != reference.canonical_form():
             raise AssertionError("Incremental SRDA update diverged from a full rebuild")
 
-    def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int | None]]]:
-        # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
-        # cases where a statement defines more than one atom, e.g., a call statement that defines both the return
-        # value and the floating-point return value.
+    def _find_dead_vvars(
+        self, rd: SRDAModel, blocks: dict[Address, Block], retpoints: set[Address]
+    ) -> tuple[dict[tuple[int, int | None], set[int]], dict[tuple[int, int | None], set[int]], set[int]]:
+        """
+        Find all vvar definitions whose uses are all located at definition sites that are themselves dead.
+
+        Deadness propagates backwards along use-def edges, so re-scanning every definition until a fixed point is
+        reached only retires one link of a use-def chain per scan, which is O(V*E). Instead we count the live uses of
+        each vvar once and decrement those counts as definition sites are retired, which is O(V+E).
+
+        :return: Statements to remove per block, statements to keep per block, and the ids of all dead vvars.
+        """
         stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         stmts_to_keep_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         dead_vvar_ids: set[int] = self._removed_vvar_ids.copy()
         dead_vvar_codelocs: set[AILCodeLocation] = set()
+
+        # count the uses of every vvar that is a candidate for removal. vvars that are excluded from removal
+        # altogether (e.g., non-eliminatable stack variables) are left out and are neither removed nor kept.
+        live_use_counts: dict[int, int] = {}
+        for vvar_id, codeloc in rd.all_vvar_definitions.items():
+            if vvar_id in dead_vvar_ids:
+                continue
+            uses = None
+            if vvar_id in self._propagator_dead_vvar_ids:
+                # we are definitely removing this variable if it has no uses
+                uses = rd.all_vvar_uses[vvar_id]
+
+            if uses is None:
+                vvar = rd.varid_to_vvar[vvar_id]
+                if codeloc.is_extern:
+                    def_stmt = None
+                else:
+                    assert codeloc.block_addr is not None and codeloc.stmt_idx is not None
+                    def_stmt = blocks[(codeloc.block_addr, codeloc.block_idx)].statements[codeloc.stmt_idx]
+                if is_vvar_eliminatable(vvar, def_stmt):
+                    uses = rd.all_vvar_uses[vvar_id]
+                elif vvar.was_stack:
+                    if not self._remove_dead_memdefs:
+                        if rd.is_phi_vvar_id(vvar_id):
+                            # we always remove unused phi variables
+                            pass
+                        elif (codeloc.block_addr, codeloc.block_idx) in retpoints:
+                            # stack variable assignments in endpoint blocks are potentially removable.
+                            # note that this is a hack! we should rely on more reliable stack variable
+                            # eliminatability detection.
+                            pass
+                        elif self._stackarg_offset_manager is not None:
+                            if not self._stackarg_offset_manager.is_stackarg_vvar(vvar.varid):
+                                # this stack variable is not a stack argument for any of the call sites that consume
+                                # this offset. it is not eliminatable.
+                                continue
+                        else:
+                            continue
+                    uses = rd.all_vvar_uses[vvar_id]
+
+                else:
+                    uses = set()
+
+            live_use_counts[vvar_id] = len(uses)
+
+        # retire every vvar without live uses. retiring a vvar kills its definition site, which in turn discounts the
+        # uses that this site makes of other vvars, potentially retiring them as well.
+        worklist = deque(vvar_id for vvar_id, count in live_use_counts.items() if count == 0)
+        while worklist:
+            vvar_id = worklist.popleft()
+            if vvar_id in dead_vvar_ids:
+                continue
+            dead_vvar_ids.add(vvar_id)
+            codeloc = rd.all_vvar_definitions[vvar_id]
+            if not codeloc.is_extern:
+                stmts_to_remove_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
+                stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].discard(codeloc.stmt_idx)
+            if codeloc in dead_vvar_codelocs:
+                # another vvar defined at this site died first; its uses were already discounted
+                continue
+            dead_vvar_codelocs.add(codeloc)
+            if codeloc.is_extern:
+                continue
+            users = rd.vvar_uses_by_loc.get(codeloc)
+            if not users:
+                continue
+            stmt = blocks[(codeloc.block_addr, codeloc.block_idx)].statements[codeloc.stmt_idx]
+            if self._statement_has_call_exprs(stmt) or isinstance(stmt, (DirtyStatement, SideEffectStatement)):
+                # the statement survives for its side effects, so its uses still count
+                continue
+            for used_vvar_id in users:
+                if used_vvar_id in dead_vvar_ids or used_vvar_id not in live_use_counts:
+                    continue
+                count = live_use_counts[used_vvar_id] - 1
+                live_use_counts[used_vvar_id] = count
+                if count == 0:
+                    worklist.append(used_vvar_id)
+
+        for vvar_id in live_use_counts:
+            if vvar_id in dead_vvar_ids:
+                continue
+            codeloc = rd.all_vvar_definitions[vvar_id]
+            if not codeloc.is_extern:
+                stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
+
+        return stmts_to_remove_per_block, stmts_to_keep_per_block, dead_vvar_ids
+
+    def _remove_dead_assignments(self) -> tuple[bool, set[tuple[int, int | None]]]:
         blocks: dict[Address, Block] = {
             (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
         }
@@ -1978,77 +2074,10 @@ class AILSimplifier(Analysis):
             if node.statements and isinstance(node.statements[-1], Return) and self.func_graph.out_degree[node] == 0
         }
 
-        while True:
-            new_dead_vars_found = False
-
-            # traverse all virtual variable definitions
-            for vvar_id, codeloc in rd.all_vvar_definitions.items():
-                if vvar_id in dead_vvar_ids:
-                    continue
-                uses = None
-                if vvar_id in self._propagator_dead_vvar_ids:
-                    # we are definitely removing this variable if it has no uses
-                    uses = rd.all_vvar_uses[vvar_id]
-
-                if uses is None:
-                    vvar = rd.varid_to_vvar[vvar_id]
-                    def_codeloc = codeloc
-                    if def_codeloc.is_extern:
-                        def_stmt = None
-                    else:
-                        assert def_codeloc.block_addr is not None and def_codeloc.stmt_idx is not None
-                        def_stmt = blocks[(def_codeloc.block_addr, def_codeloc.block_idx)].statements[
-                            def_codeloc.stmt_idx
-                        ]
-                    if is_vvar_eliminatable(vvar, def_stmt):
-                        uses = rd.all_vvar_uses[vvar_id]
-                    elif vvar.was_stack:
-                        if not self._remove_dead_memdefs:
-                            if rd.is_phi_vvar_id(vvar_id):
-                                # we always remove unused phi variables
-                                pass
-                            elif (def_codeloc.block_addr, def_codeloc.block_idx) in retpoints:
-                                # stack variable assignments in endpoint blocks are potentially removable.
-                                # note that this is a hack! we should rely on more reliable stack variable
-                                # eliminatability detection.
-                                pass
-                            elif self._stackarg_offset_manager is not None:
-                                if not self._stackarg_offset_manager.is_stackarg_vvar(vvar.varid):
-                                    # this stack variable is not a stack argument for any of the call sites that consume
-                                    # this offset. it is not eliminatable.
-                                    continue
-                            else:
-                                continue
-                        uses = rd.all_vvar_uses[vvar_id]
-
-                    else:
-                        uses = set()
-
-                # remove uses where vvars are going to be removed
-                filtered_uses_count = 0
-                for _, loc in uses:
-                    if loc in dead_vvar_codelocs and loc.block_addr is not None and loc.stmt_idx is not None:
-                        stmt = blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
-                        if not self._statement_has_call_exprs(stmt) and not isinstance(
-                            stmt, (DirtyStatement, SideEffectStatement)
-                        ):
-                            continue
-                    filtered_uses_count += 1
-
-                if filtered_uses_count == 0:
-                    new_dead_vars_found = True
-                    dead_vvar_ids.add(vvar_id)
-                    dead_vvar_codelocs.add(codeloc)
-                    if not codeloc.is_extern:
-                        stmts_to_remove_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
-                        stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].discard(codeloc.stmt_idx)
-                else:
-                    if not codeloc.is_extern:
-                        stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
-
-            if not new_dead_vars_found:
-                # nothing more is found. let's end the loop
-                break
+        # tracking statements to remove and statements (as well as dead vvars) to keep allows us to handle cases where
+        # a statement defines more than one atom, e.g., a call statement that defines both the return value and the
+        # floating-point return value.
+        stmts_to_remove_per_block, stmts_to_keep_per_block, dead_vvar_ids = self._find_dead_vvars(rd, blocks, retpoints)
 
         # find all phi variables that rely on variables that no longer exist
         removed_vvar_ids = self._removed_vvar_ids
