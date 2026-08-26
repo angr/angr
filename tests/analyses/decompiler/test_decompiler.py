@@ -2055,6 +2055,12 @@ class TestDecompiler(unittest.TestCase):
         assert "setlocale(" in d.codegen.text
         assert "NULL);" in d.codegen.text, "The arguments for setlocale() are missing"
 
+        # fadvise has a conditional tail jump to fdadvise.
+        f = proj.kb.functions["fadvise"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+        assert "return fdadvise(" in d.codegen.text
+
     def test_decompiling_thumb_self_loop_as_loop(self):
         bin_path = os.path.join(test_location, "armel", "Nucleo_read_hyperterminal.elf")
         proj = angr.Project(bin_path, auto_load_libs=False)
