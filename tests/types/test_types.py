@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from collections import OrderedDict
 from typing import cast
 
 import archinfo
@@ -11,6 +12,7 @@ from archinfo import Endness
 
 import angr
 from angr import AngrMissingTypeError
+from angr.rust.sim_type import RustSimStruct
 from angr.sim_type import (
     SimStruct,
     SimType,
@@ -424,6 +426,49 @@ class TestTypes(unittest.TestCase):
         new_t = SimType.from_json(d)
         deref_new_t = dereference_simtype(new_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
         assert deref_t == deref_new_t
+
+    def test_serialize_self_referential_rust_struct(self):
+        # struct Node { next: &Node } -- RustSimStruct consulted the memo without ever filling it
+        node = RustSimStruct(OrderedDict(), name="Node")
+        node.fields["next"] = SimTypePointer(node)
+
+        d = node.to_json()  # shall not raise
+        assert d["fields"]["next"]["pts_to"] == {"_t": "_ref", "name": "Node", "ot": "rust_struct"}
+
+    def test_serialize_self_referential_union(self):
+        union_heap = angr.types.parse_type("union heap { int data; union heap *forward; }")
+        d = union_heap.to_json()  # shall not raise
+        assert d["members"]["forward"]["pts_to"] == {"_t": "_ref", "name": "heap", "ot": "union"}
+
+    def test_union_with_arch_keeps_the_name_and_label(self):
+        union_heap = angr.types.parse_type("union heap { int data; union heap *forward; }")
+        assert union_heap.with_arch(archinfo.ArchAMD64()).name == "heap"  # shall not raise
+
+        u = SimUnion({"i": SimTypeInt()}, name="heap", label="lbl")
+        arched = cast(SimUnion, u.with_arch(archinfo.ArchAMD64()))
+        assert (arched.name, arched.label) == ("heap", "lbl")
+
+    def test_serialize_keeps_distinct_anonymous_aggregates_apart(self):
+        # every anonymous aggregate is named "<anon>", so a name-keyed memo would serialize the
+        # second one as a reference to the first and lose its members
+        t = angr.types.parse_type("struct outer { struct { int x; } a; struct { char c; } b; }")
+        d = t.to_json()
+        assert d["fields"]["b"]["_t"] == "struct"
+
+        restored = cast(SimStruct, SimType.from_json(d))
+        assert isinstance(cast(SimStruct, restored.fields["b"]).fields["c"], SimTypeChar)
+
+    def test_with_arch_keeps_distinct_anonymous_structs_apart(self):
+        t = angr.types.parse_type("struct outer { struct { int x; } a; struct { char c; } b; }")
+        arched = cast(SimStruct, t.with_arch(archinfo.ArchAMD64()))
+        assert arched.fields["a"] is not arched.fields["b"]
+        assert list(cast(SimStruct, arched.fields["b"]).fields) == ["c"]
+
+    def test_dereference_keeps_distinct_anonymous_structs_apart(self):
+        t = angr.types.parse_type("struct outer { struct { struct { int x; } deep; } mid; int y; }")
+        mid = cast(SimStruct, cast(SimStruct, dereference_simtype(t, [])).fields["mid"])
+        assert mid.fields["deep"] is not mid
+        assert isinstance(cast(SimStruct, mid.fields["deep"]).fields["x"], SimTypeInt)
 
     def test_simstruct_cmp_recursion_error(self):
         t0 = SimStruct(fields={"a": SimTypeBottom()})
