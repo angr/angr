@@ -128,7 +128,10 @@ class SimType:
         if self.size is None:
             l.debug("The size of the type %r is unknown; assuming word size of the arch.", self)
             return self._arch.bytes
-        return self.size // self._arch.byte_width
+        # A type narrower than one byte still occupies a byte-addressable location, so it aligns
+        # to one byte. Reporting the truncated quotient instead would be zero, which is not an
+        # alignment any ABI defines and which divides by zero wherever an offset is rounded up.
+        return max(1, self.size // self._arch.byte_width)
 
     def with_arch(self, arch: Arch | None, memo: dict[str, SimType] | None = None) -> SimType:
         if arch is None:
