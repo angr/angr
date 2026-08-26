@@ -28,6 +28,7 @@ from .utils import (
     deepcopy_ail_anyjump,
     find_block_in_successors_by_addr,
     replace_node_in_graph,
+    set_conditional_jump_target_addrs,
 )
 
 _l = logging.getLogger(name=__name__)
@@ -707,11 +708,15 @@ class DuplicationReverter(StructuringOptimizationPass):
             other_successor = next(iter(graph.successors(blocks[1])))
             conditional_block, true_target = self._construct_best_condition_block_for_merge(blocks, graph)
             if true_target == blocks[0]:
-                conditional_block.statements[-1].true_target.value = base_successor.addr
-                conditional_block.statements[-1].false_target.value = other_successor.addr
+                true_successor, false_successor = base_successor, other_successor
             else:
-                conditional_block.statements[-1].true_target.value = other_successor.addr
-                conditional_block.statements[-1].false_target.value = base_successor.addr
+                true_successor, false_successor = other_successor, base_successor
+
+            conditional_block.statements[-1] = set_conditional_jump_target_addrs(
+                conditional_block.statements[-1],
+                true_successor.addr,
+                false_successor.addr,
+            )
 
             ail_merge_graph.graph.add_edge(new_node, conditional_block)
             return ail_merge_graph
@@ -791,8 +796,14 @@ class DuplicationReverter(StructuringOptimizationPass):
                 # unlink src -X-> dst
                 graph.remove_edge(src, dst)
                 # correct the targets of the src
-                target = getattr(src.statements[-1], target_type)
-                target.value = nop_blk.addr
+                last_stmt = src.statements[-1]
+                true_target = last_stmt.true_target.value
+                false_target = last_stmt.false_target.value
+                if target_type == "true_target":
+                    true_target = nop_blk.addr
+                else:
+                    false_target = nop_blk.addr
+                src.statements[-1] = set_conditional_jump_target_addrs(last_stmt, true_target, false_target)
 
         return True
 

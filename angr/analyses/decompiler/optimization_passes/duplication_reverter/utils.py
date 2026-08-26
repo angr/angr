@@ -139,6 +139,24 @@ def deepcopy_ail_anyjump(stmt: Jump | ConditionalJump, idx=1):
     )
 
 
+def set_conditional_jump_target_addrs(
+    stmt: ConditionalJump,
+    true_target_addr: int,
+    false_target_addr: int,
+) -> ConditionalJump:
+    true_expr: Const = stmt.true_target
+    false_expr: Const = stmt.false_target
+    return ConditionalJump(
+        stmt.idx,
+        stmt.condition,
+        Const(true_expr.idx, true_target_addr, true_expr.bits, **true_expr.tags.copy()),
+        Const(false_expr.idx, false_target_addr, false_expr.bits, **false_expr.tags.copy()),
+        true_target_idx=stmt.true_target_idx,
+        false_target_idx=stmt.false_target_idx,
+        **stmt.tags.copy(),
+    )
+
+
 def correct_jump_targets(stmt, replacement_map: dict[int, int], new_stmt=True):
     if not replacement_map or not isinstance(stmt, Statement):
         return stmt
