@@ -12,12 +12,15 @@ from pyvex.enums import irop_enums_to_ints
 
 import angr
 from angr import ailment
+from angr.ailment.expression import DirtyExpression
 from angr.engines.pcode.lifter import IRSB as PCodeIRSB
 from angr.engines.vex.claripy import irop
 from angr.rustylib.ailment import RoundingMode, VEXIRSBConverter, _vexop_debug
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=line-too-long
+
+test_location = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "binaries", "tests"))
 
 
 class TestIrsb(unittest.TestCase):
@@ -32,6 +35,33 @@ class TestIrsb(unittest.TestCase):
         irsb = pyvex.IRSB(self.block_bytes, self.block_addr, arch, opt_level=0)
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
+
+    def test_convert_gymrat_dirty_leaves_memory_effects_unset(self):
+        # The block at 0x1400017c8 contains rdmsr, which libVEX cannot decode, so pyvex
+        # falls back to its gymrat lifter. That lifter leaves the Dirty statement's
+        # memory-effect fields unset, which the libVEX front end never does.
+        binary_path = os.path.join(test_location, "x86_64", "windows", "CorsairLLAccess64.sys")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        irsb = proj.factory.block(0x1400017C8).vex
+
+        dirty = [stmt for stmt in irsb.statements if isinstance(stmt, pyvex.stmt.Dirty)]
+        assert len(dirty) == 1
+        assert dirty[0].mFx is None
+        assert dirty[0].mSize is None
+
+        manager = ailment.Manager()
+        ablock = ailment.IRSBConverter.convert(irsb, manager)
+
+        converted = [
+            expr
+            for stmt in ablock.statements
+            for expr in (getattr(stmt, "src", None), getattr(stmt, "dst", None), getattr(stmt, "dirty", None))
+            if isinstance(expr, DirtyExpression)
+        ]
+        assert len(converted) == 1
+        assert converted[0].callee == "amd64g_dirtyhelper_RDMSR"
+        assert converted[0].mfx is None
+        assert converted[0].msize is None
 
     def test_convert_from_pcode_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
