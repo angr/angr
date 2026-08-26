@@ -95,17 +95,22 @@ class AILExprIdAnnotation(claripy.Annotation):
 #
 
 
-def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int, ail_manager: Manager):
-    # ensure operand1 is of the same size as operand0
+def _op_with_unified_size(
+    op, conv: Callable, operand0, operand1, ins_addr: int, ail_manager: Manager, *, signed: bool = False
+):
     if isinstance(operand1, ailment.Expr.Const):
         # amazing - we do the easy thing here
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1.value)
     if operand1.bits == operand0.bits:
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, ins_addr=ins_addr))
-    # extension is required
-    assert operand1.bits < operand0.bits
-    operand1 = ailment.Expr.Convert(ail_manager.next_atom(), operand1.bits, operand0.bits, False, operand1)
-    return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
+    # Claripy requires both shift operands to have the same width, while an AIL
+    # shift's result has the left operand's width.
+    if operand1.bits < operand0.bits:
+        operand1 = ailment.Expr.Convert(ail_manager.next_atom(), operand1.bits, operand0.bits, False, operand1)
+        return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
+    operand0_wide = ailment.Expr.Convert(ail_manager.next_atom(), operand0.bits, operand1.bits, signed, operand0)
+    result = op(conv(operand0_wide, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
+    return claripy.Extract(operand0.bits - 1, 0, result)
 
 
 def _dummy_bvs(condition, condition_mapping, name_suffix="", must_bool=False):
@@ -224,7 +229,7 @@ _ail2claripy_op_mapping = {
         operator.lshift, conv, expr.operands[0], expr.operands[1], ia, am
     ),
     "Sar": lambda expr, conv, _, ia, am: _op_with_unified_size(
-        operator.rshift, conv, expr.operands[0], expr.operands[1], ia, am
+        operator.rshift, conv, expr.operands[0], expr.operands[1], ia, am, signed=True
     ),
     "Concat": lambda expr, conv, _, ia, *args: claripy.Concat(
         *[conv(operand, ins_addr=ia) for operand in expr.operands]
