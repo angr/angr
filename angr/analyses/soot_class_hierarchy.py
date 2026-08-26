@@ -85,11 +85,21 @@ class SootClassHierarchy(Analysis):
         return False
 
     def is_subclass_including(self, cls_child, cls_parent):
+        # An interface has no chain of super classes to walk, so the only class it stands in this
+        # relation to is itself. Asking is a legitimate question; get_super_classes_including cannot
+        # answer it and raises, so answer it here rather than let a predicate throw.
+        if "INTERFACE" in cls_child.attrs:
+            return cls_parent is cls_child
+
         parent_classes = self.get_super_classes_including(cls_child)
 
         return cls_parent in parent_classes
 
     def is_subclass(self, cls_child, cls_parent):
+        # See above. An interface extends interfaces, never a class, so it is a subclass of none.
+        if "INTERFACE" in cls_child.attrs:
+            return False
+
         parent_classes = self.get_super_classes(cls_child)
 
         return cls_parent in parent_classes

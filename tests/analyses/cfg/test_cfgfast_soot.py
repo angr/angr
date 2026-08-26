@@ -47,6 +47,19 @@ class TestCfgfastSoot(unittest.TestCase):
         # methods that no entry point reaches are analyzed too
         assert "simple2.Class1.unreachable(int)" in function_names
 
+    def test_invokespecial_on_an_interface(self):
+        # Impl.greet() calls Greeter.super.greet(), so the invoke's declaring class is an interface.
+        # Resolving it asks SootClassHierarchy whether that interface is a subclass of Impl;
+        # get_super_classes has no chain to walk for an interface and raises, which aborted the CFG.
+        binary_path = os.path.join(test_location, "java", "interface_default.jar")
+        p = angr.Project(binary_path, main_opts={"entry_point": "iface.Impl.main"}, auto_load_libs=False)
+
+        cfg = p.analyses.CFGFastSoot()
+
+        assert cfg.graph.nodes()
+        names = {f.name for f in cfg.kb.functions.values()}
+        assert any("greet" in name for name in names), names
+
 
 if __name__ == "__main__":
     unittest.main()
