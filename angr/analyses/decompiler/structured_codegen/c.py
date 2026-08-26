@@ -273,7 +273,9 @@ def _is_anonymous_struct_or_union(ty) -> bool:
     return isinstance(ty, SimUnion) and ty.name == "<anon>"
 
 
-def _anonymous_struct_union_to_c_repr_chunks(ty, name, name_type, indent_str: str, indent_delta: int):
+def _anonymous_struct_union_to_c_repr_chunks(
+    ty, name, name_type, indent_str: str, indent_delta: int, memo: tuple[SimType, ...] = ()
+):
     """
     Render an anonymous struct or union inline, as ``struct { ... } name``.
     """
@@ -281,6 +283,7 @@ def _anonymous_struct_union_to_c_repr_chunks(ty, name, name_type, indent_str: st
     yield ("union {\n" if isinstance(ty, SimUnion) else "struct {\n"), None
 
     new_indent_str = (" " * indent_delta) + indent_str
+    new_memo = (*memo, ty)
     members = ty.members if isinstance(ty, SimUnion) else ty.fields
     for k, v in members.items():
         yield from type_to_c_repr_chunks(
@@ -290,6 +293,7 @@ def _anonymous_struct_union_to_c_repr_chunks(ty, name, name_type, indent_str: st
             full=False,
             indent_str=new_indent_str,
             indent_delta=indent_delta,
+            memo=new_memo,
         )
         yield ";\n", None
 
@@ -299,17 +303,32 @@ def _anonymous_struct_union_to_c_repr_chunks(ty, name, name_type, indent_str: st
 
 
 def type_to_c_repr_chunks(
-    ty: SimType, name=None, name_type=None, full=False, indent_str="", indent_delta: int = INDENT_DELTA
+    ty: SimType,
+    name=None,
+    name_type=None,
+    full=False,
+    indent_str="",
+    indent_delta: int = INDENT_DELTA,
+    memo: tuple[SimType, ...] = (),
 ):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
 
     :param indent_delta:    Number of space characters used to indent each struct field one level deeper.
+    :param memo:            The anonymous aggregates already being rendered further up the stack, compared by
+                            identity, so that a self-referential type is elided instead of recursed into.
     """
     if not full and name is not None and _is_anonymous_struct_or_union(ty):
+        if any(ty is enclosing for enclosing in memo):
+            # A recovered type can contain itself. An anonymous aggregate has no name to refer back to,
+            # so the cycle is elided rather than named.
+            yield indent_str, None
+            yield ("union { /* recursive */ } " if isinstance(ty, SimUnion) else "struct { /* recursive */ } "), None
+            yield name, name_type
+            return
         # anonymous structs and unions must be output inline
         yield from _anonymous_struct_union_to_c_repr_chunks(
-            ty, name, name_type, indent_str=indent_str, indent_delta=indent_delta
+            ty, name, name_type, indent_str=indent_str, indent_delta=indent_delta, memo=memo
         )
     elif isinstance(ty, SimStruct):
         if full:
@@ -332,6 +351,7 @@ def type_to_c_repr_chunks(
             # each of the fields
             # fields should be indented
             new_indent_str = (" " * indent_delta) + indent_str
+            new_memo = (*memo, ty)
             for k, v in ty.fields.items():
                 yield from type_to_c_repr_chunks(
                     v,
@@ -340,6 +360,7 @@ def type_to_c_repr_chunks(
                     full=False,
                     indent_str=new_indent_str,
                     indent_delta=indent_delta,
+                    memo=new_memo,
                 )
                 yield ";\n", None
 
