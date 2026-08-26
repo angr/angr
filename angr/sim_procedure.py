@@ -369,6 +369,7 @@ class SimProcedure:
 
         :param list blocks: Blocks that are executed before reaching this SimProcedure.
         :return: A list of dicts. Each dict should contain the following entries: 'address', 'jumpkind', and 'namehint'.
+                 A ``prototype_hint`` string may also be supplied for later refinement by calling-convention analysis.
         :rtype: list
         """
 

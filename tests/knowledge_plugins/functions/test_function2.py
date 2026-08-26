@@ -14,6 +14,22 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestFunction(unittest.TestCase):
+    def test_function_prototype_hint_serialization(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "argv_test"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast()
+        func_main = cfg.kb.functions["main"]
+        assert func_main.prototype is None
+        assert func_main.info["prototype_hint"] == "int main(int argc, char **argv, char **envp)"
+
+        parsed = angr.knowledge_plugins.Function.parse(
+            func_main.serialize(), function_manager=p.kb.functions, project=p
+        )
+        copied = func_main.copy()
+        assert parsed.info == func_main.info
+        assert copied.info == func_main.info
+        assert parsed.prototype is None
+        assert copied.prototype is None
+
     def test_function_serialization(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = p.analyses.CFG()

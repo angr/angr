@@ -3052,6 +3052,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 addr_ = new_exit["address"]
                 jumpkind = new_exit["jumpkind"]
                 namehint = new_exit.get("namehint", None)
+                prototype_hint = new_exit.get("prototype_hint", None)
                 if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:  # pylint:disable=isinstance-second-argument-not-valid-type
                     addr_ = addr_.concrete_value
                 if not isinstance(addr_, int):
@@ -3073,6 +3074,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if namehint and (addr_ not in self.kb.labels or self.kb.labels[addr_] == "_ftext"):
                     unique_label = self.kb.labels.get_unique_label(namehint)
                     self.kb.labels[addr_] = unique_label
+                if isinstance(prototype_hint, str):
+                    target_func = self.kb.functions.function(addr=addr_, create=True)
+                    assert target_func is not None
+                    target_func.info["prototype_hint"] = prototype_hint
 
         # determine if this procedure returns
         # whether this procedure returns or not depends on the context
