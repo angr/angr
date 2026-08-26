@@ -214,24 +214,22 @@ class RegionIdentifier(Analysis):
         return block_only_regions
 
     def _get_start_node(self, graph: TGraph):
+        # a graph can hold more than one node without in-edges: edges dropped as jump-table or
+        # switch-case debris, and obfuscated control flow, both leave source nodes behind. Where the
+        # function entry is one of them it is the start node, because everything only the entry
+        # reaches is unreachable from any other choice -- and picking between equally-source-like
+        # nodes by iteration order is not a decision this analysis should be making.
+        entry_node = self._get_entry_node(graph)
+        if entry_node is not None and graph.in_degree(entry_node) == 0:
+            return entry_node
+
         try:
             return next(n for n in graph.nodes() if graph.in_degree(n) == 0)
         except StopIteration:
             pass
 
-        if self.entry_node_addr is not None:
-            try:
-                return next(
-                    n
-                    for n in graph.nodes()
-                    if (
-                        (n.addr, n.idx) == self.entry_node_addr
-                        if isinstance(n, Block)
-                        else n.addr == self.entry_node_addr[0]
-                    )
-                )
-            except StopIteration as ex:
-                raise AngrRuntimeError("Cannot find the start node from the graph!") from ex
+        if entry_node is not None:
+            return entry_node
         raise AngrRuntimeError("Cannot find the start node from the graph!")
 
     def _get_entry_node(self, graph: TGraph):
