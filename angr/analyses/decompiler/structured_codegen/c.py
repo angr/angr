@@ -1818,7 +1818,9 @@ class CGoto(CStatement):
             if isinstance(self.target, int):
                 yield f"LABEL_{self.target:#x}", None
             else:
+                yield "*((void *)(", None
                 yield from self.target.c_repr_chunks()
+                yield "))", None
         else:
             yield lbl.name, lbl
         yield ";", self
