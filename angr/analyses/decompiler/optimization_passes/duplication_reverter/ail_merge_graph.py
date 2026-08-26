@@ -479,11 +479,33 @@ class AILMergeGraph:
         graph = copy_graph_and_nodes(graph)
 
         # replace every block that has been split
-        updated_blocks = {}
+        updated_blocks: dict[Block, Block] = {}
+
+        def resolve_updated_block(block: Block) -> Block:
+            path = []
+            while block in updated_blocks:
+                updated_block = updated_blocks[block]
+                if updated_block is block:
+                    break
+                path.append(block)
+                block = updated_block
+            for replaced_block in path:
+                updated_blocks[replaced_block] = block
+            return block
+
         for original_node, new_node in split_map.items():
+            block = resolve_updated_block(original_node)
+            predecessors = list(graph.predecessors(block))
+            successors = list(graph.successors(block))
+            if any(pred == block for pred in predecessors):
+                new_node.statements[-1] = correct_jump_targets(
+                    new_node.statements[-1], {original_node.addr: new_node.addr}, new_stmt=True
+                )
             graph.add_node(new_node)
             # correct every in_edge to this node, with new targets for jumps
-            for pred in list(graph.predecessors(original_node)):
+            for pred in predecessors:
+                if pred == block:
+                    continue
                 new_pred = pred.copy()
                 new_pred.statements[-1] = correct_jump_targets(
                     new_pred.statements[-1], {original_node.addr: new_node.addr}, new_stmt=True
@@ -493,12 +515,16 @@ class AILMergeGraph:
                 graph.add_edge(new_pred, new_node)
 
             # re-add every out_edge
-            blk = updated_blocks.get(original_node, original_node)
-            for succ in graph.successors(blk):
-                graph.add_edge(new_node, succ)
+            for succ in successors:
+                graph.add_edge(new_node, new_node if succ == block else resolve_updated_block(succ))
 
             # finally, kill the original
-            if original_node in graph:
-                graph.remove_node(original_node)
+            graph.remove_node(block)
+            for replaced_block in list(updated_blocks):
+                if resolve_updated_block(replaced_block) is block:
+                    del updated_blocks[replaced_block]
+
+        for replaced_block in list(updated_blocks):
+            updated_blocks[replaced_block] = resolve_updated_block(replaced_block)
 
         return graph, updated_blocks
