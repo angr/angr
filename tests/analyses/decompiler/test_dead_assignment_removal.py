@@ -98,7 +98,11 @@ class TestPackerFillerDecompilation(unittest.TestCase):
 
         start = time.time()
         proj = angr.load_shellcode(code, arch="x86", load_address=0x400000)
-        cfg = proj.analyses.CFGFast(normalize=True, cross_references=False, function_starts=[0x400000])
+        # repeating_byte_run_threshold=0: CFGFast refuses to decode this filler by default (the CFG-side fix for the
+        # same issue). This test targets the decompiler, so the chain has to be built anyway.
+        cfg = proj.analyses.CFGFast(
+            normalize=True, cross_references=False, function_starts=[0x400000], repeating_byte_run_threshold=0
+        )
         dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], cfg=cfg.model, preset="malware")
         elapsed = time.time() - start
 

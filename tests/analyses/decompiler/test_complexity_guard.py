@@ -22,7 +22,11 @@ def oversized_project(n_blocks: int):
     instructions -- the shape of the packer filler in GitHub issue #6968.
     """
     proj = angr.load_shellcode(b"\x91" * (99 * n_blocks) + b"\xc3", arch="x86", load_address=FUNC_ADDR)
-    proj.analyses.CFGFast(normalize=True, cross_references=False, function_starts=[FUNC_ADDR])
+    # repeating_byte_run_threshold=0: CFGFast refuses to decode this filler by default (the CFG-side fix for the same
+    # issue). These tests target the decompiler's guard, so the oversized function has to be built anyway.
+    proj.analyses.CFGFast(
+        normalize=True, cross_references=False, function_starts=[FUNC_ADDR], repeating_byte_run_threshold=0
+    )
     return proj
 
 
