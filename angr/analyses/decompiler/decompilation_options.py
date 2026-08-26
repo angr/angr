@@ -45,6 +45,13 @@ class DecompilationOption[T]:
 
 O = DecompilationOption
 
+# Complexity limits. A function larger than either bound aborts decompilation with an
+# AngrDecompilationComplexityError instead of running for an unbounded amount of time (see GitHub issue #6968).
+# Both defaults are ~10x the largest value measured over angr's test binary corpus (300 binaries, 14 architectures,
+# 726k functions: at most 5,356 blocks and 108,265 AIL statements in any one function); 0 disables a limit.
+DEFAULT_MAX_FUNCTION_BLOCKS = 50_000
+DEFAULT_MAX_AIL_STATEMENTS = 1_000_000
+
 # Serialization contract for display options (cls="codegen"): to survive Codegen serialization, an option's param
 # must have a matching optional scalar proto field, named identically, in the trailing display-option block of the
 # Codegen message (protos/codegen.proto). Options without such a field are dropped on round-trip.
@@ -350,6 +357,34 @@ options = [
         "constrain_callee_prototypes",
         category="Types",
         default_value=True,
+        clears_cache=True,
+    ),
+    O(
+        "Maximum number of basic blocks per function",
+        "Refuse to decompile a function whose CFG has more basic blocks than this. The limit is checked before any "
+        "AIL is built, and exceeding it aborts decompilation with an AngrDecompilationComplexityError that names the "
+        "limit and the actual block count instead of running for an unbounded amount of time. Defaults to "
+        f"{DEFAULT_MAX_FUNCTION_BLOCKS}; set to 0 to disable the check.",
+        int,
+        "decompiler",
+        "max_function_blocks",
+        category="Complexity",
+        default_value=DEFAULT_MAX_FUNCTION_BLOCKS,
+        value_range=(0, 100_000_000),
+        clears_cache=True,
+    ),
+    O(
+        "Maximum number of AIL statements per function",
+        "Refuse to decompile a function whose AIL graph has more statements than this. The limit is checked right "
+        "after the AIL graph is built and before any simplification runs; exceeding it aborts decompilation with an "
+        "AngrDecompilationComplexityError that names the limit and the actual statement count instead of running for "
+        f"an unbounded amount of time. Defaults to {DEFAULT_MAX_AIL_STATEMENTS}; set to 0 to disable the check.",
+        int,
+        "clinic",
+        "max_ail_statements",
+        category="Complexity",
+        default_value=DEFAULT_MAX_AIL_STATEMENTS,
+        value_range=(0, 100_000_000),
         clears_cache=True,
     ),
 ]

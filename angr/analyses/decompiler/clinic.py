@@ -39,7 +39,7 @@ from angr.calling_conventions import (
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
-from angr.errors import AngrDecompilationError
+from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -89,6 +89,7 @@ from angr.utils.types import dereference_simtype_by_lib
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
 from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
@@ -293,6 +294,7 @@ class Clinic(Analysis, Serializable):
         refine_loops_with_single_successor: bool = False,
         expose_loop_head_backedges: bool = False,
         typehoon_cls=Typehoon,
+        max_ail_statements: int = DEFAULT_MAX_AIL_STATEMENTS,
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
         ail_graph: networkx.DiGraph | None = None,
@@ -364,6 +366,7 @@ class Clinic(Analysis, Serializable):
         self.reaching_definitions: SRDAModel | None = None
         self._cache = cache
         self._mode = mode
+        self._max_ail_statements = max_ail_statements
         self._max_type_constraints = max_type_constraints
         self._type_constraint_set_degradation_threshold = type_constraint_set_degradation_threshold
         self.vvar_id_start = vvar_id_start
@@ -490,6 +493,7 @@ class Clinic(Analysis, Serializable):
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
             return
+        self._check_ail_statement_limit(ail_graph)
         if self._start_stage <= ClinicStage.INITIALIZATION:
             ail_graph = self._decompilation_fixups(ail_graph)
 
@@ -510,6 +514,24 @@ class Clinic(Analysis, Serializable):
     #             block.pp()
     #     print(kwargs)
     #     return super()._update_progress(*args, **kwargs)
+
+    def _check_ail_statement_limit(self, ail_graph: networkx.DiGraph) -> None:
+        """
+        Abort before the simplification pipeline runs if the freshly built AIL graph is too large. Several
+        simplification passes are super-linear in the number of statements, so an oversized graph would otherwise
+        consume resources indefinitely.
+        """
+        if not self._max_ail_statements:
+            return
+        stmt_count = sum(len(block.statements) for block in ail_graph)
+        if stmt_count > self._max_ail_statements:
+            raise AngrDecompilationComplexityError(
+                "max_ail_statements",
+                self._max_ail_statements,
+                stmt_count,
+                self.function.addr,
+                unit="AIL statements",
+            )
 
     def _decompilation_graph_recovery(self):
         is_pcode_arch = ":" in self.project.arch.name

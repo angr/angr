@@ -616,6 +616,31 @@ class AngrDecompilationError(AngrError):
     pass
 
 
+class AngrDecompilationComplexityError(AngrDecompilationError):
+    """
+    Raised when a function exceeds one of the decompiler's complexity limits. The decompiler gives up before starting
+    the expensive work instead of running for an unbounded amount of time.
+
+    :ivar limit_name:   Name of the decompilation option that sets the limit, e.g. "max_function_blocks".
+    :ivar limit:        The configured limit.
+    :ivar actual:       The measured size that exceeded the limit.
+    :ivar func_addr:    Address of the offending function, if known.
+    :ivar unit:         What ``actual`` counts, e.g. "basic blocks".
+    """
+
+    def __init__(self, limit_name: str, limit: int, actual: int, func_addr: int | None = None, unit: str = "units"):
+        self.limit_name = limit_name
+        self.limit = limit
+        self.actual = actual
+        self.func_addr = func_addr
+        self.unit = unit
+        where = f" for function {func_addr:#x}" if func_addr is not None else ""
+        super().__init__(
+            f"Decompilation aborted{where}: {actual} {unit} exceed the {limit_name} limit of {limit}. "
+            f"Raise or disable (set to 0) the {limit_name} decompilation option to decompile it anyway."
+        )
+
+
 class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass
 
