@@ -648,6 +648,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         nodecode_window_size=2048,
         nodecode_threshold=0.6,
         nodecode_step=16483,
+        repeating_byte_run_threshold=64,
         check_funcret_max_job=500,
         indirect_calls_always_return: bool | None = None,
         jumptable_resolver_resolves_calls: bool | None = None,
@@ -711,6 +712,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         table resolver and must be resolved using their specific resolvers. By default,
                                         we will only disable JumpTableResolver from resolving indirect calls for large
                                         binaries (region > 50 KB).
+        :param repeating_byte_run_threshold: The minimum length of a run of one repeated byte that CFGFast refuses to
+                                        decode as code. Such runs are filler, but many of them decode cleanly (e.g.,
+                                        0x91 is `xchg ecx, eax` on x86), so linear disassembly would otherwise walk
+                                        through them forever. Runs of the architecture's nop byte are exempt because
+                                        execution really does flow through them. Set it to 0 to disable the check.
         :param check_funcret_max_job:   When popping return-site jobs out of the job queue, angr will prioritize jobs
                                         for which the callee is known to return. This check may be slow when there are
                                         a large amount of jobs in different caller functions, and this situation often
@@ -829,6 +835,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._nodecode_window_size = nodecode_window_size
         self._nodecode_threshold = nodecode_threshold
         self._nodecode_step = nodecode_step
+        self._repeating_byte_run_threshold = repeating_byte_run_threshold
+        # a run of the nop byte is transparent -- execution really does flow through it into whatever follows -- so
+        # repeating-byte-run detection must leave it alone. other padding bytes are not code, but they are still
+        # padding rather than data we failed to recognize.
+        nop = self.project.arch.nop_instruction
+        self._nop_byte = nop[0] if len(set(nop)) == 1 else None
+        self._padding_bytes = {0x00, 0xCC} if self.project.arch.name in {"X86", "AMD64"} else {0x00}
         self._indirect_calls_always_return = indirect_calls_always_return
         self._jumptable_resolver_resolve_calls = jumptable_resolver_resolves_calls
 
@@ -1237,6 +1250,41 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if repeating_length >= threshold:
             return repeating_length
         return 0
+
+    def _repeating_byte_run_length(self, start_addr: int, min_length: int, ignore: int | None = None) -> int:
+        """
+        Measure the run of one repeated byte that begins at ``start_addr``, bounded by the enclosing region.
+
+        Unlike :meth:`_scan_for_repeating_bytes`, this loads memory in bulk, so it stays cheap even when the run is
+        hundreds of kilobytes long.
+
+        :param start_addr:  The address the run has to begin at.
+        :param min_length:  The shortest run that counts.
+        :param ignore:      A byte whose runs are not reported.
+        :return:            The length of the run, or 0 if it is shorter than ``min_length``.
+        """
+
+        inside, region_end = self._inside_regions_and_region_end(start_addr)
+        if not inside or region_end is None or region_end - start_addr < min_length:
+            return 0
+
+        head = self._fast_memory_load_bytes(start_addr, min_length)
+        if head is None or len(head) < min_length:
+            return 0
+        filler = head[:1]
+        if filler[0] == ignore or head.lstrip(filler):
+            return 0
+
+        length = min_length
+        while start_addr + length < region_end:
+            chunk = self._fast_memory_load_bytes(start_addr + length, min(0x1000, region_end - start_addr - length))
+            if not chunk:
+                break
+            matched = len(chunk) - len(chunk.lstrip(filler))
+            length += matched
+            if matched < len(chunk):
+                break
+        return length
 
     def _scan_for_fp_constants(self, start_addr: int, threshold: int = 4) -> int:
         """
@@ -5512,6 +5560,21 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if existing_node is not None and (addr & 1) != (existing_node.addr & 1):
                     # we are trying to break an existing ARM node with a THUMB node, or vice versa
                     # this is probably because our current node is unexpected
+                    return None, None, None, None
+
+            # A long run of one repeated byte is filler, never code. Many such runs decode cleanly (0x91 is
+            # `xchg ecx, eax` on x86), so without this check linear disassembly walks the whole run and emits a
+            # fall-through block every VEX_IRSB_MAX_INST instructions until the run ends. See issue #6968.
+            if self._repeating_byte_run_threshold:
+                run_length = self._repeating_byte_run_length(
+                    real_addr, self._repeating_byte_run_threshold, ignore=self._nop_byte
+                )
+                if run_length:
+                    # same distinction _next_code_addr_core makes: padding is alignment, anything else is data we
+                    # cannot decode. only the latter may feed the smart scan's skip-a-window heuristic -- real code
+                    # regularly starts right after a padding run.
+                    is_padding = self._load_a_byte_as_int(real_addr) in self._padding_bytes
+                    self._seg_list.occupy(real_addr, run_length, "alignment" if is_padding else "nodecode")
                     return None, None, None, None
 
             distance = VEX_IRSB_MAX_SIZE
