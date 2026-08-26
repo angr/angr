@@ -3,8 +3,13 @@ from __future__ import annotations
 
 import pytest
 
+from angr.analyses.decompiler.decompilation_options import (
+    DEFAULT_MAX_AIL_STATEMENTS,
+    DEFAULT_MAX_FUNCTION_BLOCKS,
+)
 from angr.mcp.errors import (
     CFGNotBuiltError,
+    DecompilationComplexityError,
     FunctionNotFoundError,
     ProjectNotFoundError,
 )
@@ -302,6 +307,70 @@ class TestDecompileFunction:
 
         with pytest.raises(ValueError):
             decompile_function(project_id)
+
+
+class TestDecompileComplexityLimits:
+    """Tests for the complexity limits of the decompile_function tool."""
+
+    def test_block_limit_reports_limit_and_actual_size(self, binary_path):
+        """A tripped limit must tell the caller which bound was exceeded and by how much."""
+        load_result = load_binary(binary_path)
+        project_id = load_result["project_id"]
+        get_cfg(project_id)
+
+        num_blocks = get_function_info(project_id, name="main")["num_blocks"]
+        assert num_blocks > 1
+
+        with pytest.raises(DecompilationComplexityError) as excinfo:
+            decompile_function(project_id, name="main", max_function_blocks=1)
+
+        ex = excinfo.value
+        assert ex.limit_name == "max_function_blocks"
+        assert ex.limit == 1
+        assert ex.actual == num_blocks
+        # the message alone has to be enough: it is all a remote MCP client ever sees
+        message = str(ex)
+        assert "max_function_blocks" in message
+        assert str(num_blocks) in message
+
+    def test_ail_statement_limit_reports_limit_and_actual_size(self, binary_path):
+        """The statement limit is reported the same way and fires on its own."""
+        load_result = load_binary(binary_path)
+        project_id = load_result["project_id"]
+        get_cfg(project_id)
+
+        with pytest.raises(DecompilationComplexityError) as excinfo:
+            decompile_function(project_id, name="main", max_function_blocks=0, max_ail_statements=1)
+
+        ex = excinfo.value
+        assert ex.limit_name == "max_ail_statements"
+        assert ex.actual > 1
+        assert "max_ail_statements" in str(ex)
+
+    def test_limits_are_optional_and_can_be_disabled(self, binary_path):
+        load_result = load_binary(binary_path)
+        project_id = load_result["project_id"]
+        get_cfg(project_id)
+
+        result = decompile_function(project_id, name="main", max_function_blocks=0, max_ail_statements=0)
+        assert result["code"]
+
+    def test_get_function_info_reports_the_block_limit(self, binary_path):
+        """An agent should be able to check a function's size against the limit before asking."""
+        load_result = load_binary(binary_path)
+        project_id = load_result["project_id"]
+        get_cfg(project_id)
+
+        info = get_function_info(project_id, name="main")
+        assert info["decompilation_block_limit"] == DEFAULT_MAX_FUNCTION_BLOCKS
+        assert info["num_blocks"] < info["decompilation_block_limit"]
+
+    def test_docstring_states_the_defaults(self):
+        """The tool description is what an agent reads, so keep the numbers in it accurate."""
+        doc = decompile_function.__doc__
+        assert doc is not None
+        assert str(DEFAULT_MAX_FUNCTION_BLOCKS) in doc
+        assert str(DEFAULT_MAX_AIL_STATEMENTS) in doc
 
 
 class TestGetXrefs:
