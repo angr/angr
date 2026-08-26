@@ -94,6 +94,10 @@ _ALIGNMENT_PADDING: dict[str, frozenset[bytes]] = {
     # inter-function padding. Little-endian PowerPC; reversed for big-endian below.
     "PPC32": frozenset({b"\x00\x00\x00\x60", b"\x00\x00\x42\x60"}),
     "PPC64": frozenset({b"\x00\x00\x00\x60", b"\x00\x00\x42\x60"}),
+    # nopr %r7; the only encoding that appears in an inter-function gap on s390x. Stored
+    # little-endian like the rest of the table; it is a palindrome, so the big-endian
+    # reversal yields the same two bytes.
+    "S390X": frozenset({b"\x07\x07"}),
 }
 
 
@@ -1394,7 +1398,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # run is already classified elsewhere, so only distinctive encodings are scanned for here
                 continue
             if addr % len(nop) != 0:
-                # padding is emitted at its own alignment; a match at any other offset is a coincidence inside data
+                # padding is emitted at its own alignment; a match at any other offset is a coincidence inside data.
+                # This equals s390x's instruction alignment only by accident of that entry being 2 bytes wide: s390x
+                # aligns instructions to 2 whatever the instruction width, so a 4- or 6-byte entry added for it later
+                # would have to take the alignment from arch.instruction_alignment instead of len(nop).
                 continue
             if all(self._load_a_byte_as_int(addr + offset) == expected for offset, expected in enumerate(nop)):
                 return len(nop)

@@ -1206,6 +1206,24 @@ class TestCfgfast(unittest.TestCase):
         assert data.sort == MemoryDataSort.Alignment
         assert data.size == 12
 
+    def test_s390x_nop_padding_does_not_absorb_the_next_function(self):
+        # a stripped inter-function gap: the function before it returns with "br %r8" at 0x40139a, two
+        # "bcr 0,%r7" (GNU nopr %r7, encoded 07 07) fill 0x40139c-0x40139f, and 0x4013a0 is the next FDE's
+        # start -- "asi 0x4(%r2), 0x1", covered by no symbol. The linear scan used to seed a function at the
+        # padding, and that block ran on through the real entry.
+        proj = angr.Project(os.path.join(test_location, "s390x", "ld64.so.1"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert cfg.model.get_any_node(0x40139C) is None, "alignment padding was recovered as a basic block"
+        assert 0x40139C not in cfg.kb.functions, "alignment padding was recovered as a function"
+        assert cfg.model.get_any_node(0x4013A0) is not None, "the function entry point is not a block start"
+        assert 0x4013A0 in cfg.kb.functions, "the function entry point was not recovered as a function"
+
+        # two nopr %r7 fill the gap from the end of the previous function to the aligned entry
+        data = cfg.model.memory_data[0x40139C]
+        assert data.sort == MemoryDataSort.Alignment
+        assert data.size == 4
+
 
 if __name__ == "__main__":
     unittest.main()
