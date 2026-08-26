@@ -154,6 +154,22 @@ class TestCfgfastSoot(unittest.TestCase):
         names = {f.name for f in cfg.kb.functions.values()}
         assert any("greet" in name for name in names), names
 
+    def test_str_of_a_soot_function(self):
+        # Function.__str__ formats the address with ":#x" and every block address the same way. A Soot
+        # function's address is a SootMethodDescriptor and its blocks are SootAddressDescriptors, so both
+        # raised TypeError. __repr__ already guarded this; __str__ did not.
+        binary_path = os.path.join(test_location, "java", "simple1.jar")
+        p = angr.Project(binary_path, main_opts={"entry_point": "simple1.Class1.main"}, auto_load_libs=False)
+        cfg = p.analyses.CFGFastSoot()
+
+        functions = list(cfg.kb.functions.values())
+        assert functions
+
+        for function in functions:
+            rendered = str(function)
+            assert function.name in rendered
+            assert str(function.addr) in rendered
+
 
 if __name__ == "__main__":
     unittest.main()

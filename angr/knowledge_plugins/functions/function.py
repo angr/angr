@@ -818,14 +818,14 @@ class Function(Serializable):
 
     def __str__(self):
         return (
-            f"Function {self.name} [{self.addr:#x}]\n"
+            f"Function {self.name} [{hex(self.addr) if isinstance(self.addr, int) else self.addr}]\n"
             f"  Syscall: {self.is_syscall}\n"
             f"  SP difference: {self.sp_delta}\n"
             f"  Has return: {self.has_return}\n"
             f"  Returning: {'Unknown' if self.returning is None else self.returning}\n"
             f"  Alignment: {self.is_alignment}\n"
             f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
-            f"  Blocks: [{', '.join(f'{i:#x}' for i in self.block_addrs)}]\n"
+            f"  Blocks: [{', '.join(hex(i) if isinstance(i, int) else str(i) for i in self.block_addrs)}]\n"
             f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
             f"  Calling convention: {self.calling_convention}"
         )
