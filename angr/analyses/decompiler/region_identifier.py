@@ -123,7 +123,12 @@ class RegionIdentifier(Analysis):
 
         # the shared graph stays intact from here on (except for in-place block-statement rewrites); regions are
         # overlays on it. region identification collapses a separate working graph.
-        self.overlay_manager = OverlayManager(shared_graph, expose_loop_head_backedges=self._expose_loop_head_backedges)
+        # OverlayManager is parameterised on the bare node type and widens to Tx[T] internally, so bind T
+        # here rather than letting it infer Tx[...] from the shared graph and mismatch the attribute.
+        self.overlay_manager = OverlayManager(
+            cast("networkx.DiGraph[Block | MultiNode | ConditionNode]", shared_graph),
+            expose_loop_head_backedges=self._expose_loop_head_backedges,
+        )
         graph = cast(TGraph, networkx.DiGraph(shared_graph))
 
         self._start_node = self._get_start_node(graph)
