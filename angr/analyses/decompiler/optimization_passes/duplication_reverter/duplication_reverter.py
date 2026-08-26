@@ -463,7 +463,9 @@ class DuplicationReverter(StructuringOptimizationPass):
             raise SAILRSemanticError("A condition would be too long for a fixup, this analysis must skip it")
 
         cond_block = Block(common_cond.addr, 1, idx=common_cond.idx + 1 if isinstance(common_cond.idx, int) else 1)
-        old_stmt_tags = common_cond.statements[0].tags
+        old_stmt_tags = common_cond.statements[0].tags.copy()
+        # extra_defs describes definitions made by the original statement, not by this synthesized conditional jump.
+        old_stmt_tags.pop("extra_defs", None)
         cond_jump = ConditionalJump(
             1,
             best_condition.copy() if best_condition is not None else None,
