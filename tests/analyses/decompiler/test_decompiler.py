@@ -2559,14 +2559,43 @@ class TestDecompiler(unittest.TestCase):
     def test_decompiling_printenv_main(self, decompiler_options=None):
         # when a subgraph inside a loop cannot be structured, instead of entering last-resort refinement, we should
         # return the subgraph and let structuring resume with the knowledge of the loop.
-        # otherwise, in this function, we will see a goto while in reality we do not need any gotos.
+        # case 61 has two different exits: its true branch leaves the surrounding loop at 0x40098f, while its false
+        # branch falls through to the default case at 0x400944, which advances the cursor before the loop repeats.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "printenv.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
-        assert "goto " not in d.codegen.text
+        assert d.codegen is not None and d.codegen.text is not None
+        text = d.codegen.text
+
+        case_61 = text[text.index("case 61:") : text.index("case 0:")]
+        assert case_61.count("goto LABEL_40098f;") == 1
+        assert case_61.count("goto LABEL_400944;") == 1
+        assert text.count("goto LABEL_40098f;") == 2
+        assert text.count("goto LABEL_400944;") == 1
+        assert set(re.findall(r"goto (\w+);", text)) <= set(re.findall(r"^(\w+):$", text, re.MULTILINE))
+
+    @structuring_algo("sailr")
+    def test_decompiling_ld_linux_switch_case_exits(self, decompiler_options=None):
+        # The failure paths in cases 91 and 47 leave the switch and reach the final return. They must not be rebound
+        # to the intra-case continuation at 0x412704; the two real jumps to that continuation must remain intact.
+        bin_path = os.path.join(test_location, "armel", "ld-linux.so.3")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(
+            cfg=cfg.model, recover_variables=True, analyze_callsites=True
+        )
+        f = cfg.functions[0x41264C]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+        assert d.codegen is not None and d.codegen.text is not None
+        text = d.codegen.text
+
+        assert text.count("goto LABEL_412704;") == 2
+        assert text.count("break;") == 2
+        assert "return 0xffffffff;" in text
 
     @structuring_algo("sailr")
     def test_decompiling_ls_ubuntu2204_sub_414cb0(self, decompiler_options=None):

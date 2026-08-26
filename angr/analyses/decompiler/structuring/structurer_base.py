@@ -180,19 +180,28 @@ class StructurerBase(Analysis):
             goto_addrs = top_in_region or top
         return min(goto_addrs.items(), key=lambda x: (-x[1], x[0]))[0]
 
-    def _switch_handle_gotos(self, cases: dict[int, BaseNode], default, switch_end_addr: int) -> None:
+    def _switch_handle_gotos(
+        self,
+        cases: dict[int | tuple[int, ...], BaseNode],
+        default,
+        switch_end_addr: int | None,
+        case_fallthroughs: dict[int | tuple[int, ...], tuple[int, int | None]] | None = None,
+        switch_end_target: tuple[int, int | None] | None = None,
+    ) -> None:
         """
         For each case, convert the goto that goes outside of the switch-case to a break statement.
 
         :param cases:              A dict of switch-cases.
-        :param default:                 The default node.
-        :param node_b_addr:    Address of the end of the switch.
-        :return:                        None
+        :param default:            The default node.
+        :param switch_end_addr:    Address of the end of the switch, if known.
+        :param case_fallthroughs:  Actual destinations of incomplete case conditions, keyed by case ID.
+        :param switch_end_target:  Exact block identity of the switch end, if the graph still provides one.
+        :return:                   None
         """
 
         # ensure every case node ends with a control-flow transition statement
         # FIXME: The following logic only handles one case. are there other cases?
-        for case_node in cases.values():
+        for case_idx, case_node in cases.items():
             if (
                 isinstance(case_node, SequenceNode)
                 and case_node.nodes
@@ -204,13 +213,24 @@ class StructurerBase(Analysis):
                 ):
                     # the last node is a condition node and only has one branch - we need a goto statement to ensure it
                     # does not fall through to the next branch
-                    goto_stmt = ailment.Stmt.Jump(
-                        self.ail_manager.next_atom(),
-                        ailment.Expr.Const(self.ail_manager.next_atom(), switch_end_addr, self.project.arch.bits),
-                        target_idx=None,
-                        ins_addr=cond_node.addr,
-                    )
-                    case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=None))
+                    if case_fallthroughs is not None:
+                        fallthrough = case_fallthroughs.get(case_idx)
+                    elif switch_end_addr is not None:
+                        fallthrough = switch_end_addr, None
+                    else:
+                        fallthrough = None
+                    if fallthrough is not None:
+                        target_addr, target_idx = fallthrough
+                        goto_stmt = ailment.Stmt.Jump(
+                            self.ail_manager.next_atom(),
+                            ailment.Expr.Const(self.ail_manager.next_atom(), target_addr, self.project.arch.bits),
+                            target_idx=target_idx,
+                            ins_addr=cond_node.addr,
+                        )
+                        case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=None))
+
+        if switch_end_addr is None:
+            return
 
         # rewrite all _goto switch_end_addr_ to _break_
 
@@ -219,7 +239,13 @@ class StructurerBase(Analysis):
                 stmt = block.statements[-1]
                 if isinstance(stmt, ailment.Stmt.Jump):
                     targets = extract_jump_targets(stmt)
-                    if len(targets) == 1 and next(iter(targets)) == switch_end_addr:
+                    target_matches = len(targets) == 1 and next(iter(targets)) == switch_end_addr
+                    if switch_end_target is not None:
+                        target_matches &= (
+                            isinstance(stmt.target, ailment.Expr.Const)
+                            and (stmt.target.value, stmt.target_idx) == switch_end_target
+                        )
+                    if target_matches:
                         # add a new a break statement to its parent
                         break_node = BreakNode(stmt.tags["ins_addr"], switch_end_addr)
                         # insert node
