@@ -4,7 +4,7 @@ import logging
 
 from angr import ailment
 from angr.calling_conventions import SimComboArg, SimRegArg
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.types import dereference_simtype_by_lib
 
 from .ailgraph_walker import AILGraphWalker
@@ -17,11 +17,12 @@ class ReturnMaker(AILGraphWalker):
     Traverse the AILBlock graph of a function and update .ret_exprs of all return statements.
     """
 
-    def __init__(self, ail_manager, arch, function, ail_graph):
+    def __init__(self, ail_manager, arch, function, ail_graph, *, prototype: SimTypeFunction | None = None):
         super().__init__(ail_graph, self._handler, replace_nodes=True)
         self.ail_manager = ail_manager
         self.arch = arch
         self.function = function
+        self.prototype: SimTypeFunction | None = function.prototype if prototype is None else prototype
 
         self.walk()
 
@@ -32,16 +33,16 @@ class ReturnMaker(AILGraphWalker):
         if (
             block is not None
             and not stmt.ret_exprs
-            and self.function.prototype is not None
-            and self.function.prototype.returnty is not None
-            and type(self.function.prototype.returnty) is not SimTypeBottom
+            and self.prototype is not None
+            and self.prototype.returnty is not None
+            and type(self.prototype.returnty) is not SimTypeBottom
         ):
             new_stmt = stmt.copy()
             new_ret_exprs = list(new_stmt.ret_exprs)
             returnty = (
-                dereference_simtype_by_lib(self.function.prototype.returnty, self.function.prototype_libname)
+                dereference_simtype_by_lib(self.prototype.returnty, self.function.prototype_libname)
                 if self.function.prototype_libname
-                else self.function.prototype.returnty
+                else self.prototype.returnty
             )
             ret_val = self.function.calling_convention.return_val(returnty)
             if isinstance(ret_val, SimRegArg):

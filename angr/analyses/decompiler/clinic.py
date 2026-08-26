@@ -89,6 +89,7 @@ from angr.utils.types import dereference_simtype_by_lib
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .c_prototype import c_function_type_with_array_return_decay
 from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
@@ -1845,11 +1846,13 @@ class Clinic(Analysis, Serializable):
                 prototype_libname = func.prototype_libname
                 if prototype_libname is not None:
                     prototype = dereference_simtype_by_lib(prototype, prototype_libname)
+            assert prototype is None or isinstance(prototype, SimTypeFunction)
+            if prototype is not None and self.flavor == "pseudocode":
+                prototype = c_function_type_with_array_return_decay(prototype, self.project.arch)
 
             if cc is None:
                 l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
 
-            assert prototype is None or isinstance(prototype, SimTypeFunction)
             new_last_stmt = last_stmt.copy()
             self.variable_map.set_calling_convention(new_last_stmt.expr, cc)
             self.variable_map.set_prototype(new_last_stmt.expr, prototype)
@@ -2329,6 +2332,9 @@ class Clinic(Analysis, Serializable):
                 if self.function.prototype_libname
                 else self.function.prototype
             )
+            assert isinstance(proto, SimTypeFunction)
+            if self.flavor == "pseudocode":
+                proto = c_function_type_with_array_return_decay(proto, self.project.arch)
             args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(proto)
             if self._flatten_args:
                 new_args = []
@@ -2427,6 +2433,7 @@ class Clinic(Analysis, Serializable):
                 reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
+                flavor=self.flavor,
             )
             stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
@@ -2460,7 +2467,10 @@ class Clinic(Analysis, Serializable):
             # unknown calling convention. cannot do much about return expressions.
             return ail_graph
 
-        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph)
+        prototype = self.function.prototype
+        if prototype is not None and self.flavor == "pseudocode":
+            prototype = c_function_type_with_array_return_decay(prototype, self.project.arch)
+        ReturnMaker(self._ail_manager, self.project.arch, self.function, ail_graph, prototype=prototype)
 
         return ail_graph
 
@@ -2507,7 +2517,6 @@ class Clinic(Analysis, Serializable):
                 returnty = self.function.prototype.returnty
             else:
                 returnty = SimTypeInt()
-
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
 

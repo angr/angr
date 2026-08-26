@@ -13,6 +13,7 @@ from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, StackBaseOffset
 from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.c_prototype import c_function_type_with_array_return_decay
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
 from angr.analyses.decompiler.region_identifier import MultiNode
@@ -878,8 +879,22 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         # return type
         assert self.functy.returnty is not None
-        yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
-        yield " ", None
+        return_type_post = None
+        if (
+            isinstance(self.functy.returnty, SimTypePointer)
+            and self.functy.returnty.label is None
+            and isinstance(self.functy.returnty.pts_to, SimTypeArray)
+        ):
+            marker = "\x00"
+            pointer_qualifier = (
+                f"{' '.join(sorted(self.functy.returnty.qualifier))} " if self.functy.returnty.qualifier else ""
+            )
+            return_type_repr = self.functy.returnty.pts_to.c_repr(name=f"(*{pointer_qualifier}{marker})")
+            return_type_pre, return_type_post = return_type_repr.split(marker, 1)
+            yield return_type_pre, self.functy.returnty
+        else:
+            yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
+            yield " ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
             normalized_name = get_cpp_function_name(self.demangled_name)
@@ -900,6 +915,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield from type_to_c_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
 
         yield ")", paren
+        if return_type_post is not None:
+            yield return_type_post, CArrayTypeLength(return_type_post)
         # function body
         if self.codegen.braces_on_own_lines:
             yield "\n", None
@@ -1641,13 +1658,16 @@ class CFunctionCall(CExpression):
     @property
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
-            proto = self.callee_func.prototype
+            proto = cast(SimTypeFunction, self.callee_func.prototype)
             if self.callee_func.prototype_libname is not None:
                 # we need to deref the prototype in case it uses SimTypeRef internally
                 proto = cast(SimTypeFunction, dereference_simtype_by_lib(proto, self.callee_func.prototype_libname))
-            return proto
+            return c_function_type_with_array_return_decay(proto, self.codegen.project.arch)
         returnty = SimTypeInt(signed=False)
-        return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
+        return cast(
+            SimTypeFunction,
+            SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch),
+        )
 
     @property
     def prototype_returnty(self) -> SimType:
@@ -3096,10 +3116,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
+        assert self._func.prototype is not None
+        c_prototype = c_function_type_with_array_return_decay(self._func.prototype, self.project.arch)
         self.cfunc = CFunction(
             self._func.addr,
             self._func.name,
-            self._func.prototype,
+            c_prototype,
             arg_list,
             obj,
             self._variables_in_use,
@@ -4689,7 +4711,8 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         return super().handle_CFunctionCall(obj)
 
     def handle_CReturn(self, obj: CReturn):
-        obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)
+        assert obj.codegen.cfunc is not None and obj.codegen.cfunc.functy.returnty is not None
+        obj.retval = self.collapse(obj.codegen.cfunc.functy.returnty, obj.retval)
         return super().handle_CReturn(obj)
 
     def handle_CBinaryOp(self, obj: CBinaryOp):

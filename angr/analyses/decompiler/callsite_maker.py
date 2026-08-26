@@ -30,6 +30,7 @@ from angr.sim_type import (
 )
 from angr.utils.types import dereference_simtype_by_lib
 
+from .c_prototype import c_function_type_with_array_return_decay
 from .stackarg_offset_manager import StackArgOffsetManager
 from .variable_map import variable_map_of
 
@@ -56,6 +57,7 @@ class CallSiteMaker:
         ail_manager: Manager,
         reaching_definitions: SRDAModel | None = None,
         stack_pointer_tracker=None,
+        flavor: str | None = None,
     ):
         self.project = project
         self.kb = project.kb
@@ -64,6 +66,7 @@ class CallSiteMaker:
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
         self._ail_manager: Manager = ail_manager
+        self._flavor = flavor
 
         self.result_block = None
         # block addr, call ins addr, stack offset, arg size (in bytes)
@@ -152,6 +155,8 @@ class CallSiteMaker:
             prototype_libname = func.prototype_libname
             if prototype_libname is not None:
                 prototype = cast(SimTypeFunction, dereference_simtype_by_lib(prototype, prototype_libname))
+        if prototype is not None and self._flavor == "pseudocode":
+            prototype = c_function_type_with_array_return_decay(prototype, self.project.arch)
 
         args = []
         arg_vvars = []
