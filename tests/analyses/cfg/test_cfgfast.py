@@ -875,6 +875,30 @@ class TestCfgfast(unittest.TestCase):
         assert node is not None
         assert node.function_address == 0x40F770
 
+    def test_normalize_does_not_anchor_a_group_on_a_zero_size_node(self):
+        # a UDF instruction lifts to a zero-byte IRSB, and CFGFast still records an ordinary (non-SimProcedure)
+        # CFGNode for it. Two overlapping blocks end where that node starts, so grouping nodes by end address
+        # collects all three, and the zero-extent node has the highest address in the group.
+        path = os.path.join(test_location, "armel", "normalize_zero_size_anchor")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        assert cfg.normalized
+
+        nodes = [n for n in cfg.model.nodes() if not n.is_simprocedure]
+        sized = [n for n in nodes if n.size]
+
+        # guard the fixture: it stops covering this defect if it ever loses the zero-size node that shares an
+        # end address with sized blocks
+        end_addrs = {n.addr + n.size for n in sized}
+        assert any(not n.size and n.addr in end_addrs for n in nodes)
+
+        # normalization's contract: no block may start at a non-leading instruction of another block
+        block_starts = {n.addr for n in sized}
+        for n in sized:
+            instruction_addrs = list(n.instruction_addrs)
+            inner_starts = [i for i in instruction_addrs[1:] if i in block_starts]
+            assert not inner_starts, f"{n!r} was left unsplit at {[hex(i) for i in inner_starts]}"
+
     def test_removing_lock_edges(self):
         path = os.path.join(
             test_location, "x86_64", "windows", "6f289eb8c8cd826525d79b195b1cf187df509d56120427b10ea3fb1b4db1b7b5.sys"
