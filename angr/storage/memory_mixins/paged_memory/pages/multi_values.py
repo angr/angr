@@ -42,8 +42,10 @@ class MultiValues[MVType: claripy.ast.BV | claripy.ast.FP]:
             self._single_value = v
             self._values = None
         elif isinstance(v, MultiValues):
+            # copy-construction: the new object must own its offset map, otherwise mutating either object
+            # (e.g. add_value()) silently mutates the other, and mutating one while iterating the other raises
             self._single_value = v._single_value
-            self._values = v._values
+            self._values = None if v._values is None else {offset: set(values) for offset, values in v._values.items()}
         elif isinstance(v, dict):
             self._single_value = None
             self._values = v
