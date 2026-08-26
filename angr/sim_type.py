@@ -218,8 +218,8 @@ class SimType:
 
         :param type_collection: Resolve type references against this collection.
         :param memo:            Names of types that are being loaded from the type collection (recursion guard).
-        :param decoded:         Named structs decoded so far in this document. to_json() emits a reference for every
-                                repeated occurrence of a named struct, which is resolved here.
+        :param decoded:         Named aggregates decoded so far in this document. to_json() emits a reference for every
+                                repeated occurrence of a named aggregate, which is resolved here.
         """
         if memo is None:
             memo = set()
@@ -232,7 +232,7 @@ class SimType:
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             t = cls.from_json(d)
             if isinstance(t, SimTypeRef) and t.name is not None:
-                if t.name in decoded:
+                if t.name in decoded and isinstance(decoded[t.name], t.original_type):
                     return decoded[t.name]
                 if type_collection is not None and t.name not in memo:
                     # attempt to resolve the type ref
@@ -280,6 +280,15 @@ class SimType:
             decoded[obj.name] = obj
             obj.fields = OrderedDict(_decode(fields_json))
             return obj
+
+        if cls is SimUnion and kwargs.get("name"):
+            members_json = kwargs.pop("members", {})
+            union_obj = SimUnion({}, **kwargs)
+            # Anonymous unions are inlined; their shared name must not replace an enclosing struct.
+            if union_obj.name != "<anon>":
+                decoded[union_obj.name] = union_obj
+            union_obj.members = cast(dict[str, SimType], _decode(members_json))
+            return union_obj
 
         for field, value in kwargs.items():
             kwargs[field] = _decode(value)
@@ -394,6 +403,14 @@ class NamedTypeMixin:
             n = self.name.split(splitter)
             return n[-1]
         raise NotImplementedError(f"Unsupported language {lang}.")
+
+
+def type_memo_key(ty: SimStruct | SimUnion) -> str:
+    # Every anonymous struct and union is named "<anon>", so keying a memo on the name alone would
+    # collapse distinct ones onto a single slot.
+    if ty.name == "<anon>" or (isinstance(ty, SimStruct) and bool(ty.anonymous)):
+        return f"<anon>#{id(ty)}"
+    return ty.name
 
 
 class SimTypeBottom(SimType):
@@ -1750,10 +1767,16 @@ class SimStruct(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
-        if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
-        memo[self.name] = SimTypeRef(self.name, self.__class__)
-        d = super().to_json(fields=fields, memo=memo)
+        key = type_memo_key(self)
+        if key in memo:
+            return memo[key].to_json(fields=fields, memo=memo)
+        memo[key] = SimTypeRef(self.name, self.__class__)
+        try:
+            d = super().to_json(fields=fields, memo=memo)
+        finally:
+            # Anonymous names cannot identify later references; only memoize their active traversal.
+            if key != self.name:
+                memo.pop(key)
         if d["pack"] is False:
             d.pop("pack")
         if d["align"] is None:
@@ -1779,13 +1802,14 @@ class SimStruct(NamedTypeMixin, SimType):
         return SimStructValue(self, values=values)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(SimStruct, memo[self.name])
+        key = type_memo_key(self)
+        if key in memo:
+            return cast(SimStruct, memo[key])
 
         out = SimStruct({}, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         out._def_order = self._def_order
-        memo[self.name] = out
+        memo[key] = out
 
         out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
 
@@ -2063,6 +2087,20 @@ class SimUnion(NamedTypeMixin, SimType):
         self._alignment = r
         return r
 
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+
+        key = type_memo_key(self)
+        if key in memo:
+            return memo[key].to_json(fields=fields, memo=memo)
+        memo[key] = SimTypeRef(self.name, SimUnion)
+        try:
+            return super().to_json(fields=fields, memo=memo)
+        finally:
+            if key != self.name:
+                memo.pop(key)
+
     def _refine_dir(self):
         return list(self.members.keys())
 
@@ -2121,8 +2159,14 @@ class SimUnion(NamedTypeMixin, SimType):
         return f"union {self.name}"
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        out = SimUnion({name: ty.with_arch(arch, memo=memo) for name, ty in self.members.items()}, self.label)
+        key = type_memo_key(self)
+        if key in memo:
+            return cast(SimUnion, memo[key])
+
+        out = SimUnion({}, name=self.name, label=self.label)
         out._arch = arch
+        memo[key] = out
+        out.members = {name: ty.with_arch(arch, memo=memo) for name, ty in self.members.items()}
         return out
 
     def copy(self):
