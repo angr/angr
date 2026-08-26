@@ -1697,10 +1697,15 @@ class SimStruct(NamedTypeMixin, SimType):
                 )
                 continue
             if not self._pack and ty_size > 0:
-                align = ty.alignment * self._arch.byte_width
+                align = ty.alignment
                 if align is NotImplemented:
-                    # hack!
-                    align = 1
+                    # An aggregate with no members reports no alignment, because all() over an
+                    # empty field set is vacuously true. Fall back to byte alignment: it is the
+                    # least any C ABI gives an aggregate member, and it keeps bitoffset_so_far
+                    # byte-aligned so the offset below cannot silently truncate.
+                    align = self._arch.byte_width
+                else:
+                    align *= self._arch.byte_width
                 if bitoffset_so_far % align != 0:
                     bitoffset_so_far += align - bitoffset_so_far % align
                 offsets[name] = bitoffset_so_far // self._arch.byte_width
