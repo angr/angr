@@ -9,11 +9,13 @@ from typing import Any, cast
 from unittest import mock
 
 import archinfo
+import networkx
 from archinfo import Arch
 
 from angr import ailment
-from angr.analyses.decompiler.clinic import Clinic
-from angr.codenode import BlockNode
+from angr.analyses.decompiler.clinic import Clinic, _is_function_entry_fallthrough_block
+from angr.codenode import BlockNode, FuncNode
+from angr.utils.constants import DEFAULT_STATEMENT
 
 
 class TestClinicEntryState(unittest.TestCase):
@@ -69,6 +71,7 @@ class TestClinicEntryState(unittest.TestCase):
         *,
         block_size: int = 8,
         instruction_addrs: list[int] | None = None,
+        predecessors: list[tuple[int, int]] | None = None,
     ) -> tuple[Arch, ailment.Block, list[ailment.Stmt.Statement]]:
         arch = archinfo.ArchARMCortexM()
         manager = ailment.Manager(arch=arch)
@@ -85,11 +88,21 @@ class TestClinicEntryState(unittest.TestCase):
         )
         clinic.function = SimpleNamespace(addr=function_addr)
         clinic._ail_manager = manager
+        block_node = BlockNode(block_addr, block.size)
+        clinic._func_graph = networkx.DiGraph()
+        clinic._func_graph.add_node(block_node)
+        for predecessor_addr, predecessor_size in predecessors or []:
+            clinic._func_graph.add_edge(
+                BlockNode(predecessor_addr, predecessor_size),
+                block_node,
+                type="transition",
+                stmt_idx=DEFAULT_STATEMENT,
+            )
         lifted_statements = list(original_statements(manager, arch))
         converted = ailment.Block(block_addr, block.size, statements=list(lifted_statements))
 
         with mock.patch.object(Clinic, "_convert_vex", return_value=converted):
-            result = clinic._convert(BlockNode(block_addr, block.size))
+            result = clinic._convert(block_node)
         return arch, result, lifted_statements
 
     def test_thumb_entry_clears_itstate_before_lifted_statements(self):
@@ -164,7 +177,7 @@ class TestClinicEntryState(unittest.TestCase):
 
         self.assertIn(original_statements[2], result.statements)
 
-    def test_thumb_entry_keeps_itstate_conditional_jump_with_two_targets(self):
+    def test_thumb_entry_removes_itstate_guard_with_external_false_target(self):
         def original(manager, arch):
             return self._guarded_statements(
                 manager,
@@ -177,7 +190,120 @@ class TestClinicEntryState(unittest.TestCase):
 
         _, result, original_statements = self._convert(0x1001, 0x1001, True, original)
 
+        self.assertNotIn(original_statements[2], result.statements)
+
+    def test_thumb_entry_keeps_genuine_itstate_branch_with_external_true_target(self):
+        def original(manager, arch):
+            return self._guarded_statements(
+                manager,
+                arch,
+                0x1001,
+                arch.registers["itstate"][0],
+                0x1011,
+                false_target=0x1005,
+            )
+
+        _, result, original_statements = self._convert(0x1001, 0x1001, True, original)
+
         self.assertIn(original_statements[2], result.statements)
+
+    def test_thumb_entry_fallthrough_block_removes_itstate_guard(self):
+        def original(manager, arch):
+            return self._guarded_statements(
+                manager,
+                arch,
+                0x1005,
+                arch.registers["itstate"][0],
+                0x1009,
+                false_target=0x1011,
+            )
+
+        arch, result, original_statements = self._convert(
+            0x1001,
+            0x1005,
+            True,
+            original,
+            predecessors=[(0x1001, 4)],
+        )
+
+        self.assertNotIn(original_statements[2], result.statements)
+        assignment = result.statements[0]
+        assert isinstance(assignment, ailment.Stmt.Assignment)
+        destination = cast(Any, assignment.dst)
+        self.assertIsInstance(destination, ailment.Expr.Register)
+        self.assertEqual(destination.reg_offset, arch.registers["itstate"][0])
+
+    def test_thumb_entry_fallthrough_chain_stops_at_join(self):
+        def original(manager, arch):
+            return self._guarded_statements(
+                manager,
+                arch,
+                0x1005,
+                arch.registers["itstate"][0],
+                0x1009,
+                false_target=0x1011,
+            )
+
+        _, result, original_statements = self._convert(
+            0x1001,
+            0x1005,
+            True,
+            original,
+            predecessors=[(0x1001, 4), (0x1011, 4)],
+        )
+
+        self.assertEqual(result.statements, original_statements)
+
+    def test_thumb_entry_fallthrough_chain_reaches_entry_through_multiple_blocks(self):
+        graph = networkx.DiGraph()
+        entry = BlockNode(0x1001, 4)
+        middle = BlockNode(0x1005, 4)
+        target = BlockNode(0x1009, 4)
+        graph.add_edge(entry, middle, type="transition", stmt_idx=DEFAULT_STATEMENT)
+        graph.add_edge(middle, target, type="transition", stmt_idx=DEFAULT_STATEMENT)
+
+        self.assertTrue(_is_function_entry_fallthrough_block(graph, entry.addr, target))
+
+    def test_thumb_entry_fallthrough_chain_rejects_explicit_branch_to_adjacent_block(self):
+        graph = networkx.DiGraph()
+        entry = BlockNode(0x1001, 4)
+        target = BlockNode(0x1005, 4)
+        graph.add_edge(entry, target, type="transition", stmt_idx=3)
+
+        self.assertFalse(_is_function_entry_fallthrough_block(graph, entry.addr, target))
+
+    def test_thumb_entry_fallthrough_chain_rejects_nontransition_edge(self):
+        graph = networkx.DiGraph()
+        entry = BlockNode(0x1001, 4)
+        target = BlockNode(0x1005, 4)
+        graph.add_edge(entry, target, type="exception", stmt_idx=DEFAULT_STATEMENT)
+
+        self.assertFalse(_is_function_entry_fallthrough_block(graph, entry.addr, target))
+
+    def test_thumb_entry_fallthrough_chain_rejects_noncontiguous_predecessor(self):
+        graph = networkx.DiGraph()
+        entry = BlockNode(0x1001, 2)
+        target = BlockNode(0x1005, 4)
+        graph.add_edge(entry, target, type="transition", stmt_idx=DEFAULT_STATEMENT)
+
+        self.assertFalse(_is_function_entry_fallthrough_block(graph, entry.addr, target))
+
+    def test_thumb_entry_fallthrough_chain_rejects_nonblock_predecessor(self):
+        graph = networkx.DiGraph()
+        entry = FuncNode(0x1005)
+        target = BlockNode(0x1005, 4)
+        graph.add_edge(entry, target, type="transition", stmt_idx=DEFAULT_STATEMENT)
+
+        self.assertFalse(_is_function_entry_fallthrough_block(graph, 0x1001, target))
+
+    def test_thumb_entry_fallthrough_chain_rejects_zero_size_cycle(self):
+        graph = networkx.DiGraph()
+        zero_size = BlockNode(0x1005, 0)
+        target = BlockNode(0x1005, 4)
+        graph.add_edge(zero_size, zero_size, type="transition", stmt_idx=DEFAULT_STATEMENT)
+        graph.add_edge(zero_size, target, type="transition", stmt_idx=DEFAULT_STATEMENT)
+
+        self.assertFalse(_is_function_entry_fallthrough_block(graph, 0x1001, target))
 
     def test_thumb_interior_block_keeps_lifted_itstate_guard(self):
         def original(manager, arch):

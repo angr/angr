@@ -97,6 +97,7 @@ from angr.utils.ail_serialization import (
     simvar_from_bytes_polymorphic,
     simvar_to_bytes_polymorphic,
 )
+from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.types import dereference_simtype_by_lib
@@ -260,7 +261,7 @@ class _VLABufferBinder(AILBlockViewer):
 
 
 class _ITStateDependencyWalker(AILBlockViewer):
-    """Follow local temporary definitions to find a function-entry ITSTATE read."""
+    """Follow local temporary definitions to find an initial-block ITSTATE read."""
 
     def __init__(self, tmp_definitions: dict[int, Expression], itstate_offset: int, entry_addr: int):
         super().__init__()
@@ -291,7 +292,7 @@ class _ITStateDependencyWalker(AILBlockViewer):
 def _remove_thumb_entry_itstate_guard(
     block: VEXBlock, statements: list[Statement], itstate_offset: int
 ) -> list[Statement]:
-    """Remove LibVEX's synthetic guard around the first Thumb instruction, if present."""
+    """Remove LibVEX's synthetic guard around the first instruction of an initial Thumb block, if present."""
 
     instruction_addrs = block.instruction_addrs
     if not instruction_addrs or instruction_addrs[0] != block.addr:
@@ -313,13 +314,6 @@ def _remove_thumb_entry_itstate_guard(
             and stmt.tags.get("ins_addr") == block.addr
             and isinstance(stmt.true_target, ailment.Expr.Const)
             and stmt.true_target.value == next_instruction_addr
-            and (
-                stmt.false_target is None
-                or (
-                    isinstance(stmt.false_target, ailment.Expr.Const)
-                    and stmt.false_target.value == next_instruction_addr
-                )
-            )
         ):
             dependency_walker = _ITStateDependencyWalker(tmp_definitions, itstate_offset, block.addr)
             dependency_walker.walk_expression(stmt.condition, stmt=stmt, block=None)
@@ -328,6 +322,30 @@ def _remove_thumb_entry_itstate_guard(
 
         new_statements.append(stmt)
     return new_statements
+
+
+def _is_function_entry_fallthrough_block(graph: networkx.DiGraph, function_addr: int, block_node: BlockNode) -> bool:
+    """Return whether a block is on the unique contiguous fall-through chain from the function entry."""
+
+    current = block_node
+    visited = {current}
+    while current.addr != function_addr:
+        predecessors = list(graph.predecessors(current))
+        if len(predecessors) != 1:
+            return False
+        predecessor = predecessors[0]
+        edge = graph.get_edge_data(predecessor, current)
+        if (
+            type(predecessor) is not BlockNode
+            or predecessor.addr + predecessor.size != current.addr
+            or edge.get("type") != "transition"
+            or edge.get("stmt_idx") != DEFAULT_STATEMENT
+            or predecessor in visited
+        ):
+            return False
+        visited.add(predecessor)
+        current = predecessor
+    return True
 
 
 class Clinic(Analysis, Serializable):
@@ -1648,10 +1666,15 @@ class Clinic(Analysis, Serializable):
                 self._ail_manager.next_atom(), dflag, forward, ins_addr=block.addr
             )
             converted.statements.insert(0, dflag_assignment)
-        elif block.addr == self.function.addr and block.thumb is True and "itstate" in self.project.arch.registers:
+        elif (
+            block.thumb is True
+            and "itstate" in self.project.arch.registers
+            and self._func_graph is not None
+            and _is_function_entry_fallthrough_block(self._func_graph, self.function.addr, block_node)
+        ):
             itstate_offset, itstate_size = self.project.arch.registers["itstate"]
-            # LibVEX may infer stale ITSTATE from bytes before a context-free Thumb lift. Remove only the entry guard
-            # that skips the first instruction; genuine IT blocks later in the function remain untouched.
+            # LibVEX may infer stale ITSTATE from bytes before context-free lifts of the function's initial blocks.
+            # Remove only guards that skip their first instruction; genuine IT blocks later in the function remain.
             converted.statements = _remove_thumb_entry_itstate_guard(block, converted.statements, itstate_offset)
 
             itstate = ailment.Expr.Register(
