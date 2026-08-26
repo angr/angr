@@ -3607,7 +3607,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
             # nothing has the ability to escape the kernel
             # go in deeper
-            if isinstance(kernel_type, SimStruct):
+            if isinstance(kernel_type, SimStruct) and kernel_type.offsets:
                 field_name, field_offset = max(
                     ((x, y) for x, y in kernel_type.offsets.items() if y <= constant), key=lambda x: x[1]
                 )
