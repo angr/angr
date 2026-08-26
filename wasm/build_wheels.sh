@@ -59,8 +59,8 @@ git -C "$workspace/pyvex" submodule update --init --recursive
 real_make="$(command -v make)"
 PATH="$angr_dir/wasm/z3-build-tools:$PATH" ANGR_WASM_REAL_MAKE="$real_make" \
     "${pyodide[@]}" build "$workspace/z3/src/api/python" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
-"${pyodide[@]}" build 'capstone==5.0.6' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
-"${pyodide[@]}" build 'pydemumble==0.0.1' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
+"${pyodide[@]}" build 'capstone==5.0.9' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
+"${pyodide[@]}" build 'pydemumble==0.1.3' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 
 uv build --wheel --out-dir "$out_dir" "$workspace/archinfo"
 uv build --wheel --out-dir "$out_dir" "$workspace/claripy"
