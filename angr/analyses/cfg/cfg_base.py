@@ -1306,7 +1306,11 @@ class CFGBase(Analysis):
         end_addr_to_nodes = defaultdict(list)  # a dictionary from node key to nodes *if* more than one node exist
 
         for n in graph.nodes():
-            if n.is_simprocedure:
+            if n.is_simprocedure or not n.size:
+                # a zero-size node has no extent, so it cannot overlap anything and cannot be split at. Indexing it
+                # by its end address puts it in the group of every node that ends where it starts, where its address
+                # is the highest one and it is therefore picked as the node to break the others at - which shortens
+                # nothing and leaves the real overlap in that group unsplit.
                 continue
             end_addr = n.addr + n.size
             key = (end_addr, n.callstack_key)
