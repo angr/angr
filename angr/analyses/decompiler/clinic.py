@@ -3266,7 +3266,8 @@ class Clinic(Analysis, Serializable):
 
         # corner-case: the last statement of original_block might have been patched by _remove_redundant_jump_blocks.
         # we detect such case and fix it in new_head_ail
-        self._remove_redundant_jump_blocks_repatch_relifted_block(original_block, end_block_ail)
+        if not self._remove_redundant_jump_blocks_repatch_relifted_block(original_block, end_block_ail):
+            return None
 
         ail_graph.remove_node(original_block)
 
@@ -3700,7 +3701,7 @@ class Clinic(Analysis, Serializable):
     @staticmethod
     def _remove_redundant_jump_blocks_repatch_relifted_block(
         patched_block: ailment.Block, new_block: ailment.Block
-    ) -> None:
+    ) -> bool:
         """
         The last statement of patched_block might have been patched by _remove_redundant_jump_blocks. In this case, we
         fix the last instruction for new_block, which is a newly lifted (from VEX) block that ends at the same address
@@ -3708,7 +3709,14 @@ class Clinic(Analysis, Serializable):
 
         :param patched_block:   Previously patched block.
         :param new_block:       Newly lifted block.
+        :return:                False if new_block cannot stand in for patched_block, in which case the caller must
+                                not rewrite the graph; True otherwise.
         """
+
+        if not patched_block.statements or not new_block.statements:
+            # graph recovery emits a zero-size block for a fall-through that no instruction backs. Such a block
+            # has no last statement to repatch, so it cannot carry the transfer patched_block ends with.
+            return False
 
         if (
             isinstance(patched_block.statements[-1], ailment.Stmt.Jump)
@@ -3729,6 +3737,8 @@ class Clinic(Analysis, Serializable):
         ):
             new_block.statements[-1].true_target = patched_block.statements[-1].true_target
             new_block.statements[-1].false_target = patched_block.statements[-1].false_target
+
+        return True
 
     def _insert_block_labels(self, ail_graph):
         for node in ail_graph.nodes:
