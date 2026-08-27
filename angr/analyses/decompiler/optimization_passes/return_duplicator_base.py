@@ -415,6 +415,12 @@ class ReturnDuplicatorBase:
             if node.statements:
                 stmts += node.statements
 
+        if not stmts:
+            # every node in this graph is statement-less. graph recovery emits a zero-size block for a
+            # fall-through that no instruction backs, and remove_labels() then strips the label that was its
+            # only statement. Such a graph carries no return statement, so it is not a simple return graph.
+            return False
+
         # all statements must be either a return, a jump, an assignment, or a side-effect statement (e.g. a call)
         type_white_list = (Return, Jump, Assignment, SideEffectStatement)
         for stmt in stmts:
