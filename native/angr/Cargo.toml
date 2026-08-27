@@ -14,11 +14,11 @@ name = "rustylib"
 crate-type = ["cdylib"]
 
 [dependencies]
-icicle-fuzzing = { git = "https://github.com/angr/icicle-emu.git", rev = "fac77d41c845f91ba85fc072ad87bf7c3f4a28cc" }
-icicle-vm = { git = "https://github.com/angr/icicle-emu.git", rev = "fac77d41c845f91ba85fc072ad87bf7c3f4a28cc" }
+icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }
+icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }
 libafl = { version = "=0.16.1" }
 libafl_bolts = { version = "=0.16.1" }
-pcode = { git = "https://github.com/angr/icicle-emu.git", rev = "fac77d41c845f91ba85fc072ad87bf7c3f4a28cc" }
+pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "3292602fd4857b53ed653dec69398efe4cdb435e" }
 num-bigint = { version = "0.4", features = ["serde"] }
 postcard = { version = "1.1.3", default-features = false, features = ["use-std"] }
 pyo3 = { version = "0.29.0", features = [
