@@ -709,7 +709,6 @@ def lift(
         opt_level = 0
 
     if block_lifter is None:
-        # the sub-lifts below are part of the same block, so they must all decode with this context
         block_lifter = PcodeBasicBlockLifter(arch)
 
     u_data = data
@@ -829,9 +828,8 @@ class PcodeBasicBlockLifter:
     """
     Lifts basic blocks to P-code
 
-    Sleigh records context variables per address in the ``pypcode.Context``, so an instance decodes later blocks
-    differently depending on which blocks it decoded before: a branch leaves the delay slot context it sets behind
-    at the following address. An instance must therefore stay with a single binary; see :func:`get_block_lifter`.
+    Sleigh records context variables per address, so an instance must stay with one binary. See
+    :func:`get_block_lifter`.
     """
 
     arch: archinfo.Arch
@@ -984,16 +982,11 @@ def get_block_lifter(project: Project | None, arch: archinfo.Arch) -> PcodeBasic
     """
     Get the basic block lifter, and therefore the Sleigh context, that `project` decodes `arch` with.
 
-    A project keeps it on itself, in ``Project._pcode_block_lifter``, whichever engine it runs, so every block of
-    one binary decodes with one context and no block of another does. Lifting with no project at all gets a
-    context of its own. See :class:`PcodeBasicBlockLifter`.
+    Lifting with no project at all gets a context of its own. See :meth:`angr.project.Project.pcode_block_lifter`.
     """
     if project is None:
         return PcodeBasicBlockLifter(arch)
-    block_lifter = project._pcode_block_lifter  # pylint:disable=protected-access
-    if block_lifter is None or block_lifter.arch != arch:
-        block_lifter = project._pcode_block_lifter = PcodeBasicBlockLifter(arch)  # pylint:disable=protected-access
-    return block_lifter
+    return project.pcode_block_lifter(arch)
 
 
 class PcodeLifter(Lifter):
@@ -1010,8 +1003,6 @@ class PcodeLifter(Lifter):
         self.block_lifter = block_lifter
 
     def lift(self) -> None:
-        assert self.data is not None and not isinstance(self.data, str)
-        assert self.bytes_offset is not None
         self.block_lifter.lift(
             self.irsb,
             self.addr,

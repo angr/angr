@@ -10,6 +10,7 @@ import archinfo
 import pyvex
 
 import angr
+from angr.block import Block
 from angr.engines.pcode import lifter as pcode_lifter
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
@@ -195,14 +196,20 @@ class TestPcodeEngine(TestCase):
 
         assert [insn.mnemonic for insn in first.factory.block(0).pcode.insns] == ["nop"] * 4
 
-        block_lifter = pcode_lifter.get_block_lifter(first, first.arch)
+        block_lifter = first.pcode_block_lifter(first.arch)
         assert pcode_lifter.get_block_lifter(first, first.arch) is block_lifter
         assert pcode_lifter.get_block_lifter(second, second.arch) is not block_lifter
 
-        # a lifter decodes one architecture, so asking for another replaces it rather than decoding with it
+        # a lifter decodes one architecture, so a Block naming another gets its own rather than this one, which
+        # would answer for the architecture the caller did not ask for
         other_arch = archinfo.ArchPcode("pa-risc:BE:32:default")
-        assert pcode_lifter.get_block_lifter(first, other_arch).arch == other_arch
-        assert pcode_lifter.get_block_lifter(first, first.arch) is not block_lifter
+        assert first.pcode_block_lifter(other_arch).arch == other_arch
+        assert first.pcode_block_lifter(first.arch) is not block_lifter
+
+        # Block.__init__ takes an architecture from the caller, so this is reachable: decoded through the
+        # project's own context these bytes read as RISC-V nops, which is not what the caller asked for
+        elsewhere = Block(0, project=first, arch=other_arch, size=len(code))
+        assert [insn.mnemonic for insn in elsewhere.pcode.insns] == ["SPOP0,0x0"] * 4
 
         # a Sleigh context cannot be pickled, so the lifter a project keeps must not go into its pickle
         restored = pickle.loads(pickle.dumps(first))
