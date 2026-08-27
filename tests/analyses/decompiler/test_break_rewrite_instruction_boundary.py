@@ -7,10 +7,13 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import collections
 import unittest
 
+import archinfo
+
 from angr.ailment import Manager
 from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Register, Tmp
 from angr.ailment.statement import Assignment, ConditionalJump, Jump
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.structurer_nodes import SequenceNode
 from angr.analyses.decompiler.structuring.structurer_base import StructurerBase
 
@@ -40,8 +43,9 @@ class TestBreakRewriteInstructionBoundary(unittest.TestCase):
 
     @staticmethod
     def _structurer():
+        """The rewrite touches only cond_proc on the instance, so the real break-node path runs."""
         st = object.__new__(StructurerBase)
-        st._loop_create_break_node = lambda stmt, addrs: Block(stmt.tags["ins_addr"], 0, statements=[], idx=None)
+        st.cond_proc = ConditionProcessor(archinfo.ArchX86(), Manager(arch=archinfo.ArchX86()))
         return st
 
     @staticmethod
