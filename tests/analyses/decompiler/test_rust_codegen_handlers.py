@@ -72,6 +72,32 @@ class TestRustCodegenHandlers(unittest.TestCase):
         missing = set(c_dec.codegen._handlers) - set(self.codegen._handlers)
         assert not missing, f"Rust backend has no handler for {sorted(str(k) for k in missing)}"
 
+    def test_operators_without_a_renderer_keep_their_operands(self):
+        """The operator name is derived from the VEX op, so the renderer table cannot enumerate it."""
+        cases = [
+            # PowerPC renders essentially every conditional through CmpORD.
+            ("ppc", "brancher", 0x1000048C, "CmpORD("),
+            # ARM's division helper counts leading zeros.
+            ("armel", "test_division", 0x8678, "Clz("),
+        ]
+
+        for arch, name, function_addr, rendered in cases:
+            with self.subTest(binary=name):
+                proj = angr.Project(os.path.join(test_location, arch, name), auto_load_libs=False)
+                cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
+                proj.analyses.CompleteCallingConventions(recover_variables=True)
+                dec = proj.analyses.Decompiler(
+                    proj.kb.functions[function_addr], cfg=cfg.model, flavor="rust", fail_fast=True
+                )
+                assert dec.codegen is not None
+                text = dec.codegen.text
+                assert text is not None
+
+                self.assertIn(rendered, text)
+                # the operand used to be discarded, leaving the operator name as bare text
+                self.assertNotIn("UnaryOp ", text)
+                self.assertNotIn("BinaryOp ", text)
+
     def test_insert(self):
         m = self._manager()
         expr = Insert(
