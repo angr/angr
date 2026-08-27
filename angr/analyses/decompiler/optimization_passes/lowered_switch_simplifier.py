@@ -284,7 +284,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 if default_reachable_from_case:
                     continue
 
-                original_nodes = [case.original_node for case in real_cases]
+                # one node can cover several cases now, so drop repeats
+                original_nodes = list(dict.fromkeys(case.original_node for case in real_cases))
                 original_head: Block = original_nodes[0]
                 original_nodes = original_nodes[1:]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
@@ -294,13 +295,25 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # targets that are only reachable through a copied case node; the head must not get direct edges to
                 # these targets, or the direct edges would bypass the assignments held by the copied case nodes
                 copied_case_targets: set[tuple[Block, int, int | None]] = set()
+                # a contiguous group of case labels is one comparison node jumping to one body for every value in
+                # the group. the node must be emitted once and reused for the remaining values: copying it per
+                # value would put several blocks carrying its address into the graph, and the case bodies would
+                # then be reached through whichever of them an edge happened to be attached to.
+                group_entry: dict[tuple[Block, int, int | None], tuple[int, int | None]] = {}
                 for idx, case in enumerate(cases):
-                    if idx == 0 or all(
+                    group_key = (case.original_node, case.target, case.target_idx)
+                    if case.value != "default" and group_key in group_entry:
+                        emitted_target, emitted_target_idx = group_entry[group_key]
+                        case_addrs.append(
+                            (case.original_node, case.value, emitted_target, emitted_target_idx, case.next_addr)
+                        )
+                    elif idx == 0 or all(
                         isinstance(stmt, (Label, ConditionalJump)) for stmt in case.original_node.statements
                     ):
                         case_addrs.append(
                             (case.original_node, case.value, case.target, case.target_idx, case.next_addr)
                         )
+                        group_entry[group_key] = (case.target, case.target_idx)
                     else:
                         statements: list = [
                             stmt for stmt in case.original_node.statements if isinstance(stmt, (Label, Assignment))
@@ -326,6 +339,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         case_addrs.append(
                             (case_node_copy, case.value, case_node_copy.addr, case_node_copy.idx, case.next_addr)
                         )
+                        group_entry[group_key] = (case_node_copy.addr, case_node_copy.idx)
 
                         # add this copied node into the graph
                         delayed_edges.append((None, case_node_copy))
@@ -436,6 +450,16 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             if r is not None:
                 variable_comparisons[node] = ("c", *r)
                 continue
+            r = self._find_switch_variable_comparison_type_d(node, variable_map_of(self.manager))
+            if r is not None:
+                _varhash, _op, _expr, lo, hi, *_targets = r
+                # a contiguous run this long is left as a jump table instead of being lowered to an if-tree
+                # (see RULE 1), so this block is not the comparison of a lowered switch-case. leaving it
+                # unrecognized is what makes the cascade walk stop at it and record it as the default case,
+                # which is the role it actually plays.
+                if hi - lo + 1 < self._max_case_values:
+                    variable_comparisons[node] = ("d", *r)
+                continue
 
         varhash_to_caselists: defaultdict[int, list[tuple[list[Case], list]]] = defaultdict(list)
         used_nodes = set()
@@ -462,6 +486,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     op,
                     expr,
                     value,
+                    value_high,
                     target,
                     target_idx,
                     next_addr,
@@ -609,6 +634,49 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # checking on a new variable... it probably was not a switch-case
                         continue
 
+                elif op == "range":
+                    # all values in the range jump to the same place, so emit one case each
+                    if head_varhash != variable_hash:
+                        # checking on a new variable... it probably was not a switch-case
+                        continue
+
+                    # like "gt", a range check is not supported as the head of a switch: on its own it is just as
+                    # much a two-way test as a case group, and the ones that head a chain are dominated by loop
+                    # conditions of the isspace(c) kind, whose "case body" is the next iteration of the loop
+                    if comp is head:
+                        break
+
+                    in_addr, in_idx, out_addr, out_idx = target, target_idx, next_addr, next_addr_idx
+                    successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
+                    succ_addrs = {(succ.addr, succ.idx) for succ in successors}
+                    if succ_addrs != {(in_addr, in_idx), (out_addr, out_idx)}:
+                        break
+
+                    # the head is already excluded above, so this node has at most one predecessor
+                    if self._graph.in_degree[comp] > 1:
+                        break
+
+                    in_comp = next(iter(succ for succ in successors if (succ.addr, succ.idx) == (in_addr, in_idx)))
+                    if in_comp in variable_comparisons:
+                        # the target is another comparison, not the body of a case
+                        break
+
+                    # do not clip the range to the outer bounds: "gt" records its le-side bound as value - 1,
+                    # which would drop the top value of the group
+                    for case_value in range(value, value_high + 1):
+                        cases.append(Case(comp, comp_type, variable_hash, expr, case_value, in_addr, in_idx, None))
+                    used_nodes.add(comp)
+
+                    out_comp = next(iter(succ for succ in successors if (succ.addr, succ.idx) == (out_addr, out_idx)))
+                    if out_comp in variable_comparisons and out_comp not in visited:
+                        visited.add(out_comp)
+                        last_comp = comp
+                        stack.append((out_comp, min_, max_))
+                    elif out_addr not in default_case_candidates:
+                        default_case_candidates[out_addr] = Case(
+                            comp, None, variable_hash, expr, "default", out_addr, out_idx, None
+                        )
+
             if cases and len(default_case_candidates) <= 1:
                 if default_case_candidates:
                     cases.append(next(iter(default_case_candidates.values())))
@@ -698,7 +766,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     def _find_switch_variable_comparison_type_a(
         node,
         variable_map,
-    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
+    ) -> tuple[int, str, Expression, int, int | None, int, int | None, int, int | None] | None:
         # the type a is the last statement is a var == constant comparison, but
         # there is more than one non-label statement in the block
 
@@ -738,6 +806,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         "eq",
                         cond.operands[0],
                         value,
+                        None,
                         target,
                         target_idx,
                         next_node_addr,
@@ -750,7 +819,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     def _find_switch_variable_comparison_type_b(
         node,
         variable_map,
-    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
+    ) -> tuple[int, str, Expression, int, int | None, int, int | None, int, int | None] | None:
         # the type b is the last statement is a var == constant comparison, and
         # there is only one non-label statement
 
@@ -790,6 +859,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         "eq",
                         cond.operands[0],
                         value,
+                        None,
                         target,
                         target_idx,
                         next_node_addr,
@@ -802,7 +872,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     def _find_switch_variable_comparison_type_c(
         node,
         variable_map,
-    ) -> tuple[int, str, Expression, int, int, int | None, int, int | None] | None:
+    ) -> tuple[int, str, Expression, int, int | None, int, int | None, int, int | None] | None:
         # the type c is where the last statement is a var < or > constant comparison, and
         # there is only one non-label statement
 
@@ -861,11 +931,84 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         op_str,
                         cond.operands[0],
                         value,
+                        None,
                         gt_node_addr,
                         gt_node_idx,
                         le_node_addr,
                         le_node_idx,
                     )
+
+        return None
+
+    @staticmethod
+    def _find_switch_variable_comparison_type_d(
+        node,
+        variable_map,
+    ) -> tuple[int, str, Expression, int, int | None, int, int | None, int, int | None] | None:
+        # type d matches an unsigned range check, (unsigned)(var - lo) <= hi - lo, which compilers emit for case
+        # labels with consecutive values. it means lo <= var <= hi. the signed form is just an upper bound (type c).
+
+        if isinstance(node, Block):
+            stmt = first_nonlabel_nonphi_statement(node)
+            if (
+                stmt is not None
+                and stmt is node.statements[-1]
+                and (
+                    isinstance(stmt, ConditionalJump)
+                    and isinstance(stmt.true_target, Const)
+                    and isinstance(stmt.false_target, Const)
+                )
+            ):
+                cond = stmt.condition
+                if (
+                    isinstance(cond, BinaryOp)
+                    and not cond.signed
+                    and isinstance(cond.operands[0], BinaryOp)
+                    and isinstance(cond.operands[1], Const)
+                ):
+                    range_expr = cond.operands[0]
+                    if (
+                        range_expr.op == "Sub"
+                        and isinstance(range_expr.operands[0], VirtualVariable)
+                        and isinstance(range_expr.operands[1], Const)
+                    ):
+                        if stmt.true_target.value == stmt.false_target.value:
+                            return None
+                        lo = range_expr.operands[1].value
+                        width = cond.operands[1].value
+                        op = cond.op
+                        if op in {"CmpLE", "CmpLT"}:
+                            in_node_addr = stmt.true_target.value
+                            in_node_idx = stmt.true_target_idx
+                            out_node_addr = stmt.false_target.value
+                            out_node_idx = stmt.false_target_idx
+                        elif op in {"CmpGT", "CmpGE"}:
+                            in_node_addr = stmt.false_target.value
+                            in_node_idx = stmt.false_target_idx
+                            out_node_addr = stmt.true_target.value
+                            out_node_idx = stmt.true_target_idx
+                        else:
+                            return None
+                        if op in {"CmpLT", "CmpGE"}:
+                            # < instead of <=, so the last value is not included
+                            width -= 1
+                        if width < 0:
+                            return None
+                        hi = lo + width
+                        if hi >= 1 << range_expr.operands[0].bits:
+                            # range runs past the variable's width
+                            return None
+                        return (
+                            StableVarExprHasher(range_expr.operands[0], variable_map).hash,
+                            "range",
+                            range_expr.operands[0],
+                            lo,
+                            hi,
+                            in_node_addr,
+                            in_node_idx,
+                            out_node_addr,
+                            out_node_idx,
+                        )
 
         return None
 
