@@ -368,7 +368,9 @@ class Project:
             if func is None:
                 continue
             if isinstance(func, cle.backends.macho.symbol.SymbolTableSymbol):
-                # in macho we cannot determine if a symbol is a function symbol or not
+                # a Mach-O import is an undefined symbol, which states where it is *not* defined and nothing
+                # else, so it is not a function symbol and the test below would drop every simprocedure this
+                # object needs.
                 pass
             elif not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
                 continue
