@@ -2517,7 +2517,7 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
         return state.regs.v0
 
 
-class SimCCN64(SimCC):  # TODO: add n32
+class SimCCN64(SimCC):
     ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
     CALLER_SAVED_REGS = ["t9", "gp"]
     FP_ARG_REGS = []  # TODO: ???
@@ -2528,6 +2528,15 @@ class SimCCN64(SimCC):  # TODO: add n32
 
 
 SimCCO64 = SimCCN64  # compatibility
+
+
+class SimCCN32(SimCCN64):
+    """
+    n32 passes its arguments exactly as n64 does -- eight 64-bit registers -- and differs only in
+    the width of a pointer, which lives in the architecture rather than in the convention.
+    """
+
+    ARCH = archinfo.ArchMIPSN32
 
 
 class SimCCN64LinuxSyscall(SimCCSyscall):
@@ -2548,6 +2557,10 @@ class SimCCN64LinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.v0
+
+
+class SimCCN32LinuxSyscall(SimCCN64LinuxSyscall):
+    ARCH = archinfo.ArchMIPSN32
 
 
 class SimCCPowerPC(SimCC):
@@ -2696,6 +2709,10 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
         "default": [SimCCN64],
         "Linux": [SimCCN64],
     },
+    "MIPSN32": {
+        "default": [SimCCN32],
+        "Linux": [SimCCN32],
+    },
     "PPC32": {
         "default": [SimCCPowerPC],
         "Linux": [SimCCPowerPC],
@@ -2724,6 +2741,7 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "ARMCortexM": {"Linux": SimCCARMHF},
     "MIPS32": {"Linux": SimCCO32},
     "MIPS64": {"Linux": SimCCN64},
+    "MIPSN32": {"Linux": SimCCN32},
     "PPC32": {"Linux": SimCCPowerPC},
     "PPC64": {"Linux": SimCCPowerPC64},
     "AARCH64": {"Linux": SimCCAArch64, "UEFI": SimCCAArch64},
@@ -2759,6 +2777,7 @@ ARCH_NAME_ALIASES = {
     "AARCH64": ["arm64", "aarch64"],
     "MIPS32": [],
     "MIPS64": [],
+    "MIPSN32": ["mipsn32"],
     "PPC32": ["powerpc32"],
     "PPC64": ["powerpc64"],
     "RISCV64": ["riscv64"],
@@ -2876,6 +2895,10 @@ SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
     "MIPS64": {
         "default": SimCCN64LinuxSyscall,
         "Linux": SimCCN64LinuxSyscall,
+    },
+    "MIPSN32": {
+        "default": SimCCN32LinuxSyscall,
+        "Linux": SimCCN32LinuxSyscall,
     },
     "PPC32": {
         "default": SimCCPowerPCLinuxSyscall,
