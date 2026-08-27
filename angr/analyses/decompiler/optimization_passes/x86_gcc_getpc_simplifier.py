@@ -19,7 +19,7 @@ class X86GccGetPcSimplifier(OptimizationPass):
     PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
     NAME = "Simplify getpc()"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

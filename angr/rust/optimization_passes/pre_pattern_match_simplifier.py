@@ -52,7 +52,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Duplicate return blocks to prepare for pattern match simplification"
-    DESCRIPTION = __doc__
+    DESCRIPTION = __doc__ or ""
     STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
 
     def __init__(

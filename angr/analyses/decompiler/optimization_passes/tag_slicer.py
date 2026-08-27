@@ -19,7 +19,7 @@ class TagSlicer(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Remove unmarked statements from the graph."
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -43,7 +43,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
     ARCHES = None
     PLATFORMS = None
     NAME = "Duplicate returns connect with gotos (low)"
-    DESCRIPTION = inspect.cleandoc(__doc__[: __doc__.index("Args:")])  # pylint:disable=unsubscriptable-object
+    DESCRIPTION = inspect.cleandoc((__doc__ or "").split("Args:")[0])
 
     def __init__(
         self,

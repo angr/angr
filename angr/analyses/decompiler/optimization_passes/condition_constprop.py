@@ -81,7 +81,7 @@ class ConditionConstantPropagation(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Propagate constants using information deduced from conditionals."
-    DESCRIPTION = __doc__.strip()  # type: ignore
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

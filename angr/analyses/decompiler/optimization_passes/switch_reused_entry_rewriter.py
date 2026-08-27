@@ -32,7 +32,7 @@ class SwitchReusedEntryRewriter(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_AIL_GRAPH_CREATION
     NAME = "Rewrite switch-case entry nodes with multiple predecessors into goto statements."
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, max_entry_reuse_count: int = 10, max_reused_entries: int = 20, **kwargs):
         super().__init__(*args, **kwargs)

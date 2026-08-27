@@ -24,7 +24,7 @@ class ITERegionConverter(OptimizationPass):
     PLATFORMS = ["windows", "linux", "cgc"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Transform ITE-assignment regions into ternary expression assignments"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, max_updates=10, **kwargs):
         super().__init__(*args, **kwargs)

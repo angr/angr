@@ -25,7 +25,7 @@ class DeadblockRemover(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_REGION_IDENTIFICATION
     NAME = "Remove blocks with unsatisfiable conditions"
-    DESCRIPTION = __doc__.strip()  # type: ignore
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, node_cutoff: int = 200, **kwargs):
         super().__init__(*args, **kwargs)

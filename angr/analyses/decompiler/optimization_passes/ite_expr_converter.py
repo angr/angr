@@ -78,7 +78,7 @@ class ITEExprConverter(OptimizationPass):
     NAME = (
         "Transform single-use expressions that were assigned to in different If-Else branches into ternary expressions"
     )
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, ite_exprs=None, **kwargs):
         super().__init__(*args, **kwargs)
