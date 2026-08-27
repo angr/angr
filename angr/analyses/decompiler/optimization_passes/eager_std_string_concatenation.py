@@ -9,6 +9,7 @@ from archinfo import Endness
 from angr.ailment import Block
 from angr.ailment.expression import BinaryOp, Const, Load, VirtualVariable
 from angr.ailment.statement import WeakAssignment
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.sim_type import SimType, SimTypeChar, SimTypePointer
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -147,7 +148,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
             block = old_block.copy()
             old_stmt = block.statements[last_stmt_idx]
             str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-            self.manager.variable_map.set_custom_string(str_const)
+            variable_map_of(self.manager).set_custom_string(str_const)
             block.statements[last_stmt_idx] = WeakAssignment(
                 old_stmt.idx,
                 old_stmt.dst,

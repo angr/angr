@@ -134,7 +134,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 assert s is not None
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                 str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-                self.manager.variable_map.set_custom_string(str_const)
+                variable_map_of(self.manager).set_custom_string(str_const)
                 call = Call(
                     self.manager.next_atom(),
                     "strncpy",
@@ -195,7 +195,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
 
                     str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                     str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-                    self.manager.variable_map.set_custom_string(str_const)
+                    variable_map_of(self.manager).set_custom_string(str_const)
                     call = Call(
                         self.manager.next_atom(),
                         "strncpy",
@@ -272,7 +272,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 call_name = "strcpy"
                 new_str_idx = self.kb.custom_strings.allocate(new_str[:-1])
                 str_const = Const(self.manager.next_atom(), new_str_idx, last_stmt.expr.args[0].bits)
-                self.manager.variable_map.set_custom_string(str_const)
+                variable_map_of(self.manager).set_custom_string(str_const)
                 args = [
                     last_stmt.expr.args[0],
                     str_const,
@@ -282,7 +282,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 call_name = "strncpy"
                 new_str_idx = self.kb.custom_strings.allocate(new_str)
                 str_const = Const(self.manager.next_atom(), new_str_idx, last_stmt.expr.args[0].bits)
-                self.manager.variable_map.set_custom_string(str_const)
+                variable_map_of(self.manager).set_custom_string(str_const)
                 args = [
                     last_stmt.expr.args[0],
                     str_const,
@@ -408,7 +408,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
             and stmt.expr.args is not None
             and len(stmt.expr.args) == 3
             and isinstance(stmt.expr.args[1], Const)
-            and self.manager.variable_map.custom_string(stmt.expr.args[1])
+            and variable_map_of(self.manager).custom_string(stmt.expr.args[1])
         )
 
     @staticmethod

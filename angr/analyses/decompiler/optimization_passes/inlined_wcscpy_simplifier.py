@@ -141,7 +141,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
             self.project.arch.bits,
             type=wstr_type,
         )
-        self.manager.variable_map.set_custom_string(str_const)
+        variable_map_of(self.manager).set_custom_string(str_const)
         call = Call(
             self.manager.next_atom(),
             "wcsncpy",
@@ -387,7 +387,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
                         last_stmt.expr.args[0].bits,
                         type=wstr_type,
                     )
-                    self.manager.variable_map.set_custom_string(str_const)
+                    variable_map_of(self.manager).set_custom_string(str_const)
                     args = [
                         last_stmt.expr.args[0],
                         str_const,
@@ -401,7 +401,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
                         last_stmt.expr.args[0].bits,
                         type=wstr_type,
                     )
-                    self.manager.variable_map.set_custom_string(str_const)
+                    variable_map_of(self.manager).set_custom_string(str_const)
                     args = [
                         last_stmt.expr.args[0],
                         str_const,
@@ -572,7 +572,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
             and stmt.expr.args is not None
             and len(stmt.expr.args) == 3
             and isinstance(stmt.expr.args[1], Const)
-            and self.manager.variable_map.custom_string(stmt.expr.args[1])
+            and variable_map_of(self.manager).custom_string(stmt.expr.args[1])
         )
 
     @staticmethod
