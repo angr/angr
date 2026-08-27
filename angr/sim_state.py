@@ -439,19 +439,11 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         return super().has_plugin(name)
 
     def register_plugin(self, name, plugin, inhibit_init=False):  # pylint: disable=arguments-differ
-        # l.debug("Adding plugin %s of type %s", name, plugin.__class__.__name__)
-        self._set_plugin_state(plugin, inhibit_init=inhibit_init)
-        return super().register_plugin(name, plugin)
-
-    def _init_plugin(self, plugin_cls: type[SimStatePlugin]) -> SimStatePlugin:
-        plugin = plugin_cls()
-        self._set_plugin_state(plugin)
-        return plugin
-
-    def _set_plugin_state(self, plugin: SimStatePlugin, inhibit_init: bool = False):
+        super().register_plugin(name, plugin)
         plugin.set_state(self)
         if not inhibit_init:
             plugin.init_state()
+        return plugin
 
     #
     # Java support
