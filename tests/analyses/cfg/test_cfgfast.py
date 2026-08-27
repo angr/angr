@@ -1141,6 +1141,36 @@ class TestCfgfast(unittest.TestCase):
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
 
+    def test_symbol_exemption_covers_the_blocks_removal_deletes(self):
+        # Removing a function deletes every block of it, not just its entry, so the exemption above is tested
+        # against the blocks: a static function the scan merged into its neighbour, or a symbol-named tail the
+        # boundary pass has not split yet, is named evidence that removal destroys just as completely.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        func = cfg.kb.functions["main"]
+        blocks: list[tuple[int, int]] = []
+        for block_addr in func.block_addrs_set:
+            node = cfg.model.get_any_node(block_addr)
+            if node is None or not node.size:
+                continue
+            assert isinstance(node.addr, int)
+            blocks.append((node.addr, node.size))
+        blocks.sort()
+        assert len(blocks) > 1
+        entry_addr = blocks[0][0]
+        last_addr, last_size = blocks[-1]
+
+        names_a_symbol = cfg._body_names_a_symbol  # pylint:disable=protected-access
+        assert not names_a_symbol(func, [])
+        assert names_a_symbol(func, [entry_addr])
+        # Named only in the last block: what the entry test cannot see and removal deletes anyway.
+        assert names_a_symbol(func, [last_addr])
+        assert names_a_symbol(func, [last_addr + last_size - 1])
+        # Just outside the body on either side.
+        assert not names_a_symbol(func, [entry_addr - 1])
+        assert not names_a_symbol(func, [last_addr + last_size])
+
 
 if __name__ == "__main__":
     unittest.main()
