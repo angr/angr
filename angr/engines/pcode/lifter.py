@@ -984,15 +984,12 @@ def get_block_lifter(project: Project | None, arch: archinfo.Arch) -> PcodeBasic
     """
     Get the basic block lifter, and therefore the Sleigh context, that `project` decodes `arch` with.
 
-    A project running the p-code engine keeps its lifter on that engine, which the factory keeps per thread as
-    well as per project. Any other project keeps it on itself, in ``Project._pcode_block_lifter``. A block with
-    no project gets a lifter of its own. See :class:`PcodeBasicBlockLifter`.
+    A project keeps it on itself, in ``Project._pcode_block_lifter``, whichever engine it runs, so every block of
+    one binary decodes with one context and no block of another does. Lifting with no project at all gets a
+    context of its own. See :class:`PcodeBasicBlockLifter`.
     """
     if project is None:
         return PcodeBasicBlockLifter(arch)
-    engine = project.factory.default_engine
-    if isinstance(engine, PcodeLifterEngineMixin):
-        return engine.get_block_lifter(arch)
     block_lifter = project._pcode_block_lifter  # pylint:disable=protected-access
     if block_lifter is None or block_lifter.arch != arch:
         block_lifter = project._pcode_block_lifter = PcodeBasicBlockLifter(arch)  # pylint:disable=protected-access
@@ -1067,25 +1064,11 @@ class PcodeLifterEngineMixin(SimEngine):
             else:
                 self.selfmodifying_code = False
 
-        # basic block lifter
-        self._block_lifter: PcodeBasicBlockLifter | None = None
-
         # block cache
         self._block_cache = None
         self._block_cache_hits = 0
         self._block_cache_misses = 0
         self._initialize_block_cache()
-
-    def get_block_lifter(self, arch: archinfo.Arch) -> PcodeBasicBlockLifter:
-        """
-        Get the basic block lifter this engine decodes `arch` with, creating it on first use.
-
-        The factory keeps one engine per project and per thread, so an engine's lifter never decodes blocks of
-        more than one binary. See :class:`PcodeBasicBlockLifter`.
-        """
-        if self._block_lifter is None or self._block_lifter.arch != arch:
-            self._block_lifter = PcodeBasicBlockLifter(arch)
-        return self._block_lifter
 
     def _initialize_block_cache(self) -> None:
         self._block_cache = LRUCache(maxsize=self._cache_size)
@@ -1331,7 +1314,7 @@ class PcodeLifterEngineMixin(SimEngine):
                     strict_block_end=strict_block_end,
                     skip_stmts=skip_stmts,
                     collect_data_refs=collect_data_refs,
-                    block_lifter=self.get_block_lifter(arch),
+                    block_lifter=get_block_lifter(self.project, arch),
                 )
 
                 if subphase == 0 and irsb.statements is not None:
@@ -1481,9 +1464,6 @@ class PcodeLifterEngineMixin(SimEngine):
         self._single_step = s["_single_step"]
         self._cache_size = s["_cache_size"]
         self.default_strict_block_end = s["default_strict_block_end"]
-
-        # Sleigh contexts do not survive pickling; rebuild on demand
-        self._block_lifter = None
 
         # rebuild block cache
         self._initialize_block_cache()

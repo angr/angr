@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import pickle
+import threading
 from unittest import TestCase, main
 
 import archinfo
@@ -16,6 +17,7 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
+# pylint: disable=protected-access
 class TestPcodeEngine(TestCase):
     def test_shellcode(self):
         """
@@ -206,11 +208,46 @@ class TestPcodeEngine(TestCase):
         restored = pickle.loads(pickle.dumps(first))
         assert [insn.mnemonic for insn in restored.factory.block(0).pcode.insns] == ["nop"] * 4
 
+        # a project running the p-code engine keeps it in the same place, so its engine and its Block.pcode decode
+        # with one context rather than one each
         arch = archinfo.ArchPcode("pa-risc:BE:32:default")
         third = angr.load_shellcode(
             b"\x08\x00\x02\x40" * 4, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode
         )
-        assert pcode_lifter.get_block_lifter(third, arch) is third.factory.default_engine.get_block_lifter(arch)
+        assert third._pcode_block_lifter is None
+        assert third.factory.block(0x1000).instructions == 4
+        assert third._pcode_block_lifter is not None
+        assert pcode_lifter.get_block_lifter(third, arch) is third._pcode_block_lifter
+
+    def test_block_lifter_is_shared_between_threads(self):
+        """
+        Test that a project decodes with one basic block lifter whichever thread lifts.
+
+        The factory hands out one engine per thread, so keeping the lifter on the engine gave each thread its own
+        Sleigh context and made a block's decoding depend on which thread reached it first.
+        """
+        arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+        proj = angr.load_shellcode(
+            b"\x08\x00\x02\x40" * 4, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode
+        )
+        assert proj.factory.block(0x1000).instructions == 4
+        main_lifter = proj._pcode_block_lifter
+        assert main_lifter is not None
+
+        seen = []
+
+        def lift_in_thread():
+            proj.factory.block(0x1000)
+            seen.append((proj.factory.default_engine, pcode_lifter.get_block_lifter(proj, arch)))
+
+        thread = threading.Thread(target=lift_in_thread)
+        thread.start()
+        thread.join()
+
+        assert len(seen) == 1
+        other_engine, other_lifter = seen[0]
+        assert other_engine is not proj.factory.default_engine  # the factory really did hand out a second engine
+        assert other_lifter is main_lifter
 
 
 if __name__ == "__main__":
