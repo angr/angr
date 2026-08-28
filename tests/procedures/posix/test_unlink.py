@@ -5,12 +5,13 @@ from __future__ import annotations
 import unittest
 
 import angr
+from tests.common import minimal_project
 
 
 class TestUnlink(unittest.TestCase):
     def test_file_unlink(self):
         # Initialize a blank state with an arbitrary errno location
-        state = angr.SimState(arch="AMD64", mode="symbolic")
+        state = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
         state.libc.errno_location = 0xA0000000
         state.libc.errno = 0
 

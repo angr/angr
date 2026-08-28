@@ -13,13 +13,13 @@ import claripy
 
 import angr
 from angr import SIM_LIBRARIES, SimState
-from tests.common import broken
+from tests.common import broken, minimal_project
 
 log = logging.getLogger("angr.tests.string")
 
 
 def make_state_with_stdin(content):
-    s = SimState(arch="AMD64", mode="symbolic")
+    s = SimState(project=minimal_project("AMD64"), mode="symbolic")
     stdin_storage = angr.storage.file.SimFile("stdin", content=content)
     stdin = angr.storage.file.SimFileDescriptor(stdin_storage)
     s.register_plugin("posix", angr.state_plugins.SimSystemPosix(stdin=stdin_storage, fd={0: stdin}))
@@ -53,7 +53,7 @@ wcscmp = make_func("wcscmp")
 
 class TestStringSimProcedures(unittest.TestCase):
     def test_strlen(self):
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         log.info("fully concrete string")
         a_str = claripy.BVV(0x41414100, 32)
@@ -86,7 +86,7 @@ class TestStringSimProcedures(unittest.TestCase):
         # This tests if a strlen can influence a symbolic str.
         #
         log.info("Trying to influence length.")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_c = claripy.BVS("some_string", 8 * 16)
         c_addr = claripy.BVV(0x10, 64)
         s.memory.store(c_addr, str_c, endness="Iend_BE")
@@ -109,7 +109,7 @@ class TestStringSimProcedures(unittest.TestCase):
                 assert not test_s.solver.unique(test_s.memory.load(c_addr + j, 1))
 
     def test_strcmp(self):
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_a = claripy.BVV(0x41414100, 32)
         str_b = claripy.BVS("mystring", 32)
 
@@ -143,7 +143,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s_nomatch.solver.unique(str_b)
 
         log.info("concrete a, symbolic b")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_a = claripy.BVV(0x41424300, 32)
         str_b = claripy.BVS("mystring", 32)
         a_addr = claripy.BVV(0x10, 64)
@@ -166,7 +166,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s_nomatch.solver.solution(str_b, 0x41424300)
 
         log.info("symbolic a, symbolic b")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         a_addr = claripy.BVV(0x10, 64)
         b_addr = claripy.BVV(0xB0, 64)
 
@@ -187,7 +187,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strncmp(self):
         log.info("symbolic left, symbolic right, symbolic len")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         left = claripy.BVS("left", 32)
         left_addr = claripy.BVV(0x1000, 64)
         right = claripy.BVS("right", 32)
@@ -214,7 +214,7 @@ class TestStringSimProcedures(unittest.TestCase):
         # assert s_nomatch.solver.max_int(maxlen) == 2
 
         log.info("zero-length")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         left = claripy.BVS("left", 32)
         left_addr = claripy.BVV(0x1000, 64)
         right = claripy.BVS("right", 32)
@@ -232,7 +232,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strncmp_longer_limit(self):
         log.info("concrete a, concrete b, concrete n")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_a = claripy.BVV(b"ABC\0")
         str_b = claripy.BVV(b"AB\0")
         addr_a = claripy.BVV(0x10, 64)
@@ -246,7 +246,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strncmp_find_limits(self):
         log.info("concrete a, concrete b, symbolic n")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_a = claripy.BVV(b"ABCD\0")
         str_b = claripy.BVV(b"ABCE\0")
         addr_a = claripy.BVV(0x10, 64)
@@ -261,7 +261,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strncmp_find_prefix(self):
         log.info("concrete a, symbolic b, symbolic n")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_a = claripy.BVV(b"ABCD\0")
         str_b = claripy.BVS("str_b", len(str_a))
         addr_a = claripy.BVV(0x10, 64)
@@ -277,7 +277,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strncmp_find_prefix_unsat(self):
         log.info("concrete a, concrete b, symbolic n")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_a = claripy.BVV(b"\0\0\0\0\0")
         str_b = claripy.BVV(b"ABCE\0")
         addr_a = claripy.BVV(0x10, 64)
@@ -293,7 +293,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strncmp_find_input_for_limit(self):
         log.info("concrete a, symbolic b, symbolic n")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_a = claripy.BVV(b"ABCD\0")
         str_b = claripy.BVS("str_b", len(str_a))
         addr_a = claripy.BVV(0x10, 64)
@@ -316,7 +316,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strstr_conc_haystack_conc_needle(self):
         log.info("concrete haystack and needle")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_haystack = claripy.BVV(0x41424300, 32)
         str_needle = claripy.BVV(0x42430000, 32)
         addr_haystack = claripy.BVV(0x10, 64)
@@ -330,7 +330,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strstr_conc_haystack_sym_needle(self):
         log.info("concrete haystack, symbolic needle")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.libc.max_symbolic_strstr = 20
         haystack = b"ABCD"
         str_haystack = claripy.BVV(haystack + b"\0")
@@ -363,7 +363,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strstr_sym_haystack_conc_needle(self):
         log.info("symbolic haystack, concrete needle")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.libc.max_symbolic_strstr = 20
         str_haystack = claripy.BVS("haystack", 5 * 8).concat(claripy.BVV(0, 8))
         str_needle = claripy.BVV(b"ABC\0")
@@ -392,7 +392,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strstr_sym_haystack_sym_needle(self):
         log.info("symbolic haystack, symbolic needle")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.libc.max_symbolic_strstr = 20
         s.libc.buf_symbolic_bytes = 10
         str_haystack = claripy.BVS("haystack", s.libc.buf_symbolic_bytes * 8)
@@ -440,7 +440,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strstr_inconsistency(self):
         log.info("symbolic haystack, symbolic needle")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.libc.buf_symbolic_bytes = 2
         addr_haystack = claripy.BVV(0x10, 64)
         addr_needle = claripy.BVV(0xB0, 64)
@@ -464,7 +464,7 @@ class TestStringSimProcedures(unittest.TestCase):
     def test_memcpy(self):
         log.info("concrete src, concrete dst, concrete len")
         log.debug("... full copy")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414141, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVV(0x42424242, 32)
@@ -477,7 +477,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(new_dst, 2, cast_to=bytes) == [b"BBBB"]
 
         log.info("giant copy")
-        s = SimState(arch="AMD64", mode="symbolic", remove_options=angr.options.simplification)
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic", remove_options=angr.options.simplification)
         s.memory._maximum_symbolic_size = 0x2000000
         size = claripy.BVV(0x1000000, 64)
         data = claripy.BVS("giant", 8 * 0x1_000_000)
@@ -489,7 +489,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.memory.load(dst_addr, size) is s.memory.load(src_addr, size)
 
         log.debug("... partial copy")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
         memcpy(s, arguments=[dst_addr, src_addr, claripy.BVV(2, 64)])
@@ -497,7 +497,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(new_dst, 2, cast_to=bytes) == [b"BBAA"]
 
         log.info("symbolic src, concrete dst, concrete len")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414141, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVS("src", 32)
@@ -513,7 +513,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s.satisfiable()
 
         log.info("symbolic src, concrete dst, symbolic len")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414141, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVS("src", 32)
@@ -544,7 +544,7 @@ class TestStringSimProcedures(unittest.TestCase):
         src = claripy.BVV(0x42424242, 32)
         src_addr = claripy.BVV(0x2000, 64)
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
         cpylen = claripy.BVS("len", 64)
@@ -558,7 +558,7 @@ class TestStringSimProcedures(unittest.TestCase):
         log.info("concrete src, concrete dst, concrete len")
 
         log.debug("... full cmp")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414141, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVV(0x42424242, 32)
@@ -577,14 +577,14 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s_neg.satisfiable()
 
         log.debug("... zero cmp")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
         r = memcmp(s, arguments=[dst_addr, src_addr, claripy.BVV(0, 64)])
         assert s.solver.eval_upto(r, 2) == [0]
 
         log.info("symbolic src, concrete dst, concrete len")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414141, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVS("src", 32)
@@ -608,7 +608,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert not s_nomatch.solver.solution(m, 0x41414141)
 
         log.info("symbolic src, concrete dst, symbolic len")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414141, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVS("src", 32)
@@ -644,7 +644,7 @@ class TestStringSimProcedures(unittest.TestCase):
     def test_strncpy(self):
         log.info("concrete src, concrete dst, concrete len")
         log.debug("... full copy")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414100, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVV(0x42420000, 32)
@@ -657,7 +657,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval(new_dst, cast_to=bytes) == b"BB\x00\x00"
 
         log.debug("... partial copy")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
         strncpy(s, arguments=[dst_addr, src_addr, claripy.BVV(2, 64)])
@@ -665,7 +665,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(new_dst, 2, cast_to=bytes) == [b"BBA\x00"]
 
         log.info("symbolic src, concrete dst, concrete len")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414100, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVS("src", 32)
@@ -689,7 +689,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(c, 10) == [0]
 
         log.info("symbolic src, concrete dst, symbolic len")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414100, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVS("src", 32)
@@ -714,7 +714,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
         log.info("concrete src, concrete dst, symbolic len")
         log.debug("... full copy")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         dst = claripy.BVV(0x41414100, 32)
         dst_addr = claripy.BVV(0x1000, 64)
@@ -733,7 +733,7 @@ class TestStringSimProcedures(unittest.TestCase):
         log.info("concrete src, concrete dst")
 
         log.debug("... full copy")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         dst = claripy.BVV(0x41414100, 32)
         dst_addr = claripy.BVV(0x1000, 64)
         src = claripy.BVV(0x42420000, 32)
@@ -750,7 +750,7 @@ class TestStringSimProcedures(unittest.TestCase):
         src = claripy.BVS("src", 32)
         src_addr = claripy.BVV(0x2000, 64)
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(dst_addr, dst)
         s.memory.store(src_addr, src)
 
@@ -780,7 +780,7 @@ class TestStringSimProcedures(unittest.TestCase):
     @broken
     def test_sprintf(self):
         log.info("concrete src, concrete dst, concrete len")
-        s = SimState(mode="symbolic", arch="PPC32")
+        s = SimState(mode="symbolic", project=minimal_project("PPC32"))
         format_str = claripy.BVV(0x25640000, 32)
         format_addr = claripy.BVV(0x2000, 32)
         # dst = claripy.BVV("destination", 128)
@@ -805,7 +805,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_memset(self):
         log.info("concrete src, concrete dst, concrete len")
-        s = SimState(arch="PPC32", mode="symbolic")
+        s = SimState(project=minimal_project("PPC32"), mode="symbolic")
         dst = claripy.BVV(0, 128)
         dst_addr = claripy.BVV(0x1000, 32)
         char = claripy.BVV(0x00000041, 32)
@@ -817,7 +817,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval(s.memory.load(dst_addr, 4)) == 0x41414100
 
         log.debug("Symbolic length")
-        s = SimState(arch="PPC32", mode="symbolic")
+        s = SimState(project=minimal_project("PPC32"), mode="symbolic")
         s.memory.store(dst_addr, dst)
         length = claripy.BVS("some_length", 32)
         s.add_constraints(length < 10)
@@ -840,7 +840,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strchr(self):
         log.info("concrete haystack and needle")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_haystack = claripy.BVV(0x41424300, 32)
         str_needle = claripy.BVV(0x42, 64)
         addr_haystack = claripy.BVV(0x10, 64)
@@ -851,7 +851,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval(ss_res) == 0x11
 
         log.info("concrete haystack, symbolic needle")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_haystack = claripy.BVV(0x41424300, 32)
         str_needle = claripy.BVS("wtf", 64)
         chr_needle = str_needle[7:0]
@@ -881,7 +881,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert sorted(s_match.solver.eval_upto(s_match.memory.load(0x13, 1), 300)) == [0x00, 0x44]
 
         # l.info("symbolic haystack, symbolic needle")
-        # s = SimState(arch="AMD64", mode="symbolic")
+        # s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         # s.libc.buf_symbolic_bytes = 5
         # addr_haystack = claripy.BVV(0x10, 64)
         # addr_needle = claripy.BVV(0xb0, 64)
@@ -915,7 +915,7 @@ class TestStringSimProcedures(unittest.TestCase):
     @broken
     def test_strtok_r(self):
         log.debug("CONCRETE MODE")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(100, claripy.BVV(0x4141414241414241424300, 88), endness="Iend_BE")
         s.memory.store(200, claripy.BVV(0x4200, 16), endness="Iend_BE")
         str_ptr = claripy.BVV(100, s.arch.bits)
@@ -970,7 +970,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(st5, 10) == [0]
         assert s.solver.eval_upto(s.memory.load(3000, s.arch.bytes, endness=s.arch.memory_endness), 10) == [1009]
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_ptr = claripy.BVV(100, s.arch.bits)
         delim_ptr = claripy.BVV(200, s.arch.bits)
         state_ptr = claripy.BVV(300, s.arch.bits)
@@ -1034,7 +1034,7 @@ class TestStringSimProcedures(unittest.TestCase):
 
     def test_strcmp_concrete(self):
         log.info("concrete a, concrete b")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         a_addr = claripy.BVV(0x10, 64)
         b_addr = claripy.BVV(0xB0, 64)
 
@@ -1045,7 +1045,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(r, 2) == [0]
 
         log.info("concrete a, empty b")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         a_addr = claripy.BVV(0x10, 64)
         b_addr = claripy.BVV(0xB0, 64)
 
@@ -1056,7 +1056,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(r, 2) == [1]
 
         log.info("empty a, concrete b")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         a_addr = claripy.BVV(0x10, 64)
         b_addr = claripy.BVV(0xB0, 64)
 
@@ -1067,7 +1067,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert s.solver.eval_upto(r, 2) == [0xFFFFFFFF]
 
         log.info("empty a, empty b")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         a_addr = claripy.BVV(0x10, 64)
         b_addr = claripy.BVV(0xB0, 64)
 
@@ -1080,7 +1080,7 @@ class TestStringSimProcedures(unittest.TestCase):
     def test_wcscmp(self):
         # concrete cases for the wide char version sufficiently overlap with strcmp and friends
         log.info("concrete a, symbolic b")
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         heck = "heck\x00".encode("utf-16")[2:]  # remove encoding prefix
         a_addr = claripy.BVV(0x10, 64)
         b_addr = claripy.BVV(0xB0, 64)
@@ -1095,7 +1095,7 @@ class TestStringSimProcedures(unittest.TestCase):
         assert solutions == [heck]
 
     def test_string_without_null(self):
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         str_ = b"abcd"
         str_addr = claripy.BVV(0x10, 64)
         s.memory.store(str_addr, str_)

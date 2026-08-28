@@ -11,6 +11,7 @@ import pyvex
 import angr.engines.vex.claripy.ccall as s_ccall
 from angr import SimState, load_shellcode
 from angr.engines import HeavyVEXMixin
+from tests.common import minimal_project
 
 l = logging.getLogger(__name__)
 
@@ -209,7 +210,7 @@ class TestVex(unittest.TestCase):
 
     def test_aarch64_32bit_ccalls(self):
         # GitHub issue #1238
-        s = SimState(arch="AArch64")
+        s = SimState(project=minimal_project("AArch64"))
 
         x = claripy.BVS("x", 32)
         # A normal operation

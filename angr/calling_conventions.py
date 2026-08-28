@@ -1543,7 +1543,7 @@ class SimCCSyscall(SimCC):
     def linux_syscall_update_error_reg(self, state, expr):
         # special handling for Linux syscalls: on some architectures (mips/a3, powerpc/cr0_0) a bool indicating success
         # or failure of a system call is used as an error flag (0 for success, 1 for error). we have to set this
-        if state.project is None or state.project.simos is None or state.project.simos.name != "Linux":
+        if state.project.simos is None or state.project.simos.name != "Linux":
             return expr
         if type(expr) is int:
             expr = claripy.BVV(expr, state.arch.bits)

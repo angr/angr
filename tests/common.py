@@ -42,6 +42,16 @@ if not os.path.isdir(bin_location) and not os.getenv("CI", "") == "true":
     )
 
 
+def minimal_project(arch="AMD64", **kwargs) -> Project:
+    """
+    Build a tiny single-nop shellcode Project for the given architecture (an ``archinfo.Arch`` or an arch name).
+
+    ``SimState`` requires a project; tests that construct states directly can use this instead of loading a real
+    binary. Nothing is backed into the state's memory unless ``cle_memory_backer`` is passed to ``SimState``.
+    """
+    return load_shellcode(b"\x90", arch, **kwargs)
+
+
 def broken(func):
     return skip(reason="Broken test method")(func)
 

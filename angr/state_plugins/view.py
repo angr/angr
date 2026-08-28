@@ -74,8 +74,7 @@ class SimRegNameView(SimStatePlugin):
         # This flag will then toggle between the native and the java view of the
         # state.
         if (
-            self.state.project
-            and isinstance(self.state.project.arch, ArchSoot)
+            isinstance(self.state.project.arch, ArchSoot)
             and k == "ip"
             and self.state.project.simos.is_javavm_with_jni_support
         ):

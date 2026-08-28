@@ -13,7 +13,7 @@ from archinfo import ArchAMD64, ArchSoot, all_arches
 from angr import Project, SimState
 from angr import sim_options as o
 from angr.calling_conventions import DEFAULT_CC, SimCCUnknown, default_cc
-from tests.common import bin_location
+from tests.common import bin_location, minimal_project
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -28,7 +28,7 @@ class TestStackAlignment(unittest.TestCase):
                 if isinstance(arch, ArchSoot):
                     continue
                 log.info("Testing stack alignment for %s", arch.name)
-                st = SimState(arch=arch)
+                st = SimState(project=minimal_project(arch))
                 cc = default_cc(arch.name, platform="Linux")(arch=arch)
 
                 st.regs.sp = -1
@@ -43,7 +43,7 @@ class TestStackAlignment(unittest.TestCase):
 
     def test_sys_v_abi_compliance(self):
         arch = ArchAMD64()
-        st = SimState(arch=arch)
+        st = SimState(project=minimal_project(arch))
         cc = default_cc(arch.name, platform="Linux")(arch=arch)
 
         st.regs.sp = -1

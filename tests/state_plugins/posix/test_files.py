@@ -10,26 +10,26 @@ import unittest
 
 import angr
 from angr.state_plugins.posix import Flags
-from tests.common import bin_location
+from tests.common import bin_location, minimal_project
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestFile(unittest.TestCase):
     def test_files(self):
-        s = angr.SimState(arch="AMD64")
+        s = angr.SimState(project=minimal_project("AMD64"))
         s.posix.get_fd(1).write_data(b"HELLO")
         s.posix.get_fd(1).write_data(b"WORLD")
         assert s.posix.dumps(1) == b"HELLOWORLD"
         assert s.posix.stdout.concretize() == [b"HELLO", b"WORLD"]
 
-        s = angr.SimState(arch="AMD64")
+        s = angr.SimState(project=minimal_project("AMD64"))
         s.posix.get_fd(1).write_data(b"A" * 0x1000, 0x800)
         assert s.posix.dumps(1) == b"A" * 0x800
 
     def test_file_read_missing_content(self):
         # test in tracing mode since the Reverse operator will not be optimized away
-        s = angr.SimState(arch="AMD64", mode="tracing")
+        s = angr.SimState(project=minimal_project("AMD64"), mode="tracing")
         fd = s.posix.open(b"/tmp/oops", Flags.O_RDWR)
         length = s.posix.get_fd(fd).read(0xC00000, 100)
 

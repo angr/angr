@@ -26,6 +26,7 @@ from angr.storage.memory_mixins import (
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.storage.memory_mixins.paged_memory.pages.symbolic_bitmap import SymbolicBitmap
+from tests.common import minimal_project
 
 
 class UltraPageMemory(
@@ -59,7 +60,7 @@ class MVPageMemory(
 
 class TestMemory(unittest.TestCase):
     def test_copy(self):
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(0x100, b"ABCDEFGHIJKLMNOP")
         s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
         x = claripy.BVS("size", s.arch.bits)
@@ -78,7 +79,7 @@ class TestMemory(unittest.TestCase):
         ]
         assert sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x == 3])) == [b"ABCXX"]
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.register_plugin(
             "posix", SimSystemPosix(stdin=SimFile(name="stdin", content=b"ABCDEFGHIJKLMNOP", has_end=True))
         )
@@ -99,7 +100,7 @@ class TestMemory(unittest.TestCase):
         ]
         assert sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x == 3])) == [b"ABCXX"]
 
-        s = SimState(arch="AMD64", mode="symbolic")
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.register_plugin("posix", SimSystemPosix(stdin=SimFile(name="stdin", content=b"ABCDEFGHIJKLMNOP")))
         s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
         x = claripy.BVS("size", s.arch.bits)
@@ -170,7 +171,7 @@ class TestMemory(unittest.TestCase):
     def test_memory(self):
         initial_memory = {0: b"A", 1: b"A", 2: b"A", 3: b"A", 10: b"B"}
         s = SimState(
-            arch="AMD64",
+            project=minimal_project("AMD64"),
             dict_memory_backer=initial_memory,
             add_options={o.REVERSE_MEMORY_NAME_MAP, o.REVERSE_MEMORY_HASH_MAP},
         )
@@ -316,7 +317,7 @@ class TestMemory(unittest.TestCase):
 
         s = SimState(
             mode="static",
-            arch="AMD64",
+            project=minimal_project("AMD64"),
             dict_memory_backer=initial_memory,
             add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY},
         )
@@ -449,7 +450,7 @@ class TestMemory(unittest.TestCase):
 
         s = SimState(
             mode="static",
-            arch="AMD64",
+            project=minimal_project("AMD64"),
             dict_memory_backer=initial_memory,
             add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY},
         )
@@ -470,7 +471,7 @@ class TestMemory(unittest.TestCase):
             assert r.clear_annotation_type(claripy.annotation.RegionAnnotation).identical(expected)
 
     def test_registers(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         expr = s.registers.load("rax")
         assert s.solver.symbolic(expr)
 
@@ -480,7 +481,7 @@ class TestMemory(unittest.TestCase):
         assert s.solver.eval(expr) == 0x00000031
 
     def test_fullpage_write(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         a = claripy.BVV(b"A" * 0x2000)
         s.memory.store(0, a)
         # assert len(s.memory.mem._pages) == 2
@@ -489,7 +490,7 @@ class TestMemory(unittest.TestCase):
         assert s.memory.load(0, 0x2000) is a
         assert a.variables != s.memory.load(0x2000, 1).variables
 
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         a = claripy.BVV(b"A" * 2)
         s.memory.store(0x1000, a)
         s.memory.store(0x2000, a)
@@ -497,7 +498,7 @@ class TestMemory(unittest.TestCase):
         assert a.variables == s.memory.load(0x2001, 1).variables
         assert a.variables != s.memory.load(0x2002, 1).variables
 
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         x = claripy.BVV(b"X")
         a = claripy.BVV(b"A" * 0x1000)
         s.memory.store(1, x)
@@ -505,7 +506,7 @@ class TestMemory(unittest.TestCase):
         s2.memory.store(0, a)
         assert len(s.memory.changed_bytes(s2.memory)) == 0x1000
 
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         s.memory._maximum_symbolic_size = 0x2000000
         a = claripy.BVS("A", 0x1000000 * 8)
         s.memory.store(0, a)
@@ -513,7 +514,7 @@ class TestMemory(unittest.TestCase):
         assert b is a
 
     def test_symbolic_write(self):
-        s = SimState(arch="AMD64", add_options={o.SYMBOLIC_WRITE_ADDRESSES})
+        s = SimState(project=minimal_project("AMD64"), add_options={o.SYMBOLIC_WRITE_ADDRESSES})
         x = claripy.BVS("x", 64)
         y = claripy.BVS("y", 64)
         a = claripy.BVV(b"A" * 0x10)
@@ -560,16 +561,16 @@ class TestMemory(unittest.TestCase):
 
         # Writes many zeros
         VAL = 0
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         _individual_test(s, BASE, VAL, SIZE)
 
         # Writes many ones
         VAL = 1
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         _individual_test(s, BASE, VAL, SIZE)
 
     def test_false_condition(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
 
         asdf = claripy.BVV(b"asdf")
         fdsa = claripy.BVV(b"fdsa")
@@ -581,7 +582,7 @@ class TestMemory(unittest.TestCase):
         assert 0 not in s.memory._pages
 
     def test_fast_memory(self):
-        s = SimState(arch="AMD64", add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
+        s = SimState(project=minimal_project("AMD64"), add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
 
         s.regs.rax = 0x4142434445464748
         s.regs.rbx = 0x5555555544444444
@@ -591,7 +592,7 @@ class TestMemory(unittest.TestCase):
         self._concrete_memory_tests(s)
 
     def test_light_memory(self):
-        s = SimState(arch="AMD64", plugins={"registers": SimLightRegisters()})
+        s = SimState(project=minimal_project("AMD64"), plugins={"registers": SimLightRegisters()})
         assert type(s.registers) is SimLightRegisters
 
         assert s.regs.rax.symbolic
@@ -615,7 +616,7 @@ class TestMemory(unittest.TestCase):
             UltraPageMemory,
             ListPageMemory,
         ]:
-            state = SimState(arch="x86", mode="symbolic", plugins={"memory": memcls()})
+            state = SimState(project=minimal_project("x86"), mode="symbolic", plugins={"memory": memcls()})
 
             state.regs.sp = 0xBAAAFFFC
             state.memory.store(state.regs.sp, b"\x01\x02\x03\x04" + b"\x05\x06\x07\x08")
@@ -635,7 +636,7 @@ class TestMemory(unittest.TestCase):
         for memcls in [
             MVPageMemory,
         ]:
-            state = SimState(arch="x86", mode="symbolic", plugins={"memory": memcls()})
+            state = SimState(project=minimal_project("x86"), mode="symbolic", plugins={"memory": memcls()})
 
             mv = MultiValues(offset_to_values={0: {claripy.BVV(1337, 32)}, 4: {claripy.BVV(13371337, 8 * 5)}})
             state.memory.store(4096 - 3, mv)
@@ -707,7 +708,7 @@ class TestMemory(unittest.TestCase):
             state.memory.store(0x7FFEFF9C, mv)  # should not crash
 
     def test_mv_crosspage_store_large_elements(self):
-        state = SimState(arch="amd64", mode="symbolic", plugins={"memory": MVPageMemory()})
+        state = SimState(project=minimal_project("amd64"), mode="symbolic", plugins={"memory": MVPageMemory()})
 
         data = {
             0: {claripy.BVS("TOP", 4095 * 8)},
@@ -718,7 +719,7 @@ class TestMemory(unittest.TestCase):
         state.memory.store(0x7FFEE1FF, mv)  # should not crash
 
     def test_crosspage_read(self):
-        state = SimState(arch="ARM")
+        state = SimState(project=minimal_project("ARM"))
         state.regs.sp = 0x7FFF0008
         state.stack_push(0x44556677)
         state.stack_push(0x1)
@@ -741,7 +742,7 @@ class TestMemory(unittest.TestCase):
 
     def test_address_wrap(self):
         for memcls in [UltraPageMemory, ListPageMemory]:
-            state = SimState(arch="x86", mode="symbolic", plugins={"memory": memcls()})
+            state = SimState(project=minimal_project("x86"), mode="symbolic", plugins={"memory": memcls()})
             symbol = claripy.BVS("symbol", 64)
 
             state.memory.store(0xFFFFFFFF, symbol.get_byte(0))
@@ -755,7 +756,7 @@ class TestMemory(unittest.TestCase):
             assert state.memory.load(0, 1) is symbol[64 - 8 - 1 : 64 - 16]
 
     def test_allocate_stack_pages_stops_at_address_zero(self):
-        state = SimState(arch=ArchAMD64(), stack_end=0x1000)
+        state = SimState(project=minimal_project(ArchAMD64()), stack_end=0x1000)
 
         # only one page exists below the top of this stack, so two of them do not fit under it
         with self.assertRaises(SimMemoryError):
@@ -769,7 +770,7 @@ class TestMemory(unittest.TestCase):
         assert state.memory.permissions(0) is not None
 
     def test_underconstrained(self):
-        state = SimState(arch="AMD64", add_options={o.UNDER_CONSTRAINED_SYMEXEC})
+        state = SimState(project=minimal_project("AMD64"), add_options={o.UNDER_CONSTRAINED_SYMEXEC})
 
         # test that under-constrained load is constrained
         ptr1 = state.memory.load(0x4141414141414000, size=8, endness="Iend_LE")
@@ -802,7 +803,7 @@ class TestMemory(unittest.TestCase):
         state.memory.load(ptr3, size=1)
 
     def test_concrete_load_non_adjacent_pages(self):
-        s = SimState(arch="AMD64", mode="symbolic", plugins={"memory": UltraPageMemory()})
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic", plugins={"memory": UltraPageMemory()})
 
         s.memory.store(0x100000, b"\x01" * 4096)
         s.memory.store(0x100000 + 4096, b"\x02" * 4096)
@@ -811,7 +812,7 @@ class TestMemory(unittest.TestCase):
         assert mv == (b"\x01" * 6) + (b"\x02" * 394)
 
     def test_hex_dump(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         addr = s.heap.allocate(0x20)
         s.memory.store(addr, claripy.Concat(claripy.BVV("ABCDEFGH"), claripy.BVS("symbolic_part", 24 * s.arch.bits)))
         dump = s.memory.hex_dump(addr, 0x20)
@@ -841,7 +842,7 @@ class TestMemory(unittest.TestCase):
             return bytes(0 if is_symbolic(bitmap, i) else d for i, d in enumerate(data))
 
         for memcls in [UltraPageMemory, ListPageMemory]:
-            state = SimState(arch="AMD64", mode="symbolic", plugins={"memory": memcls()})
+            state = SimState(project=minimal_project("AMD64"), mode="symbolic", plugins={"memory": memcls()})
             state.memory.store(0x20000, b"aaaabbbbccccdddd")
 
             data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
@@ -902,7 +903,7 @@ class TestMemory(unittest.TestCase):
             assert bitmap.tobytes() == b"\x06"
 
     def test_multivalued_list_page(self):
-        state = SimState(arch="AMD64", mode="symbolic", plugins={"memory": MultiValuedMemory()})
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic", plugins={"memory": MultiValuedMemory()})
 
         # strong update
         state.memory.store(0x100, claripy.BVV(0x40, 64))
@@ -923,7 +924,7 @@ class TestMemory(unittest.TestCase):
             def _default_value(self, *args, size=None, **kwargs):  # pylint:disable=unused-argument
                 return claripy.BVV(0, size)
 
-        state = SimState(arch="AMD64", mode="symbolic", plugins={"memory": ZeroFillerMemory()})
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic", plugins={"memory": ZeroFillerMemory()})
         state.options.add(o.ZERO_FILL_UNCONSTRAINED_MEMORY)
 
         cond = claripy.BoolS("cond")

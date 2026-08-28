@@ -93,7 +93,7 @@ class SimSuccessors:
                     addendum = f".{idx}"
         else:
             return f"<{self.description} from {self.addr}: {result}>"
-        if self.initial_state is not None and self.initial_state.project is not None:
+        if self.initial_state is not None:
             whatsup = self.initial_state.project.loader.describe_addr(int_addr)
             hex_addr = hex(int_addr)
             if hex_addr in whatsup:
@@ -563,7 +563,6 @@ class SuccessorsEngine(SimEngine[HeavyState, SimSuccessors]):
         except SimException as e:
             if o.EXCEPTION_HANDLING not in old_state.options:
                 raise
-            assert old_state.project is not None
             old_state.project.simos.handle_exception(self.successors, self, e)
 
         new_state._inspect("engine_process", when=BP_AFTER, sim_successors=self.successors, address=addr)

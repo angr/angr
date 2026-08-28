@@ -16,7 +16,7 @@ class DefaultFillerMixin(MemoryMixin):
     def _default_value(
         self, addr, size, *, name=None, inspect=True, events=True, key=None, fill_missing: bool = True, **kwargs
     ):
-        if self.state.project and self.state.project.concrete_target:
+        if self.state.project.concrete_target:
             mem = self.state.project.concrete_target.read_memory(addr, size)
             endness = kwargs["endness"]
             bvv = claripy.BVV(mem)
@@ -71,10 +71,7 @@ class DefaultFillerMixin(MemoryMixin):
 
             if is_mem:
                 refplace_int = self.state.solver.eval(self.state._ip)
-                if self.state.project:
-                    refplace_str = self.state.project.loader.describe_addr(refplace_int)
-                else:
-                    refplace_str = "unknown"
+                refplace_str = self.state.project.loader.describe_addr(refplace_int)
                 l.warning(
                     "Filling memory at %#x with %d unconstrained bytes referenced from %#x (%s)",
                     addr,
@@ -88,10 +85,7 @@ class DefaultFillerMixin(MemoryMixin):
                     refplace_str = "symbolic"
                 else:
                     refplace_int = self.state.solver.eval(self.state._ip)
-                    if self.state.project:
-                        refplace_str = self.state.project.loader.describe_addr(refplace_int)
-                    else:
-                        refplace_str = "unknown"
+                    refplace_str = self.state.project.loader.describe_addr(refplace_int)
                 reg_str = self.state.arch.translate_register_name(addr, size=size)
                 l.warning(
                     "Filling register %s with %d unconstrained bytes referenced from %#x (%s)",

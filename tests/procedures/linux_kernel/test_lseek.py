@@ -6,6 +6,7 @@ import unittest
 import claripy
 
 from angr import SIM_PROCEDURES, SimFile, SimPosixError, SimState
+from tests.common import minimal_project
 
 FAKE_ADDR = 0x100000
 
@@ -25,7 +26,7 @@ SEEK_HOLE = 4  # Seek to next hole.
 
 class TestLseek(unittest.TestCase):
     def test_lseek_set(self):
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         # This could be any number above 2 really
         fd = 3
@@ -62,7 +63,7 @@ class TestLseek(unittest.TestCase):
         assert current_pos == 3
 
     def test_lseek_cur(self):
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         # This could be any number above 2 really
         fd = 3
@@ -90,7 +91,7 @@ class TestLseek(unittest.TestCase):
         assert current_pos == 9
 
     def test_lseek_end(self):
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         fd = 3
 
@@ -117,7 +118,7 @@ class TestLseek(unittest.TestCase):
         assert current_pos == 10
 
     def test_lseek_unseekable(self):
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         # Illegal seek
         current_pos = lseek(state, [0, 0, SEEK_SET]).ret_expr
@@ -143,7 +144,7 @@ class TestLseek(unittest.TestCase):
     def test_lseek_symbolic_whence(self):
         with self.assertRaises(SimPosixError):
             # symbolic whence is currently not possible
-            state = SimState(arch="AMD64", mode="symbolic")
+            state = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
             # This could be any number above 2 really
             fd = 3
@@ -158,7 +159,7 @@ class TestLseek(unittest.TestCase):
 
     def test_lseek_symbolic_seek(self):
         # symbolic seek is currently not possible
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         # This could be any number above 2 really
         fd = 3

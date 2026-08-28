@@ -3,6 +3,7 @@ from __future__ import annotations
 import archinfo
 
 import angr
+from tests.common import minimal_project
 
 
 class _StatefulStrategy(angr.concretization_strategies.SimConcretizationStrategy):
@@ -18,7 +19,7 @@ class _StatefulStrategy(angr.concretization_strategies.SimConcretizationStrategy
 
 
 def test_stateful_concretization_strategies_are_copied_with_memory():
-    state = angr.SimState(arch=archinfo.ArchAMD64())
+    state = angr.SimState(project=minimal_project(archinfo.ArchAMD64()))
     strategy = _StatefulStrategy([1])
     state.memory.read_strategies = [strategy, strategy]
     state.memory.write_strategies = [strategy]

@@ -5,11 +5,12 @@ from __future__ import annotations
 import unittest
 
 import angr
+from tests.common import minimal_project
 
 
 class TestVariableRegistration(unittest.TestCase):
     def test_registration(self):
-        s = angr.SimState(arch="AMD64")
+        s = angr.SimState(project=minimal_project("AMD64"))
 
         a1 = s.solver.BVS("a", 64, key=(1,), eternal=True)
         a2 = s.solver.BVS("a", 64, key=(1,), eternal=True)

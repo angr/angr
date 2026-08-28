@@ -13,7 +13,7 @@ import claripy
 import angr
 from angr import SimHeapBrk, SimHeapPTMalloc, SimState
 from angr.state_plugins.heap.heap_base import HEAP_INITIAL_MAPPED_SIZE, HEAP_MAPPING_GROWTH_FACTOR
-from tests.common import bin_location
+from tests.common import bin_location, minimal_project
 
 gdb_data_location = os.path.join(bin_location, "tests_data", "test_gdb_plugin")
 
@@ -28,7 +28,7 @@ def make_state(heap=None, add_options=None):
     ``state.memory``.
     """
     plugins = {"heap": heap} if heap is not None else None
-    return SimState(arch="AMD64", plugins=plugins, add_options=ZERO_FILL | (add_options or set()))
+    return SimState(project=minimal_project("AMD64"), plugins=plugins, add_options=ZERO_FILL | (add_options or set()))
 
 
 def resident_heap_pages(state):
@@ -298,7 +298,7 @@ class TestHeapLazyMapping(unittest.TestCase):
         assert pickle.loads(pickle.dumps(state)).heap._mapped_end == extent
 
     def test_abstract_memory_does_not_manage_the_mapping(self):
-        state = SimState(arch="AMD64", add_options={angr.options.ABSTRACT_MEMORY})
+        state = SimState(project=minimal_project("AMD64"), add_options={angr.options.ABSTRACT_MEMORY})
         assert state.heap._mapped_end is None
         # ...and _ensure_mapped stays a no-op forever after
         state.heap._ensure_mapped(state.heap.heap_base + 0x100000)

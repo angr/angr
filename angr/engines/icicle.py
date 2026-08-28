@@ -196,8 +196,6 @@ class IcicleEngine(SuccessorsEngine):
         icicle_arch = IcicleEngine._make_icicle_arch(state.arch)
         if icicle_arch is None:
             raise ValueError("Unsupported architecture")
-        if state.project is None:
-            raise ValueError("IcicleEngine requires a project to be set")
 
         emu = Icicle(icicle_arch, PROCESSORS_DIR, True, True)
         translation_data = IcicleEngine._sync_state_to_emu(emu, state, None, icicle_arch)
