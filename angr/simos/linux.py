@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import struct
 
 import claripy
 from archinfo import ArchAArch64, ArchAMD64, ArchARM, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64, ArchX86
