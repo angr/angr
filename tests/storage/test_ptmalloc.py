@@ -6,6 +6,7 @@ import unittest
 import claripy
 
 from angr import SimHeapPTMalloc, SimState
+from tests.common import minimal_project
 
 
 # TODO: Make these tests more architecture-independent (note dependencies of some behavior on chunk metadata size)
@@ -30,7 +31,9 @@ class TestPtmalloc(unittest.TestCase):
         return state.libc.max_variable_size
 
     def _run_malloc_maximizes_sym_arg(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         sc = s.copy()
         x = claripy.BVS("x", 32)
         s.solver.add(x.UGE(0))
@@ -46,7 +49,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_free_maximizes_sym_arg("AMD64")
 
     def _run_free_maximizes_sym_arg(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         p = s.heap.malloc(50)
         sc = s.copy()
         x = claripy.BVS("x", 32)
@@ -63,7 +68,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_free_maximizes_sym_arg("AMD64")
 
     def _run_calloc_maximizes_sym_arg(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         sc = s.copy()
         x = claripy.BVS("x", 32)
         s.solver.add(x.UGE(0))
@@ -82,7 +89,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_calloc_maximizes_sym_arg("AMD64")
 
     def _run_realloc_maximizes_sym_arg(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         p = s.heap.malloc(50)
         sc = s.copy()
         x = claripy.BVS("x", 32)
@@ -102,7 +111,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_realloc_maximizes_sym_arg("AMD64")
 
     def _run_malloc_no_space_returns_null(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         sc = s.copy()
         p1 = s.heap.malloc(0x2000)
         assert p1 == 0
@@ -115,7 +126,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_malloc_no_space_returns_null("AMD64")
 
     def _run_calloc_no_space_returns_null(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         sc = s.copy()
         p1 = s.heap.calloc(0x500, 4)
         assert p1 == 0
@@ -128,7 +141,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_calloc_no_space_returns_null("AMD64")
 
     def _run_realloc_no_space_returns_null(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         p1 = s.heap.malloc(20)
         sc = s.copy()
         p2 = s.heap.realloc(p1, 0x2000)
@@ -142,7 +157,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_realloc_no_space_returns_null("AMD64")
 
     def _run_first_fit_and_free_malloced_makes_available(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.malloc(20)
         p1 = s.heap.malloc(50)
         s.heap.free(p1)
@@ -156,7 +173,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_first_fit_and_free_malloced_makes_available("AMD64")
 
     def _run_free_calloced_makes_available(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.calloc(20, 5)
         p1 = s.heap.calloc(30, 4)
         s.heap.free(p1)
@@ -170,7 +189,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_free_calloced_makes_available("AMD64")
 
     def _run_realloc_moves_and_frees(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.malloc(20)
         p1 = s.heap.malloc(60)
         s.heap.malloc(200)
@@ -186,7 +207,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_realloc_moves_and_frees("AMD64")
 
     def _run_realloc_near_same_size(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.malloc(20)
         p1 = s.heap.malloc(61)
         s.heap.malloc(80)
@@ -202,7 +225,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_realloc_near_same_size("AMD64")
 
     def _run_needs_space_for_metadata(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         sc = s.copy()
         p1 = s.heap.malloc(0x1000)
         assert p1 == 0
@@ -215,7 +240,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_needs_space_for_metadata("AMD64")
 
     def _run_unusable_amount_returns_null(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.malloc(0x1000 - 4 * s.heap._chunk_size_t_size)
         sc = s.copy()
         p = s.heap.malloc(1)
@@ -229,7 +256,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_unusable_amount_returns_null("AMD64")
 
     def _run_free_null_preserves_state(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.malloc(30)
         p = s.heap.malloc(40)
         s.heap.malloc(50)
@@ -245,7 +274,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_free_null_preserves_state("AMD64")
 
     def _run_skips_chunks_too_small(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.malloc(30)
         p = s.heap.malloc(50)
         s.heap.malloc(40)
@@ -260,7 +291,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_skips_chunks_too_small("AMD64")
 
     def _run_calloc_multiplies(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.heap.malloc(30)
         sc = s.copy()
         s.heap.malloc(100)
@@ -274,7 +307,9 @@ class TestPtmalloc(unittest.TestCase):
         self._run_calloc_clears("AMD64")
 
     def _run_calloc_clears(self, arch):
-        s = SimState(arch=arch, plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)})
+        s = SimState(
+            project=minimal_project(arch), plugins={"heap": SimHeapPTMalloc(heap_base=0xD0000000, heap_size=0x1000)}
+        )
         s.memory.store(0xD0000000 + 2 * s.heap._chunk_size_t_size, claripy.BVV(-1, 100 * 8))
         sc = s.copy()
         p1 = s.heap.calloc(6, 5)

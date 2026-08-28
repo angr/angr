@@ -37,7 +37,8 @@ initializer!
    ...     def copy(self, memo):
    ...         return MyFirstPlugin(self.foo)
 
-   >>> state = angr.SimState(arch='AMD64')
+   >>> project = angr.load_shellcode(b'\x90', 'AMD64')
+   >>> state = angr.SimState(project=project)
    >>> state.register_plugin('my_plugin', MyFirstPlugin('bar'))
    >>> assert state.my_plugin.foo == 'bar'
 

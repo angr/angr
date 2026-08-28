@@ -5,13 +5,14 @@ from __future__ import annotations
 import unittest
 
 from angr import SIM_PROCEDURES, SimFile, SimState
+from tests.common import minimal_project
 
 
 class TestPwrite(unittest.TestCase):
     def test_pwrite(self):
         pwrite = SIM_PROCEDURES["posix"]["pwrite64"]()
 
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
         simfile = SimFile("concrete_file", content="hello world!\n")
         state.fs.insert("test", simfile)
         fd = state.posix.open(b"test", 1)
@@ -35,7 +36,7 @@ class TestPread(unittest.TestCase):
     def test_pread(self):
         pwrite = SIM_PROCEDURES["posix"]["pread64"]()
 
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
         simfile = SimFile("concrete_file", content="hello world!\n")
         state.fs.insert("test", simfile)
         fd = state.posix.open(b"test", 1)

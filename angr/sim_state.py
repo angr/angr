@@ -95,7 +95,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
 
     def __init__(
         self,
-        project: Project | None = None,
+        project: Project,
         arch: Arch | None = None,
         plugins: dict[str, SimStatePlugin] | None = None,
         mode: str | None = None,
@@ -122,11 +122,11 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
         self._addr: IPTypeConc | None = None
 
         # Java & Java JNI
-        self._is_java_project = self.project and self.project.is_java_project
-        self._is_java_jni_project = self.project and self.project.is_java_jni_project
+        self._is_java_project = self.project.is_java_project
+        self._is_java_jni_project = self.project.is_java_jni_project
 
         # Arch
-        if self._is_java_jni_project and project is not None:
+        if self._is_java_jni_project:
             if TYPE_CHECKING:
                 assert isinstance(project.simos, SimJavaVM)
             self._arch = {"soot": project.arch, "vex": project.simos.native_simos.arch}
@@ -137,7 +137,7 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
             #       plugins that are getting toggled (=> mutual dependence).
             self.ip_is_soot_addr = False
         else:
-            self._arch = arch if arch is not None else project.arch if project is not None else None
+            self._arch = arch if arch is not None else project.arch
             if type(self._arch) is str:
                 self._arch = archinfo.arch_from_id(self._arch)
 

@@ -9,7 +9,7 @@ import unittest
 import claripy
 
 import angr
-from tests.common import broken
+from tests.common import broken, minimal_project
 
 
 class TestSymbolic(unittest.TestCase):
@@ -31,7 +31,7 @@ class TestSymbolic(unittest.TestCase):
     def test_concretization_strategies(self):
         initial_memory = {0: b"A", 1: b"B", 2: b"C", 3: b"D"}
 
-        s = angr.SimState(arch="AMD64", dict_memory_backer=initial_memory)
+        s = angr.SimState(project=minimal_project("AMD64"), dict_memory_backer=initial_memory)
 
         # sanity check
         assert s.solver.eval_upto(s.memory.load(3, size=1), 2, cast_to=bytes) == [b"D"]
@@ -51,7 +51,7 @@ class TestSymbolic(unittest.TestCase):
         assert "symbolic" in next(iter(ss.memory.load(x, 1).variables))
 
     # def test_concretization(self):
-    #   s = angr.SimState(arch="AMD64", mode="symbolic")
+    #   s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
     #   dst = claripy.BVV(0x41424300, 32)
     #   dst_addr = claripy.BVV(0x1000, 64)
     #   s.memory.store(dst_addr, dst, 4)
@@ -78,7 +78,7 @@ class TestSymbolic(unittest.TestCase):
 
     @broken
     def test_symbolic_write(self):
-        s = angr.SimState(arch="AMD64", mode="symbolic")
+        s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         addr = claripy.BVS("addr", 64)
         s.add_constraints(claripy.Or(addr == 10, addr == 20, addr == 30))
@@ -130,7 +130,7 @@ class TestSymbolic(unittest.TestCase):
         assert sv.solver.eval_upto(sv.memory.load(30, 1), 3) == [3]
         assert sv.solver.eval_upto(addr, 10) == [10, 20]
 
-        s = angr.SimState(arch="AMD64", mode="symbolic")
+        s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(0, claripy.BVV(0x4141414141414141, 64))
         length = claripy.BVS("length", 32)
         # s.memory.store(0, claripy.BVV(0x4242424242424242, 64), symbolic_length=length)
@@ -142,7 +142,9 @@ class TestSymbolic(unittest.TestCase):
             assert ss.solver.eval(s.memory.load(0, 8), cast_to=bytes) == b"B" * i + b"A" * (8 - i)
 
     def test_unsat_core(self):
-        s = angr.SimState(arch="AMD64", mode="symbolic", add_options={angr.options.CONSTRAINT_TRACKING_IN_SOLVER})
+        s = angr.SimState(
+            project=minimal_project("AMD64"), mode="symbolic", add_options={angr.options.CONSTRAINT_TRACKING_IN_SOLVER}
+        )
         x = claripy.BVS("x", 32)
         s.add_constraints(claripy.BVV(0, 32) == x)
         s.add_constraints(claripy.BVV(1, 32) == x)

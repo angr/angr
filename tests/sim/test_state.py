@@ -13,14 +13,14 @@ import cle
 
 import angr
 from angr import SimState
-from tests.common import bin_location
+from tests.common import bin_location, minimal_project
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestState(unittest.TestCase):
     def test_state(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         s.registers.store("sp", 0x7FFFFFFFFFF0000)
         assert s.solver.eval(s.registers.load("sp")) == 0x7FFFFFFFFFF0000
 
@@ -38,7 +38,7 @@ class TestState(unittest.TestCase):
         assert s.solver.eval(b, cast_to=bytes) == b"ABCDEFGH"
 
     def test_state_merge(self):
-        a = SimState(arch="AMD64", mode="symbolic")
+        a = SimState(project=minimal_project("AMD64"), mode="symbolic")
         a.memory.store(1, claripy.BVV(42, 8))
 
         b = a.copy()
@@ -96,7 +96,7 @@ class TestState(unittest.TestCase):
         assert a_c.solver.eval(a_c.memory.load(2, 1)) == 21
 
         # test different sets of plugins
-        a = SimState(arch="AMD64", mode="symbolic")
+        a = SimState(project=minimal_project("AMD64"), mode="symbolic")
         assert a.has_plugin("memory")
         assert a.has_plugin("registers")
         assert not a.has_plugin("libc")
@@ -111,7 +111,7 @@ class TestState(unittest.TestCase):
         assert d.has_plugin("libc")
 
         # test merging posix with different open files (illegal!)
-        a = SimState(arch="AMD64", mode="symbolic")
+        a = SimState(project=minimal_project("AMD64"), mode="symbolic")
         b = a.copy()
         a.posix.open(b"/tmp/idk", 1)
         self.assertRaises(angr.errors.SimMergeError, lambda: a.copy().merge(b.copy()))
@@ -119,7 +119,7 @@ class TestState(unittest.TestCase):
     def test_state_merge_static(self):
         # With abstract memory
         # Aligned memory merging
-        a = SimState(arch="AMD64", mode="static")
+        a = SimState(project=minimal_project("AMD64"), mode="static")
 
         addr = claripy.VS(32, "global", 0, 8)
         a.memory.store(addr, claripy.BVV(42, 32))
@@ -138,7 +138,7 @@ class TestState(unittest.TestCase):
         assert actual.identical(expected)
 
     def test_state_merge_3way(self):
-        a = SimState(arch="AMD64", mode="symbolic")
+        a = SimState(project=minimal_project("AMD64"), mode="symbolic")
         b = a.copy()
         c = a.copy()
         conds = [claripy.BoolS("cond_0"), claripy.BoolS("cond_1")]
@@ -159,7 +159,7 @@ class TestState(unittest.TestCase):
 
     def test_state_merge_with_merge_conditions(self):
         x = claripy.BVS("x", 32)
-        a = SimState(arch="AMD64", mode="symbolic")
+        a = SimState(project=minimal_project("AMD64"), mode="symbolic")
         a.memory.store(0x400000, x)
         b = a.copy()
         a.add_constraints(x == 1)
@@ -218,7 +218,7 @@ class TestState(unittest.TestCase):
         assert not s.solver.satisfiable(extra_constraints=(culprit == 12,))
 
     def test_state_pickle(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         s.memory.store(100, claripy.BVV(0x4141414241414241424300, 88), endness="Iend_BE")
         s.regs.rax = 100
 

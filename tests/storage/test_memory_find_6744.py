@@ -4,10 +4,11 @@ import archinfo
 import claripy
 
 import angr
+from tests.common import minimal_project
 
 
 def test_memory_find_empty_cases():
-    state = angr.SimState(arch=archinfo.ArchAMD64())
+    state = angr.SimState(project=minimal_project(archinfo.ArchAMD64()))
 
     addr = claripy.BVV(0x1204F0D, 64)
     target = claripy.BVV(0, 8)

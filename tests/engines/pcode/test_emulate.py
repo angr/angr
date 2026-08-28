@@ -13,6 +13,7 @@ from angr.engines import SimSuccessors
 from angr.engines.pcode.behavior import BehaviorFactory
 from angr.engines.pcode.emulate import PcodeEmulatorMixin
 from angr.sim_state import SimState
+from tests.common import minimal_project
 
 log = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         emulator = PcodeEmulatorMixin(angr.load_shellcode(b"\x90", arch="AMD64"))
 
         if state is None:
-            state = SimState(arch=emulator.project.arch)
+            state = SimState(project=emulator.project)
         emulator.state = state
         emulator.state.history.recent_bbl_addrs.append(0)
         emulator.successors = SimSuccessors(0, emulator.state)
@@ -134,7 +135,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         target_pointer_addr = 0x100000
         target_pointer_size = 8
 
-        state = SimState(arch="AMD64")
+        state = SimState(project=minimal_project("AMD64"))
         state.memory.store(target_pointer_addr, claripy.BVV(target_addr, 8 * target_pointer_size), endness="IEnd_LE")
 
         successors = self._step_irsb(
@@ -170,7 +171,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         target_addr = 0x12345678
         fallthru_addr = 1
 
-        state = SimState(arch="AMD64")
+        state = SimState(project=minimal_project("AMD64"))
         state.memory.store(condition_addr, cond)
 
         successors = self._step_irsb(
@@ -228,7 +229,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         fallthru_addr = start_addr + instruction_len
         cbranch_idx = 2
 
-        state = SimState(arch="AMD64")
+        state = SimState(project=minimal_project("AMD64"))
         state.memory.store(condition_addr, cond)
 
         successors = self._step_irsb(
@@ -296,7 +297,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         addr = 0x133700000
         addr2 = 0x999900000
         value = claripy.BVV(0xFEDCBA9876543210, 64)
-        state = SimState(arch="AMD64")
+        state = SimState(project=minimal_project("AMD64"))
         state.memory.store(addr, value)
         state.regs.rax = addr
 
@@ -389,7 +390,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         x_addr, x = 0, claripy.BVS("x", operand_size * 8)
         y_addr, y = operand_size, claripy.BVS("y", operand_size * 8)
 
-        state = SimState(arch="AMD64", remove_options={"SIMPLIFY_MEMORY_WRITES"})
+        state = SimState(project=minimal_project("AMD64"), remove_options={"SIMPLIFY_MEMORY_WRITES"})
         state.memory.store(x_addr, x, endness="Iend_LE")
         state.memory.store(y_addr, y, endness="Iend_LE")
 
@@ -472,7 +473,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
 
         x_addr, x = 0, claripy.BVS("x", operand_size * 8)
 
-        state = SimState(arch="AMD64", remove_options={"SIMPLIFY_MEMORY_WRITES"})
+        state = SimState(project=minimal_project("AMD64"), remove_options={"SIMPLIFY_MEMORY_WRITES"})
         state.memory.store(x_addr, x, endness="Iend_LE")
 
         successors = self._step_irsb(
@@ -517,7 +518,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
         result_addr = 0x100000
         result_size = expected_value.size() // 8
 
-        state = SimState(arch="AMD64", remove_options={"SIMPLIFY_MEMORY_WRITES"})
+        state = SimState(project=minimal_project("AMD64"), remove_options={"SIMPLIFY_MEMORY_WRITES"})
         state.memory.store(operand_addr, input_value, endness="Iend_LE")
         state.memory.store(result_addr, claripy.BVV(b"\xca" * result_size), endness="Iend_LE")
 

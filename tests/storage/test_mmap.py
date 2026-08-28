@@ -5,11 +5,12 @@ from __future__ import annotations
 import unittest
 
 from angr import SimState
+from tests.common import minimal_project
 
 
 class TestMmap(unittest.TestCase):
     def test_mmap_base_copy(self):
-        state = SimState(arch="AMD64", mode="symbolic")
+        state = SimState(project=minimal_project("AMD64"), mode="symbolic")
 
         mmap_base = 0x12345678
 

@@ -12,11 +12,12 @@ from archinfo import Endness
 import angr
 from angr import SimState
 from angr.sim_type import SimStruct, SimTypeNumOffset, parse_types, register_types
+from tests.common import minimal_project
 
 
 class TestMemView(unittest.TestCase):
     def test_simple_concrete(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         addr = 0xBA5E0
 
         def check_read(val):
@@ -38,7 +39,7 @@ class TestMemView(unittest.TestCase):
         check_read(0x11223344AABBEF6D)
 
     def test_string_concrete(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         addr = 0xBA5E0
 
         def check_read(val):
@@ -58,7 +59,7 @@ class TestMemView(unittest.TestCase):
         # check_read(b"a longer string")
 
     def test_array_concrete(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         addr = 0xBA5E0
 
         s.memory.store(addr, claripy.BVV(0x1, 32), endness=Endness.LE)
@@ -85,7 +86,7 @@ class TestMemView(unittest.TestCase):
         assert s.mem[addr].dword.array(4).concrete == [1, 2, 4, 3]
 
     def test_pointer_concrete(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
         addr = 0xBA5E0
         ptraddr = 0xCD0
 
@@ -98,7 +99,7 @@ class TestMemView(unittest.TestCase):
         assert s.mem[ptraddr].deref.dword.concrete == 123954
 
     def test_structs(self):
-        s = SimState(arch="AMD64")
+        s = SimState(project=minimal_project("AMD64"))
 
         register_types(
             parse_types("""
@@ -125,7 +126,7 @@ class TestMemView(unittest.TestCase):
         can be used with a memview
         :return:
         """
-        state = SimState(arch="AMD64")
+        state = SimState(project=minimal_project("AMD64"))
         register_types(
             SimStruct(
                 name="bitfield_struct",
@@ -189,7 +190,7 @@ class TestMemView(unittest.TestCase):
         }""")
 
         angr.types.register_types(bitfield_struct2)
-        state = SimState(arch="AMD64")
+        state = SimState(project=minimal_project("AMD64"))
         state.memory.store(0x1000, b"\xb3\xc7\xe9|\xad\xd7\xee$")  # store some random data
         struct = state.mem[0x1000].struct.bitfield_struct2.concrete
         assert struct.target == 0xD7CE9C7B3

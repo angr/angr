@@ -5,13 +5,14 @@ from __future__ import annotations
 import unittest
 
 import angr
+from tests.common import minimal_project
 
 
 class TestSimTime(unittest.TestCase):
     def test_gettimeofday(self):
         proc = angr.SIM_PROCEDURES["posix"]["gettimeofday"]()
 
-        s = angr.SimState(arch="amd64")
+        s = angr.SimState(project=minimal_project("amd64"))
         s.regs.rdi = 0x8000
         s.regs.rsi = 0
 
@@ -28,7 +29,7 @@ class TestSimTime(unittest.TestCase):
     def test_clock_gettime(self):
         proc = angr.SIM_PROCEDURES["posix"]["clock_gettime"]()
 
-        s = angr.SimState(arch="amd64")
+        s = angr.SimState(project=minimal_project("amd64"))
         s.regs.rdi = 0
         s.regs.rsi = 0x8000
 
