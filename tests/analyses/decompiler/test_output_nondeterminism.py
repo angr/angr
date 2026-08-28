@@ -111,6 +111,31 @@ class TestVariableNondeterminism(unittest.TestCase):
             f"decompilation added {writable:#x} to memory_data, but it is not in read-only memory"
         )
 
+    def test_repeated_decompilation_is_stable_when_structuring_is_order_sensitive(self):
+        """Regression test for https://github.com/angr/angr/issues/7009."""
+
+        binary_path = os.path.join(bin_location, "tests", "x86_64", "ALLSTAR_9base_awk")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        func = project.kb.functions[0x402E30]
+
+        output = []
+        for i in range(6):
+            dec = project.analyses.Decompiler(func, cfg=cfg.model, use_cache=False, update_cache=False)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            output.append(dec.codegen.text)
+
+            if i > 0 and output[0] != output[i]:
+                diff = "".join(
+                    difflib.unified_diff(
+                        output[0].splitlines(keepends=True),
+                        output[i].splitlines(keepends=True),
+                        fromfile="output[0]",
+                        tofile=f"output[{i}]",
+                    )
+                )
+                assert False, f"Re-decompilation of regexpr() differs at iteration {i}:\n{diff}"
+
     def test_redecompilation_is_idempotent_for_referenced_stack_arrays(self):
         """Regression: Re-decompiling a function must not rename its stack arrays.
 
