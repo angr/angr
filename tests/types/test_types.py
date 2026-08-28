@@ -48,6 +48,7 @@ class TestTypes(unittest.TestCase):
         assert isinstance(pyproto, SimTypeFunction)
         assert isinstance(pyproto.args[0], SimTypeInt)
         assert isinstance(pyproto.args[1], SimTypePointer)
+        assert isinstance(pyproto.args[1].pts_to, SimTypePointer)
         assert isinstance(pyproto.args[1].pts_to.pts_to, SimTypeChar)
         assert isinstance(pyproto.returnty, SimTypeInt)
 
@@ -223,6 +224,7 @@ class TestTypes(unittest.TestCase):
         assert isinstance(struct_llist, SimStruct)
         assert isinstance(struct_llist.fields["next"], SimTypePointer)
         next_struct_llist = struct_llist.fields["next"].pts_to
+        assert isinstance(next_struct_llist, SimStruct)
         assert len(next_struct_llist.fields) == 2
         assert isinstance(next_struct_llist.fields["data"], SimTypeInt)
         assert isinstance(next_struct_llist.fields["next"], SimTypePointer)
@@ -231,6 +233,7 @@ class TestTypes(unittest.TestCase):
         assert isinstance(union_heap, SimUnion)
         assert isinstance(union_heap.members["forward"], SimTypePointer)
         forward_union_heap = union_heap.members["forward"].pts_to
+        assert isinstance(forward_union_heap, SimUnion)
         assert len(forward_union_heap.members) == 2
         assert isinstance(forward_union_heap.members["data"], SimTypeInt)
         assert isinstance(forward_union_heap.members["forward"], SimTypePointer)
@@ -417,6 +420,7 @@ class TestTypes(unittest.TestCase):
         holds_class = SimStruct(
             {"a": SimTypeInt(), "b": opaque_class, "c": SimTypeInt()}, name="holds_class"
         ).with_arch(arch)
+        assert isinstance(holds_class, SimStruct)
         assert holds_class.offsets == {"a": 0, "b": 4, "c": 8}
 
         empty_union = SimUnion({}, name="OpaqueUnion")
@@ -424,6 +428,7 @@ class TestTypes(unittest.TestCase):
         holds_union = SimStruct(
             {"a": SimTypeChar(), "b": empty_union, "c": SimTypeInt()}, name="holds_union"
         ).with_arch(arch)
+        assert isinstance(holds_union, SimStruct)
         offsets = holds_union.offsets
         assert set(offsets) == {"a", "b", "c"}
         assert offsets["a"] == 0 and offsets["a"] < offsets["b"] < offsets["c"]
