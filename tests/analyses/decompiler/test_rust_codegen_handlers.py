@@ -19,14 +19,19 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import CAS, DirtyStatement, Jump, Store, WeakAssignment
-from angr.analyses.decompiler.structured_codegen.rust import RustExpression, RustStructuredCodeGenerator
+from angr.analyses.decompiler.structured_codegen.rust import (
+    RustConstant,
+    RustExpression,
+    RustSimTypeReference,
+    RustStructuredCodeGenerator,
+)
 from angr.analyses.decompiler.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     SequenceNode,
 )
 from angr.rust.sim_type import RustSimTypeInt, RustSimTypeStrRef
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimStruct, SimTypeBottom
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -51,7 +56,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
         dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust", fail_fast=True)
-        assert dec.codegen is not None
+        assert isinstance(dec.codegen, RustStructuredCodeGenerator)
         cls.proj = proj
         cls.codegen = dec.codegen
 
@@ -253,6 +258,57 @@ class TestRustStoreWidth(unittest.TestCase):
         with mock.patch.object(self.codegen, "_handle", handle):
             store = RustStructuredCodeGenerator._handle_Stmt_Store(self.codegen, stmt)
         assert store.lhs.type.size == 64
+
+
+class TestRustCodegenMalformedConstantReferences(unittest.TestCase):
+    """
+    The Rust backend treats a constant as a &str fat pointer and a pointer's pointee as a struct without
+    establishing that either really is one. Both guesses used to raise out of the code generator, and the
+    Decompiler's resilience turned that into an empty function body -- a silent, total loss of output.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        # df.o holds a constant one word short of the end of a mapped region whose first word points into
+        # a read-only section, which is exactly what the &str heuristic accepts and then reads past.
+        bin_path = os.path.join(test_location, "x86_64", "df.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x4033E5], cfg=cfg.model, flavor="rust", fail_fast=True)
+        assert isinstance(dec.codegen, RustStructuredCodeGenerator)
+        cls.proj = proj
+        cls.codegen = dec.codegen
+
+    def test_const_whose_str_length_word_is_unmapped(self):
+        proj = self.proj
+        m = Manager(arch=proj.arch)
+        addr = 0x405600
+
+        # preconditions: the constant is in a readable section, its first word points into a read-only
+        # section -- so the &str heuristic engages -- but the length word beside it is not mapped at all.
+        section = proj.loader.find_section_containing(addr)
+        assert section is not None and section.is_readable
+        pointee = proj.loader.find_section_containing(proj.loader.memory.unpack(addr, proj.arch.struct_fmt())[0])
+        assert pointee is not None and pointee.is_readable and not pointee.is_writable
+        with self.assertRaises(KeyError):
+            proj.loader.memory.unpack(addr + proj.arch.bytes, proj.arch.struct_fmt())
+
+        out = self.codegen._handle_Expr_Const(Const(m.next_atom(), addr, proj.arch.bits))
+        # not a string: rendered as the plain constant it is
+        assert isinstance(out, RustConstant)
+        assert hex(addr).lstrip("0x") in _render(out).lower().replace("_", "")
+
+    def test_access_constant_offset_through_a_struct_with_no_fields(self):
+        # a type database can hand the code generator a declared-but-empty struct; there is no field to
+        # select an offset within, so the access has to fall back to a pointer cast rather than blow up
+        proj = self.proj
+        struct_type = SimStruct({}, name="opaque").with_arch(proj.arch)
+        assert isinstance(struct_type, SimStruct)
+        assert not struct_type.offsets
+
+        expr = RustConstant(0x1000, RustSimTypeReference(struct_type).with_arch(proj.arch), codegen=self.codegen)
+        out = self.codegen._access_constant_offset(expr, 0, SimTypeBottom(), True)
+        assert PLACEHOLDER not in _render(out)
 
 
 if __name__ == "__main__":

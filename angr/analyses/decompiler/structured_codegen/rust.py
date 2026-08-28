@@ -3279,7 +3279,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
             return self._access_constant_offset(result, remainder, data_type, lvalue, renegotiate_type)
 
-        if isinstance(base_type, SimStruct):
+        if isinstance(base_type, SimStruct) and base_type.offsets:
             # find the field that we're accessing
             field_name, field_offset = max(
                 ((x, y) for x, y in base_type.offsets.items() if y <= remainder), key=lambda x: x[1]
@@ -3500,7 +3500,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             # nothing has the ability to escape the kernel
             # go in deeper
-            if isinstance(kernel_type, SimStruct):
+            if isinstance(kernel_type, SimStruct) and kernel_type.offsets:
                 field_name, field_offset = max(
                     ((x, y) for x, y in kernel_type.offsets.items() if y <= constant), key=lambda x: x[1]
                 )
@@ -4042,20 +4042,28 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
                 elif (section := self.project.loader.find_section_containing(expr.value)) and section.is_readable:
                     memory = self.project.loader.memory
-                    str_addr = memory.unpack(expr.value, self.project.arch.struct_fmt())[0]
-                    if (
-                        (section := self.project.loader.find_section_containing(str_addr))
-                        and section.is_readable
-                        and not section.is_writable
-                    ):
-                        str_len = memory.unpack(expr.value + self.project.arch.bytes, self.project.arch.struct_fmt())[0]
-                        try:
+                    # the constant may be a Rust &str fat pointer: a data pointer followed by a length word.
+                    # a section containing the constant says nothing about the word after it, so the length
+                    # read can land outside every backer -- a constant at the very end of the last read-only
+                    # region has no following word at all. cle reports that as KeyError, and the same goes for
+                    # the pointer read itself and for loading the string body. treat any of those as "not a
+                    # string" and fall through to rendering the constant plainly.
+                    try:
+                        str_addr = memory.unpack(expr.value, self.project.arch.struct_fmt())[0]
+                        if (
+                            (section := self.project.loader.find_section_containing(str_addr))
+                            and section.is_readable
+                            and not section.is_writable
+                        ):
+                            str_len = memory.unpack(
+                                expr.value + self.project.arch.bytes, self.project.arch.struct_fmt()
+                            )[0]
                             decoded_str = memory.load(str_addr, str_len).decode("utf-8")
                             type_ = RustSimTypeStrRef()
                             reference_values[type_] = decoded_str
                             inline_string = True
-                        except UnicodeDecodeError:
-                            pass
+                    except (KeyError, UnicodeDecodeError):
+                        pass
                     # If we failed to extract UTF-8 characters, it might be an empty string
                     if not inline_string and isinstance(type_, RustSimTypeStrRef):
                         decoded_str = ""
