@@ -12,7 +12,7 @@ import claripy
 import networkx
 import pytest
 
-from angr import ailment, load_shellcode
+from angr import Project, ailment
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
@@ -285,8 +285,18 @@ class TestConditionProcessor(TestCase):
 @pytest.mark.parametrize("structurer", ["sailr", "phoenix"])
 @pytest.mark.parametrize("optimization", ["O0", "O2", "O2-noinline"])
 def test_chibios_crt0_entry_convergent_side_exits(structurer, optimization):
-    code = Path(bin_location, "tests", "armel", "chibios_crt0_entry", f"{optimization}.bin").read_bytes()
-    project = load_shellcode(code, arch="ARMCortexM", load_address=0x80001E0)
+    fixture = Path(bin_location, "tests", "armel", "chibios_crt0_entry", f"{optimization}.bin")
+    project = Project(
+        fixture,
+        main_opts={
+            "arch": "ARMCortexM",
+            "backend": "blob",
+            "base_addr": 0x80001E0,
+            "entry_point": 0,
+        },
+    )
+    assert project.filename is not None
+    assert Path(project.filename) == fixture
     cfg = project.analyses.CFGFast(
         normalize=True,
         regions=[(0x80001E0, 0x8000266)],
