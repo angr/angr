@@ -1716,7 +1716,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if self._use_eh_frame:
             self._remaining_eh_frame_addrs = sorted(self._function_addresses_from_eh_frame, reverse=True)
 
-        if self._use_function_prologues and self.project.concrete_target is None:
+        if self._use_function_prologues:
             func_addrs_from_prologs = self._func_addrs_from_prologues()
             if self._ptr_hints:
                 # ensure function addresses from prologs do not overlap with pointer hints
