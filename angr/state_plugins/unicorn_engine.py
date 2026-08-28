@@ -308,7 +308,7 @@ class Uniwrapper:
         self.cache_key = cache_key
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
-        self.id = None
+        self.id = next(_unicounter)
         uc_mode = arch.uc_mode_thumb if thumb else arch.uc_mode
         self._uc = unicorn.Uc(arch.uc_arch, uc_mode)
 
@@ -657,7 +657,7 @@ class Unicorn(SimStatePlugin):
         self.steps = 0
         self._mapped = 0
         self._uncache_regions = []
-        self._symbolic_offsets = None
+        self._symbolic_offsets = set()
         self.gdt = None
 
         # following variables are used in python level hook
