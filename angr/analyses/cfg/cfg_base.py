@@ -155,7 +155,7 @@ class CFGBase(Analysis):
 
         # Initialization
         self._edge_map = None
-        self._loop_back_edges = None
+        self._loop_back_edges = []
         self._overlapped_loop_headers = None
         self._thumb_addrs = set()
         self._tail_calls = set()

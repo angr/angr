@@ -269,8 +269,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         else:
             if isinstance(starts, (list, set)):
                 self._starts = tuple(starts)
-            elif isinstance(starts, tuple) or starts is None:
+            elif isinstance(starts, tuple):
                 self._starts = starts
+            elif starts is None:
+                self._starts = ((self.project.entry, None),)
             else:
                 raise AngrCFGError("Unsupported type of the `starts` argument.")
 
@@ -302,7 +304,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # more initialization
 
         self._symbolic_function_initial_state = {}
-        self._function_input_states = None
         self._unresolvable_runs = set()
 
         # Stores the index for each CFGNode in this CFG after a quasi-topological sort (currently a DFS)
@@ -404,11 +405,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         self._should_abort = False
 
-        self._starts = starts
+        self._starts = starts if starts is not None else []
         self._max_steps = max_steps
-
-        if self._starts is None:
-            self._starts = []
 
         if self._starts:
             self._sanitize_starts()
