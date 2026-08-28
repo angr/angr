@@ -443,7 +443,6 @@ class Operand:
         self.mnemonic = mnemonic
         self.operand_offset = operand_offset
         self.syntax = self.binary.syntax if syntax is None else syntax
-        self.type = None
         self.size = capstone_operand.size
 
         # IMM
@@ -1237,7 +1236,7 @@ class Data:
         self.sort = sort
         self._initial_content = initial_content  # only used by patcherex
 
-        self._content = None
+        self._content: list = []
 
         self.labels = []  # a list of tuples like (address, label)
         self.end_labels = []  # a list of labels only show up at the end of this memory data entry. mostly because the
@@ -1712,8 +1711,6 @@ class Reassembler(Analysis):
         # a dedicated capstone instance for AT&T syntax; created on demand in disassemble_block()
         self._att_capstone = None
 
-        self.symbol_manager = None
-        self.cfg = None
         self._cgc_attachments_removed = False
         self.log_relocations = log_relocations
 
