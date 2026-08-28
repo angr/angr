@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.procedures.posix"  # pylint:disable=redefined-builtin
@@ -30,6 +30,16 @@ def call_chroot(state, path):
     proc = angr.SIM_PROCEDURES["posix"]["chroot"]()
     state.scratch.sim_procedure = proc
     return state.solver.eval(proc.execute(state, arguments=[PATH_ADDR]).ret_expr)
+
+
+def read_fd(state, fd, size):
+    """
+    Read the given number of bytes from a file descriptor of the given state.
+    """
+    simfd = state.posix.get_fd(fd)
+    assert simfd is not None
+    data, _ = simfd.read_data(size)
+    return data
 
 
 class TestChroot(unittest.TestCase):
@@ -65,7 +75,7 @@ class TestChroot(unittest.TestCase):
         assert deadended.fs.root == b"/home/user/newRoot"
         # the seeded file is now at the root of the guest's view...
         fd = deadended.posix.open(b"/test.txt", Flags.O_RDONLY)
-        data, _ = deadended.posix.get_fd(fd).read_data(6)
+        data = read_fd(deadended, fd, 6)
         assert deadended.solver.eval(data, cast_to=bytes) == b"jailed"
         # ...and its old path no longer resolves
         assert deadended.fs.get(b"/home/user/newRoot/test.txt") is None
@@ -81,8 +91,7 @@ class TestChroot(unittest.TestCase):
 
         # opening /passwd gets a symbolic file, not the contents of the host's /etc/passwd
         fd = state.posix.open(b"/passwd", Flags.O_RDONLY)
-        data, _ = state.posix.get_fd(fd).read_data(4)
-        assert state.solver.symbolic(data)
+        assert state.solver.symbolic(read_fd(state, fd, 4))
 
     def test_chroot_on_host_filesystem_warns(self):
         tmpdir, state = self._host_root()
@@ -95,8 +104,7 @@ class TestChroot(unittest.TestCase):
         # the guest can reach what is under the new root, and nothing above it
         fd = state.posix.open(b"/inside.txt", Flags.O_RDONLY)
         assert fd >= 0
-        data, _ = state.posix.get_fd(fd).read_data(6)
-        assert state.solver.eval(data, cast_to=bytes) == b"inside"
+        assert state.solver.eval(read_fd(state, fd, 6), cast_to=bytes) == b"inside"
         assert state.fs.get(b"/outside.txt") is None
         assert state.fs.get(b"/../outside.txt") is None
         assert os.path.exists(os.path.join(tmpdir, "outside.txt"))
@@ -182,13 +190,15 @@ class TestChroot(unittest.TestCase):
         assert fs.cwd == b"/"
 
     def test_filesystem_chroot_copy_and_merge(self):
-        fs = SimFilesystem()
-        fs.chroot(b"/jail")
+        project = angr.Project(os.path.join(test_location, "x86_64", "chroot_test"), auto_load_libs=False)
+        state = project.factory.blank_state()
+        state.fs.chroot(b"/jail")
 
-        assert fs.copy({}).root == b"/jail"
-
-        other = SimFilesystem()
-        self.assertRaises(SimMergeError, fs.merge, [other], [None, None])
+        # the root survives a state copy, and filesystems with different roots cannot be merged
+        assert state.copy().fs.root == b"/jail"
+        other = project.factory.blank_state()
+        other.fs.chroot(b"/elsewhere")
+        self.assertRaisesRegex(SimMergeError, "root", state.fs.merge, [other.fs], [None, None])
 
 
 if __name__ == "__main__":

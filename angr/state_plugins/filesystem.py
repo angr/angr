@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import namedtuple
+from typing import cast
 
 from angr.errors import SimMergeError
 from angr.storage.file import SimFile
@@ -76,7 +77,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        o = super().copy(memo)
+        o = cast("SimFilesystem", super().copy(memo))
 
         o.pathsep = self.pathsep
         o.cwd = self.cwd
@@ -104,7 +105,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         for o in others:
             if o.cwd != self.cwd:
                 raise SimMergeError("Can't merge filesystems with disparate cwds")
-            if o._root != self._root:
+            if o.root != self.root:
                 raise SimMergeError("Can't merge filesystems with disparate root directories")
             if len(o._mountpoints) != len(self._mountpoints):
                 raise SimMergeError("Can't merge filesystems with disparate mountpoints")

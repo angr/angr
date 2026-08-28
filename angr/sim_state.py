@@ -26,10 +26,12 @@ if TYPE_CHECKING:
     from angr.simos.javavm import SimJavaVM
 
     from .state_plugins.callstack import CallStack
+    from .state_plugins.filesystem import SimFilesystem
     from .state_plugins.heap.heap_base import SimHeapBase
     from .state_plugins.history import SimStateHistory
     from .state_plugins.inspect import SimInspector
     from .state_plugins.jni_references import SimStateJNIReferences
+    from .state_plugins.libc import SimStateLibc
     from .state_plugins.posix import SimSystemPosix
     from .state_plugins.scratch import SimStateScratch
     from .state_plugins.solver import SimSolver
@@ -82,6 +84,8 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
     # Type Annotations for default plugins to allow type inference
     solver: SimSolver
     posix: SimSystemPosix
+    fs: SimFilesystem
+    libc: SimStateLibc
     registers: DefaultMemory
     regs: SimRegNameView
     memory: DefaultMemory
