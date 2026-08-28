@@ -63,7 +63,7 @@ class PeepholeOptimizationStmtBase:
         self.type_hints = [] if type_hints is None else type_hints
         self.fixpoint_reached = False
 
-    def optimize(self, stmt, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(self, stmt, stmt_idx: int, block: Block, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
 
 

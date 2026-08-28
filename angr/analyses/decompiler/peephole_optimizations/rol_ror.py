@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Tmp
 from angr.ailment.statement import Assignment
 
@@ -17,7 +18,7 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
     NAME = "ROL/ROR rewriter"
     stmt_classes = (Assignment,)
 
-    def optimize(self, stmt: Assignment, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(self, stmt: Assignment, stmt_idx: int, block: Block, **kwargs):
         # Rol example:
         #    61 | t304 = Shr32(t301,0x19)
         #    62 | t306 = Shl32(t301,0x07)
