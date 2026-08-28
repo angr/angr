@@ -25,7 +25,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Condense multiple constant std::string creation calls into one when possible"
-    DESCRIPTION = __doc__.strip()  # type: ignore
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

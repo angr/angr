@@ -25,7 +25,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Duplicate linear blocks with gotos"
-    DESCRIPTION = inspect.cleandoc(__doc__).strip()
+    DESCRIPTION = inspect.cleandoc(__doc__ or "").strip()
 
     def __init__(
         self,

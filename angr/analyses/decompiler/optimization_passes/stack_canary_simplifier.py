@@ -25,7 +25,7 @@ class StackCanarySimplifier(OptimizationPass):
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify stack canaries"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

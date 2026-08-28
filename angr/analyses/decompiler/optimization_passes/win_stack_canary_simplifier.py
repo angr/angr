@@ -31,7 +31,7 @@ class WinStackCanarySimplifier(OptimizationPass):
     PLATFORMS = ["windows"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Simplify stack canaries in Windows PE files"
-    DESCRIPTION = __doc__.strip()  # type: ignore
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

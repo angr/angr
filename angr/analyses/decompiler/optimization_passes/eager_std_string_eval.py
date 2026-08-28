@@ -70,7 +70,7 @@ class EagerStdStringEvalPass(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Eagerly evaluate std::string methods for constant std::string instances"
-    DESCRIPTION = __doc__.strip()  # type: ignore
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -69,7 +69,7 @@ class ConstPropOptReverter(OptimizationPass):
     STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Revert Constant Propagation Optimizations"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, region_identifier=None, reaching_definitions=None, **kwargs):
         self.ri = region_identifier

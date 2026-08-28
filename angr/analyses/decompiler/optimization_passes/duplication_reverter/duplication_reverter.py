@@ -42,7 +42,7 @@ class DuplicationReverter(StructuringOptimizationPass):
     """
 
     NAME = "Revert Statement Duplication Optimizations"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, max_guarding_conditions=4, **kwargs):
         super().__init__(

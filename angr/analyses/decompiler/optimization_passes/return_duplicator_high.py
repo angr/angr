@@ -22,7 +22,7 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Duplicate return-only blocks (high)"
-    DESCRIPTION = __doc__
+    DESCRIPTION = __doc__ or ""
     STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
 
     def __init__(

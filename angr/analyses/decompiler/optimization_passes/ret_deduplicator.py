@@ -29,7 +29,7 @@ class ReturnDeduplicator(OptimizationPass):
     PLATFORMS = ["windows", "linux", "cgc"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Deduplicates return statements that may have been duplicated"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
     STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
 
     def __init__(self, *args, **kwargs):

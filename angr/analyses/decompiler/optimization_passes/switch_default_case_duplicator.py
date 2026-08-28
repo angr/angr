@@ -30,7 +30,7 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_AIL_GRAPH_CREATION
     NAME = "Duplicate default-case nodes to undo default-case node reuse caused by compiler code deduplication"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

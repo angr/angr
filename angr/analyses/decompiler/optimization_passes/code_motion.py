@@ -51,7 +51,7 @@ class CodeMotionOptimization(OptimizationPass):
     PLATFORMS = None
     NAME = "Merge common statements in sub-scopes"
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
-    DESCRIPTION = __doc__
+    DESCRIPTION = __doc__ or ""
 
     def __init__(self, *args, max_iters=10, node_idx_start: int = 0, **kwargs):
         super().__init__(*args, **kwargs)

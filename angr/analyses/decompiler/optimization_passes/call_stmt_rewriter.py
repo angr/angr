@@ -18,7 +18,7 @@ class CallStatementRewriter(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
     NAME = "Unify call statements on demand."
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

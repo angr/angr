@@ -145,7 +145,7 @@ class ExprOpSwapper(SequenceOptimizationPass):
     PLATFORMS = ["windows", "linux", "cgc"]
     STAGE = OptimizationPassStage.AFTER_STRUCTURING
     NAME = "Swap operands of expressions as requested"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = (__doc__ or "").strip()
 
     def __init__(self, *args, binop_operators: dict[OpDescriptor, str] | None = None, **kwargs):
         super().__init__(*args, **kwargs)
