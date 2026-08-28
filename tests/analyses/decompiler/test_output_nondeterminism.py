@@ -10,6 +10,7 @@ import re
 import unittest
 
 import angr
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from tests.common import bin_location
 
 
@@ -84,6 +85,31 @@ class TestVariableNondeterminism(unittest.TestCase):
         )
         # all four are reached through call arguments inside conditions, which the collector used to walk past
         assert set(literals.findall(alone)) >= {'"xmlns:"', '" "', r'"=\""', r'"\""'}
+
+    def test_data_references_are_not_added_for_writable_memory(self):
+        """A constant pointing into writable memory must not gain a MemoryData entry.
+
+        The bytes at such an address are whatever the program will later write there, so classifying them
+        makes the code generator drop a typed global for a raw pointer dereference.
+        """
+
+        binary_path = os.path.join(bin_location, "tests", "armhf", "fauxware")
+        # in .data; decompiling 0x104c9 used to classify it as a pointer array
+        writable = 0x207D0
+
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(data_references=True, normalize=True)
+        assert writable not in cfg.model.memory_data, "CFGFast already recorded the address"
+        assert not is_in_readonly_section(project, writable) and not is_in_readonly_segment(project, writable)
+
+        for func in sorted(project.kb.functions.values(), key=lambda f: f.addr):
+            if func.is_simprocedure or func.is_plt or func.is_alignment or not func.size:
+                continue
+            project.analyses.Decompiler(func, cfg=cfg.model)
+
+        assert writable not in cfg.model.memory_data, (
+            f"decompilation added {writable:#x} to memory_data, but it is not in read-only memory"
+        )
 
     def test_redecompilation_is_idempotent_for_referenced_stack_arrays(self):
         """Regression: Re-decompiling a function must not rename its stack arrays.

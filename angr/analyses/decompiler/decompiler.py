@@ -21,6 +21,7 @@ from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
+from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
 from .ailgraph_walker import AILGraphWalker
 from .clinic import ClinicStage
@@ -975,6 +976,10 @@ class Decompiler(Analysis):
             if data_addr in self._cfg.memory_data:
                 continue
             if not self.project.loader.find_loadable_containing(data_addr):
+                continue
+            if not is_in_readonly_section(self.project, data_addr) and not is_in_readonly_segment(
+                self.project, data_addr
+            ):
                 continue
             if self._cfg.add_memory_data(data_addr, None):
                 added_memory_data_addrs.append(data_addr)
