@@ -1101,6 +1101,28 @@ class TestCfgfast(unittest.TestCase):
             "MIPS64",
         )
 
+    def test_cfgfast_on_a_pcode_arm_blob(self):
+        # is_arm_arch() used to accept every ArchPcode ARM language, so CFGFast entered its ARM/Thumb
+        # handling with an architecture that carries none of the data that handling reads, and died
+        # before it decoded anything. See https://github.com/angr/angr/issues/4779.
+        path = os.path.join(test_location, "armel", "i2c_master_read-nucleol152re.bin")
+        proj = angr.Project(
+            path,
+            main_opts={
+                "backend": "blob",
+                "arch": archinfo.ArchPcode("ARM:LE:32:Cortex"),
+                "base_addr": 0x08000000,
+                "entry_point": 0x080016C8,
+            },
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast(function_starts=[0x080016C8], normalize=True)
+
+        # p-code decodes Thumb without the low-bit convention, so these are the even addresses of
+        # functions that the ELF build of the same image names
+        for addr in (0x8005274, 0x8005E04, 0x80081DC):
+            assert addr in cfg.kb.functions, f"no function recovered at {addr:#x}"
+
 
 if __name__ == "__main__":
     unittest.main()
