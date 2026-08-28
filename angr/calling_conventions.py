@@ -2094,6 +2094,30 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
         return state.regs.r7
 
 
+class SimCCARMWindowsSyscall(SimCCSyscall):
+    """
+    The system call convention of Windows on 32-bit ARM.
+
+    An ntdll stub loads the service index into r12 and traps with svc #1; arguments follow the ordinary ARM
+    convention. See https://codemachine.com/articles/arm_assembler_primer.html.
+    """
+
+    ARG_REGS = ["r0", "r1", "r2", "r3"]
+    FP_ARG_REGS = []
+    RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
+    RETURN_VAL = SimRegArg("r0", 4)
+    ARCH = archinfo.ArchARM
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):
+        return state.regs.r12
+
+
 class SimCCAArch64(SimCC):
     ARG_REGS = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
     FP_ARG_REGS = []  # TODO: ???
@@ -2118,6 +2142,35 @@ class SimCCAArch64LinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.x8
+
+
+class SimCCAArch64WindowsSyscall(SimCCSyscall):
+    """
+    The system call convention of Windows on AArch64.
+
+    An ntdll stub is a bare "svc #index; ret": Windows encodes the service index in the SVC immediate rather than
+    in a register, and the kernel recovers it from ESR_EL1 as the low 12 bits. Arguments follow the ordinary AArch64
+    convention. See https://gracefulbits.wordpress.com/2018/07/26/system-call-dispatching-for-windows-on-arm64/.
+    """
+
+    ARG_REGS = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+    FP_ARG_REGS = []
+    RETURN_VAL = SimRegArg("x0", 8)
+    RETURN_ADDR = SimRegArg("ip_at_syscall", 8)
+    ARCH = archinfo.ArchAArch64
+
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None):  # pylint: disable=unused-argument
+        # never appears anywhere except syscalls
+        return False
+
+    @staticmethod
+    def syscall_num(state):  # type: ignore
+        insn = state.mem[state.regs.ip_at_syscall - 4].dword.resolved
+        if not ((insn & 0xFFE0001F) == 0xD4000001).is_true():
+            l.error("AArch64 syscall number being queried at an address which is not an SVC")
+            return claripy.BVV(0, 64)
+        return ((insn >> 5) & 0xFFF).zero_extend(32)
 
 
 class SimCCRISCV64(SimCC):
@@ -2800,6 +2853,7 @@ SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
     "ARMEL": {
         "default": SimCCARMLinuxSyscall,
         "Linux": SimCCARMLinuxSyscall,
+        "Win32": SimCCARMWindowsSyscall,
     },
     "ARMCortexM": {
         # FIXME: TODO: This is wrong.  Fill in with a real CC when we support CM syscalls
@@ -2808,10 +2862,12 @@ SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
     "ARMHF": {
         "default": SimCCARMLinuxSyscall,
         "Linux": SimCCARMLinuxSyscall,
+        "Win32": SimCCARMWindowsSyscall,
     },
     "AARCH64": {
         "default": SimCCAArch64LinuxSyscall,
         "Linux": SimCCAArch64LinuxSyscall,
+        "Win32": SimCCAArch64WindowsSyscall,
     },
     "MIPS32": {
         "default": SimCCO32LinuxSyscall,
