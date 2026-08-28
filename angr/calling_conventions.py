@@ -1505,7 +1505,7 @@ class SimCCMicrosoftAMD64(SimCC):
         return SimReferenceArgument(int_loc, referenced_loc)
 
     def return_in_implicit_outparam(self, ty):
-        if isinstance(ty, (SimTypeBottom, SimTypeRef)):
+        if ty is None or isinstance(ty, (SimTypeBottom, SimTypeRef)):
             return False
         return not isinstance(ty, SimTypeFloat) and ty.size > self.STRUCT_RETURN_THRESHOLD
 
