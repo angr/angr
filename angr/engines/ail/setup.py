@@ -31,7 +31,6 @@ def ail_call_state(
 ):
     state = SimState(
         project,
-        project.arch,
         mode=mode,
         add_options=add_options,
         remove_options=remove_options,

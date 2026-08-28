@@ -104,8 +104,6 @@ class SimJavaVM(SimOS):
     def state_blank(self, addr=None, **kwargs):  # pylint: disable=arguments-differ
         if not kwargs.get("mode"):
             kwargs["mode"] = self.project._default_analysis_mode
-        if not kwargs.get("arch"):
-            kwargs["arch"] = self.arch
         if not kwargs.get("os_name"):
             kwargs["os_name"] = self.name
 
