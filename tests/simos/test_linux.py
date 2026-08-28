@@ -6,8 +6,11 @@ __package__ = __package__ or "tests.simos"  # pylint:disable=redefined-builtin
 
 import os
 import unittest
+from typing import cast
 
 import archinfo
+import claripy
+from cle import MetaELF
 
 import angr
 from angr.errors import SimMemoryError
@@ -54,6 +57,36 @@ class TestSimLinuxStateBlank(unittest.TestCase):
         # pre-allocated stack pages are not backed by the loader, so clamping the pre-grow to the room that does
         # exist would hide the image behind blank pages
         assert state.solver.eval(state.memory.load(0x1000, 4, endness=archinfo.Endness.BE)) == 0x7F454C46
+
+
+class TestSimLinuxPpc64Toc(unittest.TestCase):
+    """
+    Tests for the initial TOC value SimLinux.state_entry() puts in r2 on PowerPC64 ELFv1.
+    """
+
+    # a relocatable object declares no entry point, so it has no ELFv1 function descriptor to take
+    # an initial TOC out of, and cle reports none for it
+    without_toc = os.path.join(test_location, "ppc64", "simple_object.o")
+    with_toc = os.path.join(test_location, "ppc64", "fauxware")
+
+    def test_entry_state_of_an_object_that_has_no_toc(self):
+        project = angr.Project(self.without_toc, auto_load_libs=False)
+        main_object = project.loader.main_object
+        assert isinstance(main_object, MetaELF)
+        assert main_object.is_ppc64_abiv1
+        assert main_object.ppc64_initial_rtoc is None
+
+        state = project.factory.entry_state()
+        assert state.solver.eval(cast(claripy.ast.BV, state.regs.r2)) == 0
+
+    def test_entry_state_of_an_object_that_has_one(self):
+        project = angr.Project(self.with_toc, auto_load_libs=False)
+        main_object = project.loader.main_object
+        assert isinstance(main_object, MetaELF)
+        assert main_object.ppc64_initial_rtoc == 0x10018E80
+
+        state = project.factory.entry_state()
+        assert state.solver.eval(cast(claripy.ast.BV, state.regs.r2)) == 0x10018E80
 
 
 if __name__ == "__main__":
