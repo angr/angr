@@ -464,16 +464,25 @@ class TestTypes(unittest.TestCase):
         holds_class = SimStruct(
             {"a": SimTypeInt(), "b": opaque_class, "c": SimTypeInt()}, name="holds_class"
         ).with_arch(arch)
+        assert isinstance(holds_class, SimStruct)
         assert holds_class.offsets == {"a": 0, "b": 4, "c": 8}
+
+        # The fallback is one byte, not one bit. A one-bit fallback would leave the
+        # second field at bit offset 12 and truncate its reported byte offset to 1.
+        byte_aligned = SimStruct({"n": SimTypeNum(12), "b": opaque_class}, name="byte_aligned").with_arch(arch)
+        assert isinstance(byte_aligned, SimStruct)
+        assert byte_aligned.offsets == {"n": 0, "b": 2}
 
         empty_union = SimUnion({}, name="OpaqueUnion")
         assert empty_union.with_arch(arch).alignment is NotImplemented
         holds_union = SimStruct(
             {"a": SimTypeChar(), "b": empty_union, "c": SimTypeInt()}, name="holds_union"
         ).with_arch(arch)
+        assert isinstance(holds_union, SimStruct)
         offsets = holds_union.offsets
         assert set(offsets) == {"a", "b", "c"}
-        assert offsets["a"] == 0 and offsets["a"] < offsets["b"] < offsets["c"]
+        assert offsets["a"] == 0
+        assert offsets["a"] < offsets["b"] < offsets["c"]
 
     def test_widechar_extraction(self):
         proj = angr.load_shellcode(b"\x90\x90\x90\x90", arch="AMD64")
