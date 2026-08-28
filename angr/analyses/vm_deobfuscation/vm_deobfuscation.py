@@ -5016,6 +5016,13 @@ class VMDeobfuscation(Analysis):
             # so we only remove a definition if the definition is not alive anymore at the end of the block
 
             if not uses:
+                # A register missing from the merged exit state has no definition reaching any
+                # exit. Older angr kept the last write in an observed state whether or not it was
+                # live, so this load returned a value and the `d not in defs_` check below did the
+                # work. Newer angr keeps only live definitions, so the load raises instead, and
+                # the bare `except` that used to catch it turned "definitely dead" into "keep" --
+                # which made this entire pass a no-op.
+                reg_absent = False
                 if isinstance(d.atom, atoms.Register):
                     ## SKIP removing PUT(rsp) for huffman binary... cdcel ... all args on stack causing probs with decompiler
                     if keep_sp_changes_dae:
@@ -5023,7 +5030,10 @@ class VMDeobfuscation(Analysis):
                             continue
                     try:
                         vs: 'MultiValues' = merged_live_defs.registers.load(d.atom.reg_offset, size=d.atom.size)
-                    except:
+                    except SimMemoryMissingError:
+                        vs = None
+                        reg_absent = True
+                    except Exception:
                         vs = None
                 # ##THIS IS AN UNSAFE SIMPLIFICATION, ASSUMES ALL CONSTANT ADDRESSES HAVE BEEN PROPAGATED CORRECTLY AND COMPLETELY
                 elif self.allow_global_mem_simplifications and isinstance(d.atom, atoms.MemoryLocation) and \
@@ -5035,16 +5045,19 @@ class VMDeobfuscation(Analysis):
                         vs: 'MultiValues' = merged_live_defs.memory.load(d.atom.addr, size=d.atom.size,
                                                                               endness=d.atom.endness)
                     except SimMemoryMissingError:
+                        # Deliberately not treated like an absent register: a missing memory
+                        # location says nothing about aliasing, so stay conservative here.
                         vs = None
                 else:
                     continue
-                if vs is None:
+                if vs is None and not reg_absent:
                     continue
                 defs_ = set()
 
-                for values in vs.values():
-                    for value in values:
-                        defs_.update(merged_live_defs.extract_defs(value))
+                if vs is not None:
+                    for values in vs.values():
+                        for value in values:
+                            defs_.update(merged_live_defs.extract_defs(value))
 
                 if d not in defs_:
                     dead_defs_locs.add(d.codeloc)
