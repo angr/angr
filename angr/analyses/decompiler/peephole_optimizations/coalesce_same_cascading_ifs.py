@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from angr.ailment.block import Block
 from angr.ailment.expression import ITE
 from angr.ailment.statement import ConditionalJump
 
@@ -12,7 +13,7 @@ class CoalesceSameCascadingIfs(PeepholeOptimizationStmtBase):
     NAME = "Coalescing cascading If constructs"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(self, stmt: ConditionalJump, stmt_idx: int, block: Block, **kwargs):
         cond = stmt.condition
         true_target_in = stmt.true_target
 

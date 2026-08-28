@@ -234,4 +234,4 @@ class ARMCmpF(PeepholeOptimizationExprBase):
 
             if cmpf_0 is not None and cmpf_1 is not None and cmpf_0 == cmpf_1:
                 return True, cmpf_0
-        return None
+        return False, None

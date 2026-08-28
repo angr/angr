@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const
 from angr.ailment.statement import ConditionalJump
 
@@ -16,7 +17,7 @@ class CmpORDRewriter(PeepholeOptimizationStmtBase):
     NAME = "CmpORD rewriter"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(self, stmt: ConditionalJump, stmt_idx: int, block: Block, **kwargs):
         # example:
         # 05 | 0x4011d4 | if ((((gpr9<4> CmpORD 0x0<32>) & 0x2<32>) != 0x0<32>)) { Goto ... } else { Goto ... }
         # or

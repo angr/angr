@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from angr.ailment.block import Block
 from angr.ailment.expression import ITE, UnaryOp
 from angr.ailment.statement import ConditionalJump
 
@@ -12,7 +13,7 @@ class RemoveEmptyIfBody(PeepholeOptimizationStmtBase):
     NAME = "Remove empty If bodies"
     stmt_classes = (ConditionalJump,)
 
-    def optimize(self, stmt: ConditionalJump, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(self, stmt: ConditionalJump, stmt_idx: int, block: Block, **kwargs):
         cond_in = stmt.condition
         true_target_in = stmt.true_target
         false_target_in = stmt.false_target
