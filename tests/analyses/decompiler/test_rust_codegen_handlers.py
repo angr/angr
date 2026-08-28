@@ -6,6 +6,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import os
 import unittest
+from unittest import mock
 
 import angr
 from angr.ailment import Manager
@@ -17,12 +18,15 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import CAS, DirtyStatement, Jump, WeakAssignment
+from angr.ailment.statement import CAS, DirtyStatement, Jump, Store, WeakAssignment
+from angr.analyses.decompiler.structured_codegen.rust import RustExpression, RustStructuredCodeGenerator
 from angr.analyses.decompiler.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     SequenceNode,
 )
+from angr.rust.sim_type import RustSimTypeInt, RustSimTypeStrRef
+from angr.sim_type import SimTypeBottom
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -176,6 +180,79 @@ class TestRustCodegenHandlers(unittest.TestCase):
         assert PLACEHOLDER not in text
         # the bit-insertions that used to be dropped are rendered now
         assert "_INSERT(" in text
+
+
+class TestRustStoreWidth(unittest.TestCase):
+    """A store's emitted Rust has to write as many bytes as the AIL store writes."""
+
+    @classmethod
+    def setUpClass(cls):
+        # any binary will do: we only need a constructed Rust code generator to drive the handler with
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
+        dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust", fail_fast=True)
+        assert isinstance(dec.codegen, RustStructuredCodeGenerator)
+        cls.codegen = dec.codegen
+
+    def _store(self, idx: int, value_type, value_bits: int, size: int):
+        # the destination is what _access turns into the dereference, so its type is the width written
+        data = Const(idx, 0, value_bits, type=value_type)
+        # an address inside no section, so the constant handler cannot retype it as a string or a function pointer
+        stmt = Store(idx, Const(idx, 0x7FFF00000000, 64), data, size, "Iend_LE")
+        return self.codegen._handle(stmt, is_expr=False)
+
+    def test_value_typed_narrower_than_the_store(self):
+        assert self._store(1, RustSimTypeInt(size=32, signed=False), 32, 8).lhs.type.size == 64
+
+    def test_value_typed_wider_than_the_store(self):
+        assert self._store(2, RustSimTypeInt(size=64, signed=False), 64, 1).lhs.type.size == 8
+
+    def test_value_with_no_inferred_type(self):
+        # SimTypeBottom carries no size at all, so the store width is the only information there is
+        store = self._store(3, SimTypeBottom(), 128, 16)
+        assert store.lhs.type.size == 128
+        # Rust has a native 128-bit integer, so the repaired width is spelled directly
+        assert "u128" in _render(store)
+
+    def test_value_typed_correctly_is_left_alone(self):
+        assert self._store(4, RustSimTypeInt(size=64, signed=False), 64, 8).lhs.type.size == 64
+
+    def test_aggregate_value_is_not_cast(self):
+        # a scalar cast cannot change the width of a &str, so the mismatch is reported, not "repaired"
+        store = self._store(5, RustSimTypeStrRef(), 128, 8)
+        assert store.lhs.type.size == 128
+
+    def test_value_with_no_type_at_all(self):
+        """A value whose type comes back None must not take the handler down.
+
+        RustIndexedVariable and RustBinaryOp both return None for a type they cannot work out.
+        Guarding only the diagnostic, as the C backend does, moves the crash from the diagnostic
+        into _access ("no type whatsoever for dereference"), so the value is retyped instead.
+        """
+
+        class Untyped(RustExpression):
+            """stands in for any Rust expression whose type comes back None"""
+
+            __slots__ = ()
+
+            @property
+            def type(self):
+                return None
+
+            def c_repr_chunks(self, indent=0, asexpr=False):
+                yield "UNTYPED", self
+
+        untyped = Untyped(codegen=self.codegen)
+        real_handle = self.codegen._handle
+
+        def handle(node, **kwargs):
+            # the AIL layer does not preserve object identity, so key on the constant's value
+            return untyped if getattr(node, "value", None) == 0xD1CE else real_handle(node, **kwargs)
+
+        stmt = Store(6, Const(6, 0x7FFF00000000, 64), Const(6, 0xD1CE, 64), 8, "Iend_LE")
+        with mock.patch.object(self.codegen, "_handle", handle):
+            store = RustStructuredCodeGenerator._handle_Stmt_Store(self.codegen, stmt)
+        assert store.lhs.type.size == 64
 
 
 if __name__ == "__main__":
