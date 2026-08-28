@@ -29,17 +29,21 @@ from .typeconsts import (
     Int,
     Int8,
     Int16,
+    Int24,
     Int32,
     Int64,
     Int128,
     Int256,
     Int512,
     Pointer,
+    Pointer16,
+    Pointer24,
     Pointer32,
     Pointer64,
     RustEnum,
     SInt8,
     SInt16,
+    SInt24,
     SInt32,
     SInt64,
     Struct,
@@ -47,9 +51,11 @@ from .typeconsts import (
     TypeConstant,
     UInt8,
     UInt16,
+    UInt24,
     UInt32,
     UInt64,
     int_type,
+    pointer_type,
 )
 from .typevars import (
     Add,
@@ -89,11 +95,14 @@ Int256_ = Int256()
 Int128_ = Int128()
 Int64_ = Int64()
 Int32_ = Int32()
+Int24_ = Int24()
 Int16_ = Int16()
 Int8_ = Int8()
 Bottom_ = BottomType()
-Pointer64_ = Pointer64()
+Pointer16_ = Pointer16()
+Pointer24_ = Pointer24()
 Pointer32_ = Pointer32()
+Pointer64_ = Pointer64()
 Struct_ = Struct()
 Array_ = Array()
 Float_ = Float()
@@ -105,6 +114,8 @@ SInt8_ = SInt8()
 UInt8_ = UInt8()
 SInt16_ = SInt16()
 UInt16_ = UInt16()
+SInt24_ = SInt24()
+UInt24_ = UInt24()
 SInt32_ = SInt32()
 UInt32_ = UInt32()
 SInt64_ = SInt64()
@@ -117,6 +128,7 @@ PRIMITIVE_TYPES = {
     Int_,
     Int8_,
     Int16_,
+    Int24_,
     Int32_,
     Int64_,
     Int128_,
@@ -126,10 +138,14 @@ PRIMITIVE_TYPES = {
     UInt8_,
     SInt16_,
     UInt16_,
+    SInt24_,
+    UInt24_,
     SInt32_,
     UInt32_,
     SInt64_,
     UInt64_,
+    Pointer16_,
+    Pointer24_,
     Pointer32_,
     Pointer64_,
     Bottom_,
@@ -198,6 +214,7 @@ BASE_LATTICE_64_g.add_edge(Int_, Int256_)
 BASE_LATTICE_64_g.add_edge(Int_, Int128_)
 BASE_LATTICE_64_g.add_edge(Int_, Int64_)
 BASE_LATTICE_64_g.add_edge(Int_, Int32_)
+BASE_LATTICE_64_g.add_edge(Int_, Int24_)
 BASE_LATTICE_64_g.add_edge(Int_, Int16_)
 BASE_LATTICE_64_g.add_edge(Int_, Int8_)
 BASE_LATTICE_64_g.add_edge(Int512_, Bottom_)
@@ -213,6 +230,11 @@ BASE_LATTICE_64_g.add_edge(Int16_, SInt16_)
 BASE_LATTICE_64_g.add_edge(Int16_, UInt16_)
 BASE_LATTICE_64_g.add_edge(SInt16_, Bottom_)
 BASE_LATTICE_64_g.add_edge(UInt16_, Bottom_)
+# Int24: signed/unsigned children
+BASE_LATTICE_64_g.add_edge(Int24_, SInt24_)
+BASE_LATTICE_64_g.add_edge(Int24_, UInt24_)
+BASE_LATTICE_64_g.add_edge(SInt24_, Bottom_)
+BASE_LATTICE_64_g.add_edge(UInt24_, Bottom_)
 # Int32: signed/unsigned children + Enum, Fd
 BASE_LATTICE_64_g.add_edge(Int32_, SInt32_)
 BASE_LATTICE_64_g.add_edge(Int32_, UInt32_)
@@ -239,6 +261,7 @@ BASE_LATTICE_32_g.add_edge(Int_, Int256_)
 BASE_LATTICE_32_g.add_edge(Int_, Int128_)
 BASE_LATTICE_32_g.add_edge(Int_, Int64_)
 BASE_LATTICE_32_g.add_edge(Int_, Int32_)
+BASE_LATTICE_32_g.add_edge(Int_, Int24_)
 BASE_LATTICE_32_g.add_edge(Int_, Int16_)
 BASE_LATTICE_32_g.add_edge(Int_, Int8_)
 BASE_LATTICE_32_g.add_edge(Int512_, Bottom_)
@@ -254,6 +277,11 @@ BASE_LATTICE_32_g.add_edge(Int16_, SInt16_)
 BASE_LATTICE_32_g.add_edge(Int16_, UInt16_)
 BASE_LATTICE_32_g.add_edge(SInt16_, Bottom_)
 BASE_LATTICE_32_g.add_edge(UInt16_, Bottom_)
+# Int24: signed/unsigned children
+BASE_LATTICE_32_g.add_edge(Int24_, SInt24_)
+BASE_LATTICE_32_g.add_edge(Int24_, UInt24_)
+BASE_LATTICE_32_g.add_edge(SInt24_, Bottom_)
+BASE_LATTICE_32_g.add_edge(UInt24_, Bottom_)
 # Int32: signed/unsigned children + Pointer32, Enum, Fd
 BASE_LATTICE_32_g.add_edge(Int32_, SInt32_)
 BASE_LATTICE_32_g.add_edge(Int32_, UInt32_)
@@ -272,7 +300,24 @@ BASE_LATTICE_32_g.add_edge(SInt64_, Bottom_)
 BASE_LATTICE_32_g.add_edge(UInt64_, Bottom_)
 BASE_LATTICE_32 = TypeLattice(BASE_LATTICE_32_g)
 
+# lattice for 16-bit binaries: the same scalar hierarchy, with the pointer branch moved under Int16 so that a pointer
+# still unifies with an integer of its own width.
+BASE_LATTICE_16_g = BASE_LATTICE_32_g.copy()
+BASE_LATTICE_16_g.remove_node(Pointer32_)
+BASE_LATTICE_16_g.add_edge(Int16_, Pointer16_)
+BASE_LATTICE_16_g.add_edge(Pointer16_, Bottom_)
+BASE_LATTICE_16 = TypeLattice(BASE_LATTICE_16_g)
+
+# lattice for 24-bit binaries, e.g. AVR8 with extended (24-bit) code addresses
+BASE_LATTICE_24_g = BASE_LATTICE_32_g.copy()
+BASE_LATTICE_24_g.remove_node(Pointer32_)
+BASE_LATTICE_24_g.add_edge(Int24_, Pointer24_)
+BASE_LATTICE_24_g.add_edge(Pointer24_, Bottom_)
+BASE_LATTICE_24 = TypeLattice(BASE_LATTICE_24_g)
+
 BASE_LATTICES = {
+    16: BASE_LATTICE_16,
+    24: BASE_LATTICE_24,
     32: BASE_LATTICE_32,
     64: BASE_LATTICE_64,
 }
@@ -658,8 +703,8 @@ class SimpleSolver:
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
         tv_manager: TypeVariableManager | None = None,
     ):
-        if bits not in (32, 64):
-            raise ValueError(f"Pointer size {bits} is not supported. Expect 32 or 64.")
+        if bits not in BASE_LATTICES:
+            raise ValueError(f"Pointer size {bits} is not supported. Expect one of {sorted(BASE_LATTICES)}.")
 
         self.bits = bits
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
@@ -1882,7 +1927,9 @@ class SimpleSolver:
             return True
         if isinstance(typevar, Array) and Array_ in typevar_set:
             return SimpleSolver._typevar_inside_set(typevar.element, typevar_set)
-        if isinstance(typevar, Pointer) and (Pointer32_ in typevar_set or Pointer64_ in typevar_set):
+        if isinstance(typevar, Pointer) and any(
+            pointer in typevar_set for pointer in (Pointer16_, Pointer24_, Pointer32_, Pointer64_)
+        ):
             return SimpleSolver._typevar_inside_set(typevar.basetype, typevar_set)
         return False
 
@@ -2002,7 +2049,7 @@ class SimpleSolver:
         cls, t1: SimType, t2: SimType, arch: archinfo.Arch, lattices: dict[int, TypeLattice], unit: TypeConstant
     ) -> SimType:
         if arch.bits not in lattices:
-            raise ValueError(f"Pointer size {arch.bits} is not supported. Expect 32 or 64.")
+            raise ValueError(f"Pointer size {arch.bits} is not supported. Expect one of {sorted(lattices)}.")
 
         translator = angr.analyses.typehoon.TypeTranslator(arch)
         tc1 = translator.simtype2tc(t1)
@@ -2013,10 +2060,8 @@ class SimpleSolver:
 
     @staticmethod
     def abstract(t: TypeConstant | TypeVariable) -> TypeConstant | TypeVariable:
-        if isinstance(t, Pointer32):
-            return Pointer32()
-        if isinstance(t, Pointer64):
-            return Pointer64()
+        if isinstance(t, (Pointer16, Pointer24, Pointer32, Pointer64)):
+            return type(t)()
         if isinstance(t, Enum):
             return Enum_
         return t
@@ -2353,12 +2398,8 @@ class SimpleSolver:
 
         return paths
 
-    def _pointer_class(self) -> type[Pointer32 | Pointer64]:
-        if self.bits == 32:
-            return Pointer32
-        if self.bits == 64:
-            return Pointer64
-        raise NotImplementedError(f"Unsupported bits {self.bits}")
+    def _pointer_class(self) -> type[Pointer16 | Pointer24 | Pointer32 | Pointer64]:
+        return pointer_type(self.bits)
 
     @staticmethod
     def dump_constraint_graph(graph: networkx.DiGraph, filename: str) -> None:
