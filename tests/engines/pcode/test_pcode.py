@@ -8,6 +8,7 @@ from unittest import TestCase, main
 
 import archinfo
 import pyvex
+from pyvex.expr import Const
 
 import angr
 from angr.block import Block
@@ -254,6 +255,63 @@ class TestPcodeEngine(TestCase):
         other_engine, other_lifter = seen[0]
         assert other_engine is not proj.factory.default_engine  # the factory really did hand out a second engine
         assert other_lifter is main_lifter
+
+    def test_lift_architecture_whose_word_is_not_a_power_of_two(self):
+        """
+        A SLEIGH language may declare a word size VEX has no named constant for: the PIC and dsPIC
+        families are 24-bit. Lifting one used to raise KeyError on the width itself.
+        """
+        for language in ("dsPIC33F:LE:24:default", "PIC-24E:LE:24:default"):
+            with self.subTest(language=language):
+                arch = archinfo.ArchPcode(language)
+                assert arch.bits == 24
+                project = angr.load_shellcode(
+                    b"\x00" * 6, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode
+                )
+                irsb = project.factory.block(0x1000).vex
+                assert isinstance(irsb.next, Const)
+                assert irsb.next.con.__class__.__name__ == f"U{arch.bits}"
+
+    def test_narrow_arch_jump_targets(self):
+        """
+        The lifter builds a block's jump target at three separate sites, one reached only by an
+        undecodable block and one only by a fallthrough. Extended AVR8 addresses are 24 bits wide.
+        """
+        arch = archinfo.ArchPcode("avr8:LE:16:extended")
+        assert arch.bits == 24
+
+        p = angr.load_shellcode(
+            bytes.fromhex("01e00895"),  # ldi r16, 1 ; ret
+            arch=arch,
+            load_address=0x100,
+            engine=angr.engines.UberEnginePcode,
+        )
+        assert p.factory.block(0x100).vex.jumpkind == "Ijk_Ret"
+
+        undecodable = angr.load_shellcode(
+            b"\xff\xff", arch=arch, load_address=0x100, engine=angr.engines.UberEnginePcode
+        )
+        block = undecodable.factory.block(0x100).vex
+        assert block.jumpkind == "Ijk_NoDecode"
+        assert isinstance(block.next, Const)
+        assert block.next.con.value == 0x100
+        assert block.next.con.type == "Ity_I24"
+
+        fallthrough = angr.load_shellcode(
+            bytes.fromhex("01e012e00895"),  # ldi r16, 1 ; ldi r17, 2 ; ret
+            arch=arch,
+            load_address=0x100,
+            engine=angr.engines.UberEnginePcode,
+        )
+        block = fallthrough.factory.block(0x100, num_inst=1).vex
+        assert block.jumpkind == "Ijk_Boring"
+        assert isinstance(block.next, Const)
+        assert block.next.con.value == 0x102
+        assert block.next.con.type == "Ity_I24"
+
+        state = fallthrough.factory.blank_state(addr=0x100)
+        successors = fallthrough.factory.successors(state, num_inst=1).successors
+        assert [(s.solver.eval(s.regs.ip), s.regs.ip.size()) for s in successors] == [(0x102, 24)]
 
 
 if __name__ == "__main__":
