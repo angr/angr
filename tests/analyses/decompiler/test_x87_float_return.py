@@ -7,6 +7,8 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os.path
 import unittest
 
+import cle
+
 import angr
 from angr.calling_conventions import SimCCCdecl
 from angr.knowledge_plugins.functions.function import PrototypeSource
@@ -49,7 +51,9 @@ class TestX87FloatReturn(unittest.TestCase):
         # hard-coded; a full scan of this library costs minutes and none of it is needed here.
         proj = angr.Project(os.path.join(test_location, "i386", "libstdc++.so.6"), auto_load_libs=False)
         wanted = ("floor", "frexpl", "ceil")
-        plt = {name: addr for addr, name in proj.loader.main_object.reverse_plt.items() if name in wanted}
+        main_object = proj.loader.main_object
+        assert isinstance(main_object, cle.MetaELF)
+        plt = {name: addr for addr, name in main_object.reverse_plt.items() if name in wanted}
         assert set(plt) == set(wanted), f"fixture no longer exposes these PLT stubs: {sorted(plt)}"
 
         regions = [(addr, addr + 0x10) for addr in plt.values()]
@@ -59,6 +63,7 @@ class TestX87FloatReturn(unittest.TestCase):
         for name, addr in sorted(plt.items()):
             func = cfg.functions.get_by_addr(addr)
             assert func.name == name and func.is_plt
+            assert func.prototype is not None
             assert isinstance(func.prototype.returnty, SimTypeDouble)
             self._assert_reported_not_raised(proj, cfg, func, "phoenix")
 
@@ -77,7 +82,9 @@ class TestX87FloatReturn(unittest.TestCase):
             func = cfg.functions.function(name=func_name)
             assert func is not None
             func.calling_convention = SimCCCdecl(proj.arch)
-            func.prototype = SimTypeFunction([], returnty()).with_arch(proj.arch)
+            prototype = SimTypeFunction([], returnty()).with_arch(proj.arch)
+            assert isinstance(prototype, SimTypeFunction)
+            func.prototype = prototype
             func.prototype_source = PrototypeSource.USER
             for structurer in ("phoenix", "sailr"):
                 text = self._assert_reported_not_raised(proj, cfg, func, structurer)
