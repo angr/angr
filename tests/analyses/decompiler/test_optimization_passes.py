@@ -318,13 +318,14 @@ class TestDeadblockRemover(unittest.TestCase):
         assert dec.clinic.entry_node_addr == (self.ENTRY_ADDR, None)
         assert dec.clinic.entry_node_addr[0] != func.addr
 
+        assert dec.clinic.graph is not None
         block_addrs = {block.addr for block in dec.clinic.graph}
         # DeadblockRemover really ran: the block behind the opaque predicate is gone
         assert self.DEAD_ADDR not in block_addrs
         # ... and it left the entry block alone
         assert self.ENTRY_ADDR in block_addrs
 
-        assert dec.codegen is not None
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         assert func.name in dec.codegen.text
 
 
