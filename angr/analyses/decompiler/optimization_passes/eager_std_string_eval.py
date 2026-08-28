@@ -8,6 +8,7 @@ from angr.ailment import Block, Statement
 from angr.ailment.block_walker import AILBlockRewriter
 from angr.ailment.expression import Call, Const, Load, UnaryOp, VirtualVariable
 from angr.ailment.statement import WeakAssignment
+from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.sim_type import SimType, SimTypeChar, SimTypePointer
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -55,7 +56,7 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
                         if s is not None:
                             idx = self.kb.custom_strings.allocate(s)
                             const = Const(self.manager.next_atom(), idx, expr.bits, **expr.tags)
-                            self.manager.variable_map.set_custom_string(const)
+                            variable_map_of(self.manager).set_custom_string(const)
                             return const
 
         return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
@@ -164,7 +165,7 @@ class EagerStdStringEvalPass(OptimizationPass):
             if isinstance(stmt.src, Load) and isinstance(stmt.src.addr, Const):
                 src_ty = stmt.tags["type"]["src"]
                 if self._is_std_string_type_or_charptr(src_ty):
-                    if isinstance(stmt.src.addr, Const) and self.manager.variable_map.custom_string(stmt.src.addr):
+                    if isinstance(stmt.src.addr, Const) and variable_map_of(self.manager).custom_string(stmt.src.addr):
                         try:
                             s = self.kb.custom_strings[stmt.src.addr.value_int]
                         except KeyError:

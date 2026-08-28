@@ -9,6 +9,7 @@ from angr.ailment.statement import Assignment, SideEffectStatement, Statement
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
 
 WIN64_REG_ARGS = {
     archinfo.ArchAMD64().registers["rcx"][0],
@@ -78,7 +79,7 @@ class StringObfType3Rewriter(OptimizationPass):
         else:
             old_call_expr: Call = old_stmt.expr
         str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-        self.manager.variable_map.set_custom_string(str_const)
+        variable_map_of(self.manager).set_custom_string(str_const)
         new_call = Call(
             old_call_expr.idx,
             "init_str",
