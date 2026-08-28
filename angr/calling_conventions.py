@@ -1461,6 +1461,43 @@ class SimCCMicrosoftFastcall(SimCC):
             locs_size += locs[-1].size
         return refine_locs_with_struct_type(self.arch, locs, arg_type)
 
+    STRUCT_RETURN_THRESHOLD = 64
+
+    def return_val(self, ty, perspective_returned=False):
+        # __fastcall changes how arguments are passed, not how values are returned: on Windows x86 an
+        # aggregate of at most eight bytes comes back in EAX:EDX and a larger one is written through a
+        # hidden pointer, exactly as for __cdecl. OVERFLOW_RETURN_VAL above already states this, but
+        # without an override the base class refuses every aggregate return type.
+        #
+        # The hidden pointer's location is taken from next_arg rather than assumed, because it is the
+        # call's first argument and __fastcall passes that in ECX -- not in the stack slot that
+        # SimCCCdecl.return_val hard-codes for its own convention. That is why this cannot simply
+        # inherit or delegate to the cdecl implementation.
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        if not isinstance(ty, SimStruct):
+            return super().return_val(ty, perspective_returned)
+
+        if ty.size > self.STRUCT_RETURN_THRESHOLD:
+            byte_size = ty.size // self.arch.byte_width
+            referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+            referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
+            if perspective_returned:
+                ptr_loc = self.RETURN_VAL
+            else:
+                ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()).with_arch(self.arch))
+            assert ptr_loc is not None
+            return SimReferenceArgument(ptr_loc, referenced_loc)
+
+        return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
+
+    def return_in_implicit_outparam(self, ty):
+        # Kept consistent with return_val: when the aggregate comes back through a hidden pointer that
+        # pointer is the first argument, so it must consume ECX and push the declared arguments along.
+        if isinstance(ty, SimTypeBottom):
+            return False
+        return isinstance(ty, SimStruct) and ty.size > self.STRUCT_RETURN_THRESHOLD
+
 
 class MicrosoftAMD64ArgSession(ArgSession):
     pass
