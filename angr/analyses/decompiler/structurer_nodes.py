@@ -144,13 +144,18 @@ class SequenceNode(BaseNode):
 
 class CodeNode(BaseNode):
     __slots__ = (
+        "addr",
+        "idx",
         "node",
         "reaching_condition",
     )
 
-    def __init__(self, node, reaching_condition):
+    def __init__(self, node, reaching_condition, addr: int | None = None, idx: int | None = None):
         self.node = node
         self.reaching_condition = reaching_condition
+        # addr and idx are captured at construction time so that they do not change when self.node is replaced
+        self.addr = addr if addr is not None else getattr(node, "addr", None)
+        self.idx = idx if idx is not None else getattr(node, "idx", None)
 
     def __repr__(self):
         if self.addr is not None:
@@ -158,18 +163,6 @@ class CodeNode(BaseNode):
                 return f"<CodeNode {self.addr:#x}.{self.idx}>"
             return f"<CodeNode {self.addr:#x}>"
         return f"<CodeNode {self.node!r}>"
-
-    @property
-    def addr(self):
-        if hasattr(self.node, "addr"):
-            return self.node.addr
-        return None
-
-    @property
-    def idx(self):
-        if hasattr(self.node, "idx"):
-            return self.node.idx
-        return None
 
     def dbg_repr(self, indent=0):
         indent_str = indent * " "
@@ -191,7 +184,7 @@ class CodeNode(BaseNode):
         return s
 
     def copy(self):
-        return CodeNode(self.node, self.reaching_condition)
+        return CodeNode(self.node, self.reaching_condition, addr=self.addr, idx=self.idx)
 
 
 class ConditionNode(BaseNode):
@@ -263,8 +256,8 @@ class CascadingConditionNode(BaseNode):
 
 class LoopNode(BaseNode):
     __slots__ = (
-        "_addr",
         "_continue_addr",
+        "addr",
         "condition",
         "initializer",
         "iterator",
@@ -287,7 +280,8 @@ class LoopNode(BaseNode):
         self.sequence_node: SequenceNode = sequence_node
         self.initializer: ailment.Stmt.Assignment | None = initializer
         self.iterator: ailment.Stmt.Assignment | None = iterator
-        self._addr: int | None = addr
+        # addr is captured at construction time so that it does not change when self.sequence_node is replaced
+        self.addr: int | None = addr if addr is not None else getattr(sequence_node, "addr", None)
         self._continue_addr: int | None = continue_addr
 
     def copy(self):
@@ -295,17 +289,11 @@ class LoopNode(BaseNode):
             self.sort,
             self.condition,
             self.sequence_node,
-            addr=self._addr,
+            addr=self.addr,
             continue_addr=self._continue_addr,
             initializer=self.initializer,
             iterator=self.iterator,
         )
-
-    @property
-    def addr(self):
-        if self._addr is None:
-            return self.sequence_node.addr
-        return self._addr
 
     @property
     def continue_addr(self):
