@@ -7,7 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import unittest
 
 from angr import ailment
-from angr.analyses.decompiler.structurer_nodes import CodeNode, LoopNode, SequenceNode
+from angr.analyses.decompiler.structurer_nodes import BreakNode, CodeNode, LoopNode, SequenceNode
 
 
 class TestStructurerNodeAddresses(unittest.TestCase):
@@ -40,6 +40,47 @@ class TestStructurerNodeAddresses(unittest.TestCase):
         assert (loop.addr, loop.continue_addr) == (0x400000, 0x400080)
         copied = loop.copy()
         assert (copied.addr, copied.continue_addr) == (0x400000, 0x400080)
+
+
+class TestStructurerNodeHashing(unittest.TestCase):
+    """Structurer nodes must not fall back to object.__hash__: an id()-derived hash makes the iteration order of
+    RegionOverlay._members (and every other set of structurer nodes) differ between runs, which in turn changes the
+    decompiler output. See the region member ordering in RecursiveStructurer._structure_overlay_tree."""
+
+    def test_hash_does_not_depend_on_object_identity(self):
+        addrs = [0x400000 + i * 0x10 for i in range(64)]
+        first = [n.addr for n in {SequenceNode(addr, nodes=[]) for addr in addrs}]
+        second = [n.addr for n in {SequenceNode(addr, nodes=[]) for addr in addrs}]
+        assert first == second
+
+    def test_hash_is_stable_under_in_place_editing(self):
+        seq = SequenceNode(0x400000, nodes=[])
+        loop = LoopNode("while", None, seq)
+        code = CodeNode(seq, None)
+        members = {seq, loop, code}
+        hashes = [hash(seq), hash(loop), hash(code)]
+
+        seq.add_node(ailment.Block(0x400010, 0))
+        seq.addr = 0x400010
+        loop.sequence_node = SequenceNode(0x400020, nodes=[])
+        code.node = SequenceNode(0x400020, nodes=[])
+
+        assert [hash(seq), hash(loop), hash(code)] == hashes
+        assert all(node in members for node in (seq, loop, code))
+
+    def test_distinct_nodes_sharing_an_address_stay_distinct(self):
+        a = SequenceNode(0x400000, nodes=[])
+        b = SequenceNode(0x400000, nodes=[])
+        assert a != b
+        assert len({a, b}) == 2
+
+        d = {a: "a", b: "b"}
+        assert len(d) == 2
+        assert d[a] == "a"
+        assert d[b] == "b"
+
+    def test_node_type_participates_in_the_hash(self):
+        assert hash(SequenceNode(0x400000, nodes=[])) != hash(BreakNode(0x400000, None))
 
 
 if __name__ == "__main__":

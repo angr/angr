@@ -72,7 +72,18 @@ class MultiNode:
 
 
 class BaseNode:
-    __slots__ = ()
+    __slots__ = ("_hash",)
+
+    def __hash__(self):
+        # object.__hash__ is derived from id(), which makes the iteration order of any set or dict of structurer nodes
+        # differ between runs. stable_hash() is both address- and seed-independent. the result is cached so that
+        # editing a node in place (or replacing its children) cannot move it inside a set.
+        try:
+            return self._hash
+        except AttributeError:
+            h = stable_hash((type(self), getattr(self, "addr", None), getattr(self, "idx", None)))
+            self._hash = h
+            return h
 
     @staticmethod
     def test_empty_node(node):
