@@ -64,6 +64,54 @@ _PEEPHOLE_OPTIMIZATIONS_TYPE = (
 )
 
 
+class ConstantCollector(SequenceWalker):
+    """
+    Collect the values of all integer constants in a structured sequence, including the constants inside expressions
+    and statements that structuring lifts out of blocks and onto the nodes themselves.
+    """
+
+    # pylint:disable=unused-argument
+
+    def __init__(self):
+        self.const_values: set[int] = set()
+        self._block_viewer = ailment.AILBlockViewer()
+        # updating the default handler table keeps the handlers that descend into subexpressions; passing
+        # expr_handlers to the constructor would replace them, and no constant below the top level would be reached
+        self._block_viewer.expr_handlers[ailment.Expr.Const] = self._handle_Const
+        super().__init__(handlers={ailment.Block: self._handle_Block}, update_seqnode_in_place=False)
+
+    def _handle(self, node, **kwargs):
+        # a node's condition, switch expression, loop initializer and loop iterator are AIL expressions and
+        # statements rather than nodes, and the base walker has no handler for them
+        if isinstance(node, ailment.Expr.Expression):
+            self._block_viewer.walk_expression(node)
+            return None
+        if isinstance(node, ailment.Stmt.Statement):
+            self._block_viewer.walk_statement(node)
+            return None
+        return super()._handle(node, **kwargs)
+
+    #
+    # Handlers
+    #
+
+    def _handle_Const(self, expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):
+        if isinstance(expr.value, int):
+            self.const_values.add(expr.value)
+
+    def _handle_Block(self, block: ailment.Block, **kwargs):
+        self._block_viewer.walk(block)
+
+    def _handle_CascadingCondition(self, node, **kwargs):
+        for condition, _ in node.condition_and_nodes:
+            self._block_viewer.walk_expression(condition)
+        return super()._handle_CascadingCondition(node, **kwargs)
+
+    def _handle_ConditionalBreak(self, node, **kwargs):
+        self._block_viewer.walk_expression(node.condition)
+        return super()._handle_ConditionalBreak(node, **kwargs)
+
+
 class Decompiler(Analysis):
     """
     The decompiler analysis.
@@ -919,30 +967,11 @@ class Decompiler(Analysis):
     def find_data_references_and_update_memory_data(self, seq_node: SequenceNode):
         assert self._cfg is not None
 
-        const_values: set[int] = set()
-
-        def _handle_Const(expr_idx: int, expr: ailment.Expr.Const, *args, **kwargs):  # pylint:disable=unused-argument
-            if isinstance(expr.value, int):
-                const_values.add(expr.value)
-
-        def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
-            block_walker = ailment.AILBlockViewer(
-                expr_handlers={
-                    ailment.Expr.Const: _handle_Const,
-                }
-            )
-            block_walker.walk(block)
-
-        seq_walker = SequenceWalker(
-            handlers={
-                ailment.Block: _handle_block,
-            },
-            update_seqnode_in_place=False,
-        )
-        seq_walker.walk(seq_node)
+        collector = ConstantCollector()
+        collector.walk(seq_node)
 
         added_memory_data_addrs = []
-        for data_addr in const_values:
+        for data_addr in collector.const_values:
             if data_addr in self._cfg.memory_data:
                 continue
             if not self.project.loader.find_loadable_containing(data_addr):
