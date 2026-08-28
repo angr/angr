@@ -1257,6 +1257,35 @@ class Clinic(Analysis, Serializable):
         :return: None
         """
 
+        recover_current_function = (
+            self.function.prototype is None or self.function.calling_convention is None
+        ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER
+        old_current_prototype = self.function.prototype
+        old_current_prototype_libname = self.function.prototype_libname
+        old_current_prototype_source = self.function.prototype_source
+        old_current_calling_convention = self.function.calling_convention
+        old_current_ran_cca = self.function.ran_cca
+
+        def restore_current_function() -> None:
+            self.function.prototype = old_current_prototype
+            self.function.prototype_libname = old_current_prototype_libname
+            self.function.prototype_source = old_current_prototype_source
+            self.function.calling_convention = old_current_calling_convention
+            self.function.ran_cca = old_current_ran_cca
+
+        if recover_current_function:
+            try:
+                self._recover_current_function_calling_convention(func_graph)
+                self._recover_callee_calling_conventions(func_graph)
+            finally:
+                restore_current_function()
+
+            # Recover it again after the callees so their prototypes can refine the result.
+            self._recover_current_function_calling_convention(func_graph)
+        else:
+            self._recover_callee_calling_conventions(func_graph)
+
+    def _recover_callee_calling_conventions(self, func_graph=None) -> None:
         attempted_funcs: set[int] = set()
 
         for node in self.function.transition_graph:
@@ -1394,30 +1423,27 @@ class Clinic(Analysis, Serializable):
                                     **last_stmt.tags,
                                 )
 
-        # finally, recover the calling convention of the current function
+    def _recover_current_function_calling_convention(self, func_graph) -> None:
+        old_proto = self.function.prototype
+        old_source = self.function.prototype_source
+
+        self.function.prototype = None  # clear it
+        self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
+        self.project.analyses.CompleteCallingConventions(
+            fail_fast=self._fail_fast,  # type: ignore
+            prioritize_func_addrs=[self.function.addr],
+            skip_other_funcs=True,
+            skip_signature_matched_functions=False,
+            func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
+        )
+
         if (
-            self.function.prototype is None or self.function.calling_convention is None
-        ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER:
-            old_proto = self.function.prototype
-            old_source = self.function.prototype_source
-
-            self.function.prototype = None  # clear it
-            self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
-            self.project.analyses.CompleteCallingConventions(
-                fail_fast=self._fail_fast,  # type: ignore
-                prioritize_func_addrs=[self.function.addr],
-                skip_other_funcs=True,
-                skip_signature_matched_functions=False,
-                func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
-            )
-
-            if (
-                old_source >= PrototypeSource.CCA_LOW
-                and old_proto is not None
-                and self.function.prototype is not None
-                and (isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None)
-            ):
-                self.function.prototype.returnty = old_proto.returnty
+            old_source >= PrototypeSource.CCA_LOW
+            and old_proto is not None
+            and self.function.prototype is not None
+            and (isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None)
+        ):
+            self.function.prototype.returnty = old_proto.returnty
 
     @timethis
     def _track_stack_pointers(self):

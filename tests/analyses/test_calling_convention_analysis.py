@@ -8,10 +8,14 @@ import os
 import time
 import unittest
 from functools import wraps
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest.mock import patch
 
 import archinfo
 
 import angr
+from angr.analyses.calling_convention.calling_convention import CallingConventionAnalysis, CallSiteFact
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -23,7 +27,12 @@ from angr.calling_conventions import (
     SimRegArg,
     SimStackArg,
 )
+from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.errors import AngrRuntimeError
+from angr.knowledge_plugins.key_definitions.atoms import Register
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.tag import ParameterTag
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from tests.common import bin_location, requires_binaries_private
 
@@ -46,6 +55,44 @@ def cca_mode(modes: str):
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
+    def test_callsite_external_parameter_definitions_only_bridge_explicit_args(self):
+        arch = archinfo.ArchAMD64()
+        caller_addr = 0x400000
+        rdi_offset = arch.registers["rdi"][0]
+        rsi_offset = arch.registers["rsi"][0]
+        rdi = Register(rdi_offset, arch.bytes)
+        rsi = Register(rsi_offset, arch.bytes)
+        explicit_rsi_def = Definition(rsi, CodeLocation(caller_addr, 1))
+        definitions = (
+            ({Definition(rdi, ExternalCodeLocation(), tags={ParameterTag(function=caller_addr)})}, 0),
+            ({Definition(rdi, ExternalCodeLocation(), tags={ParameterTag(function=caller_addr)}), explicit_rsi_def}, 2),
+            ({Definition(rdi, ExternalCodeLocation()), explicit_rsi_def}, 0),
+            (
+                {
+                    Definition(rdi, ExternalCodeLocation(), tags={ParameterTag(function=caller_addr + 1)}),
+                    explicit_rsi_def,
+                },
+                0,
+            ),
+        )
+
+        analysis = cast(Any, SimpleNamespace(project=SimpleNamespace(arch=arch)))
+        cc = SimCCSystemVAMD64(arch)
+        caller_block = SimpleNamespace(addr=caller_addr)
+        observation_key = "insn", caller_addr + 4, OP_BEFORE
+        for register_definitions, expected_arg_count in definitions:
+            state = SimpleNamespace(registers=object(), stack=object(), get_sp_offset=lambda: 0)
+            rda = cast(Any, SimpleNamespace(observed_results={observation_key: state}, func_addr=caller_addr))
+            fact = CallSiteFact(True)
+            with patch(
+                "angr.analyses.calling_convention.calling_convention.get_all_definitions",
+                side_effect=(register_definitions, set()),
+            ):
+                CallingConventionAnalysis._analyze_callsite_arguments(  # pylint: disable=protected-access
+                    analysis, cc, caller_block, observation_key[1], rda, fact
+                )
+            assert len(fact.args) == expected_arg_count
+
     def test_itanium_qualified_free_function_does_not_gain_this(self):
         """Machine facts must disambiguate namespace functions from members."""
         binary = os.path.join(test_location, "x86_64", "cpp_qualified_symbols.so")

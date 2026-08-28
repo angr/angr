@@ -28,7 +28,7 @@ from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
-from angr.knowledge_plugins.key_definitions.tag import ReturnValueTag
+from angr.knowledge_plugins.key_definitions.tag import ParameterTag, ReturnValueTag
 from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal, VariableType
 from angr.procedures import SIM_PROCEDURES
@@ -790,6 +790,7 @@ class CallingConventionAnalysis(Analysis):
             return
 
         defs_by_reg_offset: dict[int, list[Definition]] = defaultdict(list)
+        parameter_def_reg_offsets: set[int] = set()
         all_reg_defs: set[Definition] = get_all_definitions(state.registers)
         all_stack_defs: set[Definition] = get_all_definitions(state.stack)
         for d in all_reg_defs:
@@ -804,6 +805,12 @@ class CallingConventionAnalysis(Analysis):
                 ):
                     continue
                 defs_by_reg_offset[d.offset].append(d)
+            elif (
+                isinstance(d.atom, Register)
+                and isinstance(d.codeloc, ExternalCodeLocation)
+                and any(isinstance(tag, ParameterTag) and tag.function == rda.func_addr for tag in d.tags)
+            ):
+                parameter_def_reg_offsets.add(d.offset)
         defined_reg_offsets = set(defs_by_reg_offset.keys())
         sp_offset = 0
         if self.project.arch.bits in {32, 64}:
@@ -825,15 +832,41 @@ class CallingConventionAnalysis(Analysis):
 
         default_type_cls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
         arg_session = cc.arg_session(default_type_cls().with_arch(self.project.arch))
-        temp_args: list[SimFunctionArgument | None] = []
-        expected_args: list[SimFunctionArgument] = []
+
+        def _has_explicit_definition(arg_loc: SimFunctionArgument) -> bool:
+            if isinstance(arg_loc, SimRegArg):
+                reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
+                return reg_offset in defined_reg_offsets
+            if isinstance(arg_loc, SimStackArg):
+                return cc.STACKARG_SP_DIFF is not None and (
+                    arg_loc.stack_offset - cc.STACKARG_SP_DIFF in defs_by_stack_offset
+                )
+            return False
+
+        def _has_later_explicit_definition(arg_locs_: list[SimFunctionArgument]) -> bool:
+            for arg_loc_ in arg_locs_:
+                if _has_explicit_definition(arg_loc_):
+                    return True
+                if isinstance(arg_loc_, SimRegArg):
+                    reg_offset_ = self.project.arch.registers[arg_loc_.reg_name][0]
+                    if reg_offset_ in parameter_def_reg_offsets:
+                        continue
+                return False
+            return False
+
+        arg_locs: list[SimFunctionArgument] = []
         for _ in range(30):  # at most 30 arguments
             arg_loc = cc.next_arg(arg_session, default_type_cls().with_arch(self.project.arch))
-            expected_args.append(arg_loc)
+            arg_locs.append(arg_loc)
+
+        temp_args: list[SimFunctionArgument | None] = []
+        for i, arg_loc in enumerate(arg_locs):
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
                 # is it initialized?
-                if reg_offset in defined_reg_offsets:
+                if reg_offset in defined_reg_offsets or (
+                    reg_offset in parameter_def_reg_offsets and _has_later_explicit_definition(arg_locs[i + 1 :])
+                ):
                     temp_args.append(arg_loc)
                 else:
                     # no more arguments
