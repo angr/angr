@@ -4,61 +4,63 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import struct
+import os
 import unittest
 
 import archinfo
 
 import angr
+from tests.common import bin_location
 
-BASE = 0x400000
-CALLBACK = object()  # stands in for the address of the callback, which is only known after layout
+# A libgomp relocatable. gomp_team_start reads through %gs at many points, so the block preceding
+# several of its call sites ends in a failure exit guarded on the selector translation failing, and
+# the procedure at the call site is handed that block.
+BINARY = os.path.join(bin_location, "tests", "i386", "cfg_mapfail_static_member.o")
+ARCH = archinfo.arch_from_id("x86")
+
+# Offsets into gomp_team_start. The pthread_create call site and the block before it, which ends in
+# Ijk_Call:
+BEFORE_CALL = 0x32D
+CALL_SITE = 0x394
+# A call site whose predecessor ends in Ijk_Boring instead. error.dynamic_returns prefers an
+# Ijk_FakeRet successor when the predecessor ends in Ijk_Call, so only this shape reaches it:
+BEFORE_BORING = 0x68
+BORING_CALL_SITE = 0x153
 
 
-def _segment_override_caller(args):
+def _cfg(hooks):
     """
-    Build an x86 function that reads through %gs and then calls an imported function with ``args``,
-    and return the blob together with the addresses CFGFast will see.
-
-    A segment override lifts to an ``Ijk_MapFail`` exit guarded on the selector translation failing,
-    so the first block has a failure successor that the engine cannot step. That block is the
-    predecessor CFGFast hands to the callee's ``static_exits`` or ``dynamic_returns``.
-    """
-
-    code = bytearray()
-    code += b"\xbc\x00\x00\x41\x00"  # mov esp, 0x410000
-    code += b"\x65\xa1\x00\x00\x00\x00"  # mov eax, gs:[0]
-    code += b"\xeb\x00"  # jmp +0, ending the block
-    arg_operands = []
-    for arg in reversed(args):
-        code += b"\x68\x00\x00\x00\x00"  # push arg (patched below)
-        arg_operands.append((len(code) - 4, arg))
-    code += b"\xe8\x00\x00\x00\x00"  # call import (patched below)
-    call_operand = len(code) - 4
-    return_site = len(code)
-    code += bytes((0x83, 0xC4, 4 * len(args)))  # add esp, 4 * len(args)
-    code += b"\xc3"  # ret
-    callback = len(code)
-    code += b"\x31\xc0\xc3"  # xor eax, eax; ret
-    import_stub = len(code)
-    code += b"\xc3"  # ret, replaced by the hook
-
-    for operand, arg in arg_operands:
-        struct.pack_into("<I", code, operand, BASE + callback if arg is CALLBACK else arg)
-    struct.pack_into("<i", code, call_operand, import_stub - return_site)
-    return bytes(code), BASE + return_site, BASE + callback, BASE + import_stub
-
-
-def _cfg_calling(procedure_name, args):
-    """
-    Recover a CFG of a caller that passes ``args`` to ``procedure_name`` over a segment override.
+    Recover a CFG of the fixture, with each named import stub replaced by another procedure.
     """
 
-    code, return_site, callback, import_stub = _segment_override_caller(args)
-    arch = archinfo.arch_from_id("x86")
-    proj = angr.load_shellcode(code, arch, load_address=BASE)
-    proj.hook(import_stub, angr.SIM_LIBRARIES["libc.so.6"][0].get(procedure_name, arch))
-    return proj.analyses.CFGFast(normalize=True, resolve_indirect_jumps=True), return_site, callback
+    proj = angr.Project(BINARY, auto_load_libs=False)
+    for import_name, procedure in hooks.items():
+        symbol = proj.loader.find_symbol(import_name)
+        assert symbol is not None, import_name
+        proj.hook(symbol.rebased_addr, procedure, replace=True)
+    return proj.analyses.CFGFast(normalize=True, resolve_indirect_jumps=True)
+
+
+def _libc(name):
+    return angr.SIM_LIBRARIES["libc.so.6"][0].get(name, ARCH)
+
+
+def _assert_scanned(cfg, offsets):
+    """
+    The scan ran to completion: every symbol-seeded function start survives in the CFG, and
+    gomp_team_start covers the blocks whose pre-execution the procedure was handed.
+    """
+
+    loader = cfg.project.loader
+    defined = {symbol.rebased_addr for symbol in loader.main_object.symbols if symbol.is_function}
+    assert defined, "the fixture has no defined function symbols"
+    assert defined <= set(cfg.functions)
+
+    gomp_team_start = loader.find_symbol("gomp_team_start")
+    assert gomp_team_start is not None, "the fixture does not define gomp_team_start"
+    team_start = gomp_team_start.rebased_addr
+    blocks = {block.addr for block in cfg.functions[team_start].blocks}
+    assert {team_start + offset for offset in offsets} <= blocks
 
 
 class TestCfgSimProcedureExits(unittest.TestCase):
@@ -69,29 +71,27 @@ class TestCfgSimProcedureExits(unittest.TestCase):
     """
 
     def test_pthread_create_static_exits_over_segment_override(self):
-        # pthread_create(thread, attr, start_routine, arg)
-        cfg, _, callback = _cfg_calling("pthread_create", (0, 0, CALLBACK, 0))
-
-        # static_exits recovered the thread entry point from the call site
-        assert callback in cfg.functions
-        assert cfg.kb.labels[callback] == "thread_entry"
+        cfg = _cfg({})
+        # this case rests on angr's own default hook rather than on one the test installs
+        symbol = cfg.project.loader.find_symbol("pthread_create")
+        assert symbol is not None, "the fixture does not import pthread_create"
+        stub = symbol.rebased_addr
+        assert type(cfg.project.hooked_by(stub)).__name__ == "pthread_create"
+        _assert_scanned(cfg, (BEFORE_CALL, CALL_SITE))
 
     def test_libc_start_main_static_exits_over_segment_override(self):
-        # __libc_start_main(main, argc, argv, init, fini)
-        cfg, _, callback = _cfg_calling("__libc_start_main", (CALLBACK, 1, 0, 0, 0))
-
-        # static_exits recovered main from the call site
-        assert callback in cfg.functions
-        assert cfg.kb.labels[callback] == "main"
+        cfg = _cfg({"pthread_create": _libc("__libc_start_main")})
+        _assert_scanned(cfg, (BEFORE_CALL, CALL_SITE))
 
     def test_error_dynamic_returns_over_segment_override(self):
-        # error(status, errnum, fmt) does not return when status is nonzero
-        cfg, return_site, _ = _cfg_calling("error", (1, 0, 0))
-
-        # dynamic_returns read the nonzero status off the stack, so the call site does not return
-        caller = cfg.functions.get_by_addr(BASE)
-        assert caller.returning is False
-        assert return_site not in {block.addr for block in caller.blocks}
+        # defuse pthread_create so the only procedure that can reach a failure successor is error
+        cfg = _cfg(
+            {
+                "pthread_create": angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"](),
+                "__libc_thr_self": _libc("error"),
+            }
+        )
+        _assert_scanned(cfg, (BEFORE_BORING, BORING_CALL_SITE))
 
 
 if __name__ == "__main__":
