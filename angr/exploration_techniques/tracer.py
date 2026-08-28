@@ -161,7 +161,7 @@ class Tracer(ExplorationTechnique):
 
     def __init__(
         self,
-        trace=None,
+        trace: list[int],
         resiliency=False,
         keep_predecessors=1,
         crash_addr=None,
