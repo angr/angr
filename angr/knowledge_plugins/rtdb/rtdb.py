@@ -22,8 +22,6 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
 
-RTDB_BASEDIR: str | None = os.environ.get("RTDB_BASE")
-
 # Name of the pin file inside each rtdb directory. Every process (and every RuntimeDb instance) that opens the
 # directory holds a shared flock on this file; the process that acquires an exclusive lock during cleanup is the
 # last process and can safely remove the directory.
@@ -196,9 +194,8 @@ class RuntimeDb(KnowledgeBasePlugin):
         main_binary_path = self._kb._project.loader.main_object.binary
         basename = os.path.basename(main_binary_path) if isinstance(main_binary_path, str) else "angr_proj"
 
-        basedir = None
-        if RTDB_BASEDIR is not None:
-            basedir = RTDB_BASEDIR
+        basedir = os.environ.get("RTDB_BASE")
+        if basedir is not None:
             if not os.access(basedir, os.W_OK):
                 l.error("The directory %s is not writable. Falling back.", basedir)
                 basedir = None
