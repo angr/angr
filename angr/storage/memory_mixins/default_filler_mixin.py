@@ -16,12 +16,6 @@ class DefaultFillerMixin(MemoryMixin):
     def _default_value(
         self, addr, size, *, name=None, inspect=True, events=True, key=None, fill_missing: bool = True, **kwargs
     ):
-        if self.state.project.concrete_target:
-            mem = self.state.project.concrete_target.read_memory(addr, size)
-            endness = kwargs["endness"]
-            bvv = claripy.BVV(mem)
-            return bvv if endness == "Iend_BE" else bvv.reversed
-
         if fill_missing is False:
             raise SimMemoryMissingError(addr, size)
 

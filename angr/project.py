@@ -134,7 +134,6 @@ class Project:
         store_function=None,
         load_function=None,
         analyses_preset=None,
-        concrete_target=None,
         eager_ifunc_resolution=None,
         cache_limits: dict[str, int | None] | None = None,
         rustc_version=None,
@@ -169,7 +168,7 @@ class Project:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
             self.filename = str(thing)
-            self.loader = cle.Loader(self.filename, concrete_target=concrete_target, **load_options)
+            self.loader = cle.Loader(self.filename, **load_options)
 
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess
         if isinstance(arch, str):
@@ -193,21 +192,6 @@ class Project:
             )
 
         self._sim_procedures = {}
-
-        self.concrete_target = concrete_target
-
-        # It doesn't make any sense to have auto_load_libs
-        # if you have the concrete target, let's warn the user about this.
-        if self.concrete_target and load_options.get("auto_load_libs"):
-            l.critical(
-                "Incompatible options selected for this project, please disable auto_load_libs if "
-                "you want to use a concrete target."
-            )
-            raise ValueError("Incompatible options for the project")
-
-        if self.concrete_target and self.arch.name not in ["X86", "AMD64", "ARMHF", "ARMEL", "MIPS32"]:
-            l.critical("Concrete execution does not support yet the selected architecture. Aborting.")
-            raise ValueError("Incompatible options for the project")
 
         self._default_analysis_mode = default_analysis_mode
         self._exclude_sim_procedures_func = exclude_sim_procedures_func
