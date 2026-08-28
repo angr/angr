@@ -8,12 +8,62 @@ import os
 import unittest
 
 import angr
+from angr import ailment
+from angr.analyses.s_propagator import SPropagator
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestPropagatorRules(unittest.TestCase):
+    def test_spropagator_treats_store_conditional_as_memory_write(self):
+        binary = os.path.join(test_location, "armel", "decompiler", "nuttx_O2_noinline")
+        project = angr.Project(binary, auto_load_libs=False)
+        manager = ailment.Manager(arch=project.arch)
+        address = ailment.Expr.Const(0, 0x2000, project.arch.bits)
+        load_tmp = ailment.Expr.Tmp(1, 0, 32)
+        load_use = ailment.Expr.Tmp(2, 0, 32)
+        dirty = ailment.Expr.DirtyExpression(
+            3,
+            "store_conditional_le",
+            [address, ailment.Expr.Const(4, 1, 32)],
+            mfx="Ifx_Write",
+            maddr=address,
+            msize=4,
+            bits=1,
+        )
+        block = ailment.Block(
+            0x1000,
+            1,
+            statements=[
+                ailment.Stmt.Assignment(5, load_tmp, ailment.Expr.Load(6, address, 4, "Iend_LE"), ins_addr=0x1000),
+                ailment.Stmt.Assignment(7, ailment.Expr.Tmp(8, 1, 1), dirty, ins_addr=0x1001),
+                ailment.Stmt.Assignment(9, ailment.Expr.Register(10, 16, 32), load_use, ins_addr=0x1002),
+            ],
+        )
+
+        propagator = SPropagator(project, block, ail_manager=manager)
+        assert not any(load_use in replacements for replacements in propagator.replacements.values())
+
+    def test_spropagator_preserves_nuttx_llsc_results(self):
+        bin_path = os.path.join(test_location, "armel", "decompiler", "nuttx_O2_noinline")
+        func_addr = 0x800D725
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            func_addr,
+            expand_call_tree=False,
+            run_ccc=False,
+        )
+
+        dec = proj.analyses.Decompiler(cfg.functions[func_addr], cfg=cfg, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        code = dec.codegen.text
+        assert code.count("load_linked_le(") == 1
+        assert code.count("store_conditional_le(") == 1
+        assert code.index("load_linked_le(") < code.index("store_conditional_le(")
+
     def test_propagator_do_not_propagate_constants_through_unsafe_stack_variables(self):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "03fb29dab8ab848f15852a37a1c04aa65289c0160d9200dceff64d890b3290dd"
