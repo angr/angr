@@ -279,6 +279,25 @@ class TestCallingConvention(TestCase):
         # A 16-byte integral argument takes a register pair, starting on an even-numbered register.
         assert locs(integer, SimTypeNum(128))[1].get_footprint() == {SimRegArg("x2", 8), SimRegArg("x3", 8)}
 
+    def test_aarch64_aggregate_args_reach_the_callsite(self):
+        proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
+        cc = SimCCAArch64(proj.arch)
+        pair = SimStruct({"x": SimTypeLongLong(), "y": SimTypeLongLong()}, name="Pair")
+        big = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong()}, name="Big")
+        proto = SimTypeFunction([SimTypeInt(), pair, big, SimTypeInt()], SimTypeInt()).with_arch(proj.arch)
+        addr = proj.loader.find_symbol("_Z9call_theml").rebased_addr
+
+        state = proj.factory.call_state(
+            addr, 7, {"x": 11, "y": 22}, {"a": 33, "b": 44, "c": 55}, 9, cc=cc, prototype=proto
+        )
+        evaluate = state.solver.eval
+        assert evaluate(state.regs.x0) == 7
+        assert evaluate(state.regs.x1) == 11
+        assert evaluate(state.regs.x2) == 22
+        referenced = evaluate(state.regs.x3)
+        assert [evaluate(state.memory.load(referenced + 8 * i, 8, endness="Iend_LE")) for i in range(3)] == [33, 44, 55]
+        assert evaluate(state.regs.x4) == 9
+
     def test_aarch64_class_by_value_argument(self):
         proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
