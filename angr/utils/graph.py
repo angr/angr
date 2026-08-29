@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, cast
 import networkx
 import networkx.algorithms
 
+from angr.utils.hashing import stable_hash
+
 if TYPE_CHECKING:
     from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
 
@@ -342,7 +344,7 @@ class TemporaryNode:
         return bool(isinstance(other, TemporaryNode) and other._label == self._label)
 
     def __hash__(self):
-        return hash(("TemporaryNode", self._label))
+        return stable_hash(("TemporaryNode", self._label))
 
 
 class ContainerNode[T]:
@@ -369,7 +371,10 @@ class ContainerNode[T]:
         return False
 
     def __hash__(self):
-        return hash(("CN", self._obj))
+        # __eq__ compares the wrapped object by identity, so collisions are harmless; what matters is that the
+        # value is the same in every process. builtin hash() over a str is PYTHONHASHSEED-randomised, which made
+        # dominator-tree node order -- and through it Phoenix's refinement decisions -- depend on the seed.
+        return stable_hash(("CN", hash(self._obj)))
 
     def __repr__(self):
         return f"CN[{self._obj!r}]"
@@ -687,7 +692,7 @@ class SCCPlaceholder:
         return isinstance(other, SCCPlaceholder) and other.scc_id == self.scc_id and other.addr == self.addr
 
     def __hash__(self):
-        return hash(f"scc_placeholder_{self.scc_id}")
+        return stable_hash(("scc_placeholder", self.scc_id))
 
     def __repr__(self):
         return f"SCCPlaceholder({self.scc_id}, addr={self.addr:#x})"
