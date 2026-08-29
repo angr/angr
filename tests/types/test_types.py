@@ -134,6 +134,25 @@ class TestTypes(unittest.TestCase):
         assert proto is not None
         assert len(proto.args) == 1
 
+    def test_cppproto_parse_msvc_fixed_width_integer(self):
+        # A demangled MSVC signature carries no parameter names, so a fixed-width integer ends at a
+        # comma or a closing parenthesis. Both of these are demangled symbols of
+        # binaries/tests/x86_64/windows/msvcr120.dll.
+        _, proto, _ = convert_cppproto_to_py(
+            "void Concurrency::set_task_execution_resources(unsigned __int64)", with_param_names=False
+        )
+        assert proto is not None
+        assert isinstance(proto.args[1], SimTypeLongLong)
+
+        _, proto, _ = convert_cppproto_to_py(
+            "unsigned __int64 Concurrency::event::wait_for_multiple("
+            "class Concurrency::event **, unsigned __int64, bool, unsigned int)",
+            with_param_names=False,
+        )
+        assert proto is not None
+        assert isinstance(proto.args[2], SimTypeLongLong)
+        assert isinstance(proto.returnty, SimTypeLongLong)
+
     def test_cppproto_parse_operator_shl(self):
         proto = "std::ostream::operator<<(std::ostream& (*)(std::ostream&))"
         _, proto, _ = convert_cppproto_to_py(proto)

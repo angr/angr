@@ -4487,10 +4487,12 @@ def normalize_cpp_function_name(name: str) -> str:
         # the return type is missing; give it a default type
         name = "int " + name
 
-    if " __int" in name:
-        name = name.replace(" __int64 ", " long long ")
-        name = name.replace(" __int32 ", " int ")
-        name = name.replace(" __int16 ", " short ")
+    if "__int" in name:
+        # a demangled signature carries no parameter names, so the type can end at a comma or a
+        # closing parenthesis rather than at a space
+        name = re.sub(r"\b__int64\b", "long long", name)
+        name = re.sub(r"\b__int32\b", "int", name)
+        name = re.sub(r"\b__int16\b", "short", name)
 
     return name.removesuffix(";")
 
