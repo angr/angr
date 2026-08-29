@@ -478,6 +478,7 @@ class SimHostFilesystem(SimConcreteFilesystem):
             if dereference:
                 path = os.path.realpath(path)
             s = os.stat(path)
+            # st_rdev, st_blksize and st_blocks are present only on Unix hosts.
             return Stat(
                 s.st_dev,
                 s.st_ino,
@@ -485,10 +486,10 @@ class SimHostFilesystem(SimConcreteFilesystem):
                 s.st_mode,
                 s.st_uid,
                 s.st_gid,
-                s.st_rdev,
+                getattr(s, "st_rdev", 0),
                 s.st_size,
-                s.st_blksize,
-                s.st_blocks,
+                getattr(s, "st_blksize", 0x1000),
+                getattr(s, "st_blocks", (s.st_size + 511) // 512),
                 round(s.st_atime),
                 s.st_atime_ns,
                 round(s.st_mtime),
