@@ -12,6 +12,7 @@ import archinfo
 
 from angr import Project, load_shellcode, types
 from angr.calling_conventions import (
+    SimCCAArch64,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftFastcall,
     SimCCRISCV64,
@@ -26,10 +27,12 @@ from angr.calling_conventions import (
 )
 from angr.sim_type import (
     SimCppClass,
+    SimStruct,
     SimStructValue,
     SimTypeChar,
     SimTypeDouble,
     SimTypeLongLong,
+    SimTypeNum,
     SimTypeRef,
     parse_file,
 )
@@ -243,6 +246,47 @@ class TestCallingConvention(TestCase):
         c_float = struct.unpack("<f", struct.pack("<I", c_bits))[0]
         assert abs(c_float - 102.3) < 0.00001
         assert (a3_val >> 32) == 60
+
+    def test_aarch64_aggregate_args(self):
+        arch = archinfo.arch_from_id("aarch64")
+        cc = SimCCAArch64(arch)
+
+        def locs(*args):
+            return cc.arg_locs(SimTypeFunction(list(args), SimTypeInt()).with_arch(arch))
+
+        integer = SimTypeInt()
+        small = SimStruct({"a": SimTypeInt(), "b": SimTypeInt()}, name="Small")
+        pair = SimStruct({"x": SimTypeLongLong(), "y": SimTypeLongLong()}, name="Pair")
+        big = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong()}, name="Big")
+
+        # A composite of one double-word takes one register, one of two takes a consecutive pair.
+        assert locs(small)[0].get_footprint() == {SimRegArg("x0", 8)}
+        assert locs(pair)[0].get_footprint() == {SimRegArg("x0", 8), SimRegArg("x1", 8)}
+
+        # A composite larger than 16 bytes is passed by reference.
+        big_loc = locs(big)[0]
+        assert isinstance(big_loc, SimReferenceArgument)
+        assert big_loc.ptr_loc == SimRegArg("x0", 8)
+        assert big_loc.main_loc.get_footprint() == {SimStackArg(0, 8), SimStackArg(8, 8), SimStackArg(0x10, 8)}
+
+        # Seven integers leave one register free, which a two-register composite cannot use: it goes on
+        # the stack, and the register it skipped is not given to the argument after it either.
+        spilled = locs(*[integer] * 7, pair, integer)
+        assert spilled[6] == SimRegArg("x6", 4)
+        assert spilled[7].get_footprint() == {SimStackArg(0, 8), SimStackArg(8, 8)}
+        assert spilled[8] == SimStackArg(0x10, 4)
+
+        # A 16-byte integral argument takes a register pair, starting on an even-numbered register.
+        assert locs(integer, SimTypeNum(128))[1].get_footprint() == {SimRegArg("x2", 8), SimRegArg("x3", 8)}
+
+    def test_aarch64_class_by_value_argument(self):
+        proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
+        func = next(f for f in proj.kb.functions.values() if f.name == "_Z8take_big3Big" and not f.is_plt)
+        assert isinstance(func.prototype.args[0], SimCppClass)
+        assert len(proj.factory.cc().arg_locs(func.prototype.with_arch(proj.arch))) == 1
+        assert proj.analyses.Decompiler(func, cfg=cfg.model).codegen is not None
 
     def test_simcc_arg_locs_returnty_unresolved_simtyperef(self):
         func_proto = SimTypeFunction([], SimTypeRef("std::wstring_t", SimCppClass))

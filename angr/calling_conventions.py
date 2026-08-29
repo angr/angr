@@ -2125,6 +2125,43 @@ class SimCCAArch64(SimCC):
     RETURN_VAL = SimRegArg("x0", 8)
     ARCH = archinfo.ArchAArch64
 
+    # https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#parameter-passing
+    def next_arg(self, session, arg_type):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        composite = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
+        if arg_type.size is None or (not composite and arg_type.size <= self.arch.bits):
+            return super().next_arg(session, arg_type)
+        if composite and arg_type.size > 128:
+            # a composite larger than 16 bytes is copied to memory by the caller and replaced by a pointer
+            return self._reference_arg(session, arg_type)
+
+        double_words = self._double_words(arg_type)
+        state = session.getstate()
+        if double_words > 1 and arg_type.alignment == 16 and session.int_iter.getstate() % 2 == 1:
+            next(session.int_iter)  # a 16-byte-aligned argument starts on an even-numbered register
+        try:
+            locs = [next(session.int_iter) for _ in range(double_words)]
+        except StopIteration:
+            session.setstate(state)
+            session.int_iter.setstate(len(self.ARG_REGS))
+            locs = [next(session.both_iter) for _ in range(double_words)]
+        return refine_locs_with_struct_type(self.arch, locs, arg_type)
+
+    def _double_words(self, arg_type: SimType) -> int:
+        assert arg_type.size is not None
+        return max(1, (arg_type.size // self.arch.byte_width + self.arch.bytes - 1) // self.arch.bytes)
+
+    def _reference_arg(self, session, arg_type: SimType) -> SimReferenceArgument:
+        referenced_locs = [
+            SimStackArg(offset * self.arch.bytes, self.arch.bytes) for offset in range(self._double_words(arg_type))
+        ]
+        try:
+            ptr_loc = next(session.int_iter)
+        except StopIteration:
+            ptr_loc = next(session.both_iter)
+        return SimReferenceArgument(ptr_loc, refine_locs_with_struct_type(self.arch, referenced_locs, arg_type))
+
 
 class SimCCAArch64LinuxSyscall(SimCCSyscall):
     # TODO: Make sure all the information is correct
