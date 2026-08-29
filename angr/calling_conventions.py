@@ -2337,10 +2337,98 @@ class SimCCARMWindowsSyscall(SimCCSyscall):
 
 class SimCCAArch64(SimCC):
     ARG_REGS = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
-    FP_ARG_REGS = []  # TODO: ???
+    FP_ARG_REGS = ["v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7"]
     RETURN_ADDR = SimRegArg("lr", 8)
     RETURN_VAL = SimRegArg("x0", 8)
+    FP_RETURN_VAL = SimRegArg("v0", 8)
     ARCH = archinfo.ArchAArch64
+    MAX_HFA_MEMBERS = 4
+
+    # https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#parameter-passing
+    def next_arg(self, session, arg_type):
+        members = self._hfa_members(arg_type)
+        if members is None:
+            return super().next_arg(session, arg_type)
+        if session.fp_iter.getstate() + len(members) > len(self.FP_ARG_REGS):
+            # the registers an aggregate was too large to fit into are not offered to any later argument
+            session.fp_iter.setstate(len(self.FP_ARG_REGS))
+            size = arg_type.size
+            assert size is not None
+            words = (size // self.arch.byte_width + self.arch.bytes - 1) // self.arch.bytes
+            return refine_locs_with_struct_type(self.arch, [next(session.both_iter) for _ in range(words)], arg_type)
+        return self._refine_hfa(arg_type, iter([next(session.fp_iter) for _ in members]))
+
+    def _hfa_members(self, arg_type: SimType) -> list[SimTypeFloat] | None:
+        """
+        The members of a homogeneous floating-point aggregate, or None if this type is not one.
+
+        A composite is one when it flattens to at most MAX_HFA_MEMBERS members that are all the same
+        floating-point type. An array argument is a pointer in C, so only a struct or a union can be one.
+        """
+        if not isinstance(arg_type, (SimStruct, SimUnion)) or arg_type.size is None:
+            return None
+        members = self._flatten_floats(arg_type)
+        if members is None or not 1 <= len(members) <= self.MAX_HFA_MEMBERS or members[0].size is None:
+            return None
+        return members if all(member.size == members[0].size for member in members) else None
+
+    def _flatten_floats(self, ty: SimType) -> list[SimTypeFloat] | None:
+        if isinstance(ty, SimTypeFloat):
+            return [ty]
+        if isinstance(ty, SimTypeFixedSizeArray):
+            if ty.length is None or ty.length > self.MAX_HFA_MEMBERS:
+                return None
+            members = self._flatten_floats(ty.elem_type)
+            return None if members is None else members * ty.length
+        if isinstance(ty, SimUnion):
+            widest = self._hfa_union_member(ty)
+            return None if widest is None else self._flatten_floats(widest)
+        if not isinstance(ty, SimStruct):
+            return None
+        flattened: list[SimTypeFloat] = []
+        for field in ty.fields.values():
+            members = self._flatten_floats(field)
+            if members is None:
+                return None
+            flattened += members
+            if len(flattened) > self.MAX_HFA_MEMBERS:
+                return None
+        return flattened
+
+    def _hfa_union_member(self, ty: SimUnion) -> SimType | None:
+        """
+        The member that decides a union's layout, which is the one with the most floating-point members.
+
+        Every member of a union counts towards its homogeneity, so one that is not floating-point, or one
+        whose floating-point type differs, disqualifies the whole union.
+        """
+        widest, widest_count, sizes = None, 0, set()
+        for member in ty.members.values():
+            members = self._flatten_floats(member)
+            if members is None:
+                return None
+            sizes.update(one.size for one in members)
+            if len(members) > widest_count:
+                widest, widest_count = member, len(members)
+        return widest if len(sizes) == 1 else None
+
+    def _refine_hfa(self, ty: SimType, locs: Iterator[SimRegArg]) -> SimFunctionArgument:
+        """
+        Give each member of a homogeneous floating-point aggregate a register of its own, rather than
+        packing them into words the way an aggregate in the general-purpose registers is packed.
+        """
+        if isinstance(ty, SimTypeFloat):
+            assert ty.size is not None
+            return next(locs).refine(ty.size // self.arch.byte_width, arch=self.arch, is_fp=True)
+        if isinstance(ty, SimTypeFixedSizeArray):
+            assert ty.length is not None
+            return SimArrayArg([self._refine_hfa(ty.elem_type, locs) for _ in range(ty.length)])
+        if isinstance(ty, SimUnion):
+            widest = self._hfa_union_member(ty)
+            assert widest is not None
+            return self._refine_hfa(widest, locs)
+        assert isinstance(ty, SimStruct)
+        return SimStructArg(ty, {name: self._refine_hfa(field, locs) for name, field in ty.fields.items()})
 
 
 class SimCCAArch64LinuxSyscall(SimCCSyscall):
