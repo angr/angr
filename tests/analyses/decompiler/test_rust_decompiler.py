@@ -256,6 +256,8 @@ class TestFmtNightly20230522O3(_FmtTests):
     FUNC_ADDRS = {
         "parse_arguments": {"nightly-2023-05-22-O3": 0x416160},
     }
+    CFG_FROM_FUNCS_UNDER_TEST = True
+    CCC_CALL_DEPTH = 4
 
     def test_parse_arguments_2023052203(self):
         self._check_parse_arguments()
