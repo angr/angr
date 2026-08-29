@@ -1,6 +1,7 @@
 # pylint: disable=R0201,C0111,line-too-long,bad-builtin,expression-not-assigned,no-member
 from __future__ import annotations
 
+import os
 import struct
 from unittest import TestCase
 
@@ -11,12 +12,39 @@ from angr.analyses import CFGFast, ReachingDefinitionsAnalysis
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions.atoms import Atom
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from tests.common import bin_location
 
 
 class TestRDARegressions(TestCase):
     """
     Test misc regressions for the ReachingDefinitionsAnalysis.
     """
+
+    def test_concat_of_a_multivalues_with_itself(self):
+        """
+        Iop_16HLto32(t, t) reads the same VEX temporary for both operands, and _expr_bv() returns the live
+        object stored in self.tmps, so MultiValues.concat() used to receive one object as both self and
+        other. It copy-constructed MultiValues(self), which aliased the offset map rather than copying it,
+        and the add_value() that followed inserted into the dict its own items() iteration was walking.
+        """
+        binary = os.path.join(
+            bin_location,
+            "tests",
+            "x86_64",
+            "windows",
+            "dd56403d14ffe220a645a964a19f8b488e200b84ae5a414b0c020b561ae40880.sys",
+        )
+        func_addr = 0x1400DF7BF
+
+        proj = angr.Project(binary, auto_load_libs=False)
+        # Scope the scan to the one function that carries the pattern: the whole binary is 18k functions.
+        cfg = proj.analyses[CFGFast].prep()(
+            regions=[(func_addr, func_addr + 0x200)], function_starts=[func_addr], normalize=True
+        )
+        assert func_addr in cfg.functions, "fixture no longer contains the function under test"
+
+        # Used to raise RuntimeError("dictionary changed size during iteration").
+        proj.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.functions[func_addr], observe_all=False)
 
     def test_load_multiple_concrete_addresses(self):
         """
