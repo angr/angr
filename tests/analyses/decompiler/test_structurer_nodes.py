@@ -7,7 +7,8 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import unittest
 
 from angr import ailment
-from angr.analyses.decompiler.structurer_nodes import BreakNode, CodeNode, LoopNode, SequenceNode
+from angr.analyses.decompiler.structurer_nodes import BreakNode, CodeNode, LoopNode, MultiNode, SequenceNode
+from angr.utils.hashing import stable_hash
 
 
 class TestStructurerNodeAddresses(unittest.TestCase):
@@ -81,6 +82,25 @@ class TestStructurerNodeHashing(unittest.TestCase):
 
     def test_node_type_participates_in_the_hash(self):
         assert hash(SequenceNode(0x400000, nodes=[])) != hash(BreakNode(0x400000, None))
+
+
+class TestMultiNodeHashing(unittest.TestCase):
+    def test_hash_is_seed_and_identity_independent(self):
+        # hash(str) and hash(class) are both process-specific; stable_hash() is neither
+        node = MultiNode([ailment.Block(0x400000, 0, idx=2)])
+        assert hash(node) == stable_hash((MultiNode, 0x400000, 2))
+
+    def test_hash_is_stable_under_in_place_editing(self):
+        node = MultiNode([ailment.Block(0x400000, 0)])
+        members = {node}
+        h = hash(node)
+
+        node.nodes.append(ailment.Block(0x400010, 0))
+        assert hash(node) == h
+        assert node in members
+
+    def test_distinct_nodes_sharing_an_address_hash_alike(self):
+        assert hash(MultiNode([ailment.Block(0x400000, 0)])) == hash(MultiNode([ailment.Block(0x400000, 0)]))
 
 
 if __name__ == "__main__":

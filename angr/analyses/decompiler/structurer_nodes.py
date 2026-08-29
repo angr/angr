@@ -54,9 +54,11 @@ class MultiNode:
         return f"<MultiNode {self.addr:#x} of {len(self.nodes)} nodes{s}>"
 
     def __hash__(self):
-        # changing self.nodes does not change the hash, which enables in-place editing
+        # changing self.nodes does not change the hash, which enables in-place editing. hash(MultiNode) is derived from
+        # id(), so stable_hash() is used instead to keep the hash (and with it the iteration order of any set of
+        # MultiNodes) identical across runs.
         if self._hash is None:
-            self._hash = hash((MultiNode, self.addr, self.idx))
+            self._hash = stable_hash((MultiNode, self.addr, self.idx))
         return self._hash
 
     def __eq__(self, other):
