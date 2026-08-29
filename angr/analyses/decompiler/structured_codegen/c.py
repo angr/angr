@@ -121,6 +121,12 @@ def qualifies_for_simple_cast(ty1, ty2):
     )
 
 
+def qualifies_for_width_cast(ty):
+    # converting ty to a different width - can a scalar cast do it?
+    # floats are excluded because a float cast converts the value, not the representation
+    return isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer, SimTypeBottom))
+
+
 def qualifies_for_implicit_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
@@ -3823,8 +3829,23 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     def _handle_Stmt_Store(self, stmt: Stmt.Store, **kwargs):
         cdata = self._handle(stmt.data)
 
-        if cdata.type is not None and cdata.type.size != stmt.size * self.project.arch.byte_width:
-            l.error("Store data lifted to a C type with a different size. Decompilation output will be wrong.")
+        store_bits = stmt.size * self.project.arch.byte_width
+        if cdata.type is not None and cdata.type.size != store_bits:
+            if cdata.type.size is not None:
+                l.error(
+                    "Store data lifted to a C type of a different size: %s is %d bits, the store is %d bits. "
+                    "Using the store width.",
+                    cdata.type,
+                    cdata.type.size,
+                    store_bits,
+                )
+            if qualifies_for_width_cast(unpack_typeref(cdata.type)):
+                cdata = CTypeCast(
+                    cdata.type,
+                    self.default_simtype_from_bits(store_bits, signed=getattr(cdata.type, "signed", False)),
+                    cdata,
+                    codegen=self,
+                )
 
         def negotiate(old_ty, proposed_ty):
             # transfer casts from the dst to the src if possible

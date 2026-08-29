@@ -9,9 +9,15 @@ import unittest
 from types import SimpleNamespace
 
 import angr
-from angr.ailment import Expr
-from angr.analyses.decompiler.structured_codegen.c import CExpression, CGoto, CUnaryOp
-from angr.sim_type import SimTypeInt, SimTypePointer
+from angr.ailment import Expr, Stmt
+from angr.analyses.decompiler.structured_codegen.c import (
+    CAssignment,
+    CExpression,
+    CGoto,
+    CStructuredCodeGenerator,
+    CUnaryOp,
+)
+from angr.sim_type import SimTypeBottom, SimTypeInt, SimTypeLongLong, SimTypePointer
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -97,6 +103,39 @@ class TestGotoRendering(unittest.TestCase):
         chunks = CGoto(0x400000, None, codegen=self.codegen).c_repr_chunks()
 
         self.assertEqual("".join(text for text, _ in chunks), "goto LABEL_0x400000;\n")
+
+
+class TestStoreWidth(unittest.TestCase):
+    """A store's emitted C must write as many bytes as the AIL store writes."""
+
+    @classmethod
+    def setUpClass(cls):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
+
+    def _dst_bits(self, idx: int, value_type, value_bits: int, size: int) -> int:
+        # the destination is what _access renders as *(T*)addr, so its type is the width written
+        data = Expr.Const(idx, 0, value_bits, type=value_type)
+        stmt = Stmt.Store(idx, Expr.Const(idx, 0x400000, 64), data, size, "Iend_LE")
+        assignment = self.codegen._handle(stmt, is_expr=False)
+        assert isinstance(assignment, CAssignment)
+        assert assignment.lhs.type is not None
+        return assignment.lhs.type.size
+
+    def test_value_typed_narrower_than_the_store(self):
+        assert self._dst_bits(1, SimTypeInt(signed=False), 64, 8) == 64
+
+    def test_value_typed_wider_than_the_store(self):
+        assert self._dst_bits(2, SimTypeLongLong(signed=False), 8, 1) == 8
+
+    def test_value_with_no_inferred_type(self):
+        assert self._dst_bits(3, SimTypeBottom(), 128, 16) == 128
+
+    def test_value_typed_correctly_is_left_alone(self):
+        assert self._dst_bits(4, SimTypeLongLong(signed=False), 64, 8) == 64
 
 
 if __name__ == "__main__":
