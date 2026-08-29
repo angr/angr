@@ -15,6 +15,7 @@ from angr.ailment.expression import Call, Const, VirtualVariable, VirtualVariabl
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.ail_simplifier import AILSimplifier
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel, populate_model
+from tests.common import print_decompilation_result
 
 BLOCK_ADDR = 0x400000
 BLOCK_KEY = (BLOCK_ADDR, None)
@@ -92,8 +93,8 @@ class TestPackerFillerDecompilation(unittest.TestCase):
     def test_xchg_filler_decompiles_quickly(self):
         # issue #6968: 0x91 (xchg ecx, eax) filler decodes cleanly, so CFGFast happily builds one long chain of
         # 99-instruction blocks out of it. Every instruction turns into a pair of dead virtual variables, and retiring
-        # that chain used to be quadratic: 41 blocks took ~16s and the reported binary (5,068 blocks) never finished.
-        block_count = 40
+        # that chain used to be quadratic.
+        block_count = 39
         code = b"\x91" * (99 * block_count) + b"\xc3"
 
         start = time.time()
@@ -104,10 +105,32 @@ class TestPackerFillerDecompilation(unittest.TestCase):
             normalize=True, cross_references=False, function_starts=[0x400000], repeating_byte_run_threshold=0
         )
         dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], cfg=cfg.model, preset="malware")
+        print_decompilation_result(dec)
         elapsed = time.time() - start
 
+        assert dec.clinic is not None
+        assert dec.clinic._cross_insn_opt_for_large_blocks is False
         assert dec.codegen is not None and dec.codegen.text is not None
         assert elapsed < 8.0, f"decompiling {block_count} blocks of filler took {elapsed:.1f}s"
+
+    def test_xchg_filler_decompiles_quickly_cross_insn_opt(self):
+        # we should hit cross-insn-opt = True
+        block_count = 5000
+        code = b"\x91" * (99 * block_count) + b"\xc3"
+
+        start = time.time()
+        proj = angr.load_shellcode(code, arch="x86", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(
+            normalize=True, cross_references=False, function_starts=[0x400000], repeating_byte_run_threshold=0
+        )
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], cfg=cfg.model, preset="malware")
+        print_decompilation_result(dec)
+        elapsed = time.time() - start
+
+        assert dec.clinic is not None
+        assert dec.clinic._cross_insn_opt_for_large_blocks is True
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert elapsed < 30.0, f"decompiling {block_count} blocks of filler took {elapsed:.1f}s"
 
 
 if __name__ == "__main__":

@@ -377,6 +377,11 @@ class Clinic(Analysis, Serializable):
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
         self._typehoon_cls = typehoon_cls
+        # Heuristic: if the function is larger than M, all blocks greater than N bytes will enable cross-instruction
+        # optimization in VEX. this heuristic is for higher decompilation speed.
+        self._cross_insn_opt_min_block_size = 99  # N
+        self._cross_insn_opt_min_large_block_count = 40  # M
+        self._cross_insn_opt_for_large_blocks = False
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
@@ -1469,7 +1474,7 @@ class Clinic(Analysis, Serializable):
             regs,
             fail_fast=self._fail_fast,
             track_memory=self._sp_tracker_track_memory,
-            cross_insn_opt=False,
+            cross_insn_opt=self._cross_insn_opt_for_large_blocks,
             initial_reg_values=initial_reg_values,
         )
 
@@ -1487,7 +1492,18 @@ class Clinic(Analysis, Serializable):
         assert self._func_graph is not None
         assert self._blocks_by_addr_and_size is not None
 
-        for block_node in self._func_graph.nodes():
+        # enumerate the func graph to determine if we should enable cross-insn opt for large blocks
+        if len(self._func_graph) >= self._cross_insn_opt_min_large_block_count:
+            large_block_count = 0
+            for block_node in self._func_graph:
+                if isinstance(block_node, BlockNode) and block_node.size >= self._cross_insn_opt_min_block_size:
+                    large_block_count += 1
+                    if large_block_count >= self._cross_insn_opt_min_large_block_count:
+                        break
+            if large_block_count >= self._cross_insn_opt_min_large_block_count:
+                self._cross_insn_opt_for_large_blocks = True
+
+        for block_node in self._func_graph:
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
@@ -1520,7 +1536,10 @@ class Clinic(Analysis, Serializable):
         if block_node.size == 0:
             return ailment.Block(block_node.addr, 0, statements=[])
 
-        block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
+        cross_insn_opt = False
+        if self._cross_insn_opt_for_large_blocks and block_node.size >= self._cross_insn_opt_min_block_size:
+            cross_insn_opt = True
+        block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=cross_insn_opt)
         converted = self._convert_vex(block)
 
         # architecture-specific setup
