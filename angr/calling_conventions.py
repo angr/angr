@@ -2716,9 +2716,6 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
 }
 
 
-# "UEFI" covers the processor bindings of the UEFI specification. Only the two x86 ones depart from the
-# architecture's ordinary convention -- IA-32 is Microsoft cdecl and X64 is the Microsoft x64 convention -- but every
-# binding is spelled out, because default_cc() returns its caller's `default` before it falls back to "Linux".
 DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "AMD64": {"Linux": SimCCSystemVAMD64, "Win32": SimCCMicrosoftAMD64, "UEFI": SimCCMicrosoftAMD64},
     "X86": {"Linux": SimCCCdecl, "CGC": SimCCCdecl, "Win32": SimCCMicrosoftCdecl, "UEFI": SimCCMicrosoftCdecl},
