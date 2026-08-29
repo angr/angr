@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from archinfo.arch_arm import is_arm_arch
+
 
 class CFGArchOptions:
     """
@@ -10,6 +12,7 @@ class CFGArchOptions:
     it by `ao.ret_jumpkind_heuristics` and set its value via `ao.ret_jumpkind_heuristics = True`
 
     :ivar dict OPTIONS: A dict of all default options for different architectures.
+    :ivar dict ARM_DEFAULT_OPTIONS: Defaults for an ARM architecture that OPTIONS does not name.
     :ivar archinfo.Arch arch: The architecture object.
     :ivar dict _options: Values of all CFG options that are specific to the current architecture.
     """
@@ -42,8 +45,19 @@ class CFGArchOptions:
         },
     }
 
+    # Defaults for an ARM architecture OPTIONS does not name, which today means the p-code ARM languages. The
+    # p-code lifter gates its THUMB normalization on ArchARM, so an address there carries no mode: the options
+    # that only apply to THUMB code are off, and every address stays a candidate for ARM-mode code.
+    ARM_DEFAULT_OPTIONS = {
+        "ret_jumpkind_heuristics": (bool, True),
+        "switch_mode_on_nodecode": (bool, False),
+        "pattern_match_ifuncs": (bool, False),
+        "has_arm_code": (bool, True),
+    }
+
     arch = None
     _options = {}
+    _supported_options = {}
 
     def __init__(self, arch, **options):
         """
@@ -55,15 +69,18 @@ class CFGArchOptions:
 
         self.arch = arch
 
-        self._options = {}
+        if arch.name in self.OPTIONS:
+            self._supported_options = self.OPTIONS[arch.name]
+        elif is_arm_arch(arch):
+            self._supported_options = self.ARM_DEFAULT_OPTIONS
+        else:
+            self._supported_options = {}
 
-        if self.arch.name in self.OPTIONS:
-            for k, (_, value) in self.OPTIONS[self.arch.name].items():
-                self._options[k] = value
+        self._options = {k: value for k, (_, value) in self._supported_options.items()}
 
         # make sure options are valid
         for k in options:
-            if self.arch.name not in self.OPTIONS or k not in self.OPTIONS[self.arch.name]:
+            if k not in self._supported_options:
                 raise KeyError(f'Architecture {self.arch.name} does not support arch-specific option "{k}".')
 
         for k, v in options.items():
@@ -78,7 +95,7 @@ class CFGArchOptions:
     def __setattr__(self, option_name, option_value):
         if option_name in self._options:
             # Type checking
-            sort = self.OPTIONS[self.arch.name][option_name][0]
+            sort = self._supported_options[option_name][0]
 
             if sort is None or isinstance(option_value, sort):
                 self._options[option_name] = option_value
