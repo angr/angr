@@ -8,6 +8,7 @@ import unittest.mock
 import networkx as nx
 
 from angr.ailment.block import Block
+from angr.analyses.decompiler.structurer_nodes import SequenceNode
 from angr.utils.graph import Dominators, GraphUtils, TemporaryNode, subgraph_between_nodes
 
 
@@ -60,6 +61,32 @@ class TestGraph(unittest.TestCase):
                 G.add_edge(nodes[src], nodes[dst])
         G_sorted = GraphUtils.quasi_topological_sort_nodes(G, panic_mode_threshold=num_nodes // 2)
         assert G_sorted == nodes
+
+    def test_sort_node_is_a_total_order(self):
+        # blocks duplicated during structuring share an address and only differ in idx: sorting must not have to fall
+        # back on insertion order to separate them
+        original, dup3, dup1, dup2 = (Block(0x400000, 4, idx=idx) for idx in (None, 3, 1, 2))
+        expected = [dup1, dup2, dup3, original]
+        assert sorted([original, dup3, dup1, dup2], key=GraphUtils.sort_node) == expected
+        assert sorted([dup2, original, dup1, dup3], key=GraphUtils.sort_node) == expected
+
+    def test_sort_node_orders_addressed_nodes_and_ints_alike(self):
+        nodes = [Block(0x20, 4), 0x10, Block(0x30, 4)]
+        assert [GraphUtils.sort_node(n)[:2] for n in sorted(nodes, key=GraphUtils.sort_node)] == [
+            (0, 0x10),
+            (0, 0x20),
+            (0, 0x30),
+        ]
+
+    def test_sort_node_separates_same_address_nodes_of_different_types(self):
+        # a structured node keeps the address of the block it replaced, and neither carries an idx
+        block, seq = Block(0x400000, 4), SequenceNode(0x400000, nodes=[])
+        assert GraphUtils.sort_node(block) != GraphUtils.sort_node(seq)
+        assert sorted([seq, block], key=GraphUtils.sort_node) == sorted([block, seq], key=GraphUtils.sort_node)
+
+    def test_sort_node_handles_nodes_without_an_address(self):
+        # keys must stay comparable against every other key rather than raising
+        assert len(sorted([Block(0x400000, 4), "dummy", object()], key=GraphUtils.sort_node)) == 3
 
     def test_subgraph_between_nodes_basic(self):
         G = nx.DiGraph()

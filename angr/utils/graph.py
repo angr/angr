@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections import OrderedDict, defaultdict, deque
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, cast
@@ -12,6 +13,9 @@ if TYPE_CHECKING:
     from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
 
 l = logging.getLogger(__name__)
+
+# nodes without an idx sort after every idx-carrying node at the same address
+_NO_IDX = sys.maxsize
 
 
 def shallow_reverse[T](g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
@@ -805,22 +809,37 @@ class GraphUtils:
         :rtype: list
         """
 
-        post_order = networkx.dfs_postorder_nodes(graph)
+        # keying on the node instead of node.addr keeps address-tied nodes (duplicated blocks) apart
+        post_order = list(GraphUtils.dfs_postorder_nodes_deterministic_multi(graph, graph.nodes()))
 
         if nodes is None:
-            return reversed(list(post_order))
+            return reversed(post_order)
 
-        addrs_to_index = {n.addr: i for (i, n) in enumerate(post_order)}
-        return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
+        node_to_index = {n: i for (i, n) in enumerate(post_order)}
+        return sorted(nodes, key=lambda n: node_to_index[n], reverse=True)
 
     @staticmethod
-    def sort_node(node):
+    def sort_node(node) -> tuple[int, int, int, str]:
         """
-        A sorter to make a deterministic order of nodes.
+        A sorter to make a deterministic order of nodes. The key is a total order: nodes sharing an address (duplicated
+        blocks) are separated by their idx instead of falling back on insertion order.
         """
-        if hasattr(node, "addr"):
-            return node.addr
-        return node
+        try:
+            addr = node.addr
+        except (AttributeError, TypeError):
+            # no addr at all, or a RegionOverlay with no head
+            addr = None
+        if isinstance(addr, int):
+            idx = getattr(node, "idx", None)
+            # the type name separates an AIL block from the structured node that replaced it: they share an address
+            # and, both being idx-less, would otherwise tie
+            return 0, addr, idx if isinstance(idx, int) else _NO_IDX, type(node).__name__
+        if isinstance(node, int):
+            return 0, node, _NO_IDX, ""
+        if isinstance(node, str):
+            return 1, 0, 0, node
+        # nothing to order on; sorting is stable, so these keep their existing relative order
+        return 2, 0, 0, type(node).__name__
 
     @staticmethod
     def sort_edge(edge):
