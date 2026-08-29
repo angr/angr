@@ -5637,7 +5637,7 @@ class TestDecompiler(unittest.TestCase):
 
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
-            unsigned int print_hello_world(void)
+            int print_hello_world(void)
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
@@ -5863,9 +5863,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((unsigned int){a0})
+                if ((int){a0})
                     return test_cond_tailcall_jmp_callee({a0});
-                return (unsigned int){a0} - 1;
+                return (int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
@@ -5885,9 +5885,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
         a0 = dec.clinic.kb.dec_variables[dec.func.addr].unified_variable(dec.clinic.arg_list[0]).name
         assert normalize_whitespace(f"""
-                if ((unsigned int){a0})
+                if ((int){a0})
                     return test_cond_tailcall_cjmp_callee({a0});
-                return (unsigned int){a0} - 1;
+                return (int){a0} - 1;
                 """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]

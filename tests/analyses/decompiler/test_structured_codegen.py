@@ -12,12 +12,15 @@ import angr
 from angr.ailment import Expr, Stmt
 from angr.analyses.decompiler.structured_codegen.c import (
     CAssignment,
+    CBinaryOp,
+    CConstant,
     CExpression,
+    CFakeVariable,
     CGoto,
     CStructuredCodeGenerator,
     CUnaryOp,
 )
-from angr.sim_type import SimTypeBottom, SimTypeInt, SimTypeLongLong, SimTypePointer
+from angr.sim_type import SimTypeBottom, SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypePointer, TypeRef
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -40,11 +43,15 @@ class _RenderedExpression(CExpression):
 class TestConvertRendering(unittest.TestCase):
     """How CStructuredCodeGenerator renders Convert expressions of assorted widths."""
 
+    codegen: CStructuredCodeGenerator
+
     @classmethod
     def setUpClass(cls):
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
-        cls.codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
 
     def _render(self, from_bits: int, to_bits: int, value: int = 0x1234) -> str:
         conv = Expr.Convert(0, from_bits, to_bits, False, Expr.Const(0, value, from_bits))
@@ -67,6 +74,24 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(1, 5, value=1) == "(char)1"
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
+
+    def test_narrow_arithmetic_shift_preserves_operand_width(self):
+        value = Expr.Convert(0, 32, 8, True, Expr.Const(1, 127, 32))
+        masked = Expr.BinaryOp(2, "And", (value, Expr.Const(3, 127, 8)), True, bits=8)
+        incremented = Expr.BinaryOp(4, "Add", (masked, Expr.Const(5, 1, 8)), True, bits=8)
+        shifted = Expr.BinaryOp(6, "Sar", (incremented, Expr.Const(7, 1, 8)), True, bits=8)
+
+        assert self.codegen._handle(shifted).c_repr() == "(char)(((char)127 & 127) + 1) >> 1"
+
+        char_alias = TypeRef("small_int", SimTypeChar(signed=True))
+        aliased_value = CFakeVariable("value", char_alias, codegen=self.codegen)
+        aliased_add = CBinaryOp(
+            "Add", aliased_value, CConstant(1, char_alias, codegen=self.codegen), codegen=self.codegen
+        )
+        aliased_shift = CBinaryOp(
+            "Sar", aliased_add, CConstant(1, SimTypeChar(), codegen=self.codegen), codegen=self.codegen
+        )
+        assert aliased_shift.c_repr() == "(char)(value + 1) >> 1"
 
 
 class TestGotoRendering(unittest.TestCase):

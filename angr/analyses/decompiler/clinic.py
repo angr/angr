@@ -5,6 +5,7 @@ import copy
 import enum
 import importlib
 import logging
+import re
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -114,6 +115,14 @@ l = logging.getLogger(name=__name__)
 
 
 BlockCache = namedtuple("BlockCache", ("rd", "prop"))
+X87_CALL_USED_CLEARING_TAIL = bytes.fromhex(
+    "d9ee" * 8
+    + "ddd8" * 8
+    + "31d231c931f631ff"
+    + "660fefc0660fefc9660fefd2660fefdb660fefe4660fefed660feff6660fefff"
+    + "4531c04531c94531d24531db"
+    + "66450fefc066450fefc966450fefd266450fefdb66450fefe466450fefed66450feff666450fefffc3"
+)
 
 
 def _pick_var(candidates: set[SimVariable]) -> SimVariable:
@@ -1500,6 +1509,7 @@ class Clinic(Analysis, Serializable):
 
         block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
         converted = self._convert_vex(block)
+        self._remove_call_used_x87_clearing(block, converted)
 
         # architecture-specific setup
         if block.addr == self.function.addr and self.project.arch.name in {"X86", "AMD64"}:
@@ -1521,6 +1531,62 @@ class Clinic(Analysis, Serializable):
             converted.statements.insert(0, dflag_assignment)
 
         return converted
+
+    @staticmethod
+    def _remove_call_used_x87_clearing(block, converted: ailment.Block) -> None:
+        """Remove GCC's terminal x87 call-used-register clearing sequence from an AIL block."""
+        if getattr(block.arch, "name", None) != "AMD64":
+            return
+
+        if not converted.statements or not isinstance(converted.statements[-1], ailment.Stmt.Return):
+            return
+        if not block.bytes.endswith(X87_CALL_USED_CLEARING_TAIL):
+            return
+
+        x87_start = block.addr + block.size - len(X87_CALL_USED_CLEARING_TAIL)
+        x87_ins_addrs = {x87_start + i * 2 for i in range(16)}
+
+        dirty_stmts = [
+            stmt
+            for stmt in converted.statements
+            if stmt.tags.get("ins_addr") in x87_ins_addrs and isinstance(stmt, ailment.Stmt.DirtyStatement)
+        ]
+        if len(dirty_stmts) != 40:
+            return
+
+        dirty_stmts_by_addr = defaultdict(list)
+        for stmt in dirty_stmts:
+            dirty_stmts_by_addr[stmt.tags["ins_addr"]].append(stmt)
+
+        put_x87_reg = r"PutI\(904:F64x8\)\[t\d+,0\] = t\d+"
+        mark_x87_reg_live = r"PutI\(968:I8x8\)\[t\d+,0\] = 0x01"
+        mark_x87_reg_dead = r"PutI\(968:I8x8\)\[t\d+,0\] = 0x00"
+        for i, ins_addr in enumerate(sorted(x87_ins_addrs)):
+            expected_callees = (
+                (put_x87_reg, mark_x87_reg_live) if i < 8 else (put_x87_reg, mark_x87_reg_live, mark_x87_reg_dead)
+            )
+            insn_dirty_stmts = dirty_stmts_by_addr[ins_addr]
+            if len(insn_dirty_stmts) != len(expected_callees):
+                return
+            for stmt, expected_callee in zip(insn_dirty_stmts, expected_callees, strict=True):
+                dirty = stmt.dirty
+                if not (
+                    isinstance(dirty, ailment.Expr.DirtyExpression)
+                    and isinstance(dirty.callee, str)
+                    and re.fullmatch(expected_callee, dirty.callee)
+                    and dirty.bits == 0
+                    and dirty.operands == []
+                    and dirty.guard is None
+                    and dirty.mfx is None
+                    and dirty.maddr is None
+                    and dirty.msize is None
+                    and stmt.tags.get("vex_block_addr") == block.addr
+                    and isinstance(stmt.tags.get("vex_stmt_idx"), int)
+                ):
+                    return
+
+        dirty_stmt_ids = {id(stmt) for stmt in dirty_stmts}
+        converted.statements = [stmt for stmt in converted.statements if id(stmt) not in dirty_stmt_ids]
 
     def _convert_vex(self, block):
         fast = self._convert_vex_fast(block)
@@ -2464,8 +2530,37 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    @staticmethod
+    def _reconcile_function_return_type(
+        inferred_type: SimType,
+        previous_type: SimType | None,
+        previous_source: PrototypeSource,
+        inferred_signedness_is_ambiguous: bool,
+        *,
+        flavor: str = "pseudocode",
+    ) -> SimType:
+        """Preserve C calling-convention signedness when Typehoon recovered only an integer width."""
+        if (
+            previous_source is not PrototypeSource.CCA_LOW
+            or flavor == "rust"
+            or not isinstance(previous_type, (SimTypeChar, SimTypeInt))
+            or not isinstance(inferred_type, (SimTypeChar, SimTypeInt))
+            or type(previous_type) is not type(inferred_type)
+            or previous_type.size != inferred_type.size
+        ):
+            return inferred_type
+
+        if not inferred_signedness_is_ambiguous:
+            return inferred_type
+
+        reconciled_type = copy.copy(inferred_type)
+        reconciled_type.signed = previous_type.signed
+        return reconciled_type
+
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
+        previous_prototype = self.function.prototype
+        previous_source = self.function.prototype_source
         if self.function.prototype is not None:
             if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
                 # do not overwrite an existing function prototype
@@ -2507,6 +2602,17 @@ class Clinic(Analysis, Serializable):
                 returnty = self.function.prototype.returnty
             else:
                 returnty = SimTypeInt()
+        else:
+            inferred_signedness_is_ambiguous = self.typehoon is not None and (
+                self.typehoon.variable_has_only_generic_integer_solutions(self.func_ret_var)
+            )
+            returnty = self._reconcile_function_return_type(
+                returnty,
+                previous_prototype.returnty if previous_prototype is not None else None,
+                previous_source,
+                inferred_signedness_is_ambiguous,
+                flavor=self.flavor,
+            )
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
