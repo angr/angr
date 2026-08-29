@@ -1,6 +1,7 @@
 # pylint:disable=unused-argument,useless-return
 from __future__ import annotations
 
+import sys
 from collections import OrderedDict
 
 from angr import ailment
@@ -18,6 +19,20 @@ from .structurer_nodes import (
     SequenceNode,
     SwitchCaseNode,
 )
+
+# The walk spends two or three Python frames on every level of the structured tree, so CPython's default limit of
+# 1000 stops it at about 250 levels of nesting and a function that nests deeper decompiles to nothing. Raising the
+# limit is what that limit is for: since 3.11 a Python-to-Python call allocates its frame on the heap rather than on
+# the C stack, so a limit this high costs nothing until it is used.
+#
+# It does not make the walk unbounded. CPython keeps a second, separate budget for calls that do go through C, which
+# sys.setrecursionlimit does not govern -- `handler(node, **kwargs)` below is such a call -- and that budget stops
+# the walk at about 2500 levels with a RecursionError. That is a clean failure rather than a crash, and it is an
+# order of magnitude past the deepest tree we have measured, which was 519.
+#
+# The limit is only ever raised, never restored: lowering it aborts any other thread already deeper than the value
+# being restored.
+MIN_RECURSION_LIMIT = 100_000
 
 
 class SequenceWalker:
@@ -60,6 +75,8 @@ class SequenceWalker:
             self._handlers.update(handlers)
 
     def walk(self, sequence):
+        if sys.getrecursionlimit() < MIN_RECURSION_LIMIT:
+            sys.setrecursionlimit(MIN_RECURSION_LIMIT)
         return self._handle(sequence)
 
     #
