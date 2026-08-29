@@ -35,6 +35,40 @@ class TestRuntimeDbBaseDir(unittest.TestCase):
             finally:
                 proj.kb.rtdb.cleanup()
 
+    def test_rtdb_base_that_does_not_exist_yet_is_created(self):
+        with tempfile.TemporaryDirectory() as bindir, tempfile.TemporaryDirectory() as parent:
+            binary = shutil.copy(os.path.join(test_location, "x86_64", "fauxware"), bindir)
+            basedir = os.path.join(parent, "rtdb", "bases")
+            with mock.patch.dict(os.environ, {"RTDB_BASE": basedir}):
+                proj = angr.Project(binary, auto_load_libs=False)
+                proj.kb.rtdb.open_db("testdb")
+                try:
+                    assert os.listdir(bindir) == ["fauxware"], (
+                        f"the directory holding the binary holds {os.listdir(bindir)}"
+                    )
+                    assert os.listdir(basedir) == ["fauxware_angr_rtdb"], (
+                        f"RTDB_BASE was set to {basedir}, which holds {os.listdir(basedir)}"
+                    )
+                finally:
+                    proj.kb.rtdb.cleanup()
+
+    def test_rtdb_base_that_cannot_be_created_falls_back(self):
+        with tempfile.TemporaryDirectory() as bindir, tempfile.TemporaryDirectory() as parent:
+            binary = shutil.copy(os.path.join(test_location, "x86_64", "fauxware"), bindir)
+            # a regular file at the path, so that creating the directory fails for every user
+            basedir = os.path.join(parent, "occupied")
+            with open(basedir, "w", encoding="utf-8"):
+                pass
+            with mock.patch.dict(os.environ, {"RTDB_BASE": basedir}):
+                proj = angr.Project(binary, auto_load_libs=False)
+                proj.kb.rtdb.open_db("testdb")
+                try:
+                    assert sorted(os.listdir(bindir)) == ["fauxware", "fauxware_angr_rtdb"], (
+                        f"the directory holding the binary holds {os.listdir(bindir)}"
+                    )
+                finally:
+                    proj.kb.rtdb.cleanup()
+
     def test_rtdb_defaults_to_the_directory_of_the_main_binary(self):
         with tempfile.TemporaryDirectory() as bindir, mock.patch.dict(os.environ):
             os.environ.pop("RTDB_BASE", None)

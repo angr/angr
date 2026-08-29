@@ -196,6 +196,13 @@ class RuntimeDb(KnowledgeBasePlugin):
 
         basedir = os.environ.get("RTDB_BASE")
         if basedir is not None:
+            try:
+                os.makedirs(basedir, exist_ok=True)
+            except OSError as ex:
+                l.error("The directory %s cannot be created: %s. Falling back.", basedir, ex)
+                basedir = None
+
+        if basedir is not None:
             if not os.access(basedir, os.W_OK):
                 l.error("The directory %s is not writable. Falling back.", basedir)
                 basedir = None
