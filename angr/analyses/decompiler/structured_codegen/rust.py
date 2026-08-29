@@ -70,6 +70,7 @@ from angr.sim_type import (
     SimTypeLength,
     SimTypeLongLong,
     SimTypeNum,
+    SimTypePointer,
     SimTypeReg,
     SimTypeWideChar,
     TypeRef,
@@ -130,6 +131,14 @@ def qualifies_for_simple_cast(ty1, ty2):
         and isinstance(ty1, (RustSimTypeInt, RustSimTypeReference))
         and isinstance(ty2, (RustSimTypeInt, RustSimTypeReference))
     )
+
+
+def qualifies_for_width_cast(ty):
+    # converting ty to a different width - can a scalar cast do it?
+    # floats are excluded because a float cast converts the value, not the representation
+    # the Rust scalar types are subclasses of these: RustSimTypeInt of SimTypeInt,
+    # RustSimTypeReference of SimTypePointer, RustSimTypeBottom of SimTypeBottom
+    return isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer, SimTypeBottom))
 
 
 def qualifies_for_implicit_cast(ty1, ty2):
@@ -3747,8 +3756,25 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_Store(self, stmt: Stmt.Store, **kwargs):
         cdata = self._handle(stmt.data)
 
-        if cdata.type.size != stmt.size * self.project.arch.byte_width:
-            l.error("Store data lifted to a C type with a different size. Decompilation output will be wrong.")
+        store_bits = stmt.size * self.project.arch.byte_width
+        if cdata.type is None or cdata.type.size != store_bits:
+            if cdata.type is not None and cdata.type.size is not None:
+                l.error(
+                    "Store data lifted to a type of a different size: %s is %d bits, the store is %d bits. "
+                    "Using the store width.",
+                    cdata.type,
+                    cdata.type.size,
+                    store_bits,
+                )
+            if cdata.type is None or qualifies_for_width_cast(unpack_typeref(cdata.type)):
+                # an untyped or mis-sized scalar must still write stmt.size bytes: retype the value at the
+                # store width so _access renders the access at that width instead of the inferred one.
+                cdata = RustTypeCast(
+                    cdata.type,
+                    self.default_simtype_from_size(stmt.size, signed=getattr(cdata.type, "signed", False)),
+                    cdata,
+                    codegen=self,
+                )
 
         def negotiate(old_ty, proposed_ty):
             # transfer casts from the dst to the src if possible
