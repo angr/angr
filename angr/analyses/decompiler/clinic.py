@@ -1454,6 +1454,9 @@ class Clinic(Analysis, Serializable):
         :return: None
         """
 
+        def _cross_insn_opt_callback(block_addr, block_size) -> bool:  # pylint: disable=unused-argument
+            return self._cross_insn_opt_for_large_blocks and block_size >= self._cross_insn_opt_min_block_size
+
         regs = {self.project.arch.sp_offset}
         initial_reg_values = {
             self.project.arch.sp_offset: OffsetVal(
@@ -1474,7 +1477,7 @@ class Clinic(Analysis, Serializable):
             regs,
             fail_fast=self._fail_fast,
             track_memory=self._sp_tracker_track_memory,
-            cross_insn_opt=self._cross_insn_opt_for_large_blocks,
+            cross_insn_opt_callback=_cross_insn_opt_callback,
             initial_reg_values=initial_reg_values,
         )
 
