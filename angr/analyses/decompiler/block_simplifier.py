@@ -193,7 +193,6 @@ class BlockSimplifier:
         block = self.block
         assert block is not None
         ctr = 0
-        max_ctr = 30
 
         new_block, changed = self._eliminate_self_assignments(block)
         # True once dead-assignment elimination is known to have nothing to do on the block the loop below starts
@@ -206,6 +205,10 @@ class BlockSimplifier:
         if changed:
             self._clear_cache()
             block = new_block
+
+        # Where the stack pointer is unresolved the propagator folds one link of a definition chain per
+        # pass, so a block can legitimately need one iteration for each statement it starts out with.
+        max_ctr = max(30, len(block.statements))
 
         while True:
             ctr += 1
