@@ -24,11 +24,17 @@ def tracer_cgc(
     remove_options=None,
     syscall_data=None,
     symbolic_stdin=True,
+    trace_limit=None,
 ):
     p = angr.Project(filename)
     p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"][0])
 
     trace, magic, crash_mode, crash_addr = do_trace(p, test_name, stdin)
+    if trace_limit is not None:
+        # Replay only a prefix of the recorded trace. Tracer stashes the state as "traced" once trace_idx
+        # reaches the end, so a shorter trace just ends the replay earlier. Only usable for tests that do
+        # not assert on the program's full output.
+        trace = trace[:trace_limit]
     s = p.factory.entry_state(
         mode="tracing",
         stdin=angr.SimFileStream,
@@ -74,6 +80,7 @@ def trace_cgc_with_pov_file(
     remove_options=None,
     syscall_data=None,
     symbolic_stdin=True,
+    trace_limit=None,
 ):
     assert os.path.isfile(pov_file)
     pov = load_cgc_pov(pov_file)
@@ -88,6 +95,7 @@ def trace_cgc_with_pov_file(
         remove_options=remove_options,
         syscall_data=syscall_data,
         symbolic_stdin=symbolic_stdin,
+        trace_limit=trace_limit,
     )
     simgr = trace_result[0]
     simgr.run()
@@ -633,7 +641,12 @@ class TestTracer(unittest.TestCase):
     def test_sseround_register_dependency_unicorn_native_interface(self):
         """
         Test if value of SSEROUND VEX register is saved correctly when it is a dependency of an instruction that needs
-        to be re-executed. Takes about 10 minutes.
+        to be re-executed.
+
+        Only the first 4000 of the trace's 11045 entries are replayed. Two blocks re-execute with an SSEROUND
+        dependency, 0x80481d7 and 0x8048250; both are reached 89 times within that prefix, against 758 times
+        over the whole trace, and the rest of the trace visits no further one. Replaying it all costs 15x
+        the time for no additional coverage.
         """
 
         binary = os.path.join(bin_location, "tests", "cgc", "NRFIN_00021")
@@ -650,6 +663,7 @@ class TestTracer(unittest.TestCase):
             pov_file,
             output_initial_bytes,
             add_options=add_options,
+            trace_limit=4000,
         )
 
     def test_concretize_unsupported_vex_irops(self):
