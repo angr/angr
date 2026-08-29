@@ -26,5 +26,6 @@ class chdir(angr.SimProcedure):
     def run(self, buf):
         cwd = self.state.mem[buf].string.concrete
         l.info("chdir(%r)", cwd)
-        self.state.fs.cwd = cwd
+        # normalize it, so that the cwd stays an absolute path relative to the current root
+        self.state.fs.chdir(cwd)
         return 0

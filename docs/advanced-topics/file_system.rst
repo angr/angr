@@ -294,6 +294,12 @@ file data when the program asks for it:
 You can write whatever kind of mount you want to instrument filesystem access by
 subclassing ``angr.SimMount``!
 
+The filesystem also has a root directory, which ``state.fs.chroot`` changes -
+this is what the ``chroot`` simprocedure calls. The new root is resolved inside
+the filesystem the state already has, so a guest calling ``chroot`` can only
+reduce what it is able to reach; it never gains access to anything you did not
+mount yourself.
+
 Stdio streams
 ^^^^^^^^^^^^^
 

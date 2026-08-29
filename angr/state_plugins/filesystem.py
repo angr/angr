@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import namedtuple
+from typing import cast
 
 from angr.errors import SimMergeError
 from angr.storage.file import SimFile
@@ -45,7 +46,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
     :param mountpoints: A mapping from filepath to SimMountpoint
 
     :ivar pathsep:      The current pathsep
-    :ivar cwd:          The current working directory
+    :ivar cwd:          The current working directory, relative to the current root
     :ivar unlinks:      A list of unlink operations, tuples of filename and simfile. Be careful, this list is
                         shallow-copied from successor to successor, so don't mutate anything in it without copying.
     """
@@ -64,6 +65,7 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
 
         self.pathsep = pathsep
         self.cwd = cwd
+        self._root = []
         self._unlinks = []
         self._files = {}
         self._mountpoints = {}
@@ -75,10 +77,11 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        o = super().copy(memo)
+        o = cast("SimFilesystem", super().copy(memo))
 
         o.pathsep = self.pathsep
         o.cwd = self.cwd
+        o._root = list(self._root)
         o._unlinks = list(self._unlinks)
         o._files = {k: v.copy(memo) for k, v in self._files.items()}
         o._mountpoints = {k: v.copy(memo) for k, v in self._mountpoints.items()}
@@ -102,6 +105,8 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         for o in others:
             if o.cwd != self.cwd:
                 raise SimMergeError("Can't merge filesystems with disparate cwds")
+            if o.root != self.root:
+                raise SimMergeError("Can't merge filesystems with disparate root directories")
             if len(o._mountpoints) != len(self._mountpoints):
                 raise SimMergeError("Can't merge filesystems with disparate mountpoints")
             if list(map(id, o.unlinks)) != list(map(id, self.unlinks)):
@@ -143,7 +148,9 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
 
     def _normalize_path(self, path):
         """
-        Takes a path and returns a simple absolute path as a list of directories from the root
+        Takes a path and returns a simple absolute path as a list of directories from the current root.
+
+        Note that ".." is resolved lexically and cannot climb above the current root.
         """
         if type(path) is str:
             path = path.encode()
@@ -165,17 +172,50 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
                 i += 1
         return keys
 
+    def _resolve_path(self, path):
+        """
+        Takes a path and returns it as a list of directories from the filesystem's real root, i.e. with the current
+        root (see ``chroot``) prepended. This is what actually keys ``_files`` and ``_mountpoints``.
+        """
+        return self._root + self._normalize_path(path)
+
     def _join_chunks(self, keys):
         """
         Takes a list of directories from the root and joins them into a string path
         """
         return self.pathsep + self.pathsep.join(keys)
 
+    @property
+    def root(self):
+        """
+        The current root directory, as an absolute path in the filesystem's original namespace, i.e. the one paths
+        were resolved in before any chroot.
+        """
+        return self._join_chunks(self._root)
+
     def chdir(self, path):
         """
         Changes the current directory to the given path
         """
         self.cwd = self._join_chunks(self._normalize_path(path))
+
+    def chroot(self, path):
+        """
+        Changes the root directory to the given path, which is interpreted relative to the current root.
+
+        This only ever narrows what is reachable: the new root is resolved inside this filesystem, and paths
+        (including "..") are resolved under it from then on. Contrary to Linux, where the current directory is
+        left where it was and can therefore point outside the new root, the current directory is re-anchored
+        inside the new root, since keeping it outside would defeat the point.
+        """
+        cwd_chunks = self._resolve_path(self.cwd)
+        self._root = self._resolve_path(path)
+
+        if cwd_chunks[: len(self._root)] == self._root:
+            self.cwd = self._join_chunks(cwd_chunks[len(self._root) :])
+        else:
+            l.info("chroot: the current directory is outside of the new root %r; resetting it to the root", self.root)
+            self.cwd = self.pathsep
 
     def get(self, path):
         """
@@ -225,21 +265,25 @@ class SimFilesystem(SimStatePlugin):  # pretends links don't exist
         """
         Add a mountpoint to the filesystem.
         """
-        self._mountpoints[self._join_chunks(self._normalize_path(path))] = mount
+        self._mountpoints[self._join_chunks(self._resolve_path(path))] = mount
 
     def unmount(self, path):
         """
         Remove a mountpoint from the filesystem.
         """
-        del self._mountpoints[self._join_chunks(self._normalize_path(path))]
+        del self._mountpoints[self._join_chunks(self._resolve_path(path))]
 
     def get_mountpoint(self, path):
         """
         Look up the mountpoint servicing the given path.
 
         :return: A tuple of the mount and a list of path elements traversing from the mountpoint to the specified file.
+                 If no mountpoint services the path, the list traverses from the real root instead.
         """
-        path_chunks = self._normalize_path(path)
+        path_chunks = self._resolve_path(path)
+        if not path_chunks:
+            # the path is the real root itself; the loop below cannot express that
+            return self._mountpoints.get(self._join_chunks([])), []
         for i in range(len(path_chunks) - 1, -1, -1):
             partial_path = self._join_chunks(path_chunks[:-i])
             if partial_path in self._mountpoints:
