@@ -34,8 +34,6 @@ from .behavior import BehaviorFactory
 if TYPE_CHECKING:
     from pypcode import Context, PcodeOp
 
-    from angr.project import Project
-
 
 l = logging.getLogger(__name__)
 
@@ -829,7 +827,7 @@ class PcodeBasicBlockLifter:
     Lifts basic blocks to P-code
 
     Sleigh records context variables per address, so an instance must stay with one binary. See
-    :func:`get_block_lifter`.
+    :meth:`angr.project.Project.pcode_block_lifter`.
     """
 
     arch: archinfo.Arch
@@ -976,17 +974,6 @@ class PcodeBasicBlockLifter:
         const_cls = {8: U8, 16: U16, 32: U32, 64: U64}[irsb.arch.bits]
         irsb.next = Const(const_cls(next_block[0])) if next_block[0] is not None else None
         irsb.jumpkind = next_block[1]
-
-
-def get_block_lifter(project: Project | None, arch: archinfo.Arch) -> PcodeBasicBlockLifter:
-    """
-    Get the basic block lifter, and therefore the Sleigh context, that `project` decodes `arch` with.
-
-    Lifting with no project at all gets a context of its own. See :meth:`angr.project.Project.pcode_block_lifter`.
-    """
-    if project is None:
-        return PcodeBasicBlockLifter(arch)
-    return project.pcode_block_lifter(arch)
 
 
 class PcodeLifter(Lifter):
@@ -1305,7 +1292,7 @@ class PcodeLifterEngineMixin(SimEngine):
                     strict_block_end=strict_block_end,
                     skip_stmts=skip_stmts,
                     collect_data_refs=collect_data_refs,
-                    block_lifter=get_block_lifter(self.project, arch),
+                    block_lifter=self.project.pcode_block_lifter(arch) if self.project is not None else None,
                 )
 
                 if subphase == 0 and irsb.statements is not None:

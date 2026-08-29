@@ -11,7 +11,6 @@ import pyvex
 
 import angr
 from angr.block import Block
-from angr.engines.pcode import lifter as pcode_lifter
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
@@ -197,8 +196,8 @@ class TestPcodeEngine(TestCase):
         assert [insn.mnemonic for insn in first.factory.block(0).pcode.insns] == ["nop"] * 4
 
         block_lifter = first.pcode_block_lifter(first.arch)
-        assert pcode_lifter.get_block_lifter(first, first.arch) is block_lifter
-        assert pcode_lifter.get_block_lifter(second, second.arch) is not block_lifter
+        assert first.pcode_block_lifter(first.arch) is block_lifter
+        assert second.pcode_block_lifter(second.arch) is not block_lifter
 
         # a lifter decodes one architecture, so a Block naming another gets its own rather than this one, which
         # would answer for the architecture the caller did not ask for
@@ -224,7 +223,7 @@ class TestPcodeEngine(TestCase):
         assert third._pcode_block_lifter is None
         assert third.factory.block(0x1000).instructions == 4
         assert third._pcode_block_lifter is not None
-        assert pcode_lifter.get_block_lifter(third, arch) is third._pcode_block_lifter
+        assert third.pcode_block_lifter(arch) is third._pcode_block_lifter
 
     def test_block_lifter_is_shared_between_threads(self):
         """
@@ -245,7 +244,7 @@ class TestPcodeEngine(TestCase):
 
         def lift_in_thread():
             proj.factory.block(0x1000)
-            seen.append((proj.factory.default_engine, pcode_lifter.get_block_lifter(proj, arch)))
+            seen.append((proj.factory.default_engine, proj.pcode_block_lifter(arch)))
 
         thread = threading.Thread(target=lift_in_thread)
         thread.start()

@@ -472,7 +472,11 @@ class Block(Serializable):
         block_bytes = self.bytes
         if self.size is not None:
             block_bytes = block_bytes[: self.size]  # type: ignore
-        block_lifter = pcode.lifter.get_block_lifter(self._project, self.arch)  # type: ignore
+        block_lifter = (
+            self._project.pcode_block_lifter(self.arch)
+            if self._project is not None
+            else pcode.lifter.PcodeBasicBlockLifter(self.arch)  # type: ignore
+        )
         for cs_insn in block_lifter.context.disassemble(block_bytes, self.addr).instructions:
             insns.append(PCodeInsn(cs_insn))
         block = PCodeBlock(self.addr, insns, self.thumb, self.arch)

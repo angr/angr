@@ -8,7 +8,7 @@ import types
 from collections import defaultdict
 from io import BytesIO, IOBase
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import archinfo
 import cle
@@ -17,15 +17,13 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from angr.knowledge_base import KnowledgeBase
 
 from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
+from .engines.pcode.lifter import PcodeBasicBlockLifter
 from .errors import AngrNoPluginError
 from .factory import AngrObjectFactory
 from .llm_client import LLMClient
 from .procedures import SIM_LIBRARIES, SIM_PROCEDURES
 from .sim_procedure import SimProcedure
 from .simos import SimOS, os_mapping
-
-if TYPE_CHECKING:
-    from .engines.pcode.lifter import PcodeBasicBlockLifter
 
 l = logging.getLogger(name=__name__)
 
@@ -815,8 +813,6 @@ class Project:
         block of another binary touches it. `arch` is normally this project's own; a `Block` may name another, and
         decoding that with this project's context would answer for the wrong architecture, so it gets its own.
         """
-        from .engines.pcode.lifter import PcodeBasicBlockLifter  # pylint:disable=import-outside-toplevel
-
         if self._pcode_block_lifter is None or self._pcode_block_lifter.arch != arch:
             self._pcode_block_lifter = PcodeBasicBlockLifter(arch)
         return self._pcode_block_lifter
