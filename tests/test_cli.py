@@ -226,9 +226,18 @@ class TestCommandLineInterface(unittest.TestCase):
         output = run_cli("decompile", bin_path, "--functions", "main", "--cca", "--no-colors")
         assert "main" in output
 
+    def test_decompile_scope_to_functions_by_name(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        output = run_cli("decompile", bin_path, "--functions", "main", "--scope-to-functions", "--cca", "--no-colors")
+        assert "main" in output
+
     def test_decompile_rust(self):
         bin_path = os.path.join(test_location, "x86_64", "rust", "FakeCrypt-stripped")
-        output = run_cli("decompile", bin_path, "--functions", "0x455300", "--rust", "--no-colors")
+        # a whole-binary CFG and calling-convention pass over this 900 KB binary costs ~100s to produce a
+        # decompilation that takes half a second; only the callees of sub_455300 can affect it
+        output = run_cli(
+            "decompile", bin_path, "--functions", "0x455300", "--rust", "--scope-to-functions", "--no-colors"
+        )
 
         assert "fn sub_455300(" in output, "expected a Rust `fn` header for sub_455300"
         assert re.search(r"let v\d+: ", output), "expected Rust-style `let v#: <type>` declarations"
