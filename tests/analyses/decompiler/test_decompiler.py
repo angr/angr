@@ -2670,6 +2670,43 @@ class TestDecompiler(unittest.TestCase):
         # assert d.codegen.text.count("break;") == 5
 
     @structuring_algo("sailr")
+    def test_reverting_switch_lowering_range_check_unzip(self, decompiler_options=None):
+        # case labels with consecutive values compile to an unsigned range check, (unsigned)(var - lo) <= hi - lo.
+        # when that is not recognized, the chain of comparisons is only half read, the switch is left pointing at a
+        # default it cannot reach, and most of the function is then dropped from the output.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "unzip_gcc17_O0.stripped")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
+            "AMD64", "linux", additional_opts=[LoweredSwitchSimplifier]
+        )
+
+        # TestExtraField(): a loop around a switch on the extra-field ID, whose cases switch again on a status
+        # code. PK_MEM3 (6) and PK_MEM4 (7) are the two consecutive values behind the range check.
+        f = proj.kb.functions[0x4131E7]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        print_decompilation_result(d)
+
+        assert d.codegen is not None
+        text = d.codegen.text
+        assert text is not None
+        # every goto needs a label to jump to; these used to point at blocks that were thrown away
+        used_labels = set(re.findall(r"goto\s+(LABEL_\w+);", text))
+        defined_labels = set(re.findall(r"^\s*(LABEL_\w+):", text, re.MULTILINE))
+        assert not used_labels - defined_labels, f"undefined labels: {sorted(used_labels - defined_labels)}"
+
+        # the range check covers 6 and 7, so both must appear as plain cases
+        assert "case 6:" in text
+        assert "case 7:" in text
+
+        # the outer switch and its shared-body group must still be there
+        for case_value in (9, 13133, 19521, 25922, 29761):
+            assert f"case {case_value}:" in text
+
+    @structuring_algo("sailr")
     def test_reverting_switch_clustering_and_lowering_cat_main(self, decompiler_options=None):
         # nested switch-cases
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "cat.o")
