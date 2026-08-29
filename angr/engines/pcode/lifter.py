@@ -647,6 +647,7 @@ def lift(
     inner: bool = False,
     skip_stmts: bool = False,
     collect_data_refs: bool = False,
+    block_lifter: PcodeBasicBlockLifter | None = None,
 ) -> IRSB:
     """
     Lift machine code in `data` to a P-code IRSB.
@@ -663,6 +664,8 @@ def lift(
     :param bytes_offset:    The offset into `data` to start lifting at.
     :param opt_level:       Unused by P-Code lifter
     :param traceflags:      Unused by P-Code lifter
+    :param block_lifter:    The basic block lifter, and therefore the Sleigh context, to decode with. A private one is
+                            created when it is not given.
 
     .. note:: Explicitly specifying the number of instructions to lift (`max_inst`) may not always work
               exactly as expected. For example, on MIPS, it is meaningless to lift a branch or jump
@@ -703,9 +706,12 @@ def lift(
         allow_arch_optimizations = False
         opt_level = 0
 
+    if block_lifter is None:
+        block_lifter = PcodeBasicBlockLifter(arch)
+
     u_data = data
     try:
-        final_irsb = PcodeLifter(arch, addr)._lift(
+        final_irsb = PcodeLifter(arch, addr, block_lifter)._lift(
             u_data,
             bytes_offset,
             max_bytes,
@@ -719,7 +725,7 @@ def lift(
         )
     except SkipStatementsError:
         assert skip_stmts is True
-        final_irsb = PcodeLifter(arch, addr)._lift(
+        final_irsb = PcodeLifter(arch, addr, block_lifter)._lift(
             u_data,
             bytes_offset,
             max_bytes,
@@ -778,6 +784,7 @@ def lift(
                 strict_block_end=strict_block_end,
                 skip_stmts=False,
                 collect_data_refs=collect_data_refs,
+                block_lifter=block_lifter,
             )
 
         next_addr = addr + final_irsb.size
@@ -800,6 +807,7 @@ def lift(
                 inner=True,
                 skip_stmts=False,
                 collect_data_refs=collect_data_refs,
+                block_lifter=block_lifter,
             )
             if more_irsb.size:
                 # Successfully decoded more bytes
@@ -817,12 +825,17 @@ def lift(
 class PcodeBasicBlockLifter:
     """
     Lifts basic blocks to P-code
+
+    Sleigh records context variables per address, so an instance must stay with one binary. See
+    :meth:`angr.project.Project.pcode_block_lifter`.
     """
 
+    arch: archinfo.Arch
     context: Context
     behaviors: BehaviorFactory
 
     def __init__(self, arch: archinfo.Arch):
+        self.arch = arch
         if isinstance(arch, ArchPcode):
             langid = arch.name
         else:
@@ -968,16 +981,16 @@ class PcodeLifter(Lifter):
     Handles calling into pypcode to lift a block
     """
 
-    _lifter_cache = {}
+    __slots__ = ("block_lifter",)
 
-    @classmethod
-    def get_lifter(cls, arch):
-        if arch not in PcodeLifter._lifter_cache:
-            PcodeLifter._lifter_cache[arch] = PcodeBasicBlockLifter(arch)
-        return PcodeLifter._lifter_cache[arch]
+    block_lifter: PcodeBasicBlockLifter
+
+    def __init__(self, arch: archinfo.Arch, addr: int, block_lifter: PcodeBasicBlockLifter):
+        super().__init__(arch, addr)
+        self.block_lifter = block_lifter
 
     def lift(self) -> None:
-        self.get_lifter(self.arch).lift(
+        self.block_lifter.lift(
             self.irsb,
             self.addr,
             self.data,
@@ -1149,6 +1162,7 @@ class PcodeLifterEngineMixin(SimEngine):
             raise ValueError("Must provide state or addr!")
         if arch is None:
             arch = clemory._arch if clemory else state.arch
+        assert arch is not None
         if arch.name.startswith("MIPS") and self._single_step:
             l.error("Cannot specify single-stepping on MIPS.")
             self._single_step = False
@@ -1278,6 +1292,7 @@ class PcodeLifterEngineMixin(SimEngine):
                     strict_block_end=strict_block_end,
                     skip_stmts=skip_stmts,
                     collect_data_refs=collect_data_refs,
+                    block_lifter=self.project.pcode_block_lifter(arch) if self.project is not None else None,
                 )
 
                 if subphase == 0 and irsb.statements is not None:

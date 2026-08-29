@@ -2,17 +2,22 @@
 from __future__ import annotations
 
 import os
+import pickle
+import threading
 from unittest import TestCase, main
 
 import archinfo
+import pyvex
 
 import angr
+from angr.block import Block
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
+# pylint: disable=protected-access
 class TestPcodeEngine(TestCase):
     def test_shellcode(self):
         """
@@ -144,6 +149,111 @@ class TestPcodeEngine(TestCase):
                 continue
             func_out = func.graph.out_degree(func_node)
             assert func_out > 0
+
+    def test_sleigh_context_is_not_shared_between_projects(self):
+        """
+        Test that a project's blocks do not depend on which other projects were lifted before it.
+
+        Sleigh records context variables per address, so a PA-RISC branch lifted in one project used to leave the
+        delay slot context it sets behind at the following address, and an unrelated project's instruction at that
+        address was then decoded as that branch's delay slot.
+        """
+        base_addr = 0x1000
+        nop = b"\x08\x00\x02\x40"  # or %r0, %r0, %r0
+        branch = b"\xe8\x00\x00\x10"  # b 0x1010, whose delay slot is the instruction at 0x1004
+        arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+
+        def project(code):
+            return angr.load_shellcode(code, arch=arch, load_address=base_addr, engine=angr.engines.UberEnginePcode)
+
+        def delay_slot_block():
+            block = project(nop * 8).factory.block(base_addr + 4)
+            next_expr = block.vex.next
+            assert isinstance(next_expr, pyvex.expr.Const)
+            return block.size, block.vex.jumpkind, next_expr.con.value
+
+        before = delay_slot_block()
+        assert before == (28, "Ijk_Boring", 0x1020)
+
+        # Lift the branch in another project, writing its delay slot context at base_addr + 4. The branch and its
+        # delay slot are one two-instruction block, which is what leaves the context behind.
+        branch_block = project(branch + nop * 7).factory.block(base_addr)
+        assert (branch_block.size, branch_block.instructions) == (8, 2)
+
+        assert delay_slot_block() == before
+
+    def test_block_lifter_is_kept_per_project(self):
+        """
+        Test that a project decodes with one basic block lifter, and therefore one Sleigh context.
+
+        Block.pcode reads that context, so a project whose engine is not the p-code engine must neither share one
+        with another project nor build one for every block.
+        """
+        code = b"\x13\x00\x00\x00" * 4  # four RISC-V nops
+        first = angr.load_shellcode(code, arch="RISCV64", load_address=0)
+        second = angr.load_shellcode(code, arch="RISCV64", load_address=0)
+
+        assert [insn.mnemonic for insn in first.factory.block(0).pcode.insns] == ["nop"] * 4
+
+        block_lifter = first.pcode_block_lifter(first.arch)
+        assert first.pcode_block_lifter(first.arch) is block_lifter
+        assert second.pcode_block_lifter(second.arch) is not block_lifter
+
+        # a lifter decodes one architecture, so a Block naming another gets its own rather than this one, which
+        # would answer for the architecture the caller did not ask for
+        other_arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+        assert first.pcode_block_lifter(other_arch).arch == other_arch
+        assert first.pcode_block_lifter(first.arch) is not block_lifter
+
+        # Block.__init__ takes an architecture from the caller, so this is reachable: decoded through the
+        # project's own context these bytes read as RISC-V nops, which is not what the caller asked for
+        elsewhere = Block(0, project=first, arch=other_arch, size=len(code))
+        assert [insn.mnemonic for insn in elsewhere.pcode.insns] == ["SPOP0,0x0"] * 4
+
+        # a Sleigh context cannot be pickled, so the lifter a project keeps must not go into its pickle
+        restored = pickle.loads(pickle.dumps(first))
+        assert [insn.mnemonic for insn in restored.factory.block(0).pcode.insns] == ["nop"] * 4
+
+        # a project running the p-code engine keeps it in the same place, so its engine and its Block.pcode decode
+        # with one context rather than one each
+        arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+        third = angr.load_shellcode(
+            b"\x08\x00\x02\x40" * 4, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode
+        )
+        assert third._pcode_block_lifter is None
+        assert third.factory.block(0x1000).instructions == 4
+        assert third._pcode_block_lifter is not None
+        assert third.pcode_block_lifter(arch) is third._pcode_block_lifter
+
+    def test_block_lifter_is_shared_between_threads(self):
+        """
+        Test that a project decodes with one basic block lifter whichever thread lifts.
+
+        The factory hands out one engine per thread, so keeping the lifter on the engine gave each thread its own
+        Sleigh context and made a block's decoding depend on which thread reached it first.
+        """
+        arch = archinfo.ArchPcode("pa-risc:BE:32:default")
+        proj = angr.load_shellcode(
+            b"\x08\x00\x02\x40" * 4, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode
+        )
+        assert proj.factory.block(0x1000).instructions == 4
+        main_lifter = proj._pcode_block_lifter
+        assert main_lifter is not None
+
+        seen = []
+
+        def lift_in_thread():
+            proj.factory.block(0x1000)
+            seen.append((proj.factory.default_engine, proj.pcode_block_lifter(arch)))
+
+        thread = threading.Thread(target=lift_in_thread)
+        thread.start()
+        thread.join()
+
+        assert len(seen) == 1
+        other_engine, other_lifter = seen[0]
+        assert other_engine is not proj.factory.default_engine  # the factory really did hand out a second engine
+        assert other_lifter is main_lifter
 
 
 if __name__ == "__main__":

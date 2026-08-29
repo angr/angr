@@ -17,6 +17,7 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from angr.knowledge_base import KnowledgeBase
 
 from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
+from .engines.pcode.lifter import PcodeBasicBlockLifter
 from .errors import AngrNoPluginError
 from .factory import AngrObjectFactory
 from .llm_client import LLMClient
@@ -248,6 +249,8 @@ class Project:
         self.cache_limits = cache_limits if cache_limits is not None else {}
         if not set(self.cache_limits.keys()).issubset(CACHE_CONFIG_KEYS):
             raise ValueError(f"Invalid cache configuration keys: {set(self.cache_limits.keys()) - CACHE_CONFIG_KEYS}")
+
+        self._pcode_block_lifter: PcodeBasicBlockLifter | None = None
 
         self._languages: list[str] | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
@@ -799,6 +802,22 @@ class Project:
         return hook_decorator
 
     #
+    # P-code
+    #
+
+    def pcode_block_lifter(self, arch: archinfo.Arch) -> PcodeBasicBlockLifter:
+        """
+        Get the p-code basic block lifter, and therefore the Sleigh context, this project decodes `arch` with.
+
+        Sleigh records context variables per address, so the blocks of one binary decode with one context and no
+        block of another binary touches it. `arch` is normally this project's own; a `Block` may name another, and
+        decoding that with this project's context would answer for the wrong architecture, so it gets its own.
+        """
+        if self._pcode_block_lifter is None or self._pcode_block_lifter.arch != arch:
+            self._pcode_block_lifter = PcodeBasicBlockLifter(arch)
+        return self._pcode_block_lifter
+
+    #
     # Pickling
     #
 
@@ -815,6 +834,7 @@ class Project:
                 not in {
                     "analyses",
                     "_llm_client",
+                    "_pcode_block_lifter",
                 }
             }
         finally:
@@ -823,6 +843,7 @@ class Project:
     def __setstate__(self, s):
         self.__dict__.update(s)
         self._llm_client = _UNSET
+        self._pcode_block_lifter = None
         try:
             self._initialize_analyses_hub()
         except AngrNoPluginError:
