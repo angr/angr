@@ -8,8 +8,8 @@ import gc
 import os
 import pickle
 import shutil
+import tempfile
 import unittest
-from contextlib import suppress
 
 from claripy import BVS
 
@@ -24,21 +24,24 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestPickle(unittest.TestCase):
+    def setUp(self):
+        # Every test case gets its own directory for these files. They used to be written under
+        # fixed names in the working directory, which pytest-xdist workers share, so tearDown in
+        # one worker deleted the files another worker was still reading.
+        self.tmpdir = tempfile.mkdtemp(prefix="angr-test-pickle-")
+        self.good_pickle = os.path.join(self.tmpdir, "pickletest_good")
+        self.bad_pickle = os.path.join(self.tmpdir, "pickletest_bad")
+
     def tearDown(self):
-        shutil.rmtree("pickletest", ignore_errors=True)
-        shutil.rmtree("pickletest2", ignore_errors=True)
-        with suppress(FileNotFoundError):
-            os.remove("pickletest_good")
-        with suppress(FileNotFoundError):
-            os.remove("pickletest_bad")
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def _load_pickles(self):
         # This is the working case
-        with open("pickletest_good", "rb"):
+        with open(self.good_pickle, "rb"):
             pass
 
         # This will not work
-        with open("pickletest_bad", "rb"):
+        with open(self.bad_pickle, "rb"):
             pass
 
     def _make_pickles(self):
@@ -56,7 +59,7 @@ class TestPickle(unittest.TestCase):
             mem = BVS(f, MEM_SIZE * 8)
             mem_bvv[f] = mem
 
-        with open("pickletest_good", "wb") as f:
+        with open(self.good_pickle, "wb") as f:
             pickle.dump(mem_bvv, f, -1)
 
         # If you do not have a state you cannot write
@@ -65,13 +68,26 @@ class TestPickle(unittest.TestCase):
             mem = mem_bvv[f]
             fo.write(0, mem, MEM_SIZE)
 
-        with open("pickletest_bad", "wb") as f:
+        with open(self.bad_pickle, "wb") as f:
             pickle.dump(mem_bvv, f, -1)
 
     def test_pickling(self):
         self._make_pickles()
         self._load_pickles()
         gc.collect()
+        self._load_pickles()
+
+    def test_pickles_survive_another_case_finishing(self):
+        # Regression test: pytest-xdist workers share a working directory, so a second TestPickle
+        # method finishing on another worker used to delete the files test_pickling was halfway
+        # through reading, and test_pickling failed with FileNotFoundError. Run the interleaving
+        # deterministically: another case starts, this one writes its files, the other one
+        # finishes, and this one must still be able to read what it wrote.
+        other = TestPickle("test_pickling")
+        other.setUp()
+        self.addCleanup(other.tearDown)  # in case _make_pickles raises; tearDown is idempotent
+        self._make_pickles()
+        other.tearDown()
         self._load_pickles()
 
     def test_project_pickling(self):
