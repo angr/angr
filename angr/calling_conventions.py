@@ -2717,21 +2717,21 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
 
 
 DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
-    "AMD64": {"Linux": SimCCSystemVAMD64, "Win32": SimCCMicrosoftAMD64},
-    "X86": {"Linux": SimCCCdecl, "CGC": SimCCCdecl, "Win32": SimCCMicrosoftCdecl},
-    "ARMEL": {"Linux": SimCCARM},
+    "AMD64": {"Linux": SimCCSystemVAMD64, "Win32": SimCCMicrosoftAMD64, "UEFI": SimCCMicrosoftAMD64},
+    "X86": {"Linux": SimCCCdecl, "CGC": SimCCCdecl, "Win32": SimCCMicrosoftCdecl, "UEFI": SimCCMicrosoftCdecl},
+    "ARMEL": {"Linux": SimCCARM, "UEFI": SimCCARM},
     "ARMHF": {"Linux": SimCCARMHF},
     "ARMCortexM": {"Linux": SimCCARMHF},
     "MIPS32": {"Linux": SimCCO32},
     "MIPS64": {"Linux": SimCCN64},
     "PPC32": {"Linux": SimCCPowerPC},
     "PPC64": {"Linux": SimCCPowerPC64},
-    "AARCH64": {"Linux": SimCCAArch64},
+    "AARCH64": {"Linux": SimCCAArch64, "UEFI": SimCCAArch64},
     "Soot": {"Linux": SimCCSoot},
     "AVR8": {"Linux": SimCCUnknown},
     "MSP": {"Linux": SimCCUnknown},
     "S390X": {"Linux": SimCCS390X},
-    "RISCV64": {"Linux": SimCCRISCV64},
+    "RISCV64": {"Linux": SimCCRISCV64, "UEFI": SimCCRISCV64},
 }
 
 

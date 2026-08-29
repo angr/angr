@@ -13,6 +13,7 @@ from .javavm import SimJavaVM
 from .linux import SimLinux
 from .simos import SimOS
 from .snimmuc_nxp import SimSnimmucNxp
+from .uefi import SimUefi
 from .userland import SimUserland
 from .windows import SimWindows
 from .xbox import SimXbox
@@ -33,6 +34,7 @@ register_simos("windows", SimWindows)
 register_simos("cgc", SimCGC)
 register_simos("javavm", SimJavaVM)
 register_simos("snimmuc_nxp", SimSnimmucNxp)
+register_simos("uefi", SimUefi)
 register_simos("xbox", SimXbox)
 
 
@@ -42,6 +44,7 @@ __all__ = (
     "SimLinux",
     "SimOS",
     "SimSnimmucNxp",
+    "SimUefi",
     "SimUserland",
     "SimWindows",
     "os_mapping",
