@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import networkx
 
+from angr.utils.graph import GraphUtils
 from angr.utils.hashing import stable_hash
 
 l = logging.getLogger(name=__name__)
@@ -826,7 +827,7 @@ class RegionOverlay[T: RegionBound]:
 
     def underlying_edge_pairs(self, src: Tx[T], dst: Tx[T]) -> list[tuple[Tx[T], Tx[T]]]:
         graph = self._mgr.graph
-        under_src = self._underlying(src)
+        under_src = sorted(self._underlying(src), key=GraphUtils.sort_node)
         under_dst = self._underlying(dst)
         pairs = []
         for u in under_src:
@@ -1094,7 +1095,7 @@ class RegionOverlay[T: RegionBound]:
             parent_loop_head = None
             if self.parent is not None and self.parent.cyclic and self.parent.head is not None:
                 parent_loop_head = self._resolve_entry(self.parent.head)
-            for s in succ_snapshot:
+            for s in sorted(succ_snapshot, key=GraphUtils.sort_node):
                 s_entry = self._resolve_entry(s)
                 if (
                     s_entry is not result_node
@@ -1159,7 +1160,7 @@ class RegionOverlay[T: RegionBound]:
         graph = self._mgr.graph
         assert result_node not in graph, "collapse result node must not already be in the shared graph"
 
-        under = list(self._under)
+        under = sorted(self._under, key=GraphUtils.sort_node)
         underset = self._under
 
         # capture crossing edges (one endpoint inside the region, the other outside) before removing the members
@@ -1436,6 +1437,7 @@ class RegionOverlayGraph[T: RegionBound](networkx.DiGraph[Tx[T]] if TYPE_CHECKIN
         self.include_marked = include_marked
         self.blacklisted_edges = frozenset(blacklisted_edges)
         self._ns_cache: tuple[int, frozenset] | None = None
+        self._sn_cache: tuple[int, tuple] | None = None
         # replace the graph's storage with lazy atlases; assigning _adj also assigns _succ
         self._adj = _OverlayAdjAtlas(self, pred=False)
         self._pred = _OverlayAdjAtlas(self, pred=True)
@@ -1460,6 +1462,19 @@ class RegionOverlayGraph[T: RegionBound](networkx.DiGraph[Tx[T]] if TYPE_CHECKIN
             ns = frozenset(self.overlay.members)
         self._ns_cache = (version, ns)
         return ns
+
+    def _sorted_nodes(self) -> tuple[Tx[T], ...]:
+        """
+        The view's nodes in a deterministic order. _node_set() is a frozenset, so iterating it directly would leave
+        the graph's node order at the mercy of object hashes.
+        """
+        version = self.overlay.manager.version
+        cached = self._sn_cache
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        sn = tuple(sorted(self._node_set(), key=GraphUtils.sort_node))
+        self._sn_cache = (version, sn)
+        return sn
 
     def _pair_visible(self, src: Tx[T], dst: Tx[T]) -> bool:
         if not self.include_marked and any((src, dst) in marks for marks in self.overlay.edge_marks.values()):

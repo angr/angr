@@ -191,7 +191,7 @@ class RegionIdentifier(Analysis):
             children_regions: list[TOverlay] = []
             for region in work_list:
                 children_blocks = []
-                for node in region.members:
+                for node in sorted(region.members, key=GraphUtils.sort_node):
                     if isinstance(node, Block):
                         children_blocks.append((node.addr, node.idx))
                     elif isinstance(node, MultiNode):
@@ -637,7 +637,7 @@ class RegionIdentifier(Analysis):
         # recover reaching conditions
         self.cond_proc.recover_reaching_conditions(region, with_successors=True)
 
-        successors = list(region.successor_nodes())
+        successors = sorted(region.successor_nodes(), key=GraphUtils.sort_node)
 
         condnode_addr = next(CONDITIONNODE_ADDR)
         # create a new successor
@@ -966,7 +966,7 @@ class RegionIdentifier(Analysis):
         out_edges = RegionIdentifier._region_out_edges(graph, region, data=True)
 
         nodes_set = set()
-        for node_ in list(region.members):
+        for node_ in sorted(region.members, key=GraphUtils.sort_node):
             nodes_set.add(node_)
             if node_ is not dummy_endnode:
                 graph.remove_node(node_)
@@ -982,7 +982,7 @@ class RegionIdentifier(Analysis):
             if dst not in nodes_set:
                 graph.add_edge(region, dst, **data)
 
-        for frontier_node in frontier:
+        for frontier_node in sorted(frontier, key=GraphUtils.sort_node):
             if frontier_node is not dummy_endnode:
                 graph.add_edge(region, frontier_node)
 
@@ -1063,7 +1063,7 @@ class RegionIdentifier(Analysis):
     @staticmethod
     def _region_out_edges(graph, region: TOverlay, data=False):
         out_edges = []
-        for node in region.members:
+        for node in sorted(region.members, key=GraphUtils.sort_node):
             out_ = graph.out_edges(node, data=data)
             for _, dst, data_ in out_:
                 if dst in region.members:
