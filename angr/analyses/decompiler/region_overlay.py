@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import networkx
 
+from angr.utils.hashing import stable_hash
+
 l = logging.getLogger(name=__name__)
 
 
@@ -227,6 +229,7 @@ class RegionOverlay[T: RegionBound]:
     __slots__ = (
         "_cache_succs",
         "_extra_full_edges",
+        "_hash",
         "_hidden",
         "_hidden_full",
         "_members",
@@ -272,11 +275,30 @@ class RegionOverlay[T: RegionBound]:
         self._cache_succs: tuple[int, set] | None = None
         # cached RegionOverlayGraph view objects, keyed by (full, include_marked)
         self._rog_cache: dict[tuple[bool, bool], RegionOverlayGraph] = {}
+        self._hash: int | None = None
 
     def __repr__(self):
         if not self._members:
             return f"<RegionOverlay {self.head!r} (empty)>"
         return f"<RegionOverlay {self.head!r} of {len(self._members)} members, {len(self._under)} nodes>"
+
+    def __eq__(self, other):
+        # an overlay is a mutable container that doubles as a graph node and a set member: two distinct overlays must
+        # never compare equal, or adding both to a graph or a set would silently merge them and corrupt the region tree
+        return self is other
+
+    def __hash__(self):
+        # object.__hash__ is derived from id(), which makes the iteration order of any set of overlays (and with it the
+        # decompiler output) differ between runs. hash on the head address instead, and cache it: self.head is
+        # reassigned all over the structuring code, and a moving hash would lose the overlay in every set holding it.
+        if self._hash is None:
+            try:
+                head_addr = self.head.addr  # type:ignore[union-attr]
+            except (AttributeError, TypeError):
+                # no head yet (the manager root), or a head that has none itself
+                head_addr = None
+            self._hash = stable_hash((RegionOverlay, head_addr, getattr(self.head, "idx", None)))
+        return self._hash
 
     @property
     def addr(self):
