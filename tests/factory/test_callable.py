@@ -111,6 +111,15 @@ class TestCallable(unittest.TestCase):
             result_concrete = result.args[0]
             assert answer == result_concrete
 
+    #: How many of sum_doubles' nineteen arguments are symbolic. Solving for all of them takes z3 about
+    #: nine times as long (https://github.com/Z3Prover/z3/issues/2584) and covers nothing extra: all
+    #: nineteen are still marshalled, and amd64 passes doubles past the eighth on the stack, so ten
+    #: symbolic arguments still exercise both the register-passed and the stack-passed paths.
+    SYMBOLIC_ARG_COUNT = 10
+
+    #: Value given to the arguments that are left concrete.
+    CONCRETE_ARG_VALUE = 1.5
+
     def run_manyfloatsum_symbolic(self, arch):
         global type_cache
         if type_cache is None:
@@ -119,7 +128,10 @@ class TestCallable(unittest.TestCase):
 
         p = angr.Project(os.path.join(test_location, arch, "manyfloatsum"))
         function = "sum_doubles"
-        args = [claripy.FPS(f"arg_{i}", claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]
+        arg_count = len(type_cache[function].args)
+        concrete_count = arg_count - self.SYMBOLIC_ARG_COUNT
+        sym_args = [claripy.FPS(f"arg_{i}", claripy.FSORT_DOUBLE) for i in range(self.SYMBOLIC_ARG_COUNT)]
+        args = sym_args + [claripy.FPV(self.CONCRETE_ARG_VALUE, claripy.FSORT_DOUBLE)] * concrete_count
         symbol = p.loader.main_object.get_symbol(function)
         assert symbol is not None
         addr = symbol.rebased_addr
@@ -128,11 +140,11 @@ class TestCallable(unittest.TestCase):
         assert result is not None and result.symbolic
 
         s = claripy.Solver(timeout=15 * 60 * 1000)
-        for arg in args:
+        for arg in sym_args:
             s.add(arg > claripy.FPV(1.0, claripy.FSORT_DOUBLE))  # type: ignore
         s.add(result == claripy.FPV(27.7, claripy.FSORT_DOUBLE))
 
-        args_conc = s.batch_eval(args, 1)[0]
+        args_conc = s.batch_eval(sym_args, 1)[0]
         assert s.eval(result, 1)[0] == 27.7
         # not almost equal!! totally equal!!! z3 is magic, if kinda slow!!!!!
         for arg_conc in args_conc:
@@ -141,7 +153,7 @@ class TestCallable(unittest.TestCase):
         # sum() uses Neumaier compensated summation for floats, which is MORE
         # accurate than the program's naive left-to-right addition and so can
         # disagree with the (exactly satisfied) symbolic result by an ulp.
-        seq_sum = functools.reduce(operator.add, args_conc)
+        seq_sum = functools.reduce(operator.add, [*args_conc, *([self.CONCRETE_ARG_VALUE] * concrete_count)])
         assert seq_sum == 27.7
 
     def test_fauxware_armel(self):
