@@ -27,19 +27,19 @@ class IfElseFlattener(SequenceWalker):
             CodeNode: self._handle_Code,
             MultiNode: self._handle_MultiNode,
             LoopNode: self._handle_Loop,
-            ConditionNode: self._handle_Condition,
-            CascadingConditionNode: self._handle_CascadingCondition,
+            ConditionNode: self._walk_Condition,
+            CascadingConditionNode: self._walk_CascadingCondition,
         }
 
         super().__init__(handlers)
         self.functions = functions
         self.walk(node)
 
-    def _handle_Condition(self, node: ConditionNode, parent=None, index=None, **kwargs):
+    def _walk_Condition(self, node: ConditionNode, parent=None, index=None, **kwargs):
         if node.true_node is not None:
-            self._handle(node.true_node, parent=node, index=0)
+            yield node.true_node, {"parent": node, "index": 0}
         if node.false_node is not None:
-            self._handle(node.false_node, parent=node, index=1)
+            yield node.false_node, {"parent": node, "index": 1}
 
         if node.true_node is not None and node.false_node is not None:
             try:
@@ -67,8 +67,8 @@ class IfElseFlattener(SequenceWalker):
                     node.false_node = None
                     insert_node(parent, "after", else_node, index, **kwargs)
 
-    def _handle_CascadingCondition(self, node: CascadingConditionNode, parent=None, index=None, **kwargs):
-        super()._handle_CascadingCondition(node, parent=parent, index=index, **kwargs)
+    def _walk_CascadingCondition(self, node: CascadingConditionNode, parent=None, index=None, **kwargs):
+        yield from super()._walk_CascadingCondition(node, parent=parent, index=index, **kwargs)
 
         if node.else_node is not None:
             last_stmts = []
