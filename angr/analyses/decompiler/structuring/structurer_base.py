@@ -295,7 +295,7 @@ class StructurerBase(Analysis):
         :return:                    A processed SequenceNode.
         """
 
-        def _handle_Sequence(node: SequenceNode, **kwargs):
+        def _walk_Sequence(node: SequenceNode, **kwargs):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
@@ -357,9 +357,9 @@ class StructurerBase(Analysis):
                                 **jump_stmt.tags,
                             )
 
-            return walker._handle_Sequence(node, **kwargs)
+            return (yield from walker._walk_Sequence(node, **kwargs))
 
-        def _handle_MultiNode(node: MultiNode, **kwargs):
+        def _walk_MultiNode(node: MultiNode, **kwargs):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
@@ -421,11 +421,11 @@ class StructurerBase(Analysis):
                                 **jump_stmt.tags,
                             )
 
-            return walker._handle_MultiNode(node, **kwargs)
+            return (yield from walker._walk_MultiNode(node, **kwargs))
 
         handlers = {
-            SequenceNode: _handle_Sequence,
-            MultiNode: _handle_MultiNode,
+            SequenceNode: _walk_Sequence,
+            MultiNode: _walk_MultiNode,
         }
 
         walker = SequenceWalker(handlers=handlers)
