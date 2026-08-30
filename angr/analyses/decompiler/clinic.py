@@ -1525,7 +1525,7 @@ class Clinic(Analysis, Serializable):
         # finally, recover the calling convention of the current function
         if (
             self.function.prototype is None or self.function.calling_convention is None
-        ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER:
+        ) or not self.function.is_prototype_groundtruth:
             old_proto = self.function.prototype
             old_source = self.function.prototype_source
 
@@ -2025,8 +2025,8 @@ class Clinic(Analysis, Serializable):
             new_last_stmt.tags["is_prototype_guessed"] = True
             new_last_stmt.expr.tags["is_prototype_guessed"] = True
             if func is not None:
-                new_last_stmt.tags["is_prototype_guessed"] = func.is_prototype_guessed
-                new_last_stmt.expr.tags["is_prototype_guessed"] = func.is_prototype_guessed
+                new_last_stmt.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth
+                new_last_stmt.expr.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth
             block.statements[-1] = new_last_stmt
 
         return ail_graph
@@ -2631,9 +2631,8 @@ class Clinic(Analysis, Serializable):
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
         if self.function.prototype is not None:
-            if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
-                # do not overwrite an existing function prototype
-                # if you want to re-generate the prototype, clear the existing one first
+            if self.function.is_prototype_groundtruth:
+                # do not overwrite a prototype that came from outside our own analyses
                 return
             if isinstance(self.function.prototype.returnty, SimTypeFloat) or any(
                 isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args
@@ -4697,7 +4696,7 @@ class Clinic(Analysis, Serializable):
             if not self.kb.functions.contains_addr(func_addr):
                 continue
             func = self.kb.functions.get_by_addr(func_addr)
-            if func.prototype is not None and func.is_prototype_guessed is False:
+            if func.prototype is not None and func.is_prototype_groundtruth:
                 # already has a "good" prototype; don't overwrite it
                 continue
 

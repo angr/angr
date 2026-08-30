@@ -973,7 +973,7 @@ class Decompiler(Analysis):
             )
             # update the function prototype if needed
             if (
-                self.func.is_prototype_guessed
+                not self.func.is_prototype_groundtruth
                 and self.func.prototype is not None
                 and self.func.prototype.args
                 and isinstance(codegen, CStructuredCodeGenerator)
