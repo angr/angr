@@ -21,6 +21,8 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CUnaryOp,
     type_to_c_repr_chunks,
 )
+from angr.analyses.decompiler.structured_codegen.rust import RustGoto, RustStructuredCodeGenerator
+from angr.analyses.decompiler.structurer_nodes import SequenceNode
 from angr.sim_type import (
     SimCppClass,
     SimTypeBottom,
@@ -30,9 +32,6 @@ from angr.sim_type import (
     SimTypePointer,
     parse_cpp_file,
 )
-from angr.analyses.decompiler.structured_codegen.rust import RustGoto, RustStructuredCodeGenerator
-from angr.analyses.decompiler.structurer_nodes import SequenceNode
-from angr.sim_type import SimTypeBottom, SimTypeInt, SimTypeLongLong, SimTypePointer
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
