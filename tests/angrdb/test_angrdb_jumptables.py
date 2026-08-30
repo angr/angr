@@ -17,7 +17,8 @@ test_location = os.path.join(bin_location, "tests")
 class TestAngrDBJumpTables(unittest.TestCase):
     def test_jump_tables_roundtrip(self):
         """Verify that CFGModel.jump_tables survive an AngrDB dump/load cycle."""
-        bin_path = os.path.join(test_location, "x86_64", "fmt-rust-stripped")
+        # cfg_switches is tiny and still yields several jump tables; a bigger binary only adds CFG time
+        bin_path = os.path.join(test_location, "x86_64", "cfg_switches")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
 

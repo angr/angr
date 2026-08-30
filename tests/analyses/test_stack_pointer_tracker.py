@@ -31,8 +31,17 @@ def run_tracker(track_mem, use_bp):
     return sp_result
 
 
-def init_tracker(p, func_addr: str | int, track_mem, cross_insn_opt: bool = True):
-    p.analyses.CFGFast()
+def init_tracker(p, func_addr: str | int, track_mem, cross_insn_opt: bool = True, scope_window: int = 0x2000):
+    if isinstance(func_addr, int):
+        # StackPointerTracker only walks the one function, so recovering the whole binary is wasted work
+        p.analyses.CFGFast(
+            regions=[(func_addr, func_addr + scope_window)],
+            start_at_entry=False,
+            function_starts=[func_addr],
+            force_smart_scan=False,
+        )
+    else:
+        p.analyses.CFGFast()
     main = p.kb.functions[func_addr]
     sp = p.arch.sp_offset
     regs = {sp}
