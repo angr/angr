@@ -140,7 +140,7 @@ class SemanticNamingOrchestrator:
         reader more than the default names would.
         """
         varname_count: defaultdict[str, int] = defaultdict(int)
-        renamed = (v for v in self.renamed_variables if v.renamed)
+        renamed = (v for v in self.renamed_variables if v.auto_renamed)
         for var in sorted(renamed, key=lambda v: str(v.ident)):
             base = var.name
             if base is None:
@@ -151,7 +151,7 @@ class SemanticNamingOrchestrator:
                 # restoring the original (pre-rename) name, which the default-naming
                 # pass already made unique (e.g. "v12").
                 var.name = self.original_names.get(var)
-                var.renamed = False
+                var.auto_renamed = False
                 var.clear_hash()
                 continue
             if n:

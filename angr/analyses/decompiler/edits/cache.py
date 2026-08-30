@@ -110,6 +110,7 @@ def restore_user_edits(
         if name is not None:
             var.name = name
             var.renamed = True
+            var.auto_renamed = False
             var.clear_hash()
         if ty is not None:
             varman.set_variable_type(var, ty, all_unified=True, mark_manual=True)
