@@ -17,17 +17,7 @@ class TestMemloadResolver(unittest.TestCase):
     def test_indirect_jump_should_start_new_functions(self):
         bin_path = os.path.join(test_location, "x86_64", "fmt-rust-stripped")
         proj = angr.Project(bin_path, auto_load_libs=False)
-        # a whole-binary CFG of this 1.5 MB binary costs ~40s; every address under test lives in one of
-        # these three windows, and the function splitting under test is decided locally
-        func_addrs = [0x496030, 0x49C4D0, 0x566A50]
-        cfg = proj.analyses.CFGFast(
-            normalize=True,
-            regions=[(addr, addr + 0x4000) for addr in func_addrs],
-            start_at_entry=False,
-            function_starts=func_addrs,
-            force_smart_scan=False,
-            show_progressbar=not WORKER,
-        )
+        cfg = proj.analyses.CFG(normalize=True, show_progressbar=not WORKER)
         # function 0x566a50 should be a separate function
         node = cfg.model.get_any_node(0x566A50)
         assert node is not None
