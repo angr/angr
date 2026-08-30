@@ -196,6 +196,25 @@ def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[t
     return decompiler_options
 
 
+def complete_calling_conventions_for(proj: Project, func_addrs: Iterable[int], **kwargs) -> None:
+    """
+    Run CompleteCallingConventions over the given functions and their transitive callees only.
+
+    Decompiling one function cannot be affected by the prototypes of functions it never reaches, so
+    tests that need a whole-binary CFG do not also need whole-binary prototype recovery.
+
+    :param proj:       Project whose knowledge base holds the CFG.
+    :param func_addrs: Addresses of the functions being decompiled.
+    :param kwargs:     Extra keyword arguments for CompleteCallingConventions.
+    """
+    callgraph = proj.kb.functions.callgraph
+    reachable = set(func_addrs)
+    for addr in list(reachable):
+        if addr in callgraph:
+            reachable |= networkx.descendants(callgraph, addr)
+    proj.analyses.CompleteCallingConventions(prioritize_func_addrs=sorted(reachable), skip_other_funcs=True, **kwargs)
+
+
 def _merged_regions(addrs: Iterable[int], window: int) -> list[tuple[int, int]]:
     regions: list[tuple[int, int]] = []
     for addr in sorted(addrs):
