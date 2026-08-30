@@ -15,7 +15,7 @@ from angr.analyses.cfg import CFGFast
 from angr.analyses.s_propagator import sprop_cache_scope
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
-from angr.errors import AngrAIError
+from angr.errors import AngrAIError, AngrDecompilationComplexityError
 from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
@@ -27,7 +27,7 @@ from .ailgraph_walker import AILGraphWalker
 from .clinic import ClinicStage
 from .condition_processor import ConditionProcessor
 from .decompilation_cache import DecompilationCache
-from .decompilation_options import PARAM_TO_OPTION, DecompilationOption
+from .decompilation_options import DEFAULT_MAX_FUNCTION_BLOCKS, PARAM_TO_OPTION, DecompilationOption
 from .edits import (
     DecompilationEditError,
     list_variable_names,
@@ -128,6 +128,17 @@ class Decompiler(Analysis):
     - ``unoptimized_ail_graph`` (= ``clinic.unoptimized_graph``): a snapshot before the first structure-altering
       optimization pass; use it for an exact instruction-to-AIL mapping. Only built when
       ``save_unoptimized_graph=True`` is passed; otherwise this attribute is None on both fresh runs and cache hits.
+
+    Complexity guard: pathologically large functions (e.g. packer filler that linear disassembly turns into thousands
+    of blocks) can keep the pipeline busy indefinitely, so two size limits are checked before the expensive work
+    starts. ``max_function_blocks`` (default 50000, ``DEFAULT_MAX_FUNCTION_BLOCKS``) bounds the number of CFG basic
+    blocks and is checked before any AIL is built; ``max_ail_statements`` (default 1000000,
+    ``DEFAULT_MAX_AIL_STATEMENTS``) bounds the number of AIL statements and is checked right after the AIL graph is
+    built. Both are ~10x the largest function in angr's test binary corpus. Either limit can be changed through the
+    decompilation option of the same name, and setting one to 0 disables it. When a limit is exceeded, decompilation
+    stops with an :class:`AngrDecompilationComplexityError` naming the limit and the actual size: with
+    ``fail_fast=True`` it is raised, otherwise it is recorded in ``self.errors`` (and in
+    ``kb.decompilations[...].errors``) and exposed as :attr:`complexity_error`, and ``codegen`` stays None.
     """
 
     def __init__(
@@ -182,6 +193,9 @@ class Decompiler(Analysis):
             cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
         self._options = self._parse_options(options) if options else []
+        self.options_by_class: defaultdict[str, list[tuple[DecompilationOption, Any]]] = defaultdict(list)
+        for o, v in self._options:
+            self.options_by_class[o.cls].append((o, v))
 
         if preset is None and optimization_passes:
             self._optimization_passes = optimization_passes
@@ -253,8 +267,6 @@ class Decompiler(Analysis):
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
-        self.cache: DecompilationCache | None = None
-        self.options_by_class = None
         self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
@@ -294,16 +306,45 @@ class Decompiler(Analysis):
                         self.kb.decompilations[(self.func.addr, self._flavor)] = DecompilationCache(self.func.addr)
                     for error in self.errors:
                         self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
-                with self._resilience():
-                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.", self.func)
-                    if preset != DECOMPILATION_PRESETS["basic"]:
-                        self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
-                            self.project.arch, self.project.simos.name
-                        )
-                        self._decompile_with_cache()
-                        if self.update_cache:
-                            for error in self.errors:
-                                self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
+                # a complexity limit is a property of the function, not of the preset: retrying would only pay for the
+                # same oversized graph a second time
+                if self.complexity_error is None:
+                    with self._resilience():
+                        l.info("Decompilation failed for %s. Switching to basic preset and trying again.", self.func)
+                        if preset != DECOMPILATION_PRESETS["basic"]:
+                            self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
+                                self.project.arch, self.project.simos.name
+                            )
+                            self._decompile_with_cache()
+                            if self.update_cache:
+                                for error in self.errors:
+                                    self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
+
+    @property
+    def complexity_error(self) -> AngrDecompilationComplexityError | None:
+        """
+        The complexity-limit violation that aborted this decompilation, or None if no limit was exceeded. Inspect
+        ``limit_name``, ``limit``, and ``actual`` on it to decide whether to raise the limit or skip the function.
+        """
+        for error in self.errors:
+            if isinstance(error.exc_value, AngrDecompilationComplexityError):
+                return error.exc_value
+        return None
+
+    def _check_block_limit(self) -> None:
+        """
+        Abort before any AIL is built if the function has too many basic blocks.
+        """
+        limit = self.options_to_params(self.options_by_class["decompiler"]).get(
+            "max_function_blocks", DEFAULT_MAX_FUNCTION_BLOCKS
+        )
+        if not limit:
+            return
+        block_count = len(self.func.block_addrs_set)
+        if block_count > limit:
+            raise AngrDecompilationComplexityError(
+                "max_function_blocks", limit, block_count, self.func.addr, unit="basic blocks"
+            )
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         if self._cache_parameters is None or cache.parameters is None:
@@ -364,6 +405,8 @@ class Decompiler(Analysis):
         if self.func.is_simprocedure:
             return
 
+        self._check_block_limit()
+
         cache = None
 
         if self._cache_parameters is not None:
@@ -404,12 +447,6 @@ class Decompiler(Analysis):
         ):
             self._reuse_cached_decompilation(cache, old_clinic, old_codegen)
             return
-
-        self.options_by_class = defaultdict(list)
-
-        if self._options:
-            for o, v in self._options:
-                self.options_by_class[o.cls].append((o, v))
 
         # set global variables
         self._set_global_variables()
@@ -646,8 +683,8 @@ class Decompiler(Analysis):
         self.cache.clinic = self.clinic
 
         # LLM refinement pass
-        if self.codegen is not None and self.options_by_class is not None:
-            llm_opts = self.options_to_params(self.options_by_class.get("decompiler", []))
+        if self.codegen is not None:
+            llm_opts = self.options_to_params(self.options_by_class["decompiler"])
             if llm_opts.get("llm_refine", False):
                 self._update_progress(90.0, text="LLM refinement")
                 try:
@@ -662,7 +699,6 @@ class Decompiler(Analysis):
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         assert self.clinic is not None
-        assert self.options_by_class is not None
 
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb, fail_fast=self._fail_fast)(
             self.func,

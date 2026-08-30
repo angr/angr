@@ -15,13 +15,16 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
+from angr.analyses.decompiler.decompilation_options import DEFAULT_MAX_FUNCTION_BLOCKS
 from angr.analyses.decompiler.edits import DecompilationEditError, parse_address, resolve_function
+from angr.errors import AngrDecompilationComplexityError
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
 from angr.utils.mp import protect_stdio_from_forked_children
 
 from .errors import (
     CFGNotBuiltError,
+    DecompilationComplexityError,
     DecompilationError,
     FunctionNotFoundError,
     InvalidArgumentError,
@@ -106,6 +109,16 @@ def _as_tool_error(func):
             raise ToolError(str(ex)) from ex
 
     return wrapper
+
+
+def _complexity_tool_error(ex: AngrDecompilationComplexityError) -> DecompilationComplexityError:
+    """Turn a decompiler complexity-limit violation into a tool error an agent can act on."""
+    return DecompilationComplexityError(
+        f"{ex} Pass a larger {ex.limit_name} to decompile_function (or 0 to disable the check), or skip this function.",
+        limit_name=ex.limit_name,
+        limit=ex.limit,
+        actual=ex.actual,
+    )
 
 
 def _serialized(func):
@@ -351,7 +364,9 @@ def get_function_info(
         include_blocks: Whether to include list of basic block addresses
 
     Returns:
-        Detailed function information including size, complexity, etc.
+        Detailed function information including size, complexity, etc. "num_blocks" against
+        "decompilation_block_limit" tells you up front whether decompile_function will refuse this
+        function as too complex.
     """
     session = _get_session(project_id)
     _require_cfg(session)
@@ -361,6 +376,7 @@ def get_function_info(
     return {
         "project_id": project_id,
         **serialize_function(func, include_blocks=include_blocks),
+        "decompilation_block_limit": DEFAULT_MAX_FUNCTION_BLOCKS,
     }
 
 
@@ -371,16 +387,28 @@ def decompile_function(
     project_id: str,
     address: str | None = None,
     name: str | None = None,
+    max_function_blocks: int | None = None,
+    max_ail_statements: int | None = None,
 ) -> dict[str, Any]:
     """
     Decompile a function to C-like pseudocode.
 
     Specify either address (hex string) or function name.
 
+    Pathologically large functions (e.g. packer filler that linear disassembly turns into thousands of
+    blocks) can keep the decompiler busy indefinitely, so two size limits are checked before the
+    expensive work starts. Exceeding either one fails with an error naming the limit and the measured
+    size, so you can retry with a larger limit or move on to another function.
+
     Args:
         project_id: The project ID
         address: Function address as hex string (e.g., "0x401000")
         name: Function name to decompile
+        max_function_blocks: Refuse to decompile a function whose CFG has more basic blocks than this
+            (default: 50000; 0 disables the check). get_function_info reports a function's block
+            count as "num_blocks" and this default as "decompilation_block_limit".
+        max_ail_statements: Refuse to decompile a function whose AIL graph has more statements than
+            this (default: 1000000; 0 disables the check)
 
     Returns:
         Decompiled pseudocode and function metadata
@@ -391,23 +419,32 @@ def decompile_function(
 
     func = _find_function(session, address=address, name=name)
 
+    options = []
+    if max_function_blocks is not None:
+        options.append(("max_function_blocks", max_function_blocks))
+    if max_ail_statements is not None:
+        options.append(("max_ail_statements", max_ail_statements))
+
     # Decompile
     try:
-        dec = proj.analyses.Decompiler(func)
-
-        if dec.codegen is None:
-            raise DecompilationError(f"Decompilation failed for {func.name}: no code generated")
-
-        return {
-            "project_id": project_id,
-            "function_address": hex(func.addr),
-            "function_name": func.name,
-            "code": dec.codegen.text,
-        }
-    except DecompilationError:
-        raise
+        dec = proj.analyses.Decompiler(func, options=options or None)
+    except AngrDecompilationComplexityError as e:
+        raise _complexity_tool_error(e) from e
     except Exception as e:
         raise DecompilationError(f"Decompilation failed: {e}") from e
+
+    if dec.complexity_error is not None:
+        raise _complexity_tool_error(dec.complexity_error)
+
+    if dec.codegen is None:
+        raise DecompilationError(f"Decompilation failed for {func.name}: no code generated")
+
+    return {
+        "project_id": project_id,
+        "function_address": hex(func.addr),
+        "function_name": func.name,
+        "code": dec.codegen.text,
+    }
 
 
 @mcp.tool()

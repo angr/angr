@@ -6,6 +6,7 @@ import contextlib
 import logging
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import pypcode
@@ -377,6 +378,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         cross_insn_opt=True,
         initial_reg_values=None,
         resilient: bool = True,
+        cross_insn_opt_callback: Callable[[int, int], bool] | None = None,
     ):
         if func is not None:
             if not func.normalized:
@@ -403,6 +405,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._blocks = {}
         self._reg_value_at_block_start = defaultdict(dict)
         self.cross_insn_opt = cross_insn_opt
+        self._cross_insn_opt_callback = cross_insn_opt_callback
         self._resilient = resilient
         # in resilience mode, cache previously merged values to ensure we reach a fixed point
         self._reg_merge_cache = {}
@@ -587,7 +590,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             self.mem_deltas.setdefault(block_addr, {})[insn_offset] = mem_delta
 
     def _run_on_node(self, node: BlockNode, state):
-        block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self.cross_insn_opt)
+        cross_insn_opt = self.cross_insn_opt
+        if self._cross_insn_opt_callback is not None:
+            cross_insn_opt = self._cross_insn_opt_callback(node.addr, node.size)
+
+        block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=cross_insn_opt)
         self._blocks[node.addr] = block
         if not self._sorted_block_addrs or self._sorted_block_addrs[-1] != node.addr:
             idx = bisect.bisect_left(self._sorted_block_addrs, node.addr)

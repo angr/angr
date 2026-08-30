@@ -39,7 +39,7 @@ from angr.calling_conventions import (
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
-from angr.errors import AngrDecompilationError
+from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -89,6 +89,7 @@ from angr.utils.types import dereference_simtype_by_lib
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
+from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
 from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
@@ -293,6 +294,7 @@ class Clinic(Analysis, Serializable):
         refine_loops_with_single_successor: bool = False,
         expose_loop_head_backedges: bool = False,
         typehoon_cls=Typehoon,
+        max_ail_statements: int = DEFAULT_MAX_AIL_STATEMENTS,
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
         ail_graph: networkx.DiGraph | None = None,
@@ -364,6 +366,7 @@ class Clinic(Analysis, Serializable):
         self.reaching_definitions: SRDAModel | None = None
         self._cache = cache
         self._mode = mode
+        self._max_ail_statements = max_ail_statements
         self._max_type_constraints = max_type_constraints
         self._type_constraint_set_degradation_threshold = type_constraint_set_degradation_threshold
         self.vvar_id_start = vvar_id_start
@@ -374,6 +377,11 @@ class Clinic(Analysis, Serializable):
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
         self._typehoon_cls = typehoon_cls
+        # Heuristic: if the function is larger than M, all blocks greater than N bytes will enable cross-instruction
+        # optimization in VEX. this heuristic is for higher decompilation speed.
+        self._cross_insn_opt_min_block_size = 99  # N
+        self._cross_insn_opt_min_large_block_count = 40  # M
+        self._cross_insn_opt_for_large_blocks = False
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
@@ -490,6 +498,7 @@ class Clinic(Analysis, Serializable):
         ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
         if not ail_graph:
             return
+        self._check_ail_statement_limit(ail_graph)
         if self._start_stage <= ClinicStage.INITIALIZATION:
             ail_graph = self._decompilation_fixups(ail_graph)
 
@@ -510,6 +519,24 @@ class Clinic(Analysis, Serializable):
     #             block.pp()
     #     print(kwargs)
     #     return super()._update_progress(*args, **kwargs)
+
+    def _check_ail_statement_limit(self, ail_graph: networkx.DiGraph) -> None:
+        """
+        Abort before the simplification pipeline runs if the freshly built AIL graph is too large. Several
+        simplification passes are super-linear in the number of statements, so an oversized graph would otherwise
+        consume resources indefinitely.
+        """
+        if not self._max_ail_statements:
+            return
+        stmt_count = sum(len(block.statements) for block in ail_graph)
+        if stmt_count > self._max_ail_statements:
+            raise AngrDecompilationComplexityError(
+                "max_ail_statements",
+                self._max_ail_statements,
+                stmt_count,
+                self.function.addr,
+                unit="AIL statements",
+            )
 
     def _decompilation_graph_recovery(self):
         is_pcode_arch = ":" in self.project.arch.name
@@ -1427,6 +1454,9 @@ class Clinic(Analysis, Serializable):
         :return: None
         """
 
+        def _cross_insn_opt_callback(block_addr, block_size) -> bool:  # pylint: disable=unused-argument
+            return self._cross_insn_opt_for_large_blocks and block_size >= self._cross_insn_opt_min_block_size
+
         regs = {self.project.arch.sp_offset}
         initial_reg_values = {
             self.project.arch.sp_offset: OffsetVal(
@@ -1447,7 +1477,7 @@ class Clinic(Analysis, Serializable):
             regs,
             fail_fast=self._fail_fast,
             track_memory=self._sp_tracker_track_memory,
-            cross_insn_opt=False,
+            cross_insn_opt_callback=_cross_insn_opt_callback,
             initial_reg_values=initial_reg_values,
         )
 
@@ -1465,7 +1495,18 @@ class Clinic(Analysis, Serializable):
         assert self._func_graph is not None
         assert self._blocks_by_addr_and_size is not None
 
-        for block_node in self._func_graph.nodes():
+        # enumerate the func graph to determine if we should enable cross-insn opt for large blocks
+        if len(self._func_graph) >= self._cross_insn_opt_min_large_block_count:
+            large_block_count = 0
+            for block_node in self._func_graph:
+                if isinstance(block_node, BlockNode) and block_node.size >= self._cross_insn_opt_min_block_size:
+                    large_block_count += 1
+                    if large_block_count >= self._cross_insn_opt_min_large_block_count:
+                        break
+            if large_block_count >= self._cross_insn_opt_min_large_block_count:
+                self._cross_insn_opt_for_large_blocks = True
+
+        for block_node in self._func_graph:
             ail_block = self._convert(block_node)
 
             if type(ail_block) is ailment.Block:
@@ -1498,7 +1539,10 @@ class Clinic(Analysis, Serializable):
         if block_node.size == 0:
             return ailment.Block(block_node.addr, 0, statements=[])
 
-        block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
+        cross_insn_opt = False
+        if self._cross_insn_opt_for_large_blocks and block_node.size >= self._cross_insn_opt_min_block_size:
+            cross_insn_opt = True
+        block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=cross_insn_opt)
         converted = self._convert_vex(block)
 
         # architecture-specific setup

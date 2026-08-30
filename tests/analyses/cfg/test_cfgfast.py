@@ -1101,6 +1101,46 @@ class TestCfgfast(unittest.TestCase):
             "MIPS64",
         )
 
+    def test_long_repeating_byte_run_is_not_decoded_as_code(self):
+        # Issue #6968: 0x91 is `xchg ecx, eax`, so a run of it decodes cleanly and forever. The linear sweep landed
+        # on the non-repeating bytes just before the run -- where every data heuristic correctly passes -- and then
+        # emitted a fall-through block every VEX_IRSB_MAX_INST instructions until the run ended, half a megabyte
+        # later, burying the real function on the far side of it.
+        real_func = b"\x31\xc0\xc3"  # xor eax, eax; ret
+        junk = b"\x48\x31\xc9\x48\x83\xc1\x01"  # xor rcx, rcx; add rcx, 1 -- decodes and falls through
+        filler = b"\x91" * 8192
+        filler_start = len(real_func) + len(junk)
+        second_func = filler_start + len(filler)
+
+        proj = self._blob_project(real_func + junk + filler + real_func)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert not [n for n in cfg.model.graph.nodes if filler_start <= n.addr < second_func]
+        assert 0 in cfg.kb.functions
+        assert second_func in cfg.kb.functions
+
+    def test_repeating_byte_run_threshold(self):
+        # pin the threshold: a run one byte shorter than it is still decoded, a run of exactly it is not
+        def block_size(run_length: int, filler: bytes = b"\x91", **kwargs) -> int | None:
+            proj = self._blob_project(filler * run_length + b"\xc3")
+            cfg = proj.analyses.CFGFast(
+                force_smart_scan=False, force_complete_scan=False, function_prologues=False, **kwargs
+            )
+            node = cfg.model.get_any_node(0)
+            return None if node is None else node.size
+
+        # 64 is four times the longest run any node in a corpus of real binaries starts with, and one more than the
+        # longest padding run that aligning to a 64-byte boundary can produce
+        assert self._blob_project(b"\xc3").analyses.CFGFast()._repeating_byte_run_threshold == 64
+        assert block_size(63) == 64
+        assert block_size(64) is None
+        assert block_size(20, repeating_byte_run_threshold=16) is None
+        assert block_size(15, repeating_byte_run_threshold=16) == 16
+        # 0 disables the check entirely
+        assert block_size(4096, repeating_byte_run_threshold=0) == 99
+        # nops are exempt at any length: a nop run is transparent, execution really does flow through it
+        assert block_size(4096, filler=b"\x90") is not None
+
 
 if __name__ == "__main__":
     unittest.main()
