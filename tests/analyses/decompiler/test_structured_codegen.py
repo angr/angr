@@ -25,7 +25,6 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CVariableField,
     type_to_c_repr_chunks,
 )
-from angr.sim_variable import SimRegisterVariable
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -36,6 +35,7 @@ from angr.sim_type import (
     SimTypePointer,
     parse_cpp_file,
 )
+from angr.sim_variable import SimRegisterVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
