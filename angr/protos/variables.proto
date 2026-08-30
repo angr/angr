@@ -11,6 +11,7 @@ message VariableBase {
     optional string category = 4;
     bool        renamed = 5;
     bool        is_phi = 6;
+    bool        auto_renamed = 7;
 }
 
 

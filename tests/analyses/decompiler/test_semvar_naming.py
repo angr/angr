@@ -238,7 +238,7 @@ class TestResolveNameCollisions(unittest.TestCase):
         variables = []
         for ident, name, renamed in vars_spec:
             v = SimRegisterVariable(0, 8, ident=ident, name=name)
-            v.renamed = renamed
+            v.auto_renamed = renamed
             variables.append(v)
 
         orch = SemanticNamingOrchestrator(None, None, None, None)  # type: ignore[arg-type]

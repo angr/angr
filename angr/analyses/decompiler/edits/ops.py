@@ -183,6 +183,7 @@ def rename_variable(
 
     target.name = new_name
     target.renamed = True
+    target.auto_renamed = False
     target.clear_hash()
 
     if rv.kind == "global" and rv.global_addr is not None:
@@ -600,6 +601,7 @@ def rename_global(
     if var is not None:
         var.name = new_name
         var.renamed = True
+        var.auto_renamed = False
         var.clear_hash()
 
     return EditResult(
