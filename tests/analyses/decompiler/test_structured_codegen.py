@@ -19,10 +19,12 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CUnaryOp,
     type_to_c_repr_chunks,
 )
+from angr.analyses.decompiler.variable_map import VariableMap
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
     SimTypeBottom,
+    SimTypeChar,
     SimTypeFunction,
     SimTypeInt,
     SimTypeLongLong,
@@ -30,8 +32,6 @@ from angr.sim_type import (
     SimUnion,
     parse_cpp_file,
 )
-from angr.analyses.decompiler.variable_map import VariableMap
-from angr.sim_type import SimTypeBottom, SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypePointer
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location
 
