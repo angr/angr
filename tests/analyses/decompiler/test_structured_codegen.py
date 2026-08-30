@@ -16,8 +16,17 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CGoto,
     CStructuredCodeGenerator,
     CUnaryOp,
+    type_to_c_repr_chunks,
 )
-from angr.sim_type import SimTypeBottom, SimTypeInt, SimTypeLongLong, SimTypePointer
+from angr.sim_type import (
+    SimCppClass,
+    SimTypeBottom,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+    parse_cpp_file,
+)
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -136,6 +145,32 @@ class TestStoreWidth(unittest.TestCase):
 
     def test_value_typed_correctly_is_left_alone(self):
         assert self._dst_bits(4, SimTypeLongLong(signed=False), 64, 8) == 64
+
+
+class TestClassDefinitionRendering(unittest.TestCase):
+    """How type_to_c_repr_chunks spells the class-key of a rendered C++ class definition."""
+
+    @staticmethod
+    def _render(ty) -> str:
+        return "".join(text for text, _ in type_to_c_repr_chunks(ty, full=True))
+
+    def test_elaborated_class_name_keeps_one_class_key(self):
+        # angr's own C++ parser keeps the class-key in the name on its class branch, so the
+        # definition used to come out as "class class DemoNs::DemoType".
+        decls, _ = parse_cpp_file("void f(class DemoNs::DemoType *p);", with_param_names=True)
+        assert decls is not None
+        prototype = decls["f"]
+        assert isinstance(prototype, SimTypeFunction)
+        pointer = prototype.args[0]
+        assert isinstance(pointer, SimTypePointer)
+        ty = pointer.pts_to
+        assert isinstance(ty, SimCppClass)
+        assert ty.name == "class DemoNs::DemoType"
+        assert self._render(ty) == "class DemoNs::DemoType {\n} DemoNs::DemoType;\n\n"
+
+    def test_plain_class_name_is_unchanged(self):
+        ty = SimCppClass(unique_name="DemoNs::DemoType", name="DemoNs::DemoType", members={"x": SimTypeInt()})
+        assert self._render(ty) == "class DemoNs::DemoType {\n    int x;\n} DemoNs::DemoType;\n\n"
 
 
 if __name__ == "__main__":
