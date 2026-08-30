@@ -666,9 +666,22 @@ class SimCC:
 
     STACK_ALIGNMENT = 1  # the alignment requirement of the stack pointer at function start BEFORE call
 
+    # The width in bytes of one argument slot. It can refer to an integer argument register or a stack argument slot.
+    # None means using the architecture's word size.
+    # Set ARG_SLOT_SIZE explicitly when the architecture's register width differs from its pointer width.
+    # A good example is MIPS n32, which passes arguments in its 64-bit registers while its has 32-bit pointers.
+    ARG_SLOT_SIZE: int | None = None
+
     #
     # Here are several things you MAY want to override to change your cc's convention
     #
+
+    @property
+    def arg_slot_size(self) -> int:
+        """
+        The width in bytes of one argument slot. See ``ARG_SLOT_SIZE``.
+        """
+        return self.ARG_SLOT_SIZE if self.ARG_SLOT_SIZE is not None else self.arch.bytes
 
     @property
     def int_args(self):
@@ -679,7 +692,7 @@ class SimCC:
         """
         if self.ARG_REGS is None:
             raise NotImplementedError
-        return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.ARG_REGS])
+        return SerializableListIterator([SimRegArg(reg, self.arg_slot_size) for reg in self.ARG_REGS])
 
     @property
     def memory_args(self):
@@ -689,7 +702,8 @@ class SimCC:
         Returns an iterator of SimFunctionArguments
         """
         start = self.STACKARG_SP_BUFF + self.STACKARG_SP_DIFF
-        return SerializableCounter(start, self.arch.bytes, lambda offset: SimStackArg(offset, self.arch.bytes))
+        slot = self.arg_slot_size
+        return SerializableCounter(start, slot, lambda offset: SimStackArg(offset, slot))
 
     @property
     def fp_args(self):
@@ -700,7 +714,7 @@ class SimCC:
         """
         if self.FP_ARG_REGS is None:
             raise NotImplementedError
-        return SerializableListIterator([SimRegArg(reg, self.arch.bytes) for reg in self.FP_ARG_REGS])
+        return SerializableListIterator([SimRegArg(reg, self.arg_slot_size) for reg in self.FP_ARG_REGS])
 
     def is_fp_arg(self, arg):
         """
@@ -748,7 +762,7 @@ class SimCC:
         out = self.STACKARG_SP_DIFF
         for arg in args:
             if isinstance(arg, SimStackArg):
-                out = max(out, arg.stack_offset + self.arch.bytes)
+                out = max(out, arg.stack_offset + self.arg_slot_size)
 
         out += self.STACKARG_SP_BUFF
         return out
@@ -1232,7 +1246,9 @@ class SimCC:
     def _guess_arg_count(cls, args, limit: int = 64) -> int:
         # pylint:disable=not-callable
         assert cls.ARCH is not None
-        if hasattr(cls, "LANGUAGE"):  # noqa: SIM108
+        if cls.ARG_SLOT_SIZE is not None:
+            stack_arg_size = cls.ARG_SLOT_SIZE
+        elif hasattr(cls, "LANGUAGE"):
             # this is a PCode SimCC where cls.ARCH is directly callable
             stack_arg_size = cls.ARCH().bytes  # type: ignore
         else:
@@ -2517,7 +2533,7 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
         return state.regs.v0
 
 
-class SimCCN64(SimCC):  # TODO: add n32
+class SimCCN64(SimCC):
     ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
     CALLER_SAVED_REGS = ["t9", "gp"]
     FP_ARG_REGS = []  # TODO: ???
@@ -2528,6 +2544,15 @@ class SimCCN64(SimCC):  # TODO: add n32
 
 
 SimCCO64 = SimCCN64  # compatibility
+
+
+class SimCCN32(SimCCN64):
+    """
+    n32 passes its arguments like n64 does and differs only in the width of a pointer.
+    """
+
+    ARCH = archinfo.ArchMIPSN32
+    ARG_SLOT_SIZE = 8
 
 
 class SimCCN64LinuxSyscall(SimCCSyscall):
@@ -2548,6 +2573,11 @@ class SimCCN64LinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.v0
+
+
+class SimCCN32LinuxSyscall(SimCCN64LinuxSyscall):
+    ARCH = archinfo.ArchMIPSN32
+    ARG_SLOT_SIZE = 8
 
 
 class SimCCPowerPC(SimCC):
@@ -2696,6 +2726,10 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
         "default": [SimCCN64],
         "Linux": [SimCCN64],
     },
+    "MIPSN32": {
+        "default": [SimCCN32],
+        "Linux": [SimCCN32],
+    },
     "PPC32": {
         "default": [SimCCPowerPC],
         "Linux": [SimCCPowerPC],
@@ -2724,6 +2758,7 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "ARMCortexM": {"Linux": SimCCARMHF},
     "MIPS32": {"Linux": SimCCO32},
     "MIPS64": {"Linux": SimCCN64},
+    "MIPSN32": {"Linux": SimCCN32},
     "PPC32": {"Linux": SimCCPowerPC},
     "PPC64": {"Linux": SimCCPowerPC64},
     "AARCH64": {"Linux": SimCCAArch64, "UEFI": SimCCAArch64},
@@ -2759,6 +2794,7 @@ ARCH_NAME_ALIASES = {
     "AARCH64": ["arm64", "aarch64"],
     "MIPS32": [],
     "MIPS64": [],
+    "MIPSN32": ["mipsn32"],
     "PPC32": ["powerpc32"],
     "PPC64": ["powerpc64"],
     "RISCV64": ["riscv64"],
@@ -2876,6 +2912,10 @@ SYSCALL_CC: dict[str, dict[str, type[SimCCSyscall]]] = {
     "MIPS64": {
         "default": SimCCN64LinuxSyscall,
         "Linux": SimCCN64LinuxSyscall,
+    },
+    "MIPSN32": {
+        "default": SimCCN32LinuxSyscall,
+        "Linux": SimCCN32LinuxSyscall,
     },
     "PPC32": {
         "default": SimCCPowerPCLinuxSyscall,

@@ -139,6 +139,8 @@ class SimLinux(SimUserland):
         # https://www.linux-mips.org/wiki/WhatsWrongWithO32N32N64
         elif self.arch.name == "MIPS32":
             syscall_abis = ["mips-o32"]
+        elif self.arch.name == "MIPSN32":
+            syscall_abis = ["mips-n32"]
         elif self.arch.name == "MIPS64":
             syscall_abis = ["mips-n32", "mips-n64"]
         elif self.arch.name == "PPC32":

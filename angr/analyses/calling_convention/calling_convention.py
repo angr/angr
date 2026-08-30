@@ -1050,7 +1050,7 @@ class CallingConventionAnalysis(Analysis):
         if cc.STACKARG_SP_DIFF is not None and initial_stack_args:
             arg_by_offset = {a.stack_offset: a for a in initial_stack_args}
             init_stackarg_offset = cc.STACKARG_SP_DIFF + cc.STACKARG_SP_BUFF
-            int_arg_size = self.project.arch.bytes
+            int_arg_size = cc.arg_slot_size
             for stackarg_offset in range(init_stackarg_offset, max(arg_by_offset), int_arg_size):
                 if stackarg_offset not in arg_by_offset:
                     arg_by_offset[stackarg_offset] = SimStackArg(stackarg_offset, int_arg_size)
@@ -1068,7 +1068,7 @@ class CallingConventionAnalysis(Analysis):
                 # have we reached the end of the args list?
                 if [a for a in int_args if isinstance(a, SimRegArg)] or len(stack_int_args) > 0:
                     # haven't reached the end yet or there are stack args
-                    arg = SimRegArg(reg_name, self.project.arch.bytes)
+                    arg = SimRegArg(reg_name, cc.arg_slot_size)
                 else:
                     break
             reg_args.append(arg)
@@ -1086,7 +1086,7 @@ class CallingConventionAnalysis(Analysis):
                     # have we reached the end of the args list?
                     if [a for a in fp_args if isinstance(a, SimRegArg)] or len(stack_fp_args) > 0:
                         # haven't reached the end yet or there are stack args
-                        arg = SimRegArg(reg_name, self.project.arch.bytes)
+                        arg = SimRegArg(reg_name, cc.arg_slot_size)
                     else:
                         break
                 reg_args.append(arg)

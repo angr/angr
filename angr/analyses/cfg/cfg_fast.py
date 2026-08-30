@@ -3389,7 +3389,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if target_addr is None:
             # The target address is not a concrete value
-            assert irsb is not None and ins_addr is not None and stmt_idx is not None
+            assert irsb is not None and stmt_idx is not None
 
             if jumpkind == "Ijk_Ret":
                 # This block ends with a return instruction.
@@ -3405,6 +3405,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 jumpkind in ("Ijk_Boring", "Ijk_Call", "Ijk_InvalICache") or jumpkind.startswith("Ijk_Sys")
             ):
                 # This is an indirect jump. Try to resolve it.
+                assert ins_addr is not None
                 # fast path: the target may have been constant-folded from a read-only region at lift time
                 # (e.g. an AMD64 PE IAT slot); consuming it here avoids re-lifting the block and running the
                 # indirect jump resolvers
