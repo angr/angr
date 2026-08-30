@@ -16,7 +16,7 @@ from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Register
 from angr.ailment.statement import ConditionalJump, Jump
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
-from tests.common import bin_location, print_decompilation_result
+from tests.common import bin_location, complete_calling_conventions_for, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -119,7 +119,8 @@ class TestRustCFGTransformation(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "bbbq")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
-        proj.analyses.CompleteCallingConventions()
+        # the whole-binary CFG is what this test needs; prototypes of functions sub_410920 never calls are not
+        complete_calling_conventions_for(proj, [0x410920])
         proj.analyses.RustSymbolRecovery()
         proj.analyses.TypeDBLoader()
         dec = proj.analyses.Decompiler(0x410920, cfg=cfg.model, flavor="rust", fail_fast=True)

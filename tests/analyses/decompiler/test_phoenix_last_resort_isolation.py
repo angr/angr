@@ -17,7 +17,7 @@ from angr.ailment.expression import Const
 from angr.ailment.statement import Jump
 from angr.analyses.decompiler.structuring.phoenix import PhoenixStructurer
 from angr.analyses.decompiler.utils import sequence_to_blocks
-from tests.common import bin_location, print_decompilation_result
+from tests.common import bin_location, complete_calling_conventions_for, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -127,7 +127,8 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "bbbq")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True, show_progressbar=False)
-        proj.analyses.CompleteCallingConventions()
+        # the whole-binary CFG is what this test needs; prototypes of functions sub_410920 never calls are not
+        complete_calling_conventions_for(proj, [0x410920])
         proj.analyses.RustSymbolRecovery()
         proj.analyses.TypeDBLoader()
 
