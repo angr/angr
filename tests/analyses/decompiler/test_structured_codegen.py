@@ -29,7 +29,6 @@ from angr.analyses.decompiler.structured_codegen.c import (
     type_to_c_repr_chunks,
 )
 from angr.calling_conventions import SimComboArg
-from angr.sim_variable import SimRegisterVariable
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -43,6 +42,7 @@ from angr.sim_type import (
     SimUnion,
     parse_cpp_file,
 )
+from angr.sim_variable import SimRegisterVariable
 from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
