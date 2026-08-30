@@ -450,6 +450,15 @@ class Function(Serializable):
         return self._prototype_source in {PrototypeSource.NONE, PrototypeSource.GUESSED, PrototypeSource.CCA_LOW}
 
     @property
+    def is_prototype_external(self) -> bool:
+        """
+        Whether the prototype comes from outside our own analyses (a SimProcedure, a signature match, or the user)
+        and may therefore be treated as ground truth. Prototypes that we inferred ourselves must not be: feeding an
+        earlier guess back in as ground truth makes analysis results depend on how many times they have been run.
+        """
+        return self._prototype_source >= PrototypeSource.SIMPROC
+
+    @property
     def prototype_source(self) -> PrototypeSource:
         return self._prototype_source
 
