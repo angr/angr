@@ -19,6 +19,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeCppFunction,
     SimTypeDouble,
+    SimTypeFixedSizeArray,
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
@@ -373,6 +374,30 @@ class TestTypes(unittest.TestCase):
             (12, 3),
             (1, 7),
         ]
+
+    def test_sub_byte_types_align_to_one_byte(self):
+        # SimTypeNum is sized in bits, so a type narrower than a byte used to report an
+        # alignment of zero -- the truncated quotient -- and every struct laying such a
+        # field out divided by zero while rounding the running bit offset up.
+        arch = archinfo.ArchX86()
+
+        assert [SimTypeNum(bits).with_arch(arch).alignment for bits in range(1, 9)] == [1] * 8
+        assert SimTypeInt().with_arch(arch).alignment == 4  # wider types are unchanged
+
+        # Aggregates take a max() over their members, so they propagated the zero outwards.
+        assert SimTypeFixedSizeArray(SimTypeNum(4), 3).with_arch(arch).alignment == 1
+        assert SimUnion({"m": SimTypeNum(4)}, name="nibble_union").with_arch(arch).alignment == 1
+
+        nibble = cast(SimStruct, SimStruct({"b": SimTypeNum(4)}, name="nibble").with_arch(arch))
+        assert nibble.offsets == {"b": 0}
+        holds_union = cast(
+            SimStruct,
+            SimStruct(
+                {"a": SimTypeInt(), "u": SimUnion({"m": SimTypeNum(4)}, name="nibble_union2")},
+                name="holds_nibble_union",
+            ).with_arch(arch),
+        )
+        assert holds_union.offsets == {"a": 0, "u": 4}
 
     def test_dereference_type_anonymous_struct(self):
         angr.procedures.definitions.load_win32_type_collections()
