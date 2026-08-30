@@ -64,8 +64,6 @@ class TestSimLinuxPpc64Toc(unittest.TestCase):
     Tests for the initial TOC value SimLinux.state_entry() puts in r2 on PowerPC64 ELFv1.
     """
 
-    # a relocatable object declares no entry point, so it has no ELFv1 function descriptor to take
-    # an initial TOC out of, and cle reports none for it
     without_toc = os.path.join(test_location, "ppc64", "simple_object.o")
     with_toc = os.path.join(test_location, "ppc64", "fauxware")
 
