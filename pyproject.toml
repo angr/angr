@@ -125,6 +125,9 @@ cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
 
+[tool.uv.extra-build-dependencies]
+keystone-engine = ["cmake<4"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"
