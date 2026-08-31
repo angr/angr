@@ -296,6 +296,10 @@ impl SegmentList {
         if size == 0 {
             return;
         }
+        // ensure address + size does not overflow
+        if address.checked_add(size).is_none() {
+            return;
+        }
         let rem = address..address + size;
         let removed: u64 = self
             .map
@@ -579,6 +583,19 @@ mod tests {
         sl.occupy(0, 10, None);
         sl.occupy(5, 10, None);
         assert_eq!(sl.occupied_size(), 15);
+    }
+
+    #[test]
+    fn release_past_the_end_of_the_address_space() {
+        let mut sl = SegmentList::new();
+        sl.occupy(u64::MAX - 4, 4, None);
+        sl.release(u64::MAX, 1);
+        sl.release(u64::MAX - 1, 2);
+        sl.release(1, u64::MAX);
+        assert_eq!(sl.occupied_size(), 4);
+        // the non-overflowing range that ends exactly at u64::MAX still releases
+        sl.release(u64::MAX - 4, 4);
+        assert_eq!(sl.occupied_size(), 0);
     }
 
     #[test]
