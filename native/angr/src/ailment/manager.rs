@@ -4,11 +4,7 @@
 //! the per-conversion scratch state (current instruction address, VEX
 //! statement index, type environment, block address). Porting it to Rust
 //! lets the VEX converter bump the atom counter natively (no Python call per
-//! atom).
-//!
-//! It deliberately carries no `arch`: the two converters that need one read it
-//! off the IRSB they are converting, which is the arch the block was lifted
-//! under, so the manager cannot disagree with the block.
+//! atom). The public Python API mirrors the original class exactly.
 
 use pyo3::prelude::*;
 

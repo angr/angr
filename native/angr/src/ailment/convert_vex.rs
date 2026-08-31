@@ -2175,7 +2175,6 @@ impl VEXIRSBConverter {
         manager: Bound<'_, Manager>,
     ) -> PyResult<Block> {
         vex_ffi::init_symbols(py);
-        // The arch comes from the IRSB itself -- the block was lifted under it.
         let arch = irsb.getattr("arch")?;
         let tyenv = irsb.getattr("tyenv")?;
         let block_addr: i64 = irsb.getattr("addr")?.extract()?;
