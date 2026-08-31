@@ -1762,7 +1762,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._updated_nonreturning_functions = set()
 
         if self._use_eh_frame:
-            self._remaining_eh_frame_addrs = sorted(self._function_addresses_from_eh_frame, reverse=True)
+            self._remaining_eh_frame_addrs = sorted(
+                self._function_addresses_from_eh_frame | self._function_addresses_from_exception_directory,
+                reverse=True,
+            )
 
         if self._use_function_prologues:
             func_addrs_from_prologs = self._func_addrs_from_prologues()
@@ -2378,7 +2381,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if self._use_eh_frame and self._remaining_eh_frame_addrs:
             while self._remaining_eh_frame_addrs:
                 eh_addr = self._remaining_eh_frame_addrs.pop()
-                if self._seg_list.is_occupied(eh_addr):
+                authoritative_eh_hint = (
+                    isinstance(self._binary, cle.PE) and eh_addr in self._function_addresses_from_eh_frame
+                )
+                if self._seg_list.is_occupied(eh_addr) and not authoritative_eh_hint:
                     continue
 
                 job = CFGJob(eh_addr, eh_addr, "Ijk_Boring", job_type=CFGJobType.EH_FRAME_HINTS)
@@ -2647,7 +2653,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._propagate_key_func_info_to_jump_thunks()
 
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
-        self.make_functions()
+        authoritative_function_addrs = set()
+        if self._use_eh_frame and isinstance(self._binary, cle.PE):
+            authoritative_function_addrs |= self._function_addresses_from_eh_frame
+        if self._extra_function_starts:
+            authoritative_function_addrs |= set(self._extra_function_starts)
+        self.make_functions(additional_function_addrs=authoritative_function_addrs)
         self._calculate_progress_and_notify(skip_percentage=True)
 
         self._analyze_all_function_features(all_funcs_completed=True)
