@@ -4,7 +4,11 @@
 //! the per-conversion scratch state (current instruction address, VEX
 //! statement index, type environment, block address). Porting it to Rust
 //! lets the VEX converter bump the atom counter natively (no Python call per
-//! atom). The public Python API mirrors the original class exactly.
+//! atom).
+//!
+//! It deliberately carries no `arch`: the two converters that need one read it
+//! off the IRSB they are converting, which is the arch the block was lifted
+//! under, so the manager cannot disagree with the block.
 
 use pyo3::prelude::*;
 
@@ -18,8 +22,6 @@ use pyo3::prelude::*;
 )]
 #[derive(Debug)]
 pub struct Manager {
-    pub name: Option<Py<PyAny>>,
-    pub arch: Option<Py<PyAny>>,
     /// Next atom index to hand out (the original used `itertools.count()`).
     pub atom_ctr: i64,
     /// Attached by Clinic so that optimization passes, peephole optimizations,
@@ -34,11 +36,8 @@ pub struct Manager {
 #[pymethods]
 impl Manager {
     #[new]
-    #[pyo3(signature = (name=None, arch=None))]
-    fn new(name: Option<Py<PyAny>>, arch: Option<Py<PyAny>>) -> Self {
+    fn new() -> Self {
         Self {
-            name,
-            arch,
             atom_ctr: 0,
             variable_map: None,
             ins_addr: None,

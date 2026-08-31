@@ -346,7 +346,7 @@ _PROJECT = angr.load_shellcode(b"\x90", arch="AMD64")
 
 
 def _rewrite(ccall):
-    return AMD64CCallRewriter(ccall, _PROJECT, Manager(arch=_PROJECT.arch)).result
+    return AMD64CCallRewriter(ccall, _PROJECT, Manager()).result
 
 
 def _mask(v, bits):

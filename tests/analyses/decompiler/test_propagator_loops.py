@@ -25,7 +25,7 @@ class TestPropagatorLoops(unittest.TestCase):
         f = p.kb.functions[0]
         banner("Raw AIL Nodes")
         nodes = sorted(f.nodes, key=lambda n: n.addr)
-        am = ailment.Manager(arch=p.arch)
+        am = ailment.Manager()
         for n in nodes:
             b = p.factory.block(n.addr, n.size)
             ab = ailment.IRSBConverter.convert(b.vex, am)

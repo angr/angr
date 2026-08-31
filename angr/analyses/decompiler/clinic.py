@@ -491,7 +491,7 @@ class Clinic(Analysis, Serializable):
 
     def _analyze_for_decompiling(self):
         # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager(arch=self.project.arch)
+        self._ail_manager = ailment.Manager()
         # attach the VariableMap so passes/peephole-opts/region-simplifiers that hold the manager can reach it
         self._ail_manager.variable_map = self.variable_map
 
@@ -1150,7 +1150,7 @@ class Clinic(Analysis, Serializable):
             return
 
         # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager(arch=self.project.arch)
+        self._ail_manager = ailment.Manager()
         self._ail_manager.variable_map = self.variable_map
 
         # Track stack pointers

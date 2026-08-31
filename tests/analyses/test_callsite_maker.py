@@ -24,7 +24,7 @@ class TestCallsiteMaker(unittest.TestCase):
             auto_load_libs=False,
         )
 
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
 
         # Generate a CFG
         cfg = project.analyses.CFG()

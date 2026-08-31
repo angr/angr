@@ -12,6 +12,7 @@ from pyvex.enums import irop_enums_to_ints
 
 import angr
 from angr import ailment
+from angr.engines.pcode.lifter import IRSB as PCodeIRSB
 from angr.engines.vex.claripy import irop
 from angr.rustylib.ailment import RoundingMode, VEXIRSBConverter, _vexop_debug
 
@@ -27,14 +28,14 @@ class TestIrsb(unittest.TestCase):
 
     def test_convert_from_vex_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
-        manager = ailment.Manager(arch=arch)
+        manager = ailment.Manager()
         irsb = pyvex.IRSB(self.block_bytes, self.block_addr, arch, opt_level=0)
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
 
     def test_convert_from_pcode_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
-        manager = ailment.Manager(arch=arch)
+        manager = ailment.Manager()
         p = angr.load_shellcode(
             self.block_bytes, arch, self.block_addr, self.block_addr, engine=angr.engines.UberEnginePcode
         )
@@ -44,7 +45,7 @@ class TestIrsb(unittest.TestCase):
 
     def test_convert_pcode_uppercase_memory_space(self):
         arch = archinfo.ArchPcode("6502:LE:16:default")
-        manager = ailment.Manager(arch=arch)  # pyright: ignore[reportArgumentType]
+        manager = ailment.Manager()
         translation = pypcode.Context(arch.name).translate(bytes.fromhex("ad34128d7856"), base_address=0)
         load_varnode = translation.ops[1].inputs[0]
         store_varnode = translation.ops[5].output
@@ -53,6 +54,7 @@ class TestIrsb(unittest.TestCase):
         assert load_varnode.space.name == store_varnode.space.name == "RAM"
 
         converter = object.__new__(ailment.PCodeIRSBConverter)
+        converter._irsb = PCodeIRSB.empty_block(arch, 0)
         converter._manager = manager
         converter._statement_idx = 0
 
@@ -73,9 +75,9 @@ class TestIrsb(unittest.TestCase):
         converting a cached pyvex Python IRSB."""
         arch = archinfo.arch_from_id("AMD64")
         irsb = pyvex.IRSB(self.block_bytes, self.block_addr, arch, opt_level=0)
-        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
         from_lift = VEXIRSBConverter.convert_from_lift(
-            arch, self.block_addr, self.block_bytes, ailment.Manager(arch=arch), opt_level=0
+            arch, self.block_addr, self.block_bytes, ailment.Manager(), opt_level=0
         )
         assert from_py == from_lift
         assert from_py.statements  # non-empty
@@ -105,10 +107,8 @@ class TestNonConstRoundingMode(unittest.TestCase):
     def test_tmp_rounding_mode_is_expression(self):
         arch = archinfo.arch_from_id("armel")
         irsb = pyvex.IRSB(self.block_bytes, 0x1000, arch, opt_level=1)
-        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
-        from_lift = VEXIRSBConverter.convert_from_lift(
-            arch, 0x1000, self.block_bytes, ailment.Manager(arch=arch), opt_level=1
-        )
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, self.block_bytes, ailment.Manager(), opt_level=1)
         assert from_py == from_lift
 
         conv = next(c for c in (self._find_convert(getattr(s, "src", s)) for s in from_py.statements) if c is not None)
@@ -134,7 +134,7 @@ class TestNonConstRoundingMode(unittest.TestCase):
     def test_const_rounding_mode_still_enum(self):
         arch = archinfo.arch_from_id("i386")
         irsb = pyvex.IRSB(bytes.fromhex("d8c1c3"), 0x1000, arch, opt_level=1)  # fadd st0, st1 ; ret
-        blk = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+        blk = VEXIRSBConverter.convert(irsb, ailment.Manager())
         binop = next(
             s.src
             for s in blk.statements
@@ -161,9 +161,9 @@ class TestVectorSignedness(unittest.TestCase):
         ):
             with self.subTest(instruction=name):
                 irsb = pyvex.IRSB(block_bytes, 0x1000, arch, opt_level=0)
-                from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+                from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
                 from_lift = VEXIRSBConverter.convert_from_lift(
-                    arch, 0x1000, block_bytes, ailment.Manager(arch=arch), opt_level=0
+                    arch, 0x1000, block_bytes, ailment.Manager(), opt_level=0
                 )
 
                 assert from_py == from_lift
@@ -214,13 +214,13 @@ class TestVexConverterAcrossArches(unittest.TestCase):
             try:
                 from_py = VEXIRSBConverter.convert(
                     pyvex.IRSB(data, lift_addr, arch, opt_level=1, bytes_offset=bytes_offset),
-                    ailment.Manager(arch=arch),
+                    ailment.Manager(),
                 )
             except Exception:
                 continue
             try:
                 from_lift = VEXIRSBConverter.convert_from_lift(
-                    arch, lift_addr, data, ailment.Manager(arch=arch), opt_level=1, bytes_offset=bytes_offset
+                    arch, lift_addr, data, ailment.Manager(), opt_level=1, bytes_offset=bytes_offset
                 )
             except Exception:
                 # The fast path defers blocks with statements/expressions it can't
@@ -255,17 +255,15 @@ class TestLiftWindowOverread(unittest.TestCase):
 
     def test_lift_does_not_read_past_window(self):
         arch = archinfo.arch_from_id("s390x")
-        from_py = VEXIRSBConverter.convert(
-            pyvex.IRSB(self.window, self.addr, arch, opt_level=1), ailment.Manager(arch=arch)
-        )
+        from_py = VEXIRSBConverter.convert(pyvex.IRSB(self.window, self.addr, arch, opt_level=1), ailment.Manager())
         # 0x04 completes the truncated `lg`: an unguarded overread decodes it
         # and ends the block Ijk_Boring instead of Ijk_NoDecode.
         backing = bytearray(self.window + b"\x04" * 8)
         from_lift_mv = VEXIRSBConverter.convert_from_lift(
-            arch, self.addr, memoryview(backing)[: len(self.window)], ailment.Manager(arch=arch), opt_level=1
+            arch, self.addr, memoryview(backing)[: len(self.window)], ailment.Manager(), opt_level=1
         )
         from_lift_bytes = VEXIRSBConverter.convert_from_lift(
-            arch, self.addr, self.window, ailment.Manager(arch=arch), opt_level=1
+            arch, self.addr, self.window, ailment.Manager(), opt_level=1
         )
         assert from_py == from_lift_mv
         assert from_py == from_lift_bytes

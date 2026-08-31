@@ -31,8 +31,8 @@ class TestDephicationRewriting(unittest.TestCase):
         return proj, SimEngineDephiRewriting(proj, mapping)
 
     def test_remapped_dst_survives_non_vvar_src(self):
-        proj, engine = self._engine({2759: 1330})
-        m = Manager(arch=proj.arch)
+        _, engine = self._engine({2759: 1330})
+        m = Manager()
         stmt = Assignment(
             m.next_atom(),
             VirtualVariable(m.next_atom(), 2759, 64, VirtualVariableCategory.REGISTER),
@@ -51,8 +51,8 @@ class TestDephicationRewriting(unittest.TestCase):
         assert out.dst.varid == 1330
 
     def test_remapped_dst_survives_const_src(self):
-        proj, engine = self._engine({7: 3})
-        m = Manager(arch=proj.arch)
+        _, engine = self._engine({7: 3})
+        m = Manager()
         stmt = Assignment(
             m.next_atom(),
             VirtualVariable(m.next_atom(), 7, 64, VirtualVariableCategory.REGISTER),
@@ -67,8 +67,8 @@ class TestDephicationRewriting(unittest.TestCase):
     def test_self_assignment_is_still_dropped(self):
         # the reason the return used to sit behind the both-sides-are-vvars guard: once both sides map onto the same
         # variable the statement is a no-op and has to go away
-        proj, engine = self._engine({11: 3, 12: 3})
-        m = Manager(arch=proj.arch)
+        _, engine = self._engine({11: 3, 12: 3})
+        m = Manager()
         stmt = Assignment(
             m.next_atom(),
             VirtualVariable(m.next_atom(), 11, 64, VirtualVariableCategory.REGISTER),
@@ -79,8 +79,8 @@ class TestDephicationRewriting(unittest.TestCase):
         assert engine._handle_stmt_Assignment(stmt) == ()
 
     def test_unmapped_assignment_is_left_alone(self):
-        proj, engine = self._engine({2759: 1330})
-        m = Manager(arch=proj.arch)
+        _, engine = self._engine({2759: 1330})
+        m = Manager()
         stmt = Assignment(
             m.next_atom(),
             VirtualVariable(m.next_atom(), 99, 64, VirtualVariableCategory.REGISTER),
@@ -94,8 +94,8 @@ class TestDephicationRewriting(unittest.TestCase):
     def test_ite_branches_are_not_swapped(self):
         # ailment's ITE takes (idx, cond, iftrue, iffalse): a rebuild that feeds the branches in
         # the wrong order silently inverts the ternary, e.g. `c ? x : -1` comes out as `c ? -1 : x`
-        proj, engine = self._engine({5: 6})
-        m = Manager(arch=proj.arch)
+        _, engine = self._engine({5: 6})
+        m = Manager()
         cond = VirtualVariable(m.next_atom(), 5, 1, VirtualVariableCategory.REGISTER)
         iffalse = Const(m.next_atom(), 0xFFFFFFFF, 32)
         iftrue = Const(m.next_atom(), 0x11, 32)

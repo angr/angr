@@ -23,13 +23,13 @@ test_location = os.path.join(bin_location, "tests")
 LATCH_ADDR = 0x200
 
 
-def _loop_body_with(stmt, arch=None):
+def _loop_body_with(stmt):
     """A do-while whose latch at LATCH_ADDR was folded into its condition, with stmt somewhere in its body.
 
     The statement is kept off the body's tail on purpose: a continue at the very end of a do-while body is redundant
     and gets dropped again, which would hide what we are testing.
     """
-    m = Manager(arch=arch)
+    m = Manager()
     block = Block(0x110, 1, statements=[stmt])
     inner = SequenceNode(0x110, nodes=[block])
     loop_seq = SequenceNode(0x100, nodes=[inner, Block(0x180, 1, statements=[])])
@@ -84,7 +84,7 @@ class TestDoWhileLatchContinue(unittest.TestCase):
         jumps to it have to become continues. Anything left behind is emitted as a goto to a label that no longer
         exists anywhere in the function.
         """
-        m = Manager(arch=None)
+        m = Manager()
         jump = Jump(m.next_atom(), Const(m.next_atom(), LATCH_ADDR, 64), ins_addr=0x110)
         block, inner, loop_seq, loop_node = _loop_body_with(jump)
 
@@ -104,7 +104,7 @@ class TestDoWhileLatchContinue(unittest.TestCase):
         into a condition guarding the other target plus a continue.
         """
         arch = archinfo.arch_from_id("amd64")
-        m = Manager(arch=arch)
+        m = Manager()
         condition = BinaryOp(
             m.next_atom(), "CmpEQ", [Register(m.next_atom(), 16, 64), Const(m.next_atom(), 0, 64)], False
         )
@@ -115,7 +115,7 @@ class TestDoWhileLatchContinue(unittest.TestCase):
             Const(m.next_atom(), 0x300, 64),
             ins_addr=0x110,
         )
-        block, inner, loop_seq, loop_node = _loop_body_with(condjump, arch=arch)
+        block, inner, loop_seq, loop_node = _loop_body_with(condjump)
 
         structurer = object.__new__(PhoenixStructurer)
         structurer.cond_proc = ConditionProcessor(arch, m)

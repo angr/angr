@@ -530,15 +530,13 @@ class Block:
 class Manager:
     """AIL manager: hands out atom indices and holds per-conversion scratch state."""
 
-    name: str | None
-    arch: Any | None
     variable_map: Any | None
     ins_addr: int | None
     vex_stmt_idx: int | None
     tyenv: Any | None
     block_addr: int | None
     atom_ctr: int
-    def __init__(self, name: str | None = ..., arch: Any | None = ...) -> None: ...
+    def __init__(self) -> None: ...
     def next_atom(self) -> int: ...
     def reset(self) -> None: ...
 

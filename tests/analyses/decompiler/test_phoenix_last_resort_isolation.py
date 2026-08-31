@@ -71,7 +71,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         return progressed, chosen
 
     def test_edge_that_would_orphan_its_destination_is_not_picked(self):
-        m = Manager(arch=None)
+        m = Manager()
         head = self._block(m, 0x100)
         # x -> y hangs off the region unreachable from head, and it is y's only way in
         x, y = self._block(m, 0x200), self._block(m, 0x300)
@@ -86,7 +86,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         assert not chosen
 
     def test_a_safe_edge_is_still_picked(self):
-        m = Manager(arch=None)
+        m = Manager()
         head = self._block(m, 0x100)
         a, b = self._block(m, 0x200), self._block(m, 0x300)
         # b keeps a second way in, so cutting a -> b orphans nothing
@@ -101,7 +101,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         assert chosen == [(a, b)]
 
     def test_orphaning_edge_is_skipped_in_favour_of_a_safe_one(self):
-        m = Manager(arch=None)
+        m = Manager()
         head = self._block(m, 0x100)
         a, b = self._block(m, 0x200), self._block(m, 0x300)
         x, y = self._block(m, 0x400), self._block(m, 0x500)
