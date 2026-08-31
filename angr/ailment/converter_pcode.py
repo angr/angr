@@ -257,7 +257,7 @@ class PCodeIRSBConverter(Converter):
         #        faster mapping method than going through trans
         reg_name = varnode.getRegisterName()
         try:
-            reg_offset = self._manager.arch.get_register_offset(reg_name.lower())
+            reg_offset = self._irsb.arch.get_register_offset(reg_name.lower())
             log.debug("Mapped register '%s' to offset %x", reg_name, reg_offset)
         except ValueError:
             reg_offset = varnode.offset + 0x100000
@@ -331,13 +331,13 @@ class PCodeIRSBConverter(Converter):
             return Tmp(self._manager.next_atom(), offset, size)
         if space_name.lower() in ["ram", "mem"]:
             assert not is_write
-            addr = Const(self._manager.next_atom(), varnode.offset, self._manager.arch.bits)
+            addr = Const(self._manager.next_atom(), varnode.offset, self._irsb.arch.bits)
             # Note: Load takes bytes, not bits, for size
             return Load(
                 self._manager.next_atom(),
                 addr,
                 varnode.size,
-                self._manager.arch.memory_endness,
+                self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
             )
         raise NotImplementedError
@@ -360,13 +360,13 @@ class PCodeIRSBConverter(Converter):
                 self._statement_idx, self._convert_varnode(varnode, True), value, ins_addr=self._manager.ins_addr
             )
         if space_name.lower() in ["ram", "mem"]:
-            addr = Const(self._manager.next_atom(), varnode.offset, self._manager.arch.bits)
+            addr = Const(self._manager.next_atom(), varnode.offset, self._irsb.arch.bits)
             return Store(
                 self._statement_idx,
                 addr,
                 value,
                 varnode.size,
-                self._manager.arch.memory_endness,
+                self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
             )
         raise NotImplementedError
@@ -455,7 +455,7 @@ class PCodeIRSBConverter(Converter):
                 self._manager.next_atom(),
                 off,
                 self._current_op.output.size,
-                self._manager.arch.memory_endness,
+                self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
             )
             stmt = self._set_value(out, res)
@@ -484,7 +484,7 @@ class PCodeIRSBConverter(Converter):
                 off,
                 data,
                 self._current_op.inputs[2].size,
-                self._manager.arch.memory_endness,
+                self._irsb.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
             )
         self._statements.append(stmt)
@@ -499,7 +499,7 @@ class PCodeIRSBConverter(Converter):
 
         # special handling: if the previous statement is a ConditionalJump with a None destination address, then we
         # back-patch the previous statement
-        dest = Const(self._manager.next_atom(), dest_addr, self._manager.arch.bits)
+        dest = Const(self._manager.next_atom(), dest_addr, self._irsb.arch.bits)
         if self._statements:
             last_stmt = self._statements[-1]
             if isinstance(last_stmt, ConditionalJump) and last_stmt.false_target is None:
@@ -519,13 +519,13 @@ class PCodeIRSBConverter(Converter):
         cond = self._get_value(self._current_op.inputs[1])
         cval = Const(self._manager.next_atom(), 0, cond.bits)
         condition = BinaryOp(self._manager.next_atom(), "CmpNE", [cond, cval], signed=False)
-        dest = Const(self._manager.next_atom(), dest_addr, self._manager.arch.bits)
+        dest = Const(self._manager.next_atom(), dest_addr, self._irsb.arch.bits)
         if self._irsb._ops[-1] is self._current_op:
             # if the cbranch op is the last op, then we need to generate a fallthru target
             fallthru = Const(
                 self._manager.next_atom(),
                 self._next_ins_addr,
-                self._manager.arch.bits,
+                self._irsb.arch.bits,
             )
         else:
             # there will be a Jump statement that follows the cbranch
@@ -558,14 +558,14 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code call operation
         """
-        ret_reg_offset = self._manager.arch.ret_offset
+        ret_reg_offset = self._irsb.arch.ret_offset
         ret_expr = (
             None
             if ret_reg_offset is None
-            else Register(None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)
+            else Register(None, ret_reg_offset, self._irsb.arch.bits, ins_addr=self._manager.ins_addr)
         )  # ???
         if self._irsb.next is not None:
-            dest = Const(self._manager.next_atom(), self._irsb.next.con.value, self._manager.arch.bits)
+            dest = Const(self._manager.next_atom(), self._irsb.next.con.value, self._irsb.arch.bits)
         else:
             dest = None
         call_expr = Call(
@@ -589,8 +589,8 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code indirect call operation
         """
-        ret_reg_offset = self._manager.arch.ret_offset
-        ret_expr = Register(None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)  # ???
+        ret_reg_offset = self._irsb.arch.ret_offset
+        ret_expr = Register(None, ret_reg_offset, self._irsb.arch.bits, ins_addr=self._manager.ins_addr)  # ???
         dest = self._get_value(self._current_op.inputs[0])
         call_expr = Call(
             self._manager.next_atom(),

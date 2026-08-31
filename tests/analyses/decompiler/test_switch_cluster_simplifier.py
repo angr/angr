@@ -36,7 +36,7 @@ class TestSwitchClusterSimplifier(unittest.TestCase):
         sharing an address -- what SwitchDefaultCaseDuplicator plus structuring produce. The merged switch-case can
         only carry one default node, so merging here would drop the blocks under the other copy.
         """
-        m = Manager(arch=None)
+        m = Manager()
 
         def block(addr, target):
             return Block(addr, 1, statements=[Jump(m.next_atom(), Const(m.next_atom(), target, 64))])

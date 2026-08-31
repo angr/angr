@@ -97,7 +97,7 @@ class TestHashEqContract(unittest.TestCase):
     """Per-variant sweeps plus the individual node-local regressions."""
 
     def _sweep(self, factories):
-        manager = Manager(arch=None)
+        manager = Manager()
         for name, build in factories.items():
             with self.subTest(variant=name):
                 kids_a, kids_b = _Kids(manager), _Kids(manager)
@@ -121,7 +121,7 @@ class TestHashEqContract(unittest.TestCase):
 
     def test_nested_statement_over_expression(self):
         """The original report: a statement whose src subtree differs only in idx."""
-        manager = Manager(arch=None)
+        manager = Manager()
         n = manager.next_atom
 
         def src():

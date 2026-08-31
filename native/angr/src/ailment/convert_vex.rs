@@ -2175,14 +2175,7 @@ impl VEXIRSBConverter {
         manager: Bound<'_, Manager>,
     ) -> PyResult<Block> {
         vex_ffi::init_symbols(py);
-        let arch = match &manager.borrow().arch {
-            Some(a) => a.bind(py).clone(),
-            None => {
-                return Err(PyValueError::new_err(
-                    "manager.arch must be set for VEX conversion",
-                ));
-            }
-        };
+        let arch = irsb.getattr("arch")?;
         let tyenv = irsb.getattr("tyenv")?;
         let block_addr: i64 = irsb.getattr("addr")?.extract()?;
         // Keep manager state in sync with the legacy converter.

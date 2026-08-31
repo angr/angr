@@ -333,7 +333,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         # gcc's `x / k` / `x % k` magic-multiply quotients; the rewritten 64-bit Div must keep the 32-bit width
         for magic, shift, divisor in [(0xCCCCCCCD, 34, 5), (0xAAAAAAAB, 33, 3), (0xD1B71759, 45, 10000)]:
             with self.subTest(divisor=divisor):
-                mgr = Manager(arch=archinfo.arch_from_id("AMD64"))
+                mgr = Manager()
                 x = Register(mgr.next_atom(), 16, 64)
                 mul = BinaryOp(mgr.next_atom(), "Mul", [Const(mgr.next_atom(), magic, 64), x], False)
                 shr = BinaryOp(mgr.next_atom(), "Shr", [mul, Const(mgr.next_atom(), shift, 8)], False)
@@ -348,7 +348,7 @@ class TestPeepholeOptimizations(unittest.TestCase):
         # (x << N) Sar N is a sign-extension of the low (bits - N) bits and must NOT be turned into a
         # zero-extending bitmask. Regression test for the simplifier dropping the sign bit, decompiling
         # `(int)(x << 20) >> 20` (sign-extend the low 12 bits) into the wrong `x & 0xfff` (zero-extend).
-        mgr = Manager(arch=archinfo.arch_from_id("AMD64"))
+        mgr = Manager()
 
         # Arithmetic shift, standard resulting width (32 - 16 = 16): sign-extend via a *signed* outer Convert.
         x = Register(mgr.next_atom(), 16, 32)

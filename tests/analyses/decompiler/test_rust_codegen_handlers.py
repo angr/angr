@@ -56,7 +56,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         cls.codegen = dec.codegen
 
     def _manager(self):
-        return Manager(arch=self.proj.arch)
+        return Manager()
 
     @staticmethod
     def _vvar(m, varid, bits=64, category=VirtualVariableCategory.REGISTER):

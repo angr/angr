@@ -48,7 +48,7 @@ class TestRustCFGTransformation(unittest.TestCase):
 
     @staticmethod
     def _graph_with_condjump():
-        m = Manager(arch=None)
+        m = Manager()
         cond = BinaryOp(m.next_atom(), "CmpEQ", [Register(m.next_atom(), 16, 64), Const(m.next_atom(), 0, 64)], False)
         head = Block(
             0x100,

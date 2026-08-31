@@ -18,8 +18,6 @@ use pyo3::prelude::*;
 )]
 #[derive(Debug)]
 pub struct Manager {
-    pub name: Option<Py<PyAny>>,
-    pub arch: Option<Py<PyAny>>,
     /// Next atom index to hand out (the original used `itertools.count()`).
     pub atom_ctr: i64,
     /// Attached by Clinic so that optimization passes, peephole optimizations,
@@ -34,11 +32,8 @@ pub struct Manager {
 #[pymethods]
 impl Manager {
     #[new]
-    #[pyo3(signature = (name=None, arch=None))]
-    fn new(name: Option<Py<PyAny>>, arch: Option<Py<PyAny>>) -> Self {
+    fn new() -> Self {
         Self {
-            name,
-            arch,
             atom_ctr: 0,
             variable_map: None,
             ins_addr: None,

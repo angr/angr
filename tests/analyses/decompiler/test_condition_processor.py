@@ -9,7 +9,7 @@ from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
 def test_extract_placeholders_include_semantic_properties():
     arch = archinfo.ArchAMD64()
-    manager = ailment.Manager(arch=arch)
+    manager = ailment.Manager()
     condition_processor = ConditionProcessor(arch, manager)
 
     base = VirtualVariable(0, 1, 64, VirtualVariableCategory.REGISTER, oident=arch.registers["rax"][0])
