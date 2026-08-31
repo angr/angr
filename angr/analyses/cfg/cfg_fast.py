@@ -2048,7 +2048,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if self._use_eh_frame:
             eh_frame_addrs = {a for a in self._function_addresses_from_eh_frame if self._inside_regions(a)}
-            self._remaining_eh_frame_addrs = sorted(eh_frame_addrs, reverse=True)
+            exception_directory_addrs = {
+                a for a in self._function_addresses_from_exception_directory if self._inside_regions(a)
+            }
+            self._remaining_eh_frame_addrs = sorted(eh_frame_addrs | exception_directory_addrs, reverse=True)
             if self._eh_frame_boundaries and isinstance(self._binary, cle.ELF):
                 # PE exception records describe function chunks as well as functions, so only ELF FDEs are trusted
                 self._eh_frame_boundary_addrs = eh_frame_addrs
@@ -2668,7 +2671,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if self._use_eh_frame and self._remaining_eh_frame_addrs:
             while self._remaining_eh_frame_addrs:
                 eh_addr = self._remaining_eh_frame_addrs.pop()
-                if self._seg_list.is_occupied(eh_addr):
+                authoritative_eh_hint = (
+                    isinstance(self._binary, cle.PE) and eh_addr in self._function_addresses_from_eh_frame
+                )
+                if self._seg_list.is_occupied(eh_addr) and not authoritative_eh_hint:
                     continue
 
                 job = CFGJob(eh_addr, eh_addr, "Ijk_Boring", job_type=CFGJobType.EH_FRAME_HINTS)
@@ -3047,7 +3053,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._absorb_eh_frame_chunks()
 
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
-        self.make_functions()
+        authoritative_function_addrs = set()
+        if self._use_eh_frame and isinstance(self._binary, cle.PE):
+            authoritative_function_addrs |= self._function_addresses_from_eh_frame
+        if self._extra_function_starts:
+            authoritative_function_addrs |= set(self._extra_function_starts)
+        self.make_functions(additional_function_addrs=authoritative_function_addrs)
         self._calculate_progress_and_notify(skip_percentage=True)
 
         # make_functions() built a brand new function manager, so the Go verdicts must be re-applied
