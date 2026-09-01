@@ -45,6 +45,7 @@ from .magic_div_simplifier import MagicDivisionSimplifier
 from .masked_insert import SimplifyMaskedInsert
 from .modulo_simplifier import ModuloSimplifier
 from .narrow_fp_ops import NarrowFPOperations
+from .neg_plus_const import NegPlusConstToSub
 from .one_sub_bool import OneSubBool
 from .optimized_div_simplifier import OptimizedDivisionSimplifier
 from .recombine_split_halves import RecombineSplitHalves
@@ -176,6 +177,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     SSEMoveMask,
     SbbMaskToITE,
     RemoveRedundantAnds,
+    NegPlusConstToSub,
     BinaryOpCanonicalization,
     ConvLoad,
     DivModDivisorSize,
