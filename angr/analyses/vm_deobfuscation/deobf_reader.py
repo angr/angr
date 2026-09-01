@@ -323,6 +323,40 @@ class _Reader:
     # types and calling conventions
     #
 
+    @staticmethod
+    def _prefer_local_declaration(callee):
+        """
+        Replace an argument-less dumped prototype with this angr's own library declaration.
+
+        A dumped prototype is only as good as what the producer had resolved at dump time; the
+        loading angr may know the real signature (an import it can find in ``SIM_LIBRARIES``).
+        Restricted to the argument-less case so a dump that carried a better prototype -- a
+        user-supplied one, say -- is never overwritten.
+        """
+        proto = callee.prototype
+        if proto is not None and getattr(proto, "args", None):
+            return
+        if not hasattr(callee, "find_declaration"):
+            return
+
+        from angr.procedures.definitions import SIM_LIBRARIES  # pylint:disable=import-outside-toplevel
+
+        try:
+            known_library = callee.binary_name in SIM_LIBRARIES
+        except Exception:  # pylint:disable=broad-except
+            known_library = False
+        if not (callee.is_simprocedure or known_library):
+            return
+
+        saved = callee.prototype, callee.calling_convention
+        try:
+            found = callee.find_declaration()
+        except Exception:  # pylint:disable=broad-except
+            found = False
+        if not found or not getattr(callee.prototype, "args", None):
+            # Nothing better available -- put back exactly what the dump asked for.
+            callee.prototype, callee.calling_convention = saved
+
     def _prototype(self, decl, arg_names=None):
         if not decl:
             return None
@@ -393,6 +427,7 @@ class _Reader:
             if proto is not None:
                 callee.prototype = proto
             callee.calling_convention = self._cc(enc["calling_convention"])
+            self._prefer_local_declaration(callee)
             # Newer angr type-hints the callee slot in a transition graph as FuncNode|HookNode,
             # but the Function object itself is what actually gets stored there in both versions.
             self._objs[enc["key"]] = callee

@@ -370,7 +370,52 @@ class _Writer:
             return "default"
         return type(cc).__name__
 
+    def _best_prototype(self, func):
+        """
+        The most informative prototype available for ``func``.
+
+        ``Function.prototype`` can still be an argument-less placeholder at dump time even when
+        this angr knows the real signature: the hook and the library declaration carry it, but
+        nothing has copied it onto the function yet.  Read those directly rather than calling
+        ``find_declaration()``, which would mutate the producer's state as a side effect of
+        dumping.
+        """
+        proto = func.prototype
+        if proto is not None and getattr(proto, "args", None):
+            return proto
+
+        for candidate in self._declared_prototypes(func):
+            if candidate is not None and getattr(candidate, "args", None):
+                try:
+                    return candidate.with_arch(self.project.arch)
+                except Exception:  # pylint:disable=broad-except
+                    return candidate
+        return proto
+
+    def _declared_prototypes(self, func):
+        """Prototypes this angr can find for ``func`` without touching the function object."""
+        try:
+            hook = self.project.hooked_by(func.addr)
+        except Exception:  # pylint:disable=broad-except
+            hook = None
+        if hook is not None:
+            yield getattr(hook, "prototype", None)
+
+        from angr.procedures.definitions import SIM_LIBRARIES  # pylint:disable=import-outside-toplevel
+
+        try:
+            libraries = SIM_LIBRARIES.get(func.binary_name) or ()
+        except Exception:  # pylint:disable=broad-except
+            return
+        # Newer angr maps a library name to a list of SimLibrary; older angr to a single one.
+        for library in libraries if isinstance(libraries, (list, tuple)) else (libraries,):
+            try:
+                yield library.prototypes.get(func.name)
+            except Exception:  # pylint:disable=broad-except
+                continue
+
     def _function(self, func, key, in_graph):
+        proto = self._best_prototype(func)
         return {
             "key": key,
             "addr": enc_int(func.addr),
@@ -378,8 +423,8 @@ class _Writer:
             "is_simprocedure": bool(func.is_simprocedure),
             "is_syscall": bool(func.is_syscall),
             "returning": func.returning,
-            "prototype": self._prototype(func.prototype),
-            "prototype_arg_names": self._prototype_arg_names(func.prototype),
+            "prototype": self._prototype(proto),
+            "prototype_arg_names": self._prototype_arg_names(proto),
             "calling_convention": self._cc(func.calling_convention),
             # False for functions the decompiler resolves through the knowledge base rather than
             # through a transition-graph edge -- `exit` is deliberately kept out of the graph.
