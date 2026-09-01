@@ -1804,6 +1804,11 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             else:
                 continue
 
+            # a genuine tail jump has no in-function successor to fall through to. if the block already has one, the
+            # jump is a manufactured call (e.g. "push retaddr; jmp func" emitted by an obfuscator) and that successor
+            # is its return site -- adding a Return block would give the call site a second, unconditional successor.
+            block_has_fallthrough = replace_last_stmt and ail_graph.out_degree[block] > 0
+
             for slot_name, target in slots:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
                     continue
@@ -1847,7 +1852,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                         ailment.Expr.Const(target.idx, call_block.addr, target.bits, **target.tags),
                     )
 
-                if target_func.returning:
+                if target_func.returning and not block_has_fallthrough:
                     ret_stmt = ailment.Stmt.Return(self._ail_manager.next_atom(), [], **last_stmt.tags)
                     ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
                     ail_graph.add_edge(call_block, ret_block, type="fake_return")
