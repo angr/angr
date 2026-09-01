@@ -371,12 +371,13 @@ class CallSiteMaker:
                     if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall)
                     else 0
                 )
+                callee_sp_diff = self._callee_sp_diff(call_expr.tags["ins_addr"], -ret_addr_size)
                 for arg in stack_arg_locs:
                     self.stackarg_offset_manager.add_call_stack_arg_offset(
                         self.block.addr,
                         self.block.idx,
                         call_expr.tags["ins_addr"],
-                        sp_offset + arg.stack_offset - ret_addr_size,
+                        sp_offset + arg.stack_offset + callee_sp_diff,
                         arg.size,
                     )
 
@@ -565,22 +566,32 @@ class CallSiteMaker:
 
         return None
 
+    def _callee_sp_diff(self, call_addr: int | None, normal_diff: int) -> int:
+        """
+        Where the callee's entry sp sits relative to sp before the call instruction. A call pushes the
+        return address, so the callee starts ``normal_diff`` (one slot) below it. A ``ret`` that the VM
+        deobfuscator rewrote into a call pops the call target instead, so the callee starts one slot
+        *above* sp.
+        """
+        if call_addr is not None and call_addr in self.calls_as_rets:
+            return self.project.arch.bytes
+        return normal_diff
+
     def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg, cc: SimCC | None) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
-        offset = arg_loc.stack_offset
-        if call_stmt.tags.get("ins_addr", None) in self.calls_as_rets:
-            offset += 8
-        # The return address is not on the stack yet at an ordinary call site. A syscall is
-        # different: it reaches its handler through a trap, which pushes nothing onto the
-        # stack the arguments sit on, so the slot a call would have filled is already
-        # occupied by whatever the caller put there.
-        if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall):
-            offset -= self.project.arch.bytes
-
         call_addr = call_stmt.tags.get("ins_addr", None)
         assert call_addr is not None
+        # arg_loc.stack_offset is relative to the callee's entry sp; rebase it onto the sp before the call.
+        # A syscall reaches its handler through a trap, which pushes no return address onto the stack the
+        # arguments sit on.
+        offset = arg_loc.stack_offset + self._callee_sp_diff(
+            call_addr,
+            -self.project.arch.bytes
+            if self.project.arch.call_pushes_ret and not isinstance(cc, SimCCSyscall)
+            else 0,
+        )
         sp_base = self._stack_pointer_tracker.offset_before(call_addr, self.project.arch.sp_offset)
         if sp_base is not None:
             sp_offset = sp_base + offset
