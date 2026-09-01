@@ -6,6 +6,20 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import unittest
 
+import archinfo
+import networkx
+
+from angr import ailment
+from angr.ailment.block import Block
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    Load,
+    StackBaseOffset,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
+from angr.ailment.statement import Assignment, Store
 from angr.analyses.decompiler.stack_dead_store_eliminator import StackAddr, StackDeadStoreEliminator
 
 
@@ -42,6 +56,55 @@ class TestCanonicalFrameAddr(unittest.TestCase):
             StackDeadStoreEliminator._canonical_frame_addr((a, b, c))
             is StackDeadStoreEliminator._canonical_frame_addr((c, b, a))
         )
+
+
+class TestFrameRegisterRewrite(unittest.TestCase):
+    """The frame register itself must become a StackBaseOffset, not just the addresses."""
+
+    @staticmethod
+    def _graph():
+        """``sp1 = sp0 - 224``, then a store and a load through ``sp1``."""
+        arch = archinfo.ArchAMD64()
+        m = ailment.Manager(arch=arch)
+
+        def sp(varid):
+            return VirtualVariable(m.next_atom(), varid, 64, VirtualVariableCategory.REGISTER, oident=arch.sp_offset)
+
+        def const(value):
+            return Const(m.next_atom(), value, 64)
+
+        statements = [
+            Assignment(
+                m.next_atom(),
+                sp(2),
+                BinaryOp(m.next_atom(), "Sub", [sp(1), const(224)], False, bits=64),
+                ins_addr=0x1000,
+            ),
+            Store(m.next_atom(), sp(2), const(1), 8, arch.memory_endness, ins_addr=0x1004),
+            Assignment(
+                m.next_atom(),
+                VirtualVariable(m.next_atom(), 3, 64, VirtualVariableCategory.REGISTER, oident=0),
+                Load(m.next_atom(), sp(2), 8, arch.memory_endness),
+                ins_addr=0x1008,
+            ),
+        ]
+        block = Block(0x1000, 12, statements=statements)
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        return arch, m, graph, block
+
+    def test_frame_register_definition_becomes_a_stack_base_offset(self):
+        arch, m, graph, block = self._graph()
+        StackDeadStoreEliminator(arch, graph, ail_manager=m).run()
+        src = block.statements[0].src
+        assert isinstance(src, StackBaseOffset), f"frame register still holds register arithmetic: {src}"
+        assert src.offset == -224
+
+    def test_addresses_through_the_frame_register_become_stack_base_offsets(self):
+        arch, m, graph, block = self._graph()
+        StackDeadStoreEliminator(arch, graph, ail_manager=m).run()
+        assert isinstance(block.statements[1].addr, StackBaseOffset)
+        assert isinstance(block.statements[2].src.addr, StackBaseOffset)
 
 
 if __name__ == "__main__":

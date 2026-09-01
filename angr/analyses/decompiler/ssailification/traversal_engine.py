@@ -88,6 +88,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         use_tmps: bool = False,
         functions: Callable[[int | str], Function | None] | None = None,
         variable_map=None,
+        displaced_ptr_spans: bool = True,
     ):
         super().__init__(project)
         self.simos = simos
@@ -95,6 +96,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.bp_as_gpr = bp_as_gpr
         self.stackvars = stackvars
         self.use_tmps = use_tmps
+        # An access through "pointer to slot X, displaced by k" normally makes one variable
+        # spanning both, which is what indexing into a local aggregate looks like. A devirtualised
+        # VM displaces pointers to individual slots as ordinary bookkeeping, so spanning fuses
+        # unrelated slots into one huge address-taken object; there, credit the access to X+k.
+        self.displaced_ptr_spans = displaced_ptr_spans
         self.functions = functions
         self.variable_map: VariableMap | None = variable_map
         self.def_info: dict[Def, DefInfo] = {}
@@ -244,6 +250,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
+        if not self.displaced_ptr_spans and extra_offset:
+            base_offset += extra_offset
+            extra_offset = 0
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size
@@ -323,6 +332,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
+        if not self.displaced_ptr_spans and extra_offset:
+            base_offset += extra_offset
+            extra_offset = 0
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size

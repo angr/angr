@@ -48,6 +48,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         func_args: set[VirtualVariable] | None = None,
         rewrite_vvars: set[int] | None = None,
         vvar_id_start: int = 0,
+        displaced_ptr_spans: bool = True,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -89,6 +90,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             set(),
             self.kb.functions.get,
             variable_map=variable_map_of(self._ail_manager) if self._ail_manager is not None else None,
+            displaced_ptr_spans=displaced_ptr_spans,
         )
 
         # calculate virtual variables and phi nodes
