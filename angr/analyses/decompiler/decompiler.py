@@ -119,12 +119,14 @@ class Decompiler(Analysis):
         allow_global_dead_ass_elim: bool = False,
         ail_propagator_init_values=None,
         vm_deobfuscation: bool = False,
+        stack_dead_store_elimination: bool = False,
     ):
         # VM-deobfuscation options
         self.calls_as_rets = calls_as_rets if calls_as_rets is not None else {}
         self.allow_global_dead_ass_elim = allow_global_dead_ass_elim
         self.ail_propagator_init_values = ail_propagator_init_values
         self.vm_deobfuscation = vm_deobfuscation
+        self.stack_dead_store_elimination = stack_dead_store_elimination
 
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -454,6 +456,7 @@ class Decompiler(Analysis):
                 allow_global_dead_ass_elim=self.allow_global_dead_ass_elim,
                 ail_propagator_init_values=self.ail_propagator_init_values,
                 vm_deobfuscation=self.vm_deobfuscation,
+                stack_dead_store_elimination=self.stack_dead_store_elimination,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:

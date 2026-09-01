@@ -319,6 +319,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         allow_global_dead_ass_elim: bool = False,
         ail_propagator_init_values=None,
         vm_deobfuscation: bool = False,
+        stack_dead_store_elimination: bool = False,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -374,6 +375,10 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # could not drop at the VEX level. pushan's own pipeline removed them by simplifying
         # the function over and over; here it is one flag.
         self._remove_dead_memdefs = True if vm_deobfuscation else remove_dead_memdefs
+        # Frame slots reached through the VM's own stack pointer never become stack variables,
+        # so the ordinary dead-store elimination cannot see them. Off by default: it assumes a
+        # callee reads the caller's frame only through pointers it was handed.
+        self._stack_dead_store_elimination = True if vm_deobfuscation else stack_dead_store_elimination
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: CFGModel | None = cfg
@@ -919,6 +924,27 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
     def _stage_track_stack_pointers(self) -> None:
         self._spt = self._track_stack_pointers()
 
+    @timethis
+    def _eliminate_dead_stack_stores(self) -> None:
+        """
+        Drop stores to frame slots that nothing reads.
+
+        Only useful where StackPointerTracker cannot resolve the frame -- a devirtualised VM body
+        computes its own stack pointer, so its slots stay opaque register arithmetic and never
+        become stack variables. See StackDeadStoreEliminator for the safety argument.
+        """
+        if not self._stack_dead_store_elimination or self._ail_graph is None:
+            return
+
+        from angr.analyses.decompiler.stack_dead_store_eliminator import StackDeadStoreEliminator
+
+        eliminator = StackDeadStoreEliminator(self.project.arch, self._ail_graph)
+        self._ail_graph, removed = eliminator.run()
+        if eliminator.bailed_reason is not None:
+            l.debug("Dead stack store elimination skipped: %s.", eliminator.bailed_reason)
+        elif removed:
+            l.debug("Dead stack store elimination removed %d stores.", removed)
+
     def _stage_transform_to_ssa_level1(self) -> None:
         self._update_progress(37.0, text="Transforming to partial-SSA form (stack variables)")
         # rewrite (qualified) stack variables into SSA form
@@ -950,6 +976,8 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._rewrite_alloca(self._ail_graph)
         # recognize & excise GCC's variable-length-array probe idiom while it is still in its clean form
         self._excise_vla(self._ail_graph)
+
+        self._eliminate_dead_stack_stores()
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
