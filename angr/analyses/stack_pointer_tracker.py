@@ -26,6 +26,8 @@ from angr.utils.types import dereference_simtype_by_lib
 from .analysis import Analysis
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from angr.block import Block
 
 _l = logging.getLogger(name=__name__)
@@ -472,6 +474,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._block_meta: dict[int, tuple[bool, bool]] = {}
         self._sorted_block_addrs: list[int] = []
         self._blocks = {}
+        # Per-instruction lookups normally derive the containing block (and the position inside it) from
+        # plain address arithmetic. Blocks synthesized by VM deobfuscation splice together instructions
+        # from many source blocks, so their addresses are neither inside [addr, addr + size) nor
+        # monotonic; those blocks get an explicit index instead. Both dicts stay empty otherwise.
+        self._nonlinear_insns: dict[int, int] = {}  # insn addr -> block addr
+        self._nonlinear_block_insns: dict[int, tuple[int, ...]] = {}  # block addr -> insn addrs, in order
+        self._curr_insn_addrs: list[int] = []
         self._reg_value_at_block_start = defaultdict(dict)
         self.cross_insn_opt = cross_insn_opt
         self._resilient = resilient
@@ -490,7 +499,35 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         _l.debug("Running on function %r", self._func)
         self._analyze()
 
+    def _index_block_insns(self, block_addr: int, block_size: int | None, insn_addrs: list[int]) -> None:
+        """
+        Index ``block_addr`` explicitly if its instruction addresses are not laid out linearly, i.e. not
+        all inside ``[block_addr, block_addr + block_size)`` and strictly increasing.
+        """
+        end = block_addr + block_size if block_size else block_addr
+        prev = -1
+        for a in insn_addrs:
+            if not (block_addr <= a < end) or a <= prev:
+                break
+            prev = a
+        else:
+            self._nonlinear_block_insns.pop(block_addr, None)
+            return
+        self._nonlinear_block_insns[block_addr] = tuple(insn_addrs)
+        for a in insn_addrs:
+            self._nonlinear_insns[a] = block_addr
+
+    def _insn_addrs_of_block(self, block_addr: int) -> Sequence[int] | None:
+        order = self._nonlinear_block_insns.get(block_addr)
+        if order is not None:
+            return order
+        block = self._blocks.get(block_addr)
+        return None if block is None else block.instruction_addrs
+
     def _block_addr_for_insn(self, insn_addr: int) -> int | None:
+        block_addr = self._nonlinear_insns.get(insn_addr)
+        if block_addr is not None:
+            return block_addr
         idx = bisect.bisect_right(self._sorted_block_addrs, insn_addr) - 1
         if idx < 0:
             return None
@@ -508,16 +545,32 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if per_block is None or block_addr not in per_block:
             return TOP
         val = per_block[block_addr]
-        target = addr - block_addr
         block_deltas = deltas.get(block_addr)
         if block_deltas:
             include_target = pre_or_post == "post"
-            for off in sorted(block_deltas):
-                if off > target or (off == target and not include_target):
-                    break
-                inner = block_deltas[off]
-                if key in inner:
-                    val = inner[key]
+            order = self._nonlinear_block_insns.get(block_addr)
+            if order is None:
+                target = addr - block_addr
+                for off in sorted(block_deltas):
+                    if off > target or (off == target and not include_target):
+                        break
+                    inner = block_deltas[off]
+                    if key in inner:
+                        val = inner[key]
+            elif self._nonlinear_insns.get(addr) != block_addr:
+                # addr only landed in this block through the address-range fallback; it is not one of
+                # its instructions
+                return TOP
+            else:
+                # addresses do not order the instructions here; replay them in execution order
+                for insn_addr in order:
+                    if insn_addr == addr and not include_target:
+                        break
+                    inner = block_deltas.get(insn_addr - block_addr)
+                    if inner is not None and key in inner:
+                        val = inner[key]
+                    if insn_addr == addr:
+                        break
         return val
 
     def _offset_for(self, addr, pre_or_post, reg):
@@ -533,18 +586,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self._offset_for(addr, "pre", reg)
 
     def offset_after_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.offset_after(instr_addrs[-1], reg)
 
     def offset_before_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.offset_before(instr_addrs[0], reg)
 
@@ -561,18 +610,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self._constant_for(addr, "pre", reg)
 
     def constant_after_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.constant_after(instr_addrs[-1], reg)
 
     def constant_before_block(self, block_addr, reg):
-        if block_addr not in self._blocks:
-            return TOP
-        instr_addrs = self._blocks[block_addr].instruction_addrs
-        if len(instr_addrs) == 0:
+        instr_addrs = self._insn_addrs_of_block(block_addr)
+        if not instr_addrs:
             return TOP
         return self.constant_before(instr_addrs[0], reg)
 
@@ -698,6 +743,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         # discard any dirty markers carried over from setup; only IR-driven changes should be captured as deltas
         state.pop_dirty()
 
+        self._curr_insn_addrs = []
         if vex_block is not None:
             if isinstance(vex_block, pyvex.IRSB):
                 curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
@@ -709,6 +755,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if curr_stmt_start_addr is not None:
             reg_delta, mem_delta = state.pop_dirty()
             self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
+
+        self._index_block_insns(node.addr, getattr(block, "size", None), self._curr_insn_addrs)
 
         _l.debug("FINISH:      After running on block at %x", node.addr)
         _l.debug("Regs: %s", state.regs)
@@ -872,6 +920,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     reg_delta, mem_delta = state.pop_dirty()
                     self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
                 curr_stmt_start_addr = stmt.addr + stmt.delta
+                self._curr_insn_addrs.append(curr_stmt_start_addr)
             elif (
                 type(stmt) is pyvex.IRStmt.Exit
                 and curr_stmt_start_addr in vex_block.instruction_addresses
@@ -1049,6 +1098,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     reg_delta, mem_delta = state.pop_dirty()
                     self._record_delta(node.addr, curr_stmt_start_addr - node.addr, reg_delta, mem_delta)
                 curr_stmt_start_addr = op.inputs[0].offset
+                self._curr_insn_addrs.append(curr_stmt_start_addr)
             else:
                 with contextlib.suppress(CouldNotResolveException):
                     resolve_op(op)

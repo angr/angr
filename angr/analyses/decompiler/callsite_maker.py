@@ -342,12 +342,13 @@ class CallSiteMaker:
                 if sp_offset >= (1 << (self.project.arch.bits - 1)):
                     # make it a signed integer
                     sp_offset -= 1 << self.project.arch.bits
+                callee_sp_diff = self._callee_sp_diff(call_expr.tags["ins_addr"], -stackarg_sp_diff)
                 for arg in stack_arg_locs:
                     self.stackarg_offset_manager.add_call_stack_arg_offset(
                         self.block.addr,
                         self.block.idx,
                         call_expr.tags["ins_addr"],
-                        sp_offset + arg.stack_offset - stackarg_sp_diff,
+                        sp_offset + arg.stack_offset + callee_sp_diff,
                         arg.size,
                     )
 
@@ -470,19 +471,27 @@ class CallSiteMaker:
 
         return None
 
+    def _callee_sp_diff(self, call_addr: int | None, normal_diff: int) -> int:
+        """
+        Where the callee's entry sp sits relative to sp before the call instruction. A call pushes the
+        return address, so the callee starts ``normal_diff`` (one slot) below it. A ``ret`` that the VM
+        deobfuscator rewrote into a call pops the call target instead, so the callee starts one slot
+        *above* sp.
+        """
+        if call_addr is not None and call_addr in self.calls_as_rets:
+            return self.project.arch.bytes
+        return normal_diff
+
     def _resolve_stack_argument(self, call_stmt: Expr.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
-        offset = arg_loc.stack_offset
-        if call_stmt.tags.get("ins_addr", None) in self.calls_as_rets:
-            offset += 8
-        if self.project.arch.call_pushes_ret:
-            # adjust the offset
-            offset -= self.project.arch.bytes
-
         call_addr = call_stmt.tags.get("ins_addr", None)
         assert call_addr is not None
+        # arg_loc.stack_offset is relative to the callee's entry sp; rebase it onto the sp before the call
+        offset = arg_loc.stack_offset + self._callee_sp_diff(
+            call_addr, -self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
+        )
         sp_base = self._stack_pointer_tracker.offset_before(call_addr, self.project.arch.sp_offset)
         if sp_base is not None:
             sp_offset = sp_base + offset

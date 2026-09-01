@@ -481,7 +481,9 @@ class SPropagator:
                         else None
                     )
                     for vvar_at_use, useloc in vvar_uselocs_set:
-                        sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
+                        sb_offset = self._stack_base_offset(
+                            vvar_id, vvar_deflocs, blocks, useloc, self.project.arch.sp_offset
+                        )
                         if sb_offset is not None:
                             v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if sp_bits is not None and vvar.bits < sp_bits:
@@ -496,7 +498,9 @@ class SPropagator:
                         else None
                     )
                     for vvar_at_use, useloc in vvar_uselocs_set:
-                        sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
+                        sb_offset = self._stack_base_offset(
+                            vvar_id, vvar_deflocs, blocks, useloc, self.project.arch.bp_offset
+                        )
                         if sb_offset is not None:
                             v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if bp_bits is not None and vvar.bits < bp_bits:
@@ -562,6 +566,64 @@ class SPropagator:
                                 self.replace(replacements, loc, tmp_used, stmt.src)
 
         self.model.replacements = replacements
+
+    @staticmethod
+    def _sp_vvar_def_ins_addr(vvar_id: int, vvar_deflocs, blocks) -> int | None:
+        """
+        The instruction that fixes the value of a register vvar, if there is exactly one. Phi
+        definitions carry no single value, so they are excluded.
+        """
+        entry = vvar_deflocs.get(vvar_id)
+        if entry is None:
+            return None
+        defloc = entry[1]
+        if defloc.is_extern or defloc.ins_addr is None:
+            return None
+        block = blocks.get((defloc.block_addr, defloc.block_idx))
+        if block is None or defloc.stmt_idx >= len(block.statements):
+            return None
+        stmt = block.statements[defloc.stmt_idx]
+        if (
+            not isinstance(stmt, Assignment)
+            or not isinstance(stmt.dst, VirtualVariable)
+            or stmt.dst.varid != vvar_id
+            or is_phi_assignment(stmt)
+        ):
+            return None
+        return defloc.ins_addr
+
+    @staticmethod
+    def _block_entry_ins_addr(block) -> int | None:
+        if block is None:
+            return None
+        for stmt in block.statements:
+            ins_addr = stmt.tags.get("ins_addr")
+            if ins_addr is not None:
+                return ins_addr
+        return None
+
+    def _stack_base_offset(self, vvar_id: int, vvar_deflocs, blocks, useloc, reg_offset: int):
+        """
+        Resolve the stack offset an SSA register vvar holds. Its value is fixed at its definition, so
+        read the tracker there; reading it at the use site instead only agrees while the register is not
+        redefined in between -- a devirtualized VM body carries one saved sp across hundreds of stack
+        adjustments and breaks that. A vvar defined outside a single-block subject flows in unchanged,
+        so for those the block entry is where the value is fixed.
+        """
+        assert self._sp_tracker is not None
+        def_ins_addr = self._sp_vvar_def_ins_addr(vvar_id, vvar_deflocs, blocks)
+        if def_ins_addr is not None:
+            if def_ins_addr != useloc.ins_addr:
+                offset = self._sp_tracker.offset_after(def_ins_addr, reg_offset)
+                if offset is not None:
+                    return offset
+        elif self.mode == "block":
+            entry_ins_addr = self._block_entry_ins_addr(blocks.get((useloc.block_addr, useloc.block_idx)))
+            if entry_ins_addr is not None and entry_ins_addr != useloc.ins_addr:
+                offset = self._sp_tracker.offset_before(entry_ins_addr, reg_offset)
+                if offset is not None:
+                    return offset
+        return self._sp_tracker.offset_before(useloc.ins_addr, reg_offset)
 
     @staticmethod
     def is_global_variable_updated(

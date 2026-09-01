@@ -8,6 +8,8 @@ import logging
 import os
 import unittest
 
+import pyvex
+
 import angr
 from tests.common import bin_location
 
@@ -81,6 +83,49 @@ class TestStackPointerTracker(unittest.TestCase):
         assert off_0 is not None
         print(off_1 - off_0)
         assert off_1 - off_0 == -0xC
+
+    def test_synthesized_node_with_nonlinear_insn_addrs(self):
+        # A VM-deobfuscated node carries its own IRSB whose instruction addresses are synthetic: they
+        # neither fall inside [node.addr, node.addr + size) nor increase. Per-instruction queries must
+        # still resolve.
+        code = b"\x55\x48\x83\xec\x20\x53\x48\x89\xe0"  # push rbp; sub rsp,0x20; push rbx; mov rax,rsp
+        proj = angr.load_shellcode(code, "AMD64", start_offset=0, load_address=0x1000)
+        irsb = pyvex.lift(code, 0x1000, proj.arch, opt_level=0, cross_insn_opt=False)
+
+        block_addr = 0x7000000000090000
+        insn_addrs = [block_addr, 0x7000000000030005, 0x7000000000010008, 0x7000000000250009]
+        idx = 0
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                stmt.addr = insn_addrs[idx]
+                stmt.delta = 0
+                idx += 1
+        assert idx == len(insn_addrs)
+        irsb._instruction_addresses = None
+
+        class _SynthesizedNode:
+            def __init__(self):
+                self.addr = block_addr
+                self.size = len(code)
+                self.irsb = irsb
+                self.instruction_addrs = list(irsb.instruction_addresses)
+
+        node = _SynthesizedNode()
+        sp = proj.arch.sp_offset
+        spt = proj.analyses.StackPointerTracker(None, {sp}, block=node, track_memory=False, cross_insn_opt=False)
+
+        def u64(v):
+            return v & (2**64 - 1)
+
+        assert spt.offset_before(insn_addrs[0], sp) == 0
+        assert spt.offset_after(insn_addrs[0], sp) == u64(-8)
+        assert spt.offset_before(insn_addrs[1], sp) == u64(-8)
+        assert spt.offset_after(insn_addrs[1], sp) == u64(-0x28)
+        assert spt.offset_before(insn_addrs[2], sp) == u64(-0x28)
+        assert spt.offset_after(insn_addrs[2], sp) == u64(-0x30)
+        assert spt.offset_before(insn_addrs[3], sp) == u64(-0x30)
+        assert spt.offset_before_block(block_addr, sp) == 0
+        assert spt.offset_after_block(block_addr, sp) == u64(-0x30)
 
 
 if __name__ == "__main__":
