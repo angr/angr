@@ -118,6 +118,7 @@ class StackDeadStoreEliminator:
         self.n_loads = 0
         self.n_unresolved_loads = 0
         self.n_opaque_loads = 0
+        self.n_overwritten = 0
 
     #
     # address resolution
@@ -429,6 +430,142 @@ class StackDeadStoreEliminator:
         return escaped
 
     #
+    # overwritten stores
+    #
+
+    def _slot_universe(self):
+        """
+        Every distinct slot a store writes, which is the only thing liveness is ever asked about.
+
+        Keeping the domain finite lets an opaque read mean "every slot is live" while still
+        allowing a later definite overwrite to kill one of them -- the precision that a single
+        boolean top flag throws away.
+        """
+        slots: dict[tuple[str, tuple, int], tuple[StackAddr, int]] = {}
+        for block in self._graph:
+            for stmt in block.statements:
+                if not isinstance(stmt, Store):
+                    continue
+                addrs = self.resolve(stmt.addr)
+                if addrs is None or len(addrs) != 1:
+                    continue
+                addr = addrs[0]
+                slots[(addr.base, addr.chain, stmt.size)] = (addr, stmt.size)
+        return slots
+
+    def _block_events(self, block, slots, escaped):
+        """
+        Per-statement (gen, kill) over the slot universe, in program order.
+
+        gen needs only a *may* read -- every slot a load might touch becomes live. kill needs a
+        *must* overwrite: one known destination, matching width.
+        """
+        all_keys = frozenset(slots)
+        call_gen = frozenset(
+            key for key, (addr, size) in slots.items()
+            if any(self._may_alias(addr, size, e, e_size) for e, e_size in escaped)
+        )
+
+        events = []
+        for idx, stmt in enumerate(block.statements):
+            gen: set = set()
+            for load in _loads_in(stmt):
+                resolved = self.resolve(load.addr)
+                if resolved is None:
+                    if not _is_constant_address(load.addr):
+                        gen |= all_keys  # opaque pointer: could read any slot
+                    continue
+                for read_addr in resolved:
+                    gen |= {
+                        key for key, (addr, size) in slots.items()
+                        if self._may_alias(addr, size, read_addr, load.size)
+                    }
+            if next(_calls_in(stmt), None) is not None:
+                gen |= call_gen
+
+            kill = None
+            if isinstance(stmt, Store):
+                addrs = self.resolve(stmt.addr)
+                if addrs is not None and len(addrs) == 1:
+                    kill = (addrs[0].base, addrs[0].chain, stmt.size)
+
+            events.append((idx, frozenset(gen), kill))
+        return events
+
+    @staticmethod
+    def _transfer(events, live_out, collect_dead=False):
+        """
+        Walk a block backwards, returning the live set at its entry.
+
+        Within a statement the reads happen before the write, so going backwards the write is
+        applied first and the reads generated after it.
+        """
+        live = live_out
+        dead: set[int] = set()
+        for idx, gen, kill in reversed(events):
+            if kill is not None:
+                if kill not in live and collect_dead:
+                    dead.add(idx)
+                live = live - {kill}
+            if gen:
+                live = live | gen
+        return live, dead
+
+    def _dead_by_liveness(self, escaped: list[tuple[StackAddr, int]]) -> dict[tuple[int, int | None], set[int]]:
+        """
+        Stores whose value no path can ever read.
+
+        A backward fixpoint over the block graph. Subsumes the in-block case -- a store overwritten
+        later in its own block is one whose slot is not live at that point -- and the never-read
+        case, since a slot nothing reads is never live anywhere. At a function exit only escaped
+        slots stay live: the caller can reach those and nothing else of our frame.
+        """
+        slots = self._slot_universe()
+        if not slots:
+            return {}
+
+        blocks = {(b.addr, b.idx): b for b in self._graph}
+        events = {key: self._block_events(b, slots, escaped) for key, b in blocks.items()}
+        exit_live = frozenset(
+            key for key, (addr, size) in slots.items()
+            if any(self._may_alias(addr, size, e, e_size) for e, e_size in escaped)
+        )
+
+        succs = {key: [(x.addr, x.idx) for x in self._graph.successors(b)] for key, b in blocks.items()}
+        preds = {key: [(x.addr, x.idx) for x in self._graph.predecessors(b)] for key, b in blocks.items()}
+        live_in: dict[tuple[int, int | None], frozenset] = {key: frozenset() for key in blocks}
+
+        def live_out_of(key):
+            if not succs[key]:
+                return exit_live
+            out: frozenset = frozenset()
+            for succ in succs[key]:
+                out |= live_in[succ]
+            return out
+
+        worklist = list(blocks)
+        rounds = 0
+        limit = 200 * max(len(blocks), 1)
+        while worklist and rounds < limit:
+            rounds += 1
+            key = worklist.pop()
+            new_in, _ = self._transfer(events[key], live_out_of(key))
+            if new_in != live_in[key]:
+                live_in[key] = new_in
+                worklist.extend(preds[key])
+
+        if rounds >= limit:
+            l.debug("StackDeadStoreEliminator: liveness did not converge; removing nothing.")
+            return {}
+
+        dead: dict[tuple[int, int | None], set[int]] = defaultdict(set)
+        for key in blocks:
+            _, block_dead = self._transfer(events[key], live_out_of(key), collect_dead=True)
+            if block_dead:
+                dead[key] |= block_dead
+        return dead
+
+    #
     # entry point
     #
 
@@ -487,6 +624,12 @@ class StackDeadStoreEliminator:
                     continue
                 dead[(block.addr, block.idx)].add(idx)
 
+        overwritten = self._dead_by_liveness(escaped)
+        n_never_read = sum(len(v) for v in dead.values())
+        for key, indices in overwritten.items():
+            dead[key] |= indices
+        self.n_overwritten = sum(len(v) for v in dead.values()) - n_never_read
+
         if not dead:
             l.debug(
                 "StackDeadStoreEliminator: %d resolvable stores, none provably dead "
@@ -503,7 +646,11 @@ class StackDeadStoreEliminator:
             block.statements = [s for i, s in enumerate(block.statements) if i not in drop]
             self.removed += len(drop)
 
-        l.debug("StackDeadStoreEliminator: removed %d of %d resolvable stack stores.", self.removed, candidates)
+        l.debug(
+            "StackDeadStoreEliminator: removed %d of %d resolvable stack stores "
+            "(%d never read, %d dead by liveness).",
+            self.removed, candidates, self.removed - self.n_overwritten, self.n_overwritten,
+        )
         return self._graph, self.removed
 
 
