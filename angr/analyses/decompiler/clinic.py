@@ -3193,6 +3193,13 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         return ail_graph
 
     def _rewrite_ite_expressions(self, ail_graph):
+        if self.vm_deobfuscation:
+            # This rewrite relifts the ITE instruction and the head of its block straight from the
+            # binary. A devirtualised function lives at synthetic addresses with no bytes behind
+            # them, so every one of those lifts fails; skip the stage rather than lose the
+            # function. Same reasoning as the guard in the calling-convention fact collector.
+            l.debug("Skipping ITE-to-diamond rewriting: the function is a devirtualised VM body.")
+            return
         cfg = self._cfg
         block_and_ite_ins_addrs = []
         for block in ail_graph:
