@@ -37,6 +37,7 @@ from .evaluate_const_conversions import EvaluateConstConversions
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .modulo_simplifier import ModuloSimplifier
+from .neg_plus_const import NegPlusConstToSub
 from .one_sub_bool import OneSubBool
 from .optimized_div_simplifier import OptimizedDivisionSimplifier
 from .remove_cascading_conversions import RemoveCascadingConversions
@@ -135,6 +136,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     EvaluateConstConversions,
     RemoveRedundantInsert,
     RemoveRedundantAnds,
+    NegPlusConstToSub,
     BinaryOpCanonicalization,
     ConvLoad,
     DivModDivisorSize,
