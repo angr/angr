@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
@@ -116,6 +117,21 @@ class PeepholeOptimizationBundle:
                 )
             )
         )
+
+
+#: A statement only runs away when many replacements land on it; below this, skip the bookkeeping.
+_GROWTH_WATCH_MIN_REPLACEMENTS = 4
+
+
+def _statement_text_size(stmt) -> int:
+    """
+    How large a statement has become, in characters of its rendered form.
+
+    The AIL wrapper answers every attribute name on every node, so a structural walk cannot tell
+    a real child from an absent one; rendering is the one measure that reliably reflects size.
+    It is only paid once per statement, after which growth is tracked incrementally.
+    """
+    return len(str(stmt))
 
 
 class BlockSimplifier:
@@ -321,14 +337,47 @@ class BlockSimplifier:
         gp: int | None = None,
         replace_registers: bool = True,
         max_expr_depth: int | None = 13,
+        max_stmt_size: int | None = 20_000,
     ) -> tuple[bool, Block]:
         new_statements = block.statements[::]
         replaced = False
 
+        # Batch by target statement.  The loop rewrites a statement in place and the next
+        # replacement walks the result, so replacements aimed at one statement compound; grouping
+        # them lets a statement that has grown past the cap reject the rest in constant time
+        # instead of rebuilding a megabyte-sized tree once per replacement.
+        by_stmt: dict[int, list[tuple[AILCodeLocation, Expression, Expression]]] = defaultdict(list)
         for codeloc, repls in replacements.items():
+            assert codeloc.stmt_idx is not None
             for old, new in repls.items():
+                by_stmt[codeloc.stmt_idx].append((codeloc, old, new))
+
+        sizes: dict[int, int] = {}
+        # A statement that has already refused a replacement for size will refuse every later one,
+        # so stop attempting them: that is what turns the per-statement cost from
+        # "rebuild the tree once per replacement" into "rebuild it once".
+        saturated: set[int] = set()
+
+        def _size_of(idx: int) -> int:
+            cached = sizes.get(idx)
+            if cached is None:
+                cached = _statement_text_size(new_statements[idx])
+                sizes[idx] = cached
+            return cached
+
+        for stmt_idx, items in by_stmt.items():
+            # Measuring a statement means rendering it, which is not worth doing for the handful of
+            # replacements a statement normally receives -- runaway growth needs many of them
+            # landing on the same statement.
+            watch_growth = max_stmt_size is not None and len(items) >= _GROWTH_WATCH_MIN_REPLACEMENTS
+            if watch_growth and _size_of(stmt_idx) > max_stmt_size:
+                # already oversized: every replacement here would only grow it further
+                continue
+            for codeloc, old, new in items:
+                if watch_growth and (stmt_idx in saturated or _size_of(stmt_idx) > max_stmt_size):
+                    # checked before any work is done, so a saturated statement costs nothing
+                    break
                 new = new.deep_copy(ail_manager)
-                assert codeloc.stmt_idx is not None
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
                     not replace_loads
@@ -388,6 +437,18 @@ class BlockSimplifier:
                         ):
                             # avoid replacing if the new statement is too deep, to prevent exponential blowup
                             r = False
+
+                if r and watch_growth:
+                    assert new_stmt is not None
+                    # Over-estimate the new size by the mass grafted in, rather than re-rendering
+                    # the statement: the point is only to notice runaway growth early.
+                    grown = _size_of(codeloc.stmt_idx) + _statement_text_size(new)
+                    if grown > max_stmt_size:
+                        # the depth cap bounds nesting, not width; this bounds the whole statement
+                        r = False
+                        saturated.add(codeloc.stmt_idx)
+                    else:
+                        sizes[codeloc.stmt_idx] = grown
 
                 if r:
                     assert new_stmt is not None
