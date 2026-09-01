@@ -22,8 +22,8 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
-from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
 from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pass_to_name
+from angr.analyses.decompiler.vm_deobfuscation_simplifier import VMDeobfuscationSimplifierMixin
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
@@ -1810,6 +1810,20 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             # jump is a manufactured call (e.g. "push retaddr; jmp func" emitted by an obfuscator) and that successor
             # is its return site -- adding a Return block would give the call site a second, unconditional successor.
             block_has_fallthrough = replace_last_stmt and ail_graph.out_degree[block] > 0
+
+            # this is to handle an actual bug in Pushan's generated AIL blocks where a jump target is not properly
+            # updated to the next block's address. we update the last block's jump target to the next block's address
+            # so that the decompiler can continue to work properly.
+            if block_has_fallthrough:
+                successor = next(iter(ail_graph.successors(block)))
+                block.statements[-1] = ailment.Stmt.Jump(
+                    self._ail_manager.next_atom(),
+                    ailment.Expr.Const(
+                        self._ail_manager.next_atom(), successor.addr, slots[0][1].bits, **slots[0][1].tags
+                    ),
+                    **last_stmt.tags,
+                )
+                continue
 
             for slot_name, target in slots:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
