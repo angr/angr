@@ -18,7 +18,7 @@ class RemoveUnusedNdeps(PeepholeOptimizationExprBase):
                                                    operands=(expr.dirty_expr.operands[0],
                                                              expr.dirty_expr.operands[1],
                                                              expr.dirty_expr.operands[2],
-                                                             Const(None,variable=None,value=0,bits=expr.dirty_expr.operands[-1].bits)),
+                                                             Const(None, 0, expr.dirty_expr.operands[-1].bits)),
                                                    bits=expr.dirty_expr.bits, **expr.dirty_expr.tags)
                 return DirtyExpression(idx=expr.idx, dirty_expr=vex_call_expr, bits=expr.bits, **expr.tags)
 
