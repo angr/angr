@@ -968,6 +968,50 @@ class TestCfgfast(unittest.TestCase):
         assert "_accepted" in func_names
         assert "_authenticate" in func_names
 
+    def test_universal_binary_unspecified_arch(self):
+        # Without arch=, cle loads every slice of the fat binary and the project takes the architecture of the
+        # first one. CFGFast decodes every block with that one architecture, so the other slice must not be
+        # scanned at all.
+        path = os.path.join(test_location, "multi_arch", "fauxware_macho_multiarch")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        assert proj.arch.name == "AMD64"
+        slices = [obj for obj in proj.loader.main_object.child_objects if obj.arch.name == "AARCH64"]
+        assert len(slices) == 1
+        arm64 = slices[0]
+
+        def reaches_arm64(start, end):
+            # any overlap at all, so a region starting below the slice and running into it is caught too
+            return start <= arm64.max_addr and arm64.min_addr < end
+
+        cfg = proj.analyses.CFGFast()
+
+        assert [region for region in cfg.regions if reaches_arm64(*region)] == []
+        assert [
+            node
+            for node in cfg.model.nodes()
+            if not node.is_simprocedure and reaches_arm64(node.addr, node.addr + (node.size or 1))
+        ] == []
+
+        # The slice angr can decode is still recovered in full.
+        func_names = {func.name for func in cfg.kb.functions.values()}
+        assert "_main" in func_names
+        assert "_accepted" in func_names
+        assert "_authenticate" in func_names
+
+        def fresh_arm64_slice():
+            # CFGFast clears the knowledge base the assertions above read, so each case gets its own project.
+            other = angr.Project(path, auto_load_libs=False)
+            return other, next(o for o in other.loader.main_object.child_objects if o.arch.name == "AARCH64")
+
+        # Naming the slice as the thing to analyze does not get it scanned.
+        named, named_slice = fresh_arm64_slice()
+        assert named.analyses.CFGFast(objects=[named_slice]).regions == []
+
+        # Neither does the whole-object fallback that skip_unmapped_addrs=False opens up.
+        spanned, spanned_slice = fresh_arm64_slice()
+        assert spanned.analyses.CFGFast(objects=[spanned_slice], skip_unmapped_addrs=False).regions == []
+
     def test_syscalls_resolved_with_constant_propagation(self):
         for arch in ["x86", "x86_64"]:
             with self.subTest(arch=arch):

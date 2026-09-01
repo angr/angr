@@ -64,6 +64,25 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+def lifts_the_same_way(one: archinfo.Arch, other: archinfo.Arch) -> bool:
+    """
+    Whether blocks of one architecture can be lifted as the other.
+
+    archinfo compares architectures by name, which separates ARMEL from ARMHF; those differ in their float ABI
+    and in no instruction encoding. The lifter goes by the VEX guest, the width and the byte order instead. An
+    architecture VEX cannot lift has no guest to compare, so only equality counts for it.
+
+    It says yes to ARMCortexM in an ARM project deliberately. Thumb is a property of the address's low bit
+    rather than of the architecture, so those bytes decode; recovery is worse than a native Cortex-M project's,
+    whose function prologues differ, but the choice here is between that and not scanning the object at all.
+    """
+    if one == other:
+        return True
+    if one.vex_arch is None or other.vex_arch is None:
+        return False
+    return one.vex_arch == other.vex_arch and one.bits == other.bits and one.memory_endness == other.memory_endness
+
+
 class CFGBase(Analysis):
     """
     The base class for control flow graphs.
@@ -259,8 +278,13 @@ class CFGBase(Analysis):
         if regions is None:
             regions = self._exec_mem_regions
             if not self._skip_unmapped_addrs and not regions:
-                # fall back to using min and max addresses of all objects
-                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+                # Fall back to the min and max addresses of the objects, skipping the ones this analysis
+                # cannot decode. An object with no memory has no instruction set to disagree about.
+                regions = [
+                    (obj.min_addr, obj.max_addr)
+                    for obj in objects
+                    if not obj.has_memory or lifts_the_same_way(obj.arch, self.project.arch)
+                ]
 
         for start, end in regions:
             if end < start:
@@ -790,9 +814,25 @@ class CFGBase(Analysis):
 
         memory_regions = []
         has_executable = False
+        skipped_foreign_arch = False
 
         for b in binaries:
             if not b.has_memory:
+                continue
+
+            if isinstance(b, self._cle_pseudo_objects):
+                continue
+
+            if not lifts_the_same_way(b.arch, self.project.arch):
+                # Every block is lifted with the project's architecture, so an object holding a different
+                # instruction set - another slice of a fat Mach-O, say - cannot be decoded here.
+                l.warning(
+                    "Not scanning %r: it is %s, and this analysis decodes every block as %s.",
+                    b,
+                    b.arch.name,
+                    self.project.arch.name,
+                )
+                skipped_foreign_arch = True
                 continue
 
             if isinstance(b, ELF):
@@ -880,9 +920,6 @@ class CFGBase(Analysis):
                 # no code here
                 pass
 
-            elif isinstance(b, self._cle_pseudo_objects):
-                pass
-
             elif hasattr(b, "sections") and b.sections:
                 sections = []
                 # Get all executable sections
@@ -908,7 +945,9 @@ class CFGBase(Analysis):
                 tpl = (b.min_addr, b.max_addr + 1)
                 memory_regions.append(tpl)
 
-        if not memory_regions and not has_executable:
+        if not memory_regions and not has_executable and not skipped_foreign_arch:
+            # Scanning raw memory is the last resort for an object that never said where its code is. An object
+            # skipped just above did say, and was declined because this analysis cannot decode it.
             memory_regions = [(start, start + len(backer)) for start, backer in self.project.loader.memory.backers()]
 
         # A section or segment that maps no bytes, such as the empty .text of a data-only relocatable, is not a region.
