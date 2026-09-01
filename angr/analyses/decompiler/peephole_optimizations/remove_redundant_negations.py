@@ -18,7 +18,7 @@ class RemoveRedundantNegations(PeepholeOptimizationExprBase):
             return expr.operand
 
         if isinstance(expr, Const):
-            return Const(expr.idx, None, (~expr.value) & ((1 << bits) - 1), bits, **expr.tags)
+            return Const(expr.idx, (~expr.value) & ((1 << bits) - 1), bits, **expr.tags)
 
         return None
 
