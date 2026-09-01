@@ -1020,6 +1020,10 @@ class SimCC:
             alloc_base -= allocator.size()
         if type(alloc_base) is int:
             alloc_base = claripy.BVV(alloc_base, state.arch.bits)
+        elif len(alloc_base) != state.arch.bits:
+            # The allocator lays its data out in pointer-width arithmetic, but the stack pointer register can be wider
+            # than a pointer (MIPS n32 keeps its 32-bit stack pointer in a 64-bit register). Keep the address bits.
+            alloc_base = alloc_base[state.arch.bits - 1 : 0]
 
         for i, val in enumerate(vals):
             vals[i] = allocator.translate(val, alloc_base)
