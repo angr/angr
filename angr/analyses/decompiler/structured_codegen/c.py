@@ -2852,7 +2852,13 @@ class CDirtyExpression(CExpression):
 
     def intrinsic_name(self) -> str | None:
         """Return the dirty callee if it is a clean C identifier, else None."""
-        callee = getattr(self.dirty, "callee", None)
+        if not hasattr(self.dirty, "callee"):
+            # Not a dirty expression at all. Whatever wrapped it is emitting
+            # "/* unsupported instruction */" for something we could have rendered; say so rather
+            # than let it disappear into the output.
+            l.warning("CDirtyExpression wraps a %s, which has no callee.", type(self.dirty).__name__)
+            return None
+        callee = self.dirty.callee
         if isinstance(callee, str) and self._IDENT_RE.fullmatch(callee):
             return callee
         return None
@@ -4508,6 +4514,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     dst_type = dst_type.with_arch(self.project.arch)
                     return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
             return cvar
+
+        if expr.was_reg:
+            # No variable was recovered for this register. That happens when the stack pointer
+            # cannot be resolved -- a devirtualised VM body computes its own sp, so sp uses are
+            # never rewritten into StackBaseOffset and no variable is created for them. Falling
+            # through to CDirtyExpression here renders the register as
+            # "/* unsupported instruction */", which loses the one thing we do know about it.
+            reg_name = self.project.arch.translate_register_name(expr.oident, expr.size)
+            return CRegister(reg_name or f"reg{expr.oident}", tags=expr.tags, codegen=self)
+
         return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
