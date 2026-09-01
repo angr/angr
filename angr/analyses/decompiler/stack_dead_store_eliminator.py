@@ -618,6 +618,9 @@ class StackDeadStoreEliminator:
         """``StackBaseOffset`` for an address that reduces to one exact frame offset, else None."""
         if isinstance(addr_expr, StackBaseOffset):
             return None
+        if addr_expr.bits != self.arch.bits:
+            # a narrowed frame register is not the frame address we reasoned about
+            return None
         addrs = self.resolve(addr_expr)
         if addrs is None or len(addrs) != 1:
             return None
@@ -628,10 +631,6 @@ class StackDeadStoreEliminator:
         return StackBaseOffset(idx, addr_expr.bits, addr.offset + self._sp_shift)
 
     def _rewrite_addresses(self) -> int:
-        if self._ail_manager is None:
-            # Without an atom source new expressions would collide; skip rather than corrupt SSA.
-            return 0
-
         """
         Turn resolved frame addresses into StackBaseOffset.
 
@@ -640,7 +639,18 @@ class StackDeadStoreEliminator:
         variable recovery creates no locals and the emitted C is stack-pointer arithmetic --
         ``rsp = rsp - 216`` and loads through it -- instead of variables. The dead-store analysis
         already knows each address exactly; this hands that knowledge to the rest of the pipeline.
+
+        Load and store addresses are the obvious case, but the frame register itself matters just
+        as much. While ``rsp = rsp - 224`` stays register arithmetic every value derived from it
+        does too, so the assignment always has a live use and can never be removed -- which is why
+        raw ``rsp`` survives into the decompiled C. Rewriting the *source* of an assignment whose
+        destination is the frame register makes it an ordinary constant definition, which
+        SPropagator folds into its uses and dead-code elimination then drops.
         """
+        if self._ail_manager is None:
+            # Without an atom source new expressions would collide; skip rather than corrupt SSA.
+            return 0
+
         eliminator = self
 
         class _Rewriter(AILBlockRewriter):
@@ -648,13 +658,30 @@ class StackDeadStoreEliminator:
                 super().__init__(update_block=False)
                 self.count = 0
 
+            def _rewrite(self, expr):
+                sba = eliminator._stack_base_offset(expr)
+                if sba is None:
+                    return None
+                self.count += 1
+                return sba
+
+            def _handle_Assignment(self, stmt_idx, stmt, block):
+                # the destination must stay an atom, so it is never walked
+                src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+                if src is None:
+                    src = stmt.src
+                if eliminator._root_base(stmt.dst) is not None:
+                    src = self._rewrite(src) or src
+                if src != stmt.src:
+                    return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
+                return stmt
+
             def _handle_Store(self, stmt_idx, stmt, block):
                 rebuilt = super()._handle_Store(stmt_idx, stmt, block)
                 current = rebuilt if rebuilt is not None else stmt
-                sba = eliminator._stack_base_offset(current.addr)
+                sba = self._rewrite(current.addr)
                 if sba is None:
                     return rebuilt
-                self.count += 1
                 return Store(
                     current.idx, sba, current.data, current.size, current.endness,
                     current.guard, **current.tags,
@@ -663,10 +690,9 @@ class StackDeadStoreEliminator:
             def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
                 rebuilt = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
                 current = rebuilt if rebuilt is not None else expr
-                sba = eliminator._stack_base_offset(current.addr)
+                sba = self._rewrite(current.addr)
                 if sba is None:
                     return rebuilt
-                self.count += 1
                 return Load(
                     current.idx, sba, current.size, current.endness,
                     guard=current.guard, alt=current.alt, **current.tags,
