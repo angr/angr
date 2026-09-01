@@ -39,6 +39,22 @@ class RemoveRedundantNegations(PeepholeOptimizationExprBase):
             expr_1 = expr.operand.operands[0]
             return BinaryOp(expr.idx, "Sub", [expr_0, expr_1], False, bits=expr_0.bits, **expr.tags)
 
+        # Neg(Neg(expr) - other) ==> expr + other
+        #
+        # The mirror of the rule above, and the sign flips with the shape: ~(~x - y) is x + y where
+        # ~(y + ~x) is x - y. Holds for any subtrahend, not just a constant.
+        if (
+            expr.op == "BitwiseNeg"
+            and isinstance(expr.operand, BinaryOp)
+            and expr.operand.op == "Sub"
+            and isinstance(expr.operand.operands[0], UnaryOp)
+            and expr.operand.operands[0].op == "BitwiseNeg"
+        ):
+            expr_0 = expr.operand.operands[0].operand
+            expr_1 = expr.operand.operands[1]
+            if expr_0.bits == expr.bits and expr_1.bits == expr.bits:
+                return BinaryOp(expr.idx, "Add", [expr_0, expr_1], False, bits=expr.bits, **expr.tags)
+
         # Neg(a | b) ==> Neg(a) & Neg(b)
         # Neg(a & b) ==> Neg(a) | Neg(b)
         #
