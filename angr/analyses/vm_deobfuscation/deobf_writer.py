@@ -282,6 +282,21 @@ class _Writer:
         self.unrendered_prototypes.append(repr(proto))
         return None
 
+    @staticmethod
+    def _prototype_arg_names(proto):
+        """
+        Argument names, kept separately from the C declaration.
+
+        The preferred rendering leaves parameters unnamed (a name that is not a valid C identifier,
+        or collides with a keyword, would break the declaration), so carry the names as data.
+        """
+        if proto is None or not getattr(proto, "args", None):
+            return None
+        names = list(getattr(proto, "arg_names", None) or [])
+        if not any(names):
+            return None
+        return [(n if n else None) for n in names] + [None] * (len(proto.args) - len(names))
+
     def _decl_candidates(self, proto):
         # Shallow first: it never expands a struct body, so it stays small and predictable.
         try:
@@ -364,6 +379,7 @@ class _Writer:
             "is_syscall": bool(func.is_syscall),
             "returning": func.returning,
             "prototype": self._prototype(func.prototype),
+            "prototype_arg_names": self._prototype_arg_names(func.prototype),
             "calling_convention": self._cc(func.calling_convention),
             # False for functions the decompiler resolves through the knowledge base rather than
             # through a transition-graph edge -- `exit` is deliberately kept out of the graph.
@@ -450,6 +466,7 @@ class _Writer:
                     "addr": enc_int(addr),
                     "cc": self._cc(cc),
                     "prototype": self._prototype(proto),
+                    "prototype_arg_names": self._prototype_arg_names(proto),
                     "manual": bool(manual),
                 }
             )
@@ -486,6 +503,7 @@ class _Writer:
                 "addr": enc_int(func.addr),
                 "name": func.name,
                 "prototype": self._prototype(func.prototype),
+            "prototype_arg_names": self._prototype_arg_names(func.prototype),
                 "calling_convention": self._cc(func.calling_convention),
                 "normalized": bool(func.normalized),
                 "returning": func.returning,

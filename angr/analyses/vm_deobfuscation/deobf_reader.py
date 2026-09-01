@@ -323,16 +323,17 @@ class _Reader:
     # types and calling conventions
     #
 
-    def _prototype(self, decl):
+    def _prototype(self, decl, arg_names=None):
         if not decl:
             return None
         from angr.sim_type import parse_signature  # pylint:disable=import-outside-toplevel
 
         try:
-            return parse_signature(decl, arch=self.arch).with_arch(self.arch)
+            proto = parse_signature(decl, arch=self.arch).with_arch(self.arch)
         except Exception:  # pylint:disable=broad-except
             _l.warning("deobf load: could not parse prototype %r; ignoring", decl)
             return None
+        return _name_prototype_args(proto, arg_names)
 
     def _cc(self, name):
         if name is None:
@@ -388,7 +389,7 @@ class _Reader:
             )
             callee.is_simprocedure = enc["is_simprocedure"]
             callee.returning = enc["returning"]
-            proto = self._prototype(enc["prototype"])
+            proto = self._prototype(enc["prototype"], enc.get("prototype_arg_names"))
             if proto is not None:
                 callee.prototype = proto
             callee.calling_convention = self._cc(enc["calling_convention"])
@@ -405,7 +406,7 @@ class _Reader:
             is_simprocedure=False,
         )
         func.calling_convention = self._cc(fdesc["calling_convention"])
-        func.prototype = self._prototype(fdesc["prototype"])
+        func.prototype = self._prototype(fdesc["prototype"], fdesc.get("prototype_arg_names"))
         self.project.kb.functions[func.addr] = func
 
         # Register every node first, so isolated nodes (a single-block function) survive.
@@ -446,7 +447,7 @@ class _Reader:
             func._ret_sites.add(self._objs[key])
 
         for enc in self.doc["callsite_prototypes"]:
-            proto = self._prototype(enc["prototype"])
+            proto = self._prototype(enc["prototype"], enc.get("prototype_arg_names"))
             if proto is None:
                 continue
             self.project.kb.callsite_prototypes.set_prototype(
@@ -488,6 +489,38 @@ class _Reader:
                 self._addr(dec_int(k)): v for k, v in (out["calls_as_rets"] or {}).items()
             }
         return out
+
+
+def _name_prototype_args(proto, arg_names=None):
+    """
+    Make sure every argument of a parsed prototype has a name.
+
+    A C declaration need not name its parameters, and the writer's preferred rendering does not.
+    Newer angr backfills ``a0``, ``a1``, ... in ``Function.prototype``'s setter, but older angr
+    stores the prototype as a plain attribute, so an unnamed argument reaches the C backend and
+    trips ``assert name`` in ``type_to_c_repr_chunks``. Do the same normalisation here, preferring
+    any names the dump carried.
+    """
+    args = getattr(proto, "args", None)
+    if not args:
+        return proto
+
+    existing = list(getattr(proto, "arg_names", None) or [])
+    dumped = list(arg_names or [])
+    names = []
+    for i in range(len(args)):
+        name = None
+        if i < len(dumped) and dumped[i]:
+            name = dumped[i]
+        elif i < len(existing) and existing[i]:
+            name = existing[i]
+        names.append(name or f"a{i}")
+
+    try:
+        proto.arg_names = tuple(names)
+    except Exception:  # pylint:disable=broad-except
+        _l.warning("deobf load: could not set argument names on %r", proto)
+    return proto
 
 
 def _register_node(func, node):
