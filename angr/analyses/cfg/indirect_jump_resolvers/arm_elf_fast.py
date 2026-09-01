@@ -79,7 +79,7 @@ class ArmElfFastResolver(IndirectJumpResolver):
             return False, []
         load_addr = stmt.data.con.value
         load_size = stmt.data.result_size(block.tyenv) // 8
-        endness = self.project.arch.default_endness
+        endness = self.project.arch.memory_endness
 
         count = 0
         for next_stmt in block.statements:
