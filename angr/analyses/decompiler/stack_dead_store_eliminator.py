@@ -15,6 +15,7 @@ from angr.ailment.expression import (
     StackBaseOffset,
     VirtualVariable,
 )
+from angr.ailment import AILBlockRewriter
 from angr.ailment.statement import Assignment, Return, Statement, Store
 
 if TYPE_CHECKING:
@@ -101,13 +102,22 @@ class StackDeadStoreEliminator:
     challenge first if this pass ever removes something it should not.
     """
 
-    def __init__(self, arch, ail_graph: networkx.DiGraph, sp_alignment: int = 16):
+    def __init__(
+        self, arch, ail_graph: networkx.DiGraph, sp_alignment: int = 16, sp_shift: int = 0, ail_manager=None
+    ):
         self.arch = arch
         self._graph = ail_graph
         # What the incoming stack pointer is known to be aligned to. Any mask that clears no more
         # bits than this is exactly computable, which turns an aligned frame into ordinary
         # affine offsets. 1 disables the reasoning.
         self._sp_alignment = sp_alignment if sp_alignment and sp_alignment > 0 else 1
+        # StackBaseOffset offsets are measured from the stack base; ours are measured from the
+        # incoming sp, and the two differ by the shift the stack-pointer tracker was seeded with.
+        self._sp_shift = sp_shift
+        # Rewritten expressions need their own atom index; sharing one makes SSA bookkeeping
+        # see a single expression defining at several locations.
+        self._ail_manager = ail_manager
+        self.rewritten_addrs = 0
         self._sp_offset = arch.sp_offset
         self._bp_offset = getattr(arch, "bp_offset", None)
 
@@ -565,6 +575,71 @@ class StackDeadStoreEliminator:
                 dead[key] |= block_dead
         return dead
 
+    def _stack_base_offset(self, addr_expr):
+        """``StackBaseOffset`` for an address that reduces to one exact frame offset, else None."""
+        if isinstance(addr_expr, StackBaseOffset):
+            return None
+        addrs = self.resolve(addr_expr)
+        if addrs is None or len(addrs) != 1:
+            return None
+        addr = addrs[0]
+        if addr.base != "sp" or addr.offset is None:
+            return None
+        idx = self._ail_manager.next_atom() if self._ail_manager is not None else None
+        return StackBaseOffset(idx, addr_expr.bits, addr.offset + self._sp_shift)
+
+    def _rewrite_addresses(self) -> int:
+        if self._ail_manager is None:
+            # Without an atom source new expressions would collide; skip rather than corrupt SSA.
+            return 0
+
+        """
+        Turn resolved frame addresses into StackBaseOffset.
+
+        This is the rewrite SPropagator would have done if StackPointerTracker could follow the
+        stack pointer. Without it the frame is never expressed in terms of the stack base, so
+        variable recovery creates no locals and the emitted C is stack-pointer arithmetic --
+        ``rsp = rsp - 216`` and loads through it -- instead of variables. The dead-store analysis
+        already knows each address exactly; this hands that knowledge to the rest of the pipeline.
+        """
+        eliminator = self
+
+        class _Rewriter(AILBlockRewriter):
+            def __init__(self):
+                super().__init__(update_block=False)
+                self.count = 0
+
+            def _handle_Store(self, stmt_idx, stmt, block):
+                rebuilt = super()._handle_Store(stmt_idx, stmt, block)
+                current = rebuilt if rebuilt is not None else stmt
+                sba = eliminator._stack_base_offset(current.addr)
+                if sba is None:
+                    return rebuilt
+                self.count += 1
+                return Store(
+                    current.idx, sba, current.data, current.size, current.endness,
+                    current.guard, **current.tags,
+                )
+
+            def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+                rebuilt = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+                current = rebuilt if rebuilt is not None else expr
+                sba = eliminator._stack_base_offset(current.addr)
+                if sba is None:
+                    return rebuilt
+                self.count += 1
+                return Load(
+                    current.idx, sba, current.size, current.endness,
+                    guard=current.guard, alt=current.alt, **current.tags,
+                )
+
+        rewriter = _Rewriter()
+        for block in list(self._graph):
+            new_block = rewriter.walk(block)
+            if new_block is not None and new_block is not block:
+                block.statements = list(new_block.statements)
+        return rewriter.count
+
     #
     # entry point
     #
@@ -631,6 +706,7 @@ class StackDeadStoreEliminator:
         self.n_overwritten = sum(len(v) for v in dead.values()) - n_never_read
 
         if not dead:
+            self.rewritten_addrs = self._rewrite_addresses()
             l.debug(
                 "StackDeadStoreEliminator: %d resolvable stores, none provably dead "
                 "(%d reads, %d opaque pointer reads, %d escaped addresses).",
@@ -646,10 +722,12 @@ class StackDeadStoreEliminator:
             block.statements = [s for i, s in enumerate(block.statements) if i not in drop]
             self.removed += len(drop)
 
+        self.rewritten_addrs = self._rewrite_addresses()
         l.debug(
             "StackDeadStoreEliminator: removed %d of %d resolvable stack stores "
-            "(%d never read, %d dead by liveness).",
+            "(%d never read, %d dead by liveness); rewrote %d addresses to StackBaseOffset.",
             self.removed, candidates, self.removed - self.n_overwritten, self.n_overwritten,
+            self.rewritten_addrs,
         )
         return self._graph, self.removed
 

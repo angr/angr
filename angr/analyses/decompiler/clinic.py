@@ -938,7 +938,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
 
         from angr.analyses.decompiler.stack_dead_store_eliminator import StackDeadStoreEliminator
 
-        eliminator = StackDeadStoreEliminator(self.project.arch, self._ail_graph)
+        eliminator = StackDeadStoreEliminator(
+            self.project.arch, self._ail_graph, sp_shift=self._sp_shift, ail_manager=self._ail_manager
+        )
         self._ail_graph, removed = eliminator.run()
         if eliminator.bailed_reason is not None:
             l.debug("Dead stack store elimination skipped: %s.", eliminator.bailed_reason)
