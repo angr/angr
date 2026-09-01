@@ -11,6 +11,7 @@ from .a_sub_a_div import ASubADiv
 from .a_sub_a_shr_const_shr_const import ASubAShrConstShrConst
 from .a_sub_a_sub_n import ASubASubN
 from .a_two_sub_to_add import TwoSubToAdd
+from .and_mask_pruning import AndMaskPruning
 from .arm_cmpf import ARMCmpF
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationMultiStmtBase, PeepholeOptimizationStmtBase
 from .basepointeroffset_add_n import BasePointerOffsetAddN
@@ -82,6 +83,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     ASubADiv,
     ModuloSimplifier,
     ASubAShrConstShrConst,
+    AndMaskPruning,
     ARMCmpF,
     Bswap,
     CASIntrinsics,

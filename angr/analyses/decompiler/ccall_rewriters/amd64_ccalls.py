@@ -12,6 +12,23 @@ AMD64_OpTypes = data["AMD64"]["OpTypes"]
 AMD64_CondBitMasks = data["AMD64"]["CondBitMasks"]
 AMD64_CondBitOffsets = data["AMD64"]["CondBitOffsets"]
 
+# every bit amd64g_calculate_rflags_all can set; all other bits of the packed word are zero
+AMD64_RFLAGS_ALL_MASK = (
+    AMD64_CondBitMasks["G_CC_MASK_O"]
+    | AMD64_CondBitMasks["G_CC_MASK_S"]
+    | AMD64_CondBitMasks["G_CC_MASK_Z"]
+    | AMD64_CondBitMasks["G_CC_MASK_A"]
+    | AMD64_CondBitMasks["G_CC_MASK_C"]
+    | AMD64_CondBitMasks["G_CC_MASK_P"]
+)
+
+# cc_op -> (family, operand width in bits), for the families rflags_all can rebuild
+AMD64_RFLAGS_ALL_FAMILIES: dict[int, tuple[str, int]] = {
+    AMD64_OpTypes[f"G_CC_OP_{fam}{suffix}"]: (fam, nbits)
+    for fam in ("ADD", "SUB", "LOGIC", "INC", "DEC")
+    for suffix, nbits in (("B", 8), ("W", 16), ("L", 32), ("Q", 64))
+}
+
 
 class AMD64CCallRewriter(CCallRewriterBase):
     """
@@ -938,7 +955,170 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         **ccall.tags,
                     )
 
+        elif ccall.callee == "amd64g_calculate_rflags_all":
+            op = ccall.operands[0]
+            if isinstance(op, Expr.Const):
+                return self._rewrite_rflags_all(
+                    ccall, op.value_int, ccall.operands[1], ccall.operands[2], ccall.operands[3]
+                )
+
         return None
+
+    #
+    # amd64g_calculate_rflags_all
+    #
+
+    def _rewrite_rflags_all(
+        self,
+        ccall: Expr.VEXCCallExpression,
+        op_v: int,
+        dep_1: Expr.Expression,
+        dep_2: Expr.Expression,
+        ndep: Expr.Expression,
+    ) -> Expr.Expression | None:
+        """
+        Rebuild the packed rflags word that amd64g_calculate_rflags_all returns: bit C(0), P(2),
+        A(4), Z(6), S(7), O(11); all other bits are zero.
+        """
+        bits = ccall.bits
+        if bits != 64:
+            return None
+        tags = ccall.tags
+
+        if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
+            # cc_dep1 already holds the flags; only the six modelled bits survive
+            if dep_1.bits != bits:
+                return None
+            return self._binop("And", dep_1, self._const(AMD64_RFLAGS_ALL_MASK, bits), False, tags, idx=ccall.idx)
+
+        family_nbits = AMD64_RFLAGS_ALL_FAMILIES.get(op_v)
+        if family_nbits is None:
+            return None
+        family, nbits = family_nbits
+
+        d1 = self._narrow(dep_1, nbits, tags)
+        # positioned 64-bit terms that get Or'ed into the final word
+        terms: list[Expr.Expression] = []
+
+        if family == "LOGIC":
+            # and/or/xor: cc_dep1 is the result; CF, AF and OF are cleared
+            res = d1
+            terms.append(self._parity_term(res, nbits, bits, tags))
+            terms.append(self._bit_term(self._is_zero(res, tags), "G_CC_SHIFT_Z", bits, tags))
+            terms.append(self._bit_term(self._is_neg(res, tags), "G_CC_SHIFT_S", bits, tags))
+        elif family in {"ADD", "SUB"}:
+            d2 = self._narrow(dep_2, nbits, tags)
+            res = self._binop("Add" if family == "ADD" else "Sub", d1, d2, False, tags)
+            if family == "ADD":
+                cf = self._binop("CmpLT", res, d1, False, tags)  # unsigned wrap-around
+                # OF = msb(~(d1 ^ d2) & (d1 ^ res))
+                of_word = self._binop(
+                    "And",
+                    self._unop("BitwiseNeg", self._binop("Xor", d1, d2, False, tags), tags),
+                    self._binop("Xor", d1, res, False, tags),
+                    False,
+                    tags,
+                )
+            else:
+                cf = self._binop("CmpLT", d1, d2, False, tags)
+                # OF = msb((d1 ^ d2) & (d1 ^ res))
+                of_word = self._binop(
+                    "And",
+                    self._binop("Xor", d1, d2, False, tags),
+                    self._binop("Xor", d1, res, False, tags),
+                    False,
+                    tags,
+                )
+            terms.append(self._bit_term(cf, "G_CC_SHIFT_C", bits, tags))
+            terms.append(self._parity_term(res, nbits, bits, tags))
+            terms.append(self._af_term(res, d1, d2, bits, tags))
+            terms.append(self._bit_term(self._is_zero(res, tags), "G_CC_SHIFT_Z", bits, tags))
+            terms.append(self._bit_term(self._is_neg(res, tags), "G_CC_SHIFT_S", bits, tags))
+            terms.append(self._bit_term(self._is_neg(of_word, tags), "G_CC_SHIFT_O", bits, tags))
+        else:
+            # INC/DEC: cc_dep1 is the result, CF is carried over from cc_ndep untouched
+            if ndep.bits != bits:
+                return None
+            res = d1
+            one = self._const(1, nbits)
+            # the pre-op value, which AF is computed against
+            other = self._binop("Sub" if family == "INC" else "Add", res, one, False, tags)
+            # OF is only set at the signed extreme the op crossed
+            extreme = 1 << (nbits - 1) if family == "INC" else (1 << (nbits - 1)) - 1
+            terms.append(self._binop("And", ndep, self._const(AMD64_CondBitMasks["G_CC_MASK_C"], bits), False, tags))
+            terms.append(self._parity_term(res, nbits, bits, tags))
+            terms.append(self._af_term(res, other, one, bits, tags))
+            terms.append(self._bit_term(self._is_zero(res, tags), "G_CC_SHIFT_Z", bits, tags))
+            terms.append(self._bit_term(self._is_neg(res, tags), "G_CC_SHIFT_S", bits, tags))
+            terms.append(
+                self._bit_term(
+                    self._binop("CmpEQ", res, self._const(extreme, nbits), False, tags),
+                    "G_CC_SHIFT_O",
+                    bits,
+                    tags,
+                )
+            )
+
+        result = terms[0]
+        for term in terms[1:]:
+            result = self._binop("Or", result, term, False, tags)
+        return result
+
+    def _is_zero(self, expr, tags):
+        return self._binop("CmpEQ", expr, self._const(0, expr.bits), False, tags)
+
+    def _is_neg(self, expr, tags):
+        # signed < 0 is exactly the most significant bit
+        return self._binop("CmpLT", expr, self._const(0, expr.bits), True, tags)
+
+    def _bit_term(self, bit_expr, shift_name: str, bits: int, tags):
+        """Widen a 1-bit flag expression to `bits` and move it to its rflags position."""
+        shift = AMD64_CondBitOffsets[shift_name]
+        assert isinstance(shift, int)
+        widened = Expr.Convert(self.ail_manager.next_atom(), bit_expr.bits, bits, False, bit_expr, **tags)
+        if shift == 0:
+            return widened
+        return self._binop("Shl", widened, self._const(shift, 8), False, tags)
+
+    def _af_term(self, res, arg_l, arg_r, bits: int, tags):
+        """AF = bit 4 of (res ^ arg_l ^ arg_r); the mask leaves it already in position."""
+        xored = self._binop("Xor", self._binop("Xor", res, arg_l, False, tags), arg_r, False, tags)
+        masked = self._binop("And", xored, self._const(AMD64_CondBitMasks["G_CC_MASK_A"], res.bits), False, tags)
+        if masked.bits == bits:
+            return masked
+        return Expr.Convert(self.ail_manager.next_atom(), masked.bits, bits, False, masked, **tags)
+
+    def _parity_term(self, res, nbits: int, bits: int, tags):
+        """
+        PF = 1 iff the low byte of the result has an even number of set bits.
+
+        Fold the byte down to a nibble, then index the 16-entry even-parity table 0x9669. This has
+        to stay a pure expression: a helper call would make every rewritten flags assignment look
+        side-effecting, and dead flag computations would stop being removable.
+        """
+        low_byte = self._narrow(res, 8, tags) if nbits > 8 else res
+        shifted = self._binop("Shr", low_byte, self._const(4, 8), False, tags)
+        folded = self._binop("Xor", low_byte, shifted, False, tags)
+        index = self._binop("And", folded, self._const(0xF, 8), False, tags)
+        table = self._binop("Shr", self._const(0x9669, bits), index, False, tags)
+        bit = self._binop("And", table, self._const(1, bits), False, tags)
+        return self._binop("Shl", bit, self._const(AMD64_CondBitOffsets["G_CC_SHIFT_P"], 8), False, tags)
+
+    def _const(self, value: int, bits: int) -> Expr.Const:
+        return Expr.Const(self.ail_manager.next_atom(), value, bits)
+
+    def _unop(self, op: str, operand, tags):
+        return Expr.UnaryOp(self.ail_manager.next_atom(), op, operand, **tags)
+
+    def _binop(self, op: str, op0, op1, signed: bool, tags, idx: int | None = None):
+        return Expr.BinaryOp(self.ail_manager.next_atom() if idx is None else idx, op, [op0, op1], signed, **tags)
+
+    def _narrow(self, expr, nbits: int, tags):
+        if expr.bits == nbits:
+            return expr
+        if isinstance(expr, Expr.Const):
+            return Expr.Const(expr.idx, expr.value_int & ((1 << nbits) - 1), nbits, **tags)
+        return Expr.Convert(self.ail_manager.next_atom(), expr.bits, nbits, False, expr, **tags)
 
     @staticmethod
     def _op_nbits(op_v: int, type_8bit, type_16bit, type_32bit) -> int:

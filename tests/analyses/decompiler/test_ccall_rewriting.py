@@ -15,7 +15,7 @@ import claripy
 import angr
 from angr.ailment import Expr, Manager
 from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import AMD64CCallRewriter
-from angr.engines.vex.claripy.ccall import data, pc_calculate_condition
+from angr.engines.vex.claripy.ccall import data, pc_calculate_condition, pc_calculate_rdata_all
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -621,6 +621,160 @@ class TestAMD64CCallRewriterRealBinaries(unittest.TestCase):
         # gcc-13.3.0 -O2 `gzip`. sub_409b60 had two ccalls; clearing them flips the function to
         # fully compilable C.
         self._assert_no_ccall("gzip_gcc13.3.0_O2", [0x409B60])
+
+
+#
+# amd64g_calculate_rflags_all: the rewriter rebuilds the whole packed flags word, so the tests
+# below prove the rewritten expression equal to ccall.py's executable semantics with an SMT query
+# over symbolic cc_dep1/cc_dep2/cc_ndep rather than sampling concrete inputs.
+#
+
+_RFLAGS_ALL_SUPPORTED = ["G_CC_OP_COPY"] + [
+    f"G_CC_OP_{family}{suffix}"
+    for family in ("ADD", "SUB", "LOGIC", "INC", "DEC")
+    for suffix in ("B", "W", "L", "Q")
+]
+
+
+def _make_rflags_all_ccall(op, dep1=None, dep2=None, ndep=None):
+    return Expr.VEXCCallExpression(
+        idx=0,
+        callee="amd64g_calculate_rflags_all",
+        operands=(
+            Expr.Const(0, op, 64),
+            dep1 if dep1 is not None else Expr.Register(1, 16, 64),
+            dep2 if dep2 is not None else Expr.Register(2, 24, 64),
+            ndep if ndep is not None else Expr.Register(3, 32, 64),
+        ),
+        bits=64,
+    )
+
+
+def _to_claripy(expr):
+    """Translate a rewritten AIL expression into claripy. Registers 16/24/32 become dep1/dep2/ndep."""
+    if isinstance(expr, Expr.Const):
+        return claripy.BVV(expr.value_int, expr.bits)
+    if isinstance(expr, Expr.Register):
+        return claripy.BVS({16: "dep1", 24: "dep2", 32: "ndep"}[expr.reg_offset], expr.bits, explicit_name=True)
+    if isinstance(expr, Expr.Convert):
+        v = _to_claripy(expr.operand)
+        if expr.to_bits == expr.from_bits:
+            return v
+        if expr.to_bits < expr.from_bits:
+            return v[expr.to_bits - 1 : 0]
+        extend = v.sign_extend if expr.is_signed else v.zero_extend
+        return extend(expr.to_bits - expr.from_bits)
+    if isinstance(expr, Expr.UnaryOp):
+        v = _to_claripy(expr.operand)
+        return {"BitwiseNeg": lambda: ~v, "Neg": lambda: -v}[expr.op]()
+    if isinstance(expr, Expr.BinaryOp):
+        a, b = _to_claripy(expr.operands[0]), _to_claripy(expr.operands[1])
+        if expr.op in ("Shl", "Shr", "Sar"):
+            b = b.zero_extend(a.size() - b.size()) if b.size() < a.size() else b[a.size() - 1 : 0]
+            return {"Shl": lambda: a << b, "Shr": lambda: claripy.LShR(a, b), "Sar": lambda: a >> b}[expr.op]()
+        assert a.size() == b.size(), f"{expr.op}: {a.size()} != {b.size()}"
+        arith = {
+            "Add": lambda: a + b,
+            "Sub": lambda: a - b,
+            "And": lambda: a & b,
+            "Or": lambda: a | b,
+            "Xor": lambda: a ^ b,
+        }
+        if expr.op in arith:
+            return arith[expr.op]()
+        # claripy's bare comparison operators are unsigned; signed ones are the S* helpers
+        cmps = {
+            "CmpEQ": lambda: a == b,
+            "CmpNE": lambda: a != b,
+            "CmpLT": lambda: claripy.SLT(a, b) if expr.signed else claripy.ULT(a, b),
+            "CmpLE": lambda: claripy.SLE(a, b) if expr.signed else claripy.ULE(a, b),
+            "CmpGT": lambda: claripy.SGT(a, b) if expr.signed else claripy.UGT(a, b),
+            "CmpGE": lambda: claripy.SGE(a, b) if expr.signed else claripy.UGE(a, b),
+        }
+        return claripy.If(cmps[expr.op](), claripy.BVV(1, 1), claripy.BVV(0, 1))
+    raise NotImplementedError(type(expr))
+
+
+class TestAMD64RFlagsAll(unittest.TestCase):
+    """amd64g_calculate_rflags_all returns the packed rflags word: C(0) P(2) A(4) Z(6) S(7) O(11)."""
+
+    def test_every_supported_op_is_provably_equivalent(self):
+        for name in _RFLAGS_ALL_SUPPORTED:
+            op = AMD64_OpTypes[name]
+            result = _rewrite(_make_rflags_all_ccall(op))
+            assert result is not None, f"{name}: not rewritten"
+            assert result.bits == 64, name
+
+            got = _to_claripy(result)
+            want = pc_calculate_rdata_all(
+                None,
+                claripy.BVV(op, 64),
+                claripy.BVS("dep1", 64, explicit_name=True),
+                claripy.BVS("dep2", 64, explicit_name=True),
+                claripy.BVS("ndep", 64, explicit_name=True),
+                platform="AMD64",
+            )
+            solver = claripy.Solver()
+            solver.add(got != want)
+            assert not solver.satisfiable(), f"{name}: rewritten flags word differs from ccall.py"
+
+    def test_copy_masks_the_modelled_flag_bits(self):
+        result = _rewrite(_make_rflags_all_ccall(AMD64_OpTypes["G_CC_OP_COPY"]))
+        assert isinstance(result, Expr.BinaryOp) and result.op == "And"
+        assert result.operands[1].value_int == 0x8D5  # O | S | Z | A | P | C
+
+    def test_logic_clears_carry_adjust_and_overflow(self):
+        # and/or/xor leave only PF, ZF and SF, so the word is a 3-term disjunction
+        result = _rewrite(_make_rflags_all_ccall(AMD64_OpTypes["G_CC_OP_LOGICQ"]))
+        terms = []
+        stack = [result]
+        while stack:
+            item = stack.pop()
+            if isinstance(item, Expr.BinaryOp) and item.op == "Or":
+                stack.extend(item.operands)
+            else:
+                terms.append(item)
+        assert len(terms) == 3
+
+    def test_rewrite_stays_pure(self):
+        # a helper call would make every flags assignment look side-effecting, and dead flag
+        # computations -- most of them, in practice -- would stop being removable
+        for name in _RFLAGS_ALL_SUPPORTED:
+            result = _rewrite(_make_rflags_all_ccall(AMD64_OpTypes[name]))
+            stack = [result]
+            while stack:
+                item = stack.pop()
+                assert not isinstance(item, (Expr.Call, Expr.DirtyExpression)), name
+                stack.extend(getattr(item, "operands", None) or ())
+
+    def test_unsupported_ops_are_left_alone(self):
+        # shifts/rotates, ADC/SBB, the multiplies and the BMI ops are not modelled here: a wrong
+        # flags word is worse than an opaque ccall
+        for name in (
+            "G_CC_OP_SHLQ",
+            "G_CC_OP_SHRQ",
+            "G_CC_OP_ROLQ",
+            "G_CC_OP_RORQ",
+            "G_CC_OP_ADCQ",
+            "G_CC_OP_SBBQ",
+            "G_CC_OP_UMULQ",
+            "G_CC_OP_SMULQ",
+        ):
+            assert _rewrite(_make_rflags_all_ccall(AMD64_OpTypes[name])) is None, name
+
+    def test_symbolic_cc_op_is_left_alone(self):
+        ccall = Expr.VEXCCallExpression(
+            idx=0,
+            callee="amd64g_calculate_rflags_all",
+            operands=(
+                Expr.Register(0, 0, 64),
+                Expr.Register(1, 16, 64),
+                Expr.Register(2, 24, 64),
+                Expr.Register(3, 32, 64),
+            ),
+            bits=64,
+        )
+        assert _rewrite(ccall) is None
 
 
 if __name__ == "__main__":
