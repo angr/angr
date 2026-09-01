@@ -2294,6 +2294,16 @@ class VMDeobfuscation(Analysis):
             if node_irsb is not None:
                 self.project.synthetic_irsbs[node.addr] = node_irsb
 
+        # Optional: hand the deobfuscated graph off to another angr version.
+        dump_path = getattr(self.project, "vm_deob_dump_path", None)
+        if dump_path:
+            from .deobf_writer import dump_decompilation_input
+            dump_decompilation_input(VM_1_func, self.project, dump_path,
+                                     calls_as_rets=calls_as_rets,
+                                     allow_global_dead_ass_elim=allow_global_dead_ass_elim,
+                                     ail_propagator_init_values=ail_propagator_init_values,
+                                     vm_deobfuscation=True)
+
         dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim,
                                                ail_propagator_init_values=ail_propagator_init_values,
                                                vm_deobfuscation=True)
