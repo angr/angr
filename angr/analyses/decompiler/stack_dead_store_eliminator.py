@@ -103,10 +103,28 @@ class StackDeadStoreEliminator:
     """
 
     def __init__(
-        self, arch, ail_graph: networkx.DiGraph, sp_alignment: int = 16, sp_shift: int = 0, ail_manager=None
+        self,
+        arch,
+        ail_graph: networkx.DiGraph,
+        sp_alignment: int = 16,
+        sp_shift: int = 0,
+        ail_manager=None,
+        single_valued_bp: bool = True,
     ):
         self.arch = arch
         self._graph = ail_graph
+        # Collapse a frame pointer that merges to several frame addresses down to one.
+        #
+        # A frame pointer adjusted on only some paths reaches the merge as a phi over two or more
+        # offsets.  Nothing downstream can express that: StackBaseOffset denotes one slot, so the
+        # accesses stay register-relative and are emitted as pointer arithmetic rather than
+        # locals.  Assuming one canonical frame recovers them.
+        #
+        # This is a deobfuscation heuristic, not a sound approximation: the discarded values are
+        # real on their paths, so a store may now be credited with overwriting a slot it only
+        # conditionally overwrites, and could kill an earlier store that some path still reads.
+        # Escaped slots stay live either way, which bounds the damage but does not remove it.
+        self._single_valued_bp = single_valued_bp
         # What the incoming stack pointer is known to be aligned to. Any mask that clears no more
         # bits than this is exactly computable, which turns an aligned frame into ordinary
         # affine offsets. 1 disables the reasoning.
@@ -123,6 +141,8 @@ class StackDeadStoreEliminator:
 
         self._vvar_addr: dict[int, tuple[StackAddr, ...]] = {}
         self._vvar_def: dict[int, Expression] = {}
+        self._bp_vvars: set[int] = set()
+        self.collapsed_bp = 0
         self.removed = 0
         self.bailed_reason: str | None = None
         self.n_loads = 0
@@ -317,6 +337,22 @@ class StackDeadStoreEliminator:
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     self._vvar_def[stmt.dst.varid] = stmt.src
+                    if self._root_base(stmt.dst) == "bp":
+                        self._bp_vvars.add(stmt.dst.varid)
+
+    @staticmethod
+    def _canonical_frame_addr(addrs: tuple[StackAddr, ...]) -> StackAddr:
+        """
+        The one of several merged frame addresses to treat as *the* frame pointer.
+
+        Fewest derivation steps wins: that is the value the frame pointer was established with,
+        before any path took an adjustment.  Ties go to the highest offset, then to the chain
+        itself, so the choice never depends on dictionary iteration order.
+        """
+        return min(
+            addrs,
+            key=lambda a: (len(a.chain), 0 if a.offset is not None else 1, -(a.offset or 0), a.chain),
+        )
 
     def _propagate(self) -> None:
         """
@@ -333,6 +369,9 @@ class StackDeadStoreEliminator:
                     continue
                 resolved = self._resolve_phi(src) if isinstance(src, Phi) else self.resolve(src)
                 if resolved is not None:
+                    if self._single_valued_bp and len(resolved) > 1 and varid in self._bp_vvars:
+                        resolved = (self._canonical_frame_addr(resolved),)
+                        self.collapsed_bp += 1
                     self._vvar_addr[varid] = resolved
                     changed = True
             if not changed:
