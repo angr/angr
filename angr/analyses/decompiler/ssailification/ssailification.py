@@ -53,6 +53,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         rewrite_vvars: set[int] | None = None,
         vvar_id_start: int = 0,
         flavor: str = Flavors.DEFAULT_FLAVOR,
+        displaced_ptr_spans: bool = True,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -104,6 +105,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             ail_manager=self._ail_manager,
             start_state_blocks=frontier_blocks,
             flavor=self._flavor,
+            displaced_ptr_spans=displaced_ptr_spans,
         )
 
         # calculate virtual variables and phi nodes
