@@ -86,7 +86,21 @@ class VMDeobfuscationSimplifierMixin:
         ("remove_redundant_conditional_check", True),
         ("remove_all_empty_nodes", True),
         ("remove_redundant_conditional_check", False),
+        ("coalesce_stack_copies", True),
     )
+
+    def coalesce_stack_copies(self, ail_graph):
+        """Collapse chains of stack-slot copies the VM leaves behind. See StackCopyCoalescer."""
+        from angr.analyses.decompiler.stack_copy_coalescer import StackCopyCoalescer
+
+        coalescer = StackCopyCoalescer(ail_graph)
+        graph = coalescer.run()
+        l.debug(
+            "coalesce_stack_copies: %d uses rewritten, %d assignments removed",
+            coalescer.propagated,
+            coalescer.removed,
+        )
+        return graph
 
     def _run_vm_deobfuscation_simplifications(self, ail_graph):
         """
