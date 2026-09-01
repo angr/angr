@@ -13,7 +13,7 @@ class RemoveIdFlag(PeepholeOptimizationExprBase):
     def optimize(self, expr: BinaryOp, **kwargs):
         if (
                 isinstance(expr.operands[0], DirtyExpression)
-                and expr.operands[0].dirty_expr.cee_name in ["amd64g_calculate_rflags_all"]
+                and getattr(expr.operands[0], "callee", None) == "amd64g_calculate_rflags_all"
         ):
             #make sure the left arg is calculate_eflags_all
             if expr.op == "Or" and isinstance(expr.operands[1], BinaryOp) and expr.operands[1].op == "And":
