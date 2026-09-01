@@ -1038,6 +1038,10 @@ class VMDeobfuscationSimplifierMixin:
 
     def remove_all_empty_nodes(self, ail_graph):
         def handle_node(node: ailment.Block):
+            # The entry has no predecessors by definition, which the "not preds" case below reads
+            # as an orphan and deletes. Losing it leaves _transform_to_ssa_level1 with no entry.
+            if (node.addr, node.idx) == self.entry_node_addr:
+                return None
             if (len(node.statements) == 1 and isinstance(node.statements[0], ailment.statement.Label)) or \
                 (len(node.statements) == 2 and isinstance(node.statements[0], ailment.statement.Label) and \
                  isinstance(node.statements[1], ailment.statement.Jump)) or \
