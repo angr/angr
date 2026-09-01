@@ -35,7 +35,7 @@ class BinaryOpCanonicalization(PeepholeOptimizationExprBase):
         bits = expr.bits
         if bits is not None:
             value &= (1 << bits) - 1
-        return Const(expr.idx, None, value, bits, **expr.tags)
+        return Const(expr.idx, value, bits, **expr.tags)
 
     @staticmethod
     def _append_or_cancel(terms, term) -> bool:

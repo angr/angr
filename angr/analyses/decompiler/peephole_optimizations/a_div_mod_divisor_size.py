@@ -17,7 +17,7 @@ class DivModDivisorSize(PeepholeOptimizationExprBase):
             return BinaryOp(
                     expr.idx,
                     "DivMod",
-                    [expr.operands[0], Const(None, None, expr.operands[1].value, expr.operands[0].bits, **expr.operands[1].tags)],
+                    [expr.operands[0], Const(None, expr.operands[1].value, expr.operands[0].bits, **expr.operands[1].tags)],
                     expr.signed,
                     **expr.tags,
                 )
