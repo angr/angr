@@ -26,7 +26,6 @@ from .utils import (
     copy_graph_and_nodes,
     correct_jump_targets,
     deepcopy_ail_anyjump,
-    find_block_in_successors_by_addr,
     replace_node_in_graph,
 )
 
@@ -816,16 +815,15 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         return []
 
-    def _block_has_goto_edge(self, block: ailment.Block, other_ends, graph=None):
+    def _block_has_goto_edge(self, block: ailment.Block, other_ends, graph):
         # case1:
         # A -> (goto) -> B.
         # if goto edge coming from end block, from any instruction in the block
         # since instructions can shift...
-        last_stmt = block.statements[-1]
-
-        gotos = self._goto_manager.gotos_in_block(block)
+        assert self._goto_manager is not None
+        gotos = self._goto_manager.gotos_in_block(block, graph=graph)
         for goto in gotos:
-            target_block = find_block_in_successors_by_addr(goto.dst_addr, block, graph)
+            target_block = self._goto_manager.find_destination_block(graph, goto)
             if any(self._has_single_successor_path(end, target_block, graph) for end in other_ends):
                 return True
 
@@ -834,36 +832,24 @@ class DuplicationReverter(StructuringOptimizationPass):
         #
         # Some condition ends in a goto to one of the ends of the merge graph. In this case,
         # we consider it a modified version of case2
-        if graph:
-            for pred in graph.predecessors(block):
-                last_stmt = pred.statements[-1]
-                if isinstance(last_stmt, ConditionalJump):
-                    gotos = self._goto_manager.gotos_in_block(pred)
-                    # TODO: this is only valid for duplication reverter, but it should be better
-                    if gotos and block.idx is not None:
+        for pred in graph.predecessors(block):
+            last_stmt = pred.statements[-1]
+            if isinstance(last_stmt, ConditionalJump):
+                gotos = self._goto_manager.gotos_in_block(pred, graph=graph)
+                for goto in gotos:
+                    if self._goto_manager.find_destination_block(graph, goto) is block:
                         return True
 
-                    for goto in gotos:
-                        if goto.dst_addr in (block.addr, block.statements[0].tags["ins_addr"]):
-                            return True
-
-            for succ in graph.successors(block):
-                last_stmt = succ.statements[-1]
-                if isinstance(last_stmt, ConditionalJump):
-                    gotos = self._goto_manager.gotos_in_block(succ)
-                    # TODO: this is only valid for duplication reverter, but it should be better
-                    if gotos and block.idx is not None:
+        for succ in graph.successors(block):
+            last_stmt = succ.statements[-1]
+            if isinstance(last_stmt, ConditionalJump):
+                gotos = self._goto_manager.gotos_in_block(succ, graph=graph)
+                for goto in gotos:
+                    target_block = self._goto_manager.find_destination_block(graph, goto)
+                    if target_block is None:
+                        continue
+                    if other_ends and all(target_block in graph.successors(other_end) for other_end in other_ends):
                         return True
-
-                    for goto in gotos:
-                        for other_end in other_ends:
-                            found = False
-                            for other_succ in graph.successors(other_end):
-                                if other_succ.addr == goto.dst_addr:
-                                    found = True
-
-                            if not found:
-                                break
 
         return False
 
@@ -871,12 +857,13 @@ class DuplicationReverter(StructuringOptimizationPass):
         """
         Checks if these gotos could be fixed by eager returns
         """
+        assert self._goto_manager is not None
+        assert self.out_graph is not None
         endnodes = [node for node in self.out_graph.nodes() if self.out_graph.out_degree[node] == 0]
-        blocks_by_addr = {blk.addr: blk for blk in self.out_graph.nodes()}
 
         bad_gotos = set()
         for goto in self._goto_manager.gotos:
-            goto_end_block = blocks_by_addr.get(goto.dst_addr)
+            goto_end_block = self._goto_manager.find_destination_block(self.out_graph, goto)
             # skip gotos that don't exist
             if not goto_end_block:
                 continue
