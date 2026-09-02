@@ -48,7 +48,7 @@ class DefaultFillerMixin(MemoryMixin):
 
         if self.category == "reg" and type(addr) is int and addr == self.state.arch.ip_offset:
             # short-circuit this pathological case
-            return claripy.BVV(0, self.state.arch.bits)
+            return claripy.BVV(0, bits)
 
         is_mem = (
             self.category == "mem"
