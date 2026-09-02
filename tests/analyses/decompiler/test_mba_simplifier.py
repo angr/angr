@@ -8,7 +8,7 @@ import unittest
 
 from angr.ailment.expression import BinaryOp, Const, Register, UnaryOp
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.mba_simplifier import MBATemplateSimplifier
+from angr.analyses.decompiler.mba_simplifier import LinearMBASolver, MBATemplateSimplifier
 
 BITS = 64
 
@@ -82,6 +82,66 @@ class TestMBATemplateSimplifier(unittest.TestCase):
         assert self.s.simplified == 1
         assert self.s.verified_away == 0
 
+
+
+class TestLinearMBASolver(unittest.TestCase):
+    """Synthesis finds the simplest equivalent instead of matching a fixed list."""
+
+    def setUp(self):
+        self.m = Manager(arch=None)
+        self.s = LinearMBASolver(ail_manager=self.m)
+        self.x = Register(self.m.next_atom(), 16, BITS)
+        self.y = Register(self.m.next_atom(), 24, BITS)
+        self.z = Register(self.m.next_atom(), 32, BITS)
+
+    def _c(self, v):
+        return Const(self.m.next_atom(), v, BITS)
+
+    def _b(self, op, a, b):
+        return BinaryOp(self.m.next_atom(), op, [a, b], False, bits=BITS)
+
+    def _u(self, op, a):
+        return UnaryOp(self.m.next_atom(), op, a)
+
+    def test_synthesises_the_classic_identities(self):
+        x, y = self.x, self.y
+        cases = [
+            (self._b("Add", self._b("Xor", x, y), self._b("Add", self._b("And", x, y), self._b("And", x, y))), "Add"),
+            (self._b("Add", self._b("Or", x, y), self._b("And", x, y)), "Add"),
+            (self._b("Sub", self._b("Or", x, y), self._b("And", x, y)), "Xor"),
+        ]
+        for expr, expected in cases:
+            out = self.s.synthesize(expr)
+            assert out is not None, f"{expr} was not reduced"
+            assert out.op == expected, f"{expr} -> {out}"
+
+    def test_unwraps_a_double_negation(self):
+        # -(~x) - 1 == x
+        expr = self._b("Sub", self._u("Neg", self._u("BitwiseNeg", self.x)), self._c(1))
+        out = self.s.synthesize(expr)
+        assert out is not None and out.likes(self.x)
+
+    def test_never_trades_arithmetic_for_boolean(self):
+        """
+        `(x ^ y) + z + 1` and `z - ~(x ^ y)` are equal, and the second has fewer nodes -- but it
+        is the more obfuscated of the two. Optimising node count picks it; the cost model must not.
+        """
+        expr = self._b("Add", self._b("Xor", self.x, self.y), self._b("Add", self.z, self._c(1)))
+        assert self.s.synthesize(expr) is None
+
+    def test_cost_prices_boolean_above_arithmetic(self):
+        arithmetic = self._b("Add", self.x, self.y)
+        boolean = self._b("Xor", self.x, self.y)
+        assert LinearMBASolver._cost_of(boolean) > LinearMBASolver._cost_of(arithmetic)
+
+    def test_refuses_more_variables_than_it_can_enumerate(self):
+        w = Register(self.m.next_atom(), 40, BITS)
+        expr = self._b(
+            "Add",
+            self._b("Xor", self.x, self.y),
+            self._b("Add", self._b("And", self.z, w), self._c(1)),
+        )
+        assert self.s.synthesize(expr) is None
 
 if __name__ == "__main__":
     unittest.main()
