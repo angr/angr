@@ -61,9 +61,11 @@ class NegPlusConstToSub(PeepholeOptimizationExprBase):
             constant, inner = split
             displacement = other.value if expr.op == "Add" else -other.value
             total = (constant + displacement) & ((1 << expr.bits) - 1)
-            if total >= 1 << (expr.bits - 1):
-                # folding would leave a negative constant, which prints as a full-width hex
-                # literal -- longer and harder to read than the negation it replaced
+            if expr.bits > 16 and total >= 1 << (expr.bits - 1):
+                # A negative constant prints as a full-width hex literal, longer than the negation
+                # it replaced -- but only at wide widths.  At 8 or 16 bits `163 - x` is perfectly
+                # readable even though 163 is "negative" as a signed byte, and refusing it here
+                # was leaving exactly the expressions this pass exists to fold.
                 continue
             return BinaryOp(
                 expr.idx,
