@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from .bookmarks import Bookmark, Bookmarks
 from .callsite_prototypes import CallsitePrototypes
 from .cfg import CFGManager
-from .comments import Comments
+from .comments import Comment, CommentKind, Comments
 from .custom_strings import CustomStrings
 from .data import Data
 from .debug_variables import DebugVariableManager
@@ -21,8 +22,12 @@ from .variables import VariableManager
 from .xrefs import XRefManager
 
 __all__ = (
+    "Bookmark",
+    "Bookmarks",
     "CFGManager",
     "CallsitePrototypes",
+    "Comment",
+    "CommentKind",
     "Comments",
     "CustomStrings",
     "Data",

@@ -12,7 +12,9 @@ from .knowledge_plugins.plugin import KnowledgeBasePlugin, default_plugins
 
 if TYPE_CHECKING:
     from .knowledge_plugins import (
+        Bookmarks,
         CFGManager,
+        Comments,
         FunctionManager,
         KeyDefinitionManager,
         PropagationManager,
@@ -38,6 +40,8 @@ class KnowledgeBase:
     """
 
     functions: FunctionManager
+    comments: Comments
+    bookmarks: Bookmarks
     variables: VariableManager
     defs: KeyDefinitionManager
     cfgs: CFGManager

@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.angrdb.models import DbKnowledgeBase
 from angr.knowledge_base import KnowledgeBase
 
+from .bookmarks import BookmarksSerializer
 from .callgraph import CallGraphSerializer
 from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
@@ -42,6 +43,7 @@ class KnowledgeBaseSerializer:
         CallGraphSerializer.dump(session, db_kb, kb.functions.callgraph)
         XRefsSerializer.dump(session, db_kb, kb.xrefs)
         CommentsSerializer.dump(session, db_kb, kb.comments)
+        BookmarksSerializer.dump(session, db_kb, kb.bookmarks)
         LabelsSerializer.dump(session, db_kb, kb.labels)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
@@ -84,6 +86,11 @@ class KnowledgeBaseSerializer:
         comments = CommentsSerializer.load(session, db_kb, kb)
         if comments is not None:
             kb.comments = comments
+
+        # Load bookmarks
+        bookmarks = BookmarksSerializer.load(session, db_kb, kb)
+        if bookmarks is not None:
+            kb.bookmarks = bookmarks
 
         # Load labels
         labels = LabelsSerializer.load(session, db_kb, kb)

@@ -22,6 +22,7 @@ from .results import EditResult, Refresh
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
+    from angr.knowledge_plugins.comments import CommentKind
     from angr.knowledge_plugins.functions import Function
     from angr.project import Project
     from angr.sim_type import SimType, SimTypeFunction
@@ -461,6 +462,7 @@ def set_comment(
     addr: int,
     comment: str | None,
     *,
+    kind: CommentKind | None = None,
     kb: KnowledgeBase | None = None,
     hooks: EditHooks | None = None,
     flavor: str = DEFAULT_FLAVOR,
@@ -475,6 +477,9 @@ def set_comment(
     for the function header. Per-statement pseudocode comments live in codegen.stmt_comments
     instead, so both are written -- except at the function entry, where kb.comments is already what
     the header renders and mirroring would show the comment twice.
+
+    ``kind`` sets the comment's display kind; None keeps whatever kind the comment already has.
+    Clearing a comment always clears its kind.
     """
     kb = project.kb if kb is None else kb
     hooks = coerce_hooks(hooks)
@@ -486,8 +491,10 @@ def set_comment(
     hooks.before_comment_changed(addr, old, text, not existed, False)
     if text:
         kb.comments[addr] = text
+        if kind is not None:
+            kb.comments.set_kind(addr, kind)
     elif existed:
-        del kb.comments[addr]
+        del kb.comments[addr]  # also drops the kind
 
     in_pseudocode = False
     inline: bool | None = None
@@ -536,6 +543,7 @@ def set_comment(
         ),
         detail={
             "address": hex(addr),
+            "kind": kb.comments.kind_of(addr).name if text else None,
             "shown_in_pseudocode": in_pseudocode,
             # None when not re-rendered here, so the caller cannot yet know
             "rendered_inline": inline,
