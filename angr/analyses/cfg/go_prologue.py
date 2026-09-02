@@ -8,10 +8,16 @@ architecture's ``function_prologs`` describe only comes *after* that check, so a
 reports function starts several instructions past the real entry.
 
 ``g.stackguard0`` sits at ``2 * ptrSize`` in ``g`` -- ``[reg + 0x10]`` on 64-bit targets,
-``[reg + 8]`` on 32-bit ones. The register holding ``g`` is architectural on most targets (r14 on
-amd64, x28 on arm64, r10 on arm), so the compare alone identifies the check. 386 has no dedicated g
-register and reaches ``g`` through TLS with an OS-specific sequence, which is therefore part of the
-pattern there.
+``[reg + 8]`` on 32-bit ones. Functions the compiler marks as C functions (``//go:systemstack`` and
+friends) check ``g.stackguard1`` instead, one pointer further in. The register holding ``g`` is
+architectural on most targets (r14 on amd64, x28 on arm64, r10 on arm), so the compare alone
+identifies the check. 386 has no dedicated g register and reaches ``g`` through TLS with an
+OS-specific sequence, which is therefore part of the pattern there.
+
+The encodings have drifted across releases, so the tables cover several forms per architecture:
+windows/386 reaches g through ``fs:[0x14]`` up to go1.20 and through ``runtime.tls_g`` from go1.21,
+and the arm64 scratch pair was x1/x2 in go1.17 and is x16/x17 from go1.18 on -- where go1.18 still
+compared through x17 and go1.19 and later compare sp directly.
 """
 
 from __future__ import annotations
@@ -20,6 +26,10 @@ import re
 import struct
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+
+# offset of the guard word within g: stackguard0, or stackguard1 in a C function
+_GUARD64 = rb"[\x10\x18]"
+_GUARD32 = rb"[\x08\x0c]"
 
 # --- amd64 -----------------------------------------------------------------------------------
 # reload the g pointer from TLS; only emitted in entry wrappers
@@ -39,8 +49,8 @@ _AMD64_FRAME_BOTTOM = (
     rb"(?:\x72[\x00-\xff]|\x0f\x82[\x00-\xff]{4})"  # jb <stack growth>
     rb")"
 )
-_AMD64_CMP_RSP = rb"\x49\x3b\x66\x10"  # cmp rsp, qword ptr [r14 + 0x10]
-_AMD64_CMP_R12 = rb"\x4d\x3b\x66\x10"  # cmp r12, qword ptr [r14 + 0x10]
+_AMD64_CMP_RSP = rb"\x49\x3b\x66" + _GUARD64  # cmp rsp, qword ptr [r14 + guard]
+_AMD64_CMP_R12 = rb"\x4d\x3b\x66" + _GUARD64  # cmp r12, qword ptr [r14 + guard]
 _X86_JBE = rb"(?:(?P<rel8>\x76[\x00-\xff])|\x0f\x86(?P<rel32>[\x00-\xff]{4}))"
 
 _AMD64 = re.compile(
@@ -52,9 +62,10 @@ _AMD64 = re.compile(
 _X86_G_LOAD = (
     rb"(?:"
     # mov ecx, dword ptr [runtime.tls_g]; mov ecx, dword ptr fs:[ecx]; mov ecx, dword ptr [ecx]
-    rb"\x8b\x0d[\x00-\xff]{4}\x64\x8b\x09\x8b\x09"  # (windows)
+    rb"\x8b\x0d[\x00-\xff]{4}\x64\x8b\x09\x8b\x09"  # (windows, go1.21 and later)
     # mov ecx, dword ptr gs:[disp32]; mov ecx, dword ptr [ecx + disp32]
-    rb"|\x65\x8b\x0d[\x00-\xff]{4}\x8b\x89[\x00-\xff]{4}"  # (linux)
+    # the same shape reads fs:[0x14] on windows up to go1.20
+    rb"|[\x64\x65]\x8b\x0d[\x00-\xff]{4}\x8b\x89[\x00-\xff]{4}"  # (linux)
     rb")"
 )
 _X86_FRAME_BOTTOM = (
@@ -65,55 +76,84 @@ _X86_FRAME_BOTTOM = (
     rb"(?:\x72[\x00-\xff]|\x0f\x82[\x00-\xff]{4})"  # jb <stack growth>
     rb")"
 )
-_X86_CMP_ESP = rb"\x3b\x61\x08"  # cmp esp, dword ptr [ecx + 8]
-_X86_CMP_EAX = rb"\x3b\x41\x08"  # cmp eax, dword ptr [ecx + 8]
+_X86_CMP_ESP = rb"\x3b\x61" + _GUARD32  # cmp esp, dword ptr [ecx + guard]
+_X86_CMP_EAX = rb"\x3b\x41" + _GUARD32  # cmp eax, dword ptr [ecx + guard]
 
 _X86 = re.compile(_X86_G_LOAD + rb"(?:" + _X86_CMP_ESP + rb"|" + _X86_FRAME_BOTTOM + _X86_CMP_EAX + rb")" + _X86_JBE)
 
 # --- arm -------------------------------------------------------------------------------------
 # instruction words, stored little-endian
-_ARM_G_LOAD = b"\x08\x10\x9a\xe5"  # ldr r1, [r10, #8]
+_ARM_G_LOAD = _GUARD32 + rb"\x10\x9a\xe5"  # ldr r1, [r10, #guard]
+_ARM_G_LOAD_ANCHORS = (b"\x08\x10\x9a\xe5", b"\x0c\x10\x9a\xe5")
+_ARM_R11_TO_R2 = rb"(?:\x0b\x20\x5d\xe0|\x0b\x20\x8d\xe0)"  # subs r2, sp, r11 / add r2, sp, r11
 _ARM_FRAME_BOTTOM = (
     rb"(?:"
     rb"[\x00-\xff][\x20-\x2f]\x4d\xe2"  # sub r2, sp, #imm
-    rb"|[\x00-\xff][\xb0-\xbf][\x00-\x0f]\xe3\x0b\x20\x5d\xe0"  # movw r11, #imm16; subs r2, sp, r11
-    rb"|[\x00-\xff][\xb0-\xbf]\x9f\xe5\x0b\x20\x8d\xe0"  # ldr r11, [pc, #imm]; add r2, sp, r11
-    rb")"
+    rb"|[\x00-\xff][\xb0-\xbf][\x00-\x0f]\xe3"  # movw r11, #imm16
+    + _ARM_R11_TO_R2
+    + rb"|[\x00-\xff][\xb0-\xbf]\x9f\xe5"  # ldr r11, [pc, #imm]
+    + _ARM_R11_TO_R2
+    + rb")"
 )
 _ARM_CMP_SP = rb"\x01\x00\x5d\xe1"  # cmp sp, r1
 _ARM_CMP_R2 = rb"\x01\x00\x52[\xe1\x21]"  # cmp r2, r1 (unconditional, or cs after subs)
 _ARM_BLS = rb"(?P<b>[\x00-\xff]{3}\x9a)"  # bls <stack growth>
 
-_ARM = re.compile(
-    re.escape(_ARM_G_LOAD) + rb"(?:" + _ARM_CMP_SP + rb"|" + _ARM_FRAME_BOTTOM + _ARM_CMP_R2 + rb")" + _ARM_BLS
-)
+_ARM = re.compile(_ARM_G_LOAD + rb"(?:" + _ARM_CMP_SP + rb"|" + _ARM_FRAME_BOTTOM + _ARM_CMP_R2 + rb")" + _ARM_BLS)
 
 # --- arm64 -----------------------------------------------------------------------------------
-_A64_G_LOAD = b"\x90\x0b\x40\xf9"  # ldr x16, [x28, #0x10]
+# g stays in x28; the scratch pair moved from x1/x2 (go1.17) to x16/x17 (go1.18 and later)
+# the guard offset is scaled by 8 in the ldr immediate field
+_A64_GUARD = rb"[\x0b\x0f]"
+# ldr x16|x1, [x28, #guard]
+_A64_G_LOAD_ANCHORS = (b"\x90\x0b\x40\xf9", b"\x90\x0f\x40\xf9", b"\x81\x0b\x40\xf9", b"\x81\x0f\x40\xf9")
 _A64_X27 = rb"[\x1b\x3b\x5b\x7b\x9b\xbb\xdb\xfb]"  # low byte of a movz/movk into x27
 _A64_BCC = rb"[\x03\x23\x43\x63\x83\xa3\xc3\xe3][\x00-\xff]{2}\x54"  # b.cc <stack growth>
 _A64_MOVZ_X27 = _A64_X27 + rb"[\x00-\xff][\x80-\x9f]\xd2"  # movz x27, #imm16
 _A64_MOVK_X27 = _A64_X27 + rb"[\x00-\xff][\xa0-\xbf]\xf2"  # movk x27, #imm16, lsl #16
-_A64_FRAME_BOTTOM = (
-    rb"(?:"
-    + rb"\xf1[\x00-\xff][\x00-\x7f]\xd1"  # sub x17, sp, #imm12
-    + rb"|\xf1[\x00-\xff][\x00-\x7f]\xf1"  # subs x17, sp, #imm12
-    + _A64_BCC
-    + rb"|"
-    + _A64_MOVZ_X27
-    + rb"(?:"
-    + _A64_MOVK_X27
-    + rb")?\xf1\x63\x3b\xeb"  # subs x17, sp, x27
-    + _A64_BCC
-    + rb")"
-)
-_A64_CMP_SP = rb"\xff\x63\x30\xeb"  # cmp sp, x16
-_A64_CMP_X17 = rb"\x3f\x02\x10\xeb"  # cmp x17, x16
-_A64_BLS = rb"(?P<b>[\x09\x29\x49\x69\x89\xa9\xc9\xe9][\x00-\xff]{2}\x54)"  # b.ls <stack growth>
 
-_A64 = re.compile(
-    re.escape(_A64_G_LOAD) + rb"(?:" + _A64_CMP_SP + rb"|" + _A64_FRAME_BOTTOM + _A64_CMP_X17 + rb")" + _A64_BLS
+
+def _a64_frame_bottom(reg: bytes) -> bytes:
+    """The frame-bottom computation into the scratch register whose encoding ends in ``reg``."""
+
+    return (
+        rb"(?:"
+        + reg
+        + rb"\x03\x00\x91"  # mov reg, sp
+        + rb"|"
+        + reg
+        + rb"[\x00-\xff][\x00-\x7f]\xd1"  # sub reg, sp, #imm12
+        + rb"|"
+        + reg
+        + rb"[\x00-\xff][\x00-\x7f]\xf1"  # subs reg, sp, #imm12
+        + _A64_BCC
+        + rb"|"
+        + _A64_MOVZ_X27
+        + rb"(?:"
+        + _A64_MOVK_X27
+        + rb")?"
+        + reg
+        + rb"\x63\x3b\xeb"  # subs reg, sp, x27
+        + _A64_BCC
+        + rb")"
+    )
+
+
+_A64_BLS = rb"(?P<b>[\x09\x29\x49\x69\x89\xa9\xc9\xe9][\x00-\xff]{2}\x54)"  # b.ls <stack growth>
+# go1.18 and later; go1.19 onwards compares sp directly, go1.18 always went through x17
+_A64_CHECK = (
+    rb"\x90"
+    + _A64_GUARD
+    + rb"\x40\xf9(?:\xff\x63\x30\xeb|"  # cmp sp, x16
+    + _a64_frame_bottom(rb"\xf1")
+    + rb"\x3f\x02\x10\xeb)"  # cmp x17, x16
 )
+# go1.17: the same shapes, over the x1/x2 scratch pair
+_A64_CHECK_GO117 = (
+    rb"\x81" + _A64_GUARD + rb"\x40\xf9" + _a64_frame_bottom(rb"\xe2") + rb"\x5f\x00\x01\xeb"  # cmp x2, x1
+)
+
+_A64 = re.compile(rb"(?:" + _A64_CHECK + rb"|" + _A64_CHECK_GO117 + rb")" + _A64_BLS)
 
 
 def _x86_branch_target(mo: re.Match[bytes]) -> int:
@@ -143,17 +183,17 @@ class _GoPreamble:
     regex: re.Pattern[bytes]
     branch_target: Callable[[re.Match[bytes]], int]
     alignment: int = 1
-    # fixed leading bytes; set on fixed-width architectures so that an unaligned match cannot shadow
-    # the aligned one that follows it
-    anchor: bytes | None = None
+    # every possible set of fixed leading bytes; set on fixed-width architectures so that an
+    # unaligned match cannot shadow the aligned one that follows it
+    anchors: tuple[bytes, ...] = ()
 
 
 _PREAMBLES: dict[str, _GoPreamble] = {
     "AMD64": _GoPreamble(_AMD64, _x86_branch_target),
     "X86": _GoPreamble(_X86, _x86_branch_target),
-    "ARMEL": _GoPreamble(_ARM, _arm_branch_target, alignment=4, anchor=_ARM_G_LOAD),
-    "ARMHF": _GoPreamble(_ARM, _arm_branch_target, alignment=4, anchor=_ARM_G_LOAD),
-    "AARCH64": _GoPreamble(_A64, _aarch64_branch_target, alignment=4, anchor=_A64_G_LOAD),
+    "ARMEL": _GoPreamble(_ARM, _arm_branch_target, alignment=4, anchors=_ARM_G_LOAD_ANCHORS),
+    "ARMHF": _GoPreamble(_ARM, _arm_branch_target, alignment=4, anchors=_ARM_G_LOAD_ANCHORS),
+    "AARCH64": _GoPreamble(_A64, _aarch64_branch_target, alignment=4, anchors=_A64_G_LOAD_ANCHORS),
 }
 
 
@@ -166,16 +206,20 @@ def go_preamble_supported(arch_name: str) -> bool:
 
 
 def _matches(preamble: _GoPreamble, blob: bytes, base: int) -> Iterator[re.Match[bytes]]:
-    if preamble.anchor is None:
+    if not preamble.anchors:
         yield from preamble.regex.finditer(blob)
         return
-    pos = blob.find(preamble.anchor)
-    while pos != -1:
-        if (base + pos) % preamble.alignment == 0:
-            mo = preamble.regex.match(blob, pos)
-            if mo is not None:
-                yield mo
-        pos = blob.find(preamble.anchor, pos + 1)
+    positions = set()
+    for anchor in preamble.anchors:
+        pos = blob.find(anchor)
+        while pos != -1:
+            if (base + pos) % preamble.alignment == 0:
+                positions.add(pos)
+            pos = blob.find(anchor, pos + 1)
+    for pos in sorted(positions):
+        mo = preamble.regex.match(blob, pos)
+        if mo is not None:
+            yield mo
 
 
 def find_go_stack_check_preambles(blob: bytes, arch_name: str, base: int = 0) -> Iterator[tuple[int, int, int]]:
