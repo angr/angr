@@ -97,8 +97,9 @@ extras = ["angr[angrdb,keystone,unicorn,llm]", "pysoot"]
 include-package-data = true
 
 [tool.setuptools.packages.find]
+include = ["angr*"]
 exclude = ["tests*"]
-namespaces = false
+namespaces = true
 
 [tool.setuptools.package-data]
 angr = ["py.typed", "unicornlib.*", "rustylib.*"]
