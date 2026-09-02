@@ -630,7 +630,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert self.frame.stack_ptr is not None
         return claripy.BVV(self.frame.stack_ptr + expr.offset, expr.bits)
 
-    def _handle_unop_default(self, expr: ailment.UnaryOp) -> DataType:
+    def _handle_unop_Default(self, expr: ailment.UnaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
     def _handle_unop_Neg(self, expr: ailment.UnaryOp):
@@ -712,7 +712,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
 
-    def _handle_binop_default(self, expr: ailment.expression.BinaryOp) -> DataType:
+    def _handle_binop_Default(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure of the semantics of this op")
 
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType:

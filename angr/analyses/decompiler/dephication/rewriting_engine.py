@@ -503,7 +503,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     def _unreachable(self, *args, **kwargs):
         assert False
 
-    _handle_binop_default = _unreachable
+    _handle_binop_Default = _unreachable
     _handle_binop_Add = _unreachable
     _handle_binop_AddF = _unreachable
     _handle_binop_AddV = _unreachable
@@ -566,7 +566,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     _handle_unop_BitwiseNeg = _unreachable
     _handle_unop_Dereference = _unreachable
     _handle_unop_Neg = _unreachable
-    _handle_unop_default = _unreachable
+    _handle_unop_Default = _unreachable
     _handle_unop_Not = _unreachable
     _handle_unop_Reference = _unreachable
     _handle_unop_Clz = _unreachable

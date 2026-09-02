@@ -773,11 +773,11 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
 
     def _handle_expr_UnaryOp(self, expr: ailment.expression.UnaryOp) -> DataType_co:
         handler = self._unop_handlers.get(expr.op)
-        return handler(expr) if handler is not None else self._handle_unop_default(expr)
+        return handler(expr) if handler is not None else self._handle_unop_Default(expr)
 
     def _handle_expr_BinaryOp(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         handler = self._binop_handlers.get(expr.op)
-        return handler(expr) if handler is not None else self._handle_binop_default(expr)
+        return handler(expr) if handler is not None else self._handle_binop_Default(expr)
 
     @abstractmethod
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType_co: ...
@@ -856,7 +856,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     #
 
     @abstractmethod
-    def _handle_unop_default(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
+    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> DataType_co: ...
 
     def _handle_unop_Abs(self, expr: ailment.expression.UnaryOp) -> DataType_co:
         self._expr(expr.operand)
@@ -899,7 +899,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     # BinOps
     #
     @abstractmethod
-    def _handle_binop_default(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+    def _handle_binop_Default(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
@@ -1182,7 +1182,7 @@ class SimEngineNoexprAIL[StateType, DataType_co, StmtDataType, ResultType](
     def _handle_expr_StackBaseOffset(self, expr: ailment.expression.StackBaseOffset) -> DataType_co | None:
         pass
 
-    def _handle_unop_default(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
+    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
     def _handle_unop_Not(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
@@ -1209,7 +1209,7 @@ class SimEngineNoexprAIL[StateType, DataType_co, StmtDataType, ResultType](
     def _handle_unop_RSqrtEst(self, expr: ailment.expression.UnaryOp) -> DataType_co | None:
         pass
 
-    def _handle_binop_default(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
+    def _handle_binop_Default(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:
         pass
 
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co | None:

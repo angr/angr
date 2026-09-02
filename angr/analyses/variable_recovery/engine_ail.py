@@ -1198,7 +1198,7 @@ class SimEngineVRAIL(
     def _handle_binop_CmpGE(self, expr):
         return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
 
-    def _handle_binop_default(self, expr: ailment.expression.BinaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
+    def _handle_binop_Default(self, expr: ailment.expression.BinaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         arg0, arg1 = expr.operands
 
         self._expr(arg0)
@@ -1206,46 +1206,46 @@ class SimEngineVRAIL(
 
         return cast(RichR[claripy.ast.BV | claripy.ast.FP], RichR(self.state.top(expr.bits)))
 
-    _handle_binop_AddF = _handle_binop_default
-    _handle_binop_SubF = _handle_binop_default
-    _handle_binop_SubV = _handle_binop_default
-    _handle_binop_MulF = _handle_binop_default
-    _handle_binop_DivF = _handle_binop_default
-    _handle_binop_DivV = _handle_binop_default
-    _handle_binop_AddV = _handle_binop_default
-    _handle_binop_MulV = _handle_binop_default
-    _handle_binop_MulHiV = _handle_binop_default
-    _handle_binop_Carry = _handle_binop_default
-    _handle_binop_Borrow = _handle_binop_default
-    _handle_binop_SCarry = _handle_binop_default
-    _handle_binop_SBorrow = _handle_binop_default
-    _handle_binop_InterleaveLOV = _handle_binop_default
-    _handle_binop_InterleaveHIV = _handle_binop_default
-    _handle_binop_CasCmpEQ = _handle_binop_default
-    _handle_binop_CasCmpNE = _handle_binop_default
-    _handle_binop_ExpCmpNE = _handle_binop_default
-    _handle_binop_SarNV = _handle_binop_default
-    _handle_binop_ShrNV = _handle_binop_default
-    _handle_binop_ShlNV = _handle_binop_default
-    _handle_binop_PermV = _handle_binop_default
-    _handle_binop_Set = _handle_binop_default
-    _handle_binop_MaxV = _handle_binop_default
-    _handle_binop_MinV = _handle_binop_default
+    _handle_binop_AddF = _handle_binop_Default
+    _handle_binop_SubF = _handle_binop_Default
+    _handle_binop_SubV = _handle_binop_Default
+    _handle_binop_MulF = _handle_binop_Default
+    _handle_binop_DivF = _handle_binop_Default
+    _handle_binop_DivV = _handle_binop_Default
+    _handle_binop_AddV = _handle_binop_Default
+    _handle_binop_MulV = _handle_binop_Default
+    _handle_binop_MulHiV = _handle_binop_Default
+    _handle_binop_Carry = _handle_binop_Default
+    _handle_binop_Borrow = _handle_binop_Default
+    _handle_binop_SCarry = _handle_binop_Default
+    _handle_binop_SBorrow = _handle_binop_Default
+    _handle_binop_InterleaveLOV = _handle_binop_Default
+    _handle_binop_InterleaveHIV = _handle_binop_Default
+    _handle_binop_CasCmpEQ = _handle_binop_Default
+    _handle_binop_CasCmpNE = _handle_binop_Default
+    _handle_binop_ExpCmpNE = _handle_binop_Default
+    _handle_binop_SarNV = _handle_binop_Default
+    _handle_binop_ShrNV = _handle_binop_Default
+    _handle_binop_ShlNV = _handle_binop_Default
+    _handle_binop_PermV = _handle_binop_Default
+    _handle_binop_Set = _handle_binop_Default
+    _handle_binop_MaxV = _handle_binop_Default
+    _handle_binop_MinV = _handle_binop_Default
 
     def _handle_binop_HAddV(self, expr: ailment.expression.BinaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
-        return cast(RichR[claripy.ast.BV | claripy.ast.FP], self._handle_binop_default(expr))
+        return cast(RichR[claripy.ast.BV | claripy.ast.FP], self._handle_binop_Default(expr))
 
-    _handle_binop_QAddV = _handle_binop_default
-    _handle_binop_QSubV = _handle_binop_default
-    _handle_binop_QNarrowBinV = _handle_binop_default
-    _handle_binop_CmpORD = _handle_binop_default
-    _handle_binop_CmpEQV = _handle_binop_default
-    _handle_binop_CmpNEV = _handle_binop_default
-    _handle_binop_CmpGEV = _handle_binop_default
-    _handle_binop_CmpGTV = _handle_binop_default
-    _handle_binop_CmpLEV = _handle_binop_default
-    _handle_binop_CmpLTV = _handle_binop_default
-    _handle_binop_CmpF = _handle_binop_default
+    _handle_binop_QAddV = _handle_binop_Default
+    _handle_binop_QSubV = _handle_binop_Default
+    _handle_binop_QNarrowBinV = _handle_binop_Default
+    _handle_binop_CmpORD = _handle_binop_Default
+    _handle_binop_CmpEQV = _handle_binop_Default
+    _handle_binop_CmpNEV = _handle_binop_Default
+    _handle_binop_CmpGEV = _handle_binop_Default
+    _handle_binop_CmpGTV = _handle_binop_Default
+    _handle_binop_CmpLEV = _handle_binop_Default
+    _handle_binop_CmpLTV = _handle_binop_Default
+    _handle_binop_CmpF = _handle_binop_Default
 
     def _handle_unop_Not(self, expr):
         arg = expr.operands[0]
@@ -1302,14 +1302,14 @@ class SimEngineVRAIL(
             RichR(self.state.top(expr.bits), typevar=operand.typevar),
         )
 
-    def _handle_unop_default(self, expr: ailment.expression.UnaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
+    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         self._expr(expr.operands[0])
         return cast(RichR[claripy.ast.BV | claripy.ast.FP], RichR(self.state.top(expr.bits)))
 
-    _handle_unop_Dereference = _handle_unop_default
-    _handle_unop_Clz = _handle_unop_default
-    _handle_unop_Ctz = _handle_unop_default
-    _handle_unop_GetMSBs = _handle_unop_default
-    _handle_unop_unpack = _handle_unop_default
-    _handle_unop_Sqrt = _handle_unop_default
-    _handle_unop_RSqrtEst = _handle_unop_default
+    _handle_unop_Dereference = _handle_unop_Default
+    _handle_unop_Clz = _handle_unop_Default
+    _handle_unop_Ctz = _handle_unop_Default
+    _handle_unop_GetMSBs = _handle_unop_Default
+    _handle_unop_unpack = _handle_unop_Default
+    _handle_unop_Sqrt = _handle_unop_Default
+    _handle_unop_RSqrtEst = _handle_unop_Default

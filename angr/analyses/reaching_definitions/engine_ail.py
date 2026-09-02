@@ -598,20 +598,20 @@ class SimEngineRDAIL(
 
         return MultiValues(reinterpreted)
 
-    def _handle_unop_default(self, expr):
+    def _handle_unop_Default(self, expr):
         return self._top(expr.bits)
 
     def _handle_unop_Abs(self, expr):
         self._expr(expr.operand)
         return self._top(expr.bits)
 
-    _handle_unop_Reference = _handle_unop_default
-    _handle_unop_Ctz = _handle_unop_default
-    _handle_unop_Dereference = _handle_unop_default
-    _handle_unop_GetMSBs = _handle_unop_default
-    _handle_unop_unpack = _handle_unop_default
-    _handle_unop_Sqrt = _handle_unop_default
-    _handle_unop_RSqrtEst = _handle_unop_default
+    _handle_unop_Reference = _handle_unop_Default
+    _handle_unop_Ctz = _handle_unop_Default
+    _handle_unop_Dereference = _handle_unop_Default
+    _handle_unop_GetMSBs = _handle_unop_Default
+    _handle_unop_unpack = _handle_unop_Default
+    _handle_unop_Sqrt = _handle_unop_Default
+    _handle_unop_RSqrtEst = _handle_unop_Default
 
     def _handle_expr_ITE(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         _: MultiValues = self._expr(expr.cond)
@@ -755,7 +755,7 @@ class SimEngineRDAIL(
 
         return r
 
-    def _handle_binop_default(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
+    def _handle_binop_Default(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         arg0, arg1 = expr.operands
 
         self._expr(arg0)
@@ -765,37 +765,37 @@ class SimEngineRDAIL(
         return MultiValues(self.state.top(bits))
 
     _handle_binop_AddV = _handle_binop_Add
-    _handle_binop_Div = _handle_binop_default
-    _handle_binop_MulV = _handle_binop_default
-    _handle_binop_MulHiV = _handle_binop_default
-    _handle_binop_Mod = _handle_binop_default
-    _handle_binop_AddF = _handle_binop_default
-    _handle_binop_DivF = _handle_binop_default
-    _handle_binop_DivV = _handle_binop_default
-    _handle_binop_MulF = _handle_binop_default
-    _handle_binop_SubF = _handle_binop_default
-    _handle_binop_SubV = _handle_binop_default
-    _handle_binop_InterleaveLOV = _handle_binop_default
-    _handle_binop_InterleaveHIV = _handle_binop_default
-    _handle_binop_CasCmpEQ = _handle_binop_default
-    _handle_binop_CasCmpNE = _handle_binop_default
-    _handle_binop_SarNV = _handle_binop_default
-    _handle_binop_ShrNV = _handle_binop_default
-    _handle_binop_ShlNV = _handle_binop_default
-    _handle_binop_CmpEQV = _handle_binop_default
-    _handle_binop_CmpNEV = _handle_binop_default
-    _handle_binop_CmpGEV = _handle_binop_default
-    _handle_binop_CmpGTV = _handle_binop_default
-    _handle_binop_CmpLEV = _handle_binop_default
-    _handle_binop_CmpLTV = _handle_binop_default
-    _handle_binop_MinV = _handle_binop_default
-    _handle_binop_MaxV = _handle_binop_default
-    _handle_binop_HAddV = _handle_binop_default
-    _handle_binop_QAddV = _handle_binop_default
-    _handle_binop_QSubV = _handle_binop_default
-    _handle_binop_QNarrowBinV = _handle_binop_default
-    _handle_binop_PermV = _handle_binop_default
-    _handle_binop_Set = _handle_binop_default
+    _handle_binop_Div = _handle_binop_Default
+    _handle_binop_MulV = _handle_binop_Default
+    _handle_binop_MulHiV = _handle_binop_Default
+    _handle_binop_Mod = _handle_binop_Default
+    _handle_binop_AddF = _handle_binop_Default
+    _handle_binop_DivF = _handle_binop_Default
+    _handle_binop_DivV = _handle_binop_Default
+    _handle_binop_MulF = _handle_binop_Default
+    _handle_binop_SubF = _handle_binop_Default
+    _handle_binop_SubV = _handle_binop_Default
+    _handle_binop_InterleaveLOV = _handle_binop_Default
+    _handle_binop_InterleaveHIV = _handle_binop_Default
+    _handle_binop_CasCmpEQ = _handle_binop_Default
+    _handle_binop_CasCmpNE = _handle_binop_Default
+    _handle_binop_SarNV = _handle_binop_Default
+    _handle_binop_ShrNV = _handle_binop_Default
+    _handle_binop_ShlNV = _handle_binop_Default
+    _handle_binop_CmpEQV = _handle_binop_Default
+    _handle_binop_CmpNEV = _handle_binop_Default
+    _handle_binop_CmpGEV = _handle_binop_Default
+    _handle_binop_CmpGTV = _handle_binop_Default
+    _handle_binop_CmpLEV = _handle_binop_Default
+    _handle_binop_CmpLTV = _handle_binop_Default
+    _handle_binop_MinV = _handle_binop_Default
+    _handle_binop_MaxV = _handle_binop_Default
+    _handle_binop_HAddV = _handle_binop_Default
+    _handle_binop_QAddV = _handle_binop_Default
+    _handle_binop_QSubV = _handle_binop_Default
+    _handle_binop_QNarrowBinV = _handle_binop_Default
+    _handle_binop_PermV = _handle_binop_Default
+    _handle_binop_Set = _handle_binop_Default
 
     def _handle_binop_Mul(self, expr):
         expr0 = self._expr(expr.operands[0])
@@ -933,8 +933,8 @@ class SimEngineRDAIL(
 
         return r
 
-    _handle_binop_Rol = _handle_binop_default
-    _handle_binop_Ror = _handle_binop_default
+    _handle_binop_Rol = _handle_binop_Default
+    _handle_binop_Ror = _handle_binop_Default
 
     def _handle_binop_And(self, expr):
         expr0 = self._expr_bv(expr.operands[0])
