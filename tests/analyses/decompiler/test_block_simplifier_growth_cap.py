@@ -10,11 +10,7 @@ from angr.ailment.block import Block
 from angr.ailment.expression import BinaryOp, Const, Register
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment
-from angr.analyses.decompiler.block_simplifier import (
-    AILCodeLocation,
-    BlockSimplifier,
-    _statement_text_size,
-)
+from angr.analyses.decompiler.block_simplifier import AILCodeLocation, BlockSimplifier
 
 LEAVES = 16
 
@@ -22,10 +18,6 @@ LEAVES = 16
 def _wide(manager, leaves):
     """
     A balanced Add tree: wide, but only log2(leaves) deep.
-
-    Building it left-leaning instead would grow depth with width, and the existing depth cap would
-    reject it -- which is exactly the shape the depth cap *cannot* see, and the reason a separate
-    size bound is needed.
     """
     level = [Const(manager.next_atom(), i + 1, 64) for i in range(leaves)]
     while len(level) > 1:
@@ -38,11 +30,11 @@ def _wide(manager, leaves):
     return level[0]
 
 
-class TestGrowthCap(unittest.TestCase):
+class TestBlockSimplifierReplacementGrowthCap(unittest.TestCase):
     """One statement absorbing many replacements must not grow without bound."""
 
     def _case(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         regs = [Register(manager.next_atom(), 8 * (i + 2), 64) for i in range(LEAVES)]
         level = list(regs)
         while len(level) > 1:
@@ -63,15 +55,15 @@ class TestGrowthCap(unittest.TestCase):
 
     def test_uncapped_growth_is_large(self):
         block, replacements, manager = self._case()
-        _, new_block = BlockSimplifier.replace_and_build(block, replacements, manager, max_stmt_size=None)
-        assert _statement_text_size(new_block.statements[0]) > 4000
+        _, new_block = BlockSimplifier.replace_and_build(block, replacements, manager, max_stmt_size=1_000_000_000)
+        assert len(str(new_block.statements[0])) > 4000
 
     def test_the_cap_bounds_the_statement(self):
         block, replacements, manager = self._case()
         cap = 2000
         changed, new_block = BlockSimplifier.replace_and_build(block, replacements, manager, max_stmt_size=cap)
         assert changed, "the cap must not block every replacement, only runaway growth"
-        grown = _statement_text_size(new_block.statements[0])
+        grown = len(str(new_block.statements[0]))
         # the estimate is per-replacement, so the result can overshoot by one grafted expression
         assert grown < cap * 3, f"statement grew to {grown} under a cap of {cap}"
 
@@ -79,25 +71,25 @@ class TestGrowthCap(unittest.TestCase):
         block, replacements, manager = self._case()
         _, new_block = BlockSimplifier.replace_and_build(block, replacements, manager, max_stmt_size=2000)
         # something was substituted: the statement is no longer the bare register chain
-        assert _statement_text_size(new_block.statements[0]) > _statement_text_size(block.statements[0])
+        assert len(str(new_block.statements[0])) > len(str(block.statements[0]))
 
 
-class TestStatementTextSize(unittest.TestCase):
+class TestAILStatementTextSize(unittest.TestCase):
     def test_size_grows_with_the_expression(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         small = Assignment(
             manager.next_atom(), Register(manager.next_atom(), 16, 64), _wide(manager, 2), ins_addr=0x1000
         )
         big = Assignment(
             manager.next_atom(), Register(manager.next_atom(), 16, 64), _wide(manager, 128), ins_addr=0x1000
         )
-        assert _statement_text_size(big) > _statement_text_size(small) * 5
+        assert len(str(big)) > len(str(small)) * 5
 
     def test_depth_does_not_track_width(self):
         # The reason a depth cap cannot bound this: width explodes while depth crawls.
-        manager = Manager(arch=None)
+        manager = Manager()
         narrow, wide = _wide(manager, 2), _wide(manager, 256)
-        assert _statement_text_size(wide) > 20 * _statement_text_size(narrow)
+        assert len(str(wide)) > 20 * len(str(narrow))
 
 
 if __name__ == "__main__":
