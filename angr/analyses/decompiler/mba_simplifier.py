@@ -273,3 +273,206 @@ class MBATemplateSimplifier:
         }
         builder = table.get(label)
         return builder() if builder is not None else None
+
+
+#: Random probes added to a signature. The zero/all-ones points pin a linear MBA exactly, but say
+#: nothing about non-linear behaviour; these make an accidental signature collision very unlikely.
+_PROBE_VECTORS = 6
+#: Largest synthesised expression, in cost units (see _cost_of). Beyond this, stop searching.
+_MAX_SYNTH_SIZE = 9
+#: What a boolean operator costs relative to an arithmetic one.
+#:
+#: Counting nodes is the wrong objective here. `(a ^ b) + c + 1` and `c - ~(a ^ b)` compute the
+#: same thing and the second has fewer nodes, but it is the *more* obfuscated of the two -- it
+#: trades an addition for a bitwise negation. The point of this pass is to remove mixed
+#: boolean-arithmetic, so boolean operators are priced accordingly and a candidate is only
+#: accepted when it is cheaper by this measure than what it replaces.
+_BOOLEAN_COST = 3
+#: Enumeration is exponential in the variable count; three keeps the pool small.
+_MAX_SYNTH_VARS = 3
+
+
+class LinearMBASolver:
+    """
+    Synthesise the simplest expression matching an MBA's behaviour.
+
+    Matching against a list of known identities only finds the identities on the list, and an
+    obfuscator generates its templates.  This searches instead: it enumerates expressions over the
+    subtree's own leaves from smallest upwards, keeping one representative per distinct *signature*
+    -- its values on the zero/all-ones assignments plus a few random probes -- so the pool stays
+    small however many expressions of a given size exist.  The first candidate whose signature
+    matches the target is the smallest expression that behaves like it.
+
+    A signature match is evidence, not proof.  Nothing is returned without the solver confirming
+    equivalence over all inputs.
+    """
+
+    def __init__(self, ail_manager: Manager | None = None, max_size: int = _MAX_SYNTH_SIZE):
+        self._ail_manager = ail_manager
+        self._max_size = max_size
+        self.attempted = 0
+        self.synthesized = 0
+        self.proof_rejected = 0
+        self._helper = MBATemplateSimplifier(ail_manager=ail_manager)
+
+    @staticmethod
+    def _cost_of(expr, depth: int = 0) -> int:
+        """Price an expression, charging more for the boolean operators MBA hides behind."""
+        if depth > 64:
+            return 1 << 20
+        if isinstance(expr, BinaryOp):
+            own = _BOOLEAN_COST if expr.op in _BOOLEAN_BINOPS else 1
+            return own + sum(LinearMBASolver._cost_of(o, depth + 1) for o in expr.operands)
+        if isinstance(expr, UnaryOp):
+            own = _BOOLEAN_COST if expr.op in _BOOLEAN_UNOPS else 1
+            return own + LinearMBASolver._cost_of(expr.operand, depth + 1)
+        return 1
+
+    @staticmethod
+    def _probe_points(n: int, bits: int) -> list[list[int]]:
+        mask = (1 << bits) - 1
+        points = []
+        for pattern in range(1 << n):
+            points.append([mask if (pattern >> i) & 1 else 0 for i in range(n)])
+        # deterministic pseudo-random probes: no seeding, and the same every run
+        state = 0x9E3779B97F4A7C15
+        for _ in range(_PROBE_VECTORS):
+            row = []
+            for _ in range(n):
+                state = (state * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFFFFFFFFFF
+                row.append(state & mask)
+            points.append(row)
+        return points
+
+    def _signature_of(self, evaluate, points) -> tuple[int, ...] | None:
+        out = []
+        for row in points:
+            try:
+                value = evaluate(row)
+            except Exception:  # pylint:disable=broad-except
+                return None
+            out.append(value)
+        return tuple(out)
+
+    def synthesize(self, expr: Expression):
+        """Return the smallest expression equivalent to ``expr``, or None."""
+        if self._ail_manager is None:
+            return None
+        bits = getattr(expr, "bits", None)
+        if not bits:
+            return None
+
+        leaves: dict[str, Expression] = {}
+        try:
+            nodes = self._helper._collect(expr, leaves, 0)  # pylint:disable=protected-access
+        except _Unsupported:
+            return None
+        n = len(leaves)
+        if not n or n > _MAX_SYNTH_VARS or nodes < 3 or nodes > MAX_NODES:
+            return None
+        # Only search for something strictly cheaper than what we already have; there is no point
+        # spending the enumeration to arrive back where we started, or somewhere worse.
+        budget = min(self._max_size, self._cost_of(expr) - 1)
+        if budget < 1:
+            return None
+        if any(getattr(leaf, "bits", None) != bits for leaf in leaves.values()):
+            return None
+
+        names = list(leaves)
+        points = self._probe_points(n, bits)
+        mask = (1 << bits) - 1
+
+        def evaluate_target(row):
+            env = {name: claripy.BVV(row[i], bits) for i, name in enumerate(names)}
+            value = self._helper._to_claripy(expr, env, bits)  # pylint:disable=protected-access
+            if value.op != "BVV":
+                raise _Unsupported
+            return value.args[0]
+
+        self.attempted += 1
+        target = self._signature_of(evaluate_target, points)
+        if target is None:
+            return None
+
+        found = self._search(names, leaves, points, bits, mask, target, budget)
+        if found is None:
+            return None
+        if not self._proves_equivalent(expr, found, names, leaves, bits):
+            self.proof_rejected += 1
+            return None
+        self.synthesized += 1
+        return found
+
+    def _search(self, names, leaves, points, bits, mask, target, budget):
+        """Bottom-up enumeration, one representative per signature."""
+        idx = self._ail_manager.next_atom
+
+        def sig(values):
+            return tuple(v & mask for v in values)
+
+        # size 1: the leaves themselves, and the constants worth trying
+        pool: dict[tuple[int, ...], tuple[int, object]] = {}
+        for i, name in enumerate(names):
+            pool.setdefault(sig([row[i] for row in points]), (1, leaves[name]))
+        for value in (0, 1, 2):
+            pool.setdefault(sig([value] * len(points)), (1, Const(idx(), value & mask, bits)))
+
+        by_size: dict[int, list[tuple[tuple[int, ...], object]]] = {1: [(k, e) for k, (_, e) in pool.items()]}
+
+        def record(signature, size, builder):
+            if signature in pool:
+                return
+            pool[signature] = (size, builder)
+            by_size.setdefault(size, []).append((signature, builder))
+            if signature == target:
+                raise _Found(builder)
+
+        try:
+            if sig(target) in pool:
+                return pool[target][1]
+            for size in range(2, budget + 1):
+                # unary
+                for prev_sig, prev in by_size.get(size - _BOOLEAN_COST, []):
+                    record(sig([(~v) for v in prev_sig]), size, UnaryOp(idx(), "BitwiseNeg", prev))
+                for prev_sig, prev in by_size.get(size - 1, []):
+                    record(sig([(-v) for v in prev_sig]), size, UnaryOp(idx(), "Neg", prev))
+                # binary: split the budget between the two sides
+                for op, fn, own in (
+                    ("Add", lambda a, b: a + b, 1),
+                    ("Sub", lambda a, b: a - b, 1),
+                    ("And", lambda a, b: a & b, _BOOLEAN_COST),
+                    ("Or", lambda a, b: a | b, _BOOLEAN_COST),
+                    ("Xor", lambda a, b: a ^ b, _BOOLEAN_COST),
+                ):
+                    for left_size in range(1, size - own):
+                        right_size = size - own - left_size
+                        for ls, le in by_size.get(left_size, []):
+                            for rs, re in by_size.get(right_size, []):
+                                record(
+                                    sig([fn(a, b) for a, b in zip(ls, rs)]),
+                                    size,
+                                    BinaryOp(idx(), op, [le, re], False, bits=bits),
+                                )
+        except _Found as hit:
+            return hit.expression
+        return None
+
+    def _proves_equivalent(self, original, candidate, names, leaves, bits) -> bool:
+        env = {name: claripy.BVS(f"mba_{i}", bits, explicit_name=True) for i, name in enumerate(names)}
+        try:
+            a = self._helper._to_claripy(original, env, bits)  # pylint:disable=protected-access
+            b = self._helper._to_claripy(candidate, env, bits)  # pylint:disable=protected-access
+        except (_Unsupported, KeyError):
+            return False
+        solver = claripy.Solver()
+        solver.add(a != b)
+        try:
+            return not solver.satisfiable()
+        except Exception:  # pylint:disable=broad-except
+            return False
+
+
+class _Found(Exception):
+    def __init__(self, expression):
+        super().__init__()
+        self.expression = expression
