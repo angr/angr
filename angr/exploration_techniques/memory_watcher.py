@@ -1,8 +1,16 @@
 from __future__ import annotations
 
-import psutil
+from typing import TYPE_CHECKING
 
 from .base import ExplorationTechnique
+
+if TYPE_CHECKING:
+    import psutil
+else:
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
 
 
 class MemoryWatcher(ExplorationTechnique):
@@ -20,6 +28,9 @@ class MemoryWatcher(ExplorationTechnique):
 
     def __init__(self, min_memory=512, memory_stash="lowmem"):
         super().__init__()
+
+        if psutil is None:
+            raise RuntimeError("MemoryWatcher requires psutil, which is not available on this platform")
 
         if min_memory is not None:
             self.min_memory = 1024 * 1024 * min_memory
