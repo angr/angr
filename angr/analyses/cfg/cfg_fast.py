@@ -62,7 +62,7 @@ from angr.utils.ins_addr_list import InsAddrList
 
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
-from .go_prologue import find_go_stack_check_preambles
+from .go_prologue import find_go_stack_check_preambles, go_preamble_supported
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
 from .meta_structs import get_data_regions_from_meta_regions, get_pointer_array_hints
 from .pe_msvc_eh_structs import (
@@ -2995,21 +2995,22 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         Find toolchain-specific preambles that sit in front of a conventional function prologue, so
         that prologue scanning can report the start of the preamble instead of the prologue.
 
-        Currently only the Go goroutine stack-growth check on x86-64 is recognized.
+        Currently only the Go goroutine stack-growth check is recognized.
 
         :param blob:        A backer blob.
         :param blob_rva:    The RVA the blob is loaded at.
         :return:            An iterator of ``(start, end, branch_target)`` offsets into ``blob``.
         """
 
-        if self.project.arch.name != "AMD64":
+        arch_name = self.project.arch.name
+        if not go_preamble_supported(arch_name):
             return
 
-        for start, end, target in find_go_stack_check_preambles(blob):
+        blob_mva = AT.from_rva(blob_rva, self._binary).to_mva()
+        for start, end, target in find_go_stack_check_preambles(blob, arch_name, blob_mva):
             # a blind byte match may fire on unrelated code: require the stack-growth branch to stay
             # within an executable region
-            target_mva = AT.from_rva(target + blob_rva, self._binary).to_mva()
-            if self._addr_in_exec_memory_regions(target_mva):
+            if self._addr_in_exec_memory_regions(blob_mva + target):
                 yield start, end, target
 
     # Basic block scanning
