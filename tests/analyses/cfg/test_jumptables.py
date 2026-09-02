@@ -3050,6 +3050,85 @@ class TestJumpTableResolver(unittest.TestCase):
         assert len(cfg.model.jump_tables[0x40BD1B].jumptable_entries) == 4
         assert cfg.model.jump_tables[0x40BD1B].jumptable_entries == [0x40BD38, 0x40C5D1, 0x40C59E, 0x40C5AE]
 
+    def test_amd64_rust_unbounded_jumptables(self):
+        # rustc/LLVM omits the bounds check when it can prove the switch index is in range, so these jump tables have
+        # no comparison to derive their size from. Their size comes from the data instead: the next address that is
+        # referenced by an instruction ends the table.
+        p = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()()
+
+        self._compare(
+            cfg.model.jump_tables,
+            [
+                J(0x4DE3C0, 0x42FB90, [0x4DE3D3, 0x4DE3F0, 0x4DE3D8, 0x4DE3DD]),
+                J(
+                    0x4F5770,
+                    0x432AF4,
+                    [
+                        0x4F5C67,
+                        0x4F5D6A,
+                        0x4F5A42,
+                        0x4F5AA0,
+                        0x4F57D2,
+                        0x4F5E0C,
+                        0x4F5F06,
+                        0x4F5AFF,
+                        0x4F617A,
+                        0x4F5933,
+                        0x4F60B1,
+                        0x4F57BC,
+                        0x4F57BC,
+                        0x4F57BC,
+                        0x4F57BC,
+                        0x4F57BC,
+                        0x4F57BC,
+                    ],
+                ),
+            ],
+        )
+
+    def test_amd64_rust_unbounded_jumptable_bounded_by_the_next_table(self):
+        # 0x4340c0 and 0x4340e0 are adjacent unbounded jump tables. 0x4340c0 can only be sized correctly once the
+        # reference to 0x4340e0 has been collected, which happens after the block at 0x502470 is first analyzed;
+        # sizing it too early swallows the whole table at 0x4340e0.
+        p = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust"), auto_load_libs=False)
+        cfg = p.analyses[CFGFast].prep()()
+
+        self._compare(
+            cfg.model.jump_tables,
+            [
+                J(0x502470, 0x4340C0, [0x502484, 0x5024CB, 0x5024A1, 0x5024B0, 0x50248E, 0x5024DA, 0x5024E9, 0x5024BC]),
+                J(
+                    0x502518,
+                    0x4340E0,
+                    [
+                        0x502528,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502530,
+                        0x502538,
+                        0x502538,
+                        0x50252B,
+                        0x502538,
+                        0x502538,
+                        0x502538,
+                        0x502533,
+                    ],
+                ),
+                J(0x502570, 0x434134, [0x502583, 0x502589, 0x502583, 0x50259D, 0x502591, 0x5025B5, 0x5025C1, 0x5025A9]),
+            ],
+        )
+
     def test_arm_thumb_jumptable_multi_variable_ranges(self):
         # Correctly resolving this indirect jump requires Balancer (in claripy) to handle the range of the addition of
         # two symbolic variables.

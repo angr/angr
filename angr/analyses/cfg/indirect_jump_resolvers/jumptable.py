@@ -795,6 +795,10 @@ class JumpTableResolver(IndirectJumpResolver):
         # should be cleared before every symbolic execution run on the slice
         self._cached_memread_addrs = {}
 
+        # set when resolution was declined because the data references that bound an unbounded jump table are not
+        # collected yet. the CFG re-runs these jumps once the rest of the analysis is exhausted.
+        self.deferred = False
+
         self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
@@ -818,6 +822,8 @@ class JumpTableResolver(IndirectJumpResolver):
         :return: A bool indicating whether the indirect jump is resolved successfully, and a list of resolved targets
         :rtype: tuple
         """
+
+        self.deferred = False
 
         if not cfg.kb.functions.contains_addr(func_addr):
             # fix for angr issue #3768
@@ -951,6 +957,13 @@ class JumpTableResolver(IndirectJumpResolver):
         # predecessor block to check the range of the index varaible (common in Rust binaries). in this case, we rely
         # on the location of the next jump table offset to determine the size of the current jump table.
         unbounded_jumptable = func_graph_complete and not is_arm and not potential_call_table and not pred_endaddrs
+        if unbounded_jumptable and cfg._defer_unbounded_jumptables and not cfg._unbounded_jumptable_final_pass:
+            # Sizing an unbounded table depends on the data references collected so far, and resolving it now would
+            # bake in a size that is too large when a closer reference shows up later. Let the CFG come back to it
+            # once everything else is exhausted.
+            l.debug("Deferring unbounded jump table at %#x until data references are complete.", addr)
+            self.deferred = True
+            return False, None
         if func_graph_complete and not is_arm and not potential_call_table and pred_endaddrs:
             # on ARM you can do a single-block jump table...
             if len(pred_endaddrs) == 1:
@@ -1694,6 +1707,140 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return None
 
+    def _is_jumptable_base_plausible(self, table_base: int) -> bool:
+        """
+        A jump table lives in mapped, read-only memory. Loads whose address is not a constant base plus an index
+        (state.solver.min() returns 0 for those) are rejected here.
+        """
+
+        if not table_base:
+            return False
+        section = self.project.loader.find_section_containing(table_base)
+        if section is not None:
+            return not section.is_writable
+        segment = self.project.loader.find_segment_containing(table_base)
+        return segment is not None and not segment.is_writable
+
+    def _build_target_reconstructor(
+        self,
+        cfg,
+        transformations: dict[tuple[int, int], AddressTransformation],
+        stmts_adding_base_addr,
+        jt_2nd_memloads: dict[int, int],
+    ):
+        """
+        Build a callable that turns a raw jump table entry into a jump target by applying the address
+        transformations that the slice performs (sign extension, shifts, base addition, secondary loads, ...).
+
+        :return:    A callable taking a raw entry and returning a jump target (or None when the entry cannot be
+                    transformed), or None if the transformation chain is unsupported.
+        """
+
+        mask = (2**self.project.arch.bits) - 1
+        transformation_list = list(reversed([v for v in transformations.values() if not v.first_load]))
+
+        def handle_signed_ext(a):
+            return (a | 0xFFFFFFFF00000000) if a >= 0x80000000 else a
+
+        def handle_unsigned_ext(a):
+            return a
+
+        def handle_trunc_64_32(a):
+            return a & 0xFFFFFFFF
+
+        def handle_or1(a):
+            return a | 1
+
+        def handle_lshift(num_bits, a):
+            return a << num_bits
+
+        def handle_rshift(num_bits, a):
+            return a >> num_bits
+
+        def handle_add(con, a):
+            return (a + con) & mask
+
+        def handle_load(size, a):
+            if a not in jt_2nd_memloads:
+                jt_2nd_memloads[a] = size
+            else:
+                jt_2nd_memloads[a] = max(jt_2nd_memloads[a], size)
+            return cfg._fast_memory_load_pointer(a, size=size)
+
+        invert_conversion_ops = []
+        for tran in transformation_list:
+            tran_op, args = tran.op, tran.operands
+            if tran_op is AddressTransformationTypes.SignedExtension:
+                if args == [32, 64, AddressSingleton]:
+                    lam = handle_signed_ext
+                else:
+                    raise NotImplementedError("Unsupported signed extension operation.")
+            elif tran_op is AddressTransformationTypes.UnsignedExtension:
+                lam = handle_unsigned_ext
+            elif tran_op is AddressTransformationTypes.Truncation:
+                if args == [64, 32, AddressSingleton]:
+                    lam = handle_trunc_64_32
+                else:
+                    raise NotImplementedError("Unsupported truncation operation.")
+            elif tran_op is AddressTransformationTypes.Or1:
+                lam = handle_or1
+            elif tran_op is AddressTransformationTypes.ShiftLeft:
+                lam = functools.partial(handle_lshift, next(iter(arg for arg in args if arg is not AddressSingleton)))
+            elif tran_op is AddressTransformationTypes.ShiftRight:
+                lam = functools.partial(handle_rshift, next(iter(arg for arg in args if arg is not AddressSingleton)))
+            elif tran_op is AddressTransformationTypes.Add:
+                add_arg = next(iter(arg for arg in args if arg is not AddressSingleton))
+                if not isinstance(add_arg, int):
+                    # unsupported cases (Tmp, for example). abort
+                    return None
+                lam = functools.partial(handle_add, add_arg)
+            elif tran_op is AddressTransformationTypes.Load:
+                lam = functools.partial(handle_load, args[1])
+            elif tran_op is AddressTransformationTypes.Assignment:
+                continue
+            else:
+                raise NotImplementedError("Unsupported transformation operation.")
+            invert_conversion_ops.append(lam)
+
+        base_addr = None
+        if len(stmts_adding_base_addr) == 1:
+            base_addr = stmts_adding_base_addr[0].base_addr
+            if base_addr is None:
+                return None
+
+        def reconstruct(entry: int) -> int | None:
+            for lam in invert_conversion_ops:
+                entry = lam(entry)
+                if entry is None:
+                    return None
+            if base_addr is not None:
+                entry = (entry + base_addr) & mask
+            return entry
+
+        return reconstruct
+
+    def _scan_jumptable_bound(self, cfg, table_base: int, stride: int, load_size: int, reconstruct, cap: int) -> int:
+        """
+        Determine how many entries a jump table has by reading it until an entry no longer transforms into a legal
+        jump target. Used to bound jump tables that the compiler emitted without a bounds check.
+
+        :return:    The number of consecutive plausible entries starting at ``table_base``.
+        """
+
+        count = 0
+        for i in range(cap):
+            entry = cfg._fast_memory_load_pointer(table_base + i * stride, size=load_size)
+            if entry is None:
+                break
+            try:
+                target = reconstruct(entry)
+            except (AngrError, SimError):
+                break
+            if target is None or not self._is_jumptarget_legal(target):
+                break
+            count += 1
+        return count
+
     def _try_resolve_targets_load(
         self,
         r,
@@ -1810,22 +1957,44 @@ class JumpTableResolver(IndirectJumpResolver):
             sort = "jumptable"
 
         if unbounded_jumptable and sort == "jumptable" and total_cases > 1 and jumptable_addr.op != "BVV":
-            # The index is unconstrained because the compiler omitted the bounds check.
-            # Bound the table by the next address referenced by any instruction.
+            # The index is unconstrained because the compiler omitted the bounds check, so the table size must come
+            # from the data. Two independent bounds are combined: the next address that any instruction references
+            # (LLVM emits jump tables back to back, so the next table's base ends this one), and a scan that stops at
+            # the first entry which does not transform into a legal jump target.
             table_base = state.solver.min(jumptable_addr)
-            next_ref = cfg.kb.xrefs.get_next_xref_addr_by_dst(table_base + 1)
-            if next_ref is None or next_ref <= table_base:
-                l.debug("Unbounded jump table at %#x: no following data reference to bound it. Skip.", table_base)
+            if stride != load_size or not self._is_jumptable_base_plausible(table_base):
+                l.debug("Unbounded jump table at %#x: implausible table base. Skip.", table_base)
                 return None
-            bounded_cases = (next_ref - table_base) // stride
+
+            next_ref = cfg.kb.xrefs.get_next_xref_addr_by_dst(table_base + 1)
+            nextref_cases = (
+                (next_ref - table_base) // stride if next_ref is not None and next_ref > table_base else None
+            )
+
+            reconstruct = self._build_target_reconstructor(cfg, transformations, stmts_adding_base_addr, {})
+            scan_cases = (
+                self._scan_jumptable_bound(
+                    cfg, table_base, stride, load_size, reconstruct, min(total_cases, self._max_targets)
+                )
+                if reconstruct is not None
+                else None
+            )
+
+            bounds = [b for b in (nextref_cases, scan_cases) if b is not None]
+            if not bounds:
+                l.debug("Unbounded jump table at %#x: nothing bounds it. Skip.", table_base)
+                return None
+            bounded_cases = min(bounds)
             if bounded_cases < 2:
                 l.debug("Unbounded jump table at %#x: implausible size %d. Skip.", table_base, bounded_cases)
                 return None
             l.debug(
-                "Unbounded jump table at %#x: bounded to %d entries by the next referenced address %#x.",
+                "Unbounded jump table at %#x: bounded to %d entries (next referenced address %s -> %s, scan -> %s).",
                 table_base,
                 bounded_cases,
-                next_ref,
+                f"{next_ref:#x}" if next_ref is not None else None,
+                nextref_cases,
+                scan_cases,
             )
             total_cases = min(total_cases, bounded_cases)
 
@@ -1943,92 +2112,19 @@ class JumpTableResolver(IndirectJumpResolver):
             return None
 
         # Adjust entries inside the jump table
-        mask = (2**self.project.arch.bits) - 1
         transformation_list = list(reversed([v for v in transformations.values() if not v.first_load]))
         jt_2nd_memloads: dict[int, int] = {}
-        if transformation_list:
-
-            def handle_signed_ext(a):
-                return (a | 0xFFFFFFFF00000000) if a >= 0x80000000 else a
-
-            def handle_unsigned_ext(a):
-                return a
-
-            def handle_trunc_64_32(a):
-                return a & 0xFFFFFFFF
-
-            def handle_or1(a):
-                return a | 1
-
-            def handle_lshift(num_bits, a):
-                return a << num_bits
-
-            def handle_rshift(num_bits, a):
-                return a >> num_bits
-
-            def handle_add(con, a):
-                return (a + con) & mask
-
-            def handle_load(size, a):
-                if a not in jt_2nd_memloads:
-                    jt_2nd_memloads[a] = size
-                else:
-                    jt_2nd_memloads[a] = max(jt_2nd_memloads[a], size)
-                return cfg._fast_memory_load_pointer(a, size=size)
-
-            invert_conversion_ops = []
-            for tran in transformation_list:
-                tran_op, args = tran.op, tran.operands
-                if tran_op is AddressTransformationTypes.SignedExtension:
-                    if args == [32, 64, AddressSingleton]:
-                        lam = handle_signed_ext
-                    else:
-                        raise NotImplementedError("Unsupported signed extension operation.")
-                elif tran_op is AddressTransformationTypes.UnsignedExtension:
-                    lam = handle_unsigned_ext
-                elif tran_op is AddressTransformationTypes.Truncation:
-                    if args == [64, 32, AddressSingleton]:
-                        lam = handle_trunc_64_32
-                    else:
-                        raise NotImplementedError("Unsupported truncation operation.")
-                elif tran_op is AddressTransformationTypes.Or1:
-                    lam = handle_or1
-                elif tran_op is AddressTransformationTypes.ShiftLeft:
-                    lam = functools.partial(
-                        handle_lshift, next(iter(arg for arg in args if arg is not AddressSingleton))
-                    )
-                elif tran_op is AddressTransformationTypes.ShiftRight:
-                    lam = functools.partial(
-                        handle_rshift, next(iter(arg for arg in args if arg is not AddressSingleton))
-                    )
-                elif tran_op is AddressTransformationTypes.Add:
-                    add_arg = next(iter(arg for arg in args if arg is not AddressSingleton))
-                    if not isinstance(add_arg, int):
-                        # unsupported cases (Tmp, for example). abort
-                        return None
-                    lam = functools.partial(handle_add, add_arg)
-                elif tran_op is AddressTransformationTypes.Load:
-                    lam = functools.partial(handle_load, args[1])
-                elif tran_op is AddressTransformationTypes.Assignment:
-                    continue
-                else:
-                    raise NotImplementedError("Unsupported transformation operation.")
-                invert_conversion_ops.append(lam)
-            all_targets_copy = all_targets
-            all_targets = []
-            for target_ in all_targets_copy:
-                for lam in invert_conversion_ops:
-                    target_ = lam(target_)
-                    if target_ is None:
-                        # transformation failed. abort
-                        return None
-                all_targets.append(target_)
-            if None in all_targets:
+        reconstruct = self._build_target_reconstructor(cfg, transformations, stmts_adding_base_addr, jt_2nd_memloads)
+        if reconstruct is None:
+            return None
+        all_targets_copy = all_targets
+        all_targets = []
+        for target_ in all_targets_copy:
+            target_ = reconstruct(target_)
+            if target_ is None:
+                # transformation failed. abort
                 return None
-        if len(stmts_adding_base_addr) == 1:
-            stmt_adding_base_addr = stmts_adding_base_addr[0]
-            base_addr = stmt_adding_base_addr.base_addr
-            all_targets = [(target + base_addr) & mask for target in all_targets]
+            all_targets.append(target_)
 
         # special case for ARM: if the source block is in THUMB mode, all jump targets should be in THUMB mode, too
         if is_arm_arch(self.project.arch) and (addr & 1) == 1:

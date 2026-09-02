@@ -173,6 +173,11 @@ class CFGBase(Analysis):
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps: dict[int, IndirectJump] = {}
         self._indirect_jumps_to_resolve = set()
+        # indirect jumps whose resolution was postponed because the data references that bound an unbounded jump
+        # table were not collected yet. only used when _defer_unbounded_jumptables is enabled (CFGFast).
+        self._deferred_indirect_jumps: set[IndirectJump] = set()
+        self._defer_unbounded_jumptables = False
+        self._unbounded_jumptable_final_pass = False
 
         # Indirect jump resolvers
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -3165,6 +3170,7 @@ class CFGBase(Analysis):
         """
 
         resolved = False
+        deferred = False
         resolved_by = None
         targets = None
 
@@ -3182,9 +3188,14 @@ class CFGBase(Analysis):
             if resolved:
                 resolved_by = resolver
                 break
+            if getattr(resolver, "deferred", False):
+                deferred = True
 
         if resolved:
             self._indirect_jump_resolved(jump, jump.addr, resolved_by, targets)
+        elif deferred:
+            # come back to it once the rest of the analysis is exhausted; do not mark it unresolvable yet
+            self._deferred_indirect_jumps.add(jump)
         else:
             self._indirect_jump_unresolved(jump)
 
