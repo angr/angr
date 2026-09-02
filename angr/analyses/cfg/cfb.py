@@ -11,6 +11,7 @@ from cle.backends.tls.elf_tls import ELFTLSObject
 from sortedcontainers import SortedDict
 
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.block import Block
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 
 _l = logging.getLogger(name=__name__)
@@ -66,18 +67,41 @@ class MemoryRegion:
 
 
 class Unknown:
-    def __init__(self, addr, size, bytes_=None, object_=None, segment=None, section=None):
+    """
+    An unknown byte region in a control-flow blanket.
+    """
+
+    # the maximum number of bytes to load for display purposes; matches the display cap of the linear viewer in angr
+    # management (101 lines of 16 bytes each)
+    MAX_BYTES = 1616
+
+    def __init__(self, addr, size, bytes_=None, object_=None, segment=None, section=None, loader=None):
         self.addr = addr
         self.size = size
 
         # Optional
-        self.bytes = bytes_
+        self._bytes = bytes_
+        self._loader = loader
         self.object = object_
         self.segment = segment
         self.section = section
 
         if size == 0:
             raise Exception("You cannot create an unknown region of size 0.")
+
+    @property
+    def bytes(self):
+        """
+        The bytes of this region, for display purposes. Lazily loaded on first access (and capped at MAX_BYTES) when
+        a loader is available.
+        """
+        if self._bytes is None and self._loader is not None:
+            try:
+                self._bytes = self._loader.memory.load(self.addr, min(self.size, self.MAX_BYTES))
+            except KeyError:
+                # the address is not mapped; do not retry
+                self._loader = None
+        return self._bytes
 
     def __repr__(self):
         return f"<Unknown {self.addr:#x}-{self.addr + self.size:#x}>"
@@ -99,13 +123,17 @@ class CFBlanket(Analysis):
         self,
         exclude_region_types: set[str] | None = None,
         on_object_added: Callable[[int, Any], None] | None = None,
+        on_object_removed: Callable[[int, Any], None] | None = None,
     ):
         """
-        :param on_object_added: Callable with parameters (addr, obj) called after an object is added to the blanket.
+        :param on_object_added:   Callable with parameters (addr, obj) called after an object is added to the blanket.
+        :param on_object_removed: Callable with parameters (addr, obj) called after an object is removed from the
+                                  blanket.
         """
         self._blanket = SortedDict()
 
         self._on_object_added_callback = on_object_added
+        self._on_object_removed_callback = on_object_removed
         self._regions = []
         self._exclude_region_types = exclude_region_types or set()
 
@@ -250,13 +278,112 @@ class CFBlanket(Analysis):
     def __getitem__(self, addr):
         return self._blanket[addr]
 
+    @staticmethod
+    def _obj_size(obj) -> int | None:
+        size = getattr(obj, "size", None)
+        return size if isinstance(size, int) else None
+
     def add_obj(self, addr, obj):
         """
-        Adds an object `obj` to the blanket at the specified address `addr`
+        Add an object `obj` to the blanket at the specified address `addr`, keeping the blanket non-overlapping:
+        existing objects that overlap [addr, addr + obj.size) are removed or trimmed, and the trimmed-off remainders
+        are re-inserted. Objects without an integer size are stored as zero-span entries and never cause trimming.
         """
+        size = self._obj_size(obj)
+        if size is not None and size > 0:
+            self._carve(addr, addr + size)
         self._blanket[addr] = obj
         if self._on_object_added_callback:
             self._on_object_added_callback(addr, obj)
+
+    def _carve(self, start: int, end: int) -> None:
+        """
+        Remove or trim existing objects so that no object in the blanket overlaps [start, end).
+        """
+        overlapping: list[int] = []
+        # the closest entry that starts before `start` may extend into the carved range
+        floor_key = next(self._blanket.irange(maximum=start - 1, reverse=True), None)
+        if floor_key is not None:
+            floor_size = self._obj_size(self._blanket[floor_key])
+            if floor_key + max(floor_size or 1, 1) > start:
+                overlapping.append(floor_key)
+        overlapping.extend(self._blanket.irange(minimum=start, maximum=end - 1))
+
+        for key in overlapping:
+            obj = self._blanket.pop(key)
+            obj_end = key + max(self._obj_size(obj) or 1, 1)
+            if key < start:
+                left = self._trim(obj, key, start)
+                if left is not None:
+                    self._blanket[key] = left
+                    if self._on_object_added_callback:
+                        self._on_object_added_callback(key, left)
+            if obj_end > end:
+                right = self._trim(obj, end, obj_end)
+                if right is not None:
+                    self._blanket[end] = right
+                    if self._on_object_added_callback:
+                        self._on_object_added_callback(end, right)
+
+    def _trim(self, obj, new_start: int, new_end: int):
+        """
+        Create a copy of `obj` trimmed to [new_start, new_end), or None if the object cannot be trimmed.
+        """
+        new_size = new_end - new_start
+        if new_size <= 0:
+            return None
+        if isinstance(obj, Unknown):
+            bytes_ = None
+            if obj._loader is None and obj._bytes is not None:
+                offset = new_start - obj.addr
+                if 0 <= offset < len(obj._bytes):
+                    bytes_ = obj._bytes[offset : offset + new_size]
+            return Unknown(
+                new_start,
+                new_size,
+                bytes_=bytes_,
+                object_=obj.object,
+                segment=obj.segment,
+                section=obj.section,
+                loader=obj._loader,
+            )
+        if isinstance(obj, Block):
+            # constructing a Block with an explicit size does not lift; lifting only happens if the block is ever
+            # rendered or otherwise accessed
+            return self.project.factory.block(new_start, size=new_size, thumb=getattr(obj, "thumb", False))
+        if isinstance(obj, MemoryData):
+            # memory data objects may be shared with the knowledge base; trim a copy, never the original
+            trimmed = obj.copy()
+            trimmed.addr = new_start
+            trimmed.size = new_size
+            trimmed.reference_size = obj.reference_size
+            return trimmed
+        return None
+
+    def remove_obj(self, addr, fill: bool = True):
+        """
+        Remove the object at `addr` from the blanket. When `fill` is set (the default), the removed object's span is
+        re-filled with an Unknown region so that the blanket remains a total cover of the mapped address space.
+        Removing a missing address is a no-op.
+
+        :return: The removed object, or None if no object exists at `addr`.
+        """
+        obj = self._blanket.pop(addr, None)
+        if obj is None:
+            return None
+        if self._on_object_removed_callback:
+            self._on_object_removed_callback(addr, obj)
+
+        size = self._obj_size(obj)
+        if fill and size:
+            cle_obj = self.project.loader.find_object_containing(addr, membership_check=False)
+            loader = None if cle_obj is None or isinstance(cle_obj, ExternObject) else self.project.loader
+            section = cle_obj.find_section_containing(addr) if cle_obj is not None else None
+            filler = Unknown(addr, size, object_=cle_obj, section=section, loader=loader)
+            self._blanket[addr] = filler
+            if self._on_object_added_callback:
+                self._on_object_added_callback(addr, filler)
+        return obj
 
     def add_function(self, func):
         """
@@ -403,23 +530,9 @@ class CFBlanket(Analysis):
                 next_addr = max_addr
 
             size = next_addr - min_addr
-            if obj is None or isinstance(obj, cle.ExternObject):
-                bytes_ = None
-            else:
-                try:
-                    _l.debug(
-                        "Loading bytes from object %s, section %s, segment %s, address %#x.",
-                        obj,
-                        section,
-                        segment,
-                        min_addr,
-                    )
-                    bytes_ = self.project.loader.memory.load(min_addr, size)
-                except KeyError:
-                    # The address does not exist
-                    bytes_ = None
+            loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
             self.add_obj(
-                min_addr, Unknown(min_addr, size, bytes_=bytes_, object_=obj, segment=segment, section=section)
+                min_addr, Unknown(min_addr, size, object_=obj, segment=segment, section=section, loader=loader)
             )
 
         addr = min_addr
@@ -440,23 +553,9 @@ class CFBlanket(Analysis):
                 if next_addr > end_addr:
                     # there is a gap
                     size = next_addr - end_addr
-                    if obj is None or isinstance(obj, cle.ExternObject):
-                        bytes_ = None
-                    else:
-                        try:
-                            _l.debug(
-                                "Loading bytes from object %s, section %s, segment %s, address %#x.",
-                                obj,
-                                section,
-                                segment,
-                                end_addr,
-                            )
-                            bytes_ = self.project.loader.memory.load(end_addr, size)
-                        except KeyError:
-                            # The address does not exist
-                            bytes_ = None
+                    loader = None if obj is None or isinstance(obj, cle.ExternObject) else self.project.loader
                     self.add_obj(
-                        end_addr, Unknown(end_addr, size, bytes_=bytes_, object_=obj, segment=segment, section=section)
+                        end_addr, Unknown(end_addr, size, object_=obj, segment=segment, section=section, loader=loader)
                     )
                 addr = next_addr
             else:
