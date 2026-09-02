@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 
+import copy
 from collections import OrderedDict
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
@@ -463,6 +464,18 @@ class IncompleteSwitchCaseHeadStatement(_IncompleteSwitchCaseHeadStatementBase):
 
     def _hash_core(self):
         return stable_hash((IncompleteSwitchCaseHeadStatement, self.idx, self.switch_variable, self._case_addrs_str))
+
+    def deep_copy(self, manager):
+        new_idx = manager.next_atom()
+        if manager.variable_map is not None:
+            manager.variable_map.transfer(self, new_idx)
+        return IncompleteSwitchCaseHeadStatement(
+            new_idx,
+            self.switch_variable.deep_copy(manager),
+            list(self.case_addrs),
+            peephole_optimized=self.peephole_optimized,
+            **copy.deepcopy(self.tags),
+        )
 
     def replace(self, old_expr, new_expr):  # pylint:disable=unused-argument
         return self
