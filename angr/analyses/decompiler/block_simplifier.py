@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
@@ -116,6 +117,10 @@ class PeepholeOptimizationBundle:
                 )
             )
         )
+
+
+#: The minimum number of replacements in a statement that triggers the growth watch.
+_STMT_GROWTH_WATCH_MIN_REPLACEMENTS = 4
 
 
 class BlockSimplifier:
@@ -324,14 +329,41 @@ class BlockSimplifier:
         gp: int | None = None,
         replace_registers: bool = True,
         max_expr_depth: int | None = 13,
+        max_stmt_size: int = 20_000,
     ) -> tuple[bool, Block]:
         new_statements = block.statements[::]
         replaced = False
 
+        replacements_by_stmt: dict[int, list[tuple[AILCodeLocation, Expression, Expression]]] = defaultdict(list)
         for codeloc, repls in replacements.items():
+            assert codeloc.stmt_idx is not None
             for old, new in repls.items():
+                replacements_by_stmt[codeloc.stmt_idx].append((codeloc, old, new))
+
+        sizes: dict[int, int] = {}
+        saturated_stmts: set[int] = set()  # statements that have rejected replacements
+
+        def _rendering_size_of(stmt_idx: int) -> int:
+            """
+            Return the rendering size of the statement at the given index.
+            """
+            cached = sizes.get(stmt_idx)
+            if cached is None:
+                cached = len(str(new_statements[stmt_idx]))
+                sizes[stmt_idx] = cached
+            return cached
+
+        for stmt_idx, items in replacements_by_stmt.items():
+            watch_growth = len(items) >= _STMT_GROWTH_WATCH_MIN_REPLACEMENTS
+            if watch_growth and _rendering_size_of(stmt_idx) > max_stmt_size:
+                # statement is too large; skip future replacements
+                continue
+
+            for codeloc, old, new in items:
+                if watch_growth and (stmt_idx in saturated_stmts or _rendering_size_of(stmt_idx) > max_stmt_size):
+                    # checked before any work is done, so a saturated statement costs nothing
+                    break
                 new = new.deep_copy(ail_manager)
-                assert codeloc.stmt_idx is not None
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
                     not replace_loads
@@ -391,6 +423,16 @@ class BlockSimplifier:
                         ):
                             # avoid replacing if the new statement is too deep, to prevent exponential blowup
                             r = False
+
+                if r and watch_growth:
+                    assert new_stmt is not None
+                    grown = _rendering_size_of(codeloc.stmt_idx) + len(str(new))
+                    if grown > max_stmt_size:
+                        # reject and mark the statement as saturated, so we don't try to replace it again.
+                        r = False
+                        saturated_stmts.add(codeloc.stmt_idx)
+                    else:
+                        sizes[codeloc.stmt_idx] = grown
 
                 if r:
                     assert new_stmt is not None
