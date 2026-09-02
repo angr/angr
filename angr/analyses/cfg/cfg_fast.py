@@ -918,6 +918,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # always clear them after returning from _process_unresolved_indirect_jumps()
         self._transitory_resolved_indirect_jumps = 0
         self._transitory_unresolved_indirect_jumps = 0
+        # jump tables that the compiler emitted without a bounds check are sized from data references, so they are
+        # resolved only after the rest of the analysis is exhausted and those references are complete
+        self._defer_unbounded_jumptables = True
 
         self._drop_bad_funcs = drop_bad_funcs
 
@@ -2465,6 +2468,34 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJobType.COMPLETE_SCANNING)
                 self._insert_job(job)
                 self._register_analysis_job(addr, job)
+
+        if self._deferred_indirect_jumps and not self._job_info_queue:
+            # Nothing else is left to traverse, so the data references that bound unbounded jump tables are as
+            # complete as they will get. Resolve the jump tables that were postponed for that reason.
+            self._resolve_deferred_indirect_jumps()
+
+    def _resolve_deferred_indirect_jumps(self):
+        """
+        Resolve indirect jumps whose resolution was postponed until the data references bounding them were collected.
+
+        Resolving one may uncover code that carries the reference bounding the next, so this stops as soon as a jump
+        queues new jobs and resumes on the next call. Jumps that still cannot be resolved are marked unresolvable, so
+        every call shrinks the set and this terminates.
+        """
+
+        jumps = sorted(self._deferred_indirect_jumps, key=lambda j: j.addr)
+        self._deferred_indirect_jumps = set()
+        l.debug("Resolving %d deferred indirect jump(s).", len(jumps))
+
+        self._unbounded_jumptable_final_pass = True
+        try:
+            for idx, jump in enumerate(jumps):
+                self._process_one_indirect_jump(jump)
+                if self._job_info_queue:
+                    self._deferred_indirect_jumps |= set(jumps[idx + 1 :])
+                    break
+        finally:
+            self._unbounded_jumptable_final_pass = False
 
     def _repair_edges(self):
         remaining_edges_to_repair = []
