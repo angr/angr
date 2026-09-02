@@ -58,6 +58,7 @@ from angr.utils.funcid import (
     is_function_security_init_cookie,
     is_function_security_init_cookie_win8,
 )
+from angr.utils.go_runtime import find_go_noreturn_functions, has_go_hint
 from angr.utils.ins_addr_list import InsAddrList
 
 from .cfg_arch_options import CFGArchOptions
@@ -885,6 +886,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # mapping to all known thunks
         self._known_thunks = {}
 
+        # Go runtime functions that never return, mapped to the evidence that identified them
+        self._go_noreturn_funcs: dict[int, str] = {}
+
         # when True, jump/call targets loaded from registered read-only regions (e.g. PE IAT slots) are
         # constant-folded at lift time and consumed in _create_jobs without invoking indirect jump resolvers
         self._fold_ro_const_loads = False
@@ -1687,6 +1691,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # Scan for __x86_return_thunk and friends
         self._known_thunks = self._find_thunks()
+
+        # Go runtime knowledge. Seeding the verdicts before recovery starts is what keeps the code
+        # that follows a morestack or panic-stub call site from ever being attached to a function.
+        self._go_noreturn_funcs = find_go_noreturn_functions(self.project, kb=self.kb) if self._is_go_binary() else {}
+        if self._go_noreturn_funcs:
+            l.debug("Identified %d non-returning Go runtime functions.", len(self._go_noreturn_funcs))
+        self._apply_go_noreturn_funcs(create=True)
 
         # Initialize variables used during analysis
         self._pending_jobs: PendingJobs = PendingJobs(self.kb, self._deregister_analysis_job)
@@ -2651,6 +2662,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
         self._calculate_progress_and_notify(skip_percentage=True)
+
+        # make_functions() built a brand new function manager, so the Go verdicts must be re-applied
+        # before the returning fixpoint runs over it.
+        self._apply_go_noreturn_funcs()
 
         self._analyze_all_function_features(all_funcs_completed=True)
 
@@ -6398,6 +6413,42 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     result[addr] = meaning
 
         return result
+
+    def _is_go_binary(self) -> bool:
+        # LanguageDetector is the authority, but it costs seconds on binaries with large symbol
+        # tables, so only consult it once a cheap marker suggests Go.
+        return has_go_hint(self.project) and "go" in self.project.languages()
+
+    def _apply_go_noreturn_funcs(self, create: bool = False) -> None:
+        """
+        Mark the identified Go runtime functions as non-returning.
+
+        This runs twice: once before recovery starts, so the verdicts steer it, and once after
+        make_functions() has rebuilt the function manager from scratch. The second pass also picks up
+        jump thunks that inherited the marker from a Go non-returning function.
+        """
+        if not self._go_noreturn_funcs:
+            return
+
+        verdicts = dict(self._go_noreturn_funcs)
+        for addr in self.kb.functions.get_key_func_addrs("go_noreturn"):
+            verdicts.setdefault(addr, "jump thunk to a non-returning Go runtime function")
+
+        for addr, evidence in verdicts.items():
+            if not self._inside_regions(addr):
+                continue
+            if create:
+                func = self.kb.functions.function(addr, create=True)
+            elif self.kb.functions.contains_addr(addr):
+                func = self.kb.functions.get_by_addr(addr)
+            else:
+                continue
+            if func is None or func.is_simprocedure:
+                continue
+            func.returning = False
+            func.info["is_go_noreturn"] = True
+            func.info["go_noreturn_evidence"] = evidence
+            self.kb.functions.add_key_func_addr("go_noreturn", addr)
 
     def _x86_gcc_pie_find_pc_register_adjustment(self, addr: int, reg_offset: int) -> int | None:
         """
