@@ -19,7 +19,7 @@ import pydemumble
 from archinfo.arch_arm import get_real_address_if_arm
 from cle.backends.symbol import Symbol
 
-from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc
+from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc_for_project
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
@@ -1059,9 +1059,7 @@ class Function(Serializable):
         if cc is None and self.project is not None:
             arch = self.project.arch
             if arch.name in DEFAULT_CC:
-                cc_cls = default_cc(
-                    arch.name, platform=self.project.simos.name if self.project.simos is not None else None
-                )
+                cc_cls = default_cc_for_project(self.project)
                 if cc_cls is not None:
                     cc = cc_cls(arch)
         self.calling_convention = cc
@@ -1903,11 +1901,7 @@ class Function(Serializable):
                     if self.project.arch.name in library.default_ccs and self.is_syscall is False:
                         self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
                     elif self.project.arch.name in DEFAULT_CC:
-                        cc_cls = default_cc(
-                            self.project.arch.name,
-                            platform=self.project.simos.name if self.project.simos is not None else None,
-                            syscall=self.is_syscall is True,
-                        )
+                        cc_cls = default_cc_for_project(self.project, syscall=self.is_syscall is True)
                         if cc_cls is not None:
                             self.calling_convention = cc_cls(self.project.arch)
 

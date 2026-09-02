@@ -116,6 +116,8 @@ class Project:
     """
 
     arch: archinfo.Arch
+    # class-level default so that projects unpickled from before this attribute existed still work
+    _language_confidence: str | None = None
 
     def __init__(
         self,
@@ -253,6 +255,7 @@ class Project:
         self._pcode_block_lifter: PcodeBasicBlockLifter | None = None
 
         self._languages: list[str] | None = None
+        self._language_confidence: str | None = None
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
@@ -913,13 +916,40 @@ class Project:
         if not self._languages:
             detector = self.analyses.LanguageDetector()
             self._languages = [detector.language]
+            self._language_confidence = detector.confidence.value
         if not self._languages:
             self._languages.append("unknown")
         return self._languages
 
     @property
+    def language_confidence(self) -> str | None:
+        """
+        How sure LanguageDetector is about :meth:`languages` ("high", "medium" or "low"), or None when the language did
+        not come from detection.
+        """
+        self.languages()
+        return self._language_confidence
+
+    @property
+    def language_is_certain(self) -> bool:
+        """
+        Whether the detected language is solid enough to base language-specific ABI decisions on. A single matching
+        symbol name is enough for LanguageDetector to report a language, but not enough to reinterpret every argument
+        and return value in the binary.
+        """
+        return self.language_confidence in (None, "high")
+
+    @property
     def is_rust_binary(self) -> bool:
         return "rust" in self.languages()
+
+    @property
+    def is_go_binary(self) -> bool:
+        """
+        Whether the main binary was confidently identified as Go. Go's ABI differs from the platform default in every
+        argument and return value, so a low-confidence detection is deliberately not enough.
+        """
+        return "go" in self.languages() and self.language_is_certain
 
     #
     # Cache limit settings

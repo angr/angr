@@ -9,7 +9,7 @@ from angr.ailment.block import Block
 from angr.ailment.expression import Call, VirtualVariable
 from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.analysis import Analysis, register_analysis
-from angr.calling_conventions import SimRegArg, default_cc
+from angr.calling_conventions import SimRegArg, default_cc_for_project, project_language
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
@@ -70,7 +70,7 @@ class SReachingDefinitions:
             func_args,
             self.project.arch,
             platform=self.project.simos.name if self.project.simos is not None else None,
-            language=self.project._languages[0] if self.project._languages else None,
+            language=project_language(self.project),
             variable_map=variable_map,
             functions=self.project.kb.functions if self.project.kb is not None else None,
         )
@@ -150,10 +150,7 @@ class SReachingDefinitions:
                 else:
                     # just use all registers in the default calling convention because we don't know anything about
                     # the calling convention yet
-                    cc_cls = default_cc(
-                        self.project.arch.name,
-                        platform=self.project.simos.name if self.project.simos is not None else None,
-                    )
+                    cc_cls = default_cc_for_project(self.project)
                     assert cc_cls is not None
                     cc = cc_cls(self.project.arch)
 
@@ -175,10 +172,7 @@ class SReachingDefinitions:
                 # considered dead assignments.
                 cc = self.func.calling_convention
                 if cc is None:
-                    cc_cls = default_cc(
-                        self.project.arch.name,
-                        platform=self.project.simos.name if self.project.simos is not None else None,
-                    )
+                    cc_cls = default_cc_for_project(self.project)
                     assert cc_cls is not None
                     cc = cc_cls(self.project.arch)
 

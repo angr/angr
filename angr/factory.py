@@ -11,7 +11,7 @@ from angr.exploration_techniques.base import ExplorationTechnique
 
 from .block import Block, SootBlock
 from .callable import Callable
-from .calling_conventions import PointerWrapper, SimCCUnknown, SimRegArg, SimStackArg, default_cc
+from .calling_conventions import PointerWrapper, SimCCUnknown, SimRegArg, SimStackArg, default_cc_for_project
 from .codenode import HookNode, SyscallNode
 from .engines import ProcedureEngine, UberEngine
 from .errors import AngrError
@@ -65,9 +65,7 @@ class AngrObjectFactory:
             register_pcode_arch_default_cc(project.arch)
 
         self.project = project
-        self._default_cc = default_cc(
-            project.arch.name, platform=project.simos.name if project.simos is not None else None, default=SimCCUnknown
-        )
+        self._default_cc = None
         self.procedure_engine = ProcedureEngine(project)
 
     def __getstate__(self):
@@ -297,6 +295,9 @@ class AngrObjectFactory:
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
 
+        if self._default_cc is None:
+            # resolved lazily: language detection needs a fully constructed project
+            self._default_cc = default_cc_for_project(self.project, default=SimCCUnknown)
         assert self._default_cc is not None
         return self._default_cc(arch=self.project.arch)
 
