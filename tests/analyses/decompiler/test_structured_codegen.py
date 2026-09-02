@@ -20,11 +20,13 @@ from angr.analyses.decompiler.structured_codegen.c import (
 )
 from angr.sim_type import (
     SimCppClass,
+    SimStruct,
     SimTypeBottom,
     SimTypeFunction,
     SimTypeInt,
     SimTypeLongLong,
     SimTypePointer,
+    SimUnion,
     parse_cpp_file,
 )
 from tests.common import bin_location
@@ -171,6 +173,76 @@ class TestClassDefinitionRendering(unittest.TestCase):
     def test_plain_class_name_is_unchanged(self):
         ty = SimCppClass(unique_name="DemoNs::DemoType", name="DemoNs::DemoType", members={"x": SimTypeInt()})
         assert self._render(ty) == "class DemoNs::DemoType {\n    int x;\n} DemoNs::DemoType;\n\n"
+
+
+class TestAnonymousAggregateRendering(unittest.TestCase):
+    """How type_to_c_repr_chunks renders anonymous aggregates that contain themselves."""
+
+    @staticmethod
+    def _render(ty) -> str:
+        return "".join(text for text, _ in type_to_c_repr_chunks(ty, full=True))
+
+    def test_nested_anonymous_structs_are_rendered_inline(self):
+        inner = SimStruct({"x": SimTypeInt()}, name="<anon>")
+        middle = SimStruct({"deep": inner}, name="<anon>")
+        outer = SimStruct({"mid": middle, "y": SimTypeInt()}, name="outer")
+        assert self._render(outer) == (
+            "typedef struct outer {\n"
+            "    struct {\n"
+            "        struct {\n"
+            "            int x;\n"
+            "        } deep;\n"
+            "    } mid;\n"
+            "    int y;\n"
+            "} outer;\n\n"
+        )
+
+    def test_a_reused_anonymous_struct_is_rendered_in_full_each_time(self):
+        # only the enclosing aggregates count as a cycle: the same object used by two sibling
+        # fields is rendered twice, in full
+        anon = SimStruct({"x": SimTypeInt()}, name="<anon>")
+        outer = SimStruct({"a": anon, "b": anon}, name="outer")
+        assert self._render(outer) == (
+            "typedef struct outer {\n"
+            "    struct {\n"
+            "        int x;\n"
+            "    } a;\n"
+            "    struct {\n"
+            "        int x;\n"
+            "    } b;\n"
+            "} outer;\n\n"
+        )
+
+    def test_self_referential_anonymous_struct_terminates(self):
+        # Type inference can hand codegen an anonymous aggregate that reaches itself. Anonymous
+        # aggregates are rendered inline, so there is no name to refer back to and the render
+        # descended until the interpreter stopped it.
+        anon = SimStruct({}, name="<anon>")
+        anon.fields["loop"] = anon
+        anon.fields["x"] = SimTypeInt()
+        outer = SimStruct({"mid": anon}, name="outer")
+        assert self._render(outer) == (
+            "typedef struct outer {\n"
+            "    struct {\n"
+            "        struct { /* recursive */ } loop;\n"
+            "        int x;\n"
+            "    } mid;\n"
+            "} outer;\n\n"
+        )
+
+    def test_self_referential_anonymous_union_terminates(self):
+        anon = SimUnion({}, name="<anon>")
+        anon.members["loop"] = anon
+        anon.members["x"] = SimTypeInt()
+        outer = SimStruct({"mid": anon}, name="outer")
+        assert self._render(outer) == (
+            "typedef struct outer {\n"
+            "    union {\n"
+            "        union { /* recursive */ } loop;\n"
+            "        int x;\n"
+            "    } mid;\n"
+            "} outer;\n\n"
+        )
 
 
 if __name__ == "__main__":
