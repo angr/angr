@@ -102,6 +102,39 @@ class VMDeobfuscationSimplifierMixin:
         )
         return graph
 
+    def simplify_mba_expressions(self, ail_graph):
+        """Replace mixed boolean-arithmetic tangles with what they compute. See MBATemplateSimplifier."""
+        from angr.ailment import AILBlockRewriter
+        from angr.analyses.decompiler.mba_simplifier import MBATemplateSimplifier
+
+        simplifier = MBATemplateSimplifier(ail_manager=self._ail_manager)
+
+        class _Rewriter(AILBlockRewriter):
+            def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+                # Try the largest subtree first: an obfuscated operation is one expression, and
+                # rewriting it whole beats rewriting its parts.
+                rewritten = simplifier.simplify(expr)
+                if rewritten is not None:
+                    return rewritten
+                return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+        rewriter = _Rewriter(update_block=False)
+        changed_blocks = 0
+        for block in list(ail_graph):
+            new_block = rewriter.walk(block)
+            if new_block is not None and new_block is not block:
+                block.statements = list(new_block.statements)
+                changed_blocks += 1
+        self._mba_changed_blocks = changed_blocks
+
+        if simplifier.simplified:
+            l.debug(
+                "MBA simplification: %d of %d candidates rewritten (%d failed their proof)",
+                simplifier.simplified, simplifier.candidates, simplifier.verified_away,
+            )
+        self._mba_stats = (simplifier.candidates, simplifier.simplified, simplifier.verified_away)
+        return ail_graph
+
     def _run_vm_deobfuscation_simplifications(self, ail_graph):
         """
         Run pushan's devirtualization clean-ups, re-simplifying the function between them the way
