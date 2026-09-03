@@ -261,7 +261,7 @@ class TestStoreRendering(unittest.TestCase):
         cls.codegen = _make_codegen()
 
     def test_mismatched_store_cast_distinguishes_pointer_from_storage(self):
-        manager = Manager(arch=self.codegen.project.arch)
+        manager = Manager()
         addr = Expr.VirtualVariable(
             manager.next_atom(), 1, self.codegen.project.arch.bits, VirtualVariableCategory.REGISTER
         )
