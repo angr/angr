@@ -39,7 +39,7 @@ def _const(idx: int, value: int) -> Const:
 
 def _build_lowered_switch_graph():
     project = angr.load_shellcode(b"\x90", "AMD64", load_address=0x4000)
-    manager = Manager(arch=project.arch)
+    manager = Manager()
     switch_variable = VirtualVariable(0, 1, 64, VirtualVariableCategory.REGISTER, oident=0)
     assignment_variable = VirtualVariable(1, 2, 64, VirtualVariableCategory.REGISTER, oident=8)
 
