@@ -11,10 +11,8 @@ from collections import defaultdict
 from types import SimpleNamespace
 from typing import Any, cast
 
-import claripy
-
 import angr
-from angr import ailment
+from angr import ailment, claripy
 from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.analyses.variable_recovery.engine_base import RichR, SimEngineVRBase
 from angr.analyses.variable_recovery.variable_recovery_fast import VariableRecoveryFastState

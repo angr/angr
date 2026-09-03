@@ -83,7 +83,7 @@ class TestCallsiteMaker(unittest.TestCase):
                     self._check_synthetic_link_register_assignment(project, block_addr, block_size, lr_offset, use_vvar)
 
     def _check_synthetic_link_register_assignment(self, project, block_addr, block_size, lr_offset, use_vvar):
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         scratch_dst = self._register_destination(manager, project, lr_offset, 1, use_vvar)
         link_dst = self._register_destination(manager, project, lr_offset, 2, use_vvar)
 
@@ -117,7 +117,7 @@ class TestCallsiteMaker(unittest.TestCase):
             os.path.join(test_location, "armel", "checkbyte"),
             auto_load_libs=False,
         )
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         block = project.factory.block(0x8370, size=8)
         self.assertEqual(block.vex.jumpkind, "Ijk_Call")
         ail_block = ailment.IRSBConverter.convert(block.vex, manager)
@@ -153,7 +153,7 @@ class TestCallsiteMaker(unittest.TestCase):
 
         for use_vvar in (False, True):
             with self.subTest(use_vvar=use_vvar):
-                manager = ailment.Manager(arch=project.arch)
+                manager = ailment.Manager()
                 scratch_dst = self._register_destination(manager, project, lr_offset, 1, use_vvar)
                 scratch_assignment = self._assignment(
                     manager,
@@ -185,7 +185,7 @@ class TestCallsiteMaker(unittest.TestCase):
 
         for use_vvar in (False, True):
             with self.subTest(use_vvar=use_vvar):
-                manager = ailment.Manager(arch=project.arch)
+                manager = ailment.Manager()
                 scratch_dst = self._register_destination(manager, project, lr_offset, 1, use_vvar)
                 scratch_use = self._register_destination(manager, project, lr_offset, 1, use_vvar)
                 use_dst = self._register_destination(manager, project, r0_offset, 3, use_vvar)
@@ -220,7 +220,7 @@ class TestCallsiteMaker(unittest.TestCase):
             os.path.join(test_location, "x86_64", "all"),
             auto_load_libs=False,
         )
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         block_addr = 0x1000
         block_size = 5
         return_addr = ailment.Expr.Const(manager.next_atom(), block_addr + block_size, project.arch.bits)
@@ -266,7 +266,7 @@ class TestCallsiteMaker(unittest.TestCase):
             os.path.join(test_location, "s390x", "checkbyte"),
             auto_load_libs=False,
         )
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         block_addr = 0x1000
         block_size = 6
         lr_offset = project.arch.lr_offset
