@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 from angr.ailment.expression import (
     ITE,
+    ComboRegister,
     Const,
     Convert,
     DirtyExpression,
@@ -518,6 +519,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             self.register_set(stmt.ret_expr.reg_offset, stmt.ret_expr.size, result, stmt.ret_expr)
+        elif stmt.ret_expr is not None and isinstance(stmt.ret_expr, ComboRegister):
+            # a multi-register result defines every constituent register
+            for reg in stmt.ret_expr.registers:
+                self.register_set(reg.reg_offset, reg.size, result, reg)
         if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
             self.register_set(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size, result, stmt.fp_ret_expr)
 

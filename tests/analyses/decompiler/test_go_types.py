@@ -4,10 +4,12 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 
 import archinfo
 
+import angr
 from angr.analyses.typehoon import typeconsts
 from angr.go.signature import GoFuncSignature, GoNamedType, GoSignatureSet, GoStructField
 from angr.go.sim_type import (
@@ -24,7 +26,9 @@ from angr.go.sim_type import (
 )
 from angr.go.type_parser import GoTypeParser
 from angr.go.typehoon.translator import GoTypeTranslator
+from angr.go.utils.version import identify_go_version
 from angr.sim_type import SimType, SimTypeLongLong, SimTypePointer
+from tests.common import bin_location
 
 ARCH = archinfo.ArchAMD64()
 
@@ -167,6 +171,29 @@ class TestGoTypeParser(unittest.TestCase):
         sig = ss.functions["os.(*File).Write"]
         assert isinstance(sig, GoFuncSignature)
         assert [pp.type_str for pp in sig.all_params] == ["*os.File", "[]uint8"]
+
+
+class TestGoSignaturesPlugin(unittest.TestCase):
+    def test_version_and_stdlib_lookup(self):
+        for version in ("go1.22.5", "go1.27.1"):
+            with self.subTest(version=version):
+                path = os.path.join(bin_location, "tests", "x86_64", "go", version, "basics_stripped")
+                proj = angr.Project(path, auto_load_libs=False)
+                assert identify_go_version(proj) == version
+                gs = proj.kb.go_signatures
+                assert gs.load_stdlib()
+                assert gs.go_version == version
+                atoi = gs.prototype("strconv.Atoi")
+                assert atoi is not None
+                assert atoi.repr("strconv.Atoi") == "func strconv.Atoi(s string) (int, error)"
+                # ABI suffixes are stripped before lookup
+                assert gs.prototype("runtime.morestack_noctxt.abi0") is not None
+                assert gs.prototype("runtime.convT64").repr("f") == "func f(val uint64) unsafe.Pointer"
+                assert gs.prototype("main.fib") is None
+                g = gs.type("runtime.g")
+                assert g.offsets["stackguard0"] == 16
+                assert g.offsets["m"] == 48
+                assert gs.type("os.File").go_repr() == "os.File"
 
 
 class TestGoTypeTranslator(unittest.TestCase):

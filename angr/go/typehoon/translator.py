@@ -167,10 +167,14 @@ class GoTypeTranslator(TypeTranslator):
         return typeconsts.Array(self._simtype2tc(ty.elem_type), count=ty.length)
 
     def _translate_GoSimStruct(self, ty: GoSimStruct) -> TypeConstant:
-        key = f"go_struct_{ty.name}_{id(ty)}" if ty.go_name is None else f"go_struct_{ty.go_name}"
+        # builtins (string, slices, interfaces, tuples) and named structs must come back unchanged
+        name = ty.go_repr() if (ty.go_name is not None or _is_builtin_struct(ty)) else None
+        key = f"go_struct_{name}" if name is not None else f"go_struct_anon_{id(ty)}"
         if key in self.memo:
             return self.memo[key]
-        obj = typeconsts.Struct(fields={}, name=ty.go_name)
+        if name is not None:
+            self.known_structs.setdefault(name, ty)
+        obj = typeconsts.Struct(fields={}, name=name)
         self.memo[key] = obj
         offsets = ty.offsets
         fields = {}
@@ -198,6 +202,10 @@ class GoTypeTranslator(TypeTranslator):
         if isinstance(simtype, sim_type.SimTypeBottom):
             return simtype
         return self.tc2simtype(self.simtype2tc(simtype))[0]
+
+
+def _is_builtin_struct(ty) -> bool:
+    return isinstance(ty, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface, GoSimTypeTuple))
 
 
 GoTypeConstHandlers = {

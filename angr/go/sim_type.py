@@ -373,6 +373,7 @@ class GoSimTypeString(GoSimStruct):
         )
         self.go_name = go_name
         self._name = "string"
+        self.anonymous = False
 
     @property
     def name(self) -> str:
@@ -415,6 +416,7 @@ class GoSimTypeSlice(GoSimStruct):
         )
         self.go_name = go_name
         self._name = self._go_repr()
+        self.anonymous = False
 
     @property
     def name(self) -> str:
@@ -459,6 +461,7 @@ class GoSimTypeInterface(GoSimStruct):
         )
         self.go_name = go_name
         self._name = self._go_repr()
+        self.anonymous = False
 
     @property
     def name(self) -> str:
@@ -508,6 +511,7 @@ class GoSimTypeTuple(GoSimStruct):
         self.names = list(names) if names else [f"~r{i}" for i in range(len(self.elems))]
         super().__init__(OrderedDict(zip(self.names, self.elems)), label=label)
         self._name = self._go_repr()
+        self.anonymous = False
 
     @property
     def name(self) -> str:
@@ -735,8 +739,6 @@ def go_type_repr(ty: SimType | None) -> str:
 
 def go_int(arch, size: int | None = None, signed: bool = True, go_name: str | None = None) -> GoSimTypeInt:
     size = arch.bits if size is None else size
-    if go_name is None and size == arch.bits:
-        go_name = "int" if signed else "uint"
     return GoSimTypeInt(size, signed, go_name).with_arch(arch)
 
 
@@ -748,11 +750,11 @@ PREDECLARED: dict[str, Any] = {
     "int8": lambda arch: go_int(arch, 8, True),
     "int16": lambda arch: go_int(arch, 16, True),
     "int32": lambda arch: go_int(arch, 32, True),
-    "int64": lambda arch: go_int(arch, 64, True),
+    "int64": lambda arch: go_int(arch, 64, True, "int64"),
     "uint8": lambda arch: go_int(arch, 8, False),
     "uint16": lambda arch: go_int(arch, 16, False),
     "uint32": lambda arch: go_int(arch, 32, False),
-    "uint64": lambda arch: go_int(arch, 64, False),
+    "uint64": lambda arch: go_int(arch, 64, False, "uint64"),
     "byte": lambda arch: go_int(arch, 8, False, "byte"),
     "rune": lambda arch: go_int(arch, 32, True, "rune"),
     "float32": lambda arch: GoSimTypeFloat(32).with_arch(arch),

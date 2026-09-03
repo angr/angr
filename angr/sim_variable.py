@@ -333,6 +333,10 @@ class SimComboRegisterVariable(SimVariable):
     def loc_repr(self, arch):
         return ":".join(arch.translate_register_name(reg_offset, self.size) for reg_offset in self.reg_offsets)
 
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        return ("combo_reg", *self.reg_offsets, self.size, self.ident)
+
     def __hash__(self):
         if self._hash is None:
             self._hash = stable_hash(("combo_reg", self.region, tuple(self.reg_offsets), self.size, self.ident))
