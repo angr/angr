@@ -300,6 +300,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         vvar_to_vvar: dict[int, int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        type_translator=None,
         variable_map=None,
         flavor: str | None = None,
     ):
@@ -345,11 +346,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.tv_manager = TypeVariableManager(self.function.addr)
 
         # handle type hints
-        self.type_lifter = (
-            RustTypeTranslator(self.project.arch, func_addr=self.function.addr)
-            if self._rust_types
-            else TypeTranslator(self.project.arch, func_addr=self.function.addr)
-        )
+        if type_translator is not None:
+            self.type_lifter = type_translator
+        elif self._rust_types:
+            self.type_lifter = RustTypeTranslator(self.project.arch, func_addr=self.function.addr)
+        else:
+            self.type_lifter = TypeTranslator(self.project.arch, func_addr=self.function.addr)
         self.vvar_type_hints = {}
         if type_hints:
             self._parse_type_hints(type_hints)
