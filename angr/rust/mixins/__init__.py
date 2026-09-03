@@ -1,10 +1,7 @@
+# Compatibility shims: the language-neutral mixins live in angr.analyses.decompiler.mixins now.
 from __future__ import annotations
 
-from .cfa_mixin import CFAMixin
-from .cfg_transformation_mixin import CFGTransformationMixin
-from .dfa_mixin import DFAMixin
-from .srda_mixin import SRDAMixin
-from .ssa_variable_mixin import SSAVariableMixin
+from angr.analyses.decompiler.mixins import CFAMixin, CFGTransformationMixin, DFAMixin, SRDAMixin, SSAVariableMixin
 
 __all__ = [
     "CFAMixin",

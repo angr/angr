@@ -22,13 +22,13 @@ from angr.ailment.expression import (
 )
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Jump, Label, Return, SideEffectStatement, Statement, Store
+from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import GoSimTypeFunction
 from angr.go.utils.graph import block_before, conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
-from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.utils.go_runtime import normalize_go_func_name
 
 l = logging.getLogger(__name__)
