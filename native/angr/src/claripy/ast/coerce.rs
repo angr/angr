@@ -226,6 +226,14 @@ impl<'py> CoerceBV<'py> {
     }
 }
 
+/// Build a BV from raw bytes, read as a big-endian value of `bytes.len() * 8` bits.
+fn bytes_to_bv<'py>(py: Python<'py>, bytes: &[u8]) -> Result<CoerceBV<'py>, ClaripyError> {
+    let length = bytes.len() as u32 * 8;
+    let words = BigUint::from_bytes_be(bytes).iter_u64_digits().collect();
+    let bv = BitVec::new(words, length).expect("BitVec::new is infallible");
+    Ok(CoerceBV::BV(BV::new(py, &GLOBAL_CONTEXT.bvv(bv)?)?))
+}
+
 impl<'py> FromPyObject<'_, 'py> for CoerceBV<'py> {
     type Error = PyErr;
 
@@ -238,37 +246,10 @@ impl<'py> FromPyObject<'_, 'py> for CoerceBV<'py> {
             Ok(CoerceBV::Bool(bool_val.to_owned()))
         } else if let Ok(bytes_val) = val.extract::<Vec<u8>>() {
             // Interpret the raw bytes as a big-endian bitvector of len(bytes) * 8 bits.
-            let length = bytes_val.len() as u32 * 8;
-            let words = BigUint::from_bytes_be(&bytes_val)
-                .iter_u64_digits()
-                .collect();
-            let bv = BitVec::new(words, length).expect("BitVec::new is infallible");
-            Ok(CoerceBV::BV(BV::new(
-                val.py(),
-                &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,
-            )?))
-        } else if let Ok(bytes_val) = val.extract::<&[u8]>() {
-            // Interpret the raw bytes as a big-endian bitvector of len(bytes) * 8 bits.
-            let length = bytes_val.len() as u32 * 8;
-            let words = BigUint::from_bytes_be(bytes_val)
-                .iter_u64_digits()
-                .collect();
-            let bv = BitVec::new(words, length).expect("BitVec::new is infallible");
-            Ok(CoerceBV::BV(BV::new(
-                val.py(),
-                &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,
-            )?))
+            Ok(bytes_to_bv(val.py(), &bytes_val)?)
         } else if let Ok(string_val) = val.extract::<&str>() {
             // Interpret the string as a big-endian bitvector of len(string) * 8 bits.
-            let length = string_val.len() as u32 * 8;
-            let words = BigUint::from_bytes_be(string_val.as_bytes())
-                .iter_u64_digits()
-                .collect();
-            let bv = BitVec::new(words, length).expect("BitVec::new is infallible");
-            Ok(CoerceBV::BV(BV::new(
-                val.py(),
-                &GLOBAL_CONTEXT.bvv(bv).map_err(ClaripyError::from)?,
-            )?))
+            Ok(bytes_to_bv(val.py(), string_val.as_bytes())?)
         } else {
             Err(ClaripyError::InvalidArgumentType("Expected BV".to_string()).into())
         }
