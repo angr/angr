@@ -2,41 +2,46 @@ use std::collections::{BTreeSet, HashSet};
 
 use crate::prelude::*;
 
-use super::dfs::{DfsResult, walk_dfs};
+use super::walk::walk;
 
 #[allow(clippy::mutable_key_type)]
 pub fn collect_vars<'c>(ast: &AstRef<'c>) -> Result<HashSet<AstRef<'c>>, ClarirsError> {
     let mut vars: HashSet<AstRef<'c>> = HashSet::new();
     let mut interesting: BTreeSet<InternedString> = ast.variables().clone();
 
-    walk_dfs(ast, |node| {
-        if interesting.is_empty() {
-            // We have all the variables we need
-            return DfsResult::Stop;
-        }
-
-        if !node.symbolic() {
-            // Variables are always symbolic
-            return DfsResult::SkipChildren;
-        }
-
-        let intersect: Vec<InternedString> = node
-            .variables()
-            .intersection(&interesting)
-            .cloned()
-            .collect();
-
-        match intersect.len() {
-            0 => DfsResult::SkipChildren,
-            1 if node.depth() == 1 => {
-                // We found a variable
-                vars.insert(node.clone());
-                interesting.remove(&intersect[0]);
-                DfsResult::Continue
+    walk(
+        ast.clone(),
+        |node| {
+            if interesting.is_empty() {
+                // We have all the variables we need
+                return Ok(Some(()));
             }
-            _ => DfsResult::Continue,
-        }
-    })?;
+
+            if !node.symbolic() {
+                // Variables are always symbolic
+                return Ok(Some(()));
+            }
+
+            let intersect: Vec<InternedString> = node
+                .variables()
+                .intersection(&interesting)
+                .cloned()
+                .collect();
+
+            match intersect.len() {
+                0 => Ok(Some(())),
+                1 if node.depth() == 1 => {
+                    // We found a variable
+                    vars.insert(node.clone());
+                    interesting.remove(&intersect[0]);
+                    Ok(None)
+                }
+                _ => Ok(None),
+            }
+        },
+        |_, _| Ok(()),
+        &(),
+    )?;
 
     Ok(vars)
 }

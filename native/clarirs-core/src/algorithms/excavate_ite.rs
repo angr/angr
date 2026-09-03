@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    algorithms::{reconstruct::reconstruct_node, walk_post_order},
+    algorithms::{reconstruct::reconstruct_node, walk},
     ast::op::AstOp,
     prelude::*,
 };
@@ -14,8 +14,9 @@ impl<'c> AstNode<'c> {
     /// example, `a + (if cond then b else c)` becomes
     /// `if cond then (a + b) else (a + c)`.
     pub fn excavate_ite(self: &Arc<Self>) -> Result<AstRef<'c>, ClarirsError> {
-        walk_post_order(
+        walk(
             self.clone(),
+            |_| Ok(None),
             |node, children| excavate_node(&node, children),
             &self.context().excavate_ite_cache,
         )

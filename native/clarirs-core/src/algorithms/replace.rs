@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::{
-    algorithms::{pre_order::walk_pre_order, reconstruct::reconstruct_node},
+    algorithms::{reconstruct::reconstruct_node, walk},
+    cache::GenericCache,
     prelude::*,
 };
 
@@ -25,7 +26,7 @@ impl<'c> AstNode<'c> {
         }
 
         let ctx = self.context();
-        walk_pre_order(
+        walk(
             self.clone(),
             |ast| {
                 if *ast == from {
@@ -35,6 +36,7 @@ impl<'c> AstNode<'c> {
                 }
             },
             |ast, children| reconstruct_node(ctx, &ast, children),
+            &GenericCache::default(),
         )
     }
 
@@ -48,7 +50,7 @@ impl<'c> AstNode<'c> {
         }
 
         let ctx = self.context();
-        walk_pre_order(
+        walk(
             self.clone(),
             |node| {
                 if let Some(replacement) = replacements.get(&node.hash()) {
@@ -58,6 +60,7 @@ impl<'c> AstNode<'c> {
                 }
             },
             |node, children| reconstruct_node(ctx, &node, children),
+            &GenericCache::default(),
         )
     }
 }
