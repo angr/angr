@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import unittest
-from unittest import TestCase
 from pathlib import Path
 from typing import Literal
+from unittest import TestCase
 
 import archinfo
-import claripy
 import networkx
 import pytest
 
-from angr import Project, ailment
+from angr import Project, ailment, claripy
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
@@ -34,7 +33,7 @@ def _recover_edge_condition_with_internal_side_exits(
     wrap_destination: bool = False,
 ) -> claripy.ast.Bool:
     arch = archinfo.ArchAMD64()
-    manager = ailment.Manager(arch=arch)
+    manager = ailment.Manager()
     condition_processor = ConditionProcessor(arch, manager)
     src_addr = 0x4000
     dst_addr = 0x5000
