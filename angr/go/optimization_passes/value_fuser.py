@@ -10,7 +10,7 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimStructArg
-from angr.go.sim_type import GoSimStruct, GoSimTypeFunction, GoSimTypeString, GoSimTypeTuple
+from angr.go.sim_type import GoSimStruct, GoSimTypeFunction, GoSimTypeString
 from angr.go.utils.names import call_target_name
 from angr.sim_type import SimType
 
@@ -80,7 +80,10 @@ class GoValueFuser(OptimizationPass):
 
     def _collect_combo_vvars(self) -> None:
         def note(vvar):
-            if vvar.category == VVC.COMBO_REGISTER and vvar.reg_vvars:
+            is_combo = vvar.category == VVC.COMBO_REGISTER or (
+                vvar.category == VVC.PARAMETER and vvar.parameter_category == VVC.COMBO_REGISTER
+            )
+            if is_combo and vvar.reg_vvars:
                 for reg_vvar in vvar.reg_vvars:
                     self._varid_to_combo[reg_vvar.varid] = vvar
 
@@ -277,7 +280,7 @@ class _FusingRewriter(AILBlockRewriter):
 
     def _handle_Return(self, stmt_idx: int, stmt: Return, block):
         proto = self._fuser._func.prototype
-        if isinstance(proto, GoSimTypeFunction) and isinstance(proto.returnty, GoSimTypeTuple) and stmt.ret_exprs:
+        if isinstance(proto, GoSimTypeFunction) and proto.results and stmt.ret_exprs:
             fused = self._fuser.fuse_results(list(stmt.ret_exprs), proto)
             if fused is not None:
                 self.changed = True
