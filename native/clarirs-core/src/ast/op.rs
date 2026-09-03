@@ -143,193 +143,85 @@ pub enum AstOp<'c> {
     BVToStr(AstRef<'c>),
 }
 
+/// Lists every [`AstOp`] variant once, grouped by child count, and generates the
+/// functions that depend only on that shape. Parenthesised names are a
+/// variant's non-child fields, in order.
+macro_rules! ast_op_arity {
+    (
+        leaf: [$($leaf:ident),* $(,)?],
+        nary: [$($nary:ident),* $(,)?],
+        unary: [$($un:ident $(($($unp:ident),*))?),* $(,)?],
+        binary: [$($bin:ident $(($($binp:ident),*))?),* $(,)?],
+        ternary: [$($ter:ident),* $(,)?] $(,)?
+    ) => {
+        impl<'c> AstOp<'c> {
+            /// Returns the child AST at the given index, or `None` if out of range.
+            pub fn get_child(&self, index: usize) -> Option<AstRef<'c>> {
+                match self {
+                    $(AstOp::$leaf(..))|* => None,
+                    // N-ary operations index directly into their Vec (O(1))
+                    $(AstOp::$nary(v))|* => v.get(index).cloned(),
+                    $(AstOp::$un(a, ..))|* => (index == 0).then(|| a.clone()),
+                    $(AstOp::$bin(a, b, ..))|* => match index {
+                        0 => Some(a.clone()),
+                        1 => Some(b.clone()),
+                        _ => None,
+                    },
+                    $(AstOp::$ter(a, b, c))|* => match index {
+                        0 => Some(a.clone()),
+                        1 => Some(b.clone()),
+                        2 => Some(c.clone()),
+                        _ => None,
+                    },
+                }
+            }
+
+            /// Returns the number of children of this operation.
+            pub fn num_children(&self) -> usize {
+                match self {
+                    $(AstOp::$leaf(..))|* => 0,
+                    $(AstOp::$nary(v))|* => v.len(),
+                    $(AstOp::$un(..))|* => 1,
+                    $(AstOp::$bin(..))|* => 2,
+                    $(AstOp::$ter(..))|* => 3,
+                }
+            }
+
+            /// Returns this operation with `children` substituted for its own,
+            /// without interning, or `None` for a leaf.
+            pub fn with_children(&self, children: &[AstRef<'c>]) -> Option<AstOp<'c>> {
+                let c = |i: usize| children[i].clone();
+                Some(match self {
+                    $(AstOp::$leaf(..))|* => return None,
+                    $(AstOp::$nary(..) => AstOp::$nary(children.to_vec()),)*
+                    $(AstOp::$un(_ $($(, $unp)*)?) => AstOp::$un(c(0) $($(, *$unp)*)?),)*
+                    $(AstOp::$bin(_, _ $($(, $binp)*)?) => AstOp::$bin(c(0), c(1) $($(, *$binp)*)?),)*
+                    $(AstOp::$ter(..) => AstOp::$ter(c(0), c(1), c(2)),)*
+                })
+            }
+        }
+    };
+}
+
+ast_op_arity! {
+    leaf: [BoolS, BoolV, BVS, BVV, FPS, FPV, StringS, StringV],
+    nary: [And, Or, Xor, Add, Mul, Concat],
+    unary: [
+        Not, Neg, ByteReverse, ZeroExt(n), SignExt(n), Extract(hi, lo), StrLen, StrToBV,
+        FpToIEEEBV, FpToUBV(size, rm), FpToSBV(size, rm), FpNeg, FpAbs, FpSqrt(rm),
+        FpToFp(sort, rm), BvToFp(sort), BvToFpSigned(sort, rm), BvToFpUnsigned(sort, rm),
+        FpIsNan, FpIsInf, StrIsDigit, BVToStr,
+    ],
+    binary: [
+        Eq, Neq, ULT, ULE, UGT, UGE, SLT, SLE, SGT, SGE, FpLt, FpLeq, FpGt, FpGeq,
+        StrContains, StrPrefixOf, StrSuffixOf, Sub, UDiv, SDiv, URem, SRem, ShL, LShR, AShR,
+        RotateLeft, RotateRight, Union, Intersection, Widen, FpAdd(rm), FpSub(rm), FpMul(rm),
+        FpDiv(rm), StrConcat,
+    ],
+    ternary: [ITE, StrIndexOf, FpFP, StrSubstr, StrReplace],
+}
+
 impl<'c> AstOp<'c> {
-    /// Returns the child AST at the given index, or `None` if out of range.
-    pub fn get_child(&self, index: usize) -> Option<AstRef<'c>> {
-        match self {
-            // Leaves have no children
-            AstOp::BoolS(..)
-            | AstOp::BoolV(..)
-            | AstOp::BVS(..)
-            | AstOp::BVV(..)
-            | AstOp::FPS(..)
-            | AstOp::FPV(..)
-            | AstOp::StringS(..)
-            | AstOp::StringV(..) => None,
-
-            // N-ary operations index directly into their Vec (O(1))
-            AstOp::And(v)
-            | AstOp::Or(v)
-            | AstOp::Xor(v)
-            | AstOp::Add(v)
-            | AstOp::Mul(v)
-            | AstOp::Concat(v) => v.get(index).cloned(),
-
-            // Unary operations
-            AstOp::Not(a)
-            | AstOp::Neg(a)
-            | AstOp::ByteReverse(a)
-            | AstOp::ZeroExt(a, _)
-            | AstOp::SignExt(a, _)
-            | AstOp::Extract(a, _, _)
-            | AstOp::StrLen(a)
-            | AstOp::StrToBV(a)
-            | AstOp::FpToIEEEBV(a)
-            | AstOp::FpToUBV(a, _, _)
-            | AstOp::FpToSBV(a, _, _)
-            | AstOp::FpNeg(a)
-            | AstOp::FpAbs(a)
-            | AstOp::FpSqrt(a, _)
-            | AstOp::FpToFp(a, _, _)
-            | AstOp::BvToFp(a, _)
-            | AstOp::BvToFpSigned(a, _, _)
-            | AstOp::BvToFpUnsigned(a, _, _)
-            | AstOp::FpIsNan(a)
-            | AstOp::FpIsInf(a)
-            | AstOp::StrIsDigit(a)
-            | AstOp::BVToStr(a) => (index == 0).then(|| a.clone()),
-
-            // Binary operations
-            AstOp::Eq(a, b)
-            | AstOp::Neq(a, b)
-            | AstOp::ULT(a, b)
-            | AstOp::ULE(a, b)
-            | AstOp::UGT(a, b)
-            | AstOp::UGE(a, b)
-            | AstOp::SLT(a, b)
-            | AstOp::SLE(a, b)
-            | AstOp::SGT(a, b)
-            | AstOp::SGE(a, b)
-            | AstOp::FpLt(a, b)
-            | AstOp::FpLeq(a, b)
-            | AstOp::FpGt(a, b)
-            | AstOp::FpGeq(a, b)
-            | AstOp::StrContains(a, b)
-            | AstOp::StrPrefixOf(a, b)
-            | AstOp::StrSuffixOf(a, b)
-            | AstOp::Sub(a, b)
-            | AstOp::UDiv(a, b)
-            | AstOp::SDiv(a, b)
-            | AstOp::URem(a, b)
-            | AstOp::SRem(a, b)
-            | AstOp::ShL(a, b)
-            | AstOp::LShR(a, b)
-            | AstOp::AShR(a, b)
-            | AstOp::RotateLeft(a, b)
-            | AstOp::RotateRight(a, b)
-            | AstOp::Union(a, b)
-            | AstOp::Intersection(a, b)
-            | AstOp::Widen(a, b)
-            | AstOp::FpAdd(a, b, _)
-            | AstOp::FpSub(a, b, _)
-            | AstOp::FpMul(a, b, _)
-            | AstOp::FpDiv(a, b, _)
-            | AstOp::StrConcat(a, b) => match index {
-                0 => Some(a.clone()),
-                1 => Some(b.clone()),
-                _ => None,
-            },
-
-            // Ternary operations
-            AstOp::ITE(a, b, c)
-            | AstOp::StrIndexOf(a, b, c)
-            | AstOp::FpFP(a, b, c)
-            | AstOp::StrSubstr(a, b, c)
-            | AstOp::StrReplace(a, b, c) => match index {
-                0 => Some(a.clone()),
-                1 => Some(b.clone()),
-                2 => Some(c.clone()),
-                _ => None,
-            },
-        }
-    }
-
-    /// Returns the number of children of this operation.
-    pub fn num_children(&self) -> usize {
-        match self {
-            AstOp::BoolS(..)
-            | AstOp::BoolV(..)
-            | AstOp::BVS(..)
-            | AstOp::BVV(..)
-            | AstOp::FPS(..)
-            | AstOp::FPV(..)
-            | AstOp::StringS(..)
-            | AstOp::StringV(..) => 0,
-
-            AstOp::And(v)
-            | AstOp::Or(v)
-            | AstOp::Xor(v)
-            | AstOp::Add(v)
-            | AstOp::Mul(v)
-            | AstOp::Concat(v) => v.len(),
-
-            AstOp::Not(_)
-            | AstOp::Neg(_)
-            | AstOp::ByteReverse(_)
-            | AstOp::ZeroExt(..)
-            | AstOp::SignExt(..)
-            | AstOp::Extract(..)
-            | AstOp::StrLen(_)
-            | AstOp::StrToBV(_)
-            | AstOp::FpToIEEEBV(_)
-            | AstOp::FpToUBV(..)
-            | AstOp::FpToSBV(..)
-            | AstOp::FpNeg(_)
-            | AstOp::FpAbs(_)
-            | AstOp::FpSqrt(..)
-            | AstOp::FpToFp(..)
-            | AstOp::BvToFp(..)
-            | AstOp::BvToFpSigned(..)
-            | AstOp::BvToFpUnsigned(..)
-            | AstOp::FpIsNan(_)
-            | AstOp::FpIsInf(_)
-            | AstOp::StrIsDigit(_)
-            | AstOp::BVToStr(_) => 1,
-
-            AstOp::Eq(..)
-            | AstOp::Neq(..)
-            | AstOp::ULT(..)
-            | AstOp::ULE(..)
-            | AstOp::UGT(..)
-            | AstOp::UGE(..)
-            | AstOp::SLT(..)
-            | AstOp::SLE(..)
-            | AstOp::SGT(..)
-            | AstOp::SGE(..)
-            | AstOp::FpLt(..)
-            | AstOp::FpLeq(..)
-            | AstOp::FpGt(..)
-            | AstOp::FpGeq(..)
-            | AstOp::StrContains(..)
-            | AstOp::StrPrefixOf(..)
-            | AstOp::StrSuffixOf(..)
-            | AstOp::Sub(..)
-            | AstOp::UDiv(..)
-            | AstOp::SDiv(..)
-            | AstOp::URem(..)
-            | AstOp::SRem(..)
-            | AstOp::ShL(..)
-            | AstOp::LShR(..)
-            | AstOp::AShR(..)
-            | AstOp::RotateLeft(..)
-            | AstOp::RotateRight(..)
-            | AstOp::Union(..)
-            | AstOp::Intersection(..)
-            | AstOp::Widen(..)
-            | AstOp::FpAdd(..)
-            | AstOp::FpSub(..)
-            | AstOp::FpMul(..)
-            | AstOp::FpDiv(..)
-            | AstOp::StrConcat(..) => 2,
-
-            AstOp::ITE(..)
-            | AstOp::StrIndexOf(..)
-            | AstOp::FpFP(..)
-            | AstOp::StrSubstr(..)
-            | AstOp::StrReplace(..) => 3,
-        }
-    }
-
     pub fn child_iter(&self) -> AstOpChildIter<'_, 'c> {
         AstOpChildIter { op: self, index: 0 }
     }
