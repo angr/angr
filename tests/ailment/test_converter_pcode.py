@@ -50,7 +50,7 @@ class TestPcodeConverter(unittest.TestCase):
         arch = archinfo.ArchPcode("SuperH4:LE:32:default")
         project = angr.load_shellcode(code, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode)
 
-        block = ailment.IRSBConverter.convert(project.factory.block(0x1000).vex, ailment.Manager(arch=arch))
+        block = ailment.IRSBConverter.convert(project.factory.block(0x1000).vex, ailment.Manager())
 
         defined, used = _tmp_indices(block)
         assert used, "the block should read at least one tmp"
@@ -66,7 +66,7 @@ class TestPcodeConverter(unittest.TestCase):
         arch = archinfo.ArchPcode("SuperH4:LE:32:default")
         project = angr.load_shellcode(code, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode)
 
-        block = ailment.IRSBConverter.convert(project.factory.block(0x1000).vex, ailment.Manager(arch=arch))
+        block = ailment.IRSBConverter.convert(project.factory.block(0x1000).vex, ailment.Manager())
 
         halves = [str(stmt.src) for stmt in block.statements if isinstance(stmt, Assignment)]
         shifted = [h for h in halves if "Shr" in h]
