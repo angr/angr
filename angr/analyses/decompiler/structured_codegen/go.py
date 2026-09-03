@@ -648,6 +648,7 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         "addr",
         "arg_list",
         "demangled_name",
+        "extra_decls",
         "functy",
         "name",
         "omit_header",
@@ -685,6 +686,8 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         self.unified_local_vars: dict[SimVariable, set[tuple[GoVariable, SimType]]] = {}
         self.show_demangled_name = show_demangled_name
         self.omit_header = omit_header
+        # (name, type) declarations introduced by rewrites (e.g. destructured results)
+        self.extra_decls: list[tuple[str, SimType]] = []
 
         self.refresh()
 
@@ -814,7 +817,15 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
                         yield str(var_type), var_type
             yield "\n", None
 
-        if self.unified_local_vars:
+        for name, ty in self.extra_decls:
+            yield indent_str, None
+            yield "var ", None
+            yield name, None
+            yield " ", None
+            yield go_type_str(ty), ty
+            yield "\n", None
+
+        if self.unified_local_vars or self.extra_decls:
             yield "\n", None
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -1145,6 +1156,15 @@ def _go_is_seq_field(expr, name: str) -> bool:
     if not (isinstance(expr, GoVariableField) and expr.field.field == name):
         return False
     return isinstance(unpack_typeref(expr.variable.type), (GoSimTypeSlice, GoSimTypeString))
+
+
+def _go_is_iface_word(expr) -> bool:
+    """``expr`` is the itab/type word of an interface value."""
+    return (
+        isinstance(expr, GoVariableField)
+        and expr.field.field == "tab"
+        and isinstance(unpack_typeref(expr.variable.type), GoSimTypeInterface)
+    )
 
 
 def _go_is_nilable(ty) -> bool:
@@ -1695,6 +1715,28 @@ class GoAssignment(GoStatement):
         else:
             yield " = ", self
             yield from GoExpression._try_c_repr_chunks(self.rhs)
+        if not asexpr:
+            yield "\n", self
+
+
+class GoMultiAssignment(GoStatement):
+    """``a, b = f()``"""
+
+    __slots__ = ("lhs", "rhs")
+
+    def __init__(self, lhs, rhs, **kwargs):
+        super().__init__(**kwargs)
+        self.lhs = list(lhs)
+        self.rhs = rhs
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        yield self.indent_str(indent=indent), None
+        for i, target in enumerate(self.lhs):
+            if i:
+                yield ", ", None
+            yield from GoExpression._try_c_repr_chunks(target)
+        yield " = ", self
+        yield from GoExpression._try_c_repr_chunks(self.rhs)
         if not asexpr:
             yield "\n", self
 
@@ -2575,16 +2617,27 @@ class GoBinaryOp(GoExpression):
     def _c_repr_chunks_cmpge(self):
         yield from self._c_repr_chunks(" >= ")
 
+    def _nil_compared_value(self):
+        """The Go value compared against nil, or None when this is not a nil comparison."""
+        if not self._has_const_null_rhs():
+            return None
+        lhs = self.lhs
+        if _go_is_iface_word(lhs):
+            return lhs.variable
+        return lhs if _go_is_nilable(lhs.type) else None
+
     def _c_repr_chunks_cmpeq(self):
-        if self._has_const_null_rhs() and _go_is_nilable(self.lhs.type):
-            yield from self._try_c_repr_chunks(self.lhs)
+        value = self._nil_compared_value()
+        if value is not None:
+            yield from self._try_c_repr_chunks(value)
             yield " == nil", self
         else:
             yield from self._c_repr_chunks(" == ")
 
     def _c_repr_chunks_cmpne(self):
-        if self._has_const_null_rhs() and _go_is_nilable(self.lhs.type):
-            yield from self._try_c_repr_chunks(self.lhs)
+        value = self._nil_compared_value()
+        if value is not None:
+            yield from self._try_c_repr_chunks(value)
             yield " != nil", self
         else:
             yield from self._c_repr_chunks(" != ")
@@ -3364,6 +3417,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
         self.cfunc = RangeLoopRecovery(self).handle(self.cfunc)
+        TupleDestructuring(self, self.cfunc).run()
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -4846,6 +4900,20 @@ class GoStructuredCodeWalker:
         obj.body = self.handle(obj.body)
         return obj
 
+    def handle_GoRangeLoop(self, obj):
+        obj.collection = self.handle(obj.collection)
+        obj.body = self.handle(obj.body)
+        return obj
+
+    def handle_GoMultiAssignment(self, obj):
+        obj.lhs = [self.handle(x) for x in obj.lhs]
+        obj.rhs = self.handle(obj.rhs)
+        return obj
+
+    def handle_GoStructLiteral(self, obj):
+        obj.fields = OrderedDict((k, self.handle(v)) for k, v in obj.fields.items())
+        return obj
+
     def handle_GoForLoop(self, obj):
         obj.initializer = self.handle(obj.initializer)
         obj.condition = self.handle(obj.condition)
@@ -5089,6 +5157,128 @@ class RangeLoopRecovery(GoStructuredCodeWalker):
 
         new_body = GoStatements(body, addr=loop.body.addr, codegen=self._codegen)
         return [*hoisted, GoRangeLoop(index, value, coll, new_body, tags=loop.tags, codegen=self._codegen)]
+
+
+def _go_var_key(var: GoVariable):
+    return var.unified_variable if var.unified_variable is not None else var.variable
+
+
+def _go_tuple_result_call(expr):
+    """The call in ``expr`` (possibly under a cast) whose result is a tuple, or None."""
+    inner = expr.expr if isinstance(expr, GoTypeCast) else expr
+    if isinstance(inner, GoFunctionCall) and isinstance(unpack_typeref(inner.type), GoSimTypeTuple):
+        return inner
+    return None
+
+
+class TupleDestructuring(GoStructuredCodeWalker):
+    """
+    ``v = f()`` followed by ``v.~r0`` / ``v.~r1`` accesses of a multi-result value becomes ``a, err = f()`` with
+    one variable per result, when the value is only ever read through its fields.
+    """
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._defs: dict = defaultdict(list)
+        self._ok: dict = {}
+        self._fakes: dict = {}
+        self._tuples: dict = {}
+
+    # -- pass 1: eligibility
+    def collect(self, node, parent=None, attr=None):
+        if isinstance(node, GoVariable):
+            key = _go_var_key(node)
+            if isinstance(parent, GoAssignment) and attr == "lhs":
+                call = _go_tuple_result_call(parent.rhs)
+                if call is None:
+                    self._ok[key] = False
+                else:
+                    self._defs[key].append(parent)
+                    self._tuples.setdefault(key, unpack_typeref(call.type))
+            elif isinstance(parent, GoVariableField) and attr == "variable":
+                tup = self._tuples.get(key) or unpack_typeref(node.type)
+                if not (isinstance(tup, GoSimTypeTuple) and parent.field.field in tup.names):
+                    self._ok[key] = False
+            else:
+                self._ok[key] = False
+            return
+        for name in _go_node_attr_names(node):
+            child = getattr(node, name, None)
+            if isinstance(child, GoConstruct):
+                self.collect(child, node, name)
+            elif isinstance(child, (list, tuple)):
+                for item in child:
+                    if isinstance(item, GoConstruct):
+                        self.collect(item, node, name)
+                    elif isinstance(item, tuple):
+                        for x in item:
+                            if isinstance(x, GoConstruct):
+                                self.collect(x, node, name)
+            elif isinstance(child, dict):
+                for x in child.values():
+                    if isinstance(x, GoConstruct):
+                        self.collect(x, node, name)
+
+    def run(self):
+        self.collect(self._cfunc.statements)
+        taken = {v.name for v in self._cfunc.unified_local_vars if v.name}
+        for key, assignments in self._defs.items():
+            if not self._ok.get(key, True) or key not in self._tuples:
+                continue
+            tup = self._tuples[key]
+            var = assignments[0].lhs
+            var_name = (var.unified_variable or var.variable).name or "v"
+            # the destructured value itself disappears, so its name can be reused
+            taken.discard(var_name)
+            names = []
+            first_plain = True
+            for i, (rname, elem) in enumerate(zip(tup.names, tup.elems)):
+                if not rname.startswith("~"):
+                    base = rname
+                elif isinstance(unpack_typeref(elem), GoSimTypeInterface) and unpack_typeref(elem).go_name == "error":
+                    base = "err"
+                elif first_plain:
+                    base = var_name
+                    first_plain = False
+                else:
+                    base = f"{var_name}{i}"
+                name = base
+                n = 1
+                while name in taken:
+                    n += 1
+                    name = f"{base}{n}"
+                taken.add(name)
+                names.append(name)
+            fakes = [GoFakeVariable(n, t, codegen=self._codegen) for n, t in zip(names, tup.elems)]
+            self._fakes[key] = fakes
+            for fake, ty in zip(fakes, tup.elems):
+                self._cfunc.extra_decls.append((fake.name, ty))
+        if self._fakes:
+            self._cfunc.statements = self.handle(self._cfunc.statements)
+
+    # -- pass 2: rewrite
+    def handle_GoAssignment(self, obj):
+        if isinstance(obj.lhs, GoVariable):
+            fakes = self._fakes.get(_go_var_key(obj.lhs))
+            call = _go_tuple_result_call(obj.rhs)
+            if fakes is not None and call is not None:
+                return GoMultiAssignment(fakes, self.handle(call), tags=obj.tags, codegen=self._codegen)
+        return super().handle_GoAssignment(obj)
+
+    def handle_GoVariableField(self, obj):
+        if isinstance(obj.variable, GoVariable):
+            fakes = self._fakes.get(_go_var_key(obj.variable))
+            tup = self._tuples.get(_go_var_key(obj.variable))
+            if fakes is not None and tup is not None and obj.field.field in tup.names:
+                return fakes[tup.names.index(obj.field.field)]
+        return super().handle_GoVariableField(obj)
+
+
+def _go_node_attr_names(node) -> list[str]:
+    names = [slot for cls in type(node).__mro__ for slot in cls.__dict__.get("__slots__", ())]
+    names += [name for name in getattr(node, "__dict__", {}) if name != "codegen"]
+    return names
 
 
 class MakeTypecastsImplicit(GoStructuredCodeWalker):
