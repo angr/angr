@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use clarirs_core::algorithms::{collect_vars::collect_vars, structurally_match};
 use pyo3::types::{PyDict, PyFrozenSet, PySet, PyType};
@@ -170,7 +170,7 @@ impl Base {
         sorted_vars.sort_by_key(|v| v.variables().iter().next().cloned());
 
         let ctx = self.inner.context();
-        let mut replacements: Vec<(AstRef<'static>, AstRef<'static>)> = Vec::new();
+        let mut replacements: HashMap<u64, AstRef<'static>> = HashMap::new();
         for var in sorted_vars {
             let key = var.hash();
             let canonical_ast = match dict.get_item(key)? {
@@ -198,13 +198,10 @@ impl Base {
                     canonical
                 }
             };
-            replacements.push((var, canonical_ast));
+            replacements.insert(key, canonical_ast);
         }
 
-        let mut result = self.inner.clone();
-        for (from, to) in &replacements {
-            result = result.replace(from, to)?;
-        }
+        let result = self.inner.replace_many(&replacements)?;
 
         let counter_ret: Bound<'py, PyAny> = match counter {
             Some(c) if counter_is_iter => c,
