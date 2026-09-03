@@ -38,9 +38,9 @@ class TestIrsb(unittest.TestCase):
     def test_convert_from_vex_irsb_at_high_address(self):
         arch = archinfo.arch_from_id("AMD64")
         irsb = pyvex.IRSB(self.block_bytes, self.high_block_addr, arch, opt_level=0)
-        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=arch))
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
         from_lift = VEXIRSBConverter.convert_from_lift(
-            arch, self.high_block_addr, self.block_bytes, ailment.Manager(arch=arch), opt_level=0
+            arch, self.high_block_addr, self.block_bytes, ailment.Manager(), opt_level=0
         )
         assert from_py == from_lift
         for block in (from_py, from_lift):
@@ -63,7 +63,7 @@ class TestIrsb(unittest.TestCase):
         # The P-code converter assigns Manager.ins_addr from Python, which the
         # VEX converter never does.
         arch = archinfo.arch_from_id("AMD64")
-        manager = ailment.Manager(arch=arch)
+        manager = ailment.Manager()
         p = angr.load_shellcode(
             self.block_bytes, arch, self.high_block_addr, self.high_block_addr, engine=angr.engines.UberEnginePcode
         )
