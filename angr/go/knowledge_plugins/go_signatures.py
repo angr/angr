@@ -21,6 +21,13 @@ l = logging.getLogger(__name__)
 
 _DB_CACHE: dict[str, GoSignatureSet | None] = {}
 
+# assembly runtime functions whose Go declaration lives under a go:linkname alias
+_LINKNAME_ALIASES = {
+    "runtime.cmpstring": "internal/bytealg.abigen_runtime_cmpstring",
+    "runtime.memequal": "internal/bytealg.abigen_runtime_memequal",
+    "runtime.memequal_varlen": "internal/bytealg.abigen_runtime_memequal_varlen",
+}
+
 
 def available_signature_dbs() -> dict[str, Path]:
     """Installed stdlib signature databases, keyed by minor version (``go1.22``)."""
@@ -134,11 +141,19 @@ class GoSignatures(KnowledgeBasePlugin):
 
     def signature(self, name: str) -> GoFuncSignature | None:
         name = normalize_go_func_name(name)
-        for src in self._sources:
-            sig = src.functions.get(name)
-            if sig is not None:
-                return sig
-        return None
+        empty = None
+        for lookup in (name, _LINKNAME_ALIASES.get(name)):
+            if lookup is None:
+                continue
+            for src in self._sources:
+                sig = src.functions.get(lookup)
+                if sig is None:
+                    continue
+                if sig.params or sig.results or sig.recv:
+                    return sig
+                # assembly functions have a DWARF subprogram without parameters; keep looking for a typed one
+                empty = empty or sig
+        return empty
 
     def variable_at(self, addr: int) -> GoVariable | None:
         for src in self._sources:
@@ -159,6 +174,14 @@ class GoSignatures(KnowledgeBasePlugin):
             if first is None:
                 first = ty
         return first
+
+    def type_name_at(self, addr: int) -> str | None:
+        """The name of the type whose runtime descriptor is at ``addr``, when a source (DWARF) recorded it."""
+        for src in self._sources:
+            name = src.runtime_types.get(addr)
+            if name is not None:
+                return name
+        return None
 
     @property
     def parser(self) -> GoTypeParser:

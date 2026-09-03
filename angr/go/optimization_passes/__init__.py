@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from .arg_spill_remover import GoArgSpillRemover
+from .builtin_rewriter import GoBuiltinRewriter
+from .check_remover import GoCheckRemover
 from .descriptor_namer import GoDescriptorNamer
 from .global_types import GoGlobalTypes
 from .multi_value import GoComboRegisterRewriter, GoRetExprRewriter
@@ -18,6 +20,7 @@ def get_go_optimization_passes():
         GoPrototypes,
         # BEFORE_SSA_LEVEL0_TRANSFORMATION
         GoStackCheckRemover,
+        GoCheckRemover,
         GoPinnedRegisterRewriter,
         GoRetExprRewriter,
         # BEFORE_VARIABLE_RECOVERY
@@ -26,6 +29,7 @@ def get_go_optimization_passes():
         GoComboRegisterRewriter,
         GoArgSpillRemover,
         GoValueFuser,
+        GoBuiltinRewriter,
         # AFTER_VARIABLE_RECOVERY
         GoPinnedRegisterNamer,
         GoDescriptorNamer,

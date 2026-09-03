@@ -38,6 +38,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
+from angr.go.codegen_builtins_values import call_tag, render_builtin_call_value
 from angr.go.sim_type import (
     GoSimStruct,
     GoSimType,
@@ -1859,6 +1860,11 @@ class GoFunctionCall(GoExpression):
         """
         if self.callee_func is not None and self.callee_func.prototype is not None:
             return self.prototype.returnty  # type: ignore
+        result_type = call_tag(self, "go_result_type") if isinstance(self.callee_target, str) else None
+        if result_type is not None:
+            # a builtin produced by GoBuiltinRewriter
+            with contextlib.suppress(Exception):
+                return self.codegen.kb.go_signatures.type(result_type).with_arch(self.codegen.project.arch)
         return SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
 
     @property
@@ -1899,6 +1905,9 @@ class GoFunctionCall(GoExpression):
         return re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", chunks[-1]) is not None
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if (builtin_chunks := render_builtin_call_value(self)) is not None:
+            yield from builtin_chunks
+            return
         if self.callee_func is not None:
             func_name = self.callee_func.name
             if (
@@ -1933,7 +1942,7 @@ class GoFunctionCall(GoExpression):
         yield "(", paren
 
         # builtins such as make/new take a type as their first argument
-        type_args = list(self.tags.get("go_type_args", ())) if isinstance(self.tags, dict) else []
+        type_args = list(call_tag(self, "go_type_args", ()))
         for i, type_arg in enumerate(type_args):
             if i:
                 yield ", ", None
@@ -4397,6 +4406,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if (
             expr.bits
+            and not isinstance(target, str)
             and call_expr.type is not None
             and not isinstance(call_expr.type, GoSimStruct)
             and call_expr.type.size != expr.size * self.project.arch.byte_width
