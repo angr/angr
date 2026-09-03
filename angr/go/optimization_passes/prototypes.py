@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.calling_conventions import SimCCGoAMD64ABI0, default_cc_for_project
+from angr.calling_conventions import GO_ABI0_CC, default_cc_for_project
 from angr.go.utils.names import call_target_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from angr.rust.utils.ail import CallFinder
@@ -61,7 +61,11 @@ class GoPrototypes(OptimizationPass):
         proto = self.kb.go_signatures.prototype(func.name)
         if proto is None:
             return False
-        cc_cls = SimCCGoAMD64ABI0 if func.name.endswith(".abi0") else default_cc_for_project(self.project)
+        cc_cls = (
+            GO_ABI0_CC.get(self.project.arch.name)
+            if func.name.endswith(".abi0")
+            else default_cc_for_project(self.project)
+        )
         if cc_cls is None:
             return False
         if func.calling_convention is None or not isinstance(func.calling_convention, cc_cls):

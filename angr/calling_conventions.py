@@ -2052,6 +2052,51 @@ class SimCCGoAMD64ABI0(SimCCGoAMD64):
     OVERFLOW_FP_RETURN_VAL = None
 
 
+class SimCCGoAArch64(SimCCGoAMD64):
+    """
+    Go's register-based internal ABI on arm64 (go1.17+): integer arguments and results in R0-R15,
+    floating-point ones in F0-F15, results restarting at the first register. R26 carries the closure
+    context, R27 is the assembler temporary, R28 pins the current goroutine (g), R29 is the frame
+    pointer and R30 the link register; none of them are arguments. Stack-assigned values start at
+    8(RSP) of the caller's frame.
+    """
+
+    ARG_REGS = [f"x{i}" for i in range(16)]
+    FP_ARG_REGS = [f"d{i}" for i in range(16)]
+    STACKARG_SP_DIFF = 8
+    CALLER_SAVED_REGS = [f"x{i}" for i in range(28)] + ["x30"] + [f"d{i}" for i in range(32)]
+    RETURN_ADDR = SimRegArg("lr", 8)
+    RETURN_VAL = SimRegArg("x0", 8)
+    OVERFLOW_RETURN_VAL = SimRegArg("x1", 8)
+    FP_RETURN_VAL = SimRegArg("d0", 8)
+    OVERFLOW_FP_RETURN_VAL = SimRegArg("d1", 8)
+    ARCH = archinfo.ArchAArch64
+    STACK_ALIGNMENT = 16
+    ARG_REG_SANITY_FILTER = True
+    STRICT_CALLER_SAVED_MATCH = False
+
+
+class SimCCGoAArch64ABI0(SimCCGoAArch64):
+    """
+    Go's all-stack ABI0 on arm64, used by the runtime's assembly (symbols suffixed with ".abi0").
+    """
+
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    CALLER_SAVED_REGS = SimCCGoAArch64.CALLER_SAVED_REGS
+    RETURN_VAL = None
+    OVERFLOW_RETURN_VAL = None
+    FP_RETURN_VAL = None
+    OVERFLOW_FP_RETURN_VAL = None
+
+
+# Go's legacy all-stack ABI0 per architecture, for symbols the gc linker suffixes with ".abi0"
+GO_ABI0_CC: dict[str, type[SimCC]] = {
+    "AMD64": SimCCGoAMD64ABI0,
+    "AARCH64": SimCCGoAArch64ABI0,
+}
+
+
 class SimCCAMD64LinuxSyscall(SimCCSyscall):
     ARG_REGS = ["rdi", "rsi", "rdx", "r10", "r8", "r9"]
     RETURN_VAL = SimRegArg("rax", 8)
@@ -2981,6 +3026,11 @@ CC_BY_LANGUAGE: dict[str, dict[str, dict[str, list[type[SimCC]]]]] = {
             "Linux": [SimCCGoAMD64],
             "Win32": [SimCCGoAMD64],
         },
+        "AARCH64": {
+            "default": [SimCCGoAArch64],
+            "Linux": [SimCCGoAArch64],
+            "Win32": [SimCCGoAArch64],
+        },
     },
 }
 
@@ -2990,6 +3040,11 @@ DEFAULT_CC_BY_LANGUAGE: dict[str, dict[str, dict[str, type[SimCC]]]] = {
             "default": SimCCGoAMD64,
             "Linux": SimCCGoAMD64,
             "Win32": SimCCGoAMD64,
+        },
+        "AARCH64": {
+            "default": SimCCGoAArch64,
+            "Linux": SimCCGoAArch64,
+            "Win32": SimCCGoAArch64,
         },
     },
 }
