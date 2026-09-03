@@ -46,23 +46,7 @@ fn py_simplify<'py>(
     py: Python<'py>,
     expr: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    if let Ok(bv_value) = expr.cast::<BV>() {
-        BV::new(py, &bv_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast_into::<Base>().unwrap())
-    } else if let Ok(bool_value) = expr.cast::<Bool>() {
-        Bool::new(py, &bool_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast_into::<Base>().unwrap())
-    } else if let Ok(fp_value) = expr.cast::<FP>() {
-        FP::new(py, &fp_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast_into::<Base>().unwrap())
-    } else if let Ok(string_value) = expr.cast::<PyAstString>() {
-        PyAstString::new(py, &string_value.get().inner.simplify().unwrap())
-            .map(|b| b.into_any().cast_into::<Base>().unwrap())
-    } else {
-        Err(ClaripyError::TypeError(format!(
-            "simplify: unsupported type {expr:?}"
-        )))
-    }
+    Base::from_ast(py, Base::to_ast(expr)?.simplify()?)
 }
 
 #[pyfunction(name = "replace")]
