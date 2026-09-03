@@ -764,3 +764,32 @@ fn test_eliminatable_non_relocatable_does_not_block_simplification() -> Result<(
 
     Ok(())
 }
+
+#[test]
+fn test_flatten_with_identity_keeps_argument_count() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bools("x")?;
+    let y = ctx.bools("y")?;
+    let z = ctx.bools("z")?;
+
+    // Flattening the nested node and dropping the identity leaves as many
+    // arguments as before, so a length comparison misses the change.
+    let nested_and = ctx.and(vec![
+        x.clone(),
+        ctx.true_()?,
+        ctx.and(vec![y.clone(), z.clone()])?,
+    ])?;
+    assert_eq!(
+        nested_and.simplify()?,
+        ctx.and(vec![x.clone(), y.clone(), z.clone()])?
+    );
+
+    let nested_or = ctx.or(vec![
+        x.clone(),
+        ctx.false_()?,
+        ctx.or(vec![y.clone(), z.clone()])?,
+    ])?;
+    assert_eq!(nested_or.simplify()?, ctx.or(vec![x, y, z])?);
+
+    Ok(())
+}

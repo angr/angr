@@ -48,7 +48,8 @@ pub(crate) fn simplify_bool<'c>(
 
             // Absorption simplification
             let absorbed_args = available_args
-                .into_iter()
+                .iter()
+                .cloned()
                 .flat_map(|arg| {
                     if let AstOp::And(nested_args) = arg.op() {
                         nested_args.clone()
@@ -122,7 +123,7 @@ pub(crate) fn simplify_bool<'c>(
                 }
             }
 
-            if absorbed_args.len() != args.len() {
+            if absorbed_args != available_args {
                 return state.rerun(ctx.and(absorbed_args)?);
             }
 
@@ -138,7 +139,8 @@ pub(crate) fn simplify_bool<'c>(
 
             // Absorption simplification
             let absorbed_args = available_args
-                .into_iter()
+                .iter()
+                .cloned()
                 .flat_map(|arg| {
                     if let AstOp::Or(nested_args) = arg.op() {
                         nested_args.clone()
@@ -212,7 +214,7 @@ pub(crate) fn simplify_bool<'c>(
                 }
             }
 
-            if absorbed_args.len() != args.len() {
+            if absorbed_args != available_args {
                 return state.rerun(ctx.or(absorbed_args)?);
             }
 
