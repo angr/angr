@@ -316,7 +316,7 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return [flavor for func, flavor in self.cached if func == item]
 
     def all_flavors(self, item):  # pylint:disable=no-self-use, unused-argument
-        return [DEFAULT_FLAVOR, "rust"]
+        return [DEFAULT_FLAVOR, "rust", "go"]
 
     def copy(self):
         raise NotImplementedError
