@@ -219,6 +219,22 @@ class TestBasicsGo122AArch64(GoDecompilationTarget):
         assert "for i < len(s) {" in self.texts["main.count"] or "range s" in self.texts["main.count"]
 
 
+class TestLangdetectWindowsPE(GoDecompilationTarget):
+    BINARY = os.path.join(test_location, "x86_64", "windows", "langdetect_go.exe")
+    FUNCS = ("main.fibonacci", "main.main")
+
+    def test_pe_go_binary(self):
+        assert self.proj.is_go_binary
+        assert self.header(self.texts["main.main"]) == "func main.main() {"
+        fib = self.texts["main.fibonacci"]
+        assert self.header(fib).startswith("func main.fibonacci(")
+        for text in self.texts.values():
+            assert "morestack" not in text
+        main = self.texts["main.main"]
+        assert "fmt.Fprintf(" in main and '"fibonacci(%d) = %d\\n"' in main
+        assert "&go:itab.*os.File,io.Writer" in main
+
+
 class TestBasicsGo122Stripped(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "basics_stripped")
     FUNCS = ("main.fib",)
