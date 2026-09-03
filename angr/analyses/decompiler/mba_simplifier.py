@@ -5,8 +5,11 @@ from typing import TYPE_CHECKING
 
 import claripy
 
+from angr.ailment.statement import Assignment
 from angr.ailment.expression import (
     BinaryOp,
+    Extract,
+    Insert,
     Const,
     Convert,
     Expression,
@@ -476,3 +479,262 @@ class _Found(Exception):
     def __init__(self, expression):
         super().__init__()
         self.expression = expression
+
+
+#: Largest input space to enumerate exhaustively. Two bytes, or one 16-bit value.
+MAX_INPUT_SPACE = 1 << 16
+#: Points sampled when the input space is too large to enumerate. The result is then
+#: evidence, not proof, and has to be checked another way before it is acted on.
+SAMPLE_POINTS = 512
+
+#: Give up on a value depending on more inputs than this.
+MAX_COMPOSED_INPUTS = 2
+
+
+_RUNAWAY = frozenset({"<runaway>"})
+
+
+class ComposedMBASimplifier:
+    """
+    Simplify an MBA-obfuscated value by composing its definitions, then characterising it.
+
+    Simplifying one expression at a time cannot work against this obfuscation. The VM spreads a
+    computation over a chain of statements, each doing a little 8-bit arithmetic on one byte lane
+    of a wider register, and every individual expression is irredundant -- it really does compute
+    what it says. The redundancy only appears once the chain is composed: on cnicdriver a value
+    reached through 338,000 nodes turns out to depend on two inputs.
+
+    Composing the *expression* is hopeless for the same reason -- it is those 338,000 nodes. So
+    this composes the *behaviour* instead: it walks the definition chain to find the true inputs,
+    then evaluates the chain concretely, memoised, once per point of the input space.
+
+    That the inputs are narrow is what makes this exact rather than approximate. A value depending
+    on one byte is settled by 256 evaluations, and a candidate agreeing on all of them is not
+    merely likely equivalent, it *is* equivalent -- the enumeration is the proof, and a stronger
+    one than a solver query over an expression this size could deliver.
+    """
+
+    def __init__(self, ail_graph, ail_manager: Manager | None = None, max_inputs: int = MAX_COMPOSED_INPUTS):
+        self._ail_manager = ail_manager
+        self.max_inputs = max_inputs
+        self._defs: dict[int, Expression] = {}
+        for block in ail_graph:
+            for stmt in block.statements or []:
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    self._defs[stmt.dst.varid] = stmt.src
+        self.characterized = 0
+        self.simplified = 0
+        # Definitions are shared, so the chain is a DAG: without memoising, walking it is
+        # exponential in the sharing rather than linear in the nodes.
+        self._input_memo: dict[int, frozenset[str] | None] = {}
+        self._input_widths: dict[str, int] = {}
+
+    #
+    # composition
+    #
+
+    def _as_input(self, expr) -> tuple[str, int] | None:
+        """
+        Whether this is an atomic input, and how wide.
+
+        A byte lane reaches a wide register through ``Extract(reg, 8bits@k)``, and it is that byte
+        that the lane depends on -- not the whole register.  Taking the register as the input
+        instead makes the space 2**64 and the value uncharacterisable, when the honest input space
+        is 2**8.
+        """
+        if isinstance(expr, VirtualVariable):
+            if expr.varid not in self._defs:
+                return str(expr), expr.bits
+            return None
+        if isinstance(expr, Extract):
+            base = expr.base
+            if isinstance(base, VirtualVariable) and base.varid not in self._defs:
+                return str(expr), expr.bits
+            return None
+        if self._children(expr) is None:
+            return str(expr)[:64], getattr(expr, "bits", None) or 64
+        return None
+
+    def _inputs_of(self, expr, seen: frozenset[int], depth: int = 0) -> set[str] | None:
+        """The leaves a value really depends on, following definitions. None if it runs away."""
+        if depth > 400:
+            return None
+        if isinstance(expr, Const):
+            return set()
+        atomic = self._as_input(expr)
+        if atomic is not None:
+            self._input_widths[atomic[0]] = atomic[1]
+            return {atomic[0]}
+        if isinstance(expr, VirtualVariable):
+            if expr.varid in self._defs and expr.varid not in seen:
+                cached = self._input_memo.get(expr.varid)
+                if cached is not None:
+                    return set(cached) if cached is not _RUNAWAY else None
+                got = self._inputs_of(self._defs[expr.varid], seen | {expr.varid}, depth + 1)
+                self._input_memo[expr.varid] = _RUNAWAY if got is None else frozenset(got)
+                return got
+            return {str(expr)}
+        children = self._children(expr)
+        if children is None:
+            return {str(expr)[:64]}  # opaque: a load, a call, a phi
+        out: set[str] = set()
+        for child in children:
+            got = self._inputs_of(child, seen, depth + 1)
+            if got is None:
+                return None
+            out |= got
+            if len(out) > self.max_inputs:
+                return None
+        return out
+
+    @staticmethod
+    def _children(expr):
+        if isinstance(expr, BinaryOp):
+            return list(expr.operands)
+        if isinstance(expr, (UnaryOp, Convert)):
+            return [expr.operand]
+        if isinstance(expr, Extract):
+            return [expr.base]
+        if isinstance(expr, Insert):
+            return [expr.base, expr.value]
+        return None
+
+    def evaluate(self, expr, assignment: dict[str, int], cache: dict, depth: int = 0) -> int:
+        """Value of ``expr`` under a concrete assignment of the true inputs."""
+        if depth > 400:
+            raise _Unsupported
+        bits = getattr(expr, "bits", None) or 64
+        mask = (1 << bits) - 1
+
+        if isinstance(expr, Const):
+            return expr.value & mask
+        atomic = self._as_input(expr)
+        if atomic is not None:
+            if atomic[0] not in assignment:
+                raise _Unsupported
+            return assignment[atomic[0]] & mask
+        if isinstance(expr, VirtualVariable):
+            key = str(expr)
+            if expr.varid in self._defs:
+                hit = cache.get(expr.varid)
+                if hit is None:
+                    hit = self.evaluate(self._defs[expr.varid], assignment, cache, depth + 1)
+                    cache[expr.varid] = hit
+                return hit & mask
+            if key not in assignment:
+                raise _Unsupported
+            return assignment[key] & mask
+        if isinstance(expr, BinaryOp):
+            a = self.evaluate(expr.operands[0], assignment, cache, depth + 1)
+            b = self.evaluate(expr.operands[1], assignment, cache, depth + 1)
+            op = expr.op
+            if op == "Add":
+                return (a + b) & mask
+            if op == "Sub":
+                return (a - b) & mask
+            if op == "Mul":
+                return (a * b) & mask
+            if op == "And":
+                return a & b & mask
+            if op == "Or":
+                return (a | b) & mask
+            if op == "Xor":
+                return (a ^ b) & mask
+            if op == "Shl":
+                return (a << (b & 0xFF)) & mask
+            if op == "Shr":
+                return (a >> (b & 0xFF)) & mask
+            raise _Unsupported
+        if isinstance(expr, UnaryOp):
+            inner = self.evaluate(expr.operand, assignment, cache, depth + 1)
+            if expr.op in _BOOLEAN_UNOPS:
+                return (~inner) & mask
+            if expr.op in _ARITH_UNOPS:
+                return (-inner) & mask
+            raise _Unsupported
+        if isinstance(expr, Convert):
+            inner = self.evaluate(expr.operand, assignment, cache, depth + 1)
+            return inner & mask
+        if isinstance(expr, Extract):
+            base = self.evaluate(expr.base, assignment, cache, depth + 1)
+            shift = self._byte_offset(expr) * 8
+            return (base >> shift) & mask
+        if isinstance(expr, Insert):
+            base = self.evaluate(expr.base, assignment, cache, depth + 1)
+            value = self.evaluate(expr.value, assignment, cache, depth + 1)
+            width = getattr(expr.value, "bits", 8)
+            shift = self._byte_offset(expr) * 8
+            field = ((1 << width) - 1) << shift
+            return ((base & ~field) | ((value << shift) & field)) & mask
+        raise _Unsupported
+
+    @staticmethod
+    def _byte_offset(expr) -> int:
+        offset = expr.offset
+        if isinstance(offset, Const):
+            return offset.value
+        raise _Unsupported
+
+    #
+    # entry point
+    #
+
+    def characterize(self, expr) -> tuple[list[str], list[int], int] | None:
+        """The value's true inputs and its complete table over them, or None."""
+        bits = getattr(expr, "bits", None)
+        if not bits:
+            return None
+        inputs = self._inputs_of(expr, frozenset())
+        if not inputs or len(inputs) > self.max_inputs:
+            return None
+
+        names = sorted(inputs)
+        widths = [self._input_widths.get(name) for name in names]
+        if any(w is None for w in widths):
+            return None
+        space = 1
+        for w in widths:
+            space *= 1 << w
+            if space > MAX_INPUT_SPACE:
+                space = None
+                break
+
+        if space is not None:
+            points = []
+            for point in range(space):
+                assignment, rest = {}, point
+                for name, width in zip(names, widths):
+                    assignment[name] = rest & ((1 << width) - 1)
+                    rest >>= width
+                points.append(assignment)
+        else:
+            # An input too wide to enumerate does not make the value uncharacterisable, only
+            # unprovable by enumeration: sample it instead, and treat the result as evidence
+            # rather than proof.
+            points = []
+            state = 0x9E3779B97F4A7C15
+            for _ in range(SAMPLE_POINTS):
+                assignment = {}
+                for name, width in zip(names, widths):
+                    state = (state * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFFFFFFFFFF
+                    assignment[name] = state & ((1 << width) - 1)
+                points.append(assignment)
+
+        table = []
+        for assignment in points:
+            try:
+                table.append(self.evaluate(expr, assignment, {}))
+            except (_Unsupported, RecursionError):
+                return None
+        self.characterized += 1
+        return names, table, space if space is not None else -len(points)
+
+    @staticmethod
+    def _width_of(name: str) -> int | None:
+        """Bit width of an input, read off its printed form (``vvar_15180{s-16|1b}``)."""
+        if "|" not in name or "b}" not in name:
+            return None
+        try:
+            return int(name.split("|")[-1].split("b}")[0]) * 8
+        except ValueError:
+            return None

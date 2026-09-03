@@ -8,7 +8,11 @@ import unittest
 
 from angr.ailment.expression import BinaryOp, Const, Register, UnaryOp
 from angr.ailment.manager import Manager
-from angr.analyses.decompiler.mba_simplifier import LinearMBASolver, MBATemplateSimplifier
+from angr.analyses.decompiler.mba_simplifier import (
+    ComposedMBASimplifier,
+    LinearMBASolver,
+    MBATemplateSimplifier,
+)
 
 BITS = 64
 
@@ -142,6 +146,60 @@ class TestLinearMBASolver(unittest.TestCase):
             self._b("Add", self._b("And", self.z, w), self._c(1)),
         )
         assert self.s.synthesize(expr) is None
+
+
+class TestComposedMBASimplifier(unittest.TestCase):
+    """Composing the definition chain, so a value is characterised by behaviour not by shape."""
+
+    def _graph(self):
+        import networkx
+        from angr.ailment.block import Block
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+        from angr.ailment.statement import Assignment
+
+        m = Manager(arch=None)
+
+        def vvar(varid, bits=8):
+            return VirtualVariable(m.next_atom(), varid, bits, VirtualVariableCategory.REGISTER, oident=varid)
+
+        def c(v, bits=8):
+            return Const(m.next_atom(), v, bits)
+
+        def b(op, x, y, bits=8):
+            return BinaryOp(m.next_atom(), op, [x, y], False, bits=bits)
+
+        # v1 = input ^ 0x5a ; v2 = v1 + 7 ; v3 = (v2 - 7) ^ 0x5a   -- an obfuscated identity
+        src = vvar(100)
+        stmts = [
+            Assignment(m.next_atom(), vvar(1), b("Xor", src, c(0x5A)), ins_addr=0x1000),
+            Assignment(m.next_atom(), vvar(2), b("Add", vvar(1), c(7)), ins_addr=0x1004),
+            Assignment(m.next_atom(), vvar(3), b("Xor", b("Sub", vvar(2), c(7)), c(0x5A)), ins_addr=0x1008),
+        ]
+        block = Block(0x1000, 12, statements=stmts)
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        return graph, m, vvar(3), str(src)
+
+    def test_composes_a_chain_into_its_behaviour(self):
+        graph, m, target, input_name = self._graph()
+        c = ComposedMBASimplifier(graph, ail_manager=m)
+        got = c.characterize(target)
+        assert got is not None, "the chain was not characterised"
+        names, table, space = got
+        assert names == [input_name]
+        assert space == 256
+        assert table == list(range(256)), "the chain is an identity and the table should say so"
+
+    def test_finds_the_true_inputs_through_definitions(self):
+        graph, m, target, input_name = self._graph()
+        c = ComposedMBASimplifier(graph, ail_manager=m)
+        assert c._inputs_of(target, frozenset()) == {input_name}
+
+    def test_evaluation_agrees_with_the_chain(self):
+        graph, m, target, input_name = self._graph()
+        c = ComposedMBASimplifier(graph, ail_manager=m)
+        for probe in (0, 1, 0x5A, 0x7F, 0xFF):
+            assert c.evaluate(target, {input_name: probe}, {}) == probe
 
 if __name__ == "__main__":
     unittest.main()
