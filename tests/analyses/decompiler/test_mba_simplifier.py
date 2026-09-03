@@ -269,5 +269,67 @@ class TestComposedSynthesis(unittest.TestCase):
         s = ComposedMBASimplifier(graph, ail_manager=m)
         assert s.simplify(dst) is None
 
+
+class TestComposedCaching(unittest.TestCase):
+    """The same chain is reached thousands of times; it must only be solved once."""
+
+    def _graph(self):
+        import networkx
+        from angr.ailment.block import Block
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+        from angr.ailment.statement import Assignment
+
+        m = Manager(arch=None)
+
+        def vvar(varid, bits=8):
+            return VirtualVariable(m.next_atom(), varid, bits, VirtualVariableCategory.REGISTER, oident=varid)
+
+        def c(v):
+            return Const(m.next_atom(), v, 8)
+
+        def b(op, x, y):
+            return BinaryOp(m.next_atom(), op, [x, y], False, bits=8)
+
+        src = vvar(100)
+        obf = b("Xor", b("Sub", b("Add", b("Xor", src, c(0x5A)), c(7)), c(7)), c(0x5A))
+        block = Block(0x1000, 4, statements=[Assignment(m.next_atom(), vvar(1), obf, ins_addr=0x1000)])
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        return graph, m, vvar(1)
+
+    def test_repeated_lookups_hit_the_cache(self):
+        graph, m, target = self._graph()
+        s = ComposedMBASimplifier(graph, ail_manager=m)
+        first = s.simplify(target)
+        assert first is not None
+        before = s.cache_hits
+        for _ in range(5):
+            s.simplify(target)
+        assert s.cache_hits > before, "the chain was solved again instead of being cached"
+
+    def test_each_use_gets_its_own_atoms(self):
+        """
+        Handing the same expression object to several locations makes the SSA bookkeeping believe
+        one definition lives in two places, so a cache hit must still return a fresh copy.
+        """
+        graph, m, target = self._graph()
+        s = ComposedMBASimplifier(graph, ail_manager=m)
+        a = s.simplify(target)
+        b = s.simplify(target)
+        assert a is not None and b is not None
+        assert a is not b, "the cache handed out the same object twice"
+        assert a.likes(b), "the two copies should still be the same expression"
+
+    def test_a_short_signature_match_is_checked_in_full(self):
+        """The subsample is a shortlist; only agreement on every point may be returned."""
+        graph, m, target = self._graph()
+        s = ComposedMBASimplifier(graph, ail_manager=m)
+        out = s.simplify(target)
+        assert out is not None
+        names, table, space = s.characterize(target)
+        assert space == 256
+        for point, expected in zip(s._last_points, table):
+            assert s.evaluate(out, point, {}) == expected, "accepted a candidate that is not equal"
+
 if __name__ == "__main__":
     unittest.main()
