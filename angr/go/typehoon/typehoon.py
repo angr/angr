@@ -82,7 +82,7 @@ class GoTypehoon(Typehoon):
             else:
                 the_type = type_candidates[0]
 
-            if isinstance(the_type, SimTypeBottom) and var.size is not None:
+            if isinstance(the_type, SimTypeBottom) and var.size:
                 the_type = GoSimTypeInt(var.size * self.project.arch.byte_width, signed=False).with_arch(
                     self.project.arch
                 )

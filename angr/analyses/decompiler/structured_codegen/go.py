@@ -5,17 +5,19 @@ Go-flavored structured code generator. A fork of the C backend (c.py) that rende
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import re
 import struct
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any, cast
 
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import BinaryOp, StackBaseOffset
+from angr.ailment.expression import BinaryOp, StackBaseOffset, StringLiteral, Struct
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
@@ -36,7 +38,16 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
-from angr.go.sim_type import GoSimType, GoSimTypeInterface, GoSimTypeSlice, GoSimTypeString, GoSimTypeTuple
+from angr.go.sim_type import (
+    GoSimStruct,
+    GoSimType,
+    GoSimTypeInt,
+    GoSimTypeInterface,
+    GoSimTypePointer,
+    GoSimTypeSlice,
+    GoSimTypeString,
+    GoSimTypeTuple,
+)
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import (
@@ -67,6 +78,7 @@ from angr.sim_type import (
     TypeRef,
 )
 from angr.sim_variable import (
+    SimComboRegisterVariable,
     SimMemoryVariable,
     SimRegisterVariable,
     SimStackVariable,
@@ -204,6 +216,8 @@ def guess_value_type(value: int, project: angr.Project) -> SimType | None:
 
 
 def type_equals(t0: SimType, t1: SimType) -> bool:
+    t0 = unpack_typeref(t0)
+    t1 = unpack_typeref(t1)
     # special logic for C++ classes
     if isinstance(t0, SimCppClass) and isinstance(t1, SimCppClass):  # noqa: SIM102
         # TODO: Use the information (class names, etc.) in types_stl
@@ -265,6 +279,17 @@ def _iter_struct_union_member_types(ty):
             yield from _iter_struct_union_member_types(member)
         else:
             yield member
+
+
+def _is_go_value_read_as_int(base_type, data_type) -> bool:
+    if not isinstance(base_type, (GoSimStruct, GoSimTypePointer)):
+        return False
+    if not isinstance(data_type, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypeReg)) or isinstance(data_type, GoSimType):
+        return isinstance(data_type, GoSimTypeInt)
+    try:
+        return base_type.size == data_type.size
+    except ValueError:
+        return False
 
 
 def _is_go_builtin_struct(ty) -> bool:
@@ -399,6 +424,14 @@ def type_to_go_repr_chunks(
     """
     if memo is None:
         memo = set()
+
+    if isinstance(ty, GoSimType) and not (full and isinstance(ty, SimStruct)):
+        yield indent_str, None
+        if name:
+            yield name, name_type
+            yield " ", None
+        yield ty.go_repr(), ty
+        return
 
     if not full and name is not None and _is_anonymous_struct_or_union(ty):
         if id(ty) in memo:
@@ -1006,7 +1039,7 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         reg_vars, stack_vars, mem_vars = [], [], []
         for var in local_vars:
             match var:
-                case SimRegisterVariable():
+                case SimRegisterVariable() | SimComboRegisterVariable():
                     reg_vars.append(var)
                 case SimStackVariable():
                     stack_vars.append(var)
@@ -1829,23 +1862,41 @@ class GoFunctionCall(GoExpression):
 
 
 class GoReturn(GoStatement):
-    __slots__ = ("retval",)
+    """``return`` with zero, one or several result expressions."""
+
+    __slots__ = ("retvals",)
 
     def __init__(self, retval, **kwargs):
         super().__init__(**kwargs)
 
-        self.retval = retval
+        if retval is None:
+            self.retvals = []
+        elif isinstance(retval, (list, tuple)):
+            self.retvals = list(retval)
+        else:
+            self.retvals = [retval]
+
+    @property
+    def retval(self):
+        return self.retvals[0] if self.retvals else None
+
+    @retval.setter
+    def retval(self, v):
+        self.retvals = [] if v is None else [v]
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
 
-        if not self.retval:
+        if not self.retvals:
             yield indent_str, None
             yield "return;\n", self
         else:
             yield indent_str, None
             yield "return ", self
-            yield from self.retval.c_repr_chunks()
+            for i, retval in enumerate(self.retvals):
+                if i:
+                    yield ", ", None
+                yield from retval.c_repr_chunks()
             yield ";\n", self
 
 
@@ -2936,6 +2987,80 @@ class GoDirtyExpression(GoExpression):
             yield "/* unsupported instruction */", None
 
 
+class GoStringLiteral(GoExpression):
+    """A Go string constant (pointer, length) known at decompilation time."""
+
+    __slots__ = ("data",)
+
+    def __init__(self, data: str, tags=None, **kwargs):
+        super().__init__(**kwargs)
+        self.data = data
+        self.tags = tags
+        self._type = GoSimTypeString().with_arch(self.codegen.project.arch)
+
+    @property
+    def type(self):
+        return self._type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        yield json.dumps(self.data, ensure_ascii=False), self
+
+
+class GoStructLiteral(GoExpression):
+    """
+    A struct-shaped value assembled from its fields: a composite literal ``T{a: x, b: y}``, or ``nil``/``""`` when
+    every field is zero.
+    """
+
+    __slots__ = ("field_names", "fields", "name")
+
+    def __init__(self, name: str, fields, field_names, tags=None, **kwargs):
+        super().__init__(**kwargs)
+        self.name = name
+        self.fields = fields  # offset -> GoExpression
+        self.field_names = field_names  # offset -> field name
+        self.tags = tags
+        self._type = None
+        with contextlib.suppress(Exception):
+            self._type = self.codegen.kb.go_signatures.type(name)
+
+    @property
+    def type(self):
+        return self._type
+
+    def _is_zero(self) -> bool:
+        def zero(expr) -> bool:
+            if isinstance(expr, GoConstant):
+                return expr.value == 0
+            if isinstance(expr, GoStructLiteral):
+                return expr._is_zero()
+            return False
+
+        return bool(self.fields) and all(zero(f) for f in self.fields.values())
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield "...", self
+            return
+        if self._is_zero():
+            yield ('""' if isinstance(self._type, GoSimTypeString) else "nil"), self
+            return
+        brace = GoClosingObject("{")
+        yield self.name, self
+        yield "{", brace
+        first = True
+        for offset, field in self.fields.items():
+            if not first:
+                yield ", ", None
+            first = False
+            name = self.field_names.get(offset)
+            if name is not None:
+                yield name, self
+                yield ": ", None
+            yield from GoExpression._try_c_repr_chunks(field)
+        yield "}", brace
+
+
 class GoClosingObject:
     """
     A class to represent all objects that can be closed by it's correspodning character.
@@ -3062,6 +3187,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
+            Struct: self._handle_Expr_Struct,
+            StringLiteral: self._handle_Expr_StringLiteral,
         }
 
         self._func = func
@@ -3427,6 +3554,9 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)
+            if _is_go_value_read_as_int(base_type, data_type):
+                # a struct-shaped or pointer-shaped Go value loaded as a plain integer of the same width is that value
+                data_type = base_type
             if type_equals(base_type, data_type) or (
                 base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
             ):
@@ -3973,7 +4103,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
-            if csrc.type is not None and cdst.type is not None and cdst.type != csrc.type:
+            if csrc.type is not None and cdst.type is not None and not type_equals(cdst.type, csrc.type):
                 csrc = GoTypeCast(csrc.type, cdst.type, csrc, codegen=self)
 
         return GoAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
@@ -4114,7 +4244,12 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             codegen=self,
         )
 
-        if expr.bits and call_expr.type is not None and call_expr.type.size != expr.size * self.project.arch.byte_width:
+        if (
+            expr.bits
+            and call_expr.type is not None
+            and not isinstance(call_expr.type, GoSimStruct)
+            and call_expr.type.size != expr.size * self.project.arch.byte_width
+        ):
             call_expr = GoTypeCast(
                 call_expr.type,
                 self.default_simtype_from_bits(
@@ -4183,13 +4318,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
         if not stmt.ret_exprs:
             return GoReturn(None, tags=stmt.tags, codegen=self)
-        if len(stmt.ret_exprs) == 1:
-            ret_expr = stmt.ret_exprs[0]
-            return GoReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
-        # TODO: Multiple return expressions
-        l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
-        ret_expr = stmt.ret_exprs[0]
-        return GoReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
+        return GoReturn([self._handle(ret_expr) for ret_expr in stmt.ret_exprs], tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
         clabel = GoLabel(stmt.name, tags=stmt.tags, codegen=self)
@@ -4476,6 +4605,18 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return GoTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
 
+    def _handle_Expr_Struct(self, expr: Struct, **kwargs):
+        return GoStructLiteral(
+            expr.name,
+            OrderedDict((offset, self._handle(field)) for offset, field in expr.fields.items()),
+            dict(expr.field_names),
+            tags=expr.tags,
+            codegen=self,
+        )
+
+    def _handle_Expr_StringLiteral(self, expr: StringLiteral, **kwargs):
+        return GoStringLiteral(expr.data, tags=expr.tags, codegen=self)
+
     def _handle_Expr_Extract(self, expr: Expr.Extract, **kwargs):
         child = self._handle(expr.base)
         target_type = self.default_simtype_from_bits(expr.bits, False)
@@ -4625,93 +4766,93 @@ class GoStructuredCodeWalker:
     def handle_default(self, obj):
         return obj
 
-    def handle_CFunction(self, obj):
+    def handle_GoFunction(self, obj):
         obj.statements = self.handle(obj.statements)
         return obj
 
-    def handle_CStatements(self, obj):
+    def handle_GoStatements(self, obj):
         obj.statements = [self.handle(stmt) for stmt in obj.statements]
         return obj
 
-    def handle_CWhileLoop(self, obj):
+    def handle_GoWhileLoop(self, obj):
         obj.condition = self.handle(obj.condition)
         obj.body = self.handle(obj.body)
         return obj
 
-    def handle_CDoWhileLoop(self, obj):
+    def handle_GoDoWhileLoop(self, obj):
         obj.condition = self.handle(obj.condition)
         obj.body = self.handle(obj.body)
         return obj
 
-    def handle_CForLoop(self, obj):
+    def handle_GoForLoop(self, obj):
         obj.initializer = self.handle(obj.initializer)
         obj.condition = self.handle(obj.condition)
         obj.iterator = self.handle(obj.iterator)
         obj.body = self.handle(obj.body)
         return obj
 
-    def handle_CIfElse(self, obj):
+    def handle_GoIfElse(self, obj):
         obj.condition_and_nodes = [
             (self.handle(condition), self.handle(node)) for condition, node in obj.condition_and_nodes
         ]
         obj.else_node = self.handle(obj.else_node)
         return obj
 
-    def handle_CIfBreak(self, obj):
+    def handle_GoIfBreak(self, obj):
         obj.condition = self.handle(obj.condition)
         return obj
 
-    def handle_CSwitchCase(self, obj):
+    def handle_GoSwitchCase(self, obj):
         obj.switch = self.handle(obj.switch)
         obj.cases = [(case, self.handle(body)) for case, body in obj.cases]
         obj.default = self.handle(obj.default)
         return obj
 
-    def handle_CAssignment(self, obj):
+    def handle_GoAssignment(self, obj):
         obj.lhs = self.handle(obj.lhs)
         obj.rhs = self.handle(obj.rhs)
         return obj
 
-    def handle_CExpressionStatement(self, obj):
+    def handle_GoExpressionStatement(self, obj):
         obj.expr = self.handle(obj.expr)
         return obj
 
-    def handle_CFunctionCall(self, obj):
+    def handle_GoFunctionCall(self, obj):
         obj.callee_target = self.handle(obj.callee_target)
         obj.args = [self.handle(arg) for arg in obj.args]
         return obj
 
-    def handle_CReturn(self, obj):
-        obj.retval = self.handle(obj.retval)
+    def handle_GoReturn(self, obj):
+        obj.retvals = [self.handle(retval) for retval in obj.retvals]
         return obj
 
-    def handle_CGoto(self, obj):
+    def handle_GoGoto(self, obj):
         obj.target = self.handle(obj.target)
         return obj
 
-    def handle_CIndexedVariable(self, obj):
+    def handle_GoIndexedVariable(self, obj):
         obj.variable = self.handle(obj.variable)
         obj.index = self.handle(obj.index)
         return obj
 
-    def handle_CVariableField(self, obj):
+    def handle_GoVariableField(self, obj):
         obj.variable = self.handle(obj.variable)
         return obj
 
-    def handle_CUnaryOp(self, obj):
+    def handle_GoUnaryOp(self, obj):
         obj.operand = self.handle(obj.operand)
         return obj
 
-    def handle_CBinaryOp(self, obj):
+    def handle_GoBinaryOp(self, obj):
         obj.lhs = self.handle(obj.lhs)
         obj.rhs = self.handle(obj.rhs)
         return obj
 
-    def handle_CTypeCast(self, obj):
+    def handle_GoTypeCast(self, obj):
         obj.expr = self.handle(obj.expr)
         return obj
 
-    def handle_CITE(self, obj):
+    def handle_GoITE(self, obj):
         obj.cond = self.handle(obj.cond)
         obj.iftrue = self.handle(obj.iftrue)
         obj.iffalse = self.handle(obj.iffalse)
@@ -4750,22 +4891,25 @@ class MakeTypecastsImplicit(GoStructuredCodeWalker):
             return cls.collapse(dst_ty, result)
         return result
 
-    def handle_CAssignment(self, obj):
+    def handle_GoAssignment(self, obj):
         obj.rhs = self.collapse(obj.lhs.type, obj.rhs)
-        return super().handle_CAssignment(obj)
+        return super().handle_GoAssignment(obj)
 
-    def handle_CFunctionCall(self, obj: GoFunctionCall):
+    def handle_GoFunctionCall(self, obj: GoFunctionCall):
         prototype_args = [] if obj.prototype is None else obj.prototype.args
         for i, (c_arg, arg_ty) in enumerate(zip(obj.args, prototype_args)):
             obj.args[i] = self.collapse(arg_ty, c_arg)
-        return super().handle_CFunctionCall(obj)
+        return super().handle_GoFunctionCall(obj)
 
-    def handle_CReturn(self, obj: GoReturn):
-        obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)
-        return super().handle_CReturn(obj)
+    def handle_GoReturn(self, obj: GoReturn):
+        returnty = obj.codegen._func.prototype.returnty
+        result_types = returnty.elems if isinstance(returnty, GoSimTypeTuple) else [returnty]
+        if len(result_types) == len(obj.retvals):
+            obj.retvals = [self.collapse(ty, retval) for ty, retval in zip(result_types, obj.retvals)]
+        return super().handle_GoReturn(obj)
 
-    def handle_CBinaryOp(self, obj: GoBinaryOp):
-        obj = super().handle_CBinaryOp(obj)
+    def handle_GoBinaryOp(self, obj: GoBinaryOp):
+        obj = super().handle_GoBinaryOp(obj)
         while True:
             new_lhs = self.collapse(obj.common_type, obj.lhs)
             assert obj.rhs.type is not None and new_lhs.type is not None
@@ -4786,9 +4930,9 @@ class MakeTypecastsImplicit(GoStructuredCodeWalker):
                     break
         return obj
 
-    def handle_CTypeCast(self, obj: GoTypeCast):
+    def handle_GoTypeCast(self, obj: GoTypeCast):
         # note that the expression that this method returns may no longer be a GoTypeCast
-        obj = super().handle_CTypeCast(obj)
+        obj = super().handle_GoTypeCast(obj)
         inner = self.collapse(obj.dst_type, obj.expr)
         assert inner.type is not None
         if inner is not obj.expr:
@@ -4800,12 +4944,12 @@ class MakeTypecastsImplicit(GoStructuredCodeWalker):
 
 
 class FieldReferenceCleanup(GoStructuredCodeWalker):
-    def handle_CTypeCast(self, obj):
+    def handle_GoTypeCast(self, obj):
         if isinstance(obj.dst_type, SimTypePointer) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
             new_obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
             if not isinstance(new_obj, GoTypeCast):
                 return self.handle(new_obj)
-        return super().handle_CTypeCast(obj)
+        return super().handle_GoTypeCast(obj)
 
 
 class PointerArithmeticFixer(GoStructuredCodeWalker):
@@ -4822,15 +4966,15 @@ class PointerArithmeticFixer(GoStructuredCodeWalker):
     a_ptr = a_ptr + 1.
     """
 
-    def handle_CAssignment(self, obj: GoAssignment):
+    def handle_GoAssignment(self, obj: GoAssignment):
         if "type" in obj.tags and "dst" in obj.tags["type"] and "src" in obj.tags["type"]:
             # HACK: do not attempt to fix pointer arithmetic if dst and src types are explicitly given
             # FIXME: Properly propagate dst and src types to lhs and rhs
             return obj
-        return super().handle_CAssignment(obj)
+        return super().handle_GoAssignment(obj)
 
-    def handle_CBinaryOp(self, obj: GoBinaryOp):  # type: ignore
-        obj: GoBinaryOp = super().handle_CBinaryOp(obj)
+    def handle_GoBinaryOp(self, obj: GoBinaryOp):  # type: ignore
+        obj: GoBinaryOp = super().handle_GoBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")
             and isinstance(obj.type, SimTypePointer)
