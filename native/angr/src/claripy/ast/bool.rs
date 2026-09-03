@@ -4,7 +4,6 @@ use std::sync::LazyLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use ast::args::ExtractPyArgs;
 use clarirs_vsa::reduce::Reduce;
 use clarirs_vsa::strided_interval::ComparisonResult;
 use dashmap::DashMap;
@@ -342,33 +341,6 @@ impl Bool {
             ComparisonResult::False => Ok(1),
             ComparisonResult::Maybe => Ok(2),
         }
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn __reduce__<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> Result<
-        (
-            Bound<'py, PyAny>,
-            (
-                String,
-                Vec<Bound<'py, PyAny>>,
-                Vec<Bound<'py, PyAnnotation>>,
-            ),
-        ),
-        ClaripyError,
-    > {
-        let class = py.get_type::<Bool>();
-        let op = self.inner.to_opstring();
-        let args = self.inner.extract_py_args(py)?;
-        let annotations: Vec<Bound<'py, PyAnnotation>> = self
-            .inner
-            .annotations()
-            .iter()
-            .map(|annotation| PyAnnotation::from_annotation(py, annotation))
-            .collect::<Result<_, _>>()?;
-        Ok((class.into_any(), (op, args, annotations)))
     }
 }
 

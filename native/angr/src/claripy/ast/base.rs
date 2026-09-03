@@ -5,6 +5,15 @@ use pyo3::types::{PyDict, PyFrozenSet, PySet, PyType};
 
 use crate::claripy::prelude::*;
 
+type Reduced<'py> = (
+    Bound<'py, PyType>,
+    (
+        String,
+        Vec<Bound<'py, PyAny>>,
+        Vec<Bound<'py, PyAnnotation>>,
+    ),
+);
+
 /// The base class for all AST wrappers. It holds the underlying [`AstRef`] and
 /// implements every operation that does not depend on the concrete sort
 /// (structure queries, hashing, simplification, replacement, annotation
@@ -130,6 +139,21 @@ impl Base {
 
     pub fn __hash__(&self) -> usize {
         self.hash() as usize
+    }
+
+    /// `slf.get_type()` is the concrete subclass, so unpickling calls that class's `__new__`.
+    pub fn __reduce__<'py>(slf: &Bound<'py, Self>) -> Result<Reduced<'py>, ClaripyError> {
+        let py = slf.py();
+        let inner = &slf.get().inner;
+        let annotations: Vec<Bound<'py, PyAnnotation>> = inner
+            .annotations()
+            .iter()
+            .map(|annotation| PyAnnotation::from_annotation(py, annotation))
+            .collect::<Result<_, _>>()?;
+        Ok((
+            slf.get_type(),
+            (inner.to_opstring(), inner.extract_py_args(py)?, annotations),
+        ))
     }
 
     pub fn __repr__(&self) -> String {
