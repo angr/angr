@@ -168,6 +168,12 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert "main.parse(os.Args[1])" in main
         assert "main.counter int" in self.texts["main.main"]
 
+    def test_println_is_folded(self):
+        main = self.texts["main.main"]
+        assert re.search(r"^\s+println\([^\n]+, main\.counter\)$", main, re.MULTILINE), main
+        assert "runtime.print" not in main
+        assert not main.rstrip().endswith("return\n}")
+
     def test_range_loops(self):
         for name, text in self.texts.items():
             with self.subTest(func=name):
