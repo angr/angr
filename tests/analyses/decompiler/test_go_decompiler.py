@@ -134,10 +134,13 @@ class TestBasicsGo122(GoDecompilationTarget):
     def test_multiple_results_are_returned_together(self):
         assert re.search(r"return \w+, \w+$", self.texts["main.divmod"], re.MULTILINE)
         parse = self.texts["main.parse"]
-        assert re.search(r"return \w+\.~r0, nil$", parse, re.MULTILINE), parse
+        # multi-result calls are destructured and the error checked idiomatically
+        assert re.search(r"^\s+\w+, err = strconv\.Atoi\(s\)$", parse, re.MULTILINE), parse
+        assert "if err != nil {" in parse
+        assert "return 0, err\n" in parse
         assert "return 0, main.errNegative\n" in parse
-        # the error result of strconv.Atoi is one value, not two registers
-        assert re.search(r"return 0, \w+\.~r1$", parse, re.MULTILINE), parse
+        assert re.search(r"return \w+, nil$", parse, re.MULTILINE), parse
+        assert "~r" not in parse
 
     def test_values_are_fused_at_call_sites(self):
         main = self.texts["main.main"]
