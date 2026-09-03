@@ -6,7 +6,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.calling_conventions import GO_ABI0_CC, default_cc_for_project
 from angr.go.utils.names import call_target_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
-from angr.rust.utils.ail import CallFinder
+from angr.utils.ail import CallFinder
 
 l = logging.getLogger(__name__)
 
