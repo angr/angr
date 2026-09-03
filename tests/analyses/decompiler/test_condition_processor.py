@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import archinfo
-import claripy
 import networkx
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment import Block
 from angr.ailment.expression import BinaryOp, Const, Extract, Register, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import ConditionalJump
@@ -56,7 +55,7 @@ def test_extract_placeholders_include_semantic_properties():
 
 def test_guarding_condition_excludes_all_diverging_paths():
     arch = archinfo.ArchAMD64()
-    manager = ailment.Manager(arch=arch)
+    manager = ailment.Manager()
     condition_processor = ConditionProcessor(arch, manager)
 
     first_exit = Block(0x1010, 1)
@@ -108,7 +107,7 @@ def test_guarding_condition_excludes_all_diverging_paths():
 
 def test_guarding_condition_includes_divergence_path_context():
     arch = archinfo.ArchAMD64()
-    manager = ailment.Manager(arch=arch)
+    manager = ailment.Manager()
     condition_processor = ConditionProcessor(arch, manager)
 
     left_exit = Block(0x1030, 1)
@@ -161,7 +160,7 @@ def test_guarding_condition_includes_divergence_path_context():
 
 def test_guarding_condition_respects_disabled_simplification(monkeypatch):
     arch = archinfo.ArchAMD64()
-    manager = ailment.Manager(arch=arch)
+    manager = ailment.Manager()
     condition_processor = ConditionProcessor(arch, manager)
 
     exit_node = Block(0x1010, 1)

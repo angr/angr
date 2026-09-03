@@ -8,11 +8,11 @@ import os
 import unittest
 
 import archinfo
-import claripy
 import networkx
 
 import angr
 import angr.analyses.decompiler
+from angr import claripy
 from angr.ailment import Block, Manager
 from angr.analyses import Decompiler
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
@@ -53,7 +53,7 @@ def D(*edge):
 class TestStructurer(unittest.TestCase):
     def test_dream_does_not_replace_reaching_condition_with_concrete_guard(self):
         arch = archinfo.ArchAMD64()
-        condition_processor = ConditionProcessor(arch, Manager(arch=arch))
+        condition_processor = ConditionProcessor(arch, Manager())
         structurer = object.__new__(DreamStructurer)
         structurer.cond_proc = condition_processor
 
@@ -71,7 +71,7 @@ class TestStructurer(unittest.TestCase):
 
     def test_dream_replaces_reaching_condition_with_simpler_symbolic_guard(self):
         arch = archinfo.ArchAMD64()
-        condition_processor = ConditionProcessor(arch, Manager(arch=arch))
+        condition_processor = ConditionProcessor(arch, Manager())
         structurer = object.__new__(DreamStructurer)
         structurer.cond_proc = condition_processor
 
