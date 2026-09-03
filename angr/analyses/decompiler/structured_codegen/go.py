@@ -4924,7 +4924,9 @@ class MakeTypecastsImplicit(GoStructuredCodeWalker):
         # note that the expression that this method returns may no longer be a GoTypeCast
         obj = super().handle_GoTypeCast(obj)
         inner = self.collapse(obj.dst_type, obj.expr)
-        assert inner.type is not None
+        if inner.type is None:
+            obj.expr = inner
+            return obj
         if inner is not obj.expr:
             obj.src_type = inner.type
             obj.expr = inner
