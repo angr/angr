@@ -53,7 +53,7 @@ class TestIncompleteStructuringSalvage(unittest.TestCase):
     @staticmethod
     def _structurer(func_addr: int | None):
         rs = object.__new__(RecursiveStructurer)
-        rs.ail_manager = Manager(arch=None)
+        rs.ail_manager = Manager()
         rs.function = None if func_addr is None else cast("Function", _Function(func_addr))
         rs.project = cast("Project", _Project())
         return rs
