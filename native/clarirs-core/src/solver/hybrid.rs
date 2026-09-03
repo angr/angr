@@ -181,9 +181,9 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
         if !expr.symbolic() {
             return self.approximate.has_true(expr);
         }
-        // If approximate says definitely true, trust it (over-approximation is safe here)
+        // The approximation over-approximates: only its negative answers are conclusive.
         match self.approximate.has_true(expr) {
-            Ok(true) => Ok(true),
+            Ok(false) => Ok(false),
             _ => self.exact.has_true(expr),
         }
     }
@@ -193,7 +193,7 @@ impl<'c, A: Solver<'c>, E: Solver<'c>> Solver<'c> for HybridSolver<'c, A, E> {
             return self.approximate.has_false(expr);
         }
         match self.approximate.has_false(expr) {
-            Ok(true) => Ok(true),
+            Ok(false) => Ok(false),
             _ => self.exact.has_false(expr),
         }
     }
@@ -280,6 +280,111 @@ mod tests {
         assert_eq!(result, ctx.bvv(BitVec::from((30, 8)))?);
 
         assert!(solver.satisfiable()?);
+
+        Ok(())
+    }
+
+    #[derive(Clone)]
+    struct Fixed<'c> {
+        ctx: &'c Context<'c>,
+        answer: bool,
+    }
+
+    impl<'c> HasContext<'c> for Fixed<'c> {
+        fn context(&self) -> &'c Context<'c> {
+            self.ctx
+        }
+    }
+
+    impl<'c> Solver<'c> for Fixed<'c> {
+        fn add(&mut self, _: &AstRef<'c>) -> Result<(), ClarirsError> {
+            Ok(())
+        }
+
+        fn clear(&mut self) -> Result<(), ClarirsError> {
+            Ok(())
+        }
+
+        fn constraints(&self) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            Ok(Vec::new())
+        }
+
+        fn simplify(&mut self) -> Result<(), ClarirsError> {
+            Ok(())
+        }
+
+        fn satisfiable(&mut self) -> Result<bool, ClarirsError> {
+            Ok(true)
+        }
+
+        fn is_true(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(self.answer)
+        }
+
+        fn is_false(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(self.answer)
+        }
+
+        fn has_true(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(self.answer)
+        }
+
+        fn has_false(&mut self, _: &AstRef<'c>) -> Result<bool, ClarirsError> {
+            Ok(self.answer)
+        }
+
+        fn min_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(expr.clone())
+        }
+
+        fn max_unsigned(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(expr.clone())
+        }
+
+        fn min_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(expr.clone())
+        }
+
+        fn max_signed(&mut self, expr: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+            Ok(expr.clone())
+        }
+
+        fn eval_n(&mut self, expr: &AstRef<'c>, _: u32) -> Result<Vec<AstRef<'c>>, ClarirsError> {
+            Ok(vec![expr.clone()])
+        }
+    }
+
+    #[test]
+    fn test_hybrid_witness_queries_confirm_with_exact() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let x = ctx.bools("x")?;
+
+        // A witness claimed by the over-approximation is only a "maybe" and
+        // must be confirmed by the exact solver.
+        let approximate = Fixed {
+            ctx: &ctx,
+            answer: true,
+        };
+        let exact = Fixed {
+            ctx: &ctx,
+            answer: false,
+        };
+        let mut solver = HybridSolver::new(&ctx, approximate, exact);
+        assert!(!solver.has_true(&x)?);
+        assert!(!solver.has_false(&x)?);
+
+        // No witness in the over-approximation means none exists.
+        let approximate = Fixed {
+            ctx: &ctx,
+            answer: false,
+        };
+        let exact = Fixed {
+            ctx: &ctx,
+            answer: true,
+        };
+        let mut solver = HybridSolver::new(&ctx, approximate, exact);
+        assert!(!solver.has_true(&x)?);
+        assert!(!solver.has_false(&x)?);
 
         Ok(())
     }
