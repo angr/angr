@@ -189,6 +189,22 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert "g.m" in text
 
 
+class TestIfaceGo122(GoDecompilationTarget):
+    BINARY = go_binary("go1.22.5", "iface")
+    FUNCS = ("main.describe", "main.box", "main.unbox", "main.asSquare")
+
+    def test_interface_method_calls(self):
+        describe = self.texts["main.describe"]
+        assert re.search(r"= s\.Name\(\)$", describe, re.MULTILINE), describe
+        assert "strconv.Itoa(s.Area())" in describe
+        assert ".tab[" not in describe
+
+    def test_type_descriptors_are_named(self):
+        assert "&type:int" in self.texts["main.box"]
+        assert "&type:int" in self.texts["main.unbox"]
+        assert "&go:itab.*main.Square,main.Shape" in self.texts["main.asSquare"]
+
+
 class TestBasicsGo122Stripped(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "basics_stripped")
     FUNCS = ("main.fib",)

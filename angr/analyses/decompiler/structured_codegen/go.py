@@ -1717,6 +1717,41 @@ class GoAssignment(GoStatement):
             yield "\n", self
 
 
+class GoMethodCall(GoExpression):
+    """``recv.Method(args)`` through an interface's method table."""
+
+    __slots__ = ("args", "method", "receiver", "signature")
+
+    def __init__(self, receiver, method: str, args, signature=None, **kwargs):
+        super().__init__(**kwargs)
+        self.receiver = receiver
+        self.method = method
+        self.args = list(args)
+        if isinstance(signature, GoSimTypeFunc):
+            signature = signature.signature
+        self.signature = signature
+        self._type = signature.returnty if signature is not None else None
+
+    @property
+    def type(self):
+        return self._type
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield "...", self
+            return
+        yield from GoExpression._try_c_repr_chunks(self.receiver)
+        yield ".", None
+        yield self.method, self
+        paren = GoClosingObject("(")
+        yield "(", paren
+        for i, arg in enumerate(self.args):
+            if i:
+                yield ", ", None
+            yield from GoExpression._try_c_repr_chunks(arg)
+        yield ")", paren
+
+
 class GoMultiAssignment(GoStatement):
     """``a, b = f()``"""
 
@@ -3414,6 +3449,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
+        self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
         self.cfunc = RangeLoopRecovery(self).handle(self.cfunc)
         TupleDestructuring(self, self.cfunc).run()
         self.cfunc = PrintFolding(self).handle(self.cfunc)
@@ -4904,6 +4940,11 @@ class GoStructuredCodeWalker:
         obj.body = self.handle(obj.body)
         return obj
 
+    def handle_GoMethodCall(self, obj):
+        obj.receiver = self.handle(obj.receiver)
+        obj.args = [self.handle(arg) for arg in obj.args]
+        return obj
+
     def handle_GoMultiAssignment(self, obj):
         obj.lhs = [self.handle(x) for x in obj.lhs]
         obj.rhs = self.handle(obj.rhs)
@@ -5087,13 +5128,21 @@ class RangeLoopRecovery(GoStructuredCodeWalker):
         cond = loop.condition
         if not isinstance(cond, GoBinaryOp):
             return None
-        # len(s) > i  or  i < len(s)
+        # len(s) > i  or  i < len(s); the length may have been hoisted into a variable right before the loop
+        hoisted_len = None
         if cond.op in ("CmpGT", "CmpGTs"):
-            coll, index = _go_length_of(cond.lhs), cond.rhs
+            length, index = cond.lhs, cond.rhs
         elif cond.op in ("CmpLT", "CmpLTs"):
-            index, coll = cond.lhs, _go_length_of(cond.rhs)
+            index, length = cond.lhs, cond.rhs
         else:
             return None
+        coll = _go_length_of(length)
+        if coll is None and isinstance(length, GoVariable):
+            prev_container, prev_idx = _go_leaf(preceding, last=True)
+            prev = prev_container[prev_idx] if prev_container is not None else None
+            if isinstance(prev, GoAssignment) and _go_is_var(prev.lhs, length) and _go_length_of(prev.rhs) is not None:
+                coll = _go_length_of(prev.rhs)
+                hoisted_len = (prev_container, prev_idx, length)
         if coll is None or not isinstance(index, GoVariable):
             return None
 
@@ -5115,14 +5164,27 @@ class RangeLoopRecovery(GoStructuredCodeWalker):
         else:
             return None
 
+        # the length variable must not be used anywhere else
+        if hoisted_len is not None and (
+            any(_go_mentions_variable(stmt, hoisted_len[2]) for stmt in body)
+            or _go_mentions_variable(loop.iterator, hoisted_len[2])
+        ):
+            return None
+
         # the index must start at zero: either the loop's own initializer or the statement right before the loop
         hoisted = []
         init = loop.initializer
         if isinstance(init, GoAssignment) and _go_is_var(init.lhs, index):
             if not (isinstance(init.rhs, GoConstant) and init.rhs.value == 0):
                 return None
+            if hoisted_len is not None:
+                hoisted_len[0].pop(hoisted_len[1])
         else:
-            prev_container, prev_idx = _go_leaf(preceding, last=True)
+            # skip over the hoisted length assignment when looking for the zero initialization
+            search = list(preceding)
+            if hoisted_len is not None and hoisted_len[0] is preceding:
+                search = preceding[: hoisted_len[1]] + preceding[hoisted_len[1] + 1 :]
+            prev_container, prev_idx = _go_leaf(search, last=True)
             prev = prev_container[prev_idx] if prev_container is not None else None
             if not (
                 isinstance(prev, GoAssignment)
@@ -5131,7 +5193,18 @@ class RangeLoopRecovery(GoStructuredCodeWalker):
                 and prev.rhs.value == 0
             ):
                 return None
-            prev_container.pop(prev_idx)
+            # remove both from their real containers (the hoisted length first when it sits behind the zero init)
+            if hoisted_len is not None and hoisted_len[0] is preceding:
+                zero_idx = preceding.index(prev) if prev_container is search else None
+                preceding.pop(hoisted_len[1])
+                if zero_idx is not None:
+                    preceding.pop(zero_idx if zero_idx < hoisted_len[1] else zero_idx - 1)
+                else:
+                    prev_container.pop(prev_idx)
+            else:
+                prev_container.pop(prev_idx)
+                if hoisted_len is not None:
+                    hoisted_len[0].pop(hoisted_len[1])
             if init is not None:
                 hoisted.append(init)
         if drop_first:
@@ -5361,6 +5434,54 @@ class PrintFolding(GoStructuredCodeWalker):
             leaves = list(_go_leaf_statements(obj))
             i += 1
         return obj
+
+
+def _go_itab_slot(expr):
+    """(interface value, byte offset) when ``expr`` reads a slot of an interface value's itab; else None."""
+    while isinstance(expr, GoTypeCast):
+        expr = expr.expr
+    if isinstance(expr, GoIndexedVariable) and isinstance(expr.index, GoConstant):
+        base, offset = expr.variable, expr.index.value
+    elif isinstance(expr, GoUnaryOp) and expr.op == "Dereference":
+        inner = expr.operand
+        while isinstance(inner, GoTypeCast):
+            inner = inner.expr
+        if isinstance(inner, GoBinaryOp) and inner.op == "Add" and isinstance(inner.rhs, GoConstant):
+            base, offset = inner.lhs, inner.rhs.value
+        else:
+            return None
+    else:
+        return None
+    if _go_is_iface_word(base) and isinstance(offset, int):
+        return base.variable, offset
+    return None
+
+
+class InterfaceMethodCalls(GoStructuredCodeWalker):
+    """``x.tab[24 + 8*i](x.data, args...)`` becomes ``x.Method(args...)`` using the interface's method set."""
+
+    ITAB_FUN_OFFSET = 24
+
+    def __init__(self, codegen):
+        self._codegen = codegen
+
+    def handle_GoFunctionCall(self, obj):
+        obj = super().handle_GoFunctionCall(obj)
+        if obj.callee_func is not None or isinstance(obj.callee_target, str):
+            return obj
+        slot = _go_itab_slot(obj.callee_target)
+        if slot is None:
+            return obj
+        receiver, offset = slot
+        iface = unpack_typeref(receiver.type)
+        index, rem = divmod(offset - self.ITAB_FUN_OFFSET, self._codegen.project.arch.bytes)
+        if rem or index < 0 or index >= len(iface.methods):
+            return obj
+        name, sig = iface.methods[index]
+        args = list(obj.args)
+        if args and isinstance(args[0], GoVariableField) and args[0].field.field == "data":
+            args = args[1:]
+        return GoMethodCall(receiver, name, args, signature=sig, tags=obj.tags, codegen=self._codegen)
 
 
 class MakeTypecastsImplicit(GoStructuredCodeWalker):
