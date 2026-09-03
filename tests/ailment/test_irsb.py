@@ -147,10 +147,7 @@ class TestPcodeProcessorMemorySpaces(unittest.TestCase):
     def _convert(language, block_bytes, addr):
         arch = archinfo.ArchPcode(language)
         proj = angr.load_shellcode(block_bytes, arch, addr, addr, engine=angr.engines.UberEnginePcode)
-        return ailment.IRSBConverter.convert(
-            proj.factory.block(addr).vex,
-            ailment.Manager(arch=arch),  # pyright: ignore[reportArgumentType]
-        )
+        return ailment.IRSBConverter.convert(proj.factory.block(addr).vex, ailment.Manager())
 
     def test_processor_spaces_convert_to_tagged_loads_and_stores(self):
         for language, block_hex, addr, load_spaces, store_spaces in self.CASES:
