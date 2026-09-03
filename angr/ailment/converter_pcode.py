@@ -323,9 +323,7 @@ class PCodeIRSBConverter(Converter):
                 # little-endian machine the high half sits at the higher address, on a big-endian one at
                 # the lower. Computing this the big-endian way on a little-endian target silently
                 # returns the low half for both halves of a widening multiply.
-                arch = self._manager.arch
-                assert arch is not None
-                if arch.memory_endness == archinfo.Endness.LE:
+                if self._irsb.arch.memory_endness == archinfo.Endness.LE:
                     right_shift_amount = varnode.offset - unique_offset
                 else:
                     right_shift_amount = (unique_offset + ori_tmp_size) - (varnode.offset + varnode.size)
