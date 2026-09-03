@@ -74,7 +74,7 @@ class GoDecompilationTarget(unittest.TestCase):
 
 class TestBasicsGo122(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "basics")
-    FUNCS = ("main.fib", "main.add", "main.main", "main.parse", "runtime.acquirem")
+    FUNCS = ("main.fib", "main.add", "main.main", "main.parse", "main.divmod", "runtime.acquirem")
 
     def test_go_flavor_is_selected(self):
         assert self.proj.is_go_binary
@@ -115,6 +115,26 @@ class TestBasicsGo122(GoDecompilationTarget):
 
     def test_zero_register_is_not_a_variable(self):
         assert "xmm15" not in self.texts["main.main"]
+
+    def test_prototypes_come_from_dwarf(self):
+        assert self.header(self.texts["main.parse"]) == "func main.parse(s string) (int, error) {"
+        assert self.header(self.texts["main.divmod"]) == "func main.divmod(a int, b int) (int, int) {"
+        assert self.header(self.texts["main.fib"]) == "func main.fib(n int) int {"
+        assert self.header(self.texts["main.main"]) == "func main.main() {"
+
+    def test_multiple_results_are_returned_together(self):
+        assert re.search(r"return \w+, \w+;", self.texts["main.divmod"])
+        parse = self.texts["main.parse"]
+        assert re.search(r"return \w+\.~r0, nil;", parse), parse
+        assert "return 0, main.errNegative;" in parse
+        # the error result of strconv.Atoi is one value, not two registers
+        assert re.search(r"return 0, \w+\.~r1;", parse), parse
+
+    def test_values_are_fused_at_call_sites(self):
+        main = self.texts["main.main"]
+        assert 'main.count("hello, world", ' in main
+        assert re.search(r"main\.sum\(\w+\);", main), main
+        assert re.search(r"main\.parse\([^,()]+\);", main), main
 
     def test_g_register_is_named(self):
         text = self.texts["runtime.acquirem"]
