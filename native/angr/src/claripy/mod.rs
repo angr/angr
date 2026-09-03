@@ -46,7 +46,7 @@ fn py_simplify<'py>(
     py: Python<'py>,
     expr: Bound<'py, Base>,
 ) -> Result<Bound<'py, Base>, ClaripyError> {
-    Base::from_ast(py, Base::to_ast(expr)?.simplify()?)
+    Base::from_ast(py, expr.get().ast().simplify()?)
 }
 
 #[pyfunction(name = "replace")]
