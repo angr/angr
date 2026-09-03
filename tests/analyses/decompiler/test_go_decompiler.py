@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 
 import cle
@@ -73,7 +74,7 @@ class GoDecompilationTarget(unittest.TestCase):
 
 class TestBasicsGo122(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "basics")
-    FUNCS = ("main.fib", "main.add", "main.main")
+    FUNCS = ("main.fib", "main.add", "main.main", "main.parse", "runtime.acquirem")
 
     def test_go_flavor_is_selected(self):
         assert self.proj.is_go_binary
@@ -99,6 +100,26 @@ class TestBasicsGo122(GoDecompilationTarget):
 
     def test_recursion_renders(self):
         assert "main.fib(" in self.texts["main.fib"].split("{", 1)[1]
+
+    def test_stack_growth_check_is_removed(self):
+        for name, text in self.texts.items():
+            with self.subTest(func=name):
+                assert "morestack" not in text
+                # the compare against g.stackguard0 (r14+16) must not survive either
+                assert "+ 16)" not in text
+
+    def test_argument_spills_are_removed(self):
+        # parse spills its string argument into the caller-provided slot and never reads it back
+        body = self.texts["main.parse"].split("{", 1)[1]
+        assert not re.search(r"^\s+\w+ = a\d+;$", body, re.MULTILINE), body
+
+    def test_zero_register_is_not_a_variable(self):
+        assert "xmm15" not in self.texts["main.main"]
+
+    def test_g_register_is_named(self):
+        text = self.texts["runtime.acquirem"]
+        assert "var g *runtime.g" in text
+        assert "g->m" in text
 
 
 class TestBasicsGo122Stripped(GoDecompilationTarget):
