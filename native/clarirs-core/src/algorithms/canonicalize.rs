@@ -82,8 +82,7 @@ pub fn canonicalize<'c>(
         .map(|(i, name)| (name.clone(), ctx_ref.intern_string(format!("v{i}"))))
         .collect();
 
-    // Build replacement map: original var AST -> canonical var AST
-    let mut replacements: HashMap<AstRef<'c>, AstRef<'c>> = HashMap::new();
+    // Build replacement map: original var hash -> canonical var AST
     let mut replacement_map: HashMap<u64, AstRef<'c>> = HashMap::new();
     let ctx = ast.context();
 
@@ -100,16 +99,11 @@ pub fn canonicalize<'c>(
                 AstType::Float(sort) => ctx.fps(canonical_name.as_str(), sort)?,
                 AstType::String => ctx.strings(canonical_name.as_str())?,
             };
-            replacement_map.insert(var.hash(), canonical_var.clone());
-            replacements.insert(var.clone(), canonical_var);
+            replacement_map.insert(var.hash(), canonical_var);
         }
     }
 
-    // Apply all replacements to the AST
-    let mut result = ast.clone();
-    for (from, to) in &replacements {
-        result = result.replace(from, to)?;
-    }
+    let result = ast.replace_many(&replacement_map)?;
 
     let counter = var_mapping.len();
 
