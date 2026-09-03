@@ -1,15 +1,13 @@
 use std::collections::BTreeSet;
 use std::fmt::Debug;
 
-use serde::Serialize;
-
 use crate::ast::node::AstRef;
 use crate::prelude::*;
 
 /// The runtime type ("sort") of an AST node. Stored on every [`AstNode`] so the
 /// type of an expression can be queried without inspecting its operation, and
 /// so size/sort information is available in O(1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AstType {
     Bool,
     BitVec(u32),
@@ -38,7 +36,7 @@ impl AstType {
 /// The single operation enum for all AST nodes. A node's type (bool, bitvec,
 /// float, string) is determined by its operation together with the types of its
 /// children, and is cached on the [`AstNode`] as an [`AstType`].
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AstOp<'c> {
     // Boolean leaves and operations
     BoolS(InternedString),
