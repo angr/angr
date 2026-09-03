@@ -59,7 +59,7 @@ class TestBuiltinsGo122(GoBuiltinsTarget):
     def test_checks_and_write_barriers_are_removed(self):
         self.assert_absent(CHECK_NAMES)
         assert "return s[2]\n" in self.texts["main.third"]
-        assert "return s.ptr[i]\n" in self.texts["main.at"]
+        assert "return s[i]\n" in self.texts["main.at"]
         assert re.search(r"(\w+)\.next = main\.head\n\s+main\.head = \1\n", self.texts["main.push"])
 
     def test_runtime_helpers_are_rewritten(self):
