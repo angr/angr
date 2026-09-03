@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .arg_spill_remover import GoArgSpillRemover
+from .descriptor_namer import GoDescriptorNamer
 from .global_types import GoGlobalTypes
 from .multi_value import GoComboRegisterRewriter, GoRetExprRewriter
 from .parameter_types import GoParameterTypes
@@ -27,4 +28,5 @@ def get_go_optimization_passes():
         GoValueFuser,
         # AFTER_VARIABLE_RECOVERY
         GoPinnedRegisterNamer,
+        GoDescriptorNamer,
     ]
