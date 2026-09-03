@@ -90,6 +90,7 @@ from angr.sim_variable import (
 )
 from angr.utils.bits import u2s
 from angr.utils.constants import should_use_hex
+from angr.utils.go_runtime import normalize_go_func_name
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from angr.utils.strings import decode_utf16_string
 from angr.utils.types import dereference_simtype_by_lib, unpack_pointer_and_array, unpack_typeref
@@ -1056,14 +1057,11 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         yield "\n", None
         yield from self.variable_list_repr_chunks(indent=indent + self.codegen.indent_delta)
         statements = self.statements
-        if (
-            isinstance(statements, GoStatements)
-            and statements.statements
-            and isinstance(statements.statements[-1], GoReturn)
-            and not statements.statements[-1].retvals
-        ):
-            # a bare return at the very end of a function is implied
-            statements = GoStatements(statements.statements[:-1], codegen=self.codegen)
+        if isinstance(statements, GoStatements):
+            container, idx = _go_leaf(statements.statements, last=True)
+            if container is not None and isinstance(container[idx], GoReturn) and not container[idx].retvals:
+                # a bare return at the very end of a function is implied
+                container.pop(idx)
         yield from statements.c_repr_chunks(indent=indent + self.codegen.indent_delta)
         yield indent_str, None
         yield "}", brace
@@ -3418,6 +3416,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
         self.cfunc = RangeLoopRecovery(self).handle(self.cfunc)
         TupleDestructuring(self, self.cfunc).run()
+        self.cfunc = PrintFolding(self).handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -5279,6 +5278,89 @@ def _go_node_attr_names(node) -> list[str]:
     names = [slot for cls in type(node).__mro__ for slot in cls.__dict__.get("__slots__", ())]
     names += [name for name in getattr(node, "__dict__", {}) if name != "codegen"]
     return names
+
+
+_PRINT_VALUE_FUNCS = frozenset(
+    {
+        "runtime.printbool",
+        "runtime.printfloat",
+        "runtime.printcomplex",
+        "runtime.printint",
+        "runtime.printuint",
+        "runtime.printhex",
+        "runtime.printpointer",
+        "runtime.printuintptr",
+        "runtime.printstring",
+        "runtime.printslice",
+        "runtime.printeface",
+        "runtime.printiface",
+    }
+)
+
+
+def _go_leaf_statements(stmts: GoStatements):
+    """(container list, index, statement) for every statement, descending into nested GoStatements only."""
+    for i, stmt in enumerate(list(stmts.statements)):
+        if isinstance(stmt, GoStatements):
+            yield from _go_leaf_statements(stmt)
+        else:
+            yield stmts.statements, i, stmt
+
+
+def _go_runtime_call_name(stmt) -> str | None:
+    if isinstance(stmt, GoExpressionStatement) and isinstance(stmt.expr, GoFunctionCall):
+        func = stmt.expr.callee_func
+        if func is not None:
+            return normalize_go_func_name(func.name)
+        if isinstance(stmt.expr.callee_target, str):
+            return stmt.expr.callee_target
+    return None
+
+
+class PrintFolding(GoStructuredCodeWalker):
+    """
+    Fold the ``printlock; print<T>(a); printsp; ...; printnl; printunlock`` sequence the compiler emits for the
+    ``print``/``println`` builtins back into one call.
+    """
+
+    def __init__(self, codegen):
+        self._codegen = codegen
+
+    def handle_GoStatements(self, obj):
+        obj.statements = [self.handle(stmt) for stmt in obj.statements]
+        leaves = list(_go_leaf_statements(obj))
+        i = 0
+        while i < len(leaves):
+            if _go_runtime_call_name(leaves[i][2]) != "runtime.printlock":
+                i += 1
+                continue
+            args = []
+            newline = False
+            j = i + 1
+            while j < len(leaves):
+                name = _go_runtime_call_name(leaves[j][2])
+                if name == "runtime.printunlock":
+                    break
+                if name in _PRINT_VALUE_FUNCS and leaves[j][2].expr.args:
+                    args.append(leaves[j][2].expr.args[0])
+                elif name == "runtime.printnl":
+                    newline = True
+                elif name != "runtime.printsp":
+                    break
+                j += 1
+            if j >= len(leaves) or _go_runtime_call_name(leaves[j][2]) != "runtime.printunlock":
+                i += 1
+                continue
+            lock = leaves[i][2]
+            call = GoFunctionCall("println" if newline else "print", None, args, tags=lock.tags, codegen=self._codegen)
+            folded = GoExpressionStatement(call, tags=lock.tags, codegen=self._codegen)
+            # drop the whole run (from the back so indices stay valid) and put the folded call where the lock was
+            for container, idx, _ in sorted(leaves[i + 1 : j + 1], key=lambda x: -x[1]):
+                container.pop(idx)
+            leaves[i][0][leaves[i][1]] = folded
+            leaves = list(_go_leaf_statements(obj))
+            i += 1
+        return obj
 
 
 class MakeTypecastsImplicit(GoStructuredCodeWalker):
