@@ -11,7 +11,7 @@ use z3_sys::*;
 thread_local! {
     static Z3_CONTEXT: Z3_context = unsafe {
         let cfg = Z3_mk_config().expect("Z3_mk_config returned null");
-        let ctx = Z3_mk_context(cfg).expect("Z3_mk_context returned null");
+        let ctx = Z3_mk_context_rc(cfg).expect("Z3_mk_context_rc returned null");
         Z3_set_error_handler(ctx, None);
         Z3_del_config(cfg);
         ctx
