@@ -90,7 +90,7 @@ class TestIrsb(unittest.TestCase):
         project = angr.Project(binary, auto_load_libs=False)
         block = project.factory.block(0x800D781, size=16)
 
-        converted = VEXIRSBConverter.convert(block.vex, ailment.Manager(arch=project.arch))
+        converted = VEXIRSBConverter.convert(block.vex, ailment.Manager())
         base_addr = block.addr & ~1
         memory = project.loader.memory_ro_view or project.loader.memory
         start, backer = next(memory.backers(base_addr))
@@ -98,7 +98,7 @@ class TestIrsb(unittest.TestCase):
             project.arch,
             block.addr,
             backer,
-            ailment.Manager(arch=project.arch),
+            ailment.Manager(),
             cross_insn_opt=block._cross_insn_opt,
             max_bytes=block.size,
             bytes_offset=base_addr - start + 1,

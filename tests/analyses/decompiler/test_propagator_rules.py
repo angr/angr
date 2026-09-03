@@ -19,7 +19,7 @@ class TestPropagatorRules(unittest.TestCase):
     def test_spropagator_treats_store_conditional_as_memory_write(self):
         binary = os.path.join(test_location, "armel", "decompiler", "nuttx_O2_noinline")
         project = angr.Project(binary, auto_load_libs=False)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         address = ailment.Expr.Const(0, 0x2000, project.arch.bits)
         load_tmp = ailment.Expr.Tmp(1, 0, 32)
         load_use = ailment.Expr.Tmp(2, 0, 32)

@@ -86,7 +86,7 @@ def test_llsc_effect_classification_is_atomic_specific():
 
 def test_unused_store_conditional_survives_block_simplification():
     project = _project()
-    manager = ailment.Manager(arch=project.arch)
+    manager = ailment.Manager()
     ail_block = ailment.Block(
         0x1000,
         1,
