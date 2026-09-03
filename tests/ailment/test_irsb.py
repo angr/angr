@@ -89,12 +89,12 @@ class TestIrsb(unittest.TestCase):
         project = angr.Project(binary, auto_load_libs=False)
         irsb = project.factory.block(0x4009BE).vex
         blocks = (
-            VEXIRSBConverter.convert(irsb, ailment.Manager(arch=project.arch)),
+            VEXIRSBConverter.convert(irsb, ailment.Manager()),
             VEXIRSBConverter.convert_from_lift(
                 project.arch,
                 irsb.addr,
                 bytes(project.loader.memory.load(irsb.addr, irsb.size)),
-                ailment.Manager(arch=project.arch),
+                ailment.Manager(),
             ),
         )
         expected = {
