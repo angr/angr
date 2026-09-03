@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use clarirs_core::algorithms::{collect_vars::collect_vars, structurally_match};
-use pyo3::types::{PyDict, PyFrozenSet, PySet, PyType};
+use pyo3::types::{PyDict, PyFrozenSet, PyType};
 
 use crate::claripy::prelude::*;
 
@@ -13,7 +13,6 @@ use crate::claripy::prelude::*;
 #[pyclass(subclass, frozen, weakref, module = "angr.rustylib.claripy.ast.base")]
 pub struct Base {
     inner: AstRef<'static>,
-    errored: Py<PySet>,
     name: Option<String>,
     encoded_name: Option<Vec<u8>>,
     /// Python annotation objects materialized once at construction, in the same order as `inner.annotations()`, so reads avoid the Rust round-trip.
@@ -38,7 +37,6 @@ impl Base {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             inner: inner.clone(),
-            errored: PySet::empty(py).expect("Failed to create PySet").unbind(),
             name,
             encoded_name,
             annotations,
@@ -81,11 +79,6 @@ impl Base {
     #[getter]
     pub fn _encoded_name(&self) -> Option<&[u8]> {
         self.encoded_name.as_deref()
-    }
-
-    #[getter]
-    pub fn _errored(&self, py: Python<'_>) -> Py<PySet> {
-        self.errored.clone_ref(py)
     }
 
     #[getter]
