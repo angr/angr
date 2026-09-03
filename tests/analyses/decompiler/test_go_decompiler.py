@@ -123,23 +123,36 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert self.header(self.texts["main.main"]) == "func main.main() {"
 
     def test_multiple_results_are_returned_together(self):
-        assert re.search(r"return \w+, \w+;", self.texts["main.divmod"])
+        assert re.search(r"return \w+, \w+$", self.texts["main.divmod"], re.MULTILINE)
         parse = self.texts["main.parse"]
-        assert re.search(r"return \w+\.~r0, nil;", parse), parse
-        assert "return 0, main.errNegative;" in parse
+        assert re.search(r"return \w+\.~r0, nil$", parse, re.MULTILINE), parse
+        assert "return 0, main.errNegative\n" in parse
         # the error result of strconv.Atoi is one value, not two registers
-        assert re.search(r"return 0, \w+\.~r1;", parse), parse
+        assert re.search(r"return 0, \w+\.~r1$", parse, re.MULTILINE), parse
 
     def test_values_are_fused_at_call_sites(self):
         main = self.texts["main.main"]
         assert 'main.count("hello, world", ' in main
-        assert re.search(r"main\.sum\(\w+\);", main), main
-        assert re.search(r"main\.parse\([^,()]+\);", main), main
+        assert re.search(r"main\.sum\(\w+\)$", main, re.MULTILINE), main
+        assert re.search(r"main\.parse\([^,()]+\)$", main, re.MULTILINE), main
+
+    def test_go_statement_syntax(self):
+        for name, text in self.texts.items():
+            with self.subTest(func=name):
+                body = text.split("{", 1)[1]
+                assert not re.search(r";\s*$", body, re.MULTILINE), text
+                assert "if (" not in body and "while" not in body and "->" not in body
+        fib = self.texts["main.fib"]
+        assert "if n > 1 {" in fib
+        assert "return n\n" in fib
+        parse = self.texts["main.parse"]
+        assert "!= nil {" in parse or "== nil {" in parse
+        assert "else if " in parse
 
     def test_g_register_is_named(self):
         text = self.texts["runtime.acquirem"]
         assert "var g *runtime.g" in text
-        assert "g->m" in text
+        assert "g.m" in text
 
 
 class TestBasicsGo122Stripped(GoDecompilationTarget):
