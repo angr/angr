@@ -154,6 +154,8 @@ class GoSignatureSet:
     functions: dict[str, GoFuncSignature] = field(default_factory=dict)
     types: dict[str, GoNamedType] = field(default_factory=dict)
     variables: dict[str, GoVariable] = field(default_factory=dict)
+    #: runtime type descriptor address -> type name (binary-specific, not serialized)
+    runtime_types: dict[int, str] = field(default_factory=dict)
 
     def to_json(self) -> dict:
         d = {

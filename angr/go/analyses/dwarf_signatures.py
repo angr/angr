@@ -228,6 +228,7 @@ class _GoDwarfReader:
         self.go_version: str | None = None
         self.functions: dict[str, GoFuncSignature] = {}
         self.types: dict[str, GoNamedType] = {}
+        self.runtime_types: dict[int, str] = {}
         self.variables: dict[str, GoVariable] = {}
 
     # ------------------------------------------------------------------ pass 1: functions
@@ -285,6 +286,7 @@ class _GoDwarfReader:
             if tag is None:
                 depth -= 1
                 continue
+            self._note_runtime_type(die)
             if depth == 1:
                 if sub is not None:
                     self._finish_function(sub, param_dies, out)
@@ -298,6 +300,16 @@ class _GoDwarfReader:
                 depth += 1
         if sub is not None:
             self._finish_function(sub, param_dies, out)
+
+    def _note_runtime_type(self, die: DIE) -> None:
+        # type DIEs carry the location of their runtime descriptor (raw: resolved once all are known); the name is
+        # already Go-spelled
+        rt = _go_attr(die.attributes, DW_AT_GO_RUNTIME_TYPE)
+        if rt is None or not rt.value:
+            return
+        name = _name(die.attributes)
+        if name is not None:
+            self.runtime_types.setdefault(rt.value, name)
 
     def _finish_function(self, die: DIE, param_dies: list[DIE], out: list[tuple[str, list[_RawParam]]]) -> None:
         attrs = die.attributes
@@ -656,7 +668,31 @@ def read_go_dwarf_signatures(project: Project) -> GoSignatureSet:
     sigs.functions = reader.functions
     sigs.types = reader.types
     sigs.variables = reader.variables
+    sigs.runtime_types = _resolve_runtime_types(project, reader.runtime_types)
     return sigs
+
+
+def _resolve_runtime_types(project: Project, raw: dict[int, str]) -> dict[int, str]:
+    """
+    DW_AT_go_runtime_type is either an absolute descriptor address or, for most types, an offset into the
+    ``runtime.types`` section; the section symbols tell the two apart.
+    """
+    obj = project.loader.main_object
+    delta = obj.mapped_base - obj.linked_base
+    types = project.loader.find_symbol("runtime.types")
+    etypes = project.loader.find_symbol("runtime.etypes")
+    base = types.rebased_addr if types is not None else None
+    span = etypes.rebased_addr - base if base is not None and etypes is not None else 0
+    resolved: dict[int, str] = {}
+    for value, name in raw.items():
+        if base is not None and value < span:
+            addr = base + value
+        elif project.loader.find_section_containing(value + delta) is not None:
+            addr = value + delta
+        else:
+            continue
+        resolved.setdefault(addr, name)
+    return resolved
 
 
 def _goarch(arch) -> str | None:
