@@ -16,38 +16,28 @@ pub mod vsa;
 use num_bigint::BigInt;
 use prelude::*;
 
+/// Register `module` in `sys.modules` under `full_name`, so that
+/// `import <full_name>` and pickle lookups find it.
+fn register_module(py: Python<'_>, full_name: &str, module: &Bound<'_, PyModule>) -> PyResult<()> {
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item(full_name, module)
+}
+
+/// Create `{package}.{name}`, populate it with `import_func`, register it in
+/// `sys.modules` and attach it to `m` as `name`.
 fn import_submodule<'py>(
     py: Python<'py>,
     m: &Bound<'py, PyModule>,
     package: &str,
     name: &str,
     import_func: impl FnOnce(Python<'py>, &Bound<'py, PyModule>) -> PyResult<()>,
-) -> PyResult<()> {
-    let submodule = PyModule::new(py, &format!("{package}.{name}"))?;
-    import_func(py, &submodule)?;
-    pyo3::py_run!(
-        py,
-        submodule,
-        &format!("import sys; sys.modules['{package}.{name}'] = submodule")
-    );
-    m.add(name, &submodule)?;
-    Ok(())
-}
-
-fn add_submodule<'py>(
-    py: Python<'py>,
-    m: &Bound<'py, PyModule>,
-    package: &str,
-    name: &str,
-    build_func: impl FnOnce(Python<'py>) -> PyResult<Bound<'py, PyModule>>,
 ) -> PyResult<Bound<'py, PyModule>> {
-    let submodule = build_func(py)?;
-    pyo3::py_run!(
-        py,
-        submodule,
-        &format!("import sys; sys.modules['{package}.{name}'] = submodule")
-    );
-    m.add(name, submodule.clone())?;
+    let full_name = format!("{package}.{name}");
+    let submodule = PyModule::new(py, &full_name)?;
+    import_func(py, &submodule)?;
+    register_module(py, &full_name, &submodule)?;
+    m.add(name, &submodule)?;
     Ok(submodule)
 }
 
@@ -163,12 +153,12 @@ fn is_false(expr: Bound<'_, PyAny>) -> Result<bool, ClaripyError> {
 /// `angr/__init__.py` additionally aliases it as `angr.claripy`. There is
 /// no top-level `claripy` module.
 pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let annotation = add_submodule(
+    let annotation = import_submodule(
         py,
         m,
         "angr.rustylib.claripy",
         "annotation",
-        annotation::build_module,
+        annotation::import,
     )?;
     import_submodule(py, m, "angr.rustylib.claripy", "ast", ast::import)?;
     import_submodule(py, m, "angr.rustylib.claripy", "solver", solver::import)?;
@@ -344,8 +334,7 @@ pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         fp.add_class::<ast::fp::PyFSort>()?;
         fp.add("FSORT_FLOAT", ast::fp::fsort_float())?;
         fp.add("FSORT_DOUBLE", ast::fp::fsort_double())?;
-        pyo3::py_run!(py, fp, "import sys; sys.modules['clarirs.fp'] = fp");
-        Ok(())
+        register_module(py, "clarirs.fp", fp)
     })?;
 
     // errors

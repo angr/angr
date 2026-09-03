@@ -439,13 +439,12 @@ impl UninitializedAnnotation {
     }
 }
 
-pub(crate) fn build_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
-    let module = PyModule::new(py, "angr.rustylib.claripy.annotation")?;
-    module.add_class::<PyAnnotation>()?;
-    module.add_class::<SimplificationAvoidanceAnnotation>()?;
-    module.add_class::<StridedIntervalAnnotation>()?;
-    module.add_class::<EmptyStridedIntervalAnnotation>()?;
-    module.add_class::<RegionAnnotation>()?;
-    module.add_class::<UninitializedAnnotation>()?;
-    Ok(module)
+pub(crate) fn import(_: Python, m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_class::<PyAnnotation>()?;
+    m.add_class::<SimplificationAvoidanceAnnotation>()?;
+    m.add_class::<StridedIntervalAnnotation>()?;
+    m.add_class::<EmptyStridedIntervalAnnotation>()?;
+    m.add_class::<RegionAnnotation>()?;
+    m.add_class::<UninitializedAnnotation>()?;
+    Ok(())
 }
