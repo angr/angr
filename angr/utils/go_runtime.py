@@ -72,6 +72,29 @@ def _bounds_names() -> set[str]:
     return names
 
 
+#: Panic helpers that only compiler-inserted checks call: bounds/slice checks (per-kind stubs before go1.25, the
+#: ``panicBounds`` dispatcher after), integer division/shift checks, and the unsafe.Slice/String checks.
+GO_CHECK_PANIC_NAMES: frozenset[str] = frozenset(
+    {
+        "runtime.panicBounds",
+        "runtime.panicBounds32",
+        "runtime.panicBounds64",
+        "runtime.panicdivide",
+        "runtime.panicshift",
+        "runtime.panicoverflow",
+        "runtime.panicunsafeslicelen",
+        "runtime.panicunsafeslicelen1",
+        "runtime.panicunsafeslicenilptr",
+        "runtime.panicunsafeslicenilptr1",
+        "runtime.panicunsafestringlen",
+        "runtime.panicunsafestringlen1",
+        "runtime.panicunsafestringnilptr",
+        "runtime.panicunsafestringnilptr1",
+    }
+    | _bounds_names()
+)
+
+
 #: Go runtime (and a few closely related standard library) functions that never transfer control back
 #: to the instruction following their call site, checked against the runtime sources of go1.4 to go1.27.
 #:

@@ -10,11 +10,17 @@ if TYPE_CHECKING:
 def go_type_name_at(project: Project, addr: int) -> str | None:
     """
     The Go spelling of the runtime type descriptor at ``addr`` (``main.node``, ``*main.node``, ``[]int``), from the
-    parsed descriptor table when available and otherwise from a ``type:...`` symbol.
+    parsed descriptor table when available, otherwise from DWARF or a ``type:...`` symbol.
     """
     go_types = getattr(project.kb, "go_types", None)
     if go_types is not None:
         name = go_types.name_at(addr)
+        if name is not None:
+            return name
+    go_signatures = getattr(project.kb, "go_signatures", None)
+    if go_signatures is not None:
+        go_signatures.load_sources()
+        name = go_signatures.type_name_at(addr)
         if name is not None:
             return name
     sym = project.loader.find_symbol(addr)
