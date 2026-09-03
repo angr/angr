@@ -87,13 +87,13 @@ class TestIrsb(unittest.TestCase):
         block_bytes = bytes.fromhex("0f05")
         from_py = VEXIRSBConverter.convert(
             pyvex.IRSB(block_bytes, 0x1000, arch, opt_level=0),  # pyright: ignore[reportArgumentType]
-            ailment.Manager(arch=arch),  # pyright: ignore[reportArgumentType]
+            ailment.Manager(),
         )
         from_lift = VEXIRSBConverter.convert_from_lift(
             arch,  # pyright: ignore[reportArgumentType]
             0x1000,
             block_bytes,
-            ailment.Manager(arch=arch),  # pyright: ignore[reportArgumentType]
+            ailment.Manager(),
             opt_level=0,
         )
         assert from_py == from_lift

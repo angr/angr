@@ -89,7 +89,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_selects_explicit_floating_return_read(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, _, fp_ret_expr = self._make_return_call(project, manager)
         use = self._make_register_copy(project, manager, "xmm0", "xmm1")
 
@@ -105,7 +105,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_selects_explicit_integer_return_read(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, ret_expr, _ = self._make_return_call(project, manager)
         use = self._make_register_copy(project, manager, "rax", "rbx")
 
@@ -119,7 +119,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
         project = angr.load_shellcode(b"\x1e\xff\x2f\xe1", archinfo.ArchARMHF(), load_address=0x1000)
         for source, destination, select_fp in (("r0", "r1", False), ("s0", "s2", True)):
             with self.subTest(source=source):
-                manager = ailment.Manager(arch=project.arch)
+                manager = ailment.Manager()
                 call_stmt, ret_expr, fp_ret_expr = self._make_return_call(project, manager, bits=32)
                 use = self._make_register_copy(project, manager, source, destination, bits=32)
 
@@ -132,7 +132,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_selects_floating_return_across_blocks(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, _, fp_ret_expr = self._make_return_call(project, manager)
         use = self._make_register_copy(project, manager, "xmm0", "xmm1", ins_addr=0x1010)
         call_block = ailment.Block(0x1000, 6, statements=[call_stmt])
@@ -147,7 +147,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_argument_probe_does_not_select_return(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         first_call, _, _ = self._make_return_call(project, manager, ins_addr=0x1000)
         second_call, _, _ = self._make_return_call(project, manager, ins_addr=0x1005, args=None)
         second_call = ailment.Stmt.SideEffectStatement(
@@ -166,7 +166,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_explicit_call_argument_selects_floating_return(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         first_call, _, fp_ret_expr = self._make_return_call(project, manager, ins_addr=0x1000)
         fp_ret_offset = project.arch.fp_ret_offset
         assert fp_ret_offset is not None
@@ -191,7 +191,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_overwritten_floating_return_is_not_selected(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, _, _ = self._make_return_call(project, manager)
         xmm0_offset = project.arch.registers["xmm0"][0]
         overwrite = ailment.Stmt.Assignment(
@@ -210,7 +210,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_neither_return_candidate_preserves_integer_fallback(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, _, _ = self._make_return_call(project, manager, args=None)
 
         graph = self._ssailify(project, manager, [ailment.Block(0x1000, 1, statements=[call_stmt])])
@@ -221,7 +221,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_selects_returns_independently_across_consecutive_calls(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         first_call, ret_expr, _ = self._make_return_call(project, manager, ins_addr=0x1000)
         integer_use = self._make_register_copy(project, manager, "rax", "rbx", ins_addr=0x1001)
         second_call, _, fp_ret_expr = self._make_return_call(project, manager, ins_addr=0x1002)
@@ -239,7 +239,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_selects_integer_partial_alias_and_widens_floating_return(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         integer_call, _, _ = self._make_return_call(project, manager, ins_addr=0x1000)
         integer_use = self._make_register_copy(project, manager, "eax", "ebx", bits=32, ins_addr=0x1001)
         floating_call, _, _ = self._make_return_call(project, manager, ins_addr=0x1002)
@@ -259,7 +259,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_selects_floating_return_that_reaches_a_phi(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         entry = ailment.Block(0x1000, 1, statements=[])
         call_stmt, _, fp_ret_expr = self._make_return_call(project, manager, ins_addr=0x1010)
         call_block = ailment.Block(0x1010, 1, statements=[call_stmt])
@@ -292,7 +292,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_selects_floating_return_that_reaches_a_loop_phi(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, _, fp_ret_expr = self._make_return_call(project, manager, ins_addr=0x1000)
         entry = ailment.Block(0x1000, 1, statements=[call_stmt])
         use = self._make_register_copy(project, manager, "xmm0", "xmm1", ins_addr=0x1010)
@@ -326,7 +326,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_repeated_ssa_does_not_duplicate_selected_call(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, _, _ = self._make_return_call(project, manager)
         use = self._make_register_copy(project, manager, "xmm0", "xmm1")
         first_graph = self._ssailify(project, manager, [ailment.Block(0x1000, 6, statements=[call_stmt, use])])
@@ -356,7 +356,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
         for probe_name, use_metadata_flag in (("__chkstk", False), ("helper", True)):
             with self.subTest(probe_name=probe_name, use_metadata_flag=use_metadata_flag):
-                manager = ailment.Manager(arch=project.arch)
+                manager = ailment.Manager()
                 probe = project.kb.functions.function(addr=0x2000, create=True)
                 assert probe is not None
                 probe.name = probe_name
@@ -405,7 +405,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
         )
         for name, return_type, source, destination, expected_offset in cases:
             with self.subTest(return_type=name):
-                manager = ailment.Manager(arch=project.arch)
+                manager = ailment.Manager()
                 call_stmt, _, _ = self._make_return_call(project, manager)
                 variable_map = variable_map_of(manager)
                 variable_map.set_calling_convention(call_stmt.expr, SimCCSystemVAMD64(project.arch))
@@ -425,7 +425,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_zero_trigger_graph_keeps_provisional_tracking_empty(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         ret_offset = project.arch.ret_offset
         assert ret_offset is not None
         statements = []
@@ -462,7 +462,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
     @unittest.expectedFailure
     def test_both_explicit_returns(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         call_stmt, _, _ = self._make_return_call(project, manager)
         integer_use = self._make_register_copy(project, manager, "rax", "rbx", ins_addr=0x1001)
         floating_use = self._make_register_copy(project, manager, "xmm0", "xmm1", ins_addr=0x1002)
@@ -476,7 +476,7 @@ class TestSSACallReturnSelection(unittest.TestCase):
 
     def test_syscall_uses_only_integer_return_candidate(self):
         project = angr.load_shellcode(b"\xc3", "AMD64", load_address=0x1000)
-        manager = ailment.Manager(arch=project.arch)
+        manager = ailment.Manager()
         ret_offset = project.arch.ret_offset
         fp_ret_offset = project.arch.fp_ret_offset
         assert ret_offset is not None and fp_ret_offset is not None
