@@ -1,76 +1,19 @@
 #![allow(non_snake_case)]
 
-use std::sync::{
-    LazyLock,
-    atomic::{AtomicUsize, Ordering},
-};
-
-use dashmap::DashMap;
-use pyo3::types::PyWeakrefReference;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::claripy::prelude::*;
 
 static STRINGS_COUNTER: AtomicUsize = AtomicUsize::new(0);
-static PY_STRING_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> =
-    LazyLock::new(DashMap::new);
 
 #[pyclass(name="String", extends=Base, subclass, frozen, module="angr.rustylib.claripy.ast.strings")]
 pub struct PyAstString {
     pub(crate) inner: AstRef<'static>,
 }
 
-impl PyAstString {
-    pub fn new<'py>(
-        py: Python<'py>,
-        inner: &AstRef<'static>,
-    ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-        Self::new_with_name(py, inner, None)
-    }
-
-    /// Wrap an AST without simplifying it, keeping its annotation set exactly as
-    /// given.
-    pub fn new_with_name<'py>(
-        py: Python<'py>,
-        inner: &AstRef<'static>,
-        name: Option<String>,
-    ) -> Result<Bound<'py, PyAstString>, ClaripyError> {
-        if let Some(cache_hit) = PY_STRING_CACHE.get(&inner.hash()).and_then(|cache_hit| {
-            cache_hit
-                .bind(py)
-                .upgrade_as::<PyAstString>()
-                .expect("bool cache poisoned")
-        }) {
-            Ok(cache_hit)
-        } else {
-            let this = Py::new(
-                py,
-                PyClassInitializer::from(Base::new_with_name(py, inner, name)?).add_subclass(
-                    PyAstString {
-                        inner: inner.clone(),
-                    },
-                ),
-            )?;
-            let weakref = PyWeakrefReference::new(this.bind(py))?;
-            PY_STRING_CACHE.insert(inner.hash(), weakref.unbind());
-
-            Ok(this.into_bound(py))
-        }
-    }
-}
-
-impl Drop for PyAstString {
-    fn drop(&mut self) {
-        // Evict this wrapper's cache entry so dead hashes don't accumulate.
-        // Our own weakref is already cleared by the time Drop runs, so a dead
-        // upgrade means the entry is stale; a live upgrade means the entry was
-        // re-populated with a new wrapper and must stay.
-        Python::attach(|py| {
-            PY_STRING_CACHE.remove_if(&self.inner.hash(), |_, weakref| {
-                weakref.bind(py).upgrade().is_none()
-            });
-        });
-    }
-}
+ast_wrapper!(PyAstString, PY_STRING_CACHE, |base, inner| {
+    PyClassInitializer::from(base).add_subclass(PyAstString { inner })
+});
 
 #[pymethods]
 impl PyAstString {
