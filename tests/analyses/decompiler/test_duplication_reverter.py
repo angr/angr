@@ -130,7 +130,7 @@ class TestDuplicationReverter(unittest.TestCase):
         self.assertEqual(reverter._new_block_addrs, original_new_block_addrs)
 
     def test_uniquify_addrs_preserves_designated_entry(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         entry = self._jump_block(manager, 0x100, 0x300)
         predecessor = self._jump_block(manager, 0x300, 0x100, target_idx=1)
         duplicate = self._jump_block(manager, 0x100, 0x400, idx=1)
@@ -159,7 +159,7 @@ class TestDuplicationReverter(unittest.TestCase):
         self.assertEqual(duplicate.idx, 1)
 
     def test_uniquify_addrs_uses_explicit_nonroot_entry(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         root_a = self._jump_block(manager, 0x10, 0x100, target_idx=7)
         root_b = self._jump_block(manager, 0x20, 0x100, target_idx=1)
         entry = self._jump_block(manager, 0x100, 0x400, idx=7)
@@ -215,7 +215,7 @@ class TestDuplicationReverter(unittest.TestCase):
         )
 
     def test_uniquify_addrs_maps_conditional_edges_by_address_and_idx(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         source = self._conditional_block(
             manager,
             0x10,
@@ -273,7 +273,7 @@ class TestDuplicationReverter(unittest.TestCase):
         self.assertEqual(original_jump.tags, original_tags)
 
     def test_uniquify_addrs_repairs_supported_edge_shapes(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         with self.subTest(shape="indexed-self-loop"):
             entry = self._jump_block(manager, 0x100, 0x100, idx=7, target_idx=7)
             duplicate = self._jump_block(manager, 0x100, 0x200, idx=1)
@@ -316,7 +316,7 @@ class TestDuplicationReverter(unittest.TestCase):
             self.assertEqual(len(source.statements), 1)
 
     def test_generated_conditionals_include_target_indices(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         start_a = self._jump_block(manager, 0x10, 0x100, target_idx=7)
         start_b = self._jump_block(manager, 0x20, 0x100, target_idx=1)
         successor_a = Block(0x100, 1, statements=[], idx=7)
@@ -363,7 +363,7 @@ class TestDuplicationReverter(unittest.TestCase):
             )
 
     def test_unsupported_edge_mapping_rolls_back(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         cases = (
             ("ambiguous-address-only", (0x100, None), (0x100, None), ((0x100, 1), (0x100, 2))),
             ("no-edge-evidence", (0x500, 5), (0x600, 6), ((0x110, 1), (0x220, 2))),
@@ -403,7 +403,7 @@ class TestDuplicationReverter(unittest.TestCase):
             self._assert_failed_finalization_is_transactional(reverter)
 
     def test_unresolvable_entry_rolls_back_without_uniquifying(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         entry_a = self._jump_block(manager, 0x100, 0x280, target_idx=0xA1)
         entry_b = self._jump_block(manager, 0x100, 0x300)
         exit_a = Block(0x200, 1, statements=[], idx=0xA2)
@@ -428,7 +428,7 @@ class TestDuplicationReverter(unittest.TestCase):
                 uniquify_addrs.assert_not_called()
 
     def test_repeated_finalization_resolves_entry_in_current_graph(self):
-        manager = Manager(arch=None)
+        manager = Manager()
         entry = self._jump_block(manager, 0x100, 0x300)
         predecessor = self._jump_block(manager, 0x300, 0x100, target_idx=1)
         duplicate = self._jump_block(manager, 0x100, 0x400, idx=1)
