@@ -158,6 +158,13 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert "!= nil {" in parse or "== nil {" in parse
         assert "else if " in parse
 
+    def test_package_variables_are_typed(self):
+        main = self.texts["main.main"]
+        assert "os.Args []string" in main
+        assert "if len(os.Args) <= 1 {" in main
+        assert "main.parse(os.Args[1])" in main
+        assert "main.counter int" in self.texts["main.main"]
+
     def test_range_loops(self):
         for name, text in self.texts.items():
             with self.subTest(func=name):

@@ -135,23 +135,36 @@ class GoNamedType:
 
 
 @dataclass(slots=True)
+class GoVariable:
+    """A package-level variable: its linker symbol name, (rebased) address and Go type."""
+
+    name: str
+    addr: int
+    type_str: str
+
+
+@dataclass(slots=True)
 class GoSignatureSet:
     """
-    A collection of signatures and named types from one source.
+    A collection of signatures, named types and package-level variables from one source.
     """
 
     go_version: str | None = None
     goarch: str | None = None
     functions: dict[str, GoFuncSignature] = field(default_factory=dict)
     types: dict[str, GoNamedType] = field(default_factory=dict)
+    variables: dict[str, GoVariable] = field(default_factory=dict)
 
     def to_json(self) -> dict:
-        return {
+        d = {
             "go_version": self.go_version,
             "goarch": self.goarch,
             "functions": {name: sig.to_json() for name, sig in self.functions.items()},
             "types": {name: ty.to_json() for name, ty in self.types.items()},
         }
+        if self.variables:
+            d["variables"] = {name: [v.addr, v.type_str] for name, v in self.variables.items()}
+        return d
 
     @classmethod
     def from_json(cls, d: dict) -> GoSignatureSet:
@@ -160,4 +173,5 @@ class GoSignatureSet:
             goarch=d.get("goarch"),
             functions={name: GoFuncSignature.from_json(name, sig) for name, sig in d.get("functions", {}).items()},
             types={name: GoNamedType.from_json(name, ty) for name, ty in d.get("types", {}).items()},
+            variables={name: GoVariable(name, addr, ty) for name, (addr, ty) in d.get("variables", {}).items()},
         )

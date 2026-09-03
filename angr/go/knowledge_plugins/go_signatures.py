@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from angr.go.analyses.dwarf_signatures import read_go_dwarf_signatures
-from angr.go.signature import GoFuncSignature, GoNamedType, GoSignatureSet
+from angr.go.signature import GoFuncSignature, GoNamedType, GoSignatureSet, GoVariable
 from angr.go.sim_type import GoSimTypeFunction, GoSimTypeTuple
 from angr.go.type_parser import GoTypeParser
 from angr.go.utils.version import go_minor_version, identify_go_version
@@ -130,6 +130,13 @@ class GoSignatures(KnowledgeBasePlugin):
             sig = src.functions.get(name)
             if sig is not None:
                 return sig
+        return None
+
+    def variable_at(self, addr: int) -> GoVariable | None:
+        for src in self._sources:
+            for var in src.variables.values():
+                if var.addr == addr:
+                    return var
         return None
 
     def named_type(self, name: str) -> GoNamedType | None:
