@@ -201,5 +201,73 @@ class TestComposedMBASimplifier(unittest.TestCase):
         for probe in (0, 1, 0x5A, 0x7F, 0xFF):
             assert c.evaluate(target, {input_name: probe}, {}) == probe
 
+
+class TestComposedSynthesis(unittest.TestCase):
+    """Synthesis driven by composed behaviour rather than by the shape of one subtree."""
+
+    def _chain(self, obfuscate):
+        import networkx
+        from angr.ailment.block import Block
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+        from angr.ailment.statement import Assignment
+
+        m = Manager(arch=None)
+
+        def vvar(varid, bits=8):
+            return VirtualVariable(m.next_atom(), varid, bits, VirtualVariableCategory.REGISTER, oident=varid)
+
+        def c(v, bits=8):
+            return Const(m.next_atom(), v, bits)
+
+        def b(op, x, y):
+            return BinaryOp(m.next_atom(), op, [x, y], False, bits=8)
+
+        src = vvar(100)
+        stmts = [Assignment(m.next_atom(), vvar(1), obfuscate(src, b, c), ins_addr=0x1000)]
+        block = Block(0x1000, 4, statements=stmts)
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        return graph, m, vvar(1), src
+
+    def test_sees_through_a_chain_to_the_input(self):
+        # ((x ^ 0x5a) + 7 - 7) ^ 0x5a  ==  x, spread over one long expression
+        def obf(x, b, c):
+            return b("Xor", b("Sub", b("Add", b("Xor", x, c(0x5A)), c(7)), c(7)), c(0x5A))
+
+        graph, m, target, src = self._chain(obf)
+        s = ComposedMBASimplifier(graph, ail_manager=m)
+        out = s.simplify(target)
+        assert out is not None, "the chain was not seen through"
+        assert out.likes(src), f"expected the input back, got {out}"
+
+    def test_recovers_an_addition_hidden_in_boolean_form(self):
+        # (x ^ 0x33) + 0x33 is not x, but it is affine; the search should find something cheaper
+        def obf(x, b, c):
+            return b("Add", b("Xor", b("Xor", x, c(0x33)), c(0x33)), c(5))
+
+        graph, m, target, src = self._chain(obf)
+        s = ComposedMBASimplifier(graph, ail_manager=m)
+        out = s.simplify(target)
+        assert out is not None
+        assert LinearMBASolver._cost_of(out) < s._composed_cost(target)
+
+    def test_refuses_when_the_space_was_only_sampled(self):
+        """A match on samples is evidence, not proof, and must not be acted on."""
+        import networkx
+        from angr.ailment.block import Block
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+        from angr.ailment.statement import Assignment
+
+        m = Manager(arch=None)
+        wide_in = VirtualVariable(m.next_atom(), 200, 64, VirtualVariableCategory.REGISTER, oident=200)
+        dst = VirtualVariable(m.next_atom(), 201, 64, VirtualVariableCategory.REGISTER, oident=201)
+        # a 64-bit value whose whole width matters: too large to enumerate
+        src = BinaryOp(m.next_atom(), "Mul", [wide_in, Const(m.next_atom(), 0x9E3779B9, 64)], False, bits=64)
+        block = Block(0x1000, 4, statements=[Assignment(m.next_atom(), dst, src, ins_addr=0x1000)])
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        s = ComposedMBASimplifier(graph, ail_manager=m)
+        assert s.simplify(dst) is None
+
 if __name__ == "__main__":
     unittest.main()
