@@ -26,10 +26,9 @@ l = logging.getLogger(__name__)
 
 class TestExpressionOverfolding(unittest.TestCase):
     def test_loop_body_assignment_used_by_loop_header_is_not_folded(self):
-        project = angr.Project(os.path.join(test_location, "armel", "decompiler", "blink_main_countdown.elf"))
         for header_kind in ("condition", "iterator"):
             with self.subTest(header_kind=header_kind):
-                manager = Manager(arch=project.arch)
+                manager = Manager()
                 carrier = VirtualVariable(manager.next_atom(), 81, 32, VirtualVariableCategory.REGISTER, oident=20)
                 header_var = VirtualVariable(manager.next_atom(), 19, 32, VirtualVariableCategory.REGISTER, oident=20)
                 header_use_result = VirtualVariable(
