@@ -45,7 +45,7 @@ class TestBreakRewriteInstructionBoundary(unittest.TestCase):
     def _structurer():
         """The rewrite touches only cond_proc on the instance, so the real break-node path runs."""
         st = object.__new__(StructurerBase)
-        st.cond_proc = ConditionProcessor(archinfo.ArchX86(), Manager(arch=archinfo.ArchX86()))
+        st.cond_proc = ConditionProcessor(archinfo.ArchX86(), Manager())
         return st
 
     @staticmethod
@@ -79,7 +79,7 @@ class TestBreakRewriteInstructionBoundary(unittest.TestCase):
         return SequenceNode(ins_addr, nodes=[Block(ins_addr, 4, statements=stmts, idx=None)])
 
     def test_a_cut_inside_one_instruction_is_not_taken(self):
-        m = Manager(arch=None)
+        m = Manager()
         body = self._one_instruction_loop_body(m)
         StructurerBase._rewrite_conditional_jumps_to_breaks(self._structurer(), body, {0x2000})
 
@@ -101,7 +101,7 @@ class TestBreakRewriteInstructionBoundary(unittest.TestCase):
             assert used <= defined, f"block {b.addr:#x} uses undefined temporaries {used - defined}"
 
     def test_a_cut_on_an_instruction_boundary_is_still_taken(self):
-        m = Manager(arch=None)
+        m = Manager()
         # the loop-exit jump is the last statement of its own instruction, so cutting there is safe
         stmts = [
             Assignment(m.next_atom(), Register(m.next_atom(), 8, 32), Const(m.next_atom(), 0, 32), ins_addr=0x1000),
