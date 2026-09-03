@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr import ailment
-from angr.calling_conventions import SimComboArg, SimReferenceArgument, SimRegArg, SimStructArg
+from angr.calling_conventions import SimArrayArg, SimComboArg, SimReferenceArgument, SimRegArg, SimStructArg
 from angr.sim_type import SimTypeBottom
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -55,6 +55,9 @@ class ReturnMaker(AILGraphWalker):
                     else ret_val.main_loc.size
                 )
                 ret_val = ret_val.ptr_loc
+            elif isinstance(ret_val, (SimStructArg, SimArrayArg)):
+                # struct-shaped results (e.g. Go's multiple results) span several registers
+                ret_val = SimComboArg(self._flatten_locs(ret_val))
             if isinstance(ret_val, SimRegArg):
                 reg = self.arch.registers[ret_val.reg_name]
                 new_ret_exprs.append(
@@ -110,6 +113,16 @@ class ReturnMaker(AILGraphWalker):
             new_stmt.ret_exprs = new_ret_exprs
             return new_stmt
         return stmt
+
+    @classmethod
+    def _flatten_locs(cls, loc) -> list:
+        if isinstance(loc, SimStructArg):
+            return [x for sub in loc.locs.values() for x in cls._flatten_locs(sub)]
+        if isinstance(loc, SimArrayArg):
+            return [x for sub in loc.locs for x in cls._flatten_locs(sub)]
+        if isinstance(loc, SimComboArg):
+            return [x for sub in loc.locations for x in cls._flatten_locs(sub)]
+        return [loc]
 
     def _handler(self, block):
         # we don't need to handle any statement besides Returns
