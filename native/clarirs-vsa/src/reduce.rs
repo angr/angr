@@ -63,3 +63,28 @@ impl<'c> Reduce<'c> for AstRef<'c> {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reduce_folds_every_operand_of_nary_ops() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let bv = |value: u64| ctx.bvv(BitVec::from((value, 8)));
+
+        let sum = ctx.add_many([bv(1)?, bv(2)?, bv(3)?])?;
+        assert_eq!(sum.reduce()?.into_bv()?, StridedInterval::constant(8, 6u8));
+
+        let product = ctx.mul_many([bv(2)?, bv(3)?, bv(4)?])?;
+        assert_eq!(
+            product.reduce()?.into_bv()?,
+            StridedInterval::constant(8, 24u8)
+        );
+
+        let xor = ctx.xor([bv(1)?, bv(2)?, bv(4)?])?;
+        assert_eq!(xor.reduce()?.into_bv()?, StridedInterval::constant(8, 7u8));
+
+        Ok(())
+    }
+}
