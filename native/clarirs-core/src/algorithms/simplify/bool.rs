@@ -331,37 +331,17 @@ pub(crate) fn simplify_bool<'c>(
                     // If on one side there is an AND where one of the operands is a mask, and on the
                     // other side, there is a BVV which matches the masked part of the AND, we can
                     // extract the AND operand directly, and extract the other side and rerun
-                    (AstOp::And(and_args), AstOp::BVV(bvv))
-                        if and_args
-                            .iter()
-                            .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                    {
-                        let mask_idx = and_args
-                            .iter()
-                            .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                            .unwrap();
-                        let mask = &and_args[mask_idx];
-                        let remaining: Vec<_> = and_args
-                            .iter()
-                            .enumerate()
-                            .filter(|(i, _)| *i != mask_idx)
-                            .map(|(_, a)| a.clone())
-                            .collect();
-                        let lhs_and = if remaining.len() == 1 {
-                            remaining.into_iter().next().unwrap()
-                        } else {
-                            ctx.and(remaining)?
-                        };
-                        let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                            mask_val.is_mask()
-                        } else {
-                            None
+                    (AstOp::And(and_args), AstOp::BVV(bvv)) => {
+                        match split_masked_and(ctx, and_args)? {
+                            Some((rest, high, low)) => state.rerun(ctx.eq_(
+                                ctx.extract(rest, high, low)?,
+                                ctx.bvv(bvv.extract(low, high)?)?,
+                            )?),
+                            None => Ok(ctx.eq_(
+                                state.get_child_simplified(0)?,
+                                state.get_child_simplified(1)?,
+                            )?),
                         }
-                        .expect("Checked above, switch to if let when stabilized");
-                        state.rerun(ctx.eq_(
-                            ctx.extract(&lhs_and, mask_high, mask_low)?,
-                            ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                        )?)
                     }
 
                     // If one side is a = ZeroExt and the other side is a BVV with those bits set to zero,
@@ -524,37 +504,17 @@ pub(crate) fn simplify_bool<'c>(
                     // If on one side there is an AND where one of the operands is a mask, and on the
                     // other side, there is a BVV which matches the masked part of the AND, we can
                     // extract the AND operand directly, and extract the other side and rerun
-                    (AstOp::And(and_args), AstOp::BVV(bvv))
-                        if and_args
-                            .iter()
-                            .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                    {
-                        let mask_idx = and_args
-                            .iter()
-                            .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                            .unwrap();
-                        let mask = &and_args[mask_idx];
-                        let remaining: Vec<_> = and_args
-                            .iter()
-                            .enumerate()
-                            .filter(|(i, _)| *i != mask_idx)
-                            .map(|(_, a)| a.clone())
-                            .collect();
-                        let lhs_and = if remaining.len() == 1 {
-                            remaining.into_iter().next().unwrap()
-                        } else {
-                            ctx.and(remaining)?
-                        };
-                        let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                            mask_val.is_mask()
-                        } else {
-                            None
+                    (AstOp::And(and_args), AstOp::BVV(bvv)) => {
+                        match split_masked_and(ctx, and_args)? {
+                            Some((rest, high, low)) => state.rerun(ctx.neq(
+                                ctx.extract(rest, high, low)?,
+                                ctx.bvv(bvv.extract(low, high)?)?,
+                            )?),
+                            None => Ok(ctx.neq(
+                                state.get_child_simplified(0)?,
+                                state.get_child_simplified(1)?,
+                            )?),
                         }
-                        .expect("Checked above, switch to if let when stabilized");
-                        state.rerun(ctx.neq(
-                            ctx.extract(&lhs_and, mask_high, mask_low)?,
-                            ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                        )?)
                     }
 
                     // If one side is a = ZeroExt and the other side is a BVV with those bits set to zero,
@@ -652,839 +612,10 @@ pub(crate) fn simplify_bool<'c>(
                 }
             }
         },
-        AstOp::ULT(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.false_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc < arc1)?),
-
-                // If on one side there is an AND where one of the operands is a mask, and on the
-                // other side, there is a BVV which matches the masked part of the AND, we can
-                // extract the AND operand directly, and extract the other side and rerun
-                (AstOp::And(and_args), AstOp::BVV(bvv))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.ult(
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                    )?)
-                }
-                (AstOp::BVV(bvv), AstOp::And(and_args))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.ult(
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                    )?)
-                }
-
-                // If one side is a ZeroExt and the other side is a BVV with those bits set to zero,
-                // we can extract the relevant bits and compare directly
-                (AstOp::ZeroExt(innner, ext_size), AstOp::BVV(outer))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.ult(
-                        innner.clone(),
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                    )?)
-                }
-                (AstOp::BVV(outer), AstOp::ZeroExt(innner, ext_size))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.ult(
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                        innner.clone(),
-                    )?)
-                }
-
-                // If both sides are ZeroExt of the same size, we can compare the inner values directly
-                (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _)) => {
-                    state.rerun(ctx.ult(inner_lhs.clone(), inner_rhs.clone())?)
-                }
-
-                // ULT(Concat(rest..., BVV(0, n)), BVV(c)) where c has n trailing zeros
-                (AstOp::Concat(args), AstOp::BVV(c_val)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.ult(
-                            high_part,
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                        )?)
-                    } else {
-                        Ok(ctx.ult(arc, arc1)?)
-                    }
-                }
-                (AstOp::BVV(c_val), AstOp::Concat(args)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.ult(
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                            high_part,
-                        )?)
-                    } else {
-                        Ok(ctx.ult(arc, arc1)?)
-                    }
-                }
-
-                // ULT(BVV(b), Sub(ZeroExt(n, inner), BVV(c))) where c and b fit in inner's size
-                // => ULT(extract(b), Sub(inner, extract(c)))
-                (AstOp::BVV(bound), AstOp::Sub(lhs_sub, rhs_sub))
-                    if matches!(lhs_sub.op(), AstOp::ZeroExt(_, ext_size)
-                        if bound.leading_zeros() as u32 >= *ext_size
-                        && matches!(rhs_sub.op(), AstOp::BVV(c) if c.leading_zeros() as u32 >= *ext_size)) =>
-                {
-                    if let AstOp::ZeroExt(inner, _) = lhs_sub.op() {
-                        let inner_size = inner.size();
-                        state.rerun(ctx.ult(
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                            ctx.sub(inner, &ctx.extract(rhs_sub, inner_size - 1, 0)?)?,
-                        )?)
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                // ULT(Sub(ZeroExt(n, inner), BVV(c)), BVV(b)) where c and b fit in inner's size
-                // => ULT(Sub(inner, extract(c)), extract(b))
-                (AstOp::Sub(lhs_sub, rhs_sub), AstOp::BVV(bound))
-                    if matches!(lhs_sub.op(), AstOp::ZeroExt(_, ext_size)
-                        if bound.leading_zeros() as u32 >= *ext_size
-                        && matches!(rhs_sub.op(), AstOp::BVV(c) if c.leading_zeros() as u32 >= *ext_size)) =>
-                {
-                    if let AstOp::ZeroExt(inner, _) = lhs_sub.op() {
-                        let inner_size = inner.size();
-                        state.rerun(ctx.ult(
-                            ctx.sub(inner, &ctx.extract(rhs_sub, inner_size - 1, 0)?)?,
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                        )?)
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                // ULT(BVV(b), Add(ZeroExt(n, inner), BVV(c))) where c and b fit in inner's size
-                (AstOp::BVV(bound), AstOp::Add(add_args)) => {
-                    let ze_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::ZeroExt(..)));
-                    let bvv_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(..)));
-                    if let (Some(ze_i), Some(bvv_i)) = (ze_idx, bvv_idx)
-                        && ze_i != bvv_i
-                        && add_args.len() == 2
-                        && let AstOp::ZeroExt(inner, ext_size) = add_args[ze_i].op()
-                        && let AstOp::BVV(c) = add_args[bvv_i].op()
-                        && bound.leading_zeros() as u32 >= *ext_size
-                        && c.leading_zeros() as u32 >= *ext_size
-                    {
-                        let inner_size = inner.size();
-                        return state.rerun(ctx.ult(
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                            ctx.add(inner, &ctx.extract(&add_args[bvv_i], inner_size - 1, 0)?)?,
-                        )?);
-                    }
-                    Ok(ctx.ult(arc, arc1)?)
-                }
-
-                _ => Ok(ctx.ult(arc, arc1)?),
-            }
-        }
-        AstOp::ULE(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.true_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc <= arc1)?),
-
-                // If on one side there is an AND where one of the operands is a mask, and on the
-                // other side, there is a BVV which matches the masked part of the AND, we can
-                // extract the AND operand directly, and extract the other side and rerun
-                (AstOp::And(and_args), AstOp::BVV(bvv))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.ule(
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                    )?)
-                }
-                (AstOp::BVV(bvv), AstOp::And(and_args))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.ule(
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                    )?)
-                }
-
-                // If one side is a ZeroExt, and the other side is a BVV with a value larger than
-                // what can be represented in the inner bits, we can concretize the comparison
-                (AstOp::ZeroExt(inner, _), AstOp::BVV(outer))
-                    if outer.bits() > inner.size() as usize =>
-                {
-                    Ok(ctx.true_()?)
-                }
-                (AstOp::BVV(outer), AstOp::ZeroExt(inner, _))
-                    if outer.bits() > inner.size() as usize =>
-                {
-                    Ok(ctx.false_()?)
-                }
-
-                // If one side is a ZeroExt and the other side is a BVV with those bits set to zero,
-                // we can extract the relevant bits and compare directly
-                (AstOp::ZeroExt(innner, ext_size), AstOp::BVV(outer))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.ule(
-                        innner.clone(),
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                    )?)
-                }
-                (AstOp::BVV(outer), AstOp::ZeroExt(innner, ext_size))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.ule(
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                        innner.clone(),
-                    )?)
-                }
-
-                // If both sides are ZeroExt of the same size, we can compare the inner values directly
-                (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _)) => {
-                    state.rerun(ctx.ule(inner_lhs.clone(), inner_rhs.clone())?)
-                }
-
-                // ULE(Sub(ZeroExt(n, inner), BVV(c)), BVV(b)) where c and b fit in inner's size
-                // => ULE(Sub(inner, extract(c)), extract(b))
-                (AstOp::Sub(lhs_sub, rhs_sub), AstOp::BVV(bound))
-                    if matches!(lhs_sub.op(), AstOp::ZeroExt(_, ext_size)
-                        if bound.leading_zeros() as u32 >= *ext_size
-                        && matches!(rhs_sub.op(), AstOp::BVV(c) if c.leading_zeros() as u32 >= *ext_size)) =>
-                {
-                    if let AstOp::ZeroExt(inner, _) = lhs_sub.op() {
-                        let inner_size = inner.size();
-                        state.rerun(ctx.ule(
-                            ctx.sub(inner, &ctx.extract(rhs_sub, inner_size - 1, 0)?)?,
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                        )?)
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                // ULE(Add(ZeroExt(n, inner), BVV(c)), BVV(b)) where c and b fit in inner's size
-                (AstOp::Add(add_args), AstOp::BVV(bound)) => {
-                    let ze_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::ZeroExt(..)));
-                    let bvv_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(..)));
-                    if let (Some(ze_i), Some(bvv_i)) = (ze_idx, bvv_idx)
-                        && ze_i != bvv_i
-                        && add_args.len() == 2
-                        && let AstOp::ZeroExt(inner, ext_size) = add_args[ze_i].op()
-                        && let AstOp::BVV(c) = add_args[bvv_i].op()
-                        && bound.leading_zeros() as u32 >= *ext_size
-                        && c.leading_zeros() as u32 >= *ext_size
-                    {
-                        let inner_size = inner.size();
-                        return state.rerun(ctx.ule(
-                            ctx.add(inner, &ctx.extract(&add_args[bvv_i], inner_size - 1, 0)?)?,
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                        )?);
-                    }
-                    Ok(ctx.ule(arc, arc1)?)
-                }
-
-                // ULE(Concat(rest..., BVV(0, n)), BVV(c)) where c has n trailing zeros
-                (AstOp::Concat(args), AstOp::BVV(c_val)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.ule(
-                            high_part,
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                        )?)
-                    } else {
-                        Ok(ctx.ule(arc, arc1)?)
-                    }
-                }
-                (AstOp::BVV(c_val), AstOp::Concat(args)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.ule(
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                            high_part,
-                        )?)
-                    } else {
-                        Ok(ctx.ule(arc, arc1)?)
-                    }
-                }
-
-                _ => Ok(ctx.ule(arc, arc1)?),
-            }
-        }
-        AstOp::UGT(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.false_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc > arc1)?),
-
-                // If on one side there is an AND where one of the operands is a mask, and on the
-                // other side, there is a BVV which matches the masked part of the AND, we can
-                // extract the AND operand directly, and extract the other side and rerun
-                (AstOp::And(and_args), AstOp::BVV(bvv))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.ugt(
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                    )?)
-                }
-                (AstOp::BVV(bvv), AstOp::And(and_args))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.ugt(
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                    )?)
-                }
-
-                // If one side is a ZeroExt, and the other side is a BVV with a value larger than
-                // what can be represented in the inner bits, we can concretize the comparison
-                (AstOp::ZeroExt(inner, _), AstOp::BVV(outer))
-                    if outer.bits() > inner.size() as usize =>
-                {
-                    Ok(ctx.false_()?)
-                }
-                (AstOp::BVV(outer), AstOp::ZeroExt(inner, _))
-                    if outer.bits() > inner.size() as usize =>
-                {
-                    Ok(ctx.true_()?)
-                }
-
-                // If one side is a ZeroExt and the other side is a BVV with those bits set to zero,
-                // we can extract the relevant bits and compare directly
-                (AstOp::ZeroExt(innner, ext_size), AstOp::BVV(outer))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.ugt(
-                        innner.clone(),
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                    )?)
-                }
-                (AstOp::BVV(outer), AstOp::ZeroExt(innner, ext_size))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.ugt(
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                        innner.clone(),
-                    )?)
-                }
-
-                // If both sides are ZeroExt of the same size, we can compare the inner values directly
-                (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _)) => {
-                    state.rerun(ctx.ugt(inner_lhs.clone(), inner_rhs.clone())?)
-                }
-
-                // UGT(Sub(ZeroExt(n, inner), BVV(c)), BVV(b)) where c and b fit in inner's size
-                (AstOp::Sub(lhs_sub, rhs_sub), AstOp::BVV(bound))
-                    if matches!(lhs_sub.op(), AstOp::ZeroExt(_, ext_size)
-                        if bound.leading_zeros() as u32 >= *ext_size
-                        && matches!(rhs_sub.op(), AstOp::BVV(c) if c.leading_zeros() as u32 >= *ext_size)) =>
-                {
-                    if let AstOp::ZeroExt(inner, _) = lhs_sub.op() {
-                        let inner_size = inner.size();
-                        state.rerun(ctx.ugt(
-                            ctx.sub(inner, &ctx.extract(rhs_sub, inner_size - 1, 0)?)?,
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                        )?)
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                // UGT(Add(ZeroExt(n, inner), BVV(c)), BVV(b)) where c and b fit in inner's size
-                (AstOp::Add(add_args), AstOp::BVV(bound)) => {
-                    let ze_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::ZeroExt(..)));
-                    let bvv_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(..)));
-                    if let (Some(ze_i), Some(bvv_i)) = (ze_idx, bvv_idx)
-                        && ze_i != bvv_i
-                        && add_args.len() == 2
-                        && let AstOp::ZeroExt(inner, ext_size) = add_args[ze_i].op()
-                        && let AstOp::BVV(c) = add_args[bvv_i].op()
-                        && bound.leading_zeros() as u32 >= *ext_size
-                        && c.leading_zeros() as u32 >= *ext_size
-                    {
-                        let inner_size = inner.size();
-                        return state.rerun(ctx.ugt(
-                            ctx.add(inner, &ctx.extract(&add_args[bvv_i], inner_size - 1, 0)?)?,
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                        )?);
-                    }
-                    Ok(ctx.ugt(arc, arc1)?)
-                }
-
-                // UGT(Concat(rest..., BVV(0, n)), BVV(c)) where c has n trailing zeros
-                (AstOp::Concat(args), AstOp::BVV(c_val)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.ugt(
-                            high_part,
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                        )?)
-                    } else {
-                        Ok(ctx.ugt(arc, arc1)?)
-                    }
-                }
-                (AstOp::BVV(c_val), AstOp::Concat(args)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.ugt(
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                            high_part,
-                        )?)
-                    } else {
-                        Ok(ctx.ugt(arc, arc1)?)
-                    }
-                }
-
-                _ => Ok(ctx.ugt(arc, arc1)?),
-            }
-        }
-        AstOp::UGE(..) => {
-            let (arc, arc1) = (
-                state.get_child_simplified(0)?,
-                state.get_child_simplified(1)?,
-            );
-            match (arc.op(), arc1.op()) {
-                (..) if arc == arc1 => Ok(ctx.true_()?),
-                (AstOp::BVV(arc), AstOp::BVV(arc1)) => Ok(ctx.boolv(arc >= arc1)?),
-
-                // If on one side there is an AND where one of the operands is a mask, and on the
-                // other side, there is a BVV which matches the masked part of the AND, we can
-                // extract the AND operand directly, and extract the other side and rerun
-                (AstOp::And(and_args), AstOp::BVV(bvv))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.uge(
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                    )?)
-                }
-                (AstOp::BVV(bvv), AstOp::And(and_args))
-                    if and_args
-                        .iter()
-                        .any(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some())) =>
-                {
-                    let mask_idx = and_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(v) if v.is_mask().is_some()))
-                        .unwrap();
-                    let mask = &and_args[mask_idx];
-                    let remaining: Vec<_> = and_args
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i != mask_idx)
-                        .map(|(_, a)| a.clone())
-                        .collect();
-                    let lhs_and = if remaining.len() == 1 {
-                        remaining.into_iter().next().unwrap()
-                    } else {
-                        ctx.and(remaining)?
-                    };
-                    let (mask_high, mask_low) = if let AstOp::BVV(mask_val) = mask.op() {
-                        mask_val.is_mask()
-                    } else {
-                        None
-                    }
-                    .expect("Checked above, switch to if let when stabilized");
-                    state.rerun(ctx.uge(
-                        ctx.bvv(bvv.extract(mask_low, mask_high)?)?,
-                        ctx.extract(&lhs_and, mask_high, mask_low)?,
-                    )?)
-                }
-
-                // If one side is a ZeroExt and the other side is a BVV with those bits set to zero,
-                // we can extract the relevant bits and compare directly
-                (AstOp::ZeroExt(innner, ext_size), AstOp::BVV(outer))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.uge(
-                        innner.clone(),
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                    )?)
-                }
-                (AstOp::BVV(outer), AstOp::ZeroExt(innner, ext_size))
-                    if outer.leading_zeros() as u32 >= *ext_size =>
-                {
-                    state.rerun(ctx.uge(
-                        ctx.extract(ctx.bvv(outer.clone())?, innner.size() - 1, 0)?,
-                        innner.clone(),
-                    )?)
-                }
-
-                // If both sides are ZeroExt of the same size, we can compare the inner values directly
-                (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _)) => {
-                    state.rerun(ctx.uge(inner_lhs.clone(), inner_rhs.clone())?)
-                }
-
-                // UGE(Concat(rest..., BVV(0, n)), BVV(c)) where c has n trailing zeros
-                (AstOp::Concat(args), AstOp::BVV(c_val)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.uge(
-                            high_part,
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                        )?)
-                    } else {
-                        Ok(ctx.uge(arc, arc1)?)
-                    }
-                }
-                (AstOp::BVV(c_val), AstOp::Concat(args)) if matches!(args.last().map(|a| a.op()), Some(AstOp::BVV(v)) if v.is_zero()) =>
-                {
-                    let low_bits = args.last().unwrap().size();
-                    if c_val
-                        .extract(0, low_bits - 1)
-                        .map(|v| v.is_zero())
-                        .unwrap_or(false)
-                    {
-                        let high_parts: Vec<_> = args[..args.len() - 1].to_vec();
-                        let high_part = if high_parts.len() == 1 {
-                            high_parts.into_iter().next().unwrap()
-                        } else {
-                            ctx.concat(high_parts)?
-                        };
-                        state.rerun(ctx.uge(
-                            ctx.bvv(c_val.extract(low_bits, c_val.len() - 1)?)?,
-                            high_part,
-                        )?)
-                    } else {
-                        Ok(ctx.uge(arc, arc1)?)
-                    }
-                }
-
-                // UGE(BVV(b), Sub(ZeroExt(n, inner), BVV(c))) where c and b fit in inner's size
-                // => UGE(extract(b), Sub(inner, extract(c)))
-                (AstOp::BVV(bound), AstOp::Sub(lhs_sub, rhs_sub))
-                    if matches!(lhs_sub.op(), AstOp::ZeroExt(_, ext_size)
-                        if bound.leading_zeros() as u32 >= *ext_size
-                        && matches!(rhs_sub.op(), AstOp::BVV(c) if c.leading_zeros() as u32 >= *ext_size)) =>
-                {
-                    if let AstOp::ZeroExt(inner, _) = lhs_sub.op() {
-                        let inner_size = inner.size();
-                        state.rerun(ctx.uge(
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                            ctx.sub(inner, &ctx.extract(rhs_sub, inner_size - 1, 0)?)?,
-                        )?)
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                // UGE(Sub(ZeroExt(n, inner), BVV(c)), BVV(b)) where c and b fit in inner's size
-                // => UGE(Sub(inner, extract(c)), extract(b))
-                (AstOp::Sub(lhs_sub, rhs_sub), AstOp::BVV(bound))
-                    if matches!(lhs_sub.op(), AstOp::ZeroExt(_, ext_size)
-                        if bound.leading_zeros() as u32 >= *ext_size
-                        && matches!(rhs_sub.op(), AstOp::BVV(c) if c.leading_zeros() as u32 >= *ext_size)) =>
-                {
-                    if let AstOp::ZeroExt(inner, _) = lhs_sub.op() {
-                        let inner_size = inner.size();
-                        state.rerun(ctx.uge(
-                            ctx.sub(inner, &ctx.extract(rhs_sub, inner_size - 1, 0)?)?,
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                        )?)
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                // UGE(BVV(b), Add(ZeroExt(n, inner), BVV(c))) where c and b fit in inner's size
-                (AstOp::BVV(bound), AstOp::Add(add_args)) => {
-                    let ze_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::ZeroExt(..)));
-                    let bvv_idx = add_args
-                        .iter()
-                        .position(|a| matches!(a.op(), AstOp::BVV(..)));
-                    if let (Some(ze_i), Some(bvv_i)) = (ze_idx, bvv_idx)
-                        && ze_i != bvv_i
-                        && add_args.len() == 2
-                        && let AstOp::ZeroExt(inner, ext_size) = add_args[ze_i].op()
-                        && let AstOp::BVV(c) = add_args[bvv_i].op()
-                        && bound.leading_zeros() as u32 >= *ext_size
-                        && c.leading_zeros() as u32 >= *ext_size
-                    {
-                        let inner_size = inner.size();
-                        return state.rerun(ctx.uge(
-                            ctx.bvv(bound.extract(0, inner_size - 1)?)?,
-                            ctx.add(inner, &ctx.extract(&add_args[bvv_i], inner_size - 1, 0)?)?,
-                        )?);
-                    }
-                    Ok(ctx.uge(arc, arc1)?)
-                }
-
-                _ => Ok(ctx.uge(arc, arc1)?),
-            }
-        }
+        AstOp::ULT(..) => simplify_unsigned_cmp(state, UCmp::Ult),
+        AstOp::ULE(..) => simplify_unsigned_cmp(state, UCmp::Ule),
+        AstOp::UGT(..) => simplify_unsigned_cmp(state, UCmp::Ugt),
+        AstOp::UGE(..) => simplify_unsigned_cmp(state, UCmp::Uge),
         AstOp::SLT(..) => {
             let (arc, arc1) = (
                 state.get_child_simplified(0)?,
@@ -1669,5 +800,185 @@ pub(crate) fn simplify_bool<'c>(
             }
         }
         _ => unreachable!("non-boolean op dispatched to simplify_bool"),
+    }
+}
+
+/// Removes the first mask constant from an `And`'s args: (rest of the And, mask high, mask low).
+fn split_masked_and<'c>(
+    ctx: &'c Context<'c>,
+    args: &[AstRef<'c>],
+) -> Result<Option<(AstRef<'c>, u32, u32)>, ClarirsError> {
+    let Some((mask_idx, (high, low))) = args.iter().enumerate().find_map(|(i, a)| match a.op() {
+        AstOp::BVV(v) => v.is_mask().map(|bounds| (i, bounds)),
+        _ => None,
+    }) else {
+        return Ok(None);
+    };
+    let remaining: Vec<_> = args
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != mask_idx)
+        .map(|(_, a)| a.clone())
+        .collect();
+    let rest = match remaining.as_slice() {
+        [only] => only.clone(),
+        _ => ctx.and(remaining)?,
+    };
+    Ok(Some((rest, high, low)))
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UCmp {
+    Ult,
+    Ule,
+    Ugt,
+    Uge,
+}
+
+impl UCmp {
+    fn build<'c>(
+        self,
+        ctx: &'c Context<'c>,
+        lhs: AstRef<'c>,
+        rhs: AstRef<'c>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        match self {
+            UCmp::Ult => ctx.ult(lhs, rhs),
+            UCmp::Ule => ctx.ule(lhs, rhs),
+            UCmp::Ugt => ctx.ugt(lhs, rhs),
+            UCmp::Uge => ctx.uge(lhs, rhs),
+        }
+    }
+
+    fn fold(self, lhs: &BitVec, rhs: &BitVec) -> bool {
+        match self {
+            UCmp::Ult => lhs < rhs,
+            UCmp::Ule => lhs <= rhs,
+            UCmp::Ugt => lhs > rhs,
+            UCmp::Uge => lhs >= rhs,
+        }
+    }
+
+    fn on_equal(self) -> bool {
+        matches!(self, UCmp::Ule | UCmp::Uge)
+    }
+
+    fn flip(self) -> Self {
+        match self {
+            UCmp::Ult => UCmp::Ugt,
+            UCmp::Ule => UCmp::Uge,
+            UCmp::Ugt => UCmp::Ult,
+            UCmp::Uge => UCmp::Ule,
+        }
+    }
+}
+
+fn simplify_unsigned_cmp<'c>(
+    state: &mut super::SimplifyState<'c>,
+    kind: UCmp,
+) -> Result<AstRef<'c>, SimplifyError<'c>> {
+    let ctx = state.expr.context();
+    let (lhs, rhs) = (
+        state.get_child_simplified(0)?,
+        state.get_child_simplified(1)?,
+    );
+    if lhs == rhs {
+        return Ok(ctx.boolv(kind.on_equal())?);
+    }
+    // Rules below see the constant on the right; a constant on the left flips the relation.
+    let (x, c, rel) = match (lhs.op(), rhs.op()) {
+        (AstOp::BVV(a), AstOp::BVV(b)) => return Ok(ctx.boolv(kind.fold(a, b))?),
+        // If both sides are ZeroExt of the same size, we can compare the inner values directly
+        (AstOp::ZeroExt(a, _), AstOp::ZeroExt(b, _)) => {
+            return state.rerun(kind.build(ctx, a.clone(), b.clone())?);
+        }
+        (AstOp::BVV(c), _) => (&rhs, c, kind.flip()),
+        (_, AstOp::BVV(c)) => (&lhs, c, kind),
+        _ => return Ok(kind.build(ctx, lhs, rhs)?),
+    };
+    let rewritten = match x.op() {
+        // If on one side there is an AND where one of the operands is a mask, and on the
+        // other side, there is a BVV which matches the masked part of the AND, we can
+        // extract the AND operand directly, and extract the other side and rerun
+        AstOp::And(args) => match split_masked_and(ctx, args)? {
+            Some((rest, high, low)) => Some((
+                ctx.extract(rest, high, low)?,
+                ctx.bvv(c.extract(low, high)?)?,
+            )),
+            None => None,
+        },
+        // If one side is a ZeroExt, and the other side is a BVV with a value larger than
+        // what can be represented in the inner bits, we can concretize the comparison
+        AstOp::ZeroExt(inner, _) if c.bits() > inner.size() as usize => {
+            return Ok(ctx.boolv(matches!(rel, UCmp::Ult | UCmp::Ule))?);
+        }
+        // If one side is a ZeroExt and the other side is a BVV with those bits set to zero,
+        // we can extract the relevant bits and compare directly
+        AstOp::ZeroExt(inner, ext_size) if c.leading_zeros() as u32 >= *ext_size => Some((
+            inner.clone(),
+            ctx.extract(ctx.bvv(c.clone())?, inner.size() - 1, 0)?,
+        )),
+        // CMP(Concat(rest..., BVV(0, n)), BVV(c)) where c has n trailing zeros
+        AstOp::Concat(args) => match args.as_slice() {
+            [high_parts @ .., low]
+                if matches!(low.op(), AstOp::BVV(v) if v.is_zero())
+                    && c.extract(0, low.size() - 1).is_ok_and(|v| v.is_zero()) =>
+            {
+                let high_part = match high_parts {
+                    [only] => only.clone(),
+                    _ => ctx.concat(high_parts.iter().cloned())?,
+                };
+                Some((high_part, ctx.bvv(c.extract(low.size(), c.len() - 1)?)?))
+            }
+            _ => None,
+        },
+        // CMP(Sub(ZeroExt(n, inner), BVV(k)), BVV(c)) where k and c fit in inner's size
+        // => CMP(Sub(inner, extract(k)), extract(c))
+        AstOp::Sub(lhs_sub, rhs_sub) => {
+            if let AstOp::ZeroExt(inner, ext_size) = lhs_sub.op()
+                && let AstOp::BVV(k) = rhs_sub.op()
+                && c.leading_zeros() as u32 >= *ext_size
+                && k.leading_zeros() as u32 >= *ext_size
+            {
+                let inner_size = inner.size();
+                Some((
+                    ctx.sub(inner, &ctx.extract(rhs_sub, inner_size - 1, 0)?)?,
+                    ctx.bvv(c.extract(0, inner_size - 1)?)?,
+                ))
+            } else {
+                None
+            }
+        }
+        // CMP(Add(ZeroExt(n, inner), BVV(k)), BVV(c)) where k and c fit in inner's size
+        AstOp::Add(add_args) => {
+            let ze_idx = add_args
+                .iter()
+                .position(|a| matches!(a.op(), AstOp::ZeroExt(..)));
+            let bvv_idx = add_args
+                .iter()
+                .position(|a| matches!(a.op(), AstOp::BVV(..)));
+            if let (Some(ze_i), Some(bvv_i)) = (ze_idx, bvv_idx)
+                && add_args.len() == 2
+                && let AstOp::ZeroExt(inner, ext_size) = add_args[ze_i].op()
+                && let AstOp::BVV(k) = add_args[bvv_i].op()
+                && c.leading_zeros() as u32 >= *ext_size
+                && k.leading_zeros() as u32 >= *ext_size
+            {
+                let inner_size = inner.size();
+                Some((
+                    ctx.add(inner, &ctx.extract(&add_args[bvv_i], inner_size - 1, 0)?)?,
+                    ctx.bvv(c.extract(0, inner_size - 1)?)?,
+                ))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+    match rewritten {
+        // Rebuild in the original operand order so the produced node keeps its shape.
+        Some((x, c)) if rel == kind => state.rerun(kind.build(ctx, x, c)?),
+        Some((x, c)) => state.rerun(kind.build(ctx, c, x)?),
+        None => Ok(kind.build(ctx, lhs, rhs)?),
     }
 }
