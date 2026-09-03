@@ -6,7 +6,6 @@ from collections import defaultdict
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-import archinfo
 import capstone
 import networkx
 from pyvex.expr import RdTmp
@@ -16,8 +15,8 @@ from angr import ailment
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis, get_all_definitions
 from angr.calling_conventions import (
+    GO_ABI0_CC,
     SimCC,
-    SimCCGoAMD64ABI0,
     SimCCMicrosoftThiscall,
     SimFunctionArgument,
     SimRegArg,
@@ -484,9 +483,8 @@ class CallingConventionAnalysis(Analysis):
             and self._function.name is not None
             and self._function.name.endswith(".abi0")
             and self.project.is_go_binary
-            and isinstance(self.project.arch, archinfo.ArchAMD64)
         ):
-            return SimCCGoAMD64ABI0
+            return GO_ABI0_CC.get(self.project.arch.name)
         return None
 
     def _analyze_function(self) -> tuple[SimCC, SimTypeFunction] | None:

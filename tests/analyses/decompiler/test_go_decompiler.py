@@ -14,11 +14,10 @@ from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGener
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
-GO_CORPUS = os.path.join(test_location, "x86_64", "go")
 
 
-def go_binary(version: str, name: str) -> str:
-    return os.path.join(GO_CORPUS, version, name)
+def go_binary(version: str, name: str, arch: str = "x86_64") -> str:
+    return os.path.join(test_location, arch, "go", version, name)
 
 
 def go_func_addrs(path: str, *names: str) -> dict[str, int]:
@@ -203,6 +202,21 @@ class TestIfaceGo122(GoDecompilationTarget):
         assert "&type:int" in self.texts["main.box"]
         assert "&type:int" in self.texts["main.unbox"]
         assert "&go:itab.*main.Square,main.Shape" in self.texts["main.asSquare"]
+
+
+class TestBasicsGo122AArch64(GoDecompilationTarget):
+    BINARY = go_binary("go1.22.5", "basics", arch="aarch64")
+    FUNCS = ("main.fib", "main.parse", "main.count")
+
+    def test_arm64_headers_and_idioms(self):
+        assert self.header(self.texts["main.fib"]) == "func main.fib(n int) int {"
+        assert self.header(self.texts["main.parse"]) == "func main.parse(s string) (int, error) {"
+        parse = self.texts["main.parse"]
+        assert re.search(r"^\s+\w+, err = strconv\.Atoi\(s\)$", parse, re.MULTILINE), parse
+        assert "if err != nil {" in parse
+        for text in self.texts.values():
+            assert "morestack" not in text
+        assert "for i < len(s) {" in self.texts["main.count"] or "range s" in self.texts["main.count"]
 
 
 class TestBasicsGo122Stripped(GoDecompilationTarget):
