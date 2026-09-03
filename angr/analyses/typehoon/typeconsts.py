@@ -313,7 +313,8 @@ class Array(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((self.TYPE_HASH, self.element, self.count))
+        elem_hash = self.element._hash(visited) if self.element is not None else None
+        return hash((self.TYPE_HASH, elem_hash, self.count))
 
     def __hash__(self):
         return self._hash(set())

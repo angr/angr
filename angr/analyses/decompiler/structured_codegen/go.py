@@ -38,6 +38,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
+from angr.go.codegen_builtins import render_builtin_call
 from angr.go.codegen_builtins_values import call_tag, render_builtin_call_value
 from angr.go.sim_type import (
     GoSimStruct,
@@ -1907,6 +1908,9 @@ class GoFunctionCall(GoExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         if (builtin_chunks := render_builtin_call_value(self)) is not None:
             yield from builtin_chunks
+            return
+        if (chunks := render_builtin_call(self)) is not None:
+            yield from chunks
             return
         if self.callee_func is not None:
             func_name = self.callee_func.name
