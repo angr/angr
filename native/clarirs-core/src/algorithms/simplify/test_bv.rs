@@ -1134,3 +1134,13 @@ fn test_debug_extract_size() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_fp_to_sbv_negative_value() -> Result<()> {
+    let ctx = Context::new();
+    let converted = ctx
+        .fp_to_sbv(ctx.fpv(Float::from(-3.0_f64))?, 32, FPRM::NearestTiesToEven)?
+        .simplify()?;
+    assert_eq!(converted, ctx.bvv(BitVec::from((0xffff_fffd, 32)))?);
+    Ok(())
+}

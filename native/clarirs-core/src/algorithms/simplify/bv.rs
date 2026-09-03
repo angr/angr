@@ -1398,11 +1398,8 @@ pub(crate) fn simplify_bv<'c>(
                     // Convert the float to a signed integer representation (BigInt)
                     let signed_value = float.to_signed_bigint().unwrap_or(BigInt::zero());
 
-                    // Convert the signed value to BigUint for BitVec construction
-                    let unsigned_value = signed_value.to_biguint().unwrap_or(BigUint::zero());
-
                     // Create a BitVec with the result, truncating or extending to fit within the specified bit size
-                    let result_bitvec = BitVec::from((unsigned_value, *bit_size));
+                    let result_bitvec = BitVec::from((signed_value, *bit_size));
 
                     Ok(ctx.bvv(result_bitvec)?)
                 }
