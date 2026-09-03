@@ -41,8 +41,11 @@ from angr.errors import UnsupportedNodeTypeError
 from angr.go.sim_type import (
     GoSimStruct,
     GoSimType,
+    GoSimTypeChan,
+    GoSimTypeFunc,
     GoSimTypeInt,
     GoSimTypeInterface,
+    GoSimTypeMap,
     GoSimTypePointer,
     GoSimTypeSlice,
     GoSimTypeString,
@@ -284,8 +287,10 @@ def _iter_struct_union_member_types(ty):
 def _is_go_value_read_as_int(base_type, data_type) -> bool:
     if not isinstance(base_type, (GoSimStruct, GoSimTypePointer)):
         return False
-    if not isinstance(data_type, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypeReg)) or isinstance(data_type, GoSimType):
-        return isinstance(data_type, GoSimTypeInt)
+    if isinstance(data_type, GoSimStruct) or not isinstance(
+        data_type, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypeReg, GoSimTypeInt)
+    ):
+        return False
     try:
         return base_type.size == data_type.size
     except ValueError:
@@ -1006,7 +1011,16 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         yield "{", brace
         yield "\n", None
         yield from self.variable_list_repr_chunks(indent=indent + self.codegen.indent_delta)
-        yield from self.statements.c_repr_chunks(indent=indent + self.codegen.indent_delta)
+        statements = self.statements
+        if (
+            isinstance(statements, GoStatements)
+            and statements.statements
+            and isinstance(statements.statements[-1], GoReturn)
+            and not statements.statements[-1].retvals
+        ):
+            # a bare return at the very end of a function is implied
+            statements = GoStatements(statements.statements[:-1], codegen=self.codegen)
+        yield from statements.c_repr_chunks(indent=indent + self.codegen.indent_delta)
         yield indent_str, None
         yield "}", brace
         yield "\n", None
@@ -1052,6 +1066,37 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         stack_vars = sorted(stack_vars, key=lambda v: (v.offset, v.ident))
         mem_vars = sorted(mem_vars, key=lambda v: (v.addr if isinstance(v.addr, int) else -1, v.ident))
         return reg_vars + stack_vars + mem_vars
+
+
+def _go_block_chunks(body, indent_str: str, indent: int, codegen):
+    """Render ``{`` body ``}`` with Go's brace placement; an empty body renders as ``{ }``."""
+    brace = GoClosingObject("{")
+    yield " ", None
+    yield "{", brace
+    if body is None:
+        yield " ", None
+        yield "}", brace
+        yield "\n", None
+        return
+    yield "\n", None
+    yield from body.c_repr_chunks(indent=indent + codegen.indent_delta)
+    yield indent_str, None
+    yield "}", brace
+    yield "\n", None
+
+
+def _same_variable(a, b) -> bool:
+    if a.unified_variable is not None or b.unified_variable is not None:
+        return a.unified_variable is not None and a.unified_variable == b.unified_variable
+    return a.variable is not None and a.variable == b.variable
+
+
+def _go_is_nilable(ty) -> bool:
+    ty = unpack_typeref(ty)
+    return isinstance(
+        ty,
+        (SimTypePointer, GoSimTypeInterface, GoSimTypeSlice, GoSimTypeMap, GoSimTypeChan, GoSimTypeFunc),
+    )
 
 
 class GoStatement(GoConstruct):  # pylint:disable=abstract-method
@@ -1167,30 +1212,11 @@ class GoWhileLoop(GoLoop):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield "while ", None
-        paren = GoClosingObject("(")
-        brace = GoClosingObject("{")
-        yield "(", paren
-        if self.condition is None:
-            yield "true", self
-        else:
-            yield from self.condition.c_repr_chunks()
-        yield ")", paren
-        if self.codegen.braces_on_own_lines:
-            yield "\n", None
-            yield indent_str, None
-        else:
+        yield "for", self
+        if self.condition is not None:
             yield " ", None
-        if self.body is None:
-            yield ";", None
-            yield "\n", None
-        else:
-            yield "{", brace
-            yield "\n", None
-            yield from self.body.c_repr_chunks(indent=indent + self.codegen.indent_delta)
-            yield indent_str, None
-            yield "}", brace
-            yield "\n", None
+            yield from self.condition.c_repr_chunks()
+        yield from _go_block_chunks(self.body, indent_str, indent, self.codegen)
 
 
 class GoDoWhileLoop(GoLoop):
@@ -1212,34 +1238,32 @@ class GoDoWhileLoop(GoLoop):
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
         brace = GoClosingObject("{")
-        paren = GoClosingObject("(")
-
+        inner_indent = indent + self.codegen.indent_delta
+        inner_str = self.indent_str(indent=inner_indent)
         yield indent_str, None
-        yield "do", self
-        if self.codegen.braces_on_own_lines:
-            yield "\n", None
-            yield indent_str, None
-        else:
-            yield " ", None
-        if self.body is not None:
-            yield "{", brace
-            yield "\n", None
-            yield from self.body.c_repr_chunks(indent=indent + self.codegen.indent_delta)
-            yield indent_str, None
-            yield "}", brace
-        else:
-            yield "{", brace
-            yield " ", None
-            yield "}", brace
+        yield "for", self
         yield " ", None
-        yield "while ", self
-        yield "(", paren
-        if self.condition is None:
-            yield "true", self
-        else:
-            yield from self.condition.c_repr_chunks()
-        yield ")", paren
-        yield ";\n", self
+        yield "{", brace
+        yield "\n", None
+        if self.body is not None:
+            yield from self.body.c_repr_chunks(indent=inner_indent)
+        if self.condition is not None:
+            # the loop condition is tested at the end of the body
+            yield inner_str, None
+            yield "if ", self
+            yield from GoUnaryOp("Not", self.condition, codegen=self.codegen).c_repr_chunks()
+            check_brace = GoClosingObject("{")
+            yield " ", None
+            yield "{", check_brace
+            yield "\n", None
+            yield self.indent_str(indent=inner_indent + self.codegen.indent_delta), None
+            yield "break\n", self
+            yield inner_str, None
+            yield "}", check_brace
+            yield "\n", None
+        yield indent_str, None
+        yield "}", brace
+        yield "\n", None
 
 
 class GoForLoop(GoStatement):
@@ -1267,34 +1291,25 @@ class GoForLoop(GoStatement):
         brace = GoClosingObject("{")
         paren = GoClosingObject("(")
 
+        del brace, paren
         yield indent_str, None
-        yield "for ", self
-        yield "(", paren
-        if self.initializer is not None:
-            yield from self.initializer.c_repr_chunks(indent=0, asexpr=True)
-        yield "; ", None
-        if self.condition is not None:
-            yield from self.condition.c_repr_chunks(indent=0)
-        yield "; ", None
-        if self.iterator is not None:
-            yield from self.iterator.c_repr_chunks(indent=0, asexpr=True)
-        yield ")", paren
-
-        if self.body is not None:
-            if self.codegen.braces_on_own_lines:
-                yield "\n", None
-                yield indent_str, None
-            else:
+        yield "for", self
+        if self.initializer is None and self.iterator is None:
+            if self.condition is not None:
                 yield " ", None
-
-            yield "{", brace
-            yield "\n", None
-            yield from self.body.c_repr_chunks(indent=indent + self.codegen.indent_delta)
-            yield indent_str, None
-            yield "}", brace
+                yield from self.condition.c_repr_chunks(indent=0)
         else:
+            yield " ", None
+            if self.initializer is not None:
+                yield from self.initializer.c_repr_chunks(indent=0, asexpr=True)
+            yield "; ", None
+            if self.condition is not None:
+                yield from self.condition.c_repr_chunks(indent=0)
             yield ";", None
-        yield "\n", None
+            if self.iterator is not None:
+                yield " ", None
+                yield from self.iterator.c_repr_chunks(indent=0, asexpr=True)
+        yield from _go_block_chunks(self.body, indent_str, indent, self.codegen)
 
 
 class GoIfElse(GoStatement):
@@ -1335,93 +1350,34 @@ class GoIfElse(GoStatement):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
-        paren = GoClosingObject("(")
         brace = GoClosingObject("{")
-
-        first_node = True
-        first_node_is_single_stmt_if = False
-        for condition, node in self.condition_and_nodes:
-            # omit braces in the event that you want c-style if-statements that have only a single statement
-            # and have no else scope or an else with also a single statement
-            omit_braces = (
-                self.cstyle_ifs
-                and first_node
-                and len(self.condition_and_nodes) == 1
-                # no else-if tree can exist
-                and self._is_single_stmt_node(node)
-                # no else, else is also single-stmt, or else will not exist after pass
-                and (self.else_node is None or self._is_single_stmt_node(self.else_node) or self.simplify_else_scope)
-            )
-
-            if first_node:
-                first_node = False
-                first_node_is_single_stmt_if = omit_braces
+        for i, (condition, node) in enumerate(self.condition_and_nodes):
+            if i == 0:
                 yield indent_str, None
             else:
-                if self.codegen.braces_on_own_lines:
-                    yield "\n", None
-                    yield indent_str, None
-                else:
-                    yield " ", None
-                yield "else ", self
-
+                yield " else ", self
             yield "if ", self
-            yield "(", paren
             yield from condition.c_repr_chunks()
-            yield ")", paren
-            if omit_braces:
-                yield "\n", None
-            else:
-                if self.codegen.braces_on_own_lines:
-                    yield "\n", None
-                    yield indent_str, None
-                else:
-                    yield " ", None
-
-                yield "{", brace
-                yield "\n", None
-
+            yield " ", None
+            yield "{", brace
+            yield "\n", None
             if node is not None:
                 yield from node.c_repr_chunks(indent=self.codegen.indent_delta + indent)
-
-            if not omit_braces:
-                yield indent_str, None
-                yield "}", brace
-
-        single_stmt_else = first_node_is_single_stmt_if and len(self.condition_and_nodes) == 1
+            yield indent_str, None
+            yield "}", brace
         if self.else_node is not None:
-            brace = GoClosingObject("{")
             if self.simplify_else_scope:
-                if not single_stmt_else:
-                    yield "\n", None
+                # the else branch is hoisted out of the conditional by the region simplifier
+                yield "\n", None
                 yield from self.else_node.c_repr_chunks(indent=indent)
-            else:
-                if single_stmt_else:
-                    yield indent_str, None
-                elif self.codegen.braces_on_own_lines:
-                    yield "\n", None
-                    yield indent_str, None
-                else:
-                    yield " ", None
-
-                yield "else", self
-                if self.codegen.braces_on_own_lines or single_stmt_else:
-                    yield "\n", None
-                    yield indent_str, None
-                else:
-                    yield " ", None
-
-                if single_stmt_else:
-                    yield from self.else_node.c_repr_chunks(indent=self.codegen.indent_delta)
-                else:
-                    yield "{", brace
-                    yield "\n", None
-                    yield from self.else_node.c_repr_chunks(indent=indent + self.codegen.indent_delta)
-                    yield indent_str, None
-                    yield "}", brace
-
-        if not first_node_is_single_stmt_if and not self.simplify_else_scope:
+                return
+            yield " else ", self
+            yield "{", brace
             yield "\n", None
+            yield from self.else_node.c_repr_chunks(indent=indent + self.codegen.indent_delta)
+            yield indent_str, None
+            yield "}", brace
+        yield "\n", None
 
 
 class GoIfBreak(GoStatement):
@@ -1445,28 +1401,18 @@ class GoIfBreak(GoStatement):
         paren = GoClosingObject("(")
         brace = GoClosingObject("{")
 
+        del paren
         yield indent_str, None
         yield "if ", self
-        yield "(", paren
         yield from self.condition.c_repr_chunks()
-        yield ")", paren
-        if self.codegen.braces_on_own_lines or self.cstyle_ifs:
-            yield "\n", None
-            yield indent_str, None
-        else:
-            yield " ", None
-        if self.cstyle_ifs:
-            yield self.indent_str(indent=self.codegen.indent_delta), self
-            yield "break;\n", self
-        else:
-            yield "{", brace
-            yield "\n", None
-            yield self.indent_str(indent=indent + self.codegen.indent_delta), self
-            yield "break;\n", self
-            yield indent_str, None
-            yield "}", brace
-        if not self.cstyle_ifs:
-            yield "\n", None
+        yield " ", None
+        yield "{", brace
+        yield "\n", None
+        yield self.indent_str(indent=indent + self.codegen.indent_delta), self
+        yield "break\n", self
+        yield indent_str, None
+        yield "}", brace
+        yield "\n", None
 
 
 class GoBreak(GoStatement):
@@ -1483,7 +1429,7 @@ class GoBreak(GoStatement):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield "break;\n", self
+        yield "break\n", self
 
 
 class GoContinue(GoStatement):
@@ -1500,7 +1446,7 @@ class GoContinue(GoStatement):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield "continue;\n", self
+        yield "continue\n", self
 
 
 class GoSwitchCase(GoStatement):
@@ -1522,42 +1468,42 @@ class GoSwitchCase(GoStatement):
         paren = GoClosingObject("(")
         brace = GoClosingObject("{")
 
+        del paren
         yield indent_str, None
         yield "switch ", self
-        yield "(", paren
         yield from self.switch.c_repr_chunks()
-        yield ")", paren
-        if self.codegen.braces_on_own_lines:
-            yield "\n", None
-            yield indent_str, None
-        else:
-            yield " ", None
+        yield " ", None
         yield "{", brace
         yield "\n", None
-
-        # cases
-        for id_or_ids, case in self.cases:
+        bodies = [case for _, case in self.cases] + ([self.default] if self.default is not None else [])
+        for i, (id_or_ids, case) in enumerate(self.cases):
             yield indent_str, None
-            if isinstance(id_or_ids, int):
-                yield f"case {id_or_ids}", self
-                yield ":\n", None
-            else:
-                for i, case_id in enumerate(id_or_ids):
-                    yield f"case {case_id}", self
-                    yield ":", None
-                    if i != len(id_or_ids) - 1:
-                        yield " ", None
-                yield "\n", None
-            yield from case.c_repr_chunks(indent=indent + self.codegen.indent_delta)
-
+            ids = [id_or_ids] if isinstance(id_or_ids, int) else list(id_or_ids)
+            yield "case " + ", ".join(str(x) for x in ids), self
+            yield ":\n", None
+            yield from self._case_body_chunks(case, i + 1 < len(bodies), indent)
         if self.default is not None:
             yield indent_str, None
             yield "default:\n", self
-            yield from self.default.c_repr_chunks(indent=indent + self.codegen.indent_delta)
-
+            yield from self._case_body_chunks(self.default, False, indent)
         yield indent_str, None
         yield "}", brace
         yield "\n", None
+
+    def _case_body_chunks(self, case, has_next: bool, indent: int):
+        """Go cases do not fall through: drop the trailing break and spell out an explicit fallthrough."""
+        stmts = list(case.statements) if isinstance(case, GoStatements) else [case]
+        falls_through = has_next
+        if stmts and isinstance(stmts[-1], GoBreak):
+            stmts = stmts[:-1]
+            falls_through = False
+        elif stmts and isinstance(stmts[-1], (GoReturn, GoGoto, GoContinue)):
+            falls_through = False
+        body = GoStatements(stmts, codegen=self.codegen)
+        yield from body.c_repr_chunks(indent=indent + self.codegen.indent_delta)
+        if falls_through:
+            yield self.indent_str(indent=indent + self.codegen.indent_delta), None
+            yield "fallthrough\n", self
 
 
 class GoIncompleteSwitchCase(GoStatement):
@@ -1581,16 +1527,11 @@ class GoIncompleteSwitchCase(GoStatement):
 
         yield from self.head.c_repr_chunks(indent=indent)
         yield "\n", None
+        del paren
         yield indent_str, None
         yield "switch ", self
-        yield "(", paren
         yield "/* incomplete */", None
-        yield ")", paren
-        if self.codegen.braces_on_own_lines:
-            yield "\n", None
-            yield indent_str, None
-        else:
-            yield " ", None
+        yield " ", None
         yield "{", brace
         yield "\n", None
 
@@ -1645,18 +1586,24 @@ class GoAssignment(GoStatement):
             and isinstance(self.lhs, GoVariable)
             and isinstance(self.rhs, GoBinaryOp)
             and self.rhs.op in compound_assignment_ops
-            and self.lhs.unified_variable is not None
         ):
-            if isinstance(self.rhs.lhs, GoVariable) and self.lhs.unified_variable == self.rhs.lhs.unified_variable:
+            if isinstance(self.rhs.lhs, GoVariable) and _same_variable(self.lhs, self.rhs.lhs):
                 compound_expr_rhs = self.rhs.rhs
             elif (
                 self.rhs.op in commutative_ops
                 and isinstance(self.rhs.rhs, GoVariable)
-                and self.lhs.unified_variable == self.rhs.rhs.unified_variable
+                and _same_variable(self.lhs, self.rhs.rhs)
             ):
                 compound_expr_rhs = self.rhs.lhs
 
-        if compound_expr_rhs is not None:
+        if (
+            compound_expr_rhs is not None
+            and self.rhs.op in ("Add", "Sub")
+            and isinstance(compound_expr_rhs, GoConstant)
+            and compound_expr_rhs.value == 1
+        ):
+            yield ("++" if self.rhs.op == "Add" else "--"), self
+        elif compound_expr_rhs is not None:
             # a = a + x  =>  a += x
             # a = x + a  =>  a += x
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
@@ -1665,7 +1612,7 @@ class GoAssignment(GoStatement):
             yield " = ", self
             yield from GoExpression._try_c_repr_chunks(self.rhs)
         if not asexpr:
-            yield ";\n", self
+            yield "\n", self
 
 
 class GoExpressionStatement(GoStatement):
@@ -1688,9 +1635,8 @@ class GoExpressionStatement(GoStatement):
         yield indent_str, None
         yield from self.expr.c_repr_chunks(indent=0)
         if not asexpr:
-            yield ";", None
             if not self.returning:
-                yield " /* do not return */", None
+                yield " // does not return", None
             yield "\n", None
 
 
@@ -1889,7 +1835,7 @@ class GoReturn(GoStatement):
 
         if not self.retvals:
             yield indent_str, None
-            yield "return;\n", self
+            yield "return\n", self
         else:
             yield indent_str, None
             yield "return ", self
@@ -1897,7 +1843,7 @@ class GoReturn(GoStatement):
                 if i:
                     yield ", ", None
                 yield from retval.c_repr_chunks()
-            yield ";\n", self
+            yield "\n", self
 
 
 class GoGoto(GoStatement):
@@ -1924,20 +1870,18 @@ class GoGoto(GoStatement):
 
         yield indent_str, None
         if self.codegen.comment_gotos:
-            yield "/* ", None
+            yield "// ", None
         yield "goto ", self
         if lbl is None:
             if isinstance(self.target, int):
                 yield f"LABEL_{self.target:#x}", None
             else:
-                yield "*((void *)(", None
+                # Go has no computed goto
+                yield "/* *", None
                 yield from self.target.c_repr_chunks()
-                yield "))", None
+                yield " */", None
         else:
             yield lbl.name, lbl
-        yield ";", self
-        if self.codegen.comment_gotos:
-            yield " */", None
         yield "\n", None
 
 
@@ -2150,10 +2094,7 @@ class GoVariableField(GoExpression):
             yield "...", self
             return
         yield from self.variable.c_repr_chunks()
-        if self.var_is_ptr:
-            yield "->", self
-        else:
-            yield ".", self
+        yield ".", self
         yield from self.field.c_repr_chunks()
 
 
@@ -2224,35 +2165,29 @@ class GoUnaryOp(GoExpression):
             yield from GoExpression._try_c_repr_chunks(self.operand)
 
     def _c_repr_chunks_bitwiseneg(self):
-        paren = GoClosingObject("(")
-        yield "~", self
-        yield "(", paren
-        yield from GoExpression._try_c_repr_chunks(self.operand)
-        yield ")", paren
+        yield "^", self
+        yield from self._operand_chunks()
+
+    def _operand_chunks(self):
+        if isinstance(self.operand, (GoBinaryOp, GoITE)):
+            paren = GoClosingObject("(")
+            yield "(", paren
+            yield from GoExpression._try_c_repr_chunks(self.operand)
+            yield ")", paren
+        else:
+            yield from GoExpression._try_c_repr_chunks(self.operand)
 
     def _c_repr_chunks_neg(self):
-        paren = GoClosingObject("(")
         yield "-", self
-        yield "(", paren
-        yield from GoExpression._try_c_repr_chunks(self.operand)
-        yield ")", paren
+        yield from self._operand_chunks()
 
     def _c_repr_chunks_reference(self):
-        # C array-to-pointer decay: an array-typed lvalue already decays to a pointer to its first
-        # element, so "&array" is redundant.
-        operand_type = self.operand.type if self.operand is not None else None
-        if operand_type is not None and isinstance(unpack_typeref(operand_type), SimTypeArray):
-            yield from GoExpression._try_c_repr_chunks(self.operand)
-            return
         yield "&", self
-        yield from GoExpression._try_c_repr_chunks(self.operand)
+        yield from self._operand_chunks()
 
     def _c_repr_chunks_dereference(self):
-        paren = GoClosingObject("(")
         yield "*", self
-        yield "(", paren
-        yield from GoExpression._try_c_repr_chunks(self.operand)
-        yield ")", paren
+        yield from self._operand_chunks()
 
     def _c_repr_chunks_clz(self):
         paren = GoClosingObject("(")
@@ -2344,22 +2279,27 @@ class GoBinaryOp(GoExpression):
 
     @property
     def op_precedence(self):
+        # Go operator precedence (lowest first)
         precedence_list = [
-            # lowest precedence
             ["Concat"],
             ["LogicalOr"],
-            ["LogicalXor"],
             ["LogicalAnd"],
-            ["Or"],
-            ["Xor"],
-            ["And"],
-            ["CmpEQ", "CmpNE"],
-            ["CmpLE", "CmpLT", "CmpGT", "CmpGE"],
-            ["Shl", "Shr", "Sar"],
-            ["Add", "Sub"],
-            ["Mul", "Div"],
+            [
+                "CmpEQ",
+                "CmpNE",
+                "CmpLE",
+                "CmpLT",
+                "CmpGT",
+                "CmpGE",
+                "CmpLEs",
+                "CmpLTs",
+                "CmpGTs",
+                "CmpGEs",
+                "LogicalXor",
+            ],
+            ["Add", "Sub", "Or", "Xor"],
+            ["Mul", "Div", "Mod", "Shl", "Shr", "Sar", "And"],
             ["SBorrow", "SCarry", "Carry"],
-            # highest precedence
         ]
         for i, sublist in enumerate(precedence_list):
             if self.op in sublist:
@@ -2498,9 +2438,7 @@ class GoBinaryOp(GoExpression):
         ):
             signed_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=True)
             paren = GoClosingObject("(")
-            yield "(", paren
             yield go_type_str(signed_ty), signed_ty
-            yield ")", paren
             yield "(", paren
             yield from self._try_c_repr_chunks(self.lhs)
             yield ")", paren
@@ -2522,7 +2460,7 @@ class GoBinaryOp(GoExpression):
         yield from self._c_repr_chunks(" || ")
 
     def _c_repr_chunks_logicalxor(self):
-        yield from self._c_repr_chunks(" ^ ")
+        yield from self._c_repr_chunks(" != ")
 
     def _c_repr_chunks_cmple(self):
         yield from self._c_repr_chunks(" <= ")
@@ -2537,14 +2475,16 @@ class GoBinaryOp(GoExpression):
         yield from self._c_repr_chunks(" >= ")
 
     def _c_repr_chunks_cmpeq(self):
-        if self._cstyle_null_cmp and self._has_const_null_rhs():
-            yield from GoUnaryOp("Not", self.lhs, codegen=self.codegen).c_repr_chunks()
+        if self._has_const_null_rhs() and _go_is_nilable(self.lhs.type):
+            yield from self._try_c_repr_chunks(self.lhs)
+            yield " == nil", self
         else:
             yield from self._c_repr_chunks(" == ")
 
     def _c_repr_chunks_cmpne(self):
-        if self._cstyle_null_cmp and self._has_const_null_rhs():
+        if self._has_const_null_rhs() and _go_is_nilable(self.lhs.type):
             yield from self._try_c_repr_chunks(self.lhs)
+            yield " != nil", self
         else:
             yield from self._c_repr_chunks(" != ")
 
@@ -2552,7 +2492,7 @@ class GoBinaryOp(GoExpression):
         yield from self._c_repr_chunks(" CONCAT ")
 
     def _c_repr_chunks_rol(self):
-        yield "__ROL__", self
+        yield "bits.RotateLeft", self
         paren = GoClosingObject("(")
         yield "(", paren
         yield from self._try_c_repr_chunks(self.lhs)
@@ -2561,7 +2501,7 @@ class GoBinaryOp(GoExpression):
         yield ")", paren
 
     def _c_repr_chunks_ror(self):
-        yield "__ROR__", self
+        yield "bits.RotateRight", self
         paren = GoClosingObject("(")
         yield "(", paren
         yield from self._try_c_repr_chunks(self.lhs)
@@ -2597,19 +2537,21 @@ class GoTypeCast(GoExpression):
             yield "...", self
             return
         paren = GoClosingObject("(")
-        if self.codegen.show_casts:
-            yield "(", paren
-            yield go_type_str(self.dst_type), self.dst_type
-            yield ")", paren
-
-        if isinstance(self.expr, GoBinaryOp):
-            wrapping_paren = True
-            yield "(", paren
+        if not self.codegen.show_casts:
+            yield from GoExpression._try_c_repr_chunks(self.expr)
+            return
+        type_str = go_type_str(self.dst_type)
+        if type_str.startswith(("*", "<-", "func(")):
+            # a conversion to a pointer, receive-only channel or func type needs the type parenthesized
+            type_paren = GoClosingObject("(")
+            yield "(", type_paren
+            yield type_str, self.dst_type
+            yield ")", type_paren
         else:
-            wrapping_paren = False
+            yield type_str, self.dst_type
+        yield "(", paren
         yield from GoExpression._try_c_repr_chunks(self.expr)
-        if wrapping_paren:
-            yield ")", paren
+        yield ")", paren
 
 
 class GoConstant(GoExpression):
@@ -2788,10 +2730,16 @@ class GoConstant(GoExpression):
                     yield o, self
                     return
 
-        if isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
-            # print NULL instead
-            yield "NULL", self
-
+        if isinstance(self.value, int) and self.value == 0 and _go_is_nilable(self.type):
+            yield "nil", self
+        elif (
+            isinstance(self.value, int)
+            and isinstance(unpack_typeref(self._type), GoSimTypeInt)
+            and unpack_typeref(self._type).go_name in ("byte", "uint8", "rune")
+            and 0x20 <= self.value < 0x7F
+            and self.fmt_char
+        ):
+            yield "'" + chr(self.value).replace("\\", "\\\\").replace("'", "\\'") + "'", self
         elif isinstance(self._type, SimTypePointer) and isinstance(self.value, int):
             # Print pointers in hex
             yield hex(self.value), self
@@ -2880,12 +2828,20 @@ class GoITE(GoExpression):
             yield "...", self
             return
         paren = GoClosingObject("(")
-        yield "(", paren
+        brace = GoClosingObject("{")
+        yield "func() ", self
+        yield (go_type_str(self.type) if self.type is not None else "any"), self.type
+        yield " ", None
+        yield "{", brace
+        yield " if ", self
         yield from self.cond.c_repr_chunks()
-        yield " ? ", self
+        yield " { return ", self
         yield from self.iftrue.c_repr_chunks()
-        yield " : ", self
+        yield " }; return ", self
         yield from self.iffalse.c_repr_chunks()
+        yield " ", None
+        yield "}", brace
+        yield "(", paren
         yield ")", paren
 
 
