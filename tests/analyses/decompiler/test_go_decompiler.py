@@ -84,7 +84,7 @@ class TestBasicsGo122(GoDecompilationTarget):
     def test_function_header_is_go(self):
         header = self.header(self.texts["main.fib"])
         assert header.startswith("func main.fib(")
-        assert header.endswith((") int64 {", ") uint64 {")), header
+        assert header.endswith(") int {"), header
         assert "long" not in header
         assert "void" not in self.texts["main.main"]
 

@@ -54,6 +54,7 @@ from angr.calling_conventions import (
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
+from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -2710,6 +2711,7 @@ class Clinic(Analysis, Serializable):
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
+            type_translator=GoTypeTranslator(self.project.arch) if self.flavor == "go" else None,
             variable_map=self.variable_map,
         )
         # get ground-truth types

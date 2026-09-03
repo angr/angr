@@ -36,6 +36,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
+from angr.go.sim_type import GoSimType, GoSimTypeInterface, GoSimTypeSlice, GoSimTypeString, GoSimTypeTuple
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import (
@@ -266,6 +267,11 @@ def _iter_struct_union_member_types(ty):
             yield member
 
 
+def _is_go_builtin_struct(ty) -> bool:
+    """string, slices, interfaces and result tuples are struct-shaped but never declared."""
+    return isinstance(ty, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface, GoSimTypeTuple))
+
+
 def _is_anonymous_struct_or_union(ty) -> bool:
     """
     Returns True if ``ty`` is an anonymous struct or union.
@@ -285,6 +291,8 @@ def go_type_str(ty: SimType | None, memo: set[int] | None = None) -> str:
     ty = unpack_typeref(ty)
     if ty is None:
         return "<missing-type>"
+    if isinstance(ty, GoSimType):
+        return ty.go_repr()
     if isinstance(ty, SimTypeBottom):
         return "any"
     if isinstance(ty, SimTypePointer):
@@ -838,11 +846,12 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
 
             emitted_struct_names: set[str] = set()
             for ty in sorted(local_types, key=_local_type_sort_key):
-                # drop unreferenced structs, anonymous ones and opaque (field-less) ones
+                # drop unreferenced structs, anonymous ones, opaque (field-less) ones and Go builtins
                 if (
                     not isinstance(ty, SimStruct)
                     or _is_anonymous_struct_or_union(ty)
                     or not ty.fields
+                    or _is_go_builtin_struct(ty)
                     or ty.name not in referenced_struct_names
                 ):
                     continue
@@ -899,7 +908,7 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
 
             # Emit in reverse order: nested structs first
             for ty in reversed(extern_types):
-                if ty.name in defined_struct_names or not ty.fields:
+                if ty.name in defined_struct_names or not ty.fields or _is_go_builtin_struct(ty):
                     continue
                 defined_struct_names.add(ty.name)
                 yield from type_to_go_repr_chunks(
