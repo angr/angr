@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 use clarirs_vsa::StridedInterval;
 use clarirs_vsa::reduce::Reduce;
 use clarirs_vsa::strided_interval::ComparisonResult;

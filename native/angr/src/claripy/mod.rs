@@ -219,8 +219,6 @@ pub fn claripy(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         // String
         ast::string::StringS,
         ast::string::StringV,
-        ast::string::StringS,
-        ast::string::StringV,
         ast::string::StrLen,
         ast::string::StrConcat,
         ast::string::StrSubstr,

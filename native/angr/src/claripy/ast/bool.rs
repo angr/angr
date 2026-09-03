@@ -325,20 +325,6 @@ pub fn Eq_<'py>(
     )
 }
 
-#[pyfunction]
-pub fn Neq<'py>(
-    py: Python<'py>,
-    a: Bound<Bool>,
-    b: Bound<Bool>,
-) -> Result<Bound<'py, Bool>, ClaripyError> {
-    Bool::new(
-        py,
-        &GLOBAL_CONTEXT
-            .neq(&a.get().inner, &b.get().inner)?
-            .simplify()?,
-    )
-}
-
 #[pyfunction(name = "true")]
 pub fn true_op(py: Python<'_>) -> Result<Bound<'_, Bool>, ClaripyError> {
     Bool::new(py, &GLOBAL_CONTEXT.true_()?)

@@ -1101,7 +1101,6 @@ pub fn BVS(
     BV::new_with_name(py, &GLOBAL_CONTEXT.bvs(&name, size)?, Some(name))
 }
 
-#[allow(non_snake_case)]
 #[pyfunction(signature = (value, size = None))]
 pub fn BVV<'py>(
     py: Python<'py>,

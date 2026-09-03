@@ -130,7 +130,6 @@ pub fn or<'py>(
 }
 
 #[pyfunction(signature = (a, b, *rest))]
-#[allow(non_snake_case)]
 pub fn xor<'py>(
     py: Python<'py>,
     a: Bound<'py, PyAny>,
