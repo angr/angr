@@ -2753,6 +2753,15 @@ class GoConstant(GoExpression):
             base_str = base_str.replace('"', '\\"')
         return f'{prefix}"{base_str}"'
 
+    def _is_rune_literal(self) -> bool:
+        """byte/rune constants default to rune literals when printable."""
+        ty = unpack_typeref(self._type)
+        if not (isinstance(self.value, int) and isinstance(ty, GoSimTypeInt)):
+            return False
+        if not ((ty.size == 8 and not ty.signed) or ty.go_name == "rune"):
+            return False
+        return 0x20 <= self.value < 0x7F and self.fmt.get("char", True)
+
     def c_repr_chunks(self, indent=0, asexpr=False):
         def _default_output(v) -> str | None:
             if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String and v.content is not None:
@@ -2780,6 +2789,10 @@ class GoConstant(GoExpression):
         if isinstance(self._type, SimTypeBitfield) and isinstance(self.value, int):
             rendered = self._type.render(self.value)
             yield rendered, self
+            return
+
+        if self._is_rune_literal():
+            yield "'" + chr(self.value).replace("\\", "\\\\").replace("'", "\\'") + "'", self
             return
 
         if self.reference_values is not None:
@@ -2832,14 +2845,6 @@ class GoConstant(GoExpression):
 
         if isinstance(self.value, int) and self.value == 0 and _go_is_nilable(self.type):
             yield "nil", self
-        elif (
-            isinstance(self.value, int)
-            and isinstance(unpack_typeref(self._type), GoSimTypeInt)
-            and unpack_typeref(self._type).go_name in ("byte", "uint8", "rune")
-            and 0x20 <= self.value < 0x7F
-            and self.fmt_char
-        ):
-            yield "'" + chr(self.value).replace("\\", "\\\\").replace("'", "\\'") + "'", self
         elif isinstance(self._type, SimTypePointer) and isinstance(self.value, int):
             # Print pointers in hex
             yield hex(self.value), self
