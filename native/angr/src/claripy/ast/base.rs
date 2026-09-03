@@ -45,10 +45,6 @@ impl Base {
         })
     }
 
-    pub fn to_ast(self_: Bound<'_, Base>) -> Result<AstRef<'static>, ClaripyError> {
-        Ok(self_.get().inner.clone())
-    }
-
     /// A clone of the wrapped [`AstRef`].
     pub fn ast(&self) -> AstRef<'static> {
         self.inner.clone()
@@ -178,7 +174,7 @@ impl Base {
         for var in sorted_vars {
             let key = var.hash();
             let canonical_ast = match dict.get_item(key)? {
-                Some(existing) => Base::to_ast(existing.cast_into::<Base>()?)?,
+                Some(existing) => existing.cast_into::<Base>()?.get().ast(),
                 None => {
                     let idx = if counter_is_iter {
                         counter
@@ -222,7 +218,7 @@ impl Base {
     }
 
     pub fn identical(&self, other: Bound<'_, Base>) -> Result<bool, ClaripyError> {
-        let other_dyn = Base::to_ast(other)?;
+        let other_dyn = other.get().ast();
         Ok(structurally_match(&self.inner, &other_dyn)?)
     }
 
@@ -250,8 +246,8 @@ impl Base {
         from: Bound<'py, Base>,
         to: Bound<'py, Base>,
     ) -> Result<Bound<'py, Base>, ClaripyError> {
-        let from_ast = Base::to_ast(from)?;
-        let to_ast = Base::to_ast(to)?;
+        let from_ast = from.get().ast();
+        let to_ast = to.get().ast();
         // `replace` builds a new AST, so simplify the result before wrapping it.
         Base::from_ast(py, self.inner.replace(&from_ast, &to_ast)?.simplify()?)
     }
