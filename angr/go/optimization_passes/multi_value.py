@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from angr.rust.optimization_passes.combo_register_rewriter import ComboRegisterRewriter
-from angr.rust.optimization_passes.ret_expr_rewriter import RetExprRewriter
+from angr.analyses.decompiler.optimization_passes.combo_register_rewriter import ComboRegisterRewriter
+from angr.analyses.decompiler.optimization_passes.ret_expr_rewriter import RetExprRewriter
 
 
 class GoRetExprRewriter(RetExprRewriter):

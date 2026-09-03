@@ -5,11 +5,11 @@ import logging
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, Const
 from angr.ailment.statement import Assignment, Jump, Label, SideEffectStatement, Store
+from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.go.utils.graph import conditional_pred, leads_to, skip_jumps
 from angr.go.utils.names import call_target_name
-from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
-from angr.rust.utils.ail import CallFinder, get_terminal_call
+from angr.utils.ail import CallFinder, get_terminal_call
 from angr.utils.go_runtime import GO_CHECK_PANIC_NAMES, normalize_go_func_name
 
 l = logging.getLogger(__name__)
