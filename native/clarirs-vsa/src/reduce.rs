@@ -2,7 +2,7 @@ mod bool;
 mod bv;
 
 use crate::strided_interval::{ComparisonResult, StridedInterval};
-use clarirs_core::algorithms::walk_post_order;
+use clarirs_core::algorithms::walk;
 use clarirs_core::cache::GenericCache;
 use clarirs_core::prelude::*;
 
@@ -49,8 +49,9 @@ pub trait Reduce<'c>: Sized {
 impl<'c> Reduce<'c> for AstRef<'c> {
     fn reduce(&self) -> Result<ReduceResult, ClarirsError> {
         let cache = GenericCache::default();
-        walk_post_order(
+        walk(
             self.clone(),
+            |_| Ok(None),
             |node, children| match node.ast_type() {
                 AstType::BitVec(_) => bv::reduce_bv(&node, children).map(ReduceResult::BitVec),
                 AstType::Bool => bool::reduce_bool(&node, children).map(ReduceResult::Bool),

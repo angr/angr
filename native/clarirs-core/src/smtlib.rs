@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use crate::{algorithms::walk_post_order, prelude::*};
+use crate::{algorithms::walk, prelude::*};
 
 /// Converts an FPRM rounding mode to its SMT-LIB 2.6 identifier.
 fn fprm_to_smtlib(fprm: &FPRM) -> &'static str {
@@ -234,8 +234,9 @@ fn to_smtlib_limited(ast: &AstRef<'_>, remaining_depth: usize) -> String {
 impl<'c> AstNode<'c> {
     /// Converts the AST to an SMT-LIB 2.6 string representation.
     pub fn to_smtlib(self: &Arc<Self>) -> String {
-        walk_post_order(
+        walk(
             self.clone(),
+            |_| Ok(None),
             |node, children| Ok(to_smtlib_op(&node, children)),
             &(),
         )

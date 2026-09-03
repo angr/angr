@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-use clarirs_core::{algorithms::walk_post_order, prelude::*};
+use clarirs_core::{algorithms::walk, prelude::*};
 use regex::Regex;
 
 use crate::{Z3_AST_CACHE, Z3_CONTEXT, check_z3_error, rc::RcAst, require};
@@ -121,8 +121,9 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
         // polymorphic ops (Not/And/Or/Xor) pick the boolean or bitvector Z3
         // constructor from the node's type.
         Z3_AST_CACHE.with(|cache| {
-            walk_post_order(
+            walk(
                 self.clone(),
+                |_| Ok(None),
                 |ast, children| {
                     Z3_CONTEXT.with(|&z3_ctx| unsafe {
                         Ok(match ast.op() {
