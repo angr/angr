@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr.errors import SimHeapError, SimMergeError, SimSolverError
 from angr.state_plugins.plugin import SimStatePlugin
 

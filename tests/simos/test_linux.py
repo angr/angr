@@ -9,10 +9,10 @@ import unittest
 from typing import cast
 
 import archinfo
-import claripy
 from cle import MetaELF
 
 import angr
+from angr import claripy
 from angr.errors import SimMemoryError
 from angr.simos import SimLinux
 from tests.common import bin_location

@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-import claripy
 import networkx
 import pyvex
 
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.code_location import CodeLocation
 from angr.errors import AngrDDGError, SimSolverModeError, SimUnsatError

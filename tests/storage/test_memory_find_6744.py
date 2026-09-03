@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import archinfo
-import claripy
 
 import angr
+from angr import claripy
 from tests.common import minimal_project
 
 

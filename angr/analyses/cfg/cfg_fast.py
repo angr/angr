@@ -13,7 +13,6 @@ from enum import Enum, unique
 from typing import TYPE_CHECKING, Any
 
 import capstone
-import claripy
 import cle
 import networkx
 import pyvex
@@ -24,6 +23,7 @@ from cle.address_translator import AT
 from sortedcontainers import SortedDict
 
 import angr
+from angr import claripy
 from angr import sim_options as o
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis

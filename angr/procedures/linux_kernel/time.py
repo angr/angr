@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import time as py_time
 
-import claripy
-
 import angr
+from angr import claripy
 
 
 class time(angr.SimProcedure):

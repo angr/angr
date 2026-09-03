@@ -1,9 +1,8 @@
 # pylint: disable=missing-class-docstring
 from __future__ import annotations
 
-import claripy
-
 import angr
+from angr import claripy
 
 
 class ExAllocatePool(angr.SimProcedure):

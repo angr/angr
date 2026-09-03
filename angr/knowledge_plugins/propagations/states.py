@@ -7,9 +7,8 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Self
 
 import archinfo
-import claripy
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.code_location import CodeLocation
 from angr.engines.light.engine import SimEngineLight
 from angr.errors import SimMemoryMissingError

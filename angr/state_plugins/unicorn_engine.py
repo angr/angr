@@ -12,10 +12,10 @@ import time
 
 import archinfo
 import cffi  # lmao
-import claripy
 import pyvex
 
 import angr
+from angr import claripy
 from angr import sim_options as options
 from angr.engines.vex.claripy import ccall
 from angr.engines.vex.claripy.irop import operations as irop_ops

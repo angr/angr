@@ -9,6 +9,7 @@ requires = [
     "pyvex==9.3.5.dev0",
     "grpcio-tools~=1.80.0",
     "protobuf>=6.31.1,<7",
+    "z3-solver==5.0.0.0",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -33,7 +34,6 @@ dependencies = [
     "cachetools",
     "capstone==5.0.9",
     "cffi>=1.14.0",
-    "claripy==9.3.5.dev0",
     "cle==9.3.5.dev0",
     "lmdb==2.1.1",
     "msgspec; implementation_name == 'cpython'",
@@ -50,6 +50,7 @@ dependencies = [
     "sortedcontainers",
     "sympy",
     "typing-extensions",
+    "z3-solver==5.0.0.0",
     "colorama;platform_system=='Windows'",
 ]
 dynamic = ["version"]
@@ -102,7 +103,7 @@ exclude = ["tests*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-angr = ["py.typed", "unicornlib.*", "rustylib.*"]
+angr = ["py.typed", "unicornlib.*", "rustylib.*", "**/*.pyi"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }
@@ -123,7 +124,6 @@ angr-data = { git = "https://github.com/angr/angr-data.git", branch = "master" }
 archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
 pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
-claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
 pysoot = { git = "https://github.com/angr/pysoot.git", branch = "master" }
 
 [tool.uv.extra-build-dependencies]
@@ -164,6 +164,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "angr/__init__.py" = [
     "E402", # Package root: bootstrap code is interleaved with imports and the import order is load-bearing
+]
+"angr/claripy/**" = [
+    "F403", # Stub-only alias package: wholesale re-exports of the canonical angr.rustylib.claripy stubs
 ]
 "angr/engines/soot/expressions/*" = [
     "N999",

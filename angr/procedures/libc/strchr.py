@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
 import angr
+from angr import claripy
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 

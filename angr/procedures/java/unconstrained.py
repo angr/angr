@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import claripy
-
+from angr import claripy
 from angr import sim_options as options
 from angr.engines.soot.expressions import SimSootExpr_NewArray
 from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef

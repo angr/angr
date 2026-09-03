@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import claripy
 import pyvex
 
+from angr import claripy
 from angr import sim_options as o
 from angr.engines.vex.light.slicing import VEXSlicingMixin
 from angr.errors import SimMissingTempError
