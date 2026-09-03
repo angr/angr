@@ -35,7 +35,7 @@ class TestRegionIdentifierStartNode(unittest.TestCase):
         return ri
 
     def test_entry_wins_the_tie_break_against_another_source_node(self):
-        m = Manager(arch=None)
+        m = Manager()
         entry, other, body = self._block(m, 0x100), self._block(m, 0x200), self._block(m, 0x300)
         graph = networkx.DiGraph()
         # `other` is inserted first, so iteration reaches it before the entry
@@ -46,7 +46,7 @@ class TestRegionIdentifierStartNode(unittest.TestCase):
         assert self._ri((0x100, None))._get_start_node(graph) is entry
 
     def test_a_sole_source_node_is_still_the_start_node(self):
-        m = Manager(arch=None)
+        m = Manager()
         entry, body = self._block(m, 0x100), self._block(m, 0x200)
         graph = networkx.DiGraph()
         graph.add_edge(entry, body)
@@ -54,7 +54,7 @@ class TestRegionIdentifierStartNode(unittest.TestCase):
         assert self._ri((0x100, None))._get_start_node(graph) is entry
 
     def test_an_entry_with_predecessors_does_not_displace_a_source_node(self):
-        m = Manager(arch=None)
+        m = Manager()
         entry, head = self._block(m, 0x100), self._block(m, 0x200)
         graph = networkx.DiGraph()
         # the entry sits inside a loop, so it is not a source: the real source still wins
@@ -68,7 +68,7 @@ class TestRegionIdentifierStartNode(unittest.TestCase):
         assert self._ri((0x100, None))._get_start_node(graph) is source
 
     def test_entry_is_the_fallback_when_the_graph_has_no_source_node(self):
-        m = Manager(arch=None)
+        m = Manager()
         entry, other = self._block(m, 0x100), self._block(m, 0x200)
         graph = networkx.DiGraph()
         graph.add_edge(entry, other)
@@ -77,7 +77,7 @@ class TestRegionIdentifierStartNode(unittest.TestCase):
         assert self._ri((0x100, None))._get_start_node(graph) is entry
 
     def test_no_source_node_and_no_entry_still_raises(self):
-        m = Manager(arch=None)
+        m = Manager()
         a, b = self._block(m, 0x100), self._block(m, 0x200)
         graph = networkx.DiGraph()
         graph.add_edge(a, b)
