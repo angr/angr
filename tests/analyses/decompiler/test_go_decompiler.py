@@ -11,7 +11,7 @@ import unittest
 import cle
 
 from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator
-from tests.common import bin_location, load_project_with_scoped_cfg
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -64,6 +64,7 @@ class GoDecompilationTarget(unittest.TestCase):
         assert dec.codegen is not None, f"no codegen for {name}"
         assert isinstance(dec.codegen, GoStructuredCodeGenerator)
         assert dec.codegen.text
+        print_decompilation_result(dec)
         return dec.codegen.text
 
     @staticmethod
