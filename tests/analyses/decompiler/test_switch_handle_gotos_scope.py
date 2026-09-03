@@ -33,7 +33,7 @@ def _make_structurer() -> StructurerBase:
     arch = archinfo.ArchAMD64()
     structurer = object.__new__(StructurerBase)
     structurer.project = cast(Any, SimpleNamespace(arch=arch))
-    structurer.ail_manager = ailment.Manager(arch=arch)
+    structurer.ail_manager = ailment.Manager()
     return structurer
 
 
