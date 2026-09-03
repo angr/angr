@@ -66,7 +66,8 @@ def load_signature_db(go_version: str | None) -> GoSignatureSet | None:
 class GoSignatures(KnowledgeBasePlugin):
     """
     Go function signatures and named types known for this binary, merged from every source (external tools, DWARF,
-    the stdlib database, in that priority) and turned into Go SimTypes on demand.
+    the binary's runtime type descriptors, the stdlib database, in that priority) and turned into Go SimTypes on
+    demand.
     """
 
     def __init__(self, kb):
@@ -92,7 +93,8 @@ class GoSignatures(KnowledgeBasePlugin):
 
     def load_sources(self, go_version: str | None = None) -> bool:
         """
-        Load the binary's own DWARF signatures (when present) and the stdlib database for its Go version. Runs once.
+        Load the binary's own DWARF signatures (when present), its runtime type descriptors and the stdlib database
+        for its Go version. Runs once.
         """
         if self._stdlib_loaded:
             return bool(self._sources)
@@ -108,6 +110,12 @@ class GoSignatures(KnowledgeBasePlugin):
                 dwarf = None
             if dwarf is not None and (dwarf.functions or dwarf.types):
                 self._sources.append(dwarf)
+            # the descriptors are the truth about this binary's layouts; DWARF stays first for its parameter names
+            descriptors = self._kb.go_types.types
+            if descriptors.types:
+                self._sources.append(descriptors)
+                if self.go_version is None:
+                    self.go_version = descriptors.go_version
 
         db = load_signature_db(self.go_version)
         if db is None:
@@ -140,11 +148,17 @@ class GoSignatures(KnowledgeBasePlugin):
         return None
 
     def named_type(self, name: str) -> GoNamedType | None:
+        first = None
         for src in self._sources:
             ty = src.types.get(name)
-            if ty is not None:
+            if ty is None:
+                continue
+            # DWARF describes interfaces without their methods; prefer a source that has them
+            if ty.kind != "interface" or ty.methods:
                 return ty
-        return None
+            if first is None:
+                first = ty
+        return first
 
     @property
     def parser(self) -> GoTypeParser:
