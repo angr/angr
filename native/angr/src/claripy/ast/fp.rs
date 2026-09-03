@@ -656,7 +656,6 @@ pub fn FPS<'py>(
 ) -> Result<Bound<'py, FP>, ClaripyError> {
     let mut name: String = name.into();
     if !explicit_name {
-    } else {
         let counter = FPS_COUNTER.fetch_add(1, Ordering::Relaxed);
         name = format!("{name}_{counter}");
     }
