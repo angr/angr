@@ -123,11 +123,12 @@ impl<'c> AstNode<'c> {
                 .iter()
                 .any(|a| !a.eliminatable() && !a.relocatable());
 
+        let hash = structural_hash(self.ast_type, &self.op, &combined);
         // Fast path: skip variable collection/allocation in new
-        let new_node = Self {
+        self.context().intern_ast(hash, || Self {
             op: self.op.clone(),
             ctx: self.ctx,
-            hash: structural_hash(self.ast_type, &self.op, &combined),
+            hash,
             ast_type: self.ast_type,
             variables: self.variables.clone(),
             depth: self.depth,
@@ -135,8 +136,7 @@ impl<'c> AstNode<'c> {
             symbolic: self.symbolic,
             simplifiable,
             simplified: AtomicU64::new(0),
-        };
-        self.context().intern_ast(new_node)
+        })
     }
 
     pub fn hash(&self) -> u64 {
@@ -245,8 +245,8 @@ impl Drop for AstNode<'_> {
     fn drop(&mut self) {
         // Evict this node's (now expired) interning entry so the cache doesn't
         // accumulate dead hashes and pinned allocations. `remove_if_expired`
-        // verifies liveness, so the throwaway duplicate that `intern_ast`
-        // drops on a cache hit leaves the live entry untouched. This body runs
+        // verifies liveness, so a throwaway duplicate built by a racing
+        // thread leaves the live entry untouched. This body runs
         // before `op`'s child references drop, so the cache lock is never held
         // across the recursive child drops.
         self.ctx.ast_cache.remove_if_expired(self.hash);

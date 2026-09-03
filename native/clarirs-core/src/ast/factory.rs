@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use num_bigint::BigUint;
 
 use crate::ast::op::AstOp;
+use crate::context::structural_hash;
 use crate::error::ClarirsError;
 use crate::prelude::*;
 
@@ -10,8 +11,12 @@ pub trait AstFactory<'c>: Sized {
     // Required methods
     fn intern_string(&self, s: impl AsRef<str>) -> InternedString;
 
-    /// Intern a fully-constructed node into its canonical shared handle.
-    fn intern_ast(&'c self, node: AstNode<'c>) -> Result<AstRef<'c>, ClarirsError>;
+    /// Return the node interned under `hash`, calling `build` only on a cache miss.
+    fn intern_ast(
+        &'c self,
+        hash: u64,
+        build: impl FnOnce() -> AstNode<'c>,
+    ) -> Result<AstRef<'c>, ClarirsError>;
 
     /// The context that owns the nodes this factory builds.
     fn context(&'c self) -> &'c Context<'c>;
@@ -27,7 +32,10 @@ pub trait AstFactory<'c>: Sized {
         annotations: BTreeSet<Annotation>,
     ) -> Result<AstRef<'c>, ClarirsError> {
         op.validate()?;
-        self.intern_ast(AstNode::new(self.context(), op, annotations))
+        let ctx = self.context();
+        self.intern_ast(structural_hash(op.infer_type(), &op, &annotations), || {
+            AstNode::new(ctx, op, annotations)
+        })
     }
 
     /// Construct a node with `annotations` plus the relocatable annotations of

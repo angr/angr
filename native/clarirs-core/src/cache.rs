@@ -69,8 +69,8 @@ impl AstCache<'_> {
     /// `ArcInner` allocations) behind.
     ///
     /// The liveness check makes this safe against two races:
-    /// - `intern_ast` constructs a throwaway `AstNode` even on a cache hit;
-    ///   its drop must not evict the live entry it duplicated.
+    /// - Two threads can miss the cache and build the same node; the loser's
+    ///   throwaway drop must not evict the live entry it duplicated.
     /// - Another thread can re-intern the same hash between our strong count
     ///   reaching zero and this call taking the lock.
     ///
@@ -311,12 +311,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ast_cache_hit_duplicate_drop_keeps_entry() -> Result<(), ClarirsError> {
+    fn test_ast_cache_hit_reuses_entry() -> Result<(), ClarirsError> {
         let ctx = crate::context::Context::new();
         let a = ctx.bvv(BitVec::from((7, 64)))?;
         let n = ctx.ast_cache.len();
-        // Cache hit: intern_ast constructs and drops a throwaway duplicate
-        // node; that drop must not evict the live entry.
+        // Cache hit: the interned node is returned without building a
+        // duplicate, so the entry count is unchanged.
         let b = ctx.bvv(BitVec::from((7, 64)))?;
         assert_eq!(ctx.ast_cache.len(), n);
         assert!(Arc::ptr_eq(&a, &b));
