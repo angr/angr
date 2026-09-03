@@ -727,11 +727,31 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
 
         return unified_to_var_and_types
 
+    def _referenced_variables(self) -> set:
+        referenced = set()
+
+        def visit(node):
+            if isinstance(node, GoVariable):
+                referenced.add(node.variable)
+                if node.unified_variable is not None:
+                    referenced.add(node.unified_variable)
+            for child in _go_expr_children(node):
+                visit(child)
+
+        visit(self.statements)
+        return referenced
+
     def variable_list_repr_chunks(self, indent=0):
         indent_str = self.indent_str(indent)
+        referenced = self._referenced_variables()
 
         for variable in self.sort_local_vars(self.unified_local_vars):
             cvar_and_vartypes = self.unified_local_vars[variable]
+            if variable not in referenced and not any(
+                cvar.variable in referenced or cvar.unified_variable in referenced for cvar, _ in cvar_and_vartypes
+            ):
+                # dropped by a rewrite (e.g. a range loop's increment temporary)
+                continue
 
             yield indent_str, None
 
@@ -1120,6 +1140,13 @@ def _same_variable(a, b) -> bool:
     return a.variable is not None and a.variable == b.variable
 
 
+def _go_is_seq_field(expr, name: str) -> bool:
+    """``expr`` is the ``name`` header field of a slice or string value."""
+    if not (isinstance(expr, GoVariableField) and expr.field.field == name):
+        return False
+    return isinstance(unpack_typeref(expr.variable.type), (GoSimTypeSlice, GoSimTypeString))
+
+
 def _go_is_nilable(ty) -> bool:
     ty = unpack_typeref(ty)
     return isinstance(
@@ -1338,6 +1365,34 @@ class GoForLoop(GoStatement):
             if self.iterator is not None:
                 yield " ", None
                 yield from self.iterator.c_repr_chunks(indent=0, asexpr=True)
+        yield from _go_block_chunks(self.body, indent_str, indent, self.codegen)
+
+
+class GoRangeLoop(GoStatement):
+    """``for i, v = range coll { ... }``; ``index``/``value`` may be None (rendered as ``_``)."""
+
+    __slots__ = ("body", "collection", "index", "value")
+
+    def __init__(self, index, value, collection, body, **kwargs):
+        super().__init__(**kwargs)
+        self.index = index
+        self.value = value
+        self.collection = collection
+        self.body = body
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+        yield indent_str, None
+        yield "for ", self
+        if self.index is None:
+            yield "_", None
+        else:
+            yield from GoExpression._try_c_repr_chunks(self.index)
+        if self.value is not None:
+            yield ", ", None
+            yield from GoExpression._try_c_repr_chunks(self.value)
+        yield " = range ", self
+        yield from GoExpression._try_c_repr_chunks(self.collection)
         yield from _go_block_chunks(self.body, indent_str, indent, self.codegen)
 
 
@@ -2099,10 +2154,14 @@ class GoIndexedVariable(GoExpression):
             return
 
         bracket = GoClosingObject("[")
-        if not isinstance(self.variable, (GoVariable, GoVariableField)):
+        base = self.variable
+        if _go_is_seq_field(base, "ptr"):
+            # indexing through a slice/string data pointer is indexing the slice/string
+            base = base.variable
+        if not isinstance(base, (GoVariable, GoVariableField)):
             yield "(", None
-        yield from self.variable.c_repr_chunks()
-        if not isinstance(self.variable, (GoVariable, GoVariableField)):
+        yield from base.c_repr_chunks()
+        if not isinstance(base, (GoVariable, GoVariableField)):
             yield ")", None
         yield "[", bracket
         yield from GoExpression._try_c_repr_chunks(self.index)
@@ -2127,6 +2186,13 @@ class GoVariableField(GoExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
             yield "...", self
+            return
+        if _go_is_seq_field(self, "len") or _go_is_seq_field(self, "cap"):
+            paren = GoClosingObject("(")
+            yield self.field.field, self
+            yield "(", paren
+            yield from self.variable.c_repr_chunks()
+            yield ")", paren
             return
         yield from self.variable.c_repr_chunks()
         yield ".", self
@@ -3292,6 +3358,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
+        self.cfunc = RangeLoopRecovery(self).handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -4847,6 +4914,176 @@ class GoStructuredCodeWalker:
         obj.iftrue = self.handle(obj.iftrue)
         obj.iffalse = self.handle(obj.iffalse)
         return obj
+
+
+def _go_expr_children(node):
+    names = [slot for cls in type(node).__mro__ for slot in cls.__dict__.get("__slots__", ())]
+    names += [name for name in getattr(node, "__dict__", {}) if name != "codegen"]
+    for slot in names:
+        child = getattr(node, slot, None)
+        if isinstance(child, GoConstruct):
+            yield child
+        elif isinstance(child, (list, tuple)):
+            for item in child:
+                if isinstance(item, GoConstruct):
+                    yield item
+                elif isinstance(item, tuple):
+                    yield from (x for x in item if isinstance(x, GoConstruct))
+        elif isinstance(child, dict):
+            yield from (x for x in child.values() if isinstance(x, GoConstruct))
+
+
+def _go_mentions_variable(node, var: GoVariable, skip=None) -> bool:
+    """Whether ``var`` is referenced anywhere under ``node`` (excluding the ``skip`` node)."""
+    if node is None or node is skip:
+        return False
+    if isinstance(node, GoVariable) and _same_variable(node, var):
+        return True
+    return any(_go_mentions_variable(child, var, skip) for child in _go_expr_children(node))
+
+
+def _go_length_of(expr):
+    """The collection whose length ``expr`` denotes (``s.len`` or ``len(s)``), or None."""
+    if isinstance(expr, GoVariableField) and expr.field.field == "len":
+        base = expr.variable
+        if isinstance(unpack_typeref(base.type), (GoSimTypeSlice, GoSimTypeString)):
+            return base
+    if isinstance(expr, GoFunctionCall) and expr.callee_target == "len" and len(expr.args) == 1:
+        return expr.args[0]
+    return None
+
+
+def _go_leaf(stmts: list, last: bool = False):
+    """(container list, index) of the first (or last) statement, descending into nested GoStatements blocks."""
+    container = stmts
+    while container:
+        idx = len(container) - 1 if last else 0
+        stmt = container[idx]
+        if isinstance(stmt, GoStatements):
+            container = stmt.statements
+            continue
+        return container, idx
+    return None, None
+
+
+def _go_is_var(expr, var) -> bool:
+    return isinstance(expr, GoVariable) and isinstance(var, GoVariable) and _same_variable(expr, var)
+
+
+def _go_is_plus_one(stmt, dst, src) -> bool:
+    """``dst = src + 1``"""
+    return (
+        isinstance(stmt, GoAssignment)
+        and _go_is_var(stmt.lhs, dst)
+        and isinstance(stmt.rhs, GoBinaryOp)
+        and stmt.rhs.op == "Add"
+        and _go_is_var(stmt.rhs.lhs, src)
+        and isinstance(stmt.rhs.rhs, GoConstant)
+        and stmt.rhs.rhs.value == 1
+    )
+
+
+def _go_is_increment(stmt, var) -> bool:
+    return _go_is_plus_one(stmt, var, var)
+
+
+class RangeLoopRecovery(GoStructuredCodeWalker):
+    """
+    Turn ``i = 0; for init; len(s) > i; i = next { next = i + 1; ... }`` into ``for i = range s``, hoisting a
+    foreign initializer out of the loop and binding ``x = s.ptr[i]`` as the range value when the body starts with it.
+    """
+
+    def __init__(self, codegen):
+        self._codegen = codegen
+
+    def handle_GoStatements(self, obj):
+        stmts = [self.handle(stmt) for stmt in obj.statements]
+        out = []
+        for stmt in stmts:
+            if isinstance(stmt, GoForLoop):
+                replaced = self._try_range(stmt, out)
+                if replaced is not None:
+                    out.extend(replaced)
+                    continue
+            out.append(stmt)
+        obj.statements = out
+        return obj
+
+    def _try_range(self, loop: GoForLoop, preceding: list):
+        if loop.condition is None or loop.iterator is None or not isinstance(loop.body, GoStatements):
+            return None
+        cond = loop.condition
+        if not isinstance(cond, GoBinaryOp):
+            return None
+        # len(s) > i  or  i < len(s)
+        if cond.op in ("CmpGT", "CmpGTs"):
+            coll, index = _go_length_of(cond.lhs), cond.rhs
+        elif cond.op in ("CmpLT", "CmpLTs"):
+            index, coll = cond.lhs, _go_length_of(cond.rhs)
+        else:
+            return None
+        if coll is None or not isinstance(index, GoVariable):
+            return None
+
+        body = list(loop.body.statements)
+        iterator = loop.iterator
+        if not isinstance(iterator, GoAssignment) or not _go_is_var(iterator.lhs, index):
+            return None
+        drop_first = False
+        first_container, first_idx = _go_leaf(body)
+        first = first_container[first_idx] if first_container is not None else None
+        if _go_is_increment(iterator, index):
+            pass
+        elif isinstance(iterator.rhs, GoVariable) and first is not None and _go_is_plus_one(first, iterator.rhs, index):
+            # next = i + 1 at the top of the body; the temporary must not be used anywhere else
+            nxt = iterator.rhs
+            if any(_go_mentions_variable(stmt, nxt, skip=first) for stmt in body):
+                return None
+            drop_first = True
+        else:
+            return None
+
+        # the index must start at zero: either the loop's own initializer or the statement right before the loop
+        hoisted = []
+        init = loop.initializer
+        if isinstance(init, GoAssignment) and _go_is_var(init.lhs, index):
+            if not (isinstance(init.rhs, GoConstant) and init.rhs.value == 0):
+                return None
+        else:
+            prev_container, prev_idx = _go_leaf(preceding, last=True)
+            prev = prev_container[prev_idx] if prev_container is not None else None
+            if not (
+                isinstance(prev, GoAssignment)
+                and _go_is_var(prev.lhs, index)
+                and isinstance(prev.rhs, GoConstant)
+                and prev.rhs.value == 0
+            ):
+                return None
+            prev_container.pop(prev_idx)
+            if init is not None:
+                hoisted.append(init)
+        if drop_first:
+            first_container.pop(first_idx)
+
+        # x = s.ptr[i] as the first statement binds the range value
+        value = None
+        first_container, first_idx = _go_leaf(body)
+        first = first_container[first_idx] if first_container is not None else None
+        if isinstance(first, GoAssignment) and isinstance(first.lhs, GoVariable):
+            rhs = first.rhs
+            if (
+                isinstance(rhs, GoIndexedVariable)
+                and _go_is_var(rhs.index, index)
+                and isinstance(rhs.variable, GoVariableField)
+                and rhs.variable.field.field == "ptr"
+                and isinstance(rhs.variable.variable, GoVariable)
+                and _same_variable(rhs.variable.variable, coll)
+            ):
+                value = first.lhs
+                first_container.pop(first_idx)
+
+        new_body = GoStatements(body, addr=loop.body.addr, codegen=self._codegen)
+        return [*hoisted, GoRangeLoop(index, value, coll, new_body, tags=loop.tags, codegen=self._codegen)]
 
 
 class MakeTypecastsImplicit(GoStructuredCodeWalker):
