@@ -192,12 +192,19 @@ class GoSignatures(KnowledgeBasePlugin):
     def type(self, type_str: str) -> SimType:
         return self.parser.parse(type_str)
 
+    @staticmethod
+    def _implicit_signature(name: str) -> GoFuncSignature | None:
+        """Entry points and package initializers never take or return anything."""
+        if name == "main.main" or re.search(r"\.init(?:\.\d+)?$", name):
+            return GoFuncSignature(name)
+        return None
+
     def prototype(self, name: str) -> GoSimTypeFunction | None:
         """The function type of ``name`` (receiver first), or None when the signature is unknown."""
         name = normalize_go_func_name(name)
         if name in self._prototypes:
             return self._prototypes[name]
-        sig = self.signature(name)
+        sig = self.signature(name) or self._implicit_signature(name)
         proto = self._build_prototype(sig) if sig is not None else None
         self._prototypes[name] = proto
         return proto
