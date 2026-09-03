@@ -281,7 +281,7 @@ class TestRustCodegenMalformedConstantReferences(unittest.TestCase):
 
     def test_const_whose_str_length_word_is_unmapped(self):
         proj = self.proj
-        m = Manager(arch=proj.arch)
+        m = Manager()
         addr = 0x405600
 
         # preconditions: the constant is in a readable section, its first word points into a read-only
