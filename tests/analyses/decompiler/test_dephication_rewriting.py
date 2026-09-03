@@ -37,8 +37,8 @@ class TestDephicationRewriting(unittest.TestCase):
 
     def test_remapped_assignment_dst_transfers_occurrence_binding(self):
         vm = VariableMap()
-        proj, engine = self._engine({11: 21, 12: 22}, vm)
-        m = Manager(arch=proj.arch)
+        _, engine = self._engine({11: 21, 12: 22}, vm)
+        m = Manager()
         src = VirtualVariable(7, 11, 64, VirtualVariableCategory.REGISTER)
         src_var = SimRegisterVariable(8, 8, ident="reg_src")
         dst_default = VirtualVariable(70, 21, 64, VirtualVariableCategory.REGISTER)
@@ -209,7 +209,7 @@ class TestDephicationRewriting(unittest.TestCase):
         func = proj.kb.functions.function(addr=proj.entry, create=True)
         assert func is not None
         vm = VariableMap()
-        manager = Manager(arch=proj.arch)
+        manager = Manager()
         manager.variable_map = vm
 
         source_for_phi = VirtualVariable(1, 100, 64, VirtualVariableCategory.REGISTER)
