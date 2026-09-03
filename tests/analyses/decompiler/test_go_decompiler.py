@@ -74,7 +74,16 @@ class GoDecompilationTarget(unittest.TestCase):
 
 class TestBasicsGo122(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "basics")
-    FUNCS = ("main.fib", "main.add", "main.main", "main.parse", "main.divmod", "runtime.acquirem")
+    FUNCS = (
+        "main.fib",
+        "main.add",
+        "main.main",
+        "main.parse",
+        "main.divmod",
+        "main.count",
+        "main.bump",
+        "runtime.acquirem",
+    )
 
     def test_go_flavor_is_selected(self):
         assert self.proj.is_go_binary
@@ -148,6 +157,15 @@ class TestBasicsGo122(GoDecompilationTarget):
         parse = self.texts["main.parse"]
         assert "!= nil {" in parse or "== nil {" in parse
         assert "else if " in parse
+
+    def test_range_loops(self):
+        for name, text in self.texts.items():
+            with self.subTest(func=name):
+                assert ".ptr[" not in text and ".len" not in text, text
+        assert re.search(r"for \w+ = range s \{", self.texts["main.count"]), self.texts["main.count"]
+        assert re.search(r"if s\[\w+\] == c \{", self.texts["main.count"])
+        assert re.search(r"for \w+ = range xs \{", self.texts["main.bump"])
+        assert "return xs\n" in self.texts["main.bump"]
 
     def test_g_register_is_named(self):
         text = self.texts["runtime.acquirem"]
