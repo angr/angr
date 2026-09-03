@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from elftools.common.exceptions import DWARFError, ELFError
 from elftools.elf.elffile import ELFFile
 
-from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoStructField
+from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoStructField, GoVariable
 
 if TYPE_CHECKING:
     from elftools.dwarf.die import DIE
@@ -228,6 +228,7 @@ class _GoDwarfReader:
         self.go_version: str | None = None
         self.functions: dict[str, GoFuncSignature] = {}
         self.types: dict[str, GoNamedType] = {}
+        self.variables: dict[str, GoVariable] = {}
 
     # ------------------------------------------------------------------ pass 1: functions
 
@@ -243,10 +244,37 @@ class _GoDwarfReader:
                 if m is not None:
                     self.go_version = m.group(0)
             self._collect_functions(cu, raw_funcs)
+            self._collect_variables(cu)
 
         for name, params in raw_funcs:
             self._add_function(name, params)
         self._drain_types()
+
+    def _collect_variables(self, cu) -> None:
+        """Package-level variables: top-level DW_TAG_variable DIEs with a static address."""
+        depth = 0
+        for die in cu.iter_DIEs():
+            tag = die.tag
+            if tag is None:
+                depth -= 1
+                continue
+            if depth == 1 and tag == "DW_TAG_variable":
+                attrs = die.attributes
+                name = _name(attrs)
+                loc = attrs.get("DW_AT_location")
+                if name and loc is not None and "DW_AT_type" in attrs and name not in self.variables:
+                    addr = self._static_address(loc.value)
+                    type_off = _ref_target(die, attrs["DW_AT_type"])
+                    if addr is not None and type_off is not None:
+                        self.variables[name] = GoVariable(name, addr + self._mem_delta, self.type_str(type_off))
+            if die.has_children:
+                depth += 1
+
+    def _static_address(self, loc) -> int | None:
+        """The address of a ``DW_OP_addr`` location expression, or None."""
+        if isinstance(loc, (bytes, list, tuple)) and len(loc) == 1 + self._ptr and loc[0] == 0x03:
+            return int.from_bytes(bytes(loc[1:]), "little" if self._endian == "<" else "big")
+        return None
 
     def _collect_functions(self, cu, out: list[tuple[str, list[_RawParam]]]) -> None:
         depth = 0
@@ -627,6 +655,7 @@ def read_go_dwarf_signatures(project: Project) -> GoSignatureSet:
     sigs.go_version = reader.go_version
     sigs.functions = reader.functions
     sigs.types = reader.types
+    sigs.variables = reader.variables
     return sigs
 
 
