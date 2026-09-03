@@ -6,12 +6,14 @@ import struct
 from unittest import TestCase
 
 from archinfo import ArchAArch64
+from cle import MetaELF
 
 import angr
 from angr.analyses import CFGFast, ReachingDefinitionsAnalysis
 from angr.knowledge_plugins import Function
-from angr.knowledge_plugins.key_definitions.atoms import Atom
+from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.knowledge_plugins.key_definitions.tag import InitialValueTag
 from tests.common import bin_location
 
 
@@ -233,3 +235,109 @@ class TestRDARegressions(TestCase):
         }, (
             f"Expected selector to contain the pointers to 'startAnimating' and 'stopAnimating' i.e. 0x100191A4C, 0x100191A3D, but got: {selector}"
         )
+
+    def test_ppc64_elfv1_function_state_takes_the_toc_from_the_loader(self):
+        """
+        ReachingDefinitionsAnalysis never passes rtoc_value, so on PowerPC64 the analysis used to raise
+        ValueError instead of running at all. r2 holds the TOC pointer; take it from the loaded object.
+        """
+        binary = os.path.join(bin_location, "tests", "ppc64", "fauxware")
+        func_addr = 0x10000698
+
+        proj = angr.Project(binary, auto_load_libs=False)
+        main_object = proj.loader.main_object
+        assert isinstance(main_object, MetaELF)
+        assert main_object.ppc64_initial_rtoc == 0x10018E80
+
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        entry_observation = ("node", func_addr, OP_BEFORE)
+        rda = proj.analyses[ReachingDefinitionsAnalysis].prep()(
+            cfg.functions[func_addr], observation_points=[entry_observation]
+        )
+
+        rtoc = rda.observed_results[entry_observation].get_values(Atom.reg("rtoc", arch=proj.arch))
+        assert rtoc is not None
+        rtoc_value = rtoc.one_value()
+        assert rtoc_value is not None
+        assert rtoc_value.concrete_value == 0x10018E80
+
+    def test_ppc64_elfv2_function_state_takes_the_toc_from_the_loader(self):
+        """
+        The little-endian ELFv2 ABI keeps the TOC in r2 as well, and cle guesses its value from .got.
+        """
+        binary = os.path.join(bin_location, "tests", "ppc64el", "fauxware")
+        func_addr = 0x400A84
+
+        proj = angr.Project(binary, auto_load_libs=False)
+        main_object = proj.loader.main_object
+        assert isinstance(main_object, MetaELF)
+        assert main_object.is_ppc64_abiv2
+        assert main_object.ppc64_initial_rtoc == 0x427F00
+
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        entry_observation = ("node", func_addr, OP_BEFORE)
+        rda = proj.analyses[ReachingDefinitionsAnalysis].prep()(
+            cfg.functions[func_addr], observation_points=[entry_observation]
+        )
+
+        rtoc = rda.observed_results[entry_observation].get_values(Atom.reg("rtoc", arch=proj.arch))
+        assert rtoc is not None
+        rtoc_value = rtoc.one_value()
+        assert rtoc_value is not None
+        assert rtoc_value.concrete_value == 0x427F00
+
+    def test_ppc64_object_without_a_toc_puts_nothing_in_the_toc_register(self):
+        """
+        An object cle found no TOC in gets an analysis that runs and leaves r2 alone, rather than a
+        made-up TOC or an exception.
+        """
+        binary = os.path.join(bin_location, "tests", "ppc64", "simple_object.o")
+        func_addr = 0x400000
+
+        proj = angr.Project(binary, auto_load_libs=False)
+        main_object = proj.loader.main_object
+        assert isinstance(main_object, MetaELF)
+        assert main_object.ppc64_initial_rtoc is None
+
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        entry_observation = ("node", func_addr, OP_BEFORE)
+        rda = proj.analyses[ReachingDefinitionsAnalysis].prep()(
+            cfg.functions[func_addr], observation_points=[entry_observation]
+        )
+
+        assert rda.observed_results[entry_observation].get_values(Atom.reg("rtoc", arch=proj.arch)) is None
+
+    def test_ppc64_function_outside_the_main_object_gets_no_toc(self):
+        """
+        Every object has its own TOC, and cle leaves an ELFv1 shared object's ppc64_initial_rtoc at
+        its link-time address, so the main object's value is the right answer for exactly one object.
+        A library function used to be seeded with it, which is a wrong concrete address that the
+        analysis then propagates through every TOC-relative load.
+        """
+        binary = os.path.join(bin_location, "tests", "ppc64el", "fauxware")
+        main_func_addr = 0x400A84
+
+        proj = angr.Project(binary, auto_load_libs=True)
+        main_object = proj.loader.main_object
+        malloc = proj.loader.find_symbol("malloc")
+        assert malloc is not None
+        library_func_addr = malloc.rebased_addr
+        assert proj.loader.find_object_containing(library_func_addr) is not main_object
+
+        rtoc_offset = proj.arch.registers["rtoc"][0]
+
+        def initial_toc_definitions(func_addr):
+            cfg = proj.analyses[CFGFast].prep()(
+                regions=[(func_addr, func_addr + 0x400)], function_starts=[func_addr], normalize=True
+            )
+            rda = proj.analyses[ReachingDefinitionsAnalysis].prep()(cfg.functions[func_addr])
+            return [
+                definition
+                for definition in rda.all_definitions
+                if isinstance(definition.atom, Register)
+                and definition.atom.reg_offset == rtoc_offset
+                and any(isinstance(tag, InitialValueTag) for tag in definition.tags)
+            ]
+
+        assert initial_toc_definitions(library_func_addr) == []
+        assert len(initial_toc_definitions(main_func_addr)) == 1
