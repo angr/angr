@@ -71,7 +71,7 @@ class TestBreakRewriteTailStatement(unittest.TestCase):
         return stmts, SequenceNode(ins_addr, nodes=[Block(ins_addr, 8 + 4 * tail_len, statements=stmts, idx=None)])
 
     def _rewrite(self, tail_len: int):
-        m = Manager(arch=None)
+        m = Manager()
         stmts, body = self._loop_body(m, tail_len)
         StructurerBase._rewrite_conditional_jumps_to_breaks(self._structurer(), body, {0x2000})
         return stmts, _statements(body)
