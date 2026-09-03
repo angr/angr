@@ -147,7 +147,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         Paired with the nested-region test below: the two differ only in the parent region passed in, so
         together they pin that as what decides top-level-ness.
         """
-        m = Manager(arch=None)
+        m = Manager()
         head, a, b = self._block(m, 0x100), self._block(m, 0x200), self._block(m, 0x300)
         graph = networkx.DiGraph()
         graph.add_edge(head, a)
@@ -166,7 +166,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         cyclic ancestor the chance to structure the loop properly instead of turning it into a goto. Same graph
         and same overlay-tree link as the test above; only the parent region differs.
         """
-        m = Manager(arch=None)
+        m = Manager()
         head, a, b = self._block(m, 0x100), self._block(m, 0x200), self._block(m, 0x300)
         graph = networkx.DiGraph()
         graph.add_edge(head, a)
