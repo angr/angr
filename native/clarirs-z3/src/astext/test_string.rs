@@ -245,12 +245,21 @@ mod from_z3 {
         let ctx = Context::new();
         let s = RcAst::mk_string_val("hello world");
         let z3_sub = Z3_CONTEXT.with(|&z3_ctx| unsafe {
-            let int_sort = Z3_mk_int_sort(z3_ctx).unwrap();
             let start_cstr = std::ffi::CString::new("6").unwrap();
-            let start = Z3_mk_numeral(z3_ctx, start_cstr.as_ptr(), int_sort).unwrap();
+            let start = RcAst::try_from(Z3_mk_numeral(
+                z3_ctx,
+                start_cstr.as_ptr(),
+                Z3_mk_int_sort(z3_ctx).unwrap(),
+            ))
+            .unwrap();
             let len_cstr = std::ffi::CString::new("5").unwrap();
-            let len = Z3_mk_numeral(z3_ctx, len_cstr.as_ptr(), int_sort).unwrap();
-            RcAst::try_from(Z3_mk_seq_extract(z3_ctx, *s, start, len)).unwrap()
+            let len = RcAst::try_from(Z3_mk_numeral(
+                z3_ctx,
+                len_cstr.as_ptr(),
+                Z3_mk_int_sort(z3_ctx).unwrap(),
+            ))
+            .unwrap();
+            RcAst::try_from(Z3_mk_seq_extract(z3_ctx, *s, *start, *len)).unwrap()
         });
         let result = AstRef::from_z3(&ctx, z3_sub).unwrap();
         let expected = ctx

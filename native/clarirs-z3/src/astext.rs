@@ -219,21 +219,19 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             AstOp::StrIsDigit(..) => {
                                 let a = child(children, 0)?;
                                 // str.to_int returns -1 for non-digit strings, so >= 0 means all digits
-                                let int_val = require(Z3_mk_str_to_int(z3_ctx, **a))?;
-                                let int_sort = require(Z3_mk_int_sort(z3_ctx))?;
+                                let int_val = RcAst::try_from(Z3_mk_str_to_int(z3_ctx, **a))?;
                                 let zero_cstr = std::ffi::CString::new("0").unwrap();
-                                let zero =
-                                    require(Z3_mk_numeral(z3_ctx, zero_cstr.as_ptr(), int_sort))?;
-                                let is_non_negative = require(Z3_mk_ge(z3_ctx, int_val, zero))?;
-                                let str_len = require(Z3_mk_seq_length(z3_ctx, **a))?;
-                                let zero_int_cstr = std::ffi::CString::new("0").unwrap();
-                                let zero_int = require(Z3_mk_numeral(
+                                let zero = RcAst::try_from(Z3_mk_numeral(
                                     z3_ctx,
-                                    zero_int_cstr.as_ptr(),
-                                    int_sort,
+                                    zero_cstr.as_ptr(),
+                                    require(Z3_mk_int_sort(z3_ctx))?,
                                 ))?;
-                                let is_non_empty = require(Z3_mk_gt(z3_ctx, str_len, zero_int))?;
-                                let args = [is_non_negative, is_non_empty];
+                                let is_non_negative =
+                                    RcAst::try_from(Z3_mk_ge(z3_ctx, *int_val, *zero))?;
+                                let str_len = RcAst::try_from(Z3_mk_seq_length(z3_ctx, **a))?;
+                                let is_non_empty =
+                                    RcAst::try_from(Z3_mk_gt(z3_ctx, *str_len, *zero))?;
+                                let args = [*is_non_negative, *is_non_empty];
                                 Z3_mk_and(z3_ctx, 2, args.as_ptr()).try_into()?
                             }
 
