@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import archinfo
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
@@ -42,6 +42,7 @@ def test_narrow_shift_count_is_extended_to_value_width():
 
         shift_ast = condition_processor.claripy_ast_from_ail_condition(shift)
 
+        assert isinstance(shift_ast, claripy.ast.BV)
         assert shift_ast.size() == value_bits
         converted_shift = condition_processor.convert_claripy_bool_ast(shift_ast)
         assert isinstance(converted_shift, BinaryOp)
@@ -67,6 +68,7 @@ def test_wide_shift_count_does_not_get_truncated():
 
         shift_ast = condition_processor.claripy_ast_from_ail_condition(shift)
 
+        assert isinstance(shift_ast, claripy.ast.BV)
         assert shift_ast.size() == value_bits
         converted_result = condition_processor.convert_claripy_bool_ast(shift_ast)
         assert isinstance(converted_result, Convert)
