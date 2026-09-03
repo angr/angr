@@ -39,7 +39,7 @@ class TestLoadG(unittest.TestCase):
         assert isinstance(second_vex_addr.args[1], pyvex.IRExpr.Const)
         assert second_vex_addr.args[1].con.value == 4
 
-        converted = ailment.IRSBConverter.convert(block.vex, ailment.Manager(arch=project.arch))
+        converted = ailment.IRSBConverter.convert(block.vex, ailment.Manager())
         assignments = {
             stmt.dst.tmp_idx: stmt
             for stmt in converted.statements

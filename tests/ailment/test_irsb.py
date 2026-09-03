@@ -131,7 +131,7 @@ class TestLoadGConversion(unittest.TestCase):
             for endness in ("Iend_LE", "Iend_BE"):
                 with self.subTest(cvt=cvt, endness=endness):
                     irsb = self._loadg_block(cvt, dst_type, output_bits, alt_value, endness)
-                    converted = VEXIRSBConverter.convert(irsb, ailment.Manager(arch=irsb.arch))
+                    converted = VEXIRSBConverter.convert(irsb, ailment.Manager())
                     assignment = converted.statements[0]
 
                     assert isinstance(assignment, ailment.Stmt.Assignment)
@@ -214,12 +214,12 @@ class TestLoadGConversion(unittest.TestCase):
         assert len(loadgs) == 2
         assert all(stmt.cvt == "ILGop_Ident32" for stmt in loadgs)
 
-        from_python = VEXIRSBConverter.convert(block.vex, ailment.Manager(arch=project.arch))
+        from_python = VEXIRSBConverter.convert(block.vex, ailment.Manager())
         from_lift = VEXIRSBConverter.convert_from_lift(
             project.arch,
             symbol.rebased_addr,
             block.bytes,
-            ailment.Manager(arch=project.arch),
+            ailment.Manager(),
             opt_level=1,
             bytes_offset=1,
         )
