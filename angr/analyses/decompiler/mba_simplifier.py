@@ -524,10 +524,13 @@ class ComposedMBASimplifier:
                     self._defs[stmt.dst.varid] = stmt.src
         self.characterized = 0
         self.simplified = 0
+        self._last_points: list[dict[str, int]] = []
+        self.narrowed = False
         # Definitions are shared, so the chain is a DAG: without memoising, walking it is
         # exponential in the sharing rather than linear in the nodes.
         self._input_memo: dict[int, frozenset[str] | None] = {}
         self._input_widths: dict[str, int] = {}
+        self._input_exprs: dict[str, Expression] = {}
 
     #
     # composition
@@ -564,6 +567,7 @@ class ComposedMBASimplifier:
         atomic = self._as_input(expr)
         if atomic is not None:
             self._input_widths[atomic[0]] = atomic[1]
+            self._input_exprs[atomic[0]] = expr
             return {atomic[0]}
         if isinstance(expr, VirtualVariable):
             if expr.varid in self._defs and expr.varid not in seen:
@@ -692,6 +696,10 @@ class ComposedMBASimplifier:
         widths = [self._input_widths.get(name) for name in names]
         if any(w is None for w in widths):
             return None
+        widths = [self._effective_width(expr, names, widths, i) for i in range(len(names))]
+        self.narrowed = any(
+            w < self._input_widths[n] for n, w in zip(names, widths)
+        )
         space = 1
         for w in widths:
             space *= 1 << w
@@ -727,7 +735,42 @@ class ComposedMBASimplifier:
             except (_Unsupported, RecursionError):
                 return None
         self.characterized += 1
+        self._last_points = points
         return names, table, space if space is not None else -len(points)
+
+    def _effective_width(self, expr, names, widths, index: int) -> int:
+        """
+        How much of an input actually reaches the result.
+
+        A byte lane routinely takes one input from a 64-bit register while only ever using its low
+        byte, which is the difference between an input space of 2**72 and one of 2**16 -- between
+        unanswerable and settled by enumeration. Probing for it is sampling, so the narrowing is
+        an assumption; it is recorded on ``narrowed`` so a caller knows the enumeration that
+        follows is exact only under it.
+        """
+        width = widths[index]
+        out_bits = getattr(expr, "bits", 8) or 8
+        if width <= out_bits:
+            return width
+        low_mask = (1 << out_bits) - 1
+        state = 0x2545F4914F6CDD1D
+        for low in (0x00, 0x01, 0x5A, 0x7F, 0xFF):
+            baseline = None
+            for _ in range(8):
+                state = (state * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFFFFFFFFFF
+                high = state & ~low_mask & ((1 << width) - 1)
+                assignment = {}
+                for j, name in enumerate(names):
+                    assignment[name] = (high | (low & low_mask)) if j == index else (0x3C & ((1 << widths[j]) - 1))
+                try:
+                    value = self.evaluate(expr, assignment, {})
+                except (_Unsupported, RecursionError):
+                    return width
+                if baseline is None:
+                    baseline = value
+                elif value != baseline:
+                    return width
+        return out_bits
 
     @staticmethod
     def _width_of(name: str) -> int | None:
@@ -738,3 +781,119 @@ class ComposedMBASimplifier:
             return int(name.split("|")[-1].split("b}")[0]) * 8
         except ValueError:
             return None
+
+
+    #
+    # synthesis from composed behaviour
+    #
+
+    def _composed_cost(self, expr, seen: frozenset[int] = frozenset(), depth: int = 0, cap: int = 4096) -> int:
+        """Cost of the whole definition chain behind a value, not just its top node."""
+        if depth > 400:
+            return cap
+        if isinstance(expr, Const):
+            return 1
+        if isinstance(expr, VirtualVariable):
+            if expr.varid in self._defs and expr.varid not in seen:
+                return min(cap, 1 + self._composed_cost(self._defs[expr.varid], seen | {expr.varid}, depth + 1, cap))
+            return 1
+        own = 1
+        if isinstance(expr, BinaryOp) and expr.op in _BOOLEAN_BINOPS:
+            own = _BOOLEAN_COST
+        elif isinstance(expr, UnaryOp) and expr.op in _BOOLEAN_UNOPS:
+            own = _BOOLEAN_COST
+        children = self._children(expr)
+        if not children:
+            return own
+        total = own
+        for child in children:
+            total += self._composed_cost(child, seen, depth + 1, cap)
+            if total >= cap:
+                return cap
+        return total
+
+    def simplify(self, expr, max_cost: int = 9):
+        """
+        The simplest expression behaving like this value, or None.
+
+        The search is the same enumeration LinearMBASolver uses -- cheapest first, one
+        representative per signature, boolean operators priced above arithmetic -- but driven by
+        the *composed* behaviour rather than by the shape of a single subtree, which is the only
+        way to see through a chain the VM has spread over many statements.
+
+        A candidate is accepted only when the input space was enumerated exhaustively, so agreeing
+        on every point means equality.  When the space was merely sampled the match is evidence,
+        not proof, and this refuses rather than guess.
+        """
+        if self._ail_manager is None:
+            return None
+        got = self.characterize(expr)
+        if got is None:
+            return None
+        names, table, space = got
+        if space <= 0:
+            # sampled, not enumerated: a match here would not be a proof
+            return None
+        points = self._last_points
+        bits = getattr(expr, "bits", None) or 8
+        mask = (1 << bits) - 1
+        target = tuple(v & mask for v in table)
+
+        # What we would replace is not this node -- it is the whole chain feeding it, which is
+        # what becomes dead once the value is expressed directly. Pricing the node alone gives it
+        # a cost of 1 and leaves no budget to search in.
+        original_cost = self._composed_cost(expr)
+        budget = min(max_cost, original_cost - 1)
+        if budget < 1:
+            return None
+
+        idx = self._ail_manager.next_atom
+        pool: dict[tuple[int, ...], tuple[int, object]] = {}
+        by_cost: dict[int, list[tuple[tuple[int, ...], object]]] = {}
+
+        def add(signature, cost, builder):
+            if signature in pool:
+                return False
+            pool[signature] = (cost, builder)
+            by_cost.setdefault(cost, []).append((signature, builder))
+            return signature == target
+
+        for name in names:
+            source = self._input_exprs.get(name)
+            if source is None:
+                return None
+            if add(tuple(p[name] & mask for p in points), 1, source):
+                self.simplified += 1
+                return source
+        for value in (0, 1, 2):
+            if add(tuple(value & mask for _ in points), 1, Const(idx(), value & mask, bits)):
+                self.simplified += 1
+                return Const(idx(), value & mask, bits)
+
+        for cost in range(2, budget + 1):
+            for prev_sig, prev in list(by_cost.get(cost - 1, [])):
+                built = UnaryOp(idx(), "Neg", prev)
+                if add(tuple((-v) & mask for v in prev_sig), cost, built):
+                    self.simplified += 1
+                    return built
+            for prev_sig, prev in list(by_cost.get(cost - _BOOLEAN_COST, [])):
+                built = UnaryOp(idx(), "BitwiseNeg", prev)
+                if add(tuple((~v) & mask for v in prev_sig), cost, built):
+                    self.simplified += 1
+                    return built
+            for op, fn, own in (
+                ("Add", lambda a, b: a + b, 1),
+                ("Sub", lambda a, b: a - b, 1),
+                ("And", lambda a, b: a & b, _BOOLEAN_COST),
+                ("Or", lambda a, b: a | b, _BOOLEAN_COST),
+                ("Xor", lambda a, b: a ^ b, _BOOLEAN_COST),
+            ):
+                for left in range(1, cost - own):
+                    right = cost - own - left
+                    for ls, le in list(by_cost.get(left, [])):
+                        for rs, re in list(by_cost.get(right, [])):
+                            built = BinaryOp(idx(), op, [le, re], False, bits=bits)
+                            if add(tuple(fn(a, b) & mask for a, b in zip(ls, rs)), cost, built):
+                                self.simplified += 1
+                                return built
+        return None
