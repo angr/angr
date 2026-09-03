@@ -155,3 +155,18 @@ class TestGoDwarfSignaturesMisc(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestGoDwarfPackageVariables(unittest.TestCase):
+    def test_variables(self):
+        import angr  # pylint:disable=import-outside-toplevel
+
+        proj = angr.Project(
+            os.path.join(bin_location, "tests", "x86_64", "go", "go1.22.5", "basics"), auto_load_libs=False
+        )
+        sigs = read_go_dwarf_signatures(proj)
+        assert sigs.variables["os.Args"].type_str == "[]string"
+        assert sigs.variables["main.counter"].type_str == "int"
+        assert sigs.variables["main.errNegative"].type_str == "error"
+        sym = proj.loader.find_symbol("os.Args")
+        assert sigs.variables["os.Args"].addr == sym.rebased_addr

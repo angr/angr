@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .arg_spill_remover import GoArgSpillRemover
+from .global_types import GoGlobalTypes
 from .multi_value import GoComboRegisterRewriter, GoRetExprRewriter
 from .parameter_types import GoParameterTypes
 from .pinned_register_namer import GoPinnedRegisterNamer
@@ -20,6 +21,7 @@ def get_go_optimization_passes():
         GoRetExprRewriter,
         # BEFORE_VARIABLE_RECOVERY
         GoParameterTypes,
+        GoGlobalTypes,
         GoComboRegisterRewriter,
         GoArgSpillRemover,
         GoValueFuser,
