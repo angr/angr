@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 
+from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.go.utils.names import call_target_name, is_go_morestack_name
-from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
-from angr.rust.utils.ail import get_terminal_call
+from angr.utils.ail import get_terminal_call
 
 l = logging.getLogger(__name__)
 
