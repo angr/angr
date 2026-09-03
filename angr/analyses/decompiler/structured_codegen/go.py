@@ -988,12 +988,25 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
             yield "// attributes: PLT stub\n", None
 
         yield "func ", None
-        yield self.name, self
-        # argument list
+        params = list(zip(self.functy.args, self.arg_list))
         paren = GoClosingObject("(")
         brace = GoClosingObject("{")
+        method_name = _go_method_name(self.name, self.codegen)
+        if method_name is not None and params:
+            # methods: func (recv T) Name(...)
+            recv_type, recv_var = params.pop(0)
+            variable = recv_var.unified_variable or recv_var.variable
+            recv_paren = GoClosingObject("(")
+            yield "(", recv_paren
+            yield from type_to_go_repr_chunks(recv_type, name=variable.name, name_type=recv_var, full=False)
+            yield ")", recv_paren
+            yield " ", None
+            yield method_name, self
+        else:
+            yield self.name, self
+        # argument list
         yield "(", paren
-        for i, (arg_type, cvariable) in enumerate(zip(self.functy.args, self.arg_list)):
+        for i, (arg_type, cvariable) in enumerate(params):
             if i:
                 yield ", ", None
 
@@ -1083,6 +1096,22 @@ def _go_block_chunks(body, indent_str: str, indent: int, codegen):
     yield indent_str, None
     yield "}", brace
     yield "\n", None
+
+
+_GO_METHOD_RE = re.compile(
+    r"^(?P<pkg>.+?)\.(?:\(\*(?P<ptr_type>[^()]+)\)|(?P<type>[A-Z][^.()\[]*(?:\[[^()]*\])?))\.(?P<method>[A-Za-z_]\w*)$"
+)
+
+
+def _go_method_name(func_name: str, codegen=None) -> str | None:
+    """``pkg.(*T).M`` / ``pkg.T.M`` -> ``M``; None for plain functions, closures and ABI wrappers."""
+    if codegen is not None:
+        with contextlib.suppress(Exception):
+            sig = codegen.kb.go_signatures.signature(func_name)
+            if sig is not None:
+                return func_name.rsplit(".", 1)[-1] if sig.recv is not None else None
+    m = _GO_METHOD_RE.match(func_name)
+    return None if m is None else m.group("method")
 
 
 def _same_variable(a, b) -> bool:
