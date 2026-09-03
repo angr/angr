@@ -483,6 +483,10 @@ class _Found(Exception):
 
 #: Largest input space to enumerate exhaustively. Two bytes, or one 16-bit value.
 MAX_INPUT_SPACE = 1 << 16
+#: Length of the signature the search is keyed on. Short enough to compare cheaply, long
+#: enough that surviving a match by accident is rare -- and a survivor is checked in full.
+SEARCH_SIGNATURE_POINTS = 64
+
 #: Points sampled when the input space is too large to enumerate. The result is then
 #: evidence, not proof, and has to be checked another way before it is acted on.
 SAMPLE_POINTS = 512
@@ -492,6 +496,9 @@ MAX_COMPOSED_INPUTS = 2
 
 
 _RUNAWAY = frozenset({"<runaway>"})
+
+
+_MISSING = object()
 
 
 class ComposedMBASimplifier:
@@ -526,6 +533,12 @@ class ComposedMBASimplifier:
         self.simplified = 0
         self._last_points: list[dict[str, int]] = []
         self.narrowed = False
+        # The same lane is reached through thousands of Extract nodes -- on cnicdriver, 4252 of
+        # them over 35 distinct chains -- and characterising one costs an enumeration of its whole
+        # input space. Key the work by the chain, not by the node that reached it.
+        self._char_cache: dict[str, object] = {}
+        self._simplify_cache: dict[str, object] = {}
+        self.cache_hits = 0
         # Definitions are shared, so the chain is a DAG: without memoising, walking it is
         # exponential in the sharing rather than linear in the nodes.
         self._input_memo: dict[int, frozenset[str] | None] = {}
@@ -685,6 +698,17 @@ class ComposedMBASimplifier:
 
     def characterize(self, expr) -> tuple[list[str], list[int], int] | None:
         """The value's true inputs and its complete table over them, or None."""
+        key = str(expr)
+        cached = self._char_cache.get(key, _MISSING)
+        if cached is not _MISSING:
+            self.cache_hits += 1
+            got, self._last_points, self.narrowed = cached
+            return got
+        got = self._characterize_uncached(expr)
+        self._char_cache[key] = (got, self._last_points, self.narrowed)
+        return got
+
+    def _characterize_uncached(self, expr) -> tuple[list[str], list[int], int] | None:
         bits = getattr(expr, "bits", None)
         if not bits:
             return None
@@ -813,6 +837,26 @@ class ComposedMBASimplifier:
         return total
 
     def simplify(self, expr, max_cost: int = 9):
+        """Cached wrapper around the search; see _simplify_uncached."""
+        key = (str(expr), max_cost)
+        cached = self._simplify_cache.get(key, _MISSING)
+        if cached is _MISSING:
+            cached = self._simplify_uncached(expr, max_cost)
+            self._simplify_cache[key] = cached
+        else:
+            self.cache_hits += 1
+        if cached is None:
+            return None
+        # Every use needs its own atom indices: one expression object appearing at several
+        # locations makes the SSA bookkeeping believe a single definition lives in two places.
+        if self._ail_manager is not None:
+            try:
+                return cached.deep_copy(self._ail_manager)
+            except Exception:  # pylint:disable=broad-except
+                return cached
+        return cached
+
+    def _simplify_uncached(self, expr, max_cost: int = 9):
         """
         The simplest expression behaving like this value, or None.
 
@@ -837,7 +881,25 @@ class ComposedMBASimplifier:
         points = self._last_points
         bits = getattr(expr, "bits", None) or 8
         mask = (1 << bits) - 1
-        target = tuple(v & mask for v in table)
+        full_target = tuple(v & mask for v in table)
+
+        # Key the search on a spread subsample rather than the whole table. Hashing and comparing
+        # a 65536-element tuple per candidate is what the search time actually goes on; a short
+        # signature rules out almost everything just as well, and the few that survive are then
+        # checked against every point before being accepted.
+        stride = max(1, len(full_target) // SEARCH_SIGNATURE_POINTS)
+        probe_idx = list(range(0, len(full_target), stride))[:SEARCH_SIGNATURE_POINTS]
+        target = tuple(full_target[i] for i in probe_idx)
+
+        def confirmed(candidate) -> bool:
+            """A short-signature match is a shortlist; agreement on every point is the answer."""
+            try:
+                for i, value in enumerate(full_target):
+                    if self.evaluate(candidate, points[i], {}) & mask != value:
+                        return False
+            except (_Unsupported, RecursionError):
+                return False
+            return True
 
         # What we would replace is not this node -- it is the whole chain feeding it, which is
         # what becomes dead once the value is expressed directly. Pricing the node alone gives it
@@ -856,17 +918,17 @@ class ComposedMBASimplifier:
                 return False
             pool[signature] = (cost, builder)
             by_cost.setdefault(cost, []).append((signature, builder))
-            return signature == target
+            return signature == target and confirmed(builder)
 
         for name in names:
             source = self._input_exprs.get(name)
             if source is None:
                 return None
-            if add(tuple(p[name] & mask for p in points), 1, source):
+            if add(tuple(points[i][name] & mask for i in probe_idx), 1, source):
                 self.simplified += 1
                 return source
         for value in (0, 1, 2):
-            if add(tuple(value & mask for _ in points), 1, Const(idx(), value & mask, bits)):
+            if add(tuple(value & mask for _ in probe_idx), 1, Const(idx(), value & mask, bits)):
                 self.simplified += 1
                 return Const(idx(), value & mask, bits)
 
