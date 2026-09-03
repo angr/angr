@@ -31,7 +31,7 @@ def test_extract_placeholders_include_semantic_properties():
 
 def test_narrow_shift_count_is_extended_to_value_width():
     arch = archinfo.ArchAMD64()
-    manager = ailment.Manager(arch=arch)
+    manager = ailment.Manager()
     condition_processor = ConditionProcessor(arch, manager)
 
     for op in ("Shl", "Shr", "Sar"):
@@ -56,7 +56,7 @@ def test_narrow_shift_count_is_extended_to_value_width():
 
 def test_wide_shift_count_does_not_get_truncated():
     arch = archinfo.ArchAMD64()
-    manager = ailment.Manager(arch=arch)
+    manager = ailment.Manager()
     condition_processor = ConditionProcessor(arch, manager)
 
     for op in ("Shl", "Shr", "Sar"):
