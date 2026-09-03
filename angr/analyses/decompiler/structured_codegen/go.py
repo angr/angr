@@ -1802,8 +1802,14 @@ class GoFunctionCall(GoExpression):
         paren = GoClosingObject("(")
         yield "(", paren
 
-        for i, arg in enumerate(self.args):
+        # builtins such as make/new take a type as their first argument
+        type_args = list(self.tags.get("go_type_args", ())) if isinstance(self.tags, dict) else []
+        for i, type_arg in enumerate(type_args):
             if i:
+                yield ", ", None
+            yield str(type_arg), None
+        for i, arg in enumerate(self.args):
+            if i or type_args:
                 yield ", ", None
             yield from GoExpression._try_c_repr_chunks(arg)
 
@@ -2549,8 +2555,7 @@ class GoTypeCast(GoExpression):
     def __init__(self, src_type: SimType | None, dst_type: SimType, expr: GoExpression, **kwargs):
         super().__init__(**kwargs)
 
-        src_type = src_type or expr.type
-        assert src_type is not None
+        src_type = src_type or expr.type or dst_type
         self.src_type = src_type.with_arch(self.codegen.project.arch)
         self.dst_type = dst_type.with_arch(self.codegen.project.arch)
         self.expr = expr
