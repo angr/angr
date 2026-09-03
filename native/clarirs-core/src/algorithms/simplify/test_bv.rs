@@ -1,6 +1,8 @@
 use crate::prelude::*;
 use anyhow::Result;
+use num_bigint::BigUint;
 use smallvec::SmallVec;
+use std::collections::HashMap;
 
 #[test]
 fn test_neg() -> Result<()> {
@@ -1142,5 +1144,57 @@ fn test_fp_to_sbv_negative_value() -> Result<()> {
         .fp_to_sbv(ctx.fpv(Float::from(-3.0_f64))?, 32, FPRM::NearestTiesToEven)?
         .simplify()?;
     assert_eq!(converted, ctx.bvv(BitVec::from((0xffff_fffd, 32)))?);
+    Ok(())
+}
+
+#[test]
+fn test_rotate_over_symbolic_rotation_by_constant() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 8)?;
+    let s = ctx.bvs("s", 8)?;
+    let three = ctx.bvv(BitVec::from((3, 8)))?;
+    let values: HashMap<u64, AstRef<'_>> = [
+        (x.hash(), ctx.bvv(BitVec::from((0b1001_0110, 8)))?),
+        (s.hash(), ctx.bvv(BitVec::from((2, 8)))?),
+    ]
+    .into_iter()
+    .collect();
+
+    for expr in [
+        ctx.rotate_left(ctx.rotate_left(&x, &s)?, &three)?,
+        ctx.rotate_right(ctx.rotate_right(&x, &s)?, &three)?,
+    ] {
+        // The rewrite of the outer rotation must agree with folding the
+        // original expression once the symbolic amount is known.
+        let rewritten = expr.simplify()?.replace_many(&values)?.simplify()?;
+        let folded = expr.replace_many(&values)?.simplify()?;
+        assert_eq!(rewritten, folded);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_rotate_amount_reduced_unsigned_modulo_width() -> Result<()> {
+    let ctx = Context::new();
+
+    // 58 is -6 as a signed 6-bit value, which a signed modulus reads as a
+    // multiple of the width; unsigned it is a rotation by 4.
+    let one = ctx.bvv(BitVec::from((1, 6)))?;
+    let amount = ctx.bvv(BitVec::from((58, 6)))?;
+    assert_eq!(
+        ctx.rotate_left(&one, &amount)?.simplify()?,
+        ctx.bvv(BitVec::from((16, 6)))?
+    );
+
+    // Amounts wider than 64 bits were read as zero.
+    let one = ctx.bvv(BitVec::from((1, 128)))?;
+    let wide = (BigUint::from(1u8) << 64u32) + BigUint::from(1u8);
+    let amount = ctx.bvv(BitVec::from((wide, 128)))?;
+    assert_eq!(
+        ctx.rotate_left(&one, &amount)?.simplify()?,
+        ctx.bvv(BitVec::from((2, 128)))?
+    );
+
     Ok(())
 }
