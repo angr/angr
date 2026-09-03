@@ -445,8 +445,6 @@ pub(crate) fn simplify_bv<'c>(
                     }
                 }
                 _ => {
-                    // Check if there's an all-ones BVV among the args - if so, extract it
-                    // and apply NOT to the XOR of the remaining args
                     if changed {
                         state.rerun(ctx.xor(sym_args)?)
                     } else {
@@ -1475,7 +1473,6 @@ pub(crate) fn simplify_bv<'c>(
                     // Attempt to parse the string as a decimal integer
                     let value = BigUint::from_str_radix(string, 10)
                         .or_else(|_| BigUint::from_str_radix(string, 16)) // Try hexadecimal if decimal fails
-                        .or_else(|_| BigUint::from_str_radix(string, 2)) // Try binary if hexadecimal fails
                         .unwrap_or_else(|_| {
                             BigUint::from_str_radix("ffffffffffffffff", 16).unwrap()
                         });

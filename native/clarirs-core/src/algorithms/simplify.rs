@@ -36,7 +36,6 @@ enum SimplifyError<'c> {
     #[error("Missing {} children", .0.len())]
     MissingChildren(Vec<usize>),
     #[error("Re-run simplification")]
-    #[allow(dead_code)]
     ReRun(AstRef<'c>),
     #[error("Clarirs error: {0}")]
     Error(ClarirsError),
