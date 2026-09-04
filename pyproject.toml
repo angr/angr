@@ -65,7 +65,11 @@ Repository = "https://github.com/angr/angr"
 
 [project.optional-dependencies]
 angrdb = ["sqlalchemy"]
-keystone = ["keystone-engine"]
+# keystone-engine publishes no aarch64 wheel, and the wheel built from its sdist is tagged
+# manylinux1 -- a platform PEP 513 only ever defined for x86_64 and i686 -- so the build output
+# is uninstallable on Linux aarch64. 0.9.2 is the latest release, so there is nothing newer to
+# move to.
+keystone = ["keystone-engine; sys_platform != 'linux' or platform_machine != 'aarch64'"]
 telemetry = ["opentelemetry-api"]
 llm = ["pydantic-ai>=2.12.0", "mcp>=1.0.0", "fastmcp>=2.3.0"]
 unicorn = ["unicorn==2.1.4"]

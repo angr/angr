@@ -1028,9 +1028,8 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             }
                         }
                         _ => {
-                            let decl_name =
-                                CStr::from_ptr(Z3_func_decl_to_string(z3_ctx, decl) as *mut i8)
-                                    .to_string_lossy();
+                            let decl_name = CStr::from_ptr(Z3_func_decl_to_string(z3_ctx, decl))
+                                .to_string_lossy();
                             Err(ClarirsError::ConversionError(format!(
                                 "Failed converting from z3: unknown decl kind: {decl_name}"
                             )))
