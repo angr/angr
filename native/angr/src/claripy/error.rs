@@ -66,12 +66,6 @@ impl From<ClarirsError> for ClaripyError {
     }
 }
 
-impl From<&ClarirsError> for ClaripyError {
-    fn from(e: &ClarirsError) -> Self {
-        ClaripyError::ClarirsError(format!("{e}"))
-    }
-}
-
 impl From<PyErr> for ClaripyError {
     fn from(e: PyErr) -> Self {
         Python::attach(|py| ClaripyError::PythonError(e.value(py).as_any().clone().unbind()))

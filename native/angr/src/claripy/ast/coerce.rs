@@ -175,29 +175,6 @@ impl<'py> CoerceBV<'py> {
         vals.iter().map(|val| val.unpack(py, size, false)).collect()
     }
 
-    pub fn unpack_vec(
-        py: Python<'py>,
-        vals: &[CoerceBV<'py>],
-    ) -> Result<Vec<Bound<'py, BV>>, ClaripyError> {
-        if vals.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // First, determine the size to use
-        let size =
-            vals.iter()
-                .find_map(|val| val.get_size())
-                .ok_or(ClaripyError::InvalidArgumentType(
-                    "Failed to extract size of BVs in list".to_string(),
-                ))?;
-
-        // Round up to the nearest power of 2
-        let size = size.next_power_of_two();
-
-        // Now unpack all values
-        vals.iter().map(|val| val.unpack(py, size, true)).collect()
-    }
-
     pub fn unpack_vec_mismatch(
         py: Python<'py>,
         vals: &[CoerceBV<'py>],
@@ -336,28 +313,6 @@ impl<'py> FromPyObject<'_, 'py> for CoerceFP<'py> {
     }
 }
 
-impl<'py> TryFrom<CoerceFP<'py>> for Bound<'py, FP> {
-    type Error = ClaripyError;
-
-    fn try_from(val: CoerceFP<'py>) -> Result<Self, Self::Error> {
-        match val {
-            CoerceFP::FP(fp) => Ok(fp),
-            CoerceFP::Py(_) => Err(ClaripyError::InvalidArgumentType("Expected FP".to_string())),
-        }
-    }
-}
-
-impl<'py> TryFrom<CoerceFP<'py>> for AstRef<'static> {
-    type Error = ClaripyError;
-
-    fn try_from(val: CoerceFP<'py>) -> Result<Self, Self::Error> {
-        match val {
-            CoerceFP::FP(fp) => Ok(fp.get().inner.clone()),
-            CoerceFP::Py(_) => Err(ClaripyError::InvalidArgumentType("Expected FP".to_string())),
-        }
-    }
-}
-
 pub struct CoerceString<'py>(pub Bound<'py, PyAstString>);
 
 impl<'py> FromPyObject<'_, 'py> for CoerceString<'py> {
@@ -375,18 +330,6 @@ impl<'py> FromPyObject<'_, 'py> for CoerceString<'py> {
         } else {
             Err(ClaripyError::InvalidArgumentType("Expected String".to_string()).into())
         }
-    }
-}
-
-impl<'py> From<CoerceString<'py>> for Bound<'py, PyAstString> {
-    fn from(val: CoerceString<'py>) -> Self {
-        val.0
-    }
-}
-
-impl<'py> From<CoerceString<'py>> for AstRef<'static> {
-    fn from(val: CoerceString<'py>) -> Self {
-        val.0.get().inner.clone()
     }
 }
 
@@ -439,11 +382,5 @@ impl<'a, 'py> FromPyObject<'a, 'py> for CoerceBase<'py> {
                     .into(),
             )
         }
-    }
-}
-
-impl<'py> From<CoerceBase<'py>> for Bound<'py, Base> {
-    fn from(val: CoerceBase<'py>) -> Self {
-        val.0
     }
 }

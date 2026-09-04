@@ -29,10 +29,6 @@ pub struct Base {
 }
 
 impl Base {
-    pub fn new(py: Python, inner: &AstRef<'static>) -> Result<Self, ClaripyError> {
-        Self::new_with_name(py, inner, None)
-    }
-
     pub fn new_with_name(
         py: Python,
         inner: &AstRef<'static>,

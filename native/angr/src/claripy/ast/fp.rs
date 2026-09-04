@@ -78,12 +78,6 @@ impl From<&FPRM> for PyRM {
 #[derive(Clone)]
 pub struct PyFSort(FSort);
 
-impl PyFSort {
-    pub fn new(fsort: &FSort) -> Self {
-        PyFSort(*fsort)
-    }
-}
-
 #[pymethods]
 impl PyFSort {
     #[getter]
