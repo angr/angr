@@ -99,7 +99,8 @@ class TestBasicsGo122(GoDecompilationTarget):
 
     def test_locals_use_var_declarations(self):
         text = self.texts["main.fib"]
-        assert "    var " in text
+        # locals are declared the Go way: a short declaration at first assignment, or a var line
+        assert " := " in text or "    var " in text, text
         assert ";  //" not in text  # C-style declaration trailer
 
     def test_main_header(self):
@@ -135,7 +136,7 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert re.search(r"return \w+, \w+$", self.texts["main.divmod"], re.MULTILINE)
         parse = self.texts["main.parse"]
         # multi-result calls are destructured and the error checked idiomatically
-        assert re.search(r"^\s+\w+, err = strconv\.Atoi\(s\)$", parse, re.MULTILINE), parse
+        assert re.search(r"^\s+\w+, err :?= strconv\.Atoi\(s\)$", parse, re.MULTILINE), parse
         assert "if err != nil {" in parse
         assert "return 0, err\n" in parse
         assert "return 0, main.errNegative\n" in parse
@@ -178,9 +179,9 @@ class TestBasicsGo122(GoDecompilationTarget):
         for name, text in self.texts.items():
             with self.subTest(func=name):
                 assert ".ptr[" not in text and ".len" not in text, text
-        assert re.search(r"for \w+ = range s \{", self.texts["main.count"]), self.texts["main.count"]
+        assert re.search(r"for \w+ :?= range s \{", self.texts["main.count"]), self.texts["main.count"]
         assert re.search(r"if s\[\w+\] == c \{", self.texts["main.count"])
-        assert re.search(r"for \w+ = range xs \{", self.texts["main.bump"])
+        assert re.search(r"for \w+ :?= range xs \{", self.texts["main.bump"])
         assert "return xs\n" in self.texts["main.bump"]
 
     def test_g_register_is_named(self):
@@ -191,7 +192,7 @@ class TestBasicsGo122(GoDecompilationTarget):
 
 class TestIfaceGo122(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "iface")
-    FUNCS = ("main.describe", "main.box", "main.unbox", "main.asSquare", "main.wrap", "main.report")
+    FUNCS = ("main.describe", "main.box", "main.unbox", "main.asSquare", "main.wrap", "main.report", "main.kind")
 
     def test_interface_method_calls(self):
         describe = self.texts["main.describe"]
@@ -207,9 +208,20 @@ class TestIfaceGo122(GoDecompilationTarget):
             "*main.Square",
         )
 
+    def test_type_switch(self):
+        kind = self.texts["main.kind"]
+        kind = kind[kind.index("func main.kind") :]
+        assert "switch x := v.(type) {" in kind, kind
+        assert re.search(r"case string:\n\s+return \"string:\" \+ x$", kind, re.MULTILINE), kind
+        assert "case int:" in kind and "strconv.Itoa(x)" in kind
+        # the interface case comes from the InterfaceSwitch descriptor; its method call goes through the itab
+        assert re.search(r"case main\.Shape:\n\s+return \"shape:\" \+ x\.Name\(\)$", kind, re.MULTILINE), kind
+        for gone in ("interfaceSwitch", "Hash", ".tab[", "goto", "&type:"):
+            assert gone not in kind, (gone, kind)
+
     def test_type_assertions(self):
         unbox = self.texts["main.unbox"]
-        assert "n, ok = v.(int)" in unbox and "if !ok {" in unbox and "return n" in unbox, unbox
+        assert "n, ok := v.(int)" in unbox and "if !ok {" in unbox and "return n" in unbox, unbox
         assert "return -1" in unbox
         assert "return s.(*main.Square)" in self.texts["main.asSquare"]
         for name in ("main.unbox", "main.asSquare"):
@@ -239,7 +251,7 @@ class TestBasicsGo122AArch64(GoDecompilationTarget):
         assert self.header(self.texts["main.fib"]) == "func main.fib(n int) int {"
         assert self.header(self.texts["main.parse"]) == "func main.parse(s string) (int, error) {"
         parse = self.texts["main.parse"]
-        assert re.search(r"^\s+\w+, err = strconv\.Atoi\(s\)$", parse, re.MULTILINE), parse
+        assert re.search(r"^\s+\w+, err :?= strconv\.Atoi\(s\)$", parse, re.MULTILINE), parse
         assert "if err != nil {" in parse
         for text in self.texts.values():
             assert "morestack" not in text

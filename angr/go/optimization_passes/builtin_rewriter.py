@@ -278,13 +278,18 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         changed = False
         for block in self._graph.nodes:
             for i, stmt in enumerate(block.statements):
-                if (
+                if not (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and isinstance(stmt.src, Call)
                     and not stmt.dst.was_stack
-                    and counts[stmt.dst.varid] <= 1
                 ):
+                    continue
+                # a multi-register result is also used through its constituent registers
+                uses = counts[stmt.dst.varid] - 1
+                for rv in stmt.dst.reg_vvars or ():
+                    uses += counts[rv.varid]
+                if uses <= 0:
                     block.statements[i] = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
                     changed = True
         return changed

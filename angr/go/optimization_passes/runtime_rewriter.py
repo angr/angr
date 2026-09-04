@@ -193,6 +193,8 @@ class GoRuntimeRewriter(OptimizationPass):
         self._map_vvars: dict[int, str | None] = {}
         self._chan_vvars: dict[int, str | None] = {}
         self._dropped_defs: set[int] = set()
+        # stack slots that only park the frame pointer around duffzero/duffcopy calls
+        self._restore_loads: set[int] = set()
         self.analyze()
 
     def _check(self):
@@ -235,7 +237,21 @@ class GoRuntimeRewriter(OptimizationPass):
         return varid
 
     def _kind(self, call: Call) -> str | None:
-        return classify_runtime_call(call_target_name(self.project, call))
+        kind = classify_runtime_call(call_target_name(self.project, call))
+        if kind is None:
+            return self._duff_kind(call)
+        return kind
+
+    _DUFF = {"runtime.duffzero": "duffzero", "runtime.duffcopy": "duffcopy"}
+
+    def _duff_kind(self, call: Call) -> str | None:
+        """The compiler calls into the middle of duffzero/duffcopy; the target is inside the symbol, not at it."""
+        if not isinstance(call.target, Const) or not isinstance(call.target.value, int):
+            return None
+        sym = self.project.loader.find_symbol(call.target.value, fuzzy=True)
+        if sym is None or sym.rebased_addr == call.target.value:
+            return None
+        return self._DUFF.get(normalize_go_func_name(sym.name))
 
     def _const_bits(self, value: int, bits: int | None = None) -> Const:
         return Const(self._new_idx(), value, bits or self.project.arch.bits)
@@ -493,27 +509,53 @@ class GoRuntimeRewriter(OptimizationPass):
         if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call) and stmt.ret_expr is None:
             call = stmt.expr
             result = self._rewrite_call_statement(block, stmt_idx, call, emitted)
-            if result is call:
-                return stmt
-            if isinstance(result, Call):
-                return self._stmt(result, stmt.idx)
-            return result
+            if result is not call:
+                if isinstance(result, Call):
+                    return self._stmt(result, stmt.idx)
+                return result
         call_def = _call_def(stmt)
         if call_def is not None:
-            return self._rewrite_call_result(block, stmt_idx, stmt, *call_def)
+            return self._rewrite_call_result(block, stmt_idx, stmt, *call_def, emitted=emitted)
         if (
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.varid in self._dropped_defs
         ):
             return None
+        if (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.src, Load)
+            and isinstance(stmt.src.addr, UnaryOp)
+            and stmt.src.addr.op == "Reference"
+            and isinstance(stmt.src.addr.operand, VirtualVariable)
+            and stmt.src.addr.operand.varid in self._restore_loads
+        ):
+            # the frame-pointer restore after a duff call
+            return None
         # chanrecv2 nested in a condition or return: hoist it into a tuple-valued receive
         for call in self._calls_in(stmt):
-            if self._kind(call) == "chanrecv2" and len(call.args) == 2:
+            kind = self._kind(call)
+            if kind == "chanrecv2" and len(call.args) == 2:
                 hoisted = self._hoist_chanrecv2(block, stmt_idx, stmt, call)
                 if hoisted is not None:
                     return hoisted
+            if kind in ("duffzero", "duffcopy"):
+                # duffzero/duffcopy leave RAX alone, so a nested "result" is just the first argument
+                hoisted = self._hoist_duff(block, stmt_idx, stmt, call, kind, emitted)
+                if hoisted is not None:
+                    return hoisted
         return stmt
+
+    def _hoist_duff(self, block: Block, stmt_idx: int, stmt: Statement, call: Call, kind: str, emitted: list):
+        args = list(call.args or [])
+        if not args:
+            return None
+        duff = self._rewrite_duff(block, stmt_idx, call, kind, dict(call.tags), emitted)
+        if duff is call:
+            return None
+        replacer = _CallReplacer(call, args[0], self)
+        new_stmt = replacer.walk_statement(stmt, block, stmt_idx)
+        return [self._stmt(duff), new_stmt]
 
     def _rewrite_call_statement(self, block: Block, stmt_idx: int, call: Call, emitted: list[Statement]):
         kind = self._kind(call)
@@ -527,6 +569,8 @@ class GoRuntimeRewriter(OptimizationPass):
             return self._builtin("close", args[:1], None, tags)
         if kind == "deferreturn":
             return None
+        if kind in ("duffzero", "duffcopy"):
+            return self._rewrite_duff(block, stmt_idx, call, kind, tags, emitted)
         if kind == "gopanic" and len(args) >= 1:
             return self._builtin("panic", [self._panic_value(args[0])], None, tags)
         if kind == "chansend" and len(args) == 2:
@@ -547,10 +591,58 @@ class GoRuntimeRewriter(OptimizationPass):
             return call
         return call
 
-    def _rewrite_call_result(self, block: Block, stmt_idx: int, stmt: Statement, dst: VirtualVariable, call: Call):
+    def _rewrite_duff(self, block: Block, stmt_idx: int, call: Call, kind: str, tags: dict, emitted: list):
+        """
+        ``duffzero(dst)`` / ``duffcopy(dst, src)``: the pointer arguments are the ``Reference`` arguments (RDI, then
+        RSI). The frame pointer the compiler parks below the stack pointer around the call is an artifact and goes.
+        """
+        args = list(call.args or [])
+        pointers = [a for a in args if isinstance(a, UnaryOp) and a.op == "Reference"]
+        if kind == "duffzero" and len(pointers) >= 1:
+            new_call = self._builtin("runtime.duffzero", pointers[:1], None, tags)
+        elif kind == "duffcopy" and len(pointers) >= 2:
+            new_call = self._builtin("runtime.duffcopy", pointers[:2], None, tags)
+        else:
+            return call
+        # drop the frame-pointer save (a stack store of the register's "address") already emitted in this block
+        saved = None
+        for i in range(len(emitted) - 1, -1, -1):
+            st = emitted[i]
+            if (
+                isinstance(st, Assignment)
+                and isinstance(st.dst, VirtualVariable)
+                and st.dst.was_stack
+                and isinstance(st.src, UnaryOp)
+                and st.src.op == "Reference"
+                and isinstance(st.src.operand, VirtualVariable)
+                and st.src.operand.was_reg
+            ):
+                saved = st.dst.varid
+                del emitted[i]
+                break
+        if saved is not None:
+            self._dropped_defs.add(saved)
+            self._restore_loads.add(saved)
+        return new_call
+
+    def _rewrite_call_result(
+        self,
+        block: Block,
+        stmt_idx: int,
+        stmt: Statement,
+        dst: VirtualVariable,
+        call: Call,
+        emitted: list | None = None,
+    ):
         kind = self._kind(call)
         args = list(call.args or [])
         tags = dict(call.tags)
+        if kind in ("duffzero", "duffcopy") and args:
+            # RAX survives the call: the "result" is the first argument
+            duff = self._rewrite_duff(block, stmt_idx, call, kind, tags, emitted if emitted is not None else [])
+            if duff is not call:
+                return [self._stmt(duff), Assignment(self._new_idx(), dst, args[0], **stmt.tags)]
+            return stmt
         if kind in ("mapaccess1", "mapassign"):
             if dst.varid in self._slots:
                 self._dropped_defs.add(dst.varid)
