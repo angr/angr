@@ -3123,13 +3123,15 @@ class PhoenixStructurer(StructurerBase):
             l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
             return True
 
-        if self._region.parent is None and not self._region.cyclic and not graph_is_dag:
+        if self._parent_region is None and not self._region.cyclic and not graph_is_dag:
             # an acyclic region must not contain cycles; one can appear as debris when an inner cyclic region
             # fails to structure and dissolves its partially-refined body into this region. the cycle-closing
             # edges are excluded from the candidate lists above (they are back edges, dropped from
             # acyclic_graph), so without this fallback the region can never become structurable. only the root
             # region recovers this way (a goto): anywhere else, failing and dissolving into an enclosing region
-            # gives a cyclic ancestor the chance to structure the loop properly first.
+            # gives a cyclic ancestor the chance to structure the loop properly first. the root is the region
+            # RecursiveStructurer passed in with no parent, not the one whose overlay-tree link is unset:
+            # region identification also sets that link on the top region when it wraps it in one overlay.
             # virtualize one cycle edge to recover.
             cycle_edges = []
             for src, dst in full_graph.edges:
