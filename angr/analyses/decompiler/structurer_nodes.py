@@ -72,7 +72,16 @@ class MultiNode:
 
 
 class BaseNode:
-    __slots__ = ()
+    __slots__ = ("_hash",)
+
+    def __hash__(self):
+        # cached on first use: addr is edited in place during structuring, and a node that changed hash
+        # while sitting in a set would become unreachable in it
+        try:
+            return self._hash
+        except AttributeError:
+            self._hash = hash((type(self), self.addr))  # pylint:disable=attribute-defined-outside-init
+            return self._hash
 
     @staticmethod
     def test_empty_node(node):
@@ -97,7 +106,7 @@ class BaseNode:
 
         return True
 
-    addr: int | None
+    addr: int | None  # pylint:disable=declare-non-slot
 
     def dbg_repr(self, indent=0):
         return " " * indent + f"## dbg_repr not implemented for {type(self).__name__}"
