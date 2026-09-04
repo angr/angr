@@ -1141,6 +1141,21 @@ class TestCfgfast(unittest.TestCase):
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
 
+    def test_dropping_a_bad_function_keeps_the_blocks_another_function_owns(self):
+        # drop_bad_functions() drops 0x46cd99: it does not return, it has three blocks, and the last of them
+        # has no successors and is followed by alignment padding. That last block is 0x46cdb0, the fall-through
+        # of the call at 0x46cdab, and it is also the entire body of core::slice::iter::Iter::size_hint, which
+        # the binary's own symbol table names. Removing the dropped function's CFG nodes took the named
+        # function with it.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "fmt_rust"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+
+        assert 0x46CD99 not in cfg.kb.functions
+        assert cfg.model.get_any_node(0x46CD99) is None
+        assert 0x46CDB0 in cfg.kb.functions
+        assert cfg.kb.functions.get_by_addr(0x46CDB0).block_addrs_set == {0x46CDB0}
+        assert cfg.model.get_any_node(0x46CDB0) is not None
+
 
 if __name__ == "__main__":
     unittest.main()
