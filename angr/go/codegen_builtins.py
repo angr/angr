@@ -15,13 +15,14 @@ printer, which also prints the ``go_type_args`` tag (a list of Go type strings) 
 - ``"recv"``: ``[c]`` -> ``<-c``
 - ``"go"``: ``[f, args...]`` -> ``go f(args...)``
 - ``"defer"``: ``[f, args...]`` -> ``defer f(args...)``
+- ``"concat"``: ``[a, b]`` -> ``a + b`` (string concatenation)
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 
-RENDER_KINDS = frozenset({"index", "assign", "send", "recv", "go", "defer"})
+RENDER_KINDS = frozenset({"index", "assign", "send", "recv", "go", "defer", "concat"})
 
 
 def _chunks(obj) -> Iterator[tuple[str, object]]:
@@ -71,6 +72,10 @@ def _render(kind: str, args: list, node) -> Iterator[tuple[str, object]]:
     elif kind == "recv" and len(args) == 1:
         yield "<-", node
         yield from _chunks(args[0])
+    elif kind == "concat" and len(args) == 2:
+        yield from _chunks(args[0])
+        yield " + ", node
+        yield from _chunks(args[1])
     elif kind in ("go", "defer") and args:
         yield f"{kind} ", node
         yield from _call_chunks(args[0], args[1:], node)

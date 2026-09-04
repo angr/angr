@@ -112,7 +112,8 @@ class GoValueFuser(OptimizationPass):
         return self.kb.go_signatures.prototype(name)
 
     def fuse_args(self, call: Call, proto: GoSimTypeFunction) -> list | None:
-        if not call.args or proto.variadic:
+        # a Go variadic parameter is an ordinary slice: the prototype describes every argument
+        if not call.args:
             return None
         cc = self.project.factory.cc()
         try:

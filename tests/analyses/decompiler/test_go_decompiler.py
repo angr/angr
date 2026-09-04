@@ -191,7 +191,7 @@ class TestBasicsGo122(GoDecompilationTarget):
 
 class TestIfaceGo122(GoDecompilationTarget):
     BINARY = go_binary("go1.22.5", "iface")
-    FUNCS = ("main.describe", "main.box", "main.unbox", "main.asSquare")
+    FUNCS = ("main.describe", "main.box", "main.unbox", "main.asSquare", "main.wrap", "main.report")
 
     def test_interface_method_calls(self):
         describe = self.texts["main.describe"]
@@ -200,9 +200,35 @@ class TestIfaceGo122(GoDecompilationTarget):
         assert ".tab[" not in describe
 
     def test_type_descriptors_are_named(self):
-        assert "&type:int" in self.texts["main.box"]
-        assert "&type:int" in self.texts["main.unbox"]
-        assert "&go:itab.*main.Square,main.Shape" in self.texts["main.asSquare"]
+        go_types = self.proj.kb.go_types
+        assert go_types.name_at(go_types.addr_of("int")) == "int"
+        assert go_types.itab_at(self.proj.loader.find_symbol("go:itab.*main.Square,main.Shape").rebased_addr) == (
+            "main.Shape",
+            "*main.Square",
+        )
+
+    def test_type_assertions(self):
+        unbox = self.texts["main.unbox"]
+        assert "n, ok = v.(int)" in unbox and "if !ok {" in unbox and "return n" in unbox, unbox
+        assert "return -1" in unbox
+        assert "return s.(*main.Square)" in self.texts["main.asSquare"]
+        for name in ("main.unbox", "main.asSquare"):
+            assert (
+                ".tab" not in self.texts[name]
+                and ".data" not in self.texts[name]
+                and "panicdottype" not in self.texts[name]
+            )
+
+    def test_boxing(self):
+        # a value converted to an interface is the value itself
+        assert "return n" in self.texts["main.box"]
+        # an interface converted to any through the nil-checked itab.Type load
+        assert 'return fmt.Errorf("wrapped: %w", err)' in self.texts["main.wrap"]
+        # the ...any array on the stack is spread into the call
+        report = self.texts["main.report"]
+        assert re.search(r'fmt\.Fprintf\(w, "%d: %s area=%d\\n", \w+, .*\)$', report, re.MULTILINE), report
+        for text in (self.texts["main.box"], self.texts["main.wrap"], report):
+            assert "convT" not in text and "[]any{" not in text and "&type:" not in text, text
 
 
 class TestBasicsGo122AArch64(GoDecompilationTarget):
@@ -232,8 +258,8 @@ class TestLangdetectWindowsPE(GoDecompilationTarget):
         for text in self.texts.values():
             assert "morestack" not in text
         main = self.texts["main.main"]
-        assert "fmt.Fprintf(" in main and '"fibonacci(%d) = %d\\n"' in main
-        assert "&go:itab.*os.File,io.Writer" in main
+        assert re.search(r'fmt\.Fprintf\(.*, "fibonacci\(%d\) = %d\\n", \w+, \w+\)$', main, re.MULTILINE), main
+        assert "go:itab" not in main and "convT" not in main
 
 
 class TestBasicsGo122Stripped(GoDecompilationTarget):

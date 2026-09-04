@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .arg_spill_remover import GoArgSpillRemover
+from .boxing_rewriter import GoBoxingRewriter
 from .builtin_rewriter import GoBuiltinRewriter
 from .check_remover import GoCheckRemover
 from .descriptor_namer import GoDescriptorNamer
@@ -32,6 +33,7 @@ def get_go_optimization_passes():
         GoValueFuser,
         GoRuntimeRewriter,
         GoBuiltinRewriter,
+        GoBoxingRewriter,
         # AFTER_VARIABLE_RECOVERY
         GoPinnedRegisterNamer,
         GoDescriptorNamer,
