@@ -11,6 +11,7 @@ import random
 import unittest
 
 import archinfo
+from archinfo.arch_arm import is_arm_arch
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
@@ -1140,6 +1141,19 @@ class TestCfgfast(unittest.TestCase):
         assert block_size(4096, repeating_byte_run_threshold=0) == 99
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
+
+    def test_cfgfast_on_a_pcode_arm_architecture(self):
+        # is_arm_arch() answers True for a p-code ARM language as well as for the three VEX ARM architectures,
+        # so CFGFast runs its ARM handling for one, and everything that handling reads has to be answerable.
+        path = os.path.join(test_location, "armel", "fauxware")
+        proj = angr.Project(path, arch=archinfo.ArchPcode("ARM:LE:32:v7"), auto_load_libs=False)
+        assert is_arm_arch(proj.arch)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for name in ("main", "authenticate", "accepted", "rejected"):
+            assert name in cfg.kb.functions, f"{name} was not recovered"
+            assert cfg.kb.functions[name].block_addrs_set, f"{name} was recovered with no blocks"
 
 
 if __name__ == "__main__":

@@ -2452,7 +2452,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         if bytes_prefix is None:
                             # we are out of the mapped memory range - just return
                             return
-                        if any(re.match(prolog, bytes_prefix) for prolog in self.project.arch.thumb_prologs):
+                        if hasattr(self.project.arch, "thumb_prologs") and any(
+                            re.match(prolog, bytes_prefix) for prolog in self.project.arch.thumb_prologs
+                        ):
                             addr |= 1
 
                     if addr % 2 == 0:
@@ -4501,6 +4503,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: None
         """
 
+        # This function requires Capstone engine support
+        if not self.project.arch.capstone_support:
+            return
+
         sorted_node_keys: list[CFGNODE_K] = sorted(block_key for block_key in self.graph.node_keys)
 
         all_plt_stub_addrs = set(
@@ -6119,7 +6125,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                 added_addrs.add(ref.data_addr)
 
             # detect if there are instructions that set r4 as a constant value
-            if (addr & 1) == 0 and addr == func_addr and irsb.size > 0:
+            if (addr & 1) == 0 and addr == func_addr and irsb.size > 0 and self.project.arch.capstone_support:
                 # re-lift the block to get capstone access
                 lifted_block = self._lift(irsb.addr, size=irsb.size, collect_data_refs=False, strict_block_end=True)
                 for i in range(len(lifted_block.capstone.insns) - 1):
