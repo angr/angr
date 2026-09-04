@@ -98,9 +98,12 @@ class Atom:
         :param sp:      The current stack offset. Optional. Only used when argument is a SimStackArg.
         """
         if isinstance(argument, SimRegArg):
+            reg = arch.registers.get(argument.reg_name)
+            if reg is None:
+                raise ValueError(f"Unknown register name {argument.reg_name} for architecture {arch.name}")
             if full_reg:
-                return Register(arch.registers[argument.reg_name][0], arch.registers[argument.reg_name][1], arch)
-            return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)
+                return Register(reg[0], reg[1], arch)
+            return Register(reg[0] + argument.reg_offset, argument.size, arch)
         if isinstance(argument, SimStackArg):
             if sp is None:
                 raise ValueError("You must provide a stack pointer to translate a SimStackArg")
