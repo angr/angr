@@ -1,6 +1,7 @@
 # pylint:disable=superfluous-parens,too-many-boolean-expressions,line-too-long
 from __future__ import annotations
 
+import bisect
 import itertools
 import logging
 import math
@@ -82,6 +83,7 @@ if TYPE_CHECKING:
     from angr.engines.pcode.lifter import IRSB as PcodeIRSB
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.knowledge_plugins.cfg.types import CFGNODE_K
+    from angr.knowledge_plugins.functions import Function
 
 
 VEX_IRSB_MAX_SIZE = 400
@@ -4838,6 +4840,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         nodes_to_remove: list[int] = []
         full_funcs_to_remove: list[int] = []
+        symbol_addrs = sorted(
+            get_real_address_if_arm(self.project.arch, addr) for addr in self._function_addresses_from_symbols
+        )
 
         for func_addr in self.kb.functions:
             # is this function starting in the middle of an instruction?
@@ -4869,6 +4874,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 continue
 
             func = self.kb.functions.get_by_addr(func_addr)
+            if self._body_names_a_symbol(func, symbol_addrs):
+                # removing this function deletes every block of it, so the exemption above has to reach past its
+                # entry point: a block the file's own symbol table names is the same evidence, and removal
+                # destroys it just as completely.
+                continue
+
             for block_addr in sorted(func.block_addrs, reverse=True):
                 cfg_node = self.model.get_any_node(block_addr)
                 if cfg_node is not None and cfg_node.size > 0:
@@ -4914,6 +4925,29 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self.model.remove_node_and_graph_node(cfg_node)
             if self.kb.functions.contains_addr(node_addr):
                 del self.kb.functions[func_addr]
+
+    def _body_names_a_symbol(self, func: Function, symbol_addrs: list[int]) -> bool:
+        """
+        Whether the binary's symbol table names an address inside any block of a function.
+
+        Both sides are masked on ARM: angr carries the Thumb flag in bit 0 of a block address, ELF states it
+        the same way in ``st_value``, and Mach-O keeps it in ``n_desc`` and leaves the address even. Comparing
+        them unmasked makes a Thumb function miss the symbol that starts it.
+
+        :param func:            The function whose blocks to test.
+        :param symbol_addrs:    ``self._function_addresses_from_symbols``, masked and sorted ascending.
+        :return:                True if any block of the function spans a symbol-named address.
+        """
+
+        for block_addr in func.block_addrs_set:
+            cfg_node = self.model.get_any_node(block_addr)
+            if cfg_node is None or not cfg_node.size:
+                continue
+            start = get_real_address_if_arm(self.project.arch, block_addr)
+            index = bisect.bisect_left(symbol_addrs, start)
+            if index < len(symbol_addrs) and symbol_addrs[index] < start + cfg_node.size:
+                return True
+        return False
 
     def _analyze_all_function_features(self, all_funcs_completed=False):
         """
