@@ -41,9 +41,9 @@ class MapIdioms(GoDecompilationTarget):
 
     def test_lookup_ok_is_a_tuple_valued_index(self):
         text = self.texts["main.lookupOk"]
-        m = re.search(r"^\s+(\w+) = \w+\[\w+\]$", text, re.MULTILINE)
+        m = re.search(r"^\s+(\w+), ok :?= \w+\[\w+\]$", text, re.MULTILINE)
         assert m, text
-        assert re.search(rf"return {m.group(1)}\.~r0, {m.group(1)}\.~r1$", text, re.MULTILINE), text
+        assert re.search(rf"return {m.group(1)}, ok$", text, re.MULTILINE), text
         assert "(int, bool)" in text
 
     def test_store_is_an_index_assignment(self):
@@ -54,7 +54,7 @@ class MapIdioms(GoDecompilationTarget):
 
 
 class MapBuiltinIdioms(GoDecompilationTarget):
-    FUNCS = ("main.counts", "main.keys")
+    FUNCS = ("main.counts", "main.keys", "main.total")
 
     def test_make_map_and_increment(self):
         text = self.texts["main.counts"]
@@ -63,6 +63,17 @@ class MapBuiltinIdioms(GoDecompilationTarget):
 
     def test_len_of_map(self):
         assert re.search(r"len\(m\)", self.texts["main.keys"])
+
+    def test_range_over_map(self):
+        # mapiterinit / it.key != nil / mapiternext is a range loop; the element read is the range value
+        text = self.texts["main.total"]
+        assert re.search(r"^\s+for _, v :?= range m \{$", text, re.MULTILINE), text
+        for gone in ("mapiterinit", "mapiternext", "duffzero", "hiter", "unsupported"):
+            assert gone not in text[text.index("func main.total") :], (gone, text)
+        # the key is bound only when it is read whole (go1.24+ types the iterator's key pointer)
+        assert re.search(r"^\s+for (_|k) :?= range m \{$", self.texts["main.keys"], re.MULTILINE), self.texts[
+            "main.keys"
+        ]
 
 
 class ChannelIdioms(GoDecompilationTarget):
@@ -81,15 +92,15 @@ class ChannelIdioms(GoDecompilationTarget):
 
     def test_receive_with_ok(self):
         text = self.texts["main.recvOne"]
-        m = re.search(r"^\s+(\w+) = <-\w+$", text, re.MULTILINE)
-        assert m, text
-        assert re.search(rf"return {m.group(1)}\.~r0, {m.group(1)}\.~r1$", text, re.MULTILINE), text
+        assert re.search(r"^\s+v, ok :?= <-\w+$", text, re.MULTILINE), text
+        assert re.search(r"return v, ok$", text, re.MULTILINE), text
 
     def test_receive_in_loop_condition(self):
+        # the comma-ok receive guarding a loop is a range over the channel
         text = self.texts["main.consume"]
-        m = re.search(r"^\s+(\w+) = <-\w+$", text, re.MULTILINE)
-        assert m, text
-        assert re.search(rf"if {m.group(1)}\.~r1 == 0", text), text
+        assert re.search(r"^\s+for v :?= range ch \{$", text, re.MULTILINE), text
+        body = text[text.index("func main.consume") :]
+        assert "= <-" not in body and "break" not in body, body
 
 
 class GoroutineIdioms(GoDecompilationTarget):

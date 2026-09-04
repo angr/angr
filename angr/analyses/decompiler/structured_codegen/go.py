@@ -43,6 +43,7 @@ from angr.go.codegen_builtins_values import call_tag, render_builtin_call_value
 from angr.go.sim_type import (
     GoSimStruct,
     GoSimType,
+    GoSimTypeBool,
     GoSimTypeChan,
     GoSimTypeFunc,
     GoSimTypeInt,
@@ -53,6 +54,7 @@ from angr.go.sim_type import (
     GoSimTypeString,
     GoSimTypeTuple,
 )
+from angr.go.utils.types import go_type_name_at
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import (
@@ -656,6 +658,7 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         "functy",
         "name",
         "omit_header",
+        "short_declared",
         "show_demangled_name",
         "statements",
         "unified_local_vars",
@@ -692,6 +695,8 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         self.omit_header = omit_header
         # (name, type) declarations introduced by rewrites (e.g. destructured results)
         self.extra_decls: list[tuple[str, SimType]] = []
+        # variables (unified variable or fake-variable name) declared by a := statement
+        self.short_declared: set = set()
 
         self.refresh()
 
@@ -759,6 +764,8 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
             ):
                 # dropped by a rewrite (e.g. a range loop's increment temporary)
                 continue
+            if self._is_short_declared(variable, cvar_and_vartypes):
+                continue
 
             yield indent_str, None
 
@@ -822,6 +829,8 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
             yield "\n", None
 
         for name, ty in self.extra_decls:
+            if name in self.short_declared:
+                continue
             yield indent_str, None
             yield "var ", None
             yield name, None
@@ -829,8 +838,25 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
             yield go_type_str(ty), ty
             yield "\n", None
 
-        if self.unified_local_vars or self.extra_decls:
+        if (self.unified_local_vars or self.extra_decls) and not self._all_short_declared():
             yield "\n", None
+
+    def _is_short_declared(self, variable, cvar_and_vartypes) -> bool:
+        return variable in self.short_declared or any(
+            cvar.variable in self.short_declared or cvar.unified_variable in self.short_declared
+            for cvar, _ in cvar_and_vartypes
+        )
+
+    def _all_short_declared(self) -> bool:
+        referenced = self._referenced_variables()
+        for variable, cvar_and_vartypes in self.unified_local_vars.items():
+            if variable not in referenced and not any(
+                cvar.variable in referenced or cvar.unified_variable in referenced for cvar, _ in cvar_and_vartypes
+            ):
+                continue
+            if not self._is_short_declared(variable, cvar_and_vartypes):
+                return False
+        return all(name in self.short_declared for name, _ in self.extra_decls)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.omit_header:
@@ -1392,7 +1418,7 @@ class GoForLoop(GoStatement):
 class GoRangeLoop(GoStatement):
     """``for i, v = range coll { ... }``; ``index``/``value`` may be None (rendered as ``_``)."""
 
-    __slots__ = ("body", "collection", "index", "value")
+    __slots__ = ("body", "collection", "declares", "index", "value")
 
     def __init__(self, index, value, collection, body, **kwargs):
         super().__init__(**kwargs)
@@ -1400,6 +1426,7 @@ class GoRangeLoop(GoStatement):
         self.value = value
         self.collection = collection
         self.body = body
+        self.declares = False
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1412,7 +1439,7 @@ class GoRangeLoop(GoStatement):
         if self.value is not None:
             yield ", ", None
             yield from GoExpression._try_c_repr_chunks(self.value)
-        yield " = range ", self
+        yield (" := range " if self.declares else " = range "), self
         yield from GoExpression._try_c_repr_chunks(self.collection)
         yield from _go_block_chunks(self.body, indent_str, indent, self.codegen)
 
@@ -1657,13 +1684,14 @@ class GoAssignment(GoStatement):
     a = b
     """
 
-    __slots__ = ("lhs", "rhs")
+    __slots__ = ("declares", "lhs", "rhs")
 
     def __init__(self, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
 
         self.lhs = lhs
         self.rhs = rhs
+        self.declares = False  # rendered as a short variable declaration
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1688,6 +1716,7 @@ class GoAssignment(GoStatement):
         compound_expr_rhs = None
         if (
             self.codegen.use_compound_assignments
+            and not self.declares
             and isinstance(self.lhs, GoVariable)
             and isinstance(self.rhs, GoBinaryOp)
             and self.rhs.op in compound_assignment_ops
@@ -1714,7 +1743,7 @@ class GoAssignment(GoStatement):
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
             yield from GoExpression._try_c_repr_chunks(compound_expr_rhs)
         else:
-            yield " = ", self
+            yield (" := " if self.declares else " = "), self
             yield from GoExpression._try_c_repr_chunks(self.rhs)
         if not asexpr:
             yield "\n", self
@@ -1758,12 +1787,13 @@ class GoMethodCall(GoExpression):
 class GoMultiAssignment(GoStatement):
     """``a, b = f()``"""
 
-    __slots__ = ("lhs", "rhs")
+    __slots__ = ("declares", "lhs", "rhs")
 
     def __init__(self, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
         self.lhs = list(lhs)
         self.rhs = rhs
+        self.declares = False
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.indent_str(indent=indent), None
@@ -1771,10 +1801,51 @@ class GoMultiAssignment(GoStatement):
             if i:
                 yield ", ", None
             yield from GoExpression._try_c_repr_chunks(target)
-        yield " = ", self
+        yield (" := " if self.declares else " = "), self
         yield from GoExpression._try_c_repr_chunks(self.rhs)
         if not asexpr:
             yield "\n", self
+
+
+class GoTypeSwitch(GoStatement):
+    """``switch x := v.(type) { case T: ... default: ... }``"""
+
+    __slots__ = ("bound_name", "cases", "default", "value")
+
+    def __init__(self, value, bound_name: str | None, cases, default, **kwargs):
+        super().__init__(**kwargs)
+        self.value = value
+        self.bound_name = bound_name  # None when no case reads the asserted value
+        self.cases = list(cases)  # (type name, GoStatements)
+        self.default = default
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+        brace = GoClosingObject("{")
+        yield indent_str, None
+        yield "switch ", self
+        if self.bound_name is not None:
+            yield self.bound_name, self
+            yield " := ", None
+        yield from GoExpression._try_c_repr_chunks(self.value)
+        yield ".(type) ", None
+        yield "{", brace
+        yield "\n", None
+        for type_name, body in self.cases:
+            yield indent_str, None
+            yield "case ", self
+            yield type_name, self
+            yield ":", None
+            yield "\n", None
+            yield from body.c_repr_chunks(indent=indent + INDENT_DELTA)
+        if self.default is not None:
+            yield indent_str, None
+            yield "default:", self
+            yield "\n", None
+            yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "}", brace
+        yield "\n", self
 
 
 class GoExpressionStatement(GoStatement):
@@ -1815,6 +1886,7 @@ class GoFunctionCall(GoExpression):
         "callee_target",
         "show_demangled_name",
         "show_disambiguated_name",
+        "site_returnty",
     )
 
     def __init__(
@@ -1836,6 +1908,8 @@ class GoFunctionCall(GoExpression):
         self.args = args if args is not None else []
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
+        # the result type of the call-site prototype (builtins and rewritten runtime calls)
+        self.site_returnty: SimType | None = None
 
     @property
     def prettify_thiscall(self) -> bool:
@@ -1862,6 +1936,8 @@ class GoFunctionCall(GoExpression):
         """
         if self.callee_func is not None and self.callee_func.prototype is not None:
             return self.prototype.returnty  # type: ignore
+        if self.site_returnty is not None:
+            return self.site_returnty
         result_type = call_tag(self, "go_result_type") if isinstance(self.callee_target, str) else None
         if result_type is not None:
             # a builtin produced by GoBuiltinRewriter
@@ -3610,7 +3686,11 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         TypeAssertionRecovery(self, self.cfunc).run()
         self.cfunc = RangeLoopRecovery(self).handle(self.cfunc)
         TupleDestructuring(self, self.cfunc).run()
+        TypeSwitchRecovery(self, self.cfunc).run()
+        MapRangeRecovery(self, self.cfunc).run()
+        ChannelRangeRecovery(self, self.cfunc).run()
         self.cfunc = PrintFolding(self).handle(self.cfunc)
+        ShortDeclarations(self, self.cfunc).run()
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -4478,6 +4558,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
         )
+        if isinstance(stmt.expr.target, str) and target_func is None:
+            site_proto = self._variable_map.prototype(stmt.expr)
+            if site_proto is not None and site_proto.returnty is not None:
+                call_expr.site_returnty = site_proto.returnty.with_arch(self.project.arch)
 
         if is_expr:
             # Used as an expression (e.g. nested in another expression)
@@ -4565,6 +4649,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
         )
+        if site_proto is not None and site_proto.returnty is not None:
+            call_expr.site_returnty = site_proto.returnty.with_arch(self.project.arch)
 
         if (
             expr.bits
@@ -5135,6 +5221,13 @@ class GoStructuredCodeWalker:
         obj.expr = self.handle(obj.expr)
         return obj
 
+    def handle_GoTypeSwitch(self, obj):
+        obj.value = self.handle(obj.value)
+        obj.cases = [(name, self.handle(body)) for name, body in obj.cases]
+        if obj.default is not None:
+            obj.default = self.handle(obj.default)
+        return obj
+
     def handle_GoTypeAssertion(self, obj):
         obj.expr = self.handle(obj.expr)
         return obj
@@ -5494,13 +5587,17 @@ class TupleDestructuring(GoStructuredCodeWalker):
             taken.discard(var_name)
             names = []
             first_plain = True
+            is_recv = call_tag(assignments[0].rhs, "go_render") == "recv"
             for i, (rname, elem) in enumerate(zip(tup.names, tup.elems)):
                 if not rname.startswith("~"):
                     base = rname
                 elif isinstance(unpack_typeref(elem), GoSimTypeInterface) and unpack_typeref(elem).go_name == "error":
                     base = "err"
+                elif isinstance(unpack_typeref(elem), (SimTypeBool, GoSimTypeBool)):
+                    base = "ok"
                 elif first_plain:
-                    base = var_name
+                    # a received value is conventionally "v"
+                    base = "v" if is_recv else var_name
                     first_plain = False
                 else:
                     base = f"{var_name}{i}"
@@ -5677,10 +5774,17 @@ def _go_descriptor_addr(expr) -> int | None:
     """The address of the runtime type descriptor or itab that ``expr`` references, or None."""
     if isinstance(expr, GoConstant) and isinstance(expr.value, int):
         return expr.value
-    if isinstance(expr, GoUnaryOp) and expr.op == "Reference" and isinstance(expr.operand, GoVariable):
-        var = expr.operand.variable
-        if isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
-            return var.addr
+    if isinstance(expr, GoUnaryOp) and expr.op == "Reference":
+        operand = expr.operand
+        offset = 0
+        # &global.field.sub: the innermost field's address
+        while isinstance(operand, GoVariableField) and isinstance(operand.field.offset, int):
+            offset += operand.field.offset
+            operand = operand.variable
+        if isinstance(operand, GoVariable):
+            var = operand.variable
+            if isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
+                return var.addr + offset
     return None
 
 
@@ -5864,6 +5968,869 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
 
     def _substitute(self, value, replacement) -> None:
         _DataReadSubstituter(value, replacement).handle(self._cfunc.statements)
+
+
+def _go_interface_switch_cases(codegen, addr: int) -> list[str] | None:
+    """The interface types of an ``internal/abi.InterfaceSwitch`` descriptor: ``Cache``, ``NCases``, ``Cases[]``."""
+    project = codegen.project
+    ws = project.arch.bytes
+    try:
+        ncases = project.loader.memory.unpack_word(addr + ws, size=ws)
+        if not 0 < ncases <= 64:
+            return None
+        names = []
+        for i in range(ncases):
+            desc = project.loader.memory.unpack_word(addr + 2 * ws + i * ws, size=ws)
+            name = codegen.kb.go_types.name_at(desc)
+            if name is None:
+                return None
+            names.append(name)
+        return names
+    except Exception:  # pylint:disable=broad-exception-caught
+        return None
+
+
+def _go_var_named(expr) -> bool:
+    return isinstance(expr, (GoVariable, GoFakeVariable))
+
+
+def _go_stmt_list(node) -> list:
+    """The statements of ``node`` with nested statement blocks flattened."""
+    if node is None:
+        return []
+    if not isinstance(node, GoStatements):
+        return [node]
+    out = []
+    for stmt in node.statements:
+        out.extend(_go_stmt_list(stmt) if isinstance(stmt, GoStatements) else [stmt])
+    return out
+
+
+class _UseCounter(GoStructuredCodeWalker):
+    """Counts references of variables by identity key."""
+
+    def __init__(self):
+        self.counts: Counter = Counter()
+
+    @staticmethod
+    def key(var):
+        if isinstance(var, GoVariable):
+            return ("v", _go_var_key(var))
+        return ("f", getattr(var, "name", None))
+
+    def handle_GoVariable(self, obj):
+        self.counts[self.key(obj)] += 1
+        return obj
+
+    def handle_GoFakeVariable(self, obj):
+        self.counts[self.key(obj)] += 1
+        return obj
+
+
+class _ItabMethodCalls(GoStructuredCodeWalker):
+    """Calls through the method table of a known interface's itab become method calls on the bound value."""
+
+    ITAB_FUN_OFFSET = 24
+
+    def __init__(self, codegen, itab_vars, receiver, iface):
+        self._codegen = codegen
+        self._itab_keys = {_UseCounter.key(v) for v in itab_vars}
+        self._receiver = receiver
+        self._iface = iface
+        self.count = 0
+
+    def _slot(self, target):
+        while isinstance(target, GoTypeCast):
+            target = target.expr
+        if (
+            isinstance(target, GoVariableField)
+            and _go_var_named(target.variable)
+            and _UseCounter.key(target.variable) in self._itab_keys
+        ):
+            return target.field.offset
+        if (
+            isinstance(target, GoIndexedVariable)
+            and isinstance(target.index, GoConstant)
+            and _go_var_named(target.variable)
+            and _UseCounter.key(target.variable) in self._itab_keys
+        ):
+            return target.index.value
+        if isinstance(target, GoUnaryOp) and target.op == "Dereference":
+            inner = target.operand
+            while isinstance(inner, GoTypeCast):
+                inner = inner.expr
+            if (
+                isinstance(inner, GoBinaryOp)
+                and inner.op == "Add"
+                and isinstance(inner.rhs, GoConstant)
+                and _go_var_named(inner.lhs)
+                and _UseCounter.key(inner.lhs) in self._itab_keys
+            ):
+                return inner.rhs.value
+        return None
+
+    def handle_GoFunctionCall(self, obj):
+        obj = super().handle_GoFunctionCall(obj)
+        if obj.callee_func is not None or isinstance(obj.callee_target, str):
+            return obj
+        offset = self._slot(obj.callee_target)
+        if offset is None:
+            return obj
+        index, rem = divmod(offset - self.ITAB_FUN_OFFSET, self._codegen.project.arch.bytes)
+        if rem or index < 0 or index >= len(self._iface.methods):
+            return obj
+        name, sig = self._iface.methods[index]
+        self.count += 1
+        # the first argument is always the receiver's data word
+        return GoMethodCall(
+            self._receiver, name, list(obj.args)[1:], signature=sig, tags=obj.tags, codegen=self._codegen
+        )
+
+    def handle_GoStructLiteral(self, obj):
+        obj = super().handle_GoStructLiteral(obj)
+        # a two-word result split into (call, dangling register): the call already carries the whole value
+        fields = list(obj.fields.values())
+        if (
+            len(fields) == 2
+            and isinstance(fields[0], GoMethodCall)
+            and fields[0].signature is not None
+            and _go_var_named(fields[1])
+            and obj.type is not None
+            and unpack_typeref(fields[0].type) is not None
+            and getattr(unpack_typeref(fields[0].type), "size", None) == obj.type.size
+        ):
+            return fields[0]
+        return obj
+
+
+class TypeSwitchRecovery(GoStructuredCodeWalker):
+    """
+    An if/else-if chain comparing one interface value's type word against type descriptors becomes
+    ``switch x := v.(type)``; a trailing ``runtime.interfaceSwitch`` dispatch adds the interface cases.
+    """
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
+        self._dead_copies: set = set()
+
+    def run(self):
+        root = self._cfunc.statements
+        if not isinstance(root, GoStatements):
+            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+        self._cfunc.statements = self.handle(root)
+        if self._dead_copies:
+            self._cfunc.statements = _DeadCopyRemover(self._dead_copies, self._cfunc).handle(self._cfunc.statements)
+            # declarations introduced for the dispatch results are dead with them
+            counter = _UseCounter()
+            counter.handle(self._cfunc.statements)
+            self._cfunc.extra_decls = [
+                (name, ty) for name, ty in self._cfunc.extra_decls if counter.counts[("f", name)] > 0
+            ]
+
+    def handle_GoStatements(self, obj):
+        out = []
+        for stmt in obj.statements:
+            stmt = self.handle(stmt)
+            if isinstance(stmt, GoIfElse):
+                replaced = self._try_switch(stmt)
+                if replaced is not None:
+                    out.append(replaced)
+                    continue
+            out.append(stmt)
+        obj.statements = out
+        return obj
+
+    def _match_check(self, cond):
+        if not isinstance(cond, GoBinaryOp) or cond.op != "CmpEQ":
+            return None
+        for word, desc in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+            value = _go_iface_word(word, ("tab", "_type"))
+            addr = _go_descriptor_addr(desc)
+            if value is None or addr is None:
+                continue
+            go_types = self._codegen.kb.go_types
+            itab = go_types.itab_at(addr)
+            concrete = itab[1] if itab is not None else go_types.name_at(addr)
+            return (value, concrete) if concrete is not None else None
+        return None
+
+    def _fresh(self, base: str) -> str:
+        name, n = base, 1
+        while name in self._taken:
+            n += 1
+            name = f"{base}{n}"
+        self._taken.add(name)
+        return name
+
+    def _try_switch(self, stmt: GoIfElse):
+        checks = [self._match_check(cond) for cond, _ in stmt.condition_and_nodes]
+        if not checks or any(c is None for c in checks):
+            return None
+        value = checks[0][0]
+        if not all(_go_same_value(c[0], value) for c in checks[1:]):
+            return None
+        concretes = [c[1] for c in checks]
+        if len(set(concretes)) != len(concretes):
+            return None
+        bound = self._fresh("x")
+        cases = []
+        reads = 0
+        for (_, node), concrete in zip(stmt.condition_and_nodes, concretes):
+            body = node if isinstance(node, GoStatements) else GoStatements([node], codegen=self._codegen)
+            ty = None
+            with contextlib.suppress(Exception):
+                ty = self._codegen.kb.go_signatures.type(concrete).with_arch(self._codegen.project.arch)
+            if ty is not None:
+                target = GoFakeVariable(bound, ty, codegen=self._codegen)
+                sub = _DataReadSubstituter(value, target)
+                body = sub.handle(body)
+                reads += sub.count
+            cases.append((concrete, body))
+        default = stmt.else_node
+        iface_cases, default, iface_reads = self._interface_cases(default, value, bound)
+        cases += iface_cases
+        reads += iface_reads
+        if default is not None and not isinstance(default, GoStatements):
+            default = GoStatements([default], codegen=self._codegen)
+        if default is not None and not _go_stmt_list(default):
+            default = None
+        if reads == 0:
+            self._taken.discard(bound)
+            bound = None
+        return GoTypeSwitch(value, bound, cases, default, tags=stmt.tags, codegen=self._codegen)
+
+    def _interface_cases(self, node, value, bound: str):
+        """``c, itab = runtime.interfaceSwitch(&sw, v.tab); if c == k {...}`` in ``node`` -> interface cases."""
+        stmts = _go_stmt_list(node)
+        if not stmts:
+            return [], node, 0
+        # simple copies before and after the dispatch are resolved by name
+        aliases: dict = {}
+        data_copies: set = set()
+        dispatch = None
+        for i, st in enumerate(stmts):
+            if isinstance(st, GoAssignment) and _go_var_named(st.lhs) and _go_var_named(st.rhs):
+                aliases[_UseCounter.key(st.lhs)] = st
+                continue
+            if isinstance(st, GoAssignment) and _go_var_named(st.lhs):
+                holder = _go_iface_word(st.rhs, ("data",))
+                if holder is not None and _go_same_value(holder, value):
+                    data_copies.add(_UseCounter.key(st.lhs))
+            if (
+                isinstance(st, GoMultiAssignment)
+                and len(st.lhs) == 2
+                and isinstance(st.rhs, GoFunctionCall)
+                and st.rhs.callee_func is not None
+                and normalize_go_func_name(st.rhs.callee_func.name) == "runtime.interfaceSwitch"
+                and len(st.rhs.args) == 2
+            ):
+                dispatch = (i, st)
+                break
+            if isinstance(st, GoAssignment):
+                # the data-word copy the compiler makes before dispatching
+                continue
+            return [], node, 0
+        if dispatch is None:
+            return [], node, 0
+        idx, st = dispatch
+        addr = _go_descriptor_addr(st.rhs.args[0])
+        if addr is None:
+            return [], node, 0
+        # &sw.Cache is the address of the descriptor itself
+        names = _go_interface_switch_cases(self._codegen, addr)
+        if not names:
+            return [], node, 0
+        case_var, itab_var = st.lhs
+        # following statements: copies, then the case dispatch
+        rest = stmts[idx + 1 :]
+        case_keys = {_UseCounter.key(case_var)}
+        itab_keys = {_UseCounter.key(itab_var)}
+        copies = []
+        while rest and isinstance(rest[0], GoAssignment) and _go_var_named(rest[0].lhs) and _go_var_named(rest[0].rhs):
+            src_key = _UseCounter.key(rest[0].rhs)
+            if src_key in case_keys:
+                case_keys.add(_UseCounter.key(rest[0].lhs))
+            elif src_key in itab_keys:
+                itab_keys.add(_UseCounter.key(rest[0].lhs))
+            copies.append(rest[0])
+            rest = rest[1:]
+        if not rest or not isinstance(rest[0], GoIfElse):
+            return [], node, 0
+        chain = rest[0]
+        cases = []
+        reads = 0
+        for cond, body in chain.condition_and_nodes:
+            k = self._case_index(cond, case_keys)
+            if k is None or k >= len(names):
+                return [], node, 0
+            iface_name = names[k]
+            iface = None
+            with contextlib.suppress(Exception):
+                iface = self._codegen.kb.go_signatures.type(iface_name).with_arch(self._codegen.project.arch)
+            if not isinstance(iface, GoSimTypeInterface):
+                return [], node, 0
+            body = body if isinstance(body, GoStatements) else GoStatements([body], codegen=self._codegen)
+            receiver = GoFakeVariable(bound, iface, codegen=self._codegen)
+            calls = _ItabMethodCalls(
+                self._codegen, [GoFakeVariable(k_, iface, codegen=self._codegen) for k_ in ()], receiver, iface
+            )
+            calls._itab_keys = set(itab_keys)
+            body = calls.handle(body)
+            reads += calls.count
+            sub = _DataReadSubstituter(value, receiver)
+            body = sub.handle(body)
+            reads += sub.count
+            cases.append((iface_name, body))
+        # everything the dispatch introduced is now dead: the copies, the dispatch and its results
+        self._dead_copies |= set(aliases) | case_keys | itab_keys | data_copies
+        leftover = stmts[:idx]
+        leftover = [
+            x for x in leftover if not (isinstance(x, GoAssignment) and _UseCounter.key(x.lhs) in self._dead_copies)
+        ]
+        default_stmts = leftover + _go_stmt_list(chain.else_node) + rest[1:]
+        default = GoStatements(default_stmts, codegen=self._codegen) if default_stmts else None
+        return cases, default, reads
+
+    @staticmethod
+    def _case_index(cond, case_keys) -> int | None:
+        if not (isinstance(cond, GoBinaryOp) and cond.op == "CmpEQ"):
+            return None
+        for a, b in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+            if _go_var_named(a) and _UseCounter.key(a) in case_keys and isinstance(b, GoConstant):
+                return b.value
+        return None
+
+
+def _go_call_named(stmt, name):
+    """The call expression of ``stmt`` when it is a plain call statement to ``name`` (or one of ``name``), else None."""
+    names = {name} if isinstance(name, str) else set(name)
+    if not isinstance(stmt, GoExpressionStatement):
+        return None
+    call = stmt.expr
+    if not isinstance(call, GoFunctionCall):
+        return None
+    if call.callee_func is not None and normalize_go_func_name(call.callee_func.name) in names:
+        return call
+    if isinstance(call.callee_target, str) and call.callee_target in names:
+        return call
+    return None
+
+
+# go1.22 hash maps and go1.24+ swiss maps name the iterator runtime differently
+_MAP_ITER_INIT = frozenset({"runtime.mapiterinit", "runtime.mapIterStart"})
+_MAP_ITER_NEXT = frozenset({"runtime.mapiternext", "runtime.mapIterNext"})
+
+
+def _go_referenced_var(expr):
+    """The variable ``expr`` takes the address of, or None."""
+    if isinstance(expr, GoUnaryOp) and expr.op == "Reference" and isinstance(expr.operand, GoVariable):
+        return expr.operand
+    return None
+
+
+def _go_is_true_const(expr) -> bool:
+    return isinstance(expr, GoConstant) and isinstance(expr.value, int) and expr.value != 0
+
+
+def _go_break_only(node) -> bool:
+    stmts = _go_stmt_list(node)
+    return len(stmts) == 1 and isinstance(stmts[0], GoBreak)
+
+
+class _PointerReadSubstituter(GoStructuredCodeWalker):
+    """Replaces whole-value reads through a set of pointer expressions (``*p``, ``p[0]``) with a variable."""
+
+    def __init__(self, is_pointer, replacement):
+        self._is_pointer = is_pointer
+        self._replacement = replacement
+        self.count = 0
+        self.partial = 0
+
+    def _strip(self, expr):
+        while isinstance(expr, GoTypeCast):
+            expr = expr.expr
+        return expr
+
+    def handle_GoUnaryOp(self, obj):
+        if obj.op == "Dereference" and self._is_pointer(self._strip(obj.operand)):
+            self.count += 1
+            return obj if self._replacement is None else self._replacement
+        return super().handle_GoUnaryOp(obj)
+
+    def handle_GoIndexedVariable(self, obj):
+        if self._is_pointer(self._strip(obj.variable)) and isinstance(obj.index, GoConstant):
+            if obj.index.value == 0:
+                self.count += 1
+                return obj if self._replacement is None else self._replacement
+            self.partial += 1
+        return super().handle_GoIndexedVariable(obj)
+
+
+class MapRangeRecovery(GoStructuredCodeWalker):
+    """
+    ``runtime.mapiterinit(T, m, &it)`` followed by a loop on ``it.key != nil`` that ends with
+    ``runtime.mapiternext(&it)`` becomes ``for k, v = range m``; reads through the iterator's key and element
+    pointers become ``k`` and ``v``.
+    """
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
+        self._taken |= {arg.name for arg in getattr(cfunc, "arg_list", []) if getattr(arg, "name", None)}
+
+    def run(self):
+        root = self._cfunc.statements
+        if not isinstance(root, GoStatements):
+            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+        self._cfunc.statements = self.handle(root)
+
+    def _fresh(self, base: str) -> str:
+        name, n = base, 1
+        while name in self._taken:
+            n += 1
+            name = f"{base}{n}"
+        self._taken.add(name)
+        return name
+
+    def handle_GoStatements(self, obj):
+        # nested blocks carry no scope of their own: flatten them so the loop follows its initializer
+        stmts = _go_stmt_list(GoStatements([self.handle(st) for st in obj.statements], codegen=self._codegen))
+        out = []
+        i = 0
+        while i < len(stmts):
+            stmt = stmts[i]
+            init = _go_call_named(stmt, _MAP_ITER_INIT)
+            if init is not None and len(init.args) == 3:
+                # plain assignments may sit between the iterator setup and the loop
+                j = i + 1
+                while j < len(stmts) and isinstance(stmts[j], GoAssignment):
+                    j += 1
+                if j < len(stmts):
+                    replaced = self._try_range(init, stmts[j], out)
+                    if replaced is not None:
+                        out.extend(stmts[i + 1 : j])
+                        out.extend(replaced)
+                        i = j + 1
+                        continue
+            out.append(stmt)
+            i += 1
+        obj.statements = out
+        return obj
+
+    def _try_range(self, init: GoFunctionCall, loop, preceding: list):
+        it = _go_referenced_var(init.args[2])
+        collection = init.args[1]
+        if it is None or not isinstance(it.variable, SimStackVariable):
+            return None
+        ws = self._codegen.project.arch.bytes
+        it_offset = it.variable.offset
+
+        def key_ptr(expr) -> bool:
+            if isinstance(expr, GoVariable) and _same_variable(expr, it):
+                return True
+            return isinstance(expr, GoVariableField) and expr.field.field == "key" and _go_same_value(expr.variable, it)
+
+        def elem_ptr(expr) -> bool:
+            if isinstance(expr, GoVariableField) and expr.field.field == "elem" and _go_same_value(expr.variable, it):
+                return True
+            return (
+                isinstance(expr, GoVariable)
+                and isinstance(expr.variable, SimStackVariable)
+                and expr.variable.offset == it_offset + ws
+                and expr.variable.size == ws
+            )
+
+        hoisted = []
+        body_stmts = None
+        tail = []
+        aliases = []  # p = (*T)(it) statements naming the key pointer
+        if isinstance(loop, GoForLoop) and loop.condition is not None:
+            if not self._is_end_check(loop.condition, key_ptr, negated=True):
+                return None
+            body_stmts = _go_stmt_list(loop.body)
+            if loop.initializer is not None:
+                hoisted.append(loop.initializer)
+            if loop.iterator is not None:
+                tail.append(loop.iterator)
+        elif isinstance(loop, GoWhileLoop):
+            body_stmts = _go_stmt_list(loop.body)
+            if _go_is_true_const(loop.condition):
+                # for { p = (*T)(it); if p == nil { break } ... }
+                while body_stmts and isinstance(body_stmts[0], GoAssignment) and _go_var_named(body_stmts[0].lhs):
+                    rhs = body_stmts[0].rhs
+                    while isinstance(rhs, GoTypeCast):
+                        rhs = rhs.expr
+                    if not key_ptr(rhs):
+                        break
+                    aliases.append(body_stmts[0])
+                    body_stmts = body_stmts[1:]
+                if not body_stmts or not isinstance(body_stmts[0], GoIfElse):
+                    return None
+                check = body_stmts[0]
+                if len(check.condition_and_nodes) != 1 or check.else_node is not None:
+                    return None
+                cond, node = check.condition_and_nodes[0]
+                alias_keys = {_UseCounter.key(a.lhs) for a in aliases}
+
+                def key_ptr_or_alias(expr, _base=key_ptr):
+                    return _base(expr) or (_go_var_named(expr) and _UseCounter.key(expr) in alias_keys)
+
+                if not (self._is_end_check(cond, key_ptr_or_alias, negated=False) and _go_break_only(node)):
+                    return None
+                key_ptr = key_ptr_or_alias
+                body_stmts = body_stmts[1:]
+            elif not self._is_end_check(loop.condition, key_ptr, negated=True):
+                return None
+        else:
+            return None
+        if not body_stmts or _go_call_named(body_stmts[-1], _MAP_ITER_NEXT) is None:
+            return None
+        nxt = _go_call_named(body_stmts[-1], _MAP_ITER_NEXT)
+        if len(nxt.args) != 1 or _go_referenced_var(nxt.args[0]) is None:
+            return None
+        if not _same_variable(_go_referenced_var(nxt.args[0]), it):
+            return None
+        body_stmts = body_stmts[:-1] + tail
+
+        # the map's key and element types
+        # the map type: from the value when it is typed, else from the descriptor passed to mapiterinit
+        map_type = unpack_typeref(collection.type)
+        if not isinstance(map_type, GoSimTypeMap):
+            map_type = None
+            desc = _go_descriptor_addr(init.args[0])
+            if desc is not None:
+                with contextlib.suppress(Exception):
+                    map_type = self._codegen.kb.go_signatures.type(go_type_name_at(self._codegen.project, desc))
+        key_type = elem_type = None
+        if isinstance(map_type, GoSimTypeMap):
+            key_type, elem_type = map_type.key_type, map_type.elem_type
+        body = GoStatements(body_stmts, codegen=self._codegen)
+        key_var = value_var = None
+        if key_type is not None:
+            # only whole-value reads can be renamed; a key read piecewise keeps its pointer
+            probe = _PointerReadSubstituter(key_ptr, None)
+            probe.handle(body)
+            if probe.count and not probe.partial:
+                key_var = GoFakeVariable(
+                    self._fresh("k"), key_type.with_arch(self._codegen.project.arch), codegen=self._codegen
+                )
+                body = _PointerReadSubstituter(key_ptr, key_var).handle(body)
+        if key_var is None and aliases:
+            body = GoStatements([*aliases, *body.statements], codegen=self._codegen)
+        if elem_type is not None:
+            probe = _PointerReadSubstituter(elem_ptr, None)
+            probe.handle(body)
+            if probe.count and not probe.partial:
+                value_var = GoFakeVariable(
+                    self._fresh("v"), elem_type.with_arch(self._codegen.project.arch), codegen=self._codegen
+                )
+                body = _PointerReadSubstituter(elem_ptr, value_var).handle(body)
+        # zeroing of the iterator before the loop is part of the idiom: a duffzero call, or zero stores that cover
+        # the iterator's stack region
+        it_type = unpack_typeref(it.type)
+        it_size = it_type.size // self._codegen.project.arch.byte_width if it_type is not None and it_type.size else ws
+        while preceding:
+            last = preceding[-1]
+            if _go_call_named(last, "runtime.duffzero") is not None:
+                preceding.pop()
+                continue
+            if (
+                isinstance(last, GoAssignment)
+                and isinstance(last.lhs, GoVariable)
+                and isinstance(last.lhs.variable, SimStackVariable)
+                and it_offset <= last.lhs.variable.offset < it_offset + it_size
+                and isinstance(last.rhs, GoConstant)
+                and last.rhs.value == 0
+            ):
+                preceding.pop()
+                continue
+            break
+        for var in (key_var, value_var):
+            if var is not None:
+                self._cfunc.extra_decls.append((var.name, var.type))
+        return [*hoisted, GoRangeLoop(key_var, value_var, collection, body, tags=loop.tags, codegen=self._codegen)]
+
+    @staticmethod
+    def _is_end_check(cond, key_ptr, negated: bool) -> bool:
+        """``it.key != nil`` (negated) or ``it.key == nil``."""
+        if not isinstance(cond, GoBinaryOp):
+            return False
+        want = "CmpNE" if negated else "CmpEQ"
+        if cond.op != want:
+            return False
+        for a, b in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+            x = a
+            while isinstance(x, GoTypeCast):
+                x = x.expr
+            if key_ptr(x) and isinstance(b, GoConstant) and b.value == 0:
+                return True
+        return False
+
+
+class ChannelRangeRecovery(GoStructuredCodeWalker):
+    """``for { v, ok = <-ch; if !ok { break } ... }`` becomes ``for v = range ch { ... }``."""
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._dropped: set = set()
+
+    def run(self):
+        root = self._cfunc.statements
+        if not isinstance(root, GoStatements):
+            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+        self._cfunc.statements = self.handle(root)
+        if self._dropped:
+            counter = _UseCounter()
+            counter.handle(self._cfunc.statements)
+            self._cfunc.extra_decls = [
+                (name, ty) for name, ty in self._cfunc.extra_decls if counter.counts[("f", name)] > 0
+            ]
+
+    def handle_GoWhileLoop(self, obj):
+        obj = super().handle_GoWhileLoop(obj)
+        if not _go_is_true_const(obj.condition):
+            return obj
+        stmts = _go_stmt_list(obj.body)
+        # leading copies may precede the receive
+        for i, stmt in enumerate(stmts):
+            if isinstance(stmt, GoAssignment) and _go_var_named(stmt.lhs):
+                continue
+            if (
+                isinstance(stmt, GoMultiAssignment)
+                and len(stmt.lhs) == 2
+                and isinstance(stmt.rhs, GoFunctionCall)
+                and call_tag(stmt.rhs, "go_render") == "recv"
+                and len(stmt.rhs.args) == 1
+                and i + 1 < len(stmts)
+            ):
+                value, ok = stmt.lhs
+                check = stmts[i + 1]
+                if not (
+                    isinstance(check, GoIfElse) and len(check.condition_and_nodes) == 1 and check.else_node is None
+                ):
+                    return obj
+                cond, node = check.condition_and_nodes[0]
+                if not (self._is_not_ok(cond, ok) and _go_break_only(node)):
+                    return obj
+                body = GoStatements(stmts[:i] + stmts[i + 2 :], codegen=self._codegen)
+                self._dropped.add(_UseCounter.key(ok))
+                return GoRangeLoop(value, None, stmt.rhs.args[0], body, tags=obj.tags, codegen=self._codegen)
+            return obj
+        return obj
+
+    @staticmethod
+    def _is_not_ok(cond, ok) -> bool:
+        if isinstance(cond, GoUnaryOp) and cond.op == "Not" and _go_var_named(cond.operand):
+            return _UseCounter.key(cond.operand) == _UseCounter.key(ok)
+        if isinstance(cond, GoBinaryOp) and cond.op == "CmpEQ":
+            for a, b in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+                if _go_var_named(a) and _UseCounter.key(a) == _UseCounter.key(ok) and isinstance(b, GoConstant):
+                    return b.value == 0
+        return False
+
+
+class ShortDeclarations:
+    """
+    Turn the first assignment of a local into ``x := e`` when it sits in the innermost block enclosing every use of
+    ``x`` (Go's scoping for short declarations), and drop the ``var`` line. Loop initializers and range loops
+    declare their variables the same way.
+    """
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._refs: dict = defaultdict(list)  # key -> [path]; path = ((scope, ordinal), ...)
+        self._stmt_at: dict = {}
+        self._next_scope = 0
+        self._excluded = {_UseCounter.key(arg) for arg in cfunc.arg_list}
+
+    @staticmethod
+    def _key(var):
+        return _UseCounter.key(var)
+
+    def _is_local(self, var) -> bool:
+        if isinstance(var, GoFakeVariable):
+            return var.name != "_"
+        if isinstance(var, GoVariable):
+            v = var.variable
+            return not (isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable))
+        return False
+
+    # -- collection
+    def run(self):
+        root = self._cfunc.statements
+        if not isinstance(root, GoStatements):
+            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            self._cfunc.statements = root
+        self._visit_scope(root, ())
+        self._decide()
+
+    def _visit_scope(self, node, path):
+        scope = self._next_scope
+        self._next_scope += 1
+        for ordinal, stmt in enumerate(_go_stmt_list(node)):
+            p = (*path, (scope, ordinal))
+            self._stmt_at[(scope, ordinal)] = stmt
+            self._visit_stmt(stmt, p)
+
+    def _visit_stmt(self, stmt, p):
+        if isinstance(stmt, GoIfElse):
+            for cond, node in stmt.condition_and_nodes:
+                self._visit_expr(cond, p)
+                self._visit_scope(node, p)
+            if stmt.else_node is not None:
+                self._visit_scope(stmt.else_node, p)
+        elif isinstance(stmt, (GoWhileLoop, GoDoWhileLoop)):
+            self._visit_expr(stmt.condition, p)
+            self._visit_scope(stmt.body, p)
+        elif isinstance(stmt, GoForLoop):
+            for part in (stmt.initializer, stmt.condition, stmt.iterator):
+                if part is not None:
+                    self._visit_expr(part, p)
+            self._visit_scope(stmt.body, p)
+        elif isinstance(stmt, GoRangeLoop):
+            for part in (stmt.index, stmt.value, stmt.collection):
+                if part is not None:
+                    self._visit_expr(part, p)
+            self._visit_scope(stmt.body, p)
+        elif isinstance(stmt, GoTypeSwitch):
+            self._visit_expr(stmt.value, p)
+            for _, body in stmt.cases:
+                self._visit_scope(body, p)
+            if stmt.default is not None:
+                self._visit_scope(stmt.default, p)
+        elif isinstance(stmt, GoStatements):
+            self._visit_scope(stmt, p)
+        else:
+            self._visit_expr(stmt, p)
+
+    def _visit_expr(self, node, p):
+        if isinstance(node, (GoVariable, GoFakeVariable)):
+            if self._is_local(node):
+                self._refs[self._key(node)].append(p)
+            return
+        if isinstance(node, GoStatements):
+            self._visit_scope(node, p)
+            return
+        for name in _go_node_attr_names(node):
+            child = getattr(node, name, None)
+            if isinstance(child, GoConstruct):
+                self._visit_expr(child, p)
+            elif isinstance(child, (list, tuple)):
+                for item in child:
+                    if isinstance(item, GoConstruct):
+                        self._visit_expr(item, p)
+                    elif isinstance(item, tuple):
+                        for x in item:
+                            if isinstance(x, GoConstruct):
+                                self._visit_expr(x, p)
+            elif isinstance(child, dict):
+                for x in child.values():
+                    if isinstance(x, GoConstruct):
+                        self._visit_expr(x, p)
+
+    # -- decision
+    def _candidate(self, key):
+        """The (scope, ordinal) of the statement that could declare ``key``, or None."""
+        paths = self._refs[key]
+        if not paths:
+            return None
+        depth = 0
+        while all(len(path) > depth for path in paths) and len({path[depth][0] for path in paths}) == 1:
+            depth += 1
+        if depth == 0:
+            return None
+        first = min(path[depth - 1][1] for path in paths)
+        scope = paths[0][depth - 1][0]
+        return (scope, first)
+
+    @staticmethod
+    def _targets(stmt) -> list:
+        """The variables a statement assigns directly."""
+        if isinstance(stmt, GoAssignment):
+            return [stmt.lhs]
+        if isinstance(stmt, GoMultiAssignment):
+            return list(stmt.lhs)
+        if isinstance(stmt, GoForLoop) and isinstance(stmt.initializer, GoAssignment):
+            return [stmt.initializer.lhs]
+        if isinstance(stmt, GoRangeLoop):
+            return [v for v in (stmt.index, stmt.value) if v is not None]
+        return []
+
+    @staticmethod
+    def _sources(stmt) -> list:
+        if isinstance(stmt, (GoAssignment, GoMultiAssignment)):
+            return [stmt.rhs]
+        if isinstance(stmt, GoForLoop) and isinstance(stmt.initializer, GoAssignment):
+            return [stmt.initializer.rhs]
+        if isinstance(stmt, GoRangeLoop):
+            return [stmt.collection]
+        return []
+
+    def _decide(self):
+        candidates = {}
+        for key in self._refs:
+            if key in self._excluded:
+                continue
+            loc = self._candidate(key)
+            if loc is None:
+                continue
+            stmt = self._stmt_at.get(loc)
+            targets = [t for t in self._targets(stmt) if self._is_local(t)]
+            if not any(self._key(t) == key for t in targets):
+                continue
+            # the value must not read the variable being declared
+            counter = _UseCounter()
+            for src in self._sources(stmt):
+                counter.handle(src)
+            if counter.counts[key]:
+                continue
+            candidates[key] = loc
+        # a statement declares only when every variable it assigns is fresh there
+        by_stmt: dict = defaultdict(set)
+        for key, loc in candidates.items():
+            by_stmt[loc].add(key)
+        for loc, keys in by_stmt.items():
+            stmt = self._stmt_at[loc]
+            targets = [t for t in self._targets(stmt) if self._is_local(t)]
+            if not targets or not all(self._key(t) in keys for t in targets):
+                continue
+            if isinstance(stmt, (GoAssignment, GoMultiAssignment, GoRangeLoop)):
+                stmt.declares = True
+            elif isinstance(stmt, GoForLoop):
+                stmt.initializer.declares = True
+            for t in targets:
+                self._cfunc.short_declared.add(t.name if isinstance(t, GoFakeVariable) else _go_var_key(t))
+
+
+class _DeadCopyRemover(GoStructuredCodeWalker):
+    """Drops ``a = b`` statements of variables that no longer have any reads."""
+
+    def __init__(self, keys, cfunc):
+        counter = _UseCounter()
+        counter.handle(cfunc.statements)
+        self._counts = counter.counts
+        self._keys = keys
+
+    def handle_GoStatements(self, obj):
+        out = []
+        for stmt in obj.statements:
+            stmt = self.handle(stmt)
+            if (
+                isinstance(stmt, GoAssignment)
+                and _go_var_named(stmt.lhs)
+                and _UseCounter.key(stmt.lhs) in self._keys
+                and self._counts[_UseCounter.key(stmt.lhs)] <= 1
+                and (_go_var_named(stmt.rhs) or isinstance(stmt.rhs, GoVariableField))
+            ):
+                continue
+            out.append(stmt)
+        obj.statements = out
+        return obj
 
 
 class MakeTypecastsImplicit(GoStructuredCodeWalker):

@@ -13,6 +13,7 @@ from .pinned_register_rewriter import GoPinnedRegisterRewriter
 from .prototypes import GoPrototypes
 from .runtime_rewriter import GoRuntimeRewriter
 from .stack_check_remover import GoStackCheckRemover
+from .type_switch_simplifier import GoTypeSwitchSimplifier
 from .value_fuser import GoValueFuser
 
 
@@ -30,6 +31,7 @@ def get_go_optimization_passes():
         GoGlobalTypes,
         GoComboRegisterRewriter,
         GoArgSpillRemover,
+        GoTypeSwitchSimplifier,
         GoValueFuser,
         GoRuntimeRewriter,
         GoBuiltinRewriter,
