@@ -11,6 +11,7 @@ import random
 import unittest
 
 import archinfo
+import cle
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
@@ -928,6 +929,53 @@ class TestCfgfast(unittest.TestCase):
         assert len(func.block_addrs_set) == 2
         assert len(func.endpoints) == 1
         assert func.endpoints[0].addr == 0x40400A
+
+    def test_pe_eh_frame_and_explicit_function_boundaries(self):
+        path = os.path.join(test_location, "x86", "windows", "eh-frame-occupied-start.exe")
+        function_start = 0x40100A
+
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg_without_hints = proj.analyses.CFGFast(normalize=True, eh_frame=False)
+        self.assertNotIn(function_start, cfg_without_hints.kb.functions)
+        occupied_node = cfg_without_hints.model.get_any_node(function_start, anyaddr=True)
+        assert occupied_node is not None
+        self.assertEqual(function_start, occupied_node.addr)
+        self.assertEqual(0x401006, occupied_node.function_address)
+
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg_with_explicit_starts = proj.analyses.CFGFast(
+            normalize=True,
+            eh_frame=False,
+            function_starts={function_start},
+        )
+        self.assertIn(function_start, cfg_with_explicit_starts.kb.functions)
+        node = cfg_with_explicit_starts.model.get_any_node(function_start)
+        assert node is not None
+        self.assertEqual(function_start, node.function_address)
+
+        # A CLE that gives the exception directory its own source reports a PE's EH_FRAME hints as GNU
+        # .eh_frame FDEs, which this change treats as authoritative. A CLE without that source reports the
+        # native unwind records as EH_FRAME as well, so CFGFast cannot tell the two apart and keeps the hint
+        # low confidence. Assert whichever of the two the installed CLE produces: patching a source id in
+        # would assert against an integer CLE is free to hand to some other source.
+        proj = angr.Project(path, auto_load_libs=False)
+        proj.loader.main_object.function_hints = [
+            hint for hint in proj.loader.main_object.function_hints if hint.source != cle.FunctionHintSource.EH_FRAME
+        ]
+        proj.loader.main_object.function_hints.append(
+            cle.FunctionHint(function_start, 6, cle.FunctionHintSource.EH_FRAME)
+        )
+        cfg_with_hint = proj.analyses.CFGFast(normalize=True)
+        if hasattr(cle.FunctionHintSource, "EXCEPTION_DIRECTORY"):
+            self.assertIn(function_start, cfg_with_hint.kb.functions)
+            node = cfg_with_hint.model.get_any_node(function_start)
+            assert node is not None
+            self.assertEqual(function_start, node.function_address)
+        else:
+            self.assertNotIn(function_start, cfg_with_hint.kb.functions)
+            node = cfg_with_hint.model.get_any_node(function_start, anyaddr=True)
+            assert node is not None
+            self.assertEqual(0x401006, node.function_address)
 
     def test_incorrect_dummy_plt_function_stub_removal(self):
         path = os.path.join(

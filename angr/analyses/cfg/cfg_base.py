@@ -64,6 +64,13 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+# The CLE function hint sources CFGBase takes as function starts on their own. It is an allowlist
+# rather than "every source but .eh_frame" so that a source CLE adds later is left alone until angr
+# has decided what its entries mean: a linker's function-start table records the data atoms a
+# producer placed among its functions, and seeding those puts function heads on data.
+DEFINITE_FUNCTION_HINT_SOURCES = frozenset({FunctionHintSource.EXPORT_TABLE, FunctionHintSource.EXTERNAL_EH_FRAME})
+
+
 class CFGBase(Analysis):
     """
     The base class for control flow graphs.
@@ -236,6 +243,7 @@ class CFGBase(Analysis):
 
         self._function_addresses_from_symbols = self._load_func_addrs_from_symbols()
         self._function_addresses_from_eh_frame = self._load_func_addrs_from_eh_frame()
+        self._function_addresses_from_exception_directory = self._load_func_addrs_from_exception_directory()
         self._function_addr_and_names_from_hints = self._load_func_addr_and_names_from_hints()
 
         # Cache if an object has executable sections or not
@@ -1087,12 +1095,37 @@ class CFGBase(Analysis):
         :rtype:     set
         """
 
-        addrs = set()
-        if (isinstance(self._binary, ELF) and self._binary.has_dwarf_info) or isinstance(self._binary, PE):
-            for function_hint in self._binary.function_hints:
-                if function_hint.source == FunctionHintSource.EH_FRAME:
-                    addrs.add(function_hint.addr)
-        return addrs
+        if isinstance(self._binary, PE) and not hasattr(FunctionHintSource, "EXCEPTION_DIRECTORY"):
+            return set()
+
+        return {
+            function_hint.addr
+            for function_hint in self._binary.function_hints
+            if function_hint.source == FunctionHintSource.EH_FRAME
+        }
+
+    def _load_func_addrs_from_exception_directory(self):
+        """
+        Get possible function addresses from a PE's exception directory.
+
+        A CLE without a separate source for these records reports them as .eh_frame, so on that CLE
+        this returns the PE's EH_FRAME hints and _load_func_addrs_from_eh_frame returns nothing.
+
+        :return:    A set of addresses that may be functions.
+        :rtype:     set
+        """
+
+        exception_directory_source = getattr(FunctionHintSource, "EXCEPTION_DIRECTORY", None)
+        if exception_directory_source is None:
+            if not isinstance(self._binary, PE):
+                return set()
+            exception_directory_source = FunctionHintSource.EH_FRAME
+
+        return {
+            function_hint.addr
+            for function_hint in self._binary.function_hints
+            if function_hint.source == exception_directory_source
+        }
 
     def _load_func_addr_and_names_from_hints(self) -> set[tuple[int, str | None]]:
         """
@@ -1103,7 +1136,7 @@ class CFGBase(Analysis):
 
         addrs_and_names = set()
         for function_hint in self._binary.function_hints:
-            if function_hint.source != FunctionHintSource.EH_FRAME:
+            if function_hint.source in DEFINITE_FUNCTION_HINT_SOURCES:
                 addrs_and_names.add((function_hint.addr, function_hint.name))
         return addrs_and_names
 
@@ -1690,7 +1723,7 @@ class CFGBase(Analysis):
                     self.kb.functions[func_addr].is_alignment = True
                     continue
 
-    def make_functions(self):
+    def make_functions(self, additional_function_addrs: set[int] | None = None):
         """
         Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
         each function.
@@ -1704,6 +1737,7 @@ class CFGBase(Analysis):
             - Tail call optimizations are detected.
             - PLT stubs are aligned by 16.
 
+        :param additional_function_addrs: Function starts supplied by an analysis-specific authoritative source.
         :return: None
         """
 
@@ -1759,7 +1793,10 @@ class CFGBase(Analysis):
         # Any function addresses that appear as symbols won't be removed
         predetermined_function_addrs = called_function_addrs
         node_addrs_set = set(self.model.node_addrs)
-        for saddr in self._function_addresses_from_symbols:
+        authoritative_function_addrs = self._function_addresses_from_symbols.copy()
+        if additional_function_addrs:
+            authoritative_function_addrs |= additional_function_addrs
+        for saddr in authoritative_function_addrs:
             if saddr in predetermined_function_addrs:
                 continue
             if saddr in node_addrs_set:
