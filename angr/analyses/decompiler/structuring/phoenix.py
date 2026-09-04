@@ -230,6 +230,8 @@ class PhoenixStructurer(StructurerBase):
                 )
                 self._assert_graph_ok(self._region.graph, "Last resort refinement went wrong")
                 if not removed_edge:
+                    if self._absorb_residual_tree():
+                        continue
                     # cannot make any progress in this region. return the subgraph directly
                     break
 
@@ -3152,6 +3154,339 @@ class PhoenixStructurer(StructurerBase):
 
         l.debug("last_resort: No edge to remove")
         return False
+
+    #
+    # Residual-tree absorption (the reduction of last resort)
+    #
+
+    def _absorb_residual_tree(self) -> bool:
+        """
+        Attempted only after ``_last_resort_refinement`` has already declined to virtualize any edge: lay the
+        remaining region out as a single SequenceNode instead of giving up on it.
+
+        It applies when the remaining graph is a tree rooted at the region head. Every non-head node then has
+        exactly one predecessor, so it is entered through exactly one transfer, and that transfer is either an
+        explicit jump statement that already survives in the emitted code (in which case the node may be laid out
+        anywhere) or a fall-through (in which case the node must be laid out immediately after its predecessor).
+        ``_residual_tree_layout`` establishes such an order, or refuses; a refusal leaves the region untouched and
+        the caller gives up exactly as it did before.
+
+        Only the root region absorbs this way, for the same reason the type-4 fallback above is root-only:
+        anywhere else, reporting no progress dissolves the region into its parent, which loses no code and gives
+        an enclosing region the chance to structure these nodes with more context. It is the root region's
+        failure that makes RecursiveStructurer keep one node of the residual graph and drop the rest.
+        """
+        if self._parent_region is not None:
+            return False
+
+        region = self._region
+        graph = region.graph
+        head = region.head
+
+        # a tree rooted at the head: acyclic, nothing entering the head, every node reachable from it, and one
+        # edge fewer than there are nodes -- which together give every other node exactly one predecessor. edges
+        # marked during cyclic refinement are hidden from graph/graph_with_successors but are still real
+        # transfers in the shared graph, so a region carrying any is not described by what is being read here.
+        if (
+            head not in graph
+            or not networkx.is_directed_acyclic_graph(graph)
+            or graph.in_degree[head] != 0
+            or graph.number_of_edges() != len(graph.nodes) - 1
+            or len(list(networkx.dfs_preorder_nodes(graph, head))) != len(graph.nodes)
+            or region.raw_graph.number_of_edges() != graph.number_of_edges()
+            or region.raw_graph_with_successors.number_of_edges() != region.graph_with_successors.number_of_edges()
+        ):
+            l.debug(
+                "absorb_residual_tree: Declined a %d-node residual: not a tree rooted at the head", len(graph.nodes)
+            )
+            return False
+
+        order, reason = self._residual_tree_layout(graph, region.graph_with_successors, head)
+        if order is None:
+            l.debug("absorb_residual_tree: Declined a %d-node residual: %s", len(graph.nodes), reason)
+            return False
+
+        node_0 = order[0]
+        for node_1 in order[1:]:
+            jump_kind, jump_target = self._residual_stripped_jump(node_0)
+            if jump_kind == "none" or (jump_kind == "const" and jump_target == node_1.addr):
+                # _merge_nodes's terminator fixup is right here: either there is no trailing jump to strip, or
+                # the one it strips names exactly the node being appended behind it
+                new_node = self._merge_nodes(node_0, node_1)
+            else:
+                # the trailing jump goes somewhere else and must survive; concatenate without the fixup
+                new_node = self._concat_nodes(node_0, node_1)
+            self.replace_nodes_both(node_0, new_node, old_node_1=node_1)
+            node_0 = new_node
+        l.debug("absorb_residual_tree: Concatenated %d residual nodes into %r", len(order), node_0)
+        return True
+
+    def _residual_tree_layout(self, graph, full_graph, head) -> tuple[list | None, str | None]:
+        """
+        Order the nodes of a residual tree so that concatenating them preserves control flow, or refuse.
+
+        The invariant maintained for every adjacent pair (X, Y) in the returned order is: either X cannot fall off
+        its own end, or Y is the single successor X falls into. Successors X reaches only through a goto that is
+        already written inside X are queued and laid out later, wherever a node that cannot fall through leaves a
+        free slot. Anything that cannot be decided this way is a refusal, not a guess. A refusal returns no order
+        and the reason it declined.
+        """
+        members = set(graph.nodes)
+        emitted = []
+        entered: dict = {}
+        emitted_set = set()
+        pending: list = []
+
+        node = head
+        entered[head] = "head"
+        while True:
+            emitted.append(node)
+            emitted_set.add(node)
+            kind, forced = self._residual_next_node(graph, full_graph, members, node)
+            if kind == "refuse":
+                return None, forced
+            for succ in graph.successors(node):
+                if succ is not forced and succ not in emitted_set and succ not in pending:
+                    pending.append(succ)
+            if kind == "forced":
+                # after _merge_nodes/_concat_nodes this node runs straight into the next one. the tree shape
+                # guarantees forced is an unemitted member: it is a successor of this node, so this node is its
+                # only predecessor, and it was excluded from pending just above.
+                entered[forced] = "fallthrough"
+                node = forced
+            elif not pending:
+                break
+            elif kind == "last":
+                # this node falls out of the region (or ends in a jump that must not be rewritten): nothing of
+                # this region may be laid out behind it
+                return None, "tail_with_pending"
+            else:
+                # the node ends in an explicit transfer of control: any goto-reached node may follow it
+                pending.sort(key=self._residual_sort_key)
+                node = pending.pop(0)
+                entered[node] = "goto"
+
+        # pending is empty and the tree is reachable from the head, so every member has been emitted
+        if len(emitted) != len(members) or not self._residual_layout_is_reachable(emitted, entered):
+            return None, "unusable_layout"
+        return emitted, None
+
+    def _residual_layout_is_reachable(self, emitted: list, entered: dict) -> bool:
+        """
+        The invariant the whole reduction rests on, checked against the layout it actually produced: every node
+        that is not the head and is not laid out as its predecessor's fall-through has to be entered by a goto
+        that survives concatenation. That means some member names its address as a constant jump target, and the
+        node carries the label that goto lands on. A node whose own transfers are computed is already refused by
+        ``_residual_next_node``, which cannot collect its targets; what is left for this check is the node that
+        every collected target misses, or that carries no label for the goto to land on.
+        """
+        named: set[int] = set()
+        for node in emitted:
+            targets: set[int] = set()
+            # already known to be "ok": _residual_next_node refused the layout otherwise
+            self._residual_goto_targets(node, targets)
+            named |= targets
+        for node in emitted:
+            if entered.get(node) != "goto":
+                continue
+            if node.addr is None or node.addr not in named:
+                return False
+            if node.addr not in self._residual_entry_label_addrs(node):
+                return False
+        return True
+
+    @staticmethod
+    def _residual_sort_key(node):
+        return (
+            node.addr if node.addr is not None else -1,
+            (node.idx if node.idx is not None else -1) if hasattr(node, "idx") else -1,
+        )
+
+    def _residual_next_node(self, graph, full_graph, members, node) -> tuple[str, Any]:
+        """
+        Decide what may be laid out immediately after ``node``:
+
+        - ``("forced", succ)``: ``node`` falls into ``succ`` (or ends in a goto that ``_merge_nodes`` will strip
+          because ``succ`` is the node it names), so ``succ`` must come next.
+        - ``("free", None)``: ``node`` ends in an explicit transfer of control that survives concatenation, so
+          anything may come next.
+        - ``("last", None)``: nothing of this region may come next (its fall-through leaves the region).
+        - ``("refuse", reason)``: the layout is not decidable.
+        """
+        targets: set[int] = set()
+        status = self._residual_goto_targets(node, targets)
+        if status != "ok":
+            return "refuse", f"transfer_{status}"
+
+        succs = [succ for succ in full_graph.successors(node) if succ is not node]
+        # a successor whose address is named by a jump statement inside this node is reached through that
+        # statement, wherever the successor ends up in the layout
+        candidates = [succ for succ in succs if succ.addr is None or succ.addr not in targets]
+
+        if self._residual_falls_through(node):
+            if not candidates:
+                # every successor is named by a goto somewhere in the node, so one of them is reached both ways.
+                # narrow the question to the node's tail, which is what control runs off the end of: a goto in
+                # the tail names an exit of the tail, so the exit the tail falls out of is the one it does not
+                # name. (a goto inside a structured loop never names that loop's own successor -- the cyclic
+                # matchers rewrite jumps to the successor into breaks -- so the tail of a loop-terminated node
+                # is decidable this way.)
+                tail_targets: set[int] = set()
+                if self._residual_goto_targets(self._residual_tail(node), tail_targets) == "ok":
+                    candidates = [succ for succ in succs if succ.addr is None or succ.addr not in tail_targets]
+            if len(candidates) != 1:
+                # either nothing to fall into, or no way to tell which successor it is
+                return "refuse", f"fallthrough_candidates_{len(candidates)}"
+            fallthrough = candidates[0]
+            if fallthrough not in members:
+                # the fall-through leaves the region entirely
+                return "last", None
+            return "forced", fallthrough
+
+        # the node cannot fall through, so the successor order is free -- except that _merge_nodes strips a
+        # trailing unconditional Jump from its first argument, which is only correct when the node laid out
+        # behind it is the one that jump names
+        jump_kind, jump_target = self._residual_stripped_jump(node)
+        if jump_kind == "const":
+            candidates = [succ for succ in graph.successors(node) if succ.addr == jump_target]
+            if len(candidates) == 1:
+                # laying the named node out behind this one turns the jump into a fall-through, which is what
+                # _merge_nodes does by stripping it
+                return "forced", candidates[0]
+        # the jump names something outside the region (or nothing constant): _concat_nodes keeps it, so the node
+        # still cannot fall through and anything may follow it
+        return "free", None
+
+    @staticmethod
+    def _concat_nodes(node_0, node_1) -> SequenceNode:
+        """
+        ``_merge_nodes`` without its terminator fixup, for a pair whose first node ends in a jump that has to
+        survive: the flattening is the same, but no statement is removed or rewritten.
+        """
+        nodes = []
+        for node in (node_0, node_1):
+            nodes += node.nodes if isinstance(node, SequenceNode) else [node]
+        return SequenceNode(node_0.addr if node_0.addr is not None else node_1.addr, nodes=nodes)
+
+    @staticmethod
+    def _residual_stripped_jump(node) -> tuple[str, int | None]:
+        """
+        Report the unconditional Jump that ``_merge_nodes`` would strip if ``node`` were its first argument:
+        ``("const", target)``, ``("indirect", None)``, or ``("none", None)`` when it would strip nothing.
+
+        This mirrors ``_merge_nodes``'s own choice of the block to fix up. It is deliberately the rule for a
+        first argument that is a SequenceNode *or* a MultiNode: in the pairwise reduction every argument after
+        the first is an accumulated SequenceNode, for which _merge_nodes flattens a SequenceNode operand but
+        appends a MultiNode whole, so applying the MultiNode rule everywhere can only over-report a strip, and
+        over-reporting costs a refusal rather than a mis-ordering.
+        """
+        last_node = node.nodes[-1] if isinstance(node, (SequenceNode, MultiNode)) and node.nodes else node
+        if not isinstance(last_node, Block) or not last_node.statements:
+            return "none", None
+        last_stmt = last_node.statements[-1]
+        if not isinstance(last_stmt, Jump):
+            return "none", None
+        return ("const", last_stmt.target.value) if isinstance(last_stmt.target, Const) else ("indirect", None)
+
+    @classmethod
+    def _residual_tail(cls, node):
+        """
+        The construct control runs off the end of: the last child of the last child, and so on. Loops,
+        conditions and blocks are terminal here -- they are what actually ends the node.
+        """
+        while isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+            node = node.nodes[-1]
+        return node
+
+    @classmethod
+    def _residual_falls_through(cls, node) -> bool:
+        """
+        Whether control can run off the end of ``node`` into whatever is laid out behind it. Only a node whose
+        tail demonstrably ends in a Jump, a Return or a two-target ConditionalJump does not; everything else (a
+        loop, a condition, an unrecognized node, a ConditionalJump that leaves one target implicit) is assumed to
+        fall through, which costs a refusal rather than a mis-ordering.
+        """
+        tail = cls._residual_tail(node)
+        if not isinstance(tail, Block):
+            return True
+        stmts = [stmt for stmt in tail.statements if not isinstance(stmt, Label)]
+        if not stmts:
+            return True
+        last_stmt = stmts[-1]
+        if isinstance(last_stmt, ConditionalJump):
+            # a conditional jump with only one target falls through on the other side
+            return last_stmt.true_target is None or last_stmt.false_target is None
+        return not isinstance(last_stmt, (Jump, Return))
+
+    @classmethod
+    def _residual_goto_targets(cls, node, targets: set[int]) -> str:
+        """
+        Collect into ``targets`` every address a statement inside ``node`` names as a jump target, and report
+        whether that collection can be trusted:
+
+        - ``"ok"``: every transfer out of this node is either a fall-through or a constant target now in
+          ``targets``, so laying a named node out anywhere behind it still reaches it.
+        - ``"indirect"``: a jump with a computed target (a jump table that never got structured, a call through
+          a pointer). It names no address, so a successor reached through it can only be entered by falling into
+          it -- concatenating such a region emits code nothing can reach.
+        - ``"opaque"``: a node or statement this walk does not understand, so the collection is incomplete.
+        """
+        if node is None:
+            return "ok"
+        if isinstance(node, Block):
+            for stmt in node.statements:
+                if isinstance(stmt, IncompleteSwitchCaseHeadStatement):
+                    return "opaque"
+                if isinstance(stmt, Jump):
+                    stmt_targets = (stmt.target,)
+                elif isinstance(stmt, ConditionalJump):
+                    stmt_targets = (stmt.true_target, stmt.false_target)
+                else:
+                    continue
+                # a None target is the implicit fall-through side, not an unresolvable one
+                if any(tgt is not None and not isinstance(tgt, Const) for tgt in stmt_targets):
+                    return "indirect"
+                targets.update(extract_jump_targets(stmt))
+            return "ok"
+
+        def _all(children) -> str:
+            for child in children:
+                status = cls._residual_goto_targets(child, targets)
+                if status != "ok":
+                    return status
+            return "ok"
+
+        if isinstance(node, (SequenceNode, MultiNode)):
+            return _all(node.nodes)
+        if isinstance(node, LoopNode):
+            return cls._residual_goto_targets(node.sequence_node, targets)
+        if isinstance(node, ConditionNode):
+            return _all([node.true_node, node.false_node])
+        if isinstance(node, SwitchCaseNode):
+            return _all([*node.cases.values(), node.default_node])
+        if isinstance(node, (BreakNode, ContinueNode)):
+            # a break or a continue is a transfer within an enclosing loop, not a goto out of this node
+            return "ok"
+        return "opaque"
+
+    @classmethod
+    def _residual_entry_label_addrs(cls, node) -> set[int]:
+        """
+        The addresses a goto can actually land on at the top of ``node``: the ins_addrs of the labels that lead
+        its entry block, which is what RedundantLabelRemover keeps and the backend emits as ``LABEL_x``.
+        """
+        while isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+            node = node.nodes[0]
+        if not isinstance(node, Block):
+            return set()
+        addrs = set()
+        for stmt in node.statements:
+            if isinstance(stmt, Label):
+                if "ins_addr" in stmt.tags:
+                    addrs.add(stmt.tags["ins_addr"])
+            elif not is_phi_assignment(stmt):
+                break
+        return addrs
 
     @staticmethod
     def _on_virtualize_edge_failure(src, dst) -> bool:
