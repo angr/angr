@@ -2684,7 +2684,7 @@ class CFGBase(Analysis):
                     src_function.addr, src_snippet, returning_snippet, confirmed=True, to_outside=return_to_outside
                 )
 
-        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"):
+        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Privileged", "Ijk_Exception"):
             # convert src_addr and dst_addr to CodeNodes
             src_node = src_addr if not self.model.has_node_addr(src_addr) else self._node_key_to_snippet(src_node_key)
             dst_node = dst_addr if not self.model.has_node_addr(dst_addr) else self._node_key_to_snippet(dst_node_key)
