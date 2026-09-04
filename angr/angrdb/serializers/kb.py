@@ -120,7 +120,9 @@ class KnowledgeBaseSerializer:
             # fill in insn_addr_to_memory_data
             for xrefs_ in xrefs.xrefs_by_ins_addr.values():
                 for xref in xrefs_:
-                    if xref.ins_addr is not None and xref.memory_data is not None:
-                        cfg_model.insn_addr_to_memory_data[xref.ins_addr] = xref.memory_data
+                    if xref.ins_addr is not None and isinstance(xref.dst, int):
+                        md = cfg_model.memory_data.get(xref.dst)
+                        if md is not None:
+                            cfg_model.insn_addr_to_memory_data[xref.ins_addr] = md
 
         return kb

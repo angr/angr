@@ -4205,7 +4205,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         ins_addr=insn_addr,
                         block_addr=irsb_addr,
                         stmt_idx=stmt_idx,
-                        memory_data=self.model.memory_data[data_addr],
+                        dst=data_addr,
                         xref_type=XRefType.Offset,
                     )
                     self.kb.xrefs.add_xref(cr)
@@ -4231,7 +4231,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             ins_addr=insn_addr,
             block_addr=irsb_addr,
             stmt_idx=stmt_idx,
-            memory_data=self.model.memory_data[data_addr],
+            dst=data_addr,
             xref_type=XRefType.Offset,
         )
         self.kb.xrefs.add_xref(cr)
@@ -4241,7 +4241,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             or data_addr == insn_addr + 8
         ):
             return
-        self.insn_addr_to_memory_data[insn_addr] = self.model.memory_data[data_addr]
+        # record only the data address; the map materializes the MemoryData from model.memory_data on access
+        self.insn_addr_to_memory_data.set_by_addr(insn_addr, data_addr)
 
     def _process_metadata_regions(self):
         # Mark metadata regions (PE import/export tables, IAT, etc.) as data

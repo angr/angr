@@ -108,13 +108,18 @@ class CodeTagging(Analysis):
             if max_addr is None or block.addr + block.size > max_addr:
                 max_addr = block.addr + block.size
 
+        cfg_model = self.kb.cfgs.get_most_accurate()
         xrefs = self.kb.xrefs.get_xrefs_by_ins_addr_region(min_addr, max_addr)
         for xref in xrefs:
             xref: XRef
+            memory_data = (
+                cfg_model.memory_data.get(xref.dst) if cfg_model is not None and isinstance(xref.dst, int) else None
+            )
             if (
-                xref.memory_data is not None
-                and xref.memory_data.sort == "string"
-                and looks_like_sql(xref.memory_data.content.decode("utf-8"))
+                memory_data is not None
+                and memory_data.sort == "string"
+                and memory_data.content is not None
+                and looks_like_sql(memory_data.content.decode("utf-8"))
             ):
                 return {CodeTags.HAS_SQL}
 
