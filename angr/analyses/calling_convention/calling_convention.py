@@ -51,6 +51,7 @@ from angr.sim_type import (
     SimTypeReg,
     SimTypeShort,
     parse_cpp_file,
+    parse_signature,
 )
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -273,6 +274,8 @@ class CallingConventionAnalysis(Analysis):
                 self.proto_from_symbol = not proto_guessed
             return
 
+        prototype_hint = self._parse_prototype_hint(self._function.info.get("prototype_hint", None))
+
         # we gotta analyze the function properly
         if self._collect_facts and self._input_args is None and self._retval_size is None:
             facts = self.project.analyses[FactCollector].prep(kb=self.kb)(
@@ -309,8 +312,55 @@ class CallingConventionAnalysis(Analysis):
 
             if cpp_symbol_result is not None and prototype is not None:
                 prototype = self._refine_cpp_symbol_prototype(prototype, cpp_symbol_result[1])
+            if prototype_hint is not None and prototype is not None:
+                prototype = self._refine_prototype_hint(prototype, prototype_hint)
+                self.proto_from_symbol = True
             self.cc = cc
             self.prototype = prototype
+
+    def _parse_prototype_hint(self, prototype_hint: object) -> SimTypeFunction | None:
+        if not isinstance(prototype_hint, str):
+            return None
+        try:
+            parsed = parse_signature(prototype_hint).with_arch(self.project.arch)
+            assert isinstance(parsed, SimTypeFunction)
+            return parsed
+        except Exception:  # pylint:disable=broad-exception-caught
+            l.warning("Ignoring invalid prototype hint %r for %r.", prototype_hint, self._function)
+            return None
+
+    @staticmethod
+    def _refine_prototype_hint(machine_proto: SimTypeFunction, semantic_proto: SimTypeFunction) -> SimTypeFunction:
+        """Refine machine-proven argument slots with trusted semantic types and names."""
+        machine_args = tuple(machine_proto.args or ())
+        semantic_args = tuple(semantic_proto.args or ())
+        args = tuple(
+            semantic_args[i]
+            if i < len(semantic_args) and isinstance(semantic_args[i], (SimTypeReg, SimTypePointer))
+            else machine_arg
+            for i, machine_arg in enumerate(machine_args)
+        )
+
+        machine_names = tuple(machine_proto.arg_names or ())
+        semantic_names = tuple(semantic_proto.arg_names or ())
+        arg_names = tuple(
+            semantic_names[i]
+            if i < len(semantic_names) and semantic_names[i]
+            else machine_names[i]
+            if i < len(machine_names) and machine_names[i]
+            else f"a{i}"
+            for i in range(len(machine_args))
+        )
+
+        semantic_ret = semantic_proto.returnty
+        ret = (
+            semantic_ret
+            if semantic_ret is not None
+            and not isinstance(semantic_ret, SimTypeBottom)
+            and isinstance(semantic_ret, (SimTypeReg, SimTypePointer))
+            else machine_proto.returnty
+        )
+        return SimTypeFunction(args, ret, arg_names=arg_names, variadic=machine_proto.variadic)
 
     @staticmethod
     def _refine_cpp_symbol_prototype(

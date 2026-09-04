@@ -1530,8 +1530,11 @@ class Clinic(Analysis, Serializable):
         ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER:
             old_proto = self.function.prototype
             old_source = self.function.prototype_source
+            old_proto_libname = self.function.prototype_libname
+            preserve_existing_prototype = old_proto is not None and old_source >= PrototypeSource.CCA_DECOMPILER
 
-            self.function.prototype = None  # clear it
+            if not preserve_existing_prototype:
+                self.function.prototype = None  # clear it
             self.function.ran_cca = False  # also clear the ran_cca bit so CCCA runs again
             self.project.analyses.CompleteCallingConventions(
                 fail_fast=self._fail_fast,  # type: ignore
@@ -1541,7 +1544,11 @@ class Clinic(Analysis, Serializable):
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
             )
 
-            if (
+            if preserve_existing_prototype:
+                self.function.prototype = old_proto
+                self.function.prototype_source = old_source
+                self.function.prototype_libname = old_proto_libname
+            elif (
                 old_source >= PrototypeSource.CCA_LOW
                 and old_proto is not None
                 and self.function.prototype is not None

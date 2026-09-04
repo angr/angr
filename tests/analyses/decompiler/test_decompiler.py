@@ -794,8 +794,8 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         decls = code.split("\n\n")[0]
 
-        argc_name = " a0"  # update this variable once the decompiler picks up
-        # argument names from the common definition of main()
+        # The argument name comes from the semantic main prototype.
+        argc_name = " argc"
         assert argc_name in decls
         assert code.count(decls) == 1  # it should only appear once
 
@@ -1677,8 +1677,8 @@ class TestDecompiler(unittest.TestCase):
 
         print_decompilation_result(d)
 
-        # function arguments must be a0 and a1. they cannot be renamed
-        assert re.search(r"int main\([\s\S]+ a0, [\s\S]+a1[\S]*\)", d.codegen.text) is not None
+        # function arguments must keep the semantic names from the main prototype
+        assert re.search(r"int main\([^,\n]+ argc, [^,\n]+argv\)", d.codegen.text) is not None
 
         assert (
             "max_width = (int)xdectoumax(" in d.codegen.text
@@ -2791,12 +2791,12 @@ class TestDecompiler(unittest.TestCase):
             assert f"case {case_}:" in d.codegen.text
         assert "default:" in d.codegen.text
 
-        # ensure "v14 = fmt(stdin, "-");" shows up before "optind < a0"
+        # ensure "v14 = fmt(stdin, "-");" and the argc-derived optind guard show up before the return
         lines = d.codegen.text.split("\n")
-        a0_assignment_line = next(line for line in lines if " = a0;" in line)
-        a0_var = a0_assignment_line.split(" = ")[0].strip()
+        argc_assignment_line = next(line for line in lines if " = argc;" in line)
+        argc_var = argc_assignment_line.split(" = ")[0].strip()
         fmt_line = next(i for i, line in enumerate(lines) if 'fmt(stdin, "-");' in line)
-        optind_line = next(i for i, line in enumerate(lines) if f"optind < {a0_var}" in line)
+        optind_line = next(i for i, line in enumerate(lines) if f"optind < {argc_var}" in line)
         return_line = next(i for i, line in enumerate(lines) if "do not return" not in line and "return " in line)
         assert 0 <= fmt_line < return_line and 0 <= optind_line < return_line
 
