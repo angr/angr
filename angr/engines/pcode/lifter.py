@@ -853,6 +853,24 @@ class PcodeBasicBlockLifter:
         self.context = pypcode.Context(langid)
         self.behaviors = BehaviorFactory()
 
+    @staticmethod
+    def _drop_incomplete_instruction(ops: list[PcodeOp], end_addr: int) -> list[PcodeOp]:
+        """
+        Drop the trailing instruction, if there is one, that Sleigh decoded past the end of the data.
+
+        Sleigh reads ahead at every instruction boundary and pypcode's load image zero-fills the part of such
+        a read it cannot satisfy, so a translation may end in an instruction decoded from bytes that were
+        never given to the lifter. A block covers only the bytes it was handed.
+
+        :param ops:         The p-code ops of one translation, in order.
+        :param end_addr:    The address one past the last byte given to Sleigh.
+        :return:            The ops up to and including the last instruction that fits.
+        """
+        for op_idx, op in enumerate(ops):
+            if op.opcode == pypcode.OpCode.IMARK and op.inputs[-1].offset + op.inputs[-1].size > end_addr:
+                return ops[:op_idx]
+        return ops
+
     def lift(
         self,
         irsb: IRSB,
@@ -909,7 +927,7 @@ class PcodeBasicBlockLifter:
                 max_bytes=max_bytes,
                 flags=pypcode.TranslateFlags.BB_TERMINATING,
             )
-            irsb._ops = translation.ops
+            irsb._ops = self._drop_incomplete_instruction(translation.ops, irsb.addr + len(sliced_data))
 
             last_decode_addr = irsb.addr
             last_imark_idx = 0
@@ -945,19 +963,22 @@ class PcodeBasicBlockLifter:
                 elif op.opcode == pypcode.OpCode.RETURN and next_block is None:
                     next_block = (None, "Ijk_Ret")
 
-            # FIXME: Do this lazily
-            disasm = self.context.disassemble(
-                sliced_data,
-                irsb.addr,
-                max_instructions=max_inst,
-                max_bytes=fallthru_addr - irsb.addr,
-            )
-            irsb._disassembly = PcodeDisassemblerBlock(
-                addr=irsb.addr,
-                insns=[PcodeDisassemblerInsn(ins) for ins in disasm.instructions],
-                thumb=False,
-                arch=irsb.arch,
-            )
+            # pypcode reads max_bytes=0 as "no limit" rather than as an empty request, so only ask for a
+            # disassembly once something has decoded.
+            if fallthru_addr > irsb.addr:
+                # FIXME: Do this lazily
+                disasm = self.context.disassemble(
+                    sliced_data,
+                    irsb.addr,
+                    max_instructions=max_inst,
+                    max_bytes=fallthru_addr - irsb.addr,
+                )
+                irsb._disassembly = PcodeDisassemblerBlock(
+                    addr=irsb.addr,
+                    insns=[PcodeDisassemblerInsn(ins) for ins in disasm.instructions],
+                    thumb=False,
+                    arch=irsb.arch,
+                )
 
         except (pypcode.BadDataError, pypcode.UnimplError):
             next_block = (fallthru_addr, "Ijk_NoDecode")
