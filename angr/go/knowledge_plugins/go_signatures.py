@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import re
@@ -7,8 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from angr.go.analyses.dwarf_signatures import read_go_dwarf_signatures
-from angr.go.signature import GoFuncSignature, GoNamedType, GoSignatureSet, GoVariable
-from angr.go.sim_type import GoSimTypeFunction, GoSimTypeTuple
+from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
+from angr.go.sim_type import GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple
 from angr.go.type_parser import GoTypeParser
 from angr.go.utils.version import go_minor_version, identify_go_version
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -150,10 +151,27 @@ class GoSignatures(KnowledgeBasePlugin):
                 if sig is None:
                     continue
                 if sig.params or sig.results or sig.recv:
-                    return sig
+                    return self._with_variadic_spelling(sig, lookup)
                 # assembly functions have a DWARF subprogram without parameters; keep looking for a typed one
                 empty = empty or sig
         return empty
+
+    def _with_variadic_spelling(self, sig: GoFuncSignature, name: str) -> GoFuncSignature:
+        """DWARF spells a variadic parameter as a plain slice; adopt the ``...T`` spelling of another source."""
+        if not sig.params:
+            return sig
+        last = sig.params[-1].type_str
+        if not last.startswith("[]"):
+            return sig
+        for src in self._sources:
+            other = src.functions.get(name)
+            if other is None or other is sig or len(other.params) != len(sig.params):
+                continue
+            spelled = other.params[-1].type_str
+            if spelled.startswith("...") and spelled[3:] == last[2:]:
+                params = [*sig.params[:-1], GoParam(sig.params[-1].name, spelled)]
+                return dataclasses.replace(sig, params=params)
+        return sig
 
     def variable_at(self, addr: int) -> GoVariable | None:
         for src in self._sources:
@@ -212,7 +230,15 @@ class GoSignatures(KnowledgeBasePlugin):
     def _build_prototype(self, sig: GoFuncSignature) -> GoSimTypeFunction:
         parser = self.parser
         params = sig.all_params
-        args = [parser.parse(p.type_str) for p in params]
+        args = []
+        variadic = False
+        for p in params:
+            if p.type_str.startswith("..."):
+                # the last parameter of a variadic function, spelled "...T"
+                variadic = True
+                args.append(GoSimTypeSlice(parser.parse(p.type_str[3:])))
+            else:
+                args.append(parser.parse(p.type_str))
         results = [parser.parse(r.type_str) for r in sig.results]
         if not results:
             returnty = None
@@ -221,7 +247,7 @@ class GoSignatures(KnowledgeBasePlugin):
         else:
             returnty = GoSimTypeTuple(results, [r.name for r in sig.results])
         arch = self._kb._project.arch
-        return GoSimTypeFunction(args, returnty, arg_names=[p.name for p in params]).with_arch(arch)
+        return GoSimTypeFunction(args, returnty, arg_names=[p.name for p in params], variadic=variadic).with_arch(arch)
 
     def copy(self):
         o = GoSignatures(self._kb)

@@ -338,6 +338,13 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             and all(isinstance(node, ailment.Block) for node in func_graph.nodes)
         ):
             self._collect_rust_type_hints(func_graph)
+        elif (
+            func_graph is not None
+            and self.project.is_go_binary
+            and len(func_graph.nodes) > 0
+            and all(isinstance(node, ailment.Block) for node in func_graph.nodes)
+        ):
+            self._collect_go_type_hints(func_graph)
 
         self._ail_engine: SimEngineVRAIL = SimEngineVRAIL(
             self.project,
@@ -734,6 +741,13 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
     def _collect_rust_type_hints(self, graph):
         self.project.analyses.RustTypeHints(self.function, graph, variable_map=self._variable_map)
         self.vvar_type_hints.update(self.project.kb.type_hints.get_type_hints(self.function.addr))
+
+    def _collect_go_type_hints(self, graph):
+        from angr.go.typehoon.hints import collect_call_result_hints  # pylint:disable=import-outside-toplevel
+
+        self.vvar_type_hints.update(
+            collect_call_result_hints(self.project, graph, self._variable_map, self.type_lifter)
+        )
 
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)
