@@ -213,7 +213,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
     def _analyze_simplified_region(self, region, initial=False):
         super()._analyze_simplified_region(region, initial=initial)
-        finder = SwitchClusterFinder(region, variable_map_of(self.manager))
+        assert self._ri is not None
+        finder = SwitchClusterFinder(region, variable_map_of(self._ri.ail_manager))
         self._switches_present_in_code = len(finder.var2switches.values())
 
     def _check(self):
