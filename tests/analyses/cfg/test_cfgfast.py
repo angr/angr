@@ -16,6 +16,7 @@ import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 from angr.codenode import FuncNode
 from angr.knowledge_plugins.cfg import CFGModel, CFGNode
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgfast")
@@ -111,6 +112,18 @@ class TestCfgfast(unittest.TestCase):
         function_features = {}
 
         self.cfg_fast_functions_check("x86_64", "cfg_0_pe", functions, function_features)
+
+    def test_printable_string_that_reaches_the_end_of_a_region(self):
+        # The last 32 bytes of .text are newlib's blanks[16] + zeroes[16]; .text ends at
+        # 0x8007484, where .ARM.exidx begins, so this string is not null-terminated.
+        path = os.path.join(test_location, "armel", "libopencm3_adc-dac-printf.elf")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        data = cfg.model.memory_data[0x8007464]
+        assert data.sort == MemoryDataSort.String
+        assert data.size == 32
+        assert data.content == b" " * 16 + b"0" * 16
 
     def test_arm_function_merge(self):
         # function 0x7bb88 is created due to a data hint in another block. this function should be merged with the
