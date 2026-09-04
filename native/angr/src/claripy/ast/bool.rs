@@ -1,15 +1,13 @@
 #![allow(non_snake_case)]
 
-use std::sync::LazyLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use clarirs_vsa::reduce::Reduce;
 use clarirs_vsa::strided_interval::ComparisonResult;
-use dashmap::DashMap;
 use pyo3::exceptions::PyValueError;
+use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
-use pyo3::types::{PyDict, PyWeakrefMethods, PyWeakrefReference};
 
 use crate::claripy::ast::{and, not, or, xor};
 use crate::claripy::prelude::*;
@@ -17,65 +15,15 @@ use crate::claripy::prelude::*;
 use super::r#if;
 
 static BOOLS_COUNTER: AtomicUsize = AtomicUsize::new(0);
-static PY_BOOL_CACHE: LazyLock<DashMap<u64, Py<PyWeakrefReference>>> = LazyLock::new(DashMap::new);
 
 #[pyclass(extends=Base, subclass, frozen, weakref, module="angr.rustylib.claripy.ast.bool")]
 pub struct Bool {
     pub(crate) inner: AstRef<'static>,
 }
 
-impl Bool {
-    pub fn new<'py>(
-        py: Python<'py>,
-        inner: &AstRef<'static>,
-    ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        Self::new_with_name(py, inner, None)
-    }
-
-    /// Wrap an AST without simplifying it, keeping its annotation set exactly as
-    /// given.
-    pub fn new_with_name<'py>(
-        py: Python<'py>,
-        inner: &AstRef<'static>,
-        name: Option<String>,
-    ) -> Result<Bound<'py, Bool>, ClaripyError> {
-        if let Some(cache_hit) = PY_BOOL_CACHE.get(&inner.hash()).and_then(|cache_hit| {
-            cache_hit
-                .bind(py)
-                .upgrade_as::<Bool>()
-                .expect("bool cache poisoned")
-        }) {
-            Ok(cache_hit)
-        } else {
-            let this = Bound::new(
-                py,
-                PyClassInitializer::from(Base::new_with_name(py, inner, name)?).add_subclass(
-                    Bool {
-                        inner: inner.clone(),
-                    },
-                ),
-            )?;
-            let weakref = PyWeakrefReference::new(&this)?;
-            PY_BOOL_CACHE.insert(inner.hash(), weakref.unbind());
-
-            Ok(this)
-        }
-    }
-}
-
-impl Drop for Bool {
-    fn drop(&mut self) {
-        // Evict this wrapper's cache entry so dead hashes don't accumulate.
-        // Our own weakref is already cleared by the time Drop runs, so a dead
-        // upgrade means the entry is stale; a live upgrade means the entry was
-        // re-populated with a new wrapper and must stay.
-        Python::attach(|py| {
-            PY_BOOL_CACHE.remove_if(&self.inner.hash(), |_, weakref| {
-                weakref.bind(py).upgrade().is_none()
-            });
-        });
-    }
-}
+ast_wrapper!(Bool, PY_BOOL_CACHE, |base, inner| {
+    PyClassInitializer::from(base).add_subclass(Bool { inner })
+});
 
 #[pymethods]
 impl Bool {
