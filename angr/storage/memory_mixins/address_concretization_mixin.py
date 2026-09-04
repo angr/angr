@@ -10,13 +10,8 @@ from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class MultiwriteAnnotation(claripy.Annotation):
-    @property
-    def eliminatable(self):
-        return False
-
-    @property
-    def relocatable(self):
-        return True
+    eliminatable = False
+    relocatable = True
 
 
 def _multiwrite_filter(mem, ast: claripy.ast.Base):  # pylint:disable=unused-argument

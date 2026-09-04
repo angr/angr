@@ -60,16 +60,11 @@ def parse_stack_pointer(sp):
 class VariableAnnotation(Annotation):
     __slots__ = ("addr_and_variables",)
 
+    relocatable = True
+    eliminatable = False
+
     def __init__(self, addr_and_variables: list[tuple[int, SimVariable]]):
         self.addr_and_variables = addr_and_variables
-
-    @property
-    def relocatable(self):
-        return True
-
-    @property
-    def eliminatable(self):
-        return False
 
     def __eq__(self, other):
         if type(other) is VariableAnnotation:
