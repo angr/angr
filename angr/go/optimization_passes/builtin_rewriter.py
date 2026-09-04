@@ -29,6 +29,7 @@ from angr.go.sim_type import GoSimTypeFunction
 from angr.go.utils.graph import block_before, conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
+from angr.utils.ail import find_call
 from angr.utils.go_runtime import normalize_go_func_name
 
 l = logging.getLogger(__name__)
@@ -750,7 +751,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                     return None
                 call_stmt = stmt
             elif isinstance(stmt, Assignment):
-                if not isinstance(stmt.src, (VirtualVariable, Const)):
+                # copies, and values re-read after the call (registers the call clobbered)
+                if find_call(stmt.src) is not None:
                     return None
             elif not isinstance(stmt, (Label, Jump)):
                 return None
@@ -828,16 +830,68 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         elems = None
         stores: list[Store] = []
         if ptr_phi is not None and len_phi is not None:
-            found: dict[int, tuple[Store, Expression]] = {}
-            for stmt in join.statements:
+            ws = self.project.arch.bytes
+            width = self.type_size(et) or ws
+            words = max(1, width // ws)
+            found: dict[tuple[int, int], tuple[Store, Expression]] = {}
+            for stmt in self._store_window(join):
                 if isinstance(stmt, Store):
                     parsed = self._parse_elem_store(stmt.addr, ptr_phi, len_phi)
-                    if parsed is not None and 1 <= parsed <= count and parsed not in found:
-                        found[parsed] = (stmt, stmt.data)
-            if len(found) == count:
-                elems = self._elements(join, phis, post_grow, [found[k][1] for k in range(count, 0, -1)])
-                stores = [found[k][0] for k in found]
+                    if parsed is None:
+                        continue
+                    k, word = parsed
+                    if 1 <= k <= count and 0 <= word < words and (k, word) not in found:
+                        found[(k, word)] = (stmt, stmt.data)
+            if len(found) == count * words:
+                pieces = self._elements(
+                    join, phis, post_grow, [found[(k, w)][1] for k in range(count, 0, -1) for w in range(words)]
+                )
+                if pieces is not None:
+                    elems = self._assemble_elements(pieces, words, et)
+                stores = [st for st, _ in found.values()]
         return block, call_stmt, base, count, et, cond_block, other, join, pre_join, phis, elems, stores
+
+    def _store_window(self, join: Block) -> list[Statement]:
+        """The join block's statements followed by those of its straight-line successors, up to the first call."""
+        out = list(join.statements)
+        block = join
+        seen = {join}
+        while True:
+            succs = list(self._graph.successors(block))
+            if len(succs) != 1 or succs[0] in seen or self._graph.in_degree(succs[0]) != 1:
+                return out
+            block = succs[0]
+            seen.add(block)
+            for stmt in block.statements:
+                if find_call(stmt) is not None:
+                    return out
+                out.append(stmt)
+
+    def _assemble_elements(self, pieces: list, words: int, et: Expression) -> list | None:
+        """Word-sized pieces, ``words`` per element, into element values (strings and two-word structs)."""
+        if words == 1:
+            return pieces
+        elem_name = self.type_name(et) or ""
+        out = []
+        for i in range(0, len(pieces), words):
+            group = pieces[i : i + words]
+            if words == 2 and elem_name == "string":
+                value = self.values.string(group[0], group[1])
+                if value is None:
+                    return None
+            elif words == 2:
+                ws = self.project.arch.bytes
+                value = Struct(
+                    self.manager.next_atom(),
+                    elem_name or "struct",
+                    OrderedDict([(0, group[0]), (ws, group[1])]),
+                    OrderedDict([("f0", 0), ("f1", ws)]),
+                    2 * self.project.arch.bits,
+                )
+            else:
+                return None
+            out.append(value)
+        return out
 
     def _elements(self, join: Block, phis: dict, post_grow: Block, data: list) -> list | None:
         """The stored values as seen on the grow path; None when one is computed in the join block itself."""
@@ -866,11 +920,20 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 phis[stmt.dst.varid] = (stmt.dst, stmt.src)
         return phis
 
-    def _parse_elem_store(self, addr: Expression, ptr_phi: VirtualVariable, len_phi: VirtualVariable) -> int | None:
-        """``(ptr + len*w) - k*w`` or ``ptr + (len - k)*w`` -> k."""
+    def _parse_elem_store(self, addr: Expression, ptr_phi: VirtualVariable, len_phi: VirtualVariable):
+        """``(ptr + len*w) - k*w`` or ``ptr + (len - k)*w``, plus an optional word offset -> (k, word)."""
         if not (isinstance(addr, BinaryOp) and addr.op in ("Sub", "Add")):
             return None
         lhs, rhs = addr.operands
+        # (element address) + c: a word inside a multi-word element
+        if addr.op == "Add" and isinstance(rhs, Const) and isinstance(lhs, BinaryOp):
+            inner = self._parse_elem_store(lhs, ptr_phi, len_phi)
+            if inner is not None:
+                ws = self.project.arch.bytes
+                k, word = inner
+                if word == 0 and rhs.value % ws == 0 and 0 < rhs.value < 8 * ws:
+                    return k, rhs.value // ws
+                return None
         if addr.op == "Sub":
             back = _const(rhs)
             if back is None or not (isinstance(lhs, BinaryOp) and lhs.op == "Add"):
@@ -879,12 +942,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if not self.values.resolve(p).likes(ptr_phi):
                 return None
             width = self._scaled_len(scaled, len_phi)
-            return back // width if width and back % width == 0 else None
+            return (back // width, 0) if width and back % width == 0 else None
         p, scaled = lhs, rhs
         if not self.values.resolve(p).likes(ptr_phi):
             p, scaled = rhs, lhs
             if not self.values.resolve(p).likes(ptr_phi):
                 return None
+        scaled = self.values.expand(scaled)
         if isinstance(scaled, BinaryOp) and scaled.op == "Mul" and isinstance(scaled.operands[1], Const):
             inner = scaled.operands[0]
             if (
@@ -892,18 +956,21 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 and inner.op == "Sub"
                 and self.values.resolve(inner.operands[0]).likes(len_phi)
             ):
-                return _const(inner.operands[1])
+                k = _const(inner.operands[1])
+                return (k, 0) if k is not None else None
         elif (
             isinstance(scaled, BinaryOp)
             and scaled.op == "Sub"
             and self.values.resolve(scaled.operands[0]).likes(len_phi)
         ):
-            return _const(scaled.operands[1])
+            k = _const(scaled.operands[1])
+            return (k, 0) if k is not None else None
         return None
 
     def _scaled_len(self, expr: Expression, len_phi: VirtualVariable) -> int | None:
         if self.values.resolve(expr).likes(len_phi):
             return 1
+        expr = self.values.expand(expr)
         if isinstance(expr, BinaryOp) and expr.op == "Mul":
             a, b = expr.operands
             if self.values.resolve(a).likes(len_phi) and isinstance(b, Const):
@@ -941,6 +1008,11 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         # the join no longer merges two paths
         replacements: dict[int, VirtualVariable] = {}
         new_stmts = []
+        store_ids = {id(st) for st in stores}
+        for other_block in list(self._graph.nodes):
+            if other_block is join or not any(id(st) in store_ids for st in other_block.statements):
+                continue
+            other_block.statements = [st for st in other_block.statements if id(st) not in store_ids]
         for stmt in join.statements:
             if stmt in stores:
                 continue
