@@ -75,15 +75,6 @@ impl std::fmt::Display for InternedString {
     }
 }
 
-impl serde::Serialize for InternedString {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
 impl Ord for InternedString {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)

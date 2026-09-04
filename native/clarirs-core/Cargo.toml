@@ -13,9 +13,8 @@ repository = { workspace = true }
 ahash = "0.8.12"
 anyhow = { workspace = true }
 clarirs-num = { path = "../clarirs-num" }
-num-bigint = { version = "0.4.6", features = ["serde"] }
+num-bigint = "0.4.6"
 num-traits = "0.2"
-serde = { version = "1.0.228", features = ["derive", "rc"] }
 smallvec = { version = "1.15.1", features = ["serde"] }
 thiserror = { workspace = true }
 

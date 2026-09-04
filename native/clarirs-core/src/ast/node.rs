@@ -13,26 +13,17 @@ use crate::{
 
 /// A node in an AST. A single node type serves every sort; the node caches its
 /// [`AstType`] so its sort can be queried in O(1) without inspecting the operation.
-#[derive(serde::Serialize)]
 pub struct AstNode<'c> {
     op: AstOp<'c>,
     annotations: BTreeSet<Annotation>,
-    #[serde(skip)]
     ast_type: AstType,
-    #[serde(skip)]
     ctx: &'c Context<'c>,
-    #[serde(skip)]
     hash: u64,
-    #[serde(skip)]
     variables: BTreeSet<InternedString>,
-    #[serde(skip)]
     depth: u32,
-    #[serde(skip)]
     symbolic: bool,
-    #[serde(skip)]
     simplifiable: bool,
     /// Hash of this node's simplified form (`0` = none), resolved via the AST cache.
-    #[serde(skip)]
     pub(crate) simplified: AtomicU64,
 }
 
