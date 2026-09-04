@@ -2359,9 +2359,9 @@ impl<'py> IrReader for PyReader<'py> {
                     callee: stmt.getattr("cee")?.getattr("name")?.extract()?,
                     args,
                     guard,
-                    mfx: Some(stmt.getattr("mFx")?.extract()?),
+                    mfx: stmt.getattr("mFx")?.extract()?,
                     maddr,
-                    msize: Some(stmt.getattr("mSize")?.extract()?),
+                    msize: stmt.getattr("mSize")?.extract()?,
                     tmp,
                     tmp_bits,
                 }
