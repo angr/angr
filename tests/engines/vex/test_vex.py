@@ -596,6 +596,29 @@ class TestVex(unittest.TestCase):
         solver.add(sm.one_deadended.regs.rax != target_func)
         assert not solver.satisfiable()
 
+    def test_x86_das_carry(self):
+        # DAS (0x2F): the low-nibble adjust `AL -= 6` borrows for AL in [0, 5]
+        # when AF is set, so CF must come out 1. Regression for the fix that
+        # tests the borrow on the pre-subtraction AL and preserves that carry
+        # through the high-nibble block. Exercises the daa/das ccall's 0x2F path.
+        p = load_shellcode(b"\x2f", arch="x86")
+        s = SimState(project=p)
+        off = s_ccall.data["X86"]["CondBitOffsets"]
+        sc, sa = off["G_CC_SHIFT_C"], off["G_CC_SHIFT_A"]
+
+        def das(al, af, cf_in):
+            fa = (al & 0xFF) | (af << (16 + sa)) | (cf_in << (16 + sc))
+            r = s_ccall.x86g_calculate_daa_das_aaa_aas(s, claripy.BVV(fa, 32), claripy.BVV(0x2F, 32))
+            return (s.solver.eval(r) >> (16 + sc)) & 1
+
+        # AL in [0,5], AF=1, CF=0 -> low-nibble borrow -> CF=1 (was wrongly 0)
+        assert das(0x00, 1, 0) == 1
+        assert das(0x01, 1, 0) == 1
+        assert das(0x05, 1, 0) == 1
+        # unaffected cases stay correct
+        assert das(0x10, 0, 0) == 0  # no adjust
+        assert das(0x9A, 0, 0) == 1  # high-nibble adjust sets CF
+
     def test_cmpltsd(self):
         p = load_shellcode(bytes.fromhex("f20fc2c101c3"), arch="amd64")
         # 0000000000000000 F20FC2C101                      CMPLTSD XMM0,XMM1
