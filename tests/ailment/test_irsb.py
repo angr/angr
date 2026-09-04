@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import pickle
 import unittest
+from typing import cast
 
 import archinfo
 import pypcode
@@ -18,6 +19,8 @@ from angr.rustylib.ailment import RoundingMode, VEXIRSBConverter, _vexop_debug
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=line-too-long
+
+bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "binaries")
 
 
 class TestIrsb(unittest.TestCase):
@@ -81,6 +84,45 @@ class TestIrsb(unittest.TestCase):
         )
         assert from_py == from_lift
         assert from_py.statements  # non-empty
+
+    def test_llsc_results_are_defined_from_nuttx(self):
+        binary = os.path.join(bin_location, "tests", "armel", "decompiler", "nuttx_O2_noinline")
+        project = angr.Project(binary, auto_load_libs=False)
+        block = project.factory.block(0x800D781, size=16)
+
+        converted = VEXIRSBConverter.convert(block.vex, ailment.Manager())
+        base_addr = block.addr & ~1
+        memory = project.loader.memory_ro_view or project.loader.memory
+        start, backer = next(memory.backers(base_addr))
+        converted_from_lift = VEXIRSBConverter.convert_from_lift(
+            project.arch,
+            block.addr,
+            backer,
+            ailment.Manager(),
+            cross_insn_opt=block._cross_insn_opt,
+            max_bytes=block.size,
+            bytes_offset=base_addr - start + 1,
+        )
+        assert converted == converted_from_lift
+        definitions = [
+            stmt
+            for stmt in converted.statements
+            if isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.dst, ailment.Expr.Tmp)
+            and isinstance(stmt.src, ailment.Expr.DirtyExpression)
+        ]
+        llsc_statements = [stmt for stmt in block.vex.statements if isinstance(stmt, pyvex.IRStmt.LLSC)]
+        expressions = [cast(ailment.Expr.DirtyExpression, stmt.src) for stmt in definitions]
+        assert [cast(ailment.Expr.Tmp, stmt.dst).tmp_idx for stmt in definitions] == [
+            stmt.result for stmt in llsc_statements
+        ]
+        assert [stmt.dst.bits for stmt in definitions] == [32, 1]
+        assert [expr.callee for expr in expressions] == ["load_linked_le", "store_conditional_le"]
+        assert [expr.bits for expr in expressions] == [32, 1]
+        assert [expr.mfx for expr in expressions] == ["Ifx_Read", "Ifx_Write"]
+        assert [expr.msize for expr in expressions] == [4, 4]
+        assert [len(expr.operands) for expr in expressions] == [1, 2]
+        assert all(expr.maddr is not None and expr.maddr.likes(expr.operands[0]) for expr in expressions)
 
 
 class TestNonConstRoundingMode(unittest.TestCase):

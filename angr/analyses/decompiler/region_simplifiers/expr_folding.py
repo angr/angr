@@ -9,6 +9,7 @@ from angr import ailment
 from angr.ailment import AILBlockRewriter, Block, Expression
 from angr.ailment.expression import ITE, Atom, Call, Load, VirtualVariable
 from angr.ailment.statement import Assignment, Return, Statement
+from angr.ailment.utils import has_llsc_expression, has_store_conditional, is_llsc_expression
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import (
     CascadingConditionNode,
@@ -286,6 +287,8 @@ class ExpressionCounter(SequenceWalker):
         if isinstance(stmt, ailment.Stmt.Assignment):
             if is_phi_assignment(stmt):
                 return
+            if has_llsc_expression(stmt.src):
+                return
             if isinstance(stmt.dst, ailment.Expr.VirtualVariable) and stmt.dst.was_reg:
                 # dependency
                 dependency_finder = ExpressionUseFinder()
@@ -409,6 +412,11 @@ class ExpressionSpotter(VVarUsesCollector):
         self.has_loads = True
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if is_llsc_expression(expr):
+            self.has_calls = True
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
 
 class InterferenceChecker(SequenceWalker):
     """
@@ -481,7 +489,7 @@ class InterferenceChecker(SequenceWalker):
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
 
-            if isinstance(stmt, ailment.Stmt.Store):
+            if isinstance(stmt, ailment.Stmt.Store) or has_store_conditional(stmt):
                 # mark all existing assignments as interfered
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
