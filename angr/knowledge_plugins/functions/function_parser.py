@@ -242,6 +242,9 @@ class FunctionParser:
         else:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
+        manager = obj._function_manager
+        obj._set_function_manager(None)
+
         if meta_only:
             startpoint_addr = cmsg.ea
             obj.startpoint = (
@@ -270,6 +273,7 @@ class FunctionParser:
 
             obj.meta_only = True  # can't be serialized again when evicted from the cache
             obj._dirty = False
+            obj._set_function_manager(manager)
             return obj
 
         # blocks
@@ -429,6 +433,7 @@ class FunctionParser:
             )
 
         obj._dirty = False
+        obj._set_function_manager(manager)
 
         return obj
 

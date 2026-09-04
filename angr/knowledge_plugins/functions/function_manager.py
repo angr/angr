@@ -1,4 +1,4 @@
-# pylint:disable=raise-missing-from
+# pylint:disable=raise-missing-from,protected-access
 from __future__ import annotations
 
 import bisect
@@ -7,9 +7,12 @@ import logging
 import os
 import re
 import threading
+import uuid
 import weakref
 from collections import OrderedDict, UserDict, defaultdict
 from collections.abc import Generator
+from contextlib import contextmanager
+from functools import wraps
 from typing import TYPE_CHECKING, TypeVar, cast, overload
 
 import cle
@@ -19,13 +22,14 @@ from archinfo.arch_soot import SootMethodDescriptor
 from cachetools import LRUCache
 from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
-from angr.codenode import FuncNode, HookNode
+from angr.codenode import FuncNode
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
 from angr.utils.smart_cache import SmartLRUCache
 
 from .function import Function
+from .observable_graph import ObservableMultiDiGraph
 from .soot_function import SootFunction
 
 if TYPE_CHECKING:
@@ -40,8 +44,41 @@ ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 l = logging.getLogger(name=__name__)
 _missing = object()
 
+
+def coalesce_function_graph_updates(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        with self._managed_function_graph_update():
+            return func(self, *args, **kwargs)
+
+    return wrapper
+
+
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
 USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
+
+
+class _FunctionGraphState:
+    __slots__ = (
+        "callgraph_trusted",
+        "epoch",
+        "generation",
+        "managed_update_depth",
+        "update_depth",
+        "update_pending",
+    )
+
+    def __init__(self):
+        self.epoch = uuid.uuid4().hex
+        self.generation = 0
+        self.callgraph_trusted = True
+        self.managed_update_depth = 0
+        self.update_depth = 0
+        self.update_pending = False
+
+    @property
+    def token(self) -> str:
+        return f"{self.epoch}:{self.generation}"
 
 
 class FunctionDictBase[K: (int, SootMethodDescriptor)]:
@@ -321,7 +358,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         # iterate over in-memory functions and copy them
         for address in self.cached_keys:
             function = super().__getitem__(address)
-            super(SpillingFunctionDict, new_dict).__setitem__(address, function.copy())
+            function_copy = function.copy()
+            function_copy._set_function_manager(new_dict._backref)
+            super(SpillingFunctionDict, new_dict).__setitem__(address, function_copy)
             new_dict._lru_order[address] = None
 
         # Copy any remaining spilled addresses and their LMDB data
@@ -779,8 +818,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         else:
             self._function_map = FunctionDict(self, key_types=self.function_address_types)
 
+        self._function_graph_state = _FunctionGraphState()
         self.function_addrs_set: set = set()
-        self.callgraph: networkx.MultiDiGraph[int] = networkx.MultiDiGraph()
+        self.callgraph = ObservableMultiDiGraph(mutation_callback=self._callgraph_modified)
 
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
@@ -811,7 +851,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self.function_address_types = state["function_address_types"]
         self.address_types = state["address_types"]
         self._function_map = state["_function_map"]
-        self.callgraph = state["callgraph"]
+        self._function_graph_state = _FunctionGraphState()
+        self.callgraph = ObservableMultiDiGraph(state["callgraph"], mutation_callback=self._callgraph_modified)
+        self._function_graph_state.callgraph_trusted = state.get("callgraph_trusted", False)
 
         # Reinitialize cache state
         self._rplt_cache_ranges = None
@@ -824,11 +866,17 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._func_names = {}
         self._func_from_signature = {}
         self._old_func_name_to_addrs = defaultdict(set)
+        serialized_key_func_addrs = state.get("key_func_addrs")
+        self._key_func_addrs = defaultdict(
+            set,
+            {} if serialized_key_func_addrs is None else {k: set(v) for k, v in serialized_key_func_addrs.items()},
+        )
+        self._arg_registers = set(state.get("arg_registers", ()))
         self.function_addrs_set = set()
 
         self._function_map._backref = weakref.proxy(self)
         for func in self._function_map.values():
-            func._function_manager = self
+            func._set_function_manager(self)
             if func.returning is None:
                 self._unknown_returning_func_addrs.add(func.addr)
             elif func.returning is False:
@@ -837,12 +885,19 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self._func_name_to_addrs[func.name].add(func.addr)
             self._func_names[func.addr] = func.name
             self._func_from_signature[func.addr] = func.from_signature
+            if serialized_key_func_addrs is None:
+                for key, value in func.info.items():
+                    if key.startswith("is_") and value is True:
+                        self.add_key_func_addr(key[3:], func.addr)  # pyright: ignore[reportArgumentType]
             for old_name in func.previous_names:
                 self._old_func_name_to_addrs[old_name].add(func.addr)
             self.function_addrs_set.add(func.addr)
 
     def set_kb(self, kb: KnowledgeBase):
         super().set_kb(kb)
+        project_arch = getattr(kb._project, "arch", None)
+        if project_arch is not None:
+            self._arg_registers = project_arch.argument_registers
         # If the unpickled function_map is a SpillingFunctionDict, set rtdb properly
         if isinstance(self._function_map, SpillingFunctionDict):
             self._function_map.rtdb = kb.rtdb
@@ -853,20 +908,31 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             "address_types": self.address_types,
             "_function_map": self._function_map,
             "callgraph": self.callgraph,
+            "callgraph_trusted": self._function_graph_state.callgraph_trusted,
+            "arg_registers": self._arg_registers,
+            "key_func_addrs": self._key_func_addrs,
         }
 
     def copy(self):
-        cache_limit = None
         if isinstance(self._function_map, SpillingFunctionDict):
-            cache_limit = self._function_map.cache_limit
+            # Materialize the snapshot without eviction. Constructing another spilling map in the same KB would make
+            # both managers share the same LMDB namespace, and copy-side eviction could then stale source-owned
+            # Function objects or overwrite the source manager's serialized records.
+            self._function_map.load_all_spilled()
 
-        fm = FunctionManager(self._kb, cache_limit=cache_limit)
+        fm = FunctionManager(self._kb, cache_limit=None)
+        fm._function_map = FunctionDict(
+            fm,
+            key_types=self.function_address_types,  # pyright: ignore[reportCallIssue, reportArgumentType]
+        )
         for k, v in self._function_map.items():
-            # Note that we use shallow copy of Function instances and do not update Function._function_manager to point
-            # to fm.
+            # FunctionManager.copy() has historically been shallow with respect to Function objects. Keep their
+            # ownership with the source manager; the copied manager is an uncertified graph snapshot.
             fm._function_map[k] = v
         fm._function_map._backref = weakref.proxy(fm)
-        fm.callgraph = networkx.MultiDiGraph(self.callgraph)
+        with fm._managed_function_graph_update():
+            fm.callgraph = ObservableMultiDiGraph(self.callgraph)
+        fm._function_graph_state.callgraph_trusted = False
         fm._arg_registers = self._arg_registers.copy()
         fm.function_addrs_set = self.function_addrs_set.copy()
 
@@ -882,7 +948,15 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         return fm
 
+    @coalesce_function_graph_updates
     def clear(self):
+        self._function_graph_modified()
+        if isinstance(self._function_map, SpillingFunctionDict):
+            self._function_map.load_all_spilled()
+        for func in self._function_map.values():
+            owner = func._function_manager
+            if owner is not None and owner._function_map is self._function_map:
+                func._set_function_manager(None)
         if isinstance(self._function_map, SpillingFunctionDict):
             cache_limit = self._function_map.cache_limit
             self._function_map.clear()
@@ -892,7 +966,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         else:
             self._function_map = FunctionDict(self, key_types=self.function_address_types)
 
-        self.callgraph = networkx.MultiDiGraph()
+        self.callgraph = ObservableMultiDiGraph()
         self.function_addrs_set = set()
         # cache
         self._rplt_cache = None
@@ -906,6 +980,90 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._func_from_signature = {}
         self._old_func_name_to_addrs = defaultdict(set)
         self._key_func_addrs = defaultdict(set)
+
+    @property
+    def callgraph(self) -> ObservableMultiDiGraph:
+        return self._callgraph
+
+    @callgraph.setter
+    def callgraph(self, graph: networkx.MultiDiGraph) -> None:
+        had_graph = hasattr(self, "_callgraph")
+        old_graph = getattr(self, "_callgraph", None)
+        callgraph = (
+            graph
+            if isinstance(graph, ObservableMultiDiGraph) and (graph is old_graph or not graph.has_mutation_callback)
+            else ObservableMultiDiGraph(graph)
+        )
+        callgraph_callback_state = callgraph._capture_mutation_callback_state()
+        old_graph_callback_state = (
+            old_graph._capture_mutation_callback_state()
+            if isinstance(old_graph, ObservableMultiDiGraph) and old_graph is not callgraph
+            else None
+        )
+        old_graph_callback = None
+        try:
+            callgraph_callback = callgraph._prepare_mutation_callback(self._callgraph_modified)
+            if isinstance(old_graph, ObservableMultiDiGraph) and old_graph is not callgraph:
+                old_graph_callback = old_graph._prepare_mutation_callback(None)
+        except Exception:
+            callgraph._restore_mutation_callback_state(callgraph_callback_state)
+            if old_graph_callback_state is not None:
+                assert isinstance(old_graph, ObservableMultiDiGraph)
+                old_graph._restore_mutation_callback_state(old_graph_callback_state)
+            raise
+        callgraph._mutation_callback = callgraph_callback  # pylint:disable=protected-access
+        if old_graph_callback_state is not None:
+            assert isinstance(old_graph, ObservableMultiDiGraph)
+            assert old_graph_callback is not None
+            old_graph._mutation_callback = old_graph_callback  # pylint:disable=protected-access
+        self._callgraph = callgraph
+        if had_graph and old_graph is not graph:
+            self._function_graph_state.callgraph_trusted = self._function_graph_state.managed_update_depth > 0
+            self._function_graph_modified()
+
+    @property
+    def function_graph_generation(self) -> str:
+        return self._function_graph_state.token
+
+    @property
+    def callgraph_trusted(self) -> bool:
+        return self._function_graph_state.callgraph_trusted
+
+    def _callgraph_modified(self) -> None:
+        if self._function_graph_state.managed_update_depth == 0:
+            self._function_graph_state.callgraph_trusted = False
+        self._function_graph_modified()
+
+    def _transition_graph_modified(self) -> None:
+        if self._function_graph_state.managed_update_depth == 0:
+            self._function_graph_state.callgraph_trusted = False
+        self._function_graph_modified()
+
+    def _function_graph_modified(self) -> None:
+        if self._function_graph_state.update_depth:
+            self._function_graph_state.update_pending = True
+        else:
+            self._function_graph_state.generation += 1
+
+    @contextmanager
+    def _function_graph_update(self):
+        self._function_graph_state.update_depth += 1
+        try:
+            yield
+        finally:
+            self._function_graph_state.update_depth -= 1
+            if self._function_graph_state.update_depth == 0 and self._function_graph_state.update_pending:
+                self._function_graph_state.update_pending = False
+                self._function_graph_state.generation += 1
+
+    @contextmanager
+    def _managed_function_graph_update(self):
+        self._function_graph_state.managed_update_depth += 1
+        try:
+            with self._function_graph_update():
+                yield
+        finally:
+            self._function_graph_state.managed_update_depth -= 1
 
     def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
         """
@@ -997,6 +1155,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._func_name_to_addrs[new_name].add(addr)
         self._func_names[addr] = new_name
 
+    @coalesce_function_graph_updates
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if isinstance(node, self.address_types):
             node = self._kb._project.factory.snippet(node, size=size)
@@ -1005,6 +1164,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             dst_func.is_syscall = syscall
         dst_func._register_node(True, node)
 
+    @coalesce_function_graph_updates
     def _add_call_to(
         self,
         function_addr,
@@ -1063,6 +1223,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         ):
             self.callgraph.add_edge(function_addr, to_addr, **edge_data)
 
+    @coalesce_function_graph_updates
     def _add_fakeret_to(
         self, function_addr, from_node, to_node, confirmed=None, syscall=None, to_outside=False, to_function_addr=None
     ):
@@ -1087,6 +1248,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             ):
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
+    @coalesce_function_graph_updates
     def _remove_fakeret(self, function_addr, from_node, to_node):
         if type(from_node) is int:  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
@@ -1094,11 +1256,13 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             to_node = self._kb._project.factory.snippet(to_node)
         self._function_map[function_addr]._remove_fakeret(from_node, to_node)
 
+    @coalesce_function_graph_updates
     def _add_return_from(self, function_addr, from_node, to_node=None):  # pylint:disable=unused-argument
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         self._function_map[function_addr]._add_return_site(from_node)
 
+    @coalesce_function_graph_updates
     def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None, is_exception=False):
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
@@ -1108,6 +1272,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx, is_exception=is_exception
         )
 
+    @coalesce_function_graph_updates
     def _add_outside_transition_to(
         self, function_addr, from_node, to_node, to_function_addr=None, ins_addr=None, stmt_idx=None, is_exception=False
     ):
@@ -1139,6 +1304,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             ):
                 self.callgraph.add_edge(function_addr, to_function_addr, **edge_data)
 
+    @coalesce_function_graph_updates
     def _add_return_from_call(self, function_addr, src_function_addr, to_node, to_outside=False):
         # Note that you will never return to a syscall
 
@@ -1176,30 +1342,59 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         return f
 
+    @coalesce_function_graph_updates
     def __setitem__(self, k, v):
         if isinstance(k, self.function_address_types):
+            if k != v.addr:
+                raise ValueError("FunctionManager key must match Function.addr")
+            if self._function_map.get(k, None) is v:
+                return
+            owner = v._function_manager
+            if (
+                owner is not None
+                and owner._function_map is not self._function_map
+                and owner._function_map.get(v.addr, None) is v
+            ):
+                raise ValueError("A Function already owned by another FunctionManager must be copied before insertion")
+            self._function_graph_modified()
+            old_func = self._function_map.get(k, None)
+            if (old_func is not None and old_func is not v) or (
+                old_func is None and v.transition_graph.number_of_edges()
+            ):
+                self._function_graph_state.callgraph_trusted = False
+            if old_func is not None:
+                self._remove_function_from_name_caches(k, old_func)
+                self._remove_function_from_key_caches(k)
+                owner = old_func._function_manager
+                if old_func is not v and owner is not None and owner._function_map is self._function_map:
+                    old_func._set_function_manager(None)
             self._function_map[k] = v
             self._function_added(v)
         else:
             raise TypeError("FunctionManager.__setitem__ keys must be an int")
 
+    @coalesce_function_graph_updates
     def __delitem__(self, k):
         if isinstance(k, self.function_address_types):
-            func_meta = self._function_map.get(k, None, meta_only=True)
+            self._function_graph_modified()
+            func_meta = self._function_map.get(k, None)
             if k in self._function_map:
                 del self._function_map[k]
+            if func_meta is not None:
+                owner = func_meta._function_manager
+                if owner is not None and owner._function_map is self._function_map:
+                    func_meta._set_function_manager(None)
             if k in self.callgraph:
                 self.callgraph.remove_node(k)
             self.function_addrs_set.discard(k)
             self._non_returning_func_addrs.discard(k)
             self._unknown_returning_func_addrs.discard(k)
             self._func_block_counts.pop(k, None)
-            self._func_name_to_addrs.pop(k, None)
+            if func_meta is not None:
+                self._remove_function_from_name_caches(k, func_meta)
+            self._remove_function_from_key_caches(k)
             self._func_names.pop(k, None)
             self._func_from_signature.pop(k, None)
-            if func_meta is not None:
-                for old_name in func_meta.previous_names:
-                    self._old_func_name_to_addrs.get(old_name, set()).discard(k)
         else:
             raise TypeError(
                 f"FunctionManager.__delitem__ only accepts the following address types: {self.function_address_types}"
@@ -1230,19 +1425,42 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             if all(isinstance(a, int) for a in addrs):
                 addrs = sorted(addrs)
             for addr in addrs:
-                yield self._function_map.get(addr)
+                func = self._function_map.get(addr, None)
+                if func is not None:
+                    yield func
         else:
             addrs = self._old_func_name_to_addrs.get(name, set()) | self._func_name_to_addrs.get(name, set())
             if all(isinstance(a, int) for a in addrs):
                 addrs = sorted(addrs)
             for addr in addrs:
-                yield self._function_map.get(addr)
+                func = self._function_map.get(addr, None)
+                if func is not None:
+                    yield func
 
     def get_addrs_by_name(self, name: str, check_previous_names: bool = False) -> set[int]:
         if not check_previous_names:
             return self._func_name_to_addrs.get(name, set()).copy()
         return self._old_func_name_to_addrs.get(name, set()) | self._func_name_to_addrs.get(name, set())
 
+    def _remove_function_from_name_caches(self, addr: K, func: Function) -> None:
+        current_name = self._func_names.get(addr, func.name)
+        names = ((self._func_name_to_addrs, current_name),)
+        old_names = ((self._old_func_name_to_addrs, old_name) for old_name in func.previous_names)
+        for cache, name in (*names, *old_names):
+            addrs = cache.get(name)
+            if addrs is None:
+                continue
+            addrs.discard(addr)
+            if not addrs:
+                del cache[name]
+
+    def _remove_function_from_key_caches(self, addr: K) -> None:
+        for func_type, addrs in list(self._key_func_addrs.items()):
+            addrs.discard(addr)
+            if not addrs:
+                del self._key_func_addrs[func_type]
+
+    @coalesce_function_graph_updates
     def _function_added(self, func: Function):
         """
         A callback method for adding a new function instance to the manager.
@@ -1250,6 +1468,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         :param func:   The Function instance being added.
         :return:       None
         """
+        self._function_graph_modified()
+        func._set_function_manager(self)
 
         # Add the function address to the set of function addresses
         self.function_addrs_set.add(func.addr)
@@ -1273,6 +1493,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         # trigger function_name_changed to update function name caches
         self.function_name_changed(func.addr, None, func.name)
+        for old_name in func.previous_names:
+            self._old_func_name_to_addrs[old_name].add(func.addr)  # pyright: ignore[reportArgumentType]
 
     def contains_addr(self, addr):
         """
@@ -1438,24 +1660,24 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             filename = f"{prefix}{func_addr:#08x}.png"
             func.dbg_draw(filename)
 
+    @coalesce_function_graph_updates
     def rebuild_callgraph(self):
-        self.callgraph = networkx.MultiDiGraph()
+        callgraph = ObservableMultiDiGraph()
         for func_addr in self._function_map:
-            self.callgraph.add_node(func_addr)
+            callgraph.add_node(func_addr)
         for func in self._function_map.values():
-            if func.block_addrs_set:
-                for node in func.transition_graph:
-                    if isinstance(node, (HookNode, FuncNode)) and self.contains_addr(node.addr):
-                        self.callgraph.add_edge(func.addr, node.addr)
-                    else:
-                        inedges = func.transition_graph.in_edges(node, data=True)
-                        for _, _, data in inedges:
-                            if (
-                                data.get("type") == "transition"
-                                and data.get("outside") is True
-                                and self.contains_addr(node.addr)
-                            ):
-                                self.callgraph.add_edge(func.addr, node.addr)
+            for _, dst, data in func.transition_graph.edges(data=True):
+                edge_type = data.get("type")
+                if edge_type in {"call", "syscall"} and self.contains_addr(dst.addr):
+                    callgraph.add_edge(func.addr, dst.addr, type="call")
+                elif (
+                    edge_type in {"transition", "exception"}
+                    and data.get("outside") is True
+                    and self.contains_addr(dst.addr)
+                ):
+                    callgraph.add_edge(func.addr, dst.addr, type=edge_type)
+        self.callgraph = callgraph
+        self._function_graph_state.callgraph_trusted = True
 
     #
     # Non-returning function cache
@@ -1584,7 +1806,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     #
 
     def get_key_func_addrs(self, func_type: str) -> set[K]:
-        return self._key_func_addrs.get(func_type, set())
+        return self._key_func_addrs.get(func_type, set()).copy()
 
     def get_key_func_type_and_addrs(self) -> dict[str, set[K]]:
         """
