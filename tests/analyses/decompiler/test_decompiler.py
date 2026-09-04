@@ -10,7 +10,9 @@ import re
 import time
 import unittest
 from functools import wraps
+from typing import Any, cast
 
+import archinfo
 import networkx
 
 import angr
@@ -41,7 +43,7 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.calling_conventions import default_cc
-from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import (
     SimTypeArray,
@@ -1700,6 +1702,82 @@ class TestDecompiler(unittest.TestCase):
         assert 'error(1, *(__errno_location()), "%s");' in last_lines or re.search(
             r"(\w+) = __errno_location\(\);\s*error\(1, \*\(\1\), \"%s\"\);", last_lines
         )
+
+    def test_decompiling_forwarded_call_arguments(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "basenc")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts={0x407C70, 0x407D40})
+
+        xdectoumax = proj.kb.functions[0x407D40]
+        d = proj.analyses.Decompiler(xdectoumax, cfg=cfg.model)
+
+        assert xdectoumax.prototype is not None
+        assert len(xdectoumax.prototype.args) == 6
+        prototype = str(xdectoumax.prototype)
+        assert d.codegen is not None and d.codegen.text is not None
+        call = re.search(r"xnumtoumax\(([^)]*)\)", d.codegen.text)
+        assert call is not None
+        assert len(call.group(1).split(",")) == 7
+        assert call.group(1).split(",", maxsplit=1)[0].strip() == "a0"
+
+        d = proj.analyses.Decompiler(xdectoumax, cfg=cfg.model)
+        assert str(xdectoumax.prototype) == prototype
+        assert d.codegen is not None and d.codegen.text is not None
+        assert call.group(0) in d.codegen.text
+
+    def test_current_function_cca_seed_restored_on_callee_recovery_exception(self):
+        arch = archinfo.ArchAMD64()
+        old_calling_convention_cls = default_cc(arch.name)
+        assert old_calling_convention_cls is not None
+        clinic = cast(Any, object.__new__(angr.analyses.decompiler.Clinic))
+        func = Function(
+            None,
+            0x400000,
+            syscall=False,
+            binary_name="test",
+            is_simprocedure=False,
+            is_plt=False,
+            returning=True,
+            prototype=SimTypeFunction([], SimTypeInt()).with_arch(arch),
+            prototype_libname="old-lib",
+            prototype_source=PrototypeSource.CCA_LOW,
+            calling_convention=old_calling_convention_cls(arch),
+        )
+        old_prototype = func.prototype
+        old_prototype_libname = func.prototype_libname
+        old_prototype_source = func.prototype_source
+        old_calling_convention = func.calling_convention
+        old_ran_cca = func.ran_cca
+        seeded_prototype = SimTypeFunction([], SimTypeLongLong()).with_arch(arch)
+        seeded_calling_convention = old_calling_convention_cls(arch)
+        seed_calls = 0
+
+        clinic.function = func
+
+        def seed_current_function(_func_graph):
+            nonlocal seed_calls
+            seed_calls += 1
+            func.prototype = seeded_prototype
+            func.prototype_libname = "seed-lib"
+            func.prototype_source = PrototypeSource.CCA_DECOMPILER
+            func.calling_convention = seeded_calling_convention
+            func.ran_cca = False
+
+        def fail_callee_recovery(_func_graph):
+            raise RuntimeError("callee recovery failed")
+
+        clinic._recover_current_function_calling_convention = seed_current_function  # pylint: disable=protected-access
+        clinic._recover_callee_calling_conventions = fail_callee_recovery  # pylint: disable=protected-access
+
+        with self.assertRaisesRegex(RuntimeError, "callee recovery failed"):
+            clinic._recover_calling_conventions()  # pylint: disable=protected-access
+
+        assert seed_calls == 1
+        assert func.prototype is old_prototype
+        assert func.prototype_libname == old_prototype_libname
+        assert func.prototype_source is old_prototype_source
+        assert func.calling_convention is old_calling_convention
+        assert func.ran_cca is old_ran_cca
 
     @structuring_algo("phoenix")
     def test_decompiling_fmt_paragraph_dowhile(self, decompiler_options=None):
