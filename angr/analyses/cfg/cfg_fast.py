@@ -16,7 +16,7 @@ import capstone
 import cle
 import networkx
 import pyvex
-from archinfo import Endness
+from archinfo import ArchRISCV64, Endness
 from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
 from archinfo.arch_soot import SootAddressDescriptor
 from cle.address_translator import AT
@@ -5914,7 +5914,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                 # the default case
                 valid_ins = False
-                nodecode_size = 1
+                if isinstance(self.project.arch, ArchRISCV64):
+                    # RISC-V stores the length of an instruction in the instruction itself: the lowest two bits of
+                    # the first halfword are 0b11 for a 32-bit instruction and anything else for a 16-bit
+                    # compressed one. Longer encodings are reserved and unallocated.
+                    first_byte = self.project.loader.memory.load(real_addr + irsb_size, 1)[0]
+                    nodecode_size = 4 if first_byte & 0b11 == 0b11 else 2
+                else:
+                    nodecode_size = 1
 
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
                 if self.project.arch.name == "AMD64" and irsb_string[-2:] == b"\x0f\x0b":
