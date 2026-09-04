@@ -4,7 +4,7 @@ import functools
 import logging
 import os
 import time
-from typing import TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from angr import claripy
 from angr import sim_options as o
@@ -118,9 +118,13 @@ def _concrete_bool(e):
     return None
 
 
-def _concrete_value(e):
+def _concrete_value(e) -> Any:
+    """
+    The Python value behind a concrete claripy leaf, or None if there isn't one. Returns ``Any`` because
+    the value's type follows the AST's sort (int for a BVV, bool for a BoolV, float for an FPV, ...).
+    """
     # shortcuts for speed improvement
-    if isinstance(e, (int, float, bool)):
+    if isinstance(e, (int, float, bool, str)):
         return e
     if isinstance(e, claripy.ast.Base | SimActionObject) and e.is_leaf() and not e.symbolic:
         return e.args[0]
@@ -185,6 +189,9 @@ def concrete_path_list(f):
 #
 # The main event
 #
+
+
+type _EvalArg = claripy.ast.Base | SimActionObject | int | float | bool | str
 
 
 class SimSolver(SimStatePlugin):
@@ -806,6 +813,15 @@ class SimSolver(SimStatePlugin):
     @overload
     def eval_upto(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
+    @overload
+    def eval_upto(self, e: claripy.ast.String | str, n: int, cast_to: None = ..., **kwargs) -> list[str]: ...
+
+    @overload
+    def eval_upto(self, e: _EvalArg, n: int, cast_to: None = ..., **kwargs) -> list[Any]: ...
+
+    @overload
+    def eval_upto(self, e: _EvalArg, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
+
     def eval_upto(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression, using the solver if necessary. Returns primitives as specified by the `cast_to`
@@ -846,6 +862,15 @@ class SimSolver(SimStatePlugin):
     @overload
     def eval(self, e: claripy.ast.FP, cast_to: type[CastType], **kwargs) -> CastType: ...
 
+    @overload
+    def eval(self, e: claripy.ast.String | str, cast_to: None = ..., **kwargs) -> str: ...
+
+    @overload
+    def eval(self, e: _EvalArg, cast_to: None = ..., **kwargs) -> Any: ...
+
+    @overload
+    def eval(self, e: _EvalArg, cast_to: type[CastType], **kwargs) -> CastType: ...
+
     def eval(self, e, cast_to=None, **kwargs):
         """
         Evaluate an expression to get any possible solution. The desired output types can be specified using the
@@ -882,6 +907,15 @@ class SimSolver(SimStatePlugin):
 
     @overload
     def eval_one(self, e: claripy.ast.FP, cast_to: type[CastType], **kwargs) -> CastType: ...
+
+    @overload
+    def eval_one(self, e: claripy.ast.String | str, cast_to: None = ..., **kwargs) -> str: ...
+
+    @overload
+    def eval_one(self, e: _EvalArg, cast_to: None = ..., **kwargs) -> Any: ...
+
+    @overload
+    def eval_one(self, e: _EvalArg, cast_to: type[CastType], **kwargs) -> CastType: ...
 
     def eval_one(self, e, cast_to=None, **kwargs):
         """
@@ -921,6 +955,15 @@ class SimSolver(SimStatePlugin):
     @overload
     def eval_atmost(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
+    @overload
+    def eval_atmost(self, e: claripy.ast.String | str, n: int, cast_to: None = ..., **kwargs) -> list[str]: ...
+
+    @overload
+    def eval_atmost(self, e: _EvalArg, n: int, cast_to: None = ..., **kwargs) -> list[Any]: ...
+
+    @overload
+    def eval_atmost(self, e: _EvalArg, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
+
     def eval_atmost(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression to get at most `n` possible solutions. Errors if either none or more than `n` solutions
@@ -957,6 +1000,15 @@ class SimSolver(SimStatePlugin):
     @overload
     def eval_atleast(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
+    @overload
+    def eval_atleast(self, e: claripy.ast.String | str, n: int, cast_to: None = ..., **kwargs) -> list[str]: ...
+
+    @overload
+    def eval_atleast(self, e: _EvalArg, n: int, cast_to: None = ..., **kwargs) -> list[Any]: ...
+
+    @overload
+    def eval_atleast(self, e: _EvalArg, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
+
     def eval_atleast(self, e, n, cast_to=None, **kwargs):
         """
         Evaluate an expression to get at least `n` possible solutions. Errors if less than `n` solutions were found.
@@ -991,6 +1043,15 @@ class SimSolver(SimStatePlugin):
 
     @overload
     def eval_exact(self, e: claripy.ast.FP, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
+
+    @overload
+    def eval_exact(self, e: claripy.ast.String | str, n: int, cast_to: None = ..., **kwargs) -> list[str]: ...
+
+    @overload
+    def eval_exact(self, e: _EvalArg, n: int, cast_to: None = ..., **kwargs) -> list[Any]: ...
+
+    @overload
+    def eval_exact(self, e: _EvalArg, n: int, cast_to: type[CastType], **kwargs) -> list[CastType]: ...
 
     def eval_exact(self, e, n, cast_to=None, **kwargs):
         """
