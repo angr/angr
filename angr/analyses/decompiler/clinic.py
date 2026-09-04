@@ -899,6 +899,75 @@ class Clinic(Analysis, Serializable):
             walker.walk(block)
         return ail_graph
 
+    def _split_combo_phi_operands(self, ail_graph) -> networkx.DiGraph:
+        """
+        Give phi operands that are constituent registers of a combo-register value (an argument or a call result) an
+        explicit definition in the predecessor block: ``r = Load(&combo + offset)``.
+
+        Phi operands must stay virtual variables, so the reference walkers cannot rewrite them; without the copy, phi
+        elimination treats the operand as the register itself and the value the combo holds never reaches the merged
+        variable (a loop pointer starting at ``s.ptr``, a result of ``f()`` merged with a constant).
+        """
+
+        varid_to_combo = {}
+        if self.arg_vvars is not None:
+            for arg_vvar, _ in self.arg_vvars.values():
+                if arg_vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER:
+                    for reg_vvar in arg_vvar.reg_vvars or ():
+                        varid_to_combo[reg_vvar.varid] = arg_vvar
+        for block in ail_graph.nodes:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                    and stmt.dst.was_combo_reg
+                ):
+                    for reg_vvar in stmt.dst.reg_vvars or ():
+                        varid_to_combo[reg_vvar.varid] = stmt.dst
+        if not varid_to_combo:
+            return ail_graph
+
+        blocks = {(b.addr, b.idx): b for b in ail_graph.nodes}
+        walker = ComboRegReferenceWalker(self.project, self._ail_manager)
+        walker.varid_to_combo_reg = varid_to_combo
+        for block in list(ail_graph.nodes):
+            for i, stmt in enumerate(block.statements):
+                if not (isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Phi)):
+                    continue
+                new_sources = []
+                changed = False
+                for src, vvar in stmt.src.src_and_vvars:
+                    if vvar is None or vvar.varid not in varid_to_combo or src not in blocks:
+                        new_sources.append((src, vvar))
+                        continue
+                    pred = blocks[src]
+                    load = walker._handle_VirtualVariable(0, vvar, 0, None, None)
+                    fresh = ailment.Expr.VirtualVariable(
+                        self._ail_manager.next_atom(),
+                        self.vvar_id_start,
+                        vvar.bits,
+                        ailment.Expr.VirtualVariableCategory.REGISTER,
+                        oident=vvar.reg_offset,
+                        **vvar.tags,
+                    )
+                    self.vvar_id_start += 1
+                    copy_stmt = ailment.Stmt.Assignment(self._ail_manager.next_atom(), fresh, load, **stmt.tags)
+                    last = pred.statements[-1] if pred.statements else None
+                    if isinstance(last, (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                        pred.statements.insert(len(pred.statements) - 1, copy_stmt)
+                    else:
+                        pred.statements.append(copy_stmt)
+                    new_sources.append((src, fresh))
+                    changed = True
+                if changed:
+                    block.statements[i] = ailment.Stmt.Assignment(
+                        stmt.idx,
+                        stmt.dst,
+                        ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_sources, **stmt.src.tags),
+                        **stmt.tags,
+                    )
+        return ail_graph
+
     def _rewrite_combo_reg_param_references(self, ail_graph) -> networkx.DiGraph:
         """
         Rewrite reads of the constituent registers of combo-register arguments into loads from the arguments.
@@ -1178,6 +1247,7 @@ class Clinic(Analysis, Serializable):
     def _stage_recover_variables(self) -> None:
         assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
 
+        self._ail_graph = self._split_combo_phi_operands(self._ail_graph)
         self._ail_graph = self._rewrite_combo_reg_param_references(self._ail_graph)
 
         # Recover variables on AIL blocks
