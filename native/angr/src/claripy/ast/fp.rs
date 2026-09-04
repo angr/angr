@@ -570,33 +570,6 @@ impl FP {
         )
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn __reduce__<'py>(
-        &self,
-        py: Python<'py>,
-    ) -> Result<
-        (
-            Bound<'py, PyAny>,
-            (
-                String,
-                Vec<Bound<'py, PyAny>>,
-                Vec<Bound<'py, PyAnnotation>>,
-            ),
-        ),
-        ClaripyError,
-    > {
-        let class = py.get_type::<FP>();
-        let op = self.inner.to_opstring();
-        let args = self.inner.extract_py_args(py)?;
-        let annotations: Vec<Bound<'py, PyAnnotation>> = self
-            .inner
-            .annotations()
-            .iter()
-            .map(|annotation| PyAnnotation::from_annotation(py, annotation))
-            .collect::<Result<_, _>>()?;
-        Ok((class.into_any(), (op, args, annotations)))
-    }
-
     #[getter]
     pub fn length(&self) -> usize {
         self.size()
