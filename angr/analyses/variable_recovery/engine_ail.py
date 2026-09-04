@@ -1196,13 +1196,13 @@ class SimEngineVRAIL(
     def _handle_binop_CmpGE(self, expr):
         return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
 
-    def _handle_binop_Default(self, expr):
+    def _handle_binop_Default(self, expr: ailment.expression.BinaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
         arg0, arg1 = expr.operands
 
         self._expr(arg0)
         self._expr(arg1)
 
-        return RichR(self.state.top(expr.bits))
+        return cast(RichR[claripy.ast.BV | claripy.ast.FP], RichR(self.state.top(expr.bits)))
 
     _handle_binop_AddF = _handle_binop_Default
     _handle_binop_SubF = _handle_binop_Default
