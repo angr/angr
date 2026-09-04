@@ -3627,7 +3627,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # This is a direct jump with a concrete target.
 
             # pylint: disable=too-many-nested-blocks
-            if jumpkind in {"Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"}:
+            if jumpkind in {"Ijk_Boring", "Ijk_InvalICache", "Ijk_Privileged", "Ijk_Exception"}:
                 to_outside, target_func_addr = self._is_branching_to_outside(
                     cfg_node, target_addr, current_function_addr, jumpkind, all_successors
                 )

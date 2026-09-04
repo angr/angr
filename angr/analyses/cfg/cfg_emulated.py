@@ -2163,7 +2163,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 confirmed=confirmed,
             )
 
-        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache"):
+        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Privileged"):
             src_obj = self.project.loader.find_object_containing(src_node.addr)
             dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
 
