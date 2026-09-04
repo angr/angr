@@ -38,7 +38,7 @@ dependencies = [
     "lmdb==2.1.1",
     "msgspec; implementation_name == 'cpython'",
     "mulpyplexer",
-    "networkx!=2.8.1,>=2.0",
+    "networkx!=2.8.1,>=2.5",
     "protobuf>=6.33.0",
     "psutil",
     "pycparser~=3.0",
