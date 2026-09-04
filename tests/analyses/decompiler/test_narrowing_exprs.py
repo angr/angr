@@ -9,8 +9,19 @@ import os
 import unittest
 
 import angr
-from angr.ailment.expression import BinaryOp, Const, Extract, Insert, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Convert,
+    DirtyExpression,
+    Extract,
+    FunctionLikeMacro,
+    Insert,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
+from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.analyses.decompiler.expression_narrower import EffectiveSizeExtractor
 from tests.common import WORKER, bin_location, print_decompilation_result
 
@@ -20,6 +31,52 @@ l = logging.getLogger(__name__)
 
 
 class TestNarrowingExpressions(unittest.TestCase):
+    def test_dirty_expression_children_are_full_width_uses(self):
+        operand = VirtualVariable(0, 41, 64, VirtualVariableCategory.REGISTER, oident=8)
+        guard = VirtualVariable(1, 42, 1, VirtualVariableCategory.TMP, oident=0)
+        maddr = VirtualVariable(2, 43, 64, VirtualVariableCategory.REGISTER, oident=16)
+        dirty = DirtyExpression(
+            3,
+            "helper",
+            [operand],
+            guard=guard,
+            mfx="Ifx_Read",
+            maddr=maddr,
+            msize=8,
+            bits=64,
+        )
+        dst = VirtualVariable(4, 44, 64, VirtualVariableCategory.REGISTER, oident=24)
+
+        walker = EffectiveSizeExtractor()
+        walker.walk_statement(Assignment(5, dst, dirty))
+
+        self.assertEqual(walker.vvar_effective_bits[operand.varid][operand.idx], (0, 64))
+        self.assertEqual(walker.vvar_effective_bits[guard.varid][guard.idx], (0, 1))
+        self.assertEqual(walker.vvar_effective_bits[maddr.varid][maddr.idx], (0, 64))
+
+    def test_side_effect_statement_ignores_non_call_expression(self):
+        operand = VirtualVariable(0, 45, 64, VirtualVariableCategory.REGISTER, oident=8)
+        dirty = DirtyExpression(1, "helper", [operand], bits=64)
+
+        walker = EffectiveSizeExtractor()
+        walker.walk_statement(SideEffectStatement(2, dirty))
+
+        self.assertNotIn(operand.varid, walker.vvar_effective_bits)
+        self.assertNotIn(operand.varid, walker.vvar_call_arg_effective_bits)
+
+    def test_side_effect_statement_preserves_call_argument_handling(self):
+        for expr_type in (Call, FunctionLikeMacro):
+            with self.subTest(expr_type=expr_type.__name__):
+                argument = VirtualVariable(0, 46, 64, VirtualVariableCategory.REGISTER, oident=8)
+                converted_argument = Convert(1, 64, 32, False, argument)
+                call = expr_type(2, "callee", args=[converted_argument], bits=64)
+
+                walker = EffectiveSizeExtractor()
+                walker.walk_statement(SideEffectStatement(3, call))
+
+                self.assertEqual(walker.vvar_call_arg_effective_bits[argument.varid], (0, 32))
+                self.assertNotIn(argument.varid, walker.vvar_effective_bits)
+
     def test_insert_base_is_a_full_width_use(self):
         # the base of an Insert is consumed at full width: every byte outside the inserted range is
         # preserved into the result. EffectiveSizeExtractor used to skip the base entirely, so a vvar
