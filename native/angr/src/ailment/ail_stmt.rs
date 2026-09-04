@@ -188,12 +188,13 @@ impl Hash for AilStatement {
                 data,
                 size,
                 endness,
-                ..
+                guard,
             } => {
                 addr.cached_hash_or_compute().hash(h);
                 data.cached_hash_or_compute().hash(h);
                 size.hash(h);
                 endness.hash(h);
+                guard.as_ref().map(|g| g.cached_hash_or_compute()).hash(h);
             }
             StmtInner::Jump { target, target_idx } => {
                 target.hash(h);
@@ -203,11 +204,14 @@ impl Hash for AilStatement {
                 condition,
                 true_target,
                 false_target,
-                ..
+                true_target_idx,
+                false_target_idx,
             } => {
                 condition.cached_hash_or_compute().hash(h);
                 true_target.hash(h);
                 false_target.hash(h);
+                true_target_idx.hash(h);
+                false_target_idx.hash(h);
             }
             StmtInner::SideEffectStatement { expr, .. } => {
                 expr.cached_hash_or_compute().hash(h);
@@ -648,16 +652,26 @@ impl AilStatement {
                     data: a_d,
                     size: a_s,
                     endness: a_e,
-                    ..
+                    guard: a_g,
                 },
                 StmtInner::Store {
                     addr: b_a,
                     data: b_d,
                     size: b_s,
                     endness: b_e,
-                    ..
+                    guard: b_g,
                 },
-            ) => a_s == b_s && a_e == b_e && a_a.cmp_ail::<MODE>(b_a) && a_d.cmp_ail::<MODE>(b_d),
+            ) => {
+                a_s == b_s
+                    && a_e == b_e
+                    && a_a.cmp_ail::<MODE>(b_a)
+                    && a_d.cmp_ail::<MODE>(b_d)
+                    && match (a_g, b_g) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => x.cmp_ail::<MODE>(y),
+                        _ => false,
+                    }
+            }
             (
                 StmtInner::Jump {
                     target: a_t,
@@ -673,15 +687,20 @@ impl AilStatement {
                     condition: a_c,
                     true_target: a_t,
                     false_target: a_f,
-                    ..
+                    true_target_idx: a_ti,
+                    false_target_idx: a_fi,
                 },
                 StmtInner::ConditionalJump {
                     condition: b_c,
                     true_target: b_t,
                     false_target: b_f,
-                    ..
+                    true_target_idx: b_ti,
+                    false_target_idx: b_fi,
                 },
             ) => {
+                if a_ti != b_ti || a_fi != b_fi {
+                    return false;
+                }
                 if !a_c.cmp_ail::<MODE>(b_c) {
                     return false;
                 }
