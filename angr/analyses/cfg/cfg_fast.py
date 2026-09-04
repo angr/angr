@@ -3725,6 +3725,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         else:
             if self.project.arch.name != "Soot":
                 return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
+                if self._fast_memory_load_byte(get_real_address_if_arm(self.project.arch, return_site)) is None:
+                    # A relocatable object is mapped one section at a time, so a call that ends an allocated
+                    # section returns into the alignment hole in front of the next one, where nothing is
+                    # mapped and no block can begin.
+                    return_site = None
             else:
                 # For Soot, we return to the next statement, which is not necessarily the next block (as Shimple does
                 # not break blocks at calls)
