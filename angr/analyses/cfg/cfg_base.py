@@ -64,6 +64,25 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+def _conflicting_decodings(arch: archinfo.Arch, node: CFGNode, other: CFGNode) -> bool:
+    """
+    Check if node and other overlap and decode the bytes they share into different instructions. Breaking node where
+    other starts would then cut an instruction in half, so normalization has to leave both of them alone: one of the
+    two decodings is wrong, and normalize() cannot tell which one.
+    """
+
+    node_addr = get_real_address_if_arm(arch, node.addr)
+    other_addr = get_real_address_if_arm(arch, other.addr)
+    if not node_addr <= other_addr < node_addr + node.size:
+        return False
+    node_ins = [get_real_address_if_arm(arch, addr) for addr in node.instruction_addrs]
+    other_ins = [get_real_address_if_arm(arch, addr) for addr in other.instruction_addrs]
+    if not node_ins or not other_ins or other_addr not in node_ins[1:]:
+        return True
+    shared = node_ins[node_ins.index(other_addr) :]
+    return shared[: len(other_ins)] != other_ins[: len(shared)]
+
+
 class CFGBase(Analysis):
     """
     The base class for control flow graphs.
@@ -1296,7 +1315,8 @@ class CFGBase(Analysis):
 
     def normalize(self):
         """
-        Normalize the CFG, making sure that there are no overlapping basic blocks.
+        Normalize the CFG, making sure that there are no overlapping basic blocks. self.normalized is set only if
+        every overlapping block was split; blocks that cannot be split leave the CFG unnormalized.
 
         Note that this method will not alter transition graphs of each function in self.kb.functions. You may call
         normalize() on each Function object to normalize their transition graphs.
@@ -1306,6 +1326,7 @@ class CFGBase(Analysis):
 
         graph = self.graph
 
+        unsplittable_pairs = 0
         smallest_nodes = {}  # indexed by end address of the node
         end_addr_to_node = {}  # a dictionary from node key to node *if* only one node exists for the key
         end_addr_to_nodes = defaultdict(list)  # a dictionary from node key to nodes *if* more than one node exist
@@ -1347,13 +1368,14 @@ class CFGBase(Analysis):
                 smallest_node = all_nodes[0]  # take the one that has the highest address
                 other_nodes = all_nodes[1:]
 
-                self._normalize_core(
+                unsplittable_pairs += self._normalize_core(
                     graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addr_to_nodes
                 )
 
                 del end_addr_to_nodes[key_to_find]
-                # make sure the smallest node is stored in end_addresses
-                smallest_nodes[key_to_find] = smallest_node
+                # make sure the smallest node is stored in smallest_nodes under its own end address: the corner case
+                # below re-queues nodes that end at different addresses under the same key
+                smallest_nodes[smallest_node.addr + smallest_node.size, callstack_key] = smallest_node
 
                 # corner case
                 # sometimes two overlapping blocks may not end at the instruction. this might happen when one of the
@@ -1375,18 +1397,16 @@ class CFGBase(Analysis):
                                 break
                             next_node = lst[i + 1]
                             if node is not next_node and node.addr <= next_node.addr < node.addr + node.size:
-                                # umm, those nodes are overlapping, but they must have different end addresses
+                                # umm, those nodes are overlapping
                                 nodekey_a = node.addr + node.size, callstack_key
                                 nodekey_b = next_node.addr + next_node.size, callstack_key
-                                if nodekey_a == nodekey_b:
-                                    # error handling: this will only happen if we have completely overlapping nodes
-                                    # caused by different jumps (one of the jumps is probably incorrect), which usually
-                                    # indicates an error in CFG recovery. we print a warning and skip this node
-                                    l.warning(
-                                        "Found completely overlapping nodes %s. It usually indicates an error in CFG "
-                                        "recovery. Skip.",
+                                if _conflicting_decodings(self.project.arch, node, next_node):
+                                    l.debug(
+                                        "Cannot break %s where %s starts: they decode into different instructions.",
                                         node,
+                                        next_node,
                                     )
+                                    unsplittable_pairs += 1
                                     continue
 
                                 if nodekey_a in smallest_nodes and nodekey_b in smallest_nodes:
@@ -1400,7 +1420,13 @@ class CFGBase(Analysis):
                                 smallest_nodes.pop(nodekey_a, None)
                                 smallest_nodes.pop(nodekey_b, None)
 
-        self.normalized = True
+        if unsplittable_pairs:
+            l.warning(
+                "%d pairs of overlapping nodes decode into different instructions and could not be split. It usually "
+                "indicates an error in CFG recovery.",
+                unsplittable_pairs,
+            )
+        self.normalized = not unsplittable_pairs
 
     def _normalize_core(
         self,
@@ -1410,12 +1436,23 @@ class CFGBase(Analysis):
         other_nodes,
         smallest_nodes,
         end_addr_to_nodes,
-    ):
+    ) -> int:
+        smallest_addr = get_real_address_if_arm(self.project.arch, smallest_node.addr)
+        unsplittable_pairs = 0
+        splittable_nodes = []
+        for n in other_nodes:
+            if get_real_address_if_arm(self.project.arch, n.addr) != smallest_addr and _conflicting_decodings(
+                self.project.arch, n, smallest_node
+            ):
+                l.debug("Cannot break %s where %s starts: they decode into different instructions.", n, smallest_node)
+                unsplittable_pairs += 1
+                continue
+            splittable_nodes.append(n)
+        other_nodes = splittable_nodes
+
         # Break other nodes
         for n in other_nodes:
-            new_size = get_real_address_if_arm(self.project.arch, smallest_node.addr) - get_real_address_if_arm(
-                self.project.arch, n.addr
-            )
+            new_size = smallest_addr - get_real_address_if_arm(self.project.arch, n.addr)
             if new_size == 0:
                 # This node has the same size as the smallest one. Don't touch it.
                 continue
@@ -1566,6 +1603,8 @@ class CFGBase(Analysis):
             for n in other_nodes:
                 if n.addr in self.indirect_jumps:
                     del self.indirect_jumps[n.addr]
+
+        return unsplittable_pairs
 
     #
     # Job management
