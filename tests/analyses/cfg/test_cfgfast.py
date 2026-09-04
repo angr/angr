@@ -1141,6 +1141,30 @@ class TestCfgfast(unittest.TestCase):
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
 
+    def test_cfg_does_not_decode_an_object_cle_invented(self):
+        # cle##externs holds no file content, so an address in it that nothing is hooked at is
+        # zero fill: decoding it yields blocks until the object runs out. Packing the objects
+        # together puts it directly above the image, which is where this blob's recovery runs off
+        # the end into it.
+        path = os.path.join(test_location, "armel", "i2c_api.o")
+        proj = angr.Project(
+            path,
+            auto_load_libs=False,
+            main_opts={"backend": "blob", "arch": "ARMEL", "base_addr": 0x1000},
+            rebase_granularity=1,
+        )
+        extern = proj.loader.extern_object
+        assert extern.min_addr == proj.loader.main_object.max_addr + 1
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        image = [n for n in cfg.model.nodes() if n.addr <= proj.loader.main_object.max_addr]
+        invented = [
+            n for n in cfg.model.nodes() if extern.min_addr <= n.addr <= extern.max_addr and not proj.is_hooked(n.addr)
+        ]
+        assert image
+        assert not invented, f"{len(invented)} blocks decoded out of {extern}: {invented[:3]}"
+
 
 if __name__ == "__main__":
     unittest.main()
