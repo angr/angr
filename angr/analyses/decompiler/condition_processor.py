@@ -15,6 +15,7 @@ from angr.errors import AngrRuntimeError
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.utils.graph import GraphUtils, dominates, inverted_idoms
 
+from .boolean_minimization import MinimizedFormula, atom_columns, full_table, minimize
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
 from .region_overlay import RegionOverlay
 from .structurer_nodes import (
@@ -67,6 +68,12 @@ _INVERSE_OPERATIONS = {
     "SLE": "SGT",
     "SGT": "SLE",
 }
+
+
+class _TooManyAtoms(Exception):
+    """
+    Raised while walking a condition that turns out to range over more atoms than the minimizer will handle.
+    """
 
 
 class AILExprIdAnnotation(claripy.Annotation):
@@ -1127,55 +1134,78 @@ class ConditionProcessor:
     #
 
     @staticmethod
-    def claripy_ast_to_sympy_expr(ast, memo=None):
-        import sympy  # pylint:disable=import-outside-toplevel
+    def _lift_formula(formula: bool | MinimizedFormula, atoms: list[claripy.ast.Bool]) -> claripy.ast.Bool:
+        """
+        Rebuild a claripy AST out of a minimized formula, mapping literals back onto the interned atoms.
+        """
 
-        if ast.op == "And":
-            return sympy.And(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Or":
-            return sympy.Or(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
-        if ast.op == "Not":
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0], memo=memo))
-
-        if ast.op in _UNIFIABLE_COMPARISONS:
-            # unify comparisons to enable more simplification opportunities without going "deep" in sympy
-            inverse_op = getattr(ast.args[0], _INVERSE_OPERATIONS[ast.op])
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(inverse_op(ast.args[1]), memo=memo))
-
-        if memo is not None and ast in memo:
-            return memo[ast]
-        symbol = sympy.Symbol(str(hash(ast)))
-        if memo is not None:
-            memo[symbol] = ast
-        return symbol
-
-    @staticmethod
-    def sympy_expr_to_claripy_ast(expr, memo: dict):
-        import sympy  # pylint:disable=import-outside-toplevel
-
-        if expr.is_Symbol:
-            return memo[expr]
-        if isinstance(expr, sympy.Or):
-            return claripy.Or(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.And):
-            return claripy.And(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
-        if isinstance(expr, sympy.Not):
-            return claripy.Not(ConditionProcessor.sympy_expr_to_claripy_ast(expr.args[0], memo))
-        if isinstance(expr, sympy.logic.boolalg.BooleanTrue):
+        if formula is True:
             return claripy.true()
-        if isinstance(expr, sympy.logic.boolalg.BooleanFalse):
+        if formula is False:
             return claripy.false()
-        raise AngrRuntimeError("Unreachable reached")
+
+        def _literal(literal: int) -> claripy.ast.Bool:
+            atom = atoms[abs(literal) - 1]
+            return atom if literal > 0 else claripy.Not(atom)
+
+        inner, outer = (claripy.And, claripy.Or) if formula.is_sop else (claripy.Or, claripy.And)
+        terms = [
+            _literal(term[0]) if len(term) == 1 else inner(*(_literal(literal) for literal in term))
+            for term in formula.terms
+        ]
+        return terms[0] if len(terms) == 1 else outer(*terms)
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
-        import sympy  # pylint:disable=import-outside-toplevel
+        """
+        Minimize a Boolean condition, treating anything that is not And/Or/Not or a Boolean constant as an opaque atom.
+        Comparisons in ``_UNIFIABLE_COMPARISONS`` are evaluated as the negation of their inverse so that a comparison
+        and its opposite share one atom, which is where most simplification opportunities come from. Minimization is
+        exponential in the atom count, so conditions that are too deep or that range over more than
+        ``variables_limit`` claripy variables or atoms are returned untouched.
+        """
 
-        memo = {}
         if cond.depth > depth_limit or len(cond.variables) > variables_limit:
             return cond
-        sympy_expr = ConditionProcessor.claripy_ast_to_sympy_expr(cond, memo=memo)
-        return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr, deep=False), memo)
+
+        atoms: list[claripy.ast.Bool] = []
+        atom_ids: dict[int, int] = {}
+        columns = atom_columns(variables_limit)
+        all_ones = full_table(variables_limit)
+
+        def _table(node) -> int:
+            if node.op == "And":
+                table = all_ones
+                for arg in node.args:
+                    table &= _table(arg)
+                return table
+            if node.op == "Or":
+                table = 0
+                for arg in node.args:
+                    table |= _table(arg)
+                return table
+            if node.op == "Not":
+                return all_ones & ~_table(node.args[0])
+            if node.op == "BoolV":
+                return all_ones if node.args[0] else 0
+            if node.op in _UNIFIABLE_COMPARISONS:
+                inverse_op = getattr(node.args[0], _INVERSE_OPERATIONS[node.op])
+                return all_ones & ~_table(inverse_op(node.args[1]))
+
+            atom_id = atom_ids.get(node.hash())
+            if atom_id is None:
+                if len(atoms) == variables_limit:
+                    raise _TooManyAtoms
+                atom_id = atom_ids[node.hash()] = len(atoms)
+                atoms.append(node)
+            return columns[atom_id]
+
+        try:
+            truth_table = _table(cond)
+        except _TooManyAtoms:
+            return cond
+
+        return ConditionProcessor._lift_formula(minimize(truth_table & full_table(len(atoms)), len(atoms)), atoms)
 
     @staticmethod
     def _fold_double_negations(cond):
