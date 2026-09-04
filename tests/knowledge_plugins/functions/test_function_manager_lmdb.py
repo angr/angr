@@ -10,6 +10,8 @@ import os
 import unittest
 
 import angr
+from angr.errors import AngrRuntimeDbError
+from angr.knowledge_plugins.functions.function_manager import SpillingFunctionDict
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -275,6 +277,73 @@ class TestFunctionManagerLMDB(unittest.TestCase):
 
         # Verify copy has all functions
         assert fm_copy.total_function_count == total
+
+    def _spilled_function_map(self) -> tuple[angr.Project, SpillingFunctionDict]:
+        """Recover a CFG and shrink the function cache until part of it has spilled to LMDB."""
+        proj = angr.Project(self.bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast()
+        fm = proj.kb.functions
+        fm.cache_limit = 3
+        assert fm.spilled_function_count > 0
+        function_map = fm._function_map
+        assert isinstance(function_map, SpillingFunctionDict)
+        # the project owns the knowledge base the function map holds a weak reference back to
+        return proj, function_map
+
+    def test_spilling_dict_copy_carries_spilled_functions(self):
+        """SpillingFunctionDict.copy() carries the spilled functions over as well as the cached ones."""
+        _proj, function_map = self._spilled_function_map()
+        addrs = set(function_map)
+        cached, spilled = function_map.cached_count, function_map.spilled_count
+
+        new_map = function_map.copy()
+
+        assert set(new_map) == addrs
+        assert new_map.cached_count == cached
+        assert new_map.spilled_count == spilled
+        for addr in addrs:
+            assert new_map[addr].addr == addr
+
+    def test_spilling_dict_copy_holds_one_transaction_at_a_time(self):
+        """
+        copy() writes the spilled records back out into a new sub-database, and that write may have to grow the
+        LMDB map. Growing the map remaps the whole environment, so the read transaction has to be closed first.
+        """
+        proj, function_map = self._spilled_function_map()
+        rtdb = proj.kb.rtdb
+        original_transaction_opened = rtdb._transaction_opened
+        open_counts = []
+
+        def transaction_opened():
+            original_transaction_opened()
+            open_counts.append(rtdb._open_txns)
+
+        rtdb._transaction_opened = transaction_opened
+        try:
+            function_map.copy()
+        finally:
+            del rtdb._transaction_opened
+
+        assert open_counts, "copy() read nothing back out of LMDB"
+        assert max(open_counts) == 1, "copy() opened a second transaction before closing the first"
+
+    def test_unparseable_spilled_record_names_the_record(self):
+        """A record that does not parse back must be reported as such, not as a bare protobuf DecodeError."""
+        proj, function_map = self._spilled_function_map()
+        fm = proj.kb.functions
+
+        funcsdb = function_map._funcsdb
+        assert funcsdb is not None
+        spilled_addr = next(iter(fm._spilled_addrs))
+        with proj.kb.rtdb.begin_txn(funcsdb, write=True) as txn:
+            txn.put(str(spilled_addr).encode("utf-8"), b"\xff" * 16)
+
+        with self.assertRaises(AngrRuntimeDbError) as ctx:
+            _ = fm[spilled_addr]
+        message = str(ctx.exception)
+        assert hex(spilled_addr) in message
+        assert "16 bytes" in message
+        assert funcsdb in message
 
 
 if __name__ == "__main__":
