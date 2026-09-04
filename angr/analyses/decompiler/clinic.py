@@ -1844,6 +1844,7 @@ class Clinic(Analysis, Serializable):
         """
         Rewrite tail jumps to functions as call statements.
         """
+        function_block_addrs = {block.addr for block in ail_graph}
         for block in list(ail_graph.nodes()):
             if ail_graph.out_degree[block] > 1:
                 continue
@@ -1864,7 +1865,11 @@ class Clinic(Analysis, Serializable):
                 continue
 
             for slot_name, target in slots:
-                if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
+                if (
+                    not isinstance(target, ailment.Const)
+                    or target.value in function_block_addrs
+                    or not self.kb.functions.contains_addr(target.value)
+                ):
                     continue
 
                 target_func = self.kb.functions.get_by_addr(target.value)

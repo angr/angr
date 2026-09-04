@@ -2055,6 +2055,36 @@ class TestDecompiler(unittest.TestCase):
         assert "setlocale(" in d.codegen.text
         assert "NULL);" in d.codegen.text, "The arguments for setlocale() are missing"
 
+        # fadvise has a conditional tail jump to fdadvise.
+        f = proj.kb.functions["fadvise"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+        assert "return fdadvise(" in d.codegen.text
+
+    def test_decompiling_thumb_self_loop_as_loop(self):
+        bin_path = os.path.join(test_location, "armel", "Nucleo_read_hyperterminal.elf")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        function_symbol = proj.loader.find_symbol("HardFault_Handler")
+        assert function_symbol is not None
+
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[function_symbol.rebased_addr])
+        func = cfg.functions[function_symbol.rebased_addr]
+
+        clinic = proj.analyses.Clinic(func, cfg=cfg.model)
+        assert clinic.graph is not None
+        clinic_entry = next(block for block in clinic.graph if block.addr == func.addr)
+        self.assertTrue(clinic.graph.has_edge(clinic_entry, clinic_entry))
+        self.assertIsInstance(clinic_entry.statements[-1], ailment.Stmt.Jump)
+
+        for structurer in (SAILRStructurer.NAME, PhoenixStructurer.NAME):
+            with self.subTest(structurer=structurer):
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+                    func, cfg=cfg.model, options=[(get_structurer_option(), structurer)]
+                )
+                assert dec.codegen is not None and dec.codegen.text is not None
+                self.assertIn("while (1)", dec.codegen.text)
+                self.assertEqual(dec.codegen.text.count(f"{func.name}("), 1)
+
     @for_all_structuring_algos
     def test_decompiling_du_di_set_alloc(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "du")
