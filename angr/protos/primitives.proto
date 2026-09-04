@@ -52,12 +52,24 @@ message Instruction {
     bool            local_noreturn = 4;
 }
 
+// A Java address, as archinfo represents one. The class name, method name and parameter types identify the
+// method; block_idx and stmt_idx locate a statement inside it. An address with no block_idx is a whole
+// method (a SootMethodDescriptor); one with a block_idx is a statement (a SootAddressDescriptor).
+message SootAddress {
+    string          class_name = 1;
+    string          method_name = 2;
+    repeated string params = 3;
+    optional int32  block_idx = 4;
+    optional int32  stmt_idx = 5;
+}
+
 // Derived from McSema's CFG.proto
 message Block {
     uint64  ea = 1; // Effective address of the block
     Instruction instructions = 2;   // Instructions in this block
     uint32  size = 4; // Size of the block
     bytes   bytes = 5; // Bytes of this block
+    optional SootAddress soot_ea = 6; // Address of the block when it is a Java address; ea is unset
 }
 
 // Derived from McSema's CFG.proto
@@ -135,6 +147,9 @@ message Edge {
     int64               stmt_idx = 6; // ID of the source statement
     uint32              confirmed = 7; // whether this is a confirmed return edge; 0 = unconfirmed, 1 = confirmed,
                                        // 2 (or other values) = n/a (not a return edge)
+    optional SootAddress soot_src_ea = 8; // Source address when it is a Java address; src_ea is unset
+    optional SootAddress soot_dst_ea = 9; // Destination address when it is a Java address; dst_ea is unset
+    optional SootAddress soot_ins_addr = 10; // Source instruction when it is a Java address; ins_addr is unset
 }
 
 message BlockGraph {
@@ -152,4 +167,5 @@ message Endpoint {
     EndpointType type = 1; // Type of the endpoint
     uint64       ea = 2; // Address of the endpoint
     uint32       size = 3; // Size of the endpoint - so that we do not have to load blocks
+    optional SootAddress soot_ea = 4; // Address of the endpoint when it is a Java address; ea is unset
 }

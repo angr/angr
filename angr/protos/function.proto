@@ -9,6 +9,9 @@ message CallSite {
     uint64          ea = 1; // Address of the basic block that ends in a call
     optional uint64 target_ea = 2; // Address of the call target; unset if the target is unknown
     optional uint64 return_ea = 3; // Address the call returns to; unset if the call does not return
+    optional SootAddress soot_ea = 4; // Address of the block when it is a Java address; ea is unset
+    optional SootAddress soot_target_ea = 5; // Call target when it is a Java method
+    optional SootAddress soot_return_ea = 6; // Return address when it is a Java address
 }
 
 message Function {
@@ -42,4 +45,6 @@ message Function {
     repeated string previous_names = 27; // Previous names of this function
     uint32          prototype_source = 28; // did we guess this prototype?
     repeated CallSite call_sites = 29; // Call sites within this function
+    optional SootAddress soot_ea = 30; // Address of the function when it is a Java method; ea is unset
+    repeated SootAddress soot_external_functions = 31; // Java methods among the referenced functions
 }

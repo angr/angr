@@ -11,6 +11,7 @@ from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
 from angr.protos import cfg_pb2
 from angr.serializable import Serializable
+from angr.utils.addr_conv import addr_from_pb, addr_to_pb, optional_addr_from_pb
 from angr.utils.ins_addr_list import InsAddrList
 
 from .block_id import BlockID
@@ -285,7 +286,7 @@ class CFGNode(Serializable):
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
-        obj.ea = self.addr
+        addr_to_pb(obj, "ea", self.addr)
         obj.size = self.size
         assert isinstance(self.instruction_addrs, InsAddrList)
         obj.ins_base_addr = self.instruction_addrs.base_addr
@@ -293,14 +294,15 @@ class CFGNode(Serializable):
         if self.block_id is not None:
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
-            else:
+            elif self.block_id != self.addr:
+                # for a Soot node the block ID is the address itself (see CFGFastSoot._generate_cfgnode)
                 raise NotImplementedError("Non-integer block_id serialization is not supported for CFGNode")
         if self.simprocedure_name is not None:
             obj.simprocedure_name = self.simprocedure_name
         if self.no_ret is not None:
             obj.no_ret = self.no_ret
         if self.function_address is not None:
-            obj.function_address = self.function_address
+            addr_to_pb(obj, "function_address", self.function_address)
         obj.thumb = self.thumb
         if self.byte_string is not None:
             obj.byte_string = self.byte_string
@@ -311,18 +313,19 @@ class CFGNode(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
-        block_id = None if len(cmsg.block_id) == 0 else cmsg.block_id[0]
+        addr = addr_from_pb(cmsg, "ea")
+        block_id = cmsg.block_id[0] if cmsg.block_id else (addr if isinstance(addr, SootAddressDescriptor) else None)
         instruction_addrs = InsAddrList(cmsg.ins_base_addr, cmsg.ins_sizes)
 
         node = cls(
-            cmsg.ea,
+            addr,
             cmsg.size,
             cfg=cfg,
             block_id=block_id,
             instruction_addrs=instruction_addrs,
             simprocedure_name=cmsg.simprocedure_name if cmsg.HasField("simprocedure_name") else None,
             no_ret=cmsg.no_ret if cmsg.HasField("no_ret") else None,
-            function_address=cmsg.function_address if cmsg.HasField("function_address") else None,
+            function_address=optional_addr_from_pb(cmsg, "function_address"),
             thumb=cmsg.thumb,
             byte_string=cmsg.byte_string if cmsg.HasField("byte_string") else None,
             is_syscall=cmsg.is_syscall,
