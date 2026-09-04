@@ -364,6 +364,14 @@ class NamedTypeMixin:
         raise NotImplementedError(f"Unsupported language {lang}.")
 
 
+def type_memo_key(ty: SimStruct | SimUnion) -> str:
+    # Every anonymous struct and union is named "<anon>", so keying a memo on the name alone would
+    # collapse distinct ones onto a single slot.
+    if ty.name == "<anon>" or (isinstance(ty, SimStruct) and bool(ty.anonymous)):
+        return f"<anon>#{id(ty)}"
+    return ty.name
+
+
 class SimTypeBottom(SimType):
     """
     SimTypeBottom basically represents a type error.
@@ -1718,9 +1726,10 @@ class SimStruct(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
-        if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
-        memo[self.name] = SimTypeRef(self.name, self.__class__)
+        key = type_memo_key(self)
+        if key in memo:
+            return memo[key].to_json(fields=fields, memo=memo)
+        memo[key] = SimTypeRef(self.name, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
         if d["pack"] is False:
             d.pop("pack")
@@ -1747,13 +1756,14 @@ class SimStruct(NamedTypeMixin, SimType):
         return SimStructValue(self, values=values)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(SimStruct, memo[self.name])
+        key = type_memo_key(self)
+        if key in memo:
+            return cast(SimStruct, memo[key])
 
         out = SimStruct({}, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         out._def_order = self._def_order
-        memo[self.name] = out
+        memo[key] = out
 
         out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
 
@@ -2031,6 +2041,16 @@ class SimUnion(NamedTypeMixin, SimType):
         self._alignment = r
         return r
 
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+
+        key = type_memo_key(self)
+        if key in memo:
+            return memo[key].to_json(fields=fields, memo=memo)
+        memo[key] = SimTypeRef(self.name, SimUnion)
+        return super().to_json(fields=fields, memo=memo)
+
     def _refine_dir(self):
         return list(self.members.keys())
 
@@ -2089,8 +2109,14 @@ class SimUnion(NamedTypeMixin, SimType):
         return f"union {self.name}"
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        out = SimUnion({name: ty.with_arch(arch, memo=memo) for name, ty in self.members.items()}, self.label)
+        key = type_memo_key(self)
+        if key in memo:
+            return cast(SimUnion, memo[key])
+
+        out = SimUnion({}, name=self.name, label=self.label)
         out._arch = arch
+        memo[key] = out
+        out.members = {name: ty.with_arch(arch, memo=memo) for name, ty in self.members.items()}
         return out
 
     def copy(self):
