@@ -11,6 +11,7 @@ import random
 import unittest
 
 import archinfo
+from cle.backends.backend import FunctionHintSource
 
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
@@ -967,6 +968,28 @@ class TestCfgfast(unittest.TestCase):
         assert "_main" in func_names
         assert "_accepted" in func_names
         assert "_authenticate" in func_names
+
+    def test_macho_function_starts_seed_functions(self):
+        # LC_FUNCTION_STARTS records the address of every atom ld64 placed in an executable section.
+        # With every other source of starting points turned off, the table is all CFGFast has.
+        path = os.path.join(test_location, "aarch64", "dyld_ios15.macho")
+        proj = angr.Project(path, auto_load_libs=False)
+        recorded = {
+            hint.addr
+            for hint in proj.loader.main_object.function_hints
+            if hint.source == FunctionHintSource.FUNCTION_STARTS
+        }
+        assert len(recorded) == 36
+
+        cfg = proj.analyses.CFGFast(
+            symbols=False,
+            start_at_entry=False,
+            function_prologues=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+            data_references=False,
+        )
+        assert recorded <= set(cfg.kb.functions)
 
     def test_syscalls_resolved_with_constant_propagation(self):
         for arch in ["x86", "x86_64"]:

@@ -88,6 +88,22 @@ VEX_IRSB_MAX_SIZE = 400
 # the minimum interval (in seconds) between two consecutive progress notifications
 PROGRESS_NOTIFY_INTERVAL = 0.05
 
+# Instructions after which control does not fall through, used to tell the code a linker's
+# function-start table records from the data atoms it records beside it. Keyed by architecture: one
+# whose terminators are not listed here gets no function-start hints, rather than a decision made
+# with another architecture's set. Privileged and far-transfer instructions are deliberately absent,
+# because no compiler emits them into a user-space function, so finding one is evidence that the
+# bytes are a table and not evidence of the end of a function.
+FALLTHROUGH_TERMINATORS = {
+    "X86": frozenset({"ret", "jmp", "ud2"}),
+    "AMD64": frozenset({"ret", "jmp", "ud2"}),
+    "AARCH64": frozenset({"ret", "retaa", "retab", "b", "br", "braa", "brab", "braaz", "brabz", "brk"}),
+}
+
+# What capstone emits where it has no instruction for the bytes. On a variable-width instruction set
+# it stops; on a fixed-width one it does not, and every undecodable AArch64 word comes back as udf.
+UNDEFINED_MNEMONICS = frozenset({"udf", "invalid", "undefined", ".byte"})
+
 
 l = logging.getLogger(name=__name__)
 
@@ -467,6 +483,7 @@ class CFGJobType(Enum):
     IFUNC_HINTS = 3
     DATAREF_HINTS = 4
     EH_FRAME_HINTS = 5
+    FUNCTION_START_HINTS = 6
 
 
 class CFGJob:
@@ -903,6 +920,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._write_addr_to_run = defaultdict(list)
 
         self._remaining_eh_frame_addrs: list[int] | None = None
+        self._remaining_function_start_addrs: list[int] | None = None
+        self._function_start_extents: dict[int, int] = {}
         self._remaining_function_prologue_addrs: list[int] | None = None
         self._used_function_prologue_addrs: set[int] = set()
         self._ptr_hints: SortedDict | None = None
@@ -1780,6 +1799,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if self._use_eh_frame:
             self._remaining_eh_frame_addrs = sorted(self._function_addresses_from_eh_frame, reverse=True)
 
+        self._function_start_extents = self._measure_function_start_extents()
+        self._remaining_function_start_addrs = sorted(self._function_start_extents, reverse=True)
+
         if self._use_function_prologues:
             func_addrs_from_prologs = self._func_addrs_from_prologues()
             if self._ptr_hints:
@@ -2402,6 +2424,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._register_analysis_job(eh_addr, job)
                 return
 
+        if self._remaining_function_start_addrs:
+            while self._remaining_function_start_addrs:
+                start_addr = self._remaining_function_start_addrs.pop()
+                if self._seg_list.is_occupied(start_addr):
+                    continue
+                if not self._function_start_holds_code(start_addr):
+                    continue
+
+                job = CFGJob(start_addr, start_addr, "Ijk_Boring", job_type=CFGJobType.FUNCTION_START_HINTS)
+                self._insert_job(job)
+                self._register_analysis_job(start_addr, job)
+                return
+
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
             while self._remaining_function_prologue_addrs:
                 prolog_addr = self._remaining_function_prologue_addrs.pop()
@@ -2970,6 +3005,71 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 md.content = new_content
 
     # Methods to get start points for scanning
+
+    def _measure_function_start_extents(self) -> dict[int, int]:
+        """
+        How far each address a linker's function-start table records reaches before the next one.
+
+        The distance to the next recorded address is not a function size: the table records atoms,
+        and one function can hold several. It is how many bytes there are to read when asking whether
+        anything ever entered the address as code, where reading too far costs an answer and can
+        never place a boundary. Addresses outside an executable section are dropped, along with every
+        address on an architecture whose terminators are not established.
+
+        :return: A map from address to the number of bytes to decode there.
+        """
+
+        if not self._function_addresses_from_function_starts:
+            return {}
+        if self.project.arch.name not in FALLTHROUGH_TERMINATORS or not self.project.arch.capstone_support:
+            return {}
+
+        ordered = sorted(self._function_addresses_from_function_starts)
+        extents = {}
+        for index, addr in enumerate(ordered):
+            if not self._inside_regions(addr):
+                continue
+            section = self.project.loader.find_section_containing(addr)
+            if section is None or not section.is_executable or section.only_contains_uninitialized_data:
+                continue
+            end = section.vaddr + section.memsize
+            if index + 1 < len(ordered) and ordered[index + 1] < end:
+                end = ordered[index + 1]
+            if end > addr:
+                extents[addr] = end - addr
+        return extents
+
+    def _function_start_holds_code(self, addr: int) -> bool:
+        """
+        Whether the bytes a linker recorded a function start at are a range something enters as code.
+
+        The decode runs forward from the address and stops where a real decoder would: at a byte
+        capstone refuses, at a word it names undefined, and at an instruction encoded entirely in
+        zero bytes, which is what a table is padded and filled with. The range is code if the decode
+        reaches an instruction after which control does not fall through, or consumes the whole
+        extent without one of those stops. Neither half is sufficient alone: a Haskell info table
+        decodes as x86 arithmetic to the end of a range it fits exactly, and an AArch64 function that
+        ends in a call which does not return reaches no terminator.
+        """
+
+        extent = self._function_start_extents.get(addr)
+        if not extent:
+            return False
+        try:
+            data = self.project.loader.memory.load(addr, extent)
+        except KeyError:
+            return False
+
+        terminators = FALLTHROUGH_TERMINATORS[self.project.arch.name]
+        consumed = 0
+        for insn_addr, size, mnemonic, _operands in self.project.arch.capstone.disasm_lite(data, addr):
+            offset = insn_addr - addr
+            if size <= 0 or mnemonic in UNDEFINED_MNEMONICS or not any(data[offset : offset + size]):
+                return False
+            if mnemonic in terminators:
+                return True
+            consumed = offset + size
+        return consumed == len(data)
 
     def _func_addrs_from_prologues(self):
         """
