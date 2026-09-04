@@ -353,12 +353,12 @@ class GoBoxingRewriter(OptimizationPass):
             addr = data_word.value
             small = self._static_int(addr)
             if small is not None and ty is not None and ty.size and not _is_pointer_shaped(ty, concrete):
-                return Const(self.manager.next_atom(), None, small, ty.size, **data_word.tags)
+                return Const(self.manager.next_atom(), small, ty.size, **data_word.tags)
             zerobase = self.project.loader.find_symbol("runtime.zerobase")
             if zerobase is not None and addr == zerobase.rebased_addr:
                 if isinstance(ty, GoSimTypeString):
                     return StringLiteral(self.manager.next_atom(), "", self._string_bits, **data_word.tags)
-                return Const(self.manager.next_atom(), None, 0, ty.size if ty is not None and ty.size else 64)
+                return Const(self.manager.next_atom(), 0, ty.size if ty is not None and ty.size else 64)
             if isinstance(ty, GoSimTypeString):
                 literal = self._static_string(addr)
                 if literal is not None:
