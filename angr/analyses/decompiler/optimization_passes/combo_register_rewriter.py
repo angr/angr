@@ -53,8 +53,10 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                     and self.get_vvar_value(next_arg) is None
                 ):
                     ident = f"{arg.reg_offset}:{next_arg.reg_offset}"
-                    if ident in ident_to_vvar:
-                        return True, [ident_to_vvar[ident]]
+                    combo = ident_to_vvar.get(ident)
+                    # only the parameter's own constituents: another call's result may live in the same registers
+                    if combo is not None and [arg.varid, next_arg.varid] == [rv.varid for rv in combo.reg_vvars]:
+                        return True, [combo]
                 return False, None
 
             if isinstance(call, Call):
@@ -70,9 +72,10 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 and self.get_vvar_value(expr.operand) is None
             ):
                 vvar = first_offset_to_vvar[expr.operand.reg_offset]
-                result = expr.copy()
-                result.operand = vvar
-                return result
+                if vvar.reg_vvars and expr.operand.varid == vvar.reg_vvars[0].varid:
+                    result = expr.copy()
+                    result.operand = vvar
+                    return result
             return expr
 
         rewriter = CallRewriter(handle_Call)

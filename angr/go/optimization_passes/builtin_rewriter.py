@@ -236,9 +236,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         rewriter = _BuiltinRewriter(self)
         for block in list(self._graph.nodes):
             rewriter.walk(block)
-        if rewriter.changed:
-            self._fold_returns()
-        if touched or rewriter.changed:
+        folded = self._fold_returns()
+        dropped = self._drop_unused_call_results()
+        if touched or rewriter.changed or folded or dropped:
             self.out_graph = self._graph
 
     #
@@ -272,9 +272,27 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if not dropped:
                 return
 
-    def _fold_returns(self) -> None:
-        """``v = builtin(...)`` followed only by ``return v`` becomes ``return builtin(...)``."""
+    def _drop_unused_call_results(self) -> bool:
+        """``v = f(...)`` with ``v`` never read becomes the call statement ``f(...)``."""
+        counts = self._use_counts()
+        changed = False
+        for block in self._graph.nodes:
+            for i, stmt in enumerate(block.statements):
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, Call)
+                    and not stmt.dst.was_stack
+                    and counts[stmt.dst.varid] <= 1
+                ):
+                    block.statements[i] = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
+                    changed = True
+        return changed
+
+    def _fold_returns(self) -> bool:
+        """``v = f(...)`` followed only by ``return v`` becomes ``return f(...)``."""
         counts = None
+        folded = False
         for block in list(self._graph.nodes):
             if not block.statements or block not in self._graph:
                 continue
@@ -282,7 +300,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if not (isinstance(last, Assignment) and isinstance(last.dst, VirtualVariable)):
                 continue
             src = last.src
-            if not (isinstance(src, Call) and isinstance(src.target, str)) and not (
+            if not isinstance(src, Call) and not (
                 isinstance(src, BinaryOp) and src.op == "Add" and src.bits == _STRING_BITS
             ):
                 continue
@@ -308,6 +326,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             for dead in [*chain, ret_block]:
                 self._graph.remove_node(dead)
                 self._block_by_addr_and_idx.pop((dead.addr, dead.idx), None)
+            folded = True
+        return folded
 
     #
     # Helpers
@@ -328,17 +348,20 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return None
         return ty.size // self.project.arch.byte_width
 
-    def builtin(self, call: Call, name: str, args: list, bits: int | None = None, **extra) -> Call:
+    def builtin(
+        self, call: Call, name: str, args: list, bits: int | None = None, arg_types: list[str] | None = None, **extra
+    ) -> Call:
         tags = {k: v for k, v in call.tags.items() if not k.startswith("go_")}
         result_type = extra.get("go_result_type")
         if result_type is not None:
             tags["is_prototype_guessed"] = False
         new_call = Call(call.idx, name, args, bits=bits if bits is not None else call.bits, **tags, **extra)
         if result_type is not None:
-            # lets type inference see the result type (arguments are left unconstrained)
+            # lets type inference see the result type (and the argument types when given)
             with contextlib.suppress(Exception):
                 returnty = self.kb.go_signatures.type(result_type)
-                proto = GoSimTypeFunction([], returnty).with_arch(self.project.arch)
+                argtys = [self.kb.go_signatures.type(t) for t in arg_types] if arg_types else []
+                proto = GoSimTypeFunction(argtys, returnty).with_arch(self.project.arch)
                 variable_map_of(self.manager).set_prototype(new_call, proto)
         return new_call
 
@@ -408,12 +431,25 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return self.builtin(call, "append", [s], bits=_SLICE_BITS, go_comment=comment, **extra)
 
     def _rw_concatstring(self, call: Call, args: list) -> Expression | None:
+        # a typed "+" call rather than an integer Add: type inference must see strings, not 128-bit integers
         parts = args[1:]
         if len(parts) < 2 or any(p.bits != _STRING_BITS for p in parts):
             return None
+        variable_map = variable_map_of(self.manager)
         expr = parts[0]
         for part in parts[1:]:
-            expr = BinaryOp(self.manager.next_atom(), "Add", [expr, part], False, bits=_STRING_BITS, **call.tags)
+            concat = self.builtin(
+                call,
+                "+",
+                [expr, part],
+                bits=_STRING_BITS,
+                arg_types=["string", "string"],
+                go_render="concat",
+                go_result_type="string",
+            )
+            # each nested concatenation needs its own identity (the prototype is keyed by it)
+            expr = Call(self.manager.next_atom(), concat.target, concat.args, bits=concat.bits, **concat.tags)
+            variable_map.set_prototype(expr, variable_map.prototype(concat))
         return expr
 
     def _rw_memequal(self, call: Call, args: list) -> Expression | None:
