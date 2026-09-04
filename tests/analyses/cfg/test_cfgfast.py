@@ -1002,6 +1002,23 @@ class TestCfgfast(unittest.TestCase):
         for addr in not_separate_functions:
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
 
+    def test_x86_ud2_is_not_scanned_into(self):
+        # VEX does not decode ud2 under 32-bit x86, so _generate_cfgnode has to recognize it from the
+        # bytes after the block it could decode. It looked for them in the lifted block, which by then
+        # holds exactly the bytes VEX consumed, so the check never fired: one byte was marked
+        # undecodable and the linear scan seeded a function on the second byte of the ud2.
+        path = os.path.join(test_location, "i386", "ld-linux.so.2")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert proj.loader.memory.load(0x41211E, 2) == b"\x0f\x0b"
+        assert cfg.model.get_any_node(0x41211F) is None
+        assert 0x41211F not in cfg.kb.functions
+        # the block before the ud2 keeps every instruction it had
+        node = cfg.model.get_any_node(0x412114)
+        assert node is not None
+        assert list(node.instruction_addrs) == [0x412114, 0x41211A, 0x41211C]
+
     @staticmethod
     def _blob_project(data: bytes, arch: str | archinfo.Arch = "AMD64") -> angr.Project:
         return angr.Project(
