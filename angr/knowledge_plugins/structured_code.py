@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import lmdb
 
 import angr
+from angr.serializable import Serializable
 
 from .plugin import KnowledgeBasePlugin
 
@@ -37,9 +38,9 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
     plugin.
 
     Evicted entries are always serialized and written out (caches are mutated in place, so there is no clean/dirty
-    distinction). Entries that cannot be serialized (e.g. DummyStructuredCodeGenerator or rust-flavor caches) are
-    parked in an unbounded in-memory dict. Spilled entries are deserialized on access with the owning knowledge
-    base's project/function attached.
+    distinction). Entries whose code generator implements no serialization at all (DummyStructuredCodeGenerator,
+    rust-flavor caches) have nowhere to spill to and are parked in an in-memory dict. Spilled entries are
+    deserialized on access with the owning knowledge base's project/function attached.
     """
 
     def __init__(self, kb: KnowledgeBase, cache_limit: int = DECOMPILATION_CACHE_LIMIT):
@@ -129,12 +130,14 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
                 if not self._warned_unspillable:
                     self._warned_unspillable = True
                     l.warning(
-                        "Decompilation cache %r cannot be serialized and will be kept in memory. Further "
-                        "occurrences will not be logged.",
+                        "Decompilation cache %r cannot be serialized. Further occurrences will not be logged.",
                         key,
                         exc_info=True,
                     )
-                self._unspillable[key] = cache
+                # Only a code generator with no serialization of its own has nowhere else to live; anything
+                # else that fails here is a bug, and its entry is dropped like any other cache miss.
+                if cache.codegen is not None and not isinstance(cache.codegen, Serializable):
+                    self._unspillable[key] = cache
                 continue
             self._save_to_lmdb(key, blob)
             self._spilled.add(key)
