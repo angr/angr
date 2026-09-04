@@ -787,7 +787,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         self.resolve_calls = resolve_calls
 
-        self._bss_regions = None
+        self._bss_regions: list[tuple[int, int]] = []
         # the maximum number of resolved targets. Will be initialized from CFG.
         self._max_targets = 0
 
@@ -2095,6 +2095,16 @@ class JumpTableResolver(IndirectJumpResolver):
             )
             return None
 
+        if any(start <= min_jumptable_addr < start + size for start, size in self._bss_regions):
+            # The bytes there are the loader's zero fill rather than the program's data, so whatever
+            # this reads is an artifact of how the object was loaded.
+            l.debug(
+                "Jump table %#x is read out of memory that is only zero-filled. "
+                "Continue to resolve it from the next data source.",
+                addr,
+            )
+            return None
+
         # Load the jump table from memory
         should_skip = False
         for idx, a in enumerate(range(min_jumptable_addr, max_jumptable_addr + 1, stride)):
@@ -2321,12 +2331,32 @@ class JumpTableResolver(IndirectJumpResolver):
     def _find_bss_region(self):
         self._bss_regions = []
 
-        # TODO: support other sections other than '.bss'.
-        # TODO: this is very hackish. fix it after the chaos.
-        for section in self.project.loader.main_object.sections:
-            if section.name == ".bss":
-                self._bss_regions.append((section.vaddr, section.memsize))
-                break
+        main_object = self.project.loader.main_object
+        tls_start, tls_end = self._tls_block(main_object)
+        for section in main_object.sections:
+            if not section.memsize:
+                continue
+            try:
+                zero_filled = section.only_contains_uninitialized_data
+            except NotImplementedError:
+                # A backend that builds sections without modelling their content cannot say.
+                continue
+            if not zero_filled:
+                continue
+            if tls_start <= section.vaddr < tls_end:
+                # A thread-local zero-fill section describes the initial image of a thread's
+                # thread-local block rather than memory at its own address. An ELF .tbss is laid over
+                # the addresses the linker gave to whatever follows the thread-local template, so
+                # what a read there returns is that section's data and is not uninitialized.
+                continue
+            self._bss_regions.append((section.vaddr, section.memsize))
+
+    @staticmethod
+    def _tls_block(obj) -> tuple[int, int]:
+        if not obj.tls_used or obj.tls_data_start is None:
+            return 0, 0
+        start = obj.mapped_base + obj.tls_data_start
+        return start, start + (obj.tls_block_size or 0)
 
     def _init_registers_on_demand(self, state):
         # for uninitialized read using a register as the source address, we replace them in memory on demand
