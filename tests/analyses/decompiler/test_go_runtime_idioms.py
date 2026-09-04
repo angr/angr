@@ -68,6 +68,7 @@ class MapBuiltinIdioms(GoDecompilationTarget):
         # mapiterinit / it.key != nil / mapiternext is a range loop; the element read is the range value
         text = self.texts["main.total"]
         assert re.search(r"^\s+for _, v :?= range m \{$", text, re.MULTILINE), text
+        assert re.search(r"^\s+\w+ \+= v$", text, re.MULTILINE), text
         for gone in ("mapiterinit", "mapiternext", "duffzero", "hiter", "unsupported"):
             assert gone not in text[text.index("func main.total") :], (gone, text)
         # the key is bound only when it is read whole (go1.24+ types the iterator's key pointer)
@@ -77,7 +78,7 @@ class MapBuiltinIdioms(GoDecompilationTarget):
 
 
 class ChannelIdioms(GoDecompilationTarget):
-    FUNCS = ("main.producer", "main.recvOne", "main.consume")
+    FUNCS = ("main.producer", "main.recvOne", "main.consume", "main.pick")
 
     def test_no_raw_runtime_calls(self):
         for name, text in self.texts.items():
@@ -90,6 +91,23 @@ class ChannelIdioms(GoDecompilationTarget):
         assert re.search(r"^\s+\w+ <- \w+$", text, re.MULTILINE), text
         assert re.search(r"^\s+close\(\w+\)$", text, re.MULTILINE), text
 
+    def test_select(self):
+        text = self.texts["main.pick"]
+        body = text[text.index("func main.pick") :]
+        assert "select {" in body, body
+        assert re.search(r"^\s+case v := <-b:\n\s+return v \+ 100$", body, re.MULTILINE), body
+        assert re.search(r"^\s+case v := <-a:\n\s+return v$", body, re.MULTILINE), body
+        for gone in ("selectgo", "scase", "&"):
+            assert gone not in body, (gone, body)
+
+    def test_counting_loop_is_clean(self):
+        # spills and phi copies around the send are gone; the increment is the loop's iterator
+        text = self.texts["main.producer"]
+        assert re.search(r"^\s+for \w+ := 0; \w+ > \w+; \w+\+\+ \{$", text, re.MULTILINE), text
+        assert re.search(r"^\s+ch <- \w+$", text, re.MULTILINE), text
+        body = text[text.index("func main.producer") :]
+        assert body.count("=") <= 3, body
+
     def test_receive_with_ok(self):
         text = self.texts["main.recvOne"]
         assert re.search(r"^\s+v, ok :?= <-\w+$", text, re.MULTILINE), text
@@ -101,6 +119,9 @@ class ChannelIdioms(GoDecompilationTarget):
         assert re.search(r"^\s+for v :?= range ch \{$", text, re.MULTILINE), text
         body = text[text.index("func main.consume") :]
         assert "= <-" not in body and "break" not in body, body
+        # the accumulator survives the phi copies: one += and a return of the same variable
+        m = re.search(r"^\s+(\w+) \+= v$", body, re.MULTILINE)
+        assert m and f"return {m.group(1)}" in body, body
 
 
 class GoroutineIdioms(GoDecompilationTarget):

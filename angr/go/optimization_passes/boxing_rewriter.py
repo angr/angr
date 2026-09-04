@@ -143,6 +143,8 @@ class GoBoxingRewriter(OptimizationPass):
     def rewrite_struct(self, expr: Struct, block: Block, stmt: Statement) -> Expression | None:
         if expr.name in _ANY_SLICE_NAMES:
             return self._rewrite_variadic(expr, block, stmt)
+        if expr.name.startswith("[]"):
+            return self._rewrite_slice_literal(expr, block, stmt)
         ty = self._type_named(expr.name)
         if isinstance(ty, GoSimTypeInterface) and sorted(expr.fields) == [0, self._ws]:
             return self._box(expr.fields[0], expr.fields[self._ws], expr.name)
@@ -243,6 +245,66 @@ class GoBoxingRewriter(OptimizationPass):
             cur = preds[0]
             end = len(cur.statements)
 
+    def _rewrite_slice_literal(self, expr: Struct, block: Block, stmt: Statement) -> Expression | None:
+        """``[]T{ptr: &array, len: n, cap: n}`` over a stack array of word-sized elements -> ``[]T{e0, ..., en-1}``."""
+        fields = expr.fields
+        if sorted(fields) != [0, self._ws, 2 * self._ws]:
+            return None
+        ref, length, cap = fields[0], fields[self._ws], fields[2 * self._ws]
+        if not (isinstance(length, Const) and isinstance(cap, Const) and length.value == cap.value):
+            return None
+        n = length.value
+        if not isinstance(n, int) or n <= 0 or n > 64:
+            return None
+        if not (
+            isinstance(ref, UnaryOp)
+            and ref.op == "Reference"
+            and isinstance(ref.operand, VirtualVariable)
+            and ref.operand.was_stack
+        ):
+            return None
+        elem_name = expr.name[2:]
+        elem = self._type_named(elem_name)
+        if elem is None or not elem.size or elem.size != self.project.arch.bits:
+            return None
+        base_vvar = ref.operand
+        base = base_vvar.stack_offset
+        offsets = [base + i * self._ws for i in range(n)]
+        defs = self._reaching_slot_defs(block, stmt, offsets)
+        if defs is None:
+            return None
+        elems = []
+        for off in offsets:
+            assignment = defs[off]
+            allowed = 2 if assignment.dst.varid == base_vvar.varid else 1
+            if self._uses[assignment.dst.varid] > allowed or not _is_plain_value(assignment.src):
+                return None
+            elems.append(assignment.src)
+        for off in offsets:
+            self._dead.add(defs[off].dst.varid)
+        end = base + n * self._ws
+        for varid, (_, assignment) in self._stack_defs.items():
+            dst = assignment.dst
+            if (
+                base <= dst.stack_offset
+                and dst.stack_offset + dst.size <= end
+                and self._uses[varid] <= 1
+                and isinstance(assignment.src, Const)
+                and assignment.src.value == 0
+            ):
+                self._dead.add(varid)
+        literal = Call(
+            self.manager.next_atom(),
+            expr.name,
+            elems,
+            bits=expr.bits,
+            go_render="slice_literal",
+            go_elem_type=elem_name,
+            **{k: v for k, v in expr.tags.items() if not k.startswith("go_")},
+        )
+        self._set_result_type(literal, expr.name)
+        return literal
+
     def _box(self, type_word: Expression, data_word: Expression, iface_name: str) -> Expression | None:
         """``box(value)`` for the (type descriptor or itab, data pointer) pair, or None when it is not understood."""
         value = None
@@ -322,15 +384,27 @@ class GoBoxingRewriter(OptimizationPass):
         return None
 
     def _interface_value(self, tab_word: Expression, data_word: Expression) -> Expression | None:
-        """The interface-typed parameter whose two register words are ``tab_word`` and ``data_word``."""
+        """
+        The interface-typed value whose two register words are ``tab_word`` and ``data_word``: a parameter, or the
+        result of a call.
+        """
         if not (isinstance(tab_word, VirtualVariable) and isinstance(data_word, VirtualVariable)):
             return None
-        if self._arg_vvars is None:
-            return None
-        for arg_vvar, _ in self._arg_vvars.values():
-            reg_vvars = getattr(arg_vvar, "reg_vvars", None)
-            if reg_vvars and [v.varid for v in reg_vvars] == [tab_word.varid, data_word.varid]:
-                return arg_vvar
+        wanted = [tab_word.varid, data_word.varid]
+        if self._arg_vvars is not None:
+            for arg_vvar, _ in self._arg_vvars.values():
+                reg_vvars = getattr(arg_vvar, "reg_vvars", None)
+                if reg_vvars and [v.varid for v in reg_vvars] == wanted:
+                    return arg_vvar
+        for definition in self._defs.values():
+            dst = definition.dst
+            if (
+                isinstance(dst, VirtualVariable)
+                and dst.was_combo_reg
+                and dst.reg_vvars
+                and [v.varid for v in dst.reg_vvars] == wanted
+            ):
+                return dst
         return None
 
     def _unbox_data(self, data_word: Expression, concrete: str) -> Expression | None:
@@ -421,6 +495,11 @@ class GoBoxingRewriter(OptimizationPass):
             return
         proto = GoSimTypeFunction([], ty).with_arch(self.project.arch)
         variable_map_of(self.manager).set_prototype(call, proto)
+
+
+def _is_plain_value(expr: Expression) -> bool:
+    """Constants, variables and string literals: values a literal can spell without a statement."""
+    return isinstance(expr, (Const, VirtualVariable, StringLiteral))
 
 
 def _is_pointer_shaped(ty, name: str) -> bool:

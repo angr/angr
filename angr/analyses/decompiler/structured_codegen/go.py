@@ -6,6 +6,7 @@ Go-flavored structured code generator. A fork of the C backend (c.py) that rende
 from __future__ import annotations
 
 import contextlib
+import copy
 import json
 import logging
 import re
@@ -1805,6 +1806,69 @@ class GoMultiAssignment(GoStatement):
         yield from GoExpression._try_c_repr_chunks(self.rhs)
         if not asexpr:
             yield "\n", self
+
+
+class GoSelectCase:
+    """One ``select`` case: a receive (``v, ok := <-ch``), a send (``ch <- x``) or the default."""
+
+    __slots__ = ("channel", "kind", "ok", "value")
+
+    def __init__(self, kind: str, channel=None, value=None, ok=None):
+        self.kind = kind
+        self.channel = channel
+        self.value = value
+        self.ok = ok
+
+    def c_repr_chunks(self):
+        if self.kind == "default":
+            yield "default", None
+            return
+        if self.kind == "send":
+            yield from GoExpression._try_c_repr_chunks(self.channel)
+            yield " <- ", None
+            yield from GoExpression._try_c_repr_chunks(self.value)
+            return
+        if self.value is not None or self.ok is not None:
+            yield from GoExpression._try_c_repr_chunks(
+                self.value
+                if self.value is not None
+                else GoFakeVariable("_", SimTypeBottom(), codegen=self.channel.codegen)
+            )
+            if self.ok is not None:
+                yield ", ", None
+                yield from GoExpression._try_c_repr_chunks(self.ok)
+            yield " := ", None
+        yield "<-", None
+        yield from GoExpression._try_c_repr_chunks(self.channel)
+
+
+class GoSelect(GoStatement):
+    """``select { case ...: ... }``"""
+
+    __slots__ = ("cases",)
+
+    def __init__(self, cases, **kwargs):
+        super().__init__(**kwargs)
+        self.cases = list(cases)  # (GoSelectCase, GoStatements)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+        brace = GoClosingObject("{")
+        yield indent_str, None
+        yield "select ", self
+        yield "{", brace
+        yield "\n", None
+        for case, body in self.cases:
+            yield indent_str, None
+            if case.kind != "default":
+                yield "case ", self
+            yield from case.c_repr_chunks()
+            yield ":", None
+            yield "\n", None
+            yield from body.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "}", brace
+        yield "\n", self
 
 
 class GoTypeSwitch(GoStatement):
@@ -3689,7 +3753,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         TypeSwitchRecovery(self, self.cfunc).run()
         MapRangeRecovery(self, self.cfunc).run()
         ChannelRangeRecovery(self, self.cfunc).run()
+        SelectRecovery(self, self.cfunc).run()
         self.cfunc = PrintFolding(self).handle(self.cfunc)
+        CopyCleanup(self, self.cfunc).run()
+        # the cleanup exposes counting loops the spills and phi copies hid, and those expose method calls
+        self.cfunc = RangeLoopRecovery(self).handle(self.cfunc)
+        CopyCleanup(self, self.cfunc).run()
+        self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
+        CopyCleanup(self, self.cfunc).run()
         ShortDeclarations(self, self.cfunc).run()
 
         # TODO store extern fallback size somewhere lol
@@ -5228,6 +5299,15 @@ class GoStructuredCodeWalker:
             obj.default = self.handle(obj.default)
         return obj
 
+    def handle_GoSelect(self, obj):
+        for case in [c for c, _ in obj.cases]:
+            if case.channel is not None:
+                case.channel = self.handle(case.channel)
+            if case.kind == "send" and case.value is not None:
+                case.value = self.handle(case.value)
+        obj.cases = [(case, self.handle(body)) for case, body in obj.cases]
+        return obj
+
     def handle_GoTypeAssertion(self, obj):
         obj.expr = self.handle(obj.expr)
         return obj
@@ -5382,21 +5462,117 @@ def _go_is_increment(stmt, var) -> bool:
     return _go_is_plus_one(stmt, var, var)
 
 
+class _PointerWalkSubstituter(GoStructuredCodeWalker):
+    """Reads through a pointer that walks a slice become reads of the range value it points at."""
+
+    ITAB_FUN_OFFSET = 24
+
+    def __init__(self, codegen, pointer, value, elem_type):
+        self._codegen = codegen
+        self._pointer = pointer
+        self._value = value
+        self._elem = elem_type
+        self.count = 0
+
+    def _is_pointer(self, expr) -> bool:
+        while isinstance(expr, GoTypeCast):
+            expr = expr.expr
+        return isinstance(expr, GoVariable) and _same_variable(expr, self._pointer)
+
+    def _field_at(self, offset: int):
+        elem = self._elem
+        if isinstance(elem, GoSimTypeInterface):
+            ws = self._codegen.project.arch.bytes
+            name = {0: "tab", ws: "data"}.get(offset)
+            return GoStructField(elem, offset, name, codegen=self._codegen) if name is not None else None
+        if isinstance(elem, SimStruct):
+            for name, off in elem.offsets.items():
+                if off == offset:
+                    return GoStructField(elem, offset, name, codegen=self._codegen)
+        return None
+
+    def handle_GoFunctionCall(self, obj):
+        # p.tab.fun[i](p.data, args): a method of the element's interface
+        target = obj.callee_target
+        while isinstance(target, GoTypeCast):
+            target = target.expr
+        if (
+            isinstance(self._elem, GoSimTypeInterface)
+            and isinstance(target, GoVariableField)
+            and isinstance(target.variable, GoVariableField)
+            and self._is_pointer(target.variable.variable)
+            and target.variable.field.offset == 0
+            and isinstance(target.field.offset, int)
+        ):
+            index, rem = divmod(target.field.offset - self.ITAB_FUN_OFFSET, self._codegen.project.arch.bytes)
+            if not rem and 0 <= index < len(self._elem.methods):
+                name, sig = self._elem.methods[index]
+                args = [self.handle(a) for a in list(obj.args)[1:]]
+                self.count += 1
+                return GoMethodCall(self._value, name, args, signature=sig, tags=obj.tags, codegen=self._codegen)
+        return super().handle_GoFunctionCall(obj)
+
+    def handle_GoVariableField(self, obj):
+        if self._is_pointer(obj.variable) and isinstance(obj.field.offset, int):
+            field = self._field_at(obj.field.offset)
+            if field is not None:
+                self.count += 1
+                return GoVariableField(self._value, field, codegen=self._codegen)
+        return super().handle_GoVariableField(obj)
+
+    def handle_GoUnaryOp(self, obj):
+        if obj.op == "Dereference" and self._is_pointer(obj.operand):
+            self.count += 1
+            return self._value
+        return super().handle_GoUnaryOp(obj)
+
+    def handle_GoIndexedVariable(self, obj):
+        if self._is_pointer(obj.variable) and isinstance(obj.index, GoConstant) and obj.index.value == 0:
+            self.count += 1
+            return self._value
+        return super().handle_GoIndexedVariable(obj)
+
+    def handle_GoStructLiteral(self, obj):
+        obj = super().handle_GoStructLiteral(obj)
+        # a two-word result split into (call, dangling register): the call already carries the whole value
+        fields = list(obj.fields.values())
+        if (
+            len(fields) == 2
+            and isinstance(fields[0], GoMethodCall)
+            and fields[0].signature is not None
+            and _go_var_named(fields[1])
+            and obj.type is not None
+            and unpack_typeref(fields[0].type) is not None
+            and getattr(unpack_typeref(fields[0].type), "size", None) == obj.type.size
+        ):
+            return fields[0]
+        return obj
+
+
 class RangeLoopRecovery(GoStructuredCodeWalker):
     """
-    Turn ``i = 0; for init; len(s) > i; i = next { next = i + 1; ... }`` into ``for i = range s``, hoisting a
-    foreign initializer out of the loop and binding ``x = s.ptr[i]`` as the range value when the body starts with it.
+    Turn a counting loop over a slice or string into ``for i, x = range s``: the index starts at zero (in the loop
+    initializer or just before the loop), the condition is ``i < len(s)`` (the length possibly hoisted into a
+    variable or the initializer) and the index advances by one per iteration. The range value is bound from
+    ``x = s.ptr[i]`` at the top of the body, or from a pointer that starts at ``s.ptr`` and advances by one element
+    at the end of the body.
     """
 
     def __init__(self, codegen):
         self._codegen = codegen
+        self._extra_decls = []
+
+    def handle_GoFunction(self, obj):
+        obj = super().handle_GoFunction(obj)
+        obj.extra_decls.extend(self._extra_decls)
+        return obj
 
     def handle_GoStatements(self, obj):
-        stmts = [self.handle(stmt) for stmt in obj.statements]
+        stmts = _go_stmt_list(GoStatements([self.handle(stmt) for stmt in obj.statements], codegen=self._codegen))
         out = []
-        for stmt in stmts:
+        for i, stmt in enumerate(stmts):
             if isinstance(stmt, GoForLoop):
-                replaced = self._try_range(stmt, out)
+                replaced = self._try_range(stmt, out, stmts[i + 1 :])
                 if replaced is not None:
                     out.extend(replaced)
                     continue
@@ -5404,98 +5580,97 @@ class RangeLoopRecovery(GoStructuredCodeWalker):
         obj.statements = out
         return obj
 
-    def _try_range(self, loop: GoForLoop, preceding: list):
-        if loop.condition is None or loop.iterator is None or not isinstance(loop.body, GoStatements):
+    @staticmethod
+    def _zero_assignment(stmt, var) -> bool:
+        return (
+            isinstance(stmt, GoAssignment)
+            and _go_is_var(stmt.lhs, var)
+            and isinstance(stmt.rhs, GoConstant)
+            and stmt.rhs.value == 0
+        )
+
+    def _try_range(self, loop: GoForLoop, preceding: list, following: list):
+        if loop.condition is None or not isinstance(loop.body, GoStatements):
             return None
         cond = loop.condition
         if not isinstance(cond, GoBinaryOp):
             return None
-        # len(s) > i  or  i < len(s); the length may have been hoisted into a variable right before the loop
-        hoisted_len = None
         if cond.op in ("CmpGT", "CmpGTs"):
             length, index = cond.lhs, cond.rhs
         elif cond.op in ("CmpLT", "CmpLTs"):
             index, length = cond.lhs, cond.rhs
         else:
             return None
+        if not isinstance(index, GoVariable):
+            return None
+
+        # the collection: len(s) itself, or a variable holding it (assigned in the initializer or just before)
         coll = _go_length_of(length)
+        len_in_init = False
+        len_stmt_idx = None
+        init = loop.initializer
         if coll is None and isinstance(length, GoVariable):
-            prev_container, prev_idx = _go_leaf(preceding, last=True)
-            prev = prev_container[prev_idx] if prev_container is not None else None
-            if isinstance(prev, GoAssignment) and _go_is_var(prev.lhs, length) and _go_length_of(prev.rhs) is not None:
-                coll = _go_length_of(prev.rhs)
-                hoisted_len = (prev_container, prev_idx, length)
-        if coll is None or not isinstance(index, GoVariable):
+            if isinstance(init, GoAssignment) and _go_is_var(init.lhs, length) and _go_length_of(init.rhs) is not None:
+                coll = _go_length_of(init.rhs)
+                len_in_init = True
+            elif preceding and isinstance(preceding[-1], GoAssignment) and _go_is_var(preceding[-1].lhs, length):
+                coll = _go_length_of(preceding[-1].rhs)
+                len_stmt_idx = len(preceding) - 1
+        if coll is None:
             return None
 
         body = list(loop.body.statements)
         iterator = loop.iterator
-        if not isinstance(iterator, GoAssignment) or not _go_is_var(iterator.lhs, index):
+        if not (isinstance(iterator, GoAssignment) and _go_is_var(iterator.lhs, index)):
             return None
         drop_first = False
-        first_container, first_idx = _go_leaf(body)
-        first = first_container[first_idx] if first_container is not None else None
+        first = body[0] if body else None
         if _go_is_increment(iterator, index):
             pass
         elif isinstance(iterator.rhs, GoVariable) and first is not None and _go_is_plus_one(first, iterator.rhs, index):
             # next = i + 1 at the top of the body; the temporary must not be used anywhere else
-            nxt = iterator.rhs
-            if any(_go_mentions_variable(stmt, nxt, skip=first) for stmt in body):
+            if any(_go_mentions_variable(stmt, iterator.rhs, skip=first) for stmt in body):
                 return None
             drop_first = True
         else:
             return None
-
-        # the length variable must not be used anywhere else
-        if hoisted_len is not None and (
-            any(_go_mentions_variable(stmt, hoisted_len[2]) for stmt in body)
-            or _go_mentions_variable(loop.iterator, hoisted_len[2])
+        # a hoisted length must not be used anywhere else
+        if isinstance(length, GoVariable) and (
+            any(_go_mentions_variable(stmt, length) for stmt in body)
+            or any(_go_mentions_variable(stmt, length) for stmt in following)
         ):
             return None
 
-        # the index must start at zero: either the loop's own initializer or the statement right before the loop
+        # the index starts at zero: in the initializer, or in one of the few statements before the loop
         hoisted = []
-        init = loop.initializer
-        if isinstance(init, GoAssignment) and _go_is_var(init.lhs, index):
+        drop_before = set()
+        if len_stmt_idx is not None:
+            drop_before.add(len_stmt_idx)
+        if not len_in_init and isinstance(init, GoAssignment) and _go_is_var(init.lhs, index):
             if not (isinstance(init.rhs, GoConstant) and init.rhs.value == 0):
                 return None
-            if hoisted_len is not None:
-                hoisted_len[0].pop(hoisted_len[1])
         else:
-            # skip over the hoisted length assignment when looking for the zero initialization
-            search = list(preceding)
-            if hoisted_len is not None and hoisted_len[0] is preceding:
-                search = preceding[: hoisted_len[1]] + preceding[hoisted_len[1] + 1 :]
-            prev_container, prev_idx = _go_leaf(search, last=True)
-            prev = prev_container[prev_idx] if prev_container is not None else None
-            if not (
-                isinstance(prev, GoAssignment)
-                and _go_is_var(prev.lhs, index)
-                and isinstance(prev.rhs, GoConstant)
-                and prev.rhs.value == 0
-            ):
+            zero_idx = None
+            for k in range(len(preceding) - 1, max(-1, len(preceding) - 4), -1):
+                if k in drop_before:
+                    continue
+                st = preceding[k]
+                if isinstance(st, GoAssignment) and _go_is_var(st.lhs, index):
+                    if self._zero_assignment(st, index):
+                        zero_idx = k
+                    break
+            if zero_idx is None:
                 return None
-            # remove both from their real containers (the hoisted length first when it sits behind the zero init)
-            if hoisted_len is not None and hoisted_len[0] is preceding:
-                zero_idx = preceding.index(prev) if prev_container is search else None
-                preceding.pop(hoisted_len[1])
-                if zero_idx is not None:
-                    preceding.pop(zero_idx if zero_idx < hoisted_len[1] else zero_idx - 1)
-                else:
-                    prev_container.pop(prev_idx)
-            else:
-                prev_container.pop(prev_idx)
-                if hoisted_len is not None:
-                    hoisted_len[0].pop(hoisted_len[1])
-            if init is not None:
+            drop_before.add(zero_idx)
+            if init is not None and not len_in_init:
                 hoisted.append(init)
-        if drop_first:
-            first_container.pop(first_idx)
 
-        # x = s.ptr[i] as the first statement binds the range value
+        # the range value: x = s.ptr[i] at the top, or a pointer walking the slice
         value = None
-        first_container, first_idx = _go_leaf(body)
-        first = first_container[first_idx] if first_container is not None else None
+        walker = None
+        if drop_first:
+            body = body[1:]
+        first = body[0] if body else None
         if isinstance(first, GoAssignment) and isinstance(first.lhs, GoVariable):
             rhs = first.rhs
             if (
@@ -5507,10 +5682,56 @@ class RangeLoopRecovery(GoStructuredCodeWalker):
                 and _same_variable(rhs.variable.variable, coll)
             ):
                 value = first.lhs
-                first_container.pop(first_idx)
+                body = body[1:]
+        last = body[-1] if body else None
+        if value is None and isinstance(last, GoAssignment) and isinstance(last.lhs, GoVariable):
+            pointer = last.lhs
+            if _go_is_increment(last, pointer):
+                for k in range(len(preceding) - 1, max(-1, len(preceding) - 4), -1):
+                    if k in drop_before:
+                        continue
+                    st = preceding[k]
+                    if isinstance(st, GoAssignment) and _go_is_var(st.lhs, pointer):
+                        rhs = st.rhs
+                        if (
+                            isinstance(rhs, GoVariableField)
+                            and rhs.field.field == "ptr"
+                            and isinstance(rhs.variable, GoVariable)
+                            and _same_variable(rhs.variable, coll)
+                            and not any(_go_mentions_variable(x, pointer) for x in following)
+                        ):
+                            walker = (pointer, k)
+                        break
+        new_body = body
+        if walker is not None:
+            pointer, k = walker
+            elem = unpack_typeref(coll.type)
+            elem = elem.elem_type if isinstance(elem, GoSimTypeSlice) else None
+            if elem is None:
+                return None
+            taken = {v.name for v in self._codegen.cfunc.unified_local_vars if v.name} if self._codegen.cfunc else set()
+            name = "x"
+            n = 1
+            while name in taken:
+                n += 1
+                name = f"x{n}"
+            elem = elem.with_arch(self._codegen.project.arch)
+            fake = GoFakeVariable(name, elem, codegen=self._codegen)
+            probe = GoStatements(body[:-1], codegen=self._codegen)
+            sub = _PointerWalkSubstituter(self._codegen, pointer, fake, elem)
+            probe = sub.handle(probe)
+            # every remaining mention of the pointer must have been a read through it
+            if sub.count == 0 or any(_go_mentions_variable(st, pointer) for st in probe.statements):
+                return None
+            new_body = probe.statements
+            value = fake
+            self._extra_decls.append((name, elem))
+            drop_before.add(k)
 
-        new_body = GoStatements(body, addr=loop.body.addr, codegen=self._codegen)
-        return [*hoisted, GoRangeLoop(index, value, coll, new_body, tags=loop.tags, codegen=self._codegen)]
+        for k in sorted(drop_before, reverse=True):
+            preceding.pop(k)
+        body_node = GoStatements(new_body, addr=loop.body.addr, codegen=self._codegen)
+        return [*hoisted, GoRangeLoop(index, value, coll, body_node, tags=loop.tags, codegen=self._codegen)]
 
 
 def _go_var_key(var: GoVariable):
@@ -5728,6 +5949,9 @@ def _go_itab_slot(expr):
         expr = expr.expr
     if isinstance(expr, GoIndexedVariable) and isinstance(expr.index, GoConstant):
         base, offset = expr.variable, expr.index.value
+    elif isinstance(expr, GoVariableField) and isinstance(expr.field.offset, int) and _go_is_iface_word(expr.variable):
+        # the method table read as a field of the itab word
+        base, offset = expr.variable, expr.field.offset
     elif isinstance(expr, GoUnaryOp) and expr.op == "Dereference":
         inner = expr.operand
         while isinstance(inner, GoTypeCast):
@@ -6571,7 +6795,10 @@ class MapRangeRecovery(GoStructuredCodeWalker):
 
 
 class ChannelRangeRecovery(GoStructuredCodeWalker):
-    """``for { v, ok = <-ch; if !ok { break } ... }`` becomes ``for v = range ch { ... }``."""
+    """
+    ``for { S; v, ok = <-ch; if !ok { break }; R }`` becomes ``S; for v = range ch { R; S }``: the statements ahead
+    of the receive also run on the final, failed receive, so they move before the loop and to the end of the body.
+    """
 
     def __init__(self, codegen, cfunc: GoFunction):
         self._codegen = codegen
@@ -6590,14 +6817,25 @@ class ChannelRangeRecovery(GoStructuredCodeWalker):
                 (name, ty) for name, ty in self._cfunc.extra_decls if counter.counts[("f", name)] > 0
             ]
 
-    def handle_GoWhileLoop(self, obj):
-        obj = super().handle_GoWhileLoop(obj)
-        if not _go_is_true_const(obj.condition):
-            return obj
-        stmts = _go_stmt_list(obj.body)
-        # leading copies may precede the receive
+    def handle_GoStatements(self, obj):
+        out = []
+        for stmt in obj.statements:
+            stmt = self.handle(stmt)
+            if isinstance(stmt, GoWhileLoop):
+                replaced = self._try_range(stmt)
+                if replaced is not None:
+                    out.extend(replaced)
+                    continue
+            out.append(stmt)
+        obj.statements = out
+        return obj
+
+    def _try_range(self, loop: GoWhileLoop):
+        if not _go_is_true_const(loop.condition):
+            return None
+        stmts = _go_stmt_list(loop.body)
         for i, stmt in enumerate(stmts):
-            if isinstance(stmt, GoAssignment) and _go_var_named(stmt.lhs):
+            if isinstance(stmt, GoAssignment) and _go_var_named(stmt.lhs) and _go_pure(stmt.rhs):
                 continue
             if (
                 isinstance(stmt, GoMultiAssignment)
@@ -6612,15 +6850,21 @@ class ChannelRangeRecovery(GoStructuredCodeWalker):
                 if not (
                     isinstance(check, GoIfElse) and len(check.condition_and_nodes) == 1 and check.else_node is None
                 ):
-                    return obj
+                    return None
                 cond, node = check.condition_and_nodes[0]
                 if not (self._is_not_ok(cond, ok) and _go_break_only(node)):
-                    return obj
-                body = GoStatements(stmts[:i] + stmts[i + 2 :], codegen=self._codegen)
+                    return None
+                leading = stmts[:i]
+                # the leading copies run before every receive: once ahead of the loop and after each body
+                repeated = [copy.copy(st) for st in leading] if leading else []
+                body = GoStatements(stmts[i + 2 :] + repeated, codegen=self._codegen)
                 self._dropped.add(_UseCounter.key(ok))
-                return GoRangeLoop(value, None, stmt.rhs.args[0], body, tags=obj.tags, codegen=self._codegen)
-            return obj
-        return obj
+                return [
+                    *leading,
+                    GoRangeLoop(value, None, stmt.rhs.args[0], body, tags=loop.tags, codegen=self._codegen),
+                ]
+            return None
+        return None
 
     @staticmethod
     def _is_not_ok(cond, ok) -> bool:
@@ -6630,6 +6874,631 @@ class ChannelRangeRecovery(GoStructuredCodeWalker):
             for a, b in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
                 if _go_var_named(a) and _UseCounter.key(a) == _UseCounter.key(ok) and isinstance(b, GoConstant):
                     return b.value == 0
+        return False
+
+
+class _VarSubstituter(GoStructuredCodeWalker):
+    """Replaces every occurrence of a variable (by key) with an expression."""
+
+    def __init__(self, key, replacement):
+        self._key = key
+        self._replacement = replacement
+
+    def handle_GoVariable(self, obj):
+        return self._replacement if _UseCounter.key(obj) == self._key else obj
+
+    def handle_GoFakeVariable(self, obj):
+        return self._replacement if _UseCounter.key(obj) == self._key else obj
+
+
+class _StmtRemover(GoStructuredCodeWalker):
+    """Removes the given statement objects wherever they sit (statement lists, and loop headers unless lists_only)."""
+
+    def __init__(self, doomed, lists_only: bool = False):
+        self._doomed = {id(st) for st in doomed}
+        self._lists_only = lists_only
+
+    def handle_GoStatements(self, obj):
+        obj.statements = [self.handle(st) for st in obj.statements if id(st) not in self._doomed]
+        return obj
+
+    def handle_GoForLoop(self, obj):
+        if not self._lists_only:
+            if obj.initializer is not None and id(obj.initializer) in self._doomed:
+                obj.initializer = None
+            if obj.iterator is not None and id(obj.iterator) in self._doomed:
+                obj.iterator = None
+        return super().handle_GoForLoop(obj)
+
+
+class _Scan:
+    """Assignments and reads of locals across a function, with the scope each statement lives in."""
+
+    def __init__(self, cfunc):
+        self.assigns: dict = defaultdict(list)  # key -> [stmt]
+        self.reads: Counter = Counter()  # key -> reads (assignment targets excluded)
+        self.addressed: set = set()  # keys whose address is taken
+        self.scope_of: dict = {}  # id(stmt) -> (scope id, ordinal)
+        self.scopes: dict = {}  # scope id -> flattened statement list
+        self._next = 0
+        self._visit_scope(cfunc.statements)
+
+    @staticmethod
+    def key(var):
+        return _UseCounter.key(var)
+
+    @staticmethod
+    def is_local(var) -> bool:
+        if isinstance(var, GoFakeVariable):
+            return var.name != "_"
+        if isinstance(var, GoVariable):
+            v = var.variable
+            return not (isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable))
+        return False
+
+    @staticmethod
+    def targets(stmt) -> list:
+        if isinstance(stmt, GoAssignment):
+            return [stmt.lhs] if isinstance(stmt.lhs, (GoVariable, GoFakeVariable)) else []
+        if isinstance(stmt, GoMultiAssignment):
+            return [t for t in stmt.lhs if isinstance(t, (GoVariable, GoFakeVariable))]
+        if isinstance(stmt, GoRangeLoop):
+            return [v for v in (stmt.index, stmt.value) if isinstance(v, (GoVariable, GoFakeVariable))]
+        return []
+
+    def _visit_scope(self, node):
+        scope = self._next
+        self._next += 1
+        stmts = _go_stmt_list(node)
+        self.scopes[scope] = stmts
+        for ordinal, stmt in enumerate(stmts):
+            self.scope_of[id(stmt)] = (scope, ordinal)
+            self._visit_stmt(stmt)
+
+    def _visit_stmt(self, stmt):
+        for t in self.targets(stmt):
+            if self.is_local(t):
+                self.assigns[self.key(t)].append(stmt)
+        if isinstance(stmt, GoAssignment):
+            if not isinstance(stmt.lhs, (GoVariable, GoFakeVariable)):
+                self._visit_expr(stmt.lhs)
+            self._visit_expr(stmt.rhs)
+        elif isinstance(stmt, GoMultiAssignment):
+            for t in stmt.lhs:
+                if not isinstance(t, (GoVariable, GoFakeVariable)):
+                    self._visit_expr(t)
+            self._visit_expr(stmt.rhs)
+        elif isinstance(stmt, GoIfElse):
+            for cond, node in stmt.condition_and_nodes:
+                self._visit_expr(cond)
+                self._visit_scope(node)
+            if stmt.else_node is not None:
+                self._visit_scope(stmt.else_node)
+        elif isinstance(stmt, (GoWhileLoop, GoDoWhileLoop)):
+            self._visit_expr(stmt.condition)
+            self._visit_scope(stmt.body)
+        elif isinstance(stmt, GoForLoop):
+            for part in (stmt.initializer, stmt.iterator):
+                if part is not None:
+                    self.scope_of[id(part)] = self.scope_of[id(stmt)]
+                    self._visit_stmt(part)
+            if stmt.condition is not None:
+                self._visit_expr(stmt.condition)
+            self._visit_scope(stmt.body)
+        elif isinstance(stmt, GoRangeLoop):
+            self._visit_expr(stmt.collection)
+            self._visit_scope(stmt.body)
+        elif isinstance(stmt, GoTypeSwitch):
+            self._visit_expr(stmt.value)
+            for _, body in stmt.cases:
+                self._visit_scope(body)
+            if stmt.default is not None:
+                self._visit_scope(stmt.default)
+        elif isinstance(stmt, GoStatements):
+            self._visit_scope(stmt)
+        else:
+            self._visit_expr(stmt)
+
+    def _visit_expr(self, node):
+        if isinstance(node, (GoVariable, GoFakeVariable)):
+            self.reads[self.key(node)] += 1
+            return
+        if (
+            isinstance(node, GoUnaryOp)
+            and node.op == "Reference"
+            and isinstance(node.operand, (GoVariable, GoFakeVariable))
+        ):
+            self.addressed.add(self.key(node.operand))
+        if isinstance(node, GoStatements):
+            self._visit_scope(node)
+            return
+        for name in _go_node_attr_names(node):
+            child = getattr(node, name, None)
+            if isinstance(child, GoConstruct):
+                self._visit_expr(child)
+            elif isinstance(child, (list, tuple)):
+                for item in child:
+                    if isinstance(item, GoConstruct):
+                        self._visit_expr(item)
+                    elif isinstance(item, tuple):
+                        for x in item:
+                            if isinstance(x, GoConstruct):
+                                self._visit_expr(x)
+            elif isinstance(child, dict):
+                for x in child.values():
+                    if isinstance(x, GoConstruct):
+                        self._visit_expr(x)
+
+
+def _go_reads_in(node, key) -> int:
+    counter = _UseCounter()
+    counter.handle(node)
+    return counter.counts[key]
+
+
+def _go_assigns_in(node, key) -> bool:
+    """Whether any statement inside ``node`` assigns the variable."""
+    for stmt in _go_stmt_list(node) if isinstance(node, GoStatements) else [node]:
+        if any(_UseCounter.key(t) == key for t in _Scan.targets(stmt)):
+            return True
+        if isinstance(stmt, GoIfElse):
+            if any(_go_assigns_in(n, key) for _, n in stmt.condition_and_nodes) or (
+                stmt.else_node is not None and _go_assigns_in(stmt.else_node, key)
+            ):
+                return True
+        elif isinstance(stmt, (GoWhileLoop, GoDoWhileLoop, GoRangeLoop)):
+            if _go_assigns_in(stmt.body, key):
+                return True
+        elif isinstance(stmt, GoForLoop):
+            if any(part is not None and _go_assigns_in(part, key) for part in (stmt.initializer, stmt.iterator)):
+                return True
+            if _go_assigns_in(stmt.body, key):
+                return True
+        elif isinstance(stmt, GoTypeSwitch):
+            if any(_go_assigns_in(b, key) for _, b in stmt.cases) or (
+                stmt.default is not None and _go_assigns_in(stmt.default, key)
+            ):
+                return True
+        elif isinstance(stmt, GoStatements) and _go_assigns_in(stmt, key):
+            return True
+    return False
+
+
+def _go_pure(expr) -> bool:
+    """Side-effect-free expressions: no calls."""
+    if isinstance(expr, (GoFunctionCall, GoMethodCall)):
+        return False
+    for name in _go_node_attr_names(expr):
+        child = getattr(expr, name, None)
+        if isinstance(child, GoConstruct) and not _go_pure(child):
+            return False
+        if isinstance(child, (list, tuple)) and any(isinstance(x, GoConstruct) and not _go_pure(x) for x in child):
+            return False
+    return True
+
+
+class _SplitValueCollapser(GoStructuredCodeWalker):
+    """
+    ``T{a, r}`` assembling a two-word value from a variable holding a call's whole result and a dangling register
+    is the variable itself.
+    """
+
+    def __init__(self, scan: _Scan):
+        self._scan = scan
+        self.retyped: dict = {}  # variable key -> the call's result type
+
+    def handle_GoStructLiteral(self, obj):
+        obj = super().handle_GoStructLiteral(obj)
+        fields = list(obj.fields.values())
+        if len(fields) != 2 or obj.type is None or not _go_var_named(fields[0]) or not _go_var_named(fields[1]):
+            return obj
+        first, second = fields
+        if self._scan.assigns.get(_UseCounter.key(second)):
+            return obj
+        defs = self._scan.assigns.get(_UseCounter.key(first), [])
+        if len(defs) != 1 or not isinstance(defs[0], GoAssignment):
+            return obj
+        rhs = defs[0].rhs
+        if not isinstance(rhs, (GoFunctionCall, GoMethodCall)):
+            return obj
+        result = unpack_typeref(rhs.type)
+        if result is None or getattr(result, "size", None) != obj.type.size:
+            return obj
+        with contextlib.suppress(Exception):
+            if go_type_str(result) != go_type_str(obj.type):
+                return obj
+        self.retyped[_UseCounter.key(first)] = result
+        return first
+
+
+class _Retyper(GoStructuredCodeWalker):
+    """Gives every node of a variable the type its defining call returns."""
+
+    def __init__(self, types: dict):
+        self._types = types
+
+    def handle_GoVariable(self, obj):
+        ty = self._types.get(_UseCounter.key(obj))
+        if ty is not None:
+            obj.variable_type = ty
+        return obj
+
+
+def _go_call_position_ok(stmt, key) -> bool:
+    """
+    Whether the read of ``key`` in ``stmt`` comes before every call the statement makes, in evaluation order
+    (left to right), so a call folded into that read still runs first. Nested blocks are not entered: a read
+    inside one is treated as unsafe.
+    """
+    state = {"seen_call": False, "ok": None}
+
+    def visit(node):
+        if state["ok"] is not None:
+            return
+        if isinstance(node, (GoVariable, GoFakeVariable)):
+            if _UseCounter.key(node) == key:
+                state["ok"] = not state["seen_call"]
+            return
+        if isinstance(node, GoStatements):
+            state["ok"] = False
+            return
+        is_call = isinstance(node, (GoFunctionCall, GoMethodCall))
+        if isinstance(node, GoMethodCall):
+            visit(node.receiver)
+            for a in node.args:
+                visit(a)
+        elif isinstance(node, GoFunctionCall):
+            if not isinstance(node.callee_target, str):
+                visit(node.callee_target)
+            for a in node.args:
+                visit(a)
+        elif isinstance(node, GoAssignment):
+            visit(node.rhs)
+            if not isinstance(node.lhs, (GoVariable, GoFakeVariable)):
+                visit(node.lhs)
+        elif isinstance(node, GoMultiAssignment):
+            visit(node.rhs)
+        elif isinstance(node, GoIfElse):
+            for cond, _ in node.condition_and_nodes[:1]:
+                visit(cond)
+            if state["ok"] is None:
+                state["ok"] = False
+        elif isinstance(node, (GoWhileLoop, GoForLoop, GoRangeLoop, GoDoWhileLoop, GoTypeSwitch, GoSelect)):
+            state["ok"] = False
+        else:
+            for name in _go_node_attr_names(node):
+                child = getattr(node, name, None)
+                if isinstance(child, GoConstruct):
+                    visit(child)
+                elif isinstance(child, (list, tuple)):
+                    for item in child:
+                        if isinstance(item, GoConstruct):
+                            visit(item)
+                elif isinstance(child, dict):
+                    for item in child.values():
+                        if isinstance(item, GoConstruct):
+                            visit(item)
+        if is_call and state["ok"] is None:
+            state["seen_call"] = True
+
+    visit(stmt)
+    return bool(state["ok"])
+
+
+class CopyCleanup:
+    """
+    Remove the register shuffling that phi elimination and spilling leave in structured code:
+
+    - a value spilled before a loop and reloaded inside it (``x = y`` … ``y = x``) never changes, so the spill and the
+      reloads go and ``x`` reads as ``y``;
+    - ``x = y`` whose every read follows in the same block, with ``y`` unchanged in between, is folded into the reads;
+    - single-assignment locals nobody reads are dropped.
+    A loop whose iterator statement went away takes the body's final update of a condition variable as its iterator.
+    """
+
+    MAX_ROUNDS = 8
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+
+    def run(self):
+        root = self._cfunc.statements
+        if not isinstance(root, GoStatements):
+            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            self._cfunc.statements = root
+        for _ in range(self.MAX_ROUNDS):
+            scan = _Scan(self._cfunc)
+            if not (self._reload_pairs(scan) or self._mirrors(scan) or self._propagate(scan) or self._dead(scan)):
+                break
+        collapser = _SplitValueCollapser(_Scan(self._cfunc))
+        self._cfunc.statements = collapser.handle(self._cfunc.statements)
+        if collapser.retyped:
+            self._cfunc.statements = _Retyper(collapser.retyped).handle(self._cfunc.statements)
+        for _ in range(self.MAX_ROUNDS):
+            if not self._fold_calls(_Scan(self._cfunc)):
+                break
+        self._recover_iterators(self._cfunc.statements)
+
+    def _params(self):
+        return {_UseCounter.key(a) for a in self._cfunc.arg_list}
+
+    def _remove(self, stmts):
+        self._cfunc.statements = _StmtRemover(stmts).handle(self._cfunc.statements)
+
+    def _substitute(self, key, replacement):
+        self._cfunc.statements = _VarSubstituter(key, replacement).handle(self._cfunc.statements)
+
+    # -- rule 1: spill/reload pairs
+    def _reload_pairs(self, scan: _Scan) -> bool:
+        params = self._params()
+        for key, stmts in list(scan.assigns.items()):
+            if len(stmts) != 1 or key in scan.addressed:
+                continue
+            spill = stmts[0]
+            if not (isinstance(spill, GoAssignment) and _Scan.is_local(spill.lhs)):
+                continue
+            rhs = spill.rhs
+            if not _go_pure(rhs):
+                continue
+            # the original: the variable copied, or the variable defined from the same expression (a spilled twin)
+            if isinstance(rhs, (GoVariable, GoFakeVariable)):
+                if _UseCounter.key(rhs) == key:
+                    continue
+                candidates = [rhs]
+            else:
+                candidates = self._twins(scan, key, rhs)
+            for origin in candidates:
+                ykey = _UseCounter.key(origin)
+                if ykey in scan.addressed:
+                    continue
+                reloads = []
+                others = []
+                for st in scan.assigns.get(ykey, []):
+                    if (
+                        isinstance(st, GoAssignment)
+                        and isinstance(st.rhs, (GoVariable, GoFakeVariable))
+                        and _UseCounter.key(st.rhs) == key
+                    ):
+                        reloads.append(st)
+                    else:
+                        others.append(st)
+                if not reloads:
+                    continue
+                if ykey in params:
+                    if others:
+                        continue
+                elif isinstance(rhs, (GoVariable, GoFakeVariable)):
+                    # a local original: exactly one definition, before the spill in the same block
+                    if len(others) != 1 or not _Scan.is_local(origin):
+                        continue
+                    d = scan.scope_of.get(id(others[0]))
+                    c = scan.scope_of.get(id(spill))
+                    if d is None or c is None or d[0] != c[0] or d[1] >= c[1]:
+                        continue
+                elif len(others) != 1:
+                    continue
+                self._remove([spill, *reloads])
+                self._substitute(key, origin)
+                return True
+        return False
+
+    def _twins(self, scan: _Scan, key, expr) -> list:
+        """
+        Locals defined once from the very expression ``x`` is defined from, when that expression only reads variables
+        nothing assigns (``v7 := len(s)`` next to ``for i := len(s); ...``).
+        """
+        reads = _UseCounter()
+        reads.handle(expr)
+        if any(scan.assigns.get(k) for k in reads.counts):
+            return []
+        text = _go_text(expr)
+        twins = []
+        for other, stmts in scan.assigns.items():
+            if other == key:
+                continue
+            defs = [
+                st
+                for st in stmts
+                if isinstance(st, GoAssignment) and not (isinstance(st.rhs, (GoVariable, GoFakeVariable)))
+            ]
+            if len(defs) == 1 and _go_text(defs[0].rhs) == text and _Scan.is_local(defs[0].lhs):
+                twins.append(defs[0].lhs)
+        return twins
+
+    # -- rule 1b: mirrors
+    def _mirrors(self, scan: _Scan) -> bool:
+        """
+        ``x`` whose assignments are all ``x = y`` and which is re-copied right after every assignment to ``y`` equals
+        ``y`` everywhere: the copies go and ``x`` reads as ``y``.
+        """
+        params = self._params()
+        for key, stmts in list(scan.assigns.items()):
+            if key in scan.addressed or key in params or len(stmts) < 2:
+                continue
+            if not all(
+                isinstance(st, GoAssignment)
+                and _Scan.is_local(st.lhs)
+                and isinstance(st.rhs, (GoVariable, GoFakeVariable))
+                and _UseCounter.key(st.rhs) != key
+                for st in stmts
+            ):
+                continue
+            ykeys = {_UseCounter.key(st.rhs) for st in stmts}
+            if len(ykeys) != 1:
+                continue
+            ykey = next(iter(ykeys))
+            if ykey in scan.addressed:
+                continue
+            copies = {id(st) for st in stmts}
+            # every assignment to y is immediately followed, in its block, by a copy into x
+            synced = True
+            for st in scan.assigns.get(ykey, []):
+                loc = scan.scope_of.get(id(st))
+                if loc is None:
+                    synced = False
+                    break
+                block = scan.scopes[loc[0]]
+                nxt = block[loc[1] + 1] if loc[1] + 1 < len(block) else None
+                if nxt is None or id(nxt) not in copies:
+                    synced = False
+                    break
+            if not synced:
+                continue
+            # x is never read before its first copy (the copy precedes every read in the enclosing block order)
+            first = min((scan.scope_of[id(st)] for st in stmts if id(st) in scan.scope_of), default=None)
+            if first is None:
+                continue
+            self._remove(stmts)
+            self._substitute(key, stmts[0].rhs)
+            return True
+        return False
+
+    # -- rule 2: forward copy propagation inside a block
+    def _propagate(self, scan: _Scan) -> bool:
+        for stmts in scan.scopes.values():
+            for j, cp in enumerate(stmts):
+                if not (isinstance(cp, GoAssignment) and _Scan.is_local(cp.lhs)):
+                    continue
+                key = _UseCounter.key(cp.lhs)
+                if len(scan.assigns.get(key, [])) != 1 or key in scan.addressed:
+                    continue
+                rhs = cp.rhs
+                total = scan.reads[key]
+                if total == 0:
+                    continue
+                if isinstance(rhs, (GoVariable, GoFakeVariable)):
+                    if _UseCounter.key(rhs) == key:
+                        continue
+                    ykeys = [_UseCounter.key(rhs)]
+                else:
+                    # a pure expression is folded into a single read only
+                    if total != 1 or not _go_pure(rhs):
+                        continue
+                    reads = _UseCounter()
+                    reads.handle(rhs)
+                    ykeys = list(reads.counts)
+                    if key in ykeys:
+                        continue
+                found = 0
+                targets = []
+                ok = True
+                for st in stmts[j + 1 :]:
+                    n = _go_reads_in(st, key)
+                    assigns_y = any(_go_assigns_in(st, yk) for yk in ykeys)
+                    if n:
+                        # reading x while assigning y in one statement is fine only for a plain assignment
+                        if assigns_y and not isinstance(st, (GoAssignment, GoMultiAssignment)):
+                            ok = False
+                            break
+                        found += n
+                        targets.append(st)
+                        if found == total:
+                            break
+                    if assigns_y:
+                        ok = False
+                        break
+                if not ok or found != total:
+                    continue
+                for st in targets:
+                    _VarSubstituter(key, rhs).handle(st)
+                self._remove([cp])
+                return True
+        return False
+
+    # -- rule 3: dead single-assignment locals
+    def _dead(self, scan: _Scan) -> bool:
+        doomed = []
+        # a stack slot next to an address-taken object may be read through that pointer (an array or struct the
+        # recovery split into several variables), so stack stores only go when no stack object escapes
+        stack_escapes = any(k[0] == "v" and isinstance(k[1], SimStackVariable) for k in scan.addressed)
+        for key, stmts in scan.assigns.items():
+            if scan.reads[key] or key in scan.addressed:
+                continue
+            if stack_escapes and key[0] == "v" and isinstance(key[1], SimStackVariable):
+                continue
+            if all(isinstance(st, GoAssignment) and _go_pure(st.rhs) for st in stmts):
+                doomed.extend(stmts)
+        if not doomed:
+            return False
+        self._remove(doomed)
+        return True
+
+    # -- rule 5: a call result read once, by the next statement, ahead of that statement's other calls
+    def _fold_calls(self, scan: _Scan) -> bool:
+        for stmts in scan.scopes.values():
+            for j in range(len(stmts) - 1):
+                cp = stmts[j]
+                if not (isinstance(cp, GoAssignment) and _Scan.is_local(cp.lhs)):
+                    continue
+                key = _UseCounter.key(cp.lhs)
+                if len(scan.assigns.get(key, [])) != 1 or key in scan.addressed or scan.reads[key] != 1:
+                    continue
+                call = cp.rhs
+                if not isinstance(call, (GoFunctionCall, GoMethodCall)):
+                    continue
+                nxt = stmts[j + 1]
+                if _go_reads_in(nxt, key) != 1 or not _go_call_position_ok(nxt, key):
+                    continue
+                # the value's declared type must be what the call returns, or the fold changes the meaning
+                if isinstance(cp.lhs, GoVariable):
+                    var_ty = unpack_typeref(cp.lhs.type)
+                    call_ty = unpack_typeref(call.type)
+                    if (
+                        var_ty is not None
+                        and call_ty is not None
+                        and getattr(var_ty, "size", None) != getattr(call_ty, "size", None)
+                    ):
+                        continue
+                _VarSubstituter(key, call).handle(nxt)
+                self._remove([cp])
+                return True
+        return False
+
+    # -- loop iterators
+    def _recover_iterators(self, node):
+        for stmt in _go_stmt_list(node) if isinstance(node, GoStatements) else [node]:
+            if isinstance(stmt, GoIfElse):
+                for _, n in stmt.condition_and_nodes:
+                    self._recover_iterators(n)
+                if stmt.else_node is not None:
+                    self._recover_iterators(stmt.else_node)
+            elif isinstance(stmt, (GoWhileLoop, GoDoWhileLoop, GoRangeLoop)):
+                self._recover_iterators(stmt.body)
+            elif isinstance(stmt, GoTypeSwitch):
+                for _, b in stmt.cases:
+                    self._recover_iterators(b)
+                if stmt.default is not None:
+                    self._recover_iterators(stmt.default)
+            elif isinstance(stmt, GoForLoop):
+                self._recover_iterators(stmt.body)
+                if stmt.iterator is None and stmt.condition is not None:
+                    body = _go_stmt_list(stmt.body)
+                    if (
+                        body
+                        and isinstance(body[-1], GoAssignment)
+                        and isinstance(body[-1].lhs, (GoVariable, GoFakeVariable))
+                    ):
+                        key = _UseCounter.key(body[-1].lhs)
+                        if _go_reads_in(stmt.condition, key) and not self._has_continue(stmt.body):
+                            stmt.iterator = body[-1]
+                            stmt.body = _StmtRemover([body[-1]], lists_only=True).handle(stmt.body)
+
+    def _has_continue(self, node) -> bool:
+        for stmt in _go_stmt_list(node) if isinstance(node, GoStatements) else [node]:
+            if isinstance(stmt, GoContinue):
+                return True
+            if isinstance(stmt, GoIfElse):
+                if any(self._has_continue(n) for _, n in stmt.condition_and_nodes) or (
+                    stmt.else_node is not None and self._has_continue(stmt.else_node)
+                ):
+                    return True
+            elif isinstance(stmt, GoTypeSwitch) and (
+                any(self._has_continue(b) for _, b in stmt.cases)
+                or (stmt.default is not None and self._has_continue(stmt.default))
+            ):
+                return True
+            # continues inside nested loops belong to those loops
         return False
 
 
@@ -6805,6 +7674,250 @@ class ShortDeclarations:
                 stmt.initializer.declares = True
             for t in targets:
                 self._cfunc.short_declared.add(t.name if isinstance(t, GoFakeVariable) else _go_var_key(t))
+
+
+def _go_exits(stmts: list) -> bool:
+    """Whether a statement list always leaves the enclosing flow (return, break, continue, goto)."""
+    return bool(stmts) and isinstance(stmts[-1], (GoReturn, GoBreak, GoContinue, GoGoto))
+
+
+class SelectRecovery(GoStructuredCodeWalker):
+    """
+    ``runtime.selectgo(&cases, &order, pc, nsends, nrecvs, block)`` with its case records built on the stack and the
+    dispatch on the chosen index becomes ``select { case v := <-ch: ... case ch <- x: ... default: ... }``.
+    """
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
+        self._dropped: set = set()
+
+    def run(self):
+        root = self._cfunc.statements
+        if not isinstance(root, GoStatements):
+            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+        self._cfunc.statements = self.handle(root)
+        if self._dropped:
+            counter = _UseCounter()
+            counter.handle(self._cfunc.statements)
+            self._cfunc.extra_decls = [
+                (name, ty) for name, ty in self._cfunc.extra_decls if counter.counts[("f", name)] > 0
+            ]
+
+    def _fresh(self, base: str) -> str:
+        name, n = base, 1
+        while name in self._taken:
+            n += 1
+            name = f"{base}{n}"
+        self._taken.add(name)
+        return name
+
+    def handle_GoStatements(self, obj):
+        stmts = _go_stmt_list(GoStatements([self.handle(st) for st in obj.statements], codegen=self._codegen))
+        out = []
+        i = 0
+        while i < len(stmts):
+            stmt = stmts[i]
+            call = self._selectgo(stmt)
+            if call is not None:
+                replaced = self._try_select(stmt, call, out, stmts[i + 1 :])
+                if replaced is not None:
+                    select, consumed = replaced
+                    out.append(select)
+                    i += 1 + consumed
+                    continue
+            out.append(stmt)
+            i += 1
+        obj.statements = out
+        return obj
+
+    @staticmethod
+    def _selectgo(stmt):
+        if not (isinstance(stmt, GoMultiAssignment) and len(stmt.lhs) == 2):
+            return None
+        call = stmt.rhs
+        if (
+            isinstance(call, GoFunctionCall)
+            and call.callee_func is not None
+            and normalize_go_func_name(call.callee_func.name) == "runtime.selectgo"
+            and len(call.args) == 6
+        ):
+            return call
+        return None
+
+    @staticmethod
+    def _stack_offset(expr):
+        if isinstance(expr, GoVariable) and isinstance(expr.variable, SimStackVariable):
+            return expr.variable.offset
+        return None
+
+    def _try_select(self, stmt, call, preceding: list, following: list):
+        chosen, ok = stmt.lhs
+        cases_var = _go_referenced_var(call.args[0])
+        order_var = _go_referenced_var(call.args[1])
+        if cases_var is None or not isinstance(cases_var.variable, SimStackVariable):
+            return None
+        if not all(isinstance(a, GoConstant) for a in call.args[3:6]):
+            return None
+        nsends, nrecvs, block = (a.value for a in call.args[3:6])
+        n = nsends + nrecvs
+        if not 0 < n <= 32:
+            return None
+        ws = self._codegen.project.arch.bytes
+        base = cases_var.variable.offset
+        record = 2 * ws
+
+        # the case records: channel at base + record*k, element pointer at base + record*k + ws
+        channels: dict = {}
+        slots: dict = {}
+        doomed = []
+        order_offset = (
+            order_var.variable.offset
+            if order_var is not None and isinstance(order_var.variable, SimStackVariable)
+            else None
+        )
+        for st in preceding:
+            if not (isinstance(st, GoAssignment) and isinstance(st.lhs, GoVariable)):
+                continue
+            off = self._stack_offset(st.lhs)
+            if off is None:
+                continue
+            if order_offset is not None and order_offset <= off < order_offset + 2 * n:
+                doomed.append(st)
+                continue
+            if not base <= off < base + record * n:
+                continue
+            rhs = st.rhs
+            while isinstance(rhs, GoTypeCast):
+                rhs = rhs.expr
+            k, rem = divmod(off - base, record)
+            if isinstance(rhs, GoConstant) and rhs.value == 0:
+                doomed.append(st)  # zeroing of the array
+                continue
+            if rem == 0:
+                channels[k] = rhs
+                doomed.append(st)
+            elif rem == ws:
+                slot = _go_referenced_var(rhs)
+                if slot is None:
+                    return None
+                slots[k] = slot
+                doomed.append(st)
+        if any(k not in channels for k in range(n)):
+            return None
+
+        # the dispatch on the chosen index
+        rest = list(following)
+        aliases = {_UseCounter.key(chosen)}
+        copies = []
+        while rest and isinstance(rest[0], GoAssignment) and _go_var_named(rest[0].lhs) and _go_var_named(rest[0].rhs):
+            if _UseCounter.key(rest[0].rhs) in aliases:
+                aliases.add(_UseCounter.key(rest[0].lhs))
+                copies.append(rest[0])
+                rest = rest[1:]
+            else:
+                break
+        if not rest or not isinstance(rest[0], GoIfElse):
+            return None
+        dispatch = rest[0]
+        bodies: dict = {}
+        consumed = len(copies) + 1
+        remaining = set(range(-1 if not block else 0, n))
+        for cond, node in dispatch.condition_and_nodes:
+            k, equal = self._index_test(cond, aliases)
+            if k is None:
+                return None
+            if equal:
+                bodies[k] = _go_stmt_list(node)
+                remaining.discard(k)
+            else:
+                # "chosen != k": the branch covers every other case
+                others = remaining - {k}
+                if len(others) != 1:
+                    return None
+                other = next(iter(others))
+                bodies[other] = _go_stmt_list(node)
+                remaining.discard(other)
+        if dispatch.else_node is not None:
+            if len(remaining) != 1:
+                return None
+            bodies[next(iter(remaining))] = _go_stmt_list(dispatch.else_node)
+            remaining.clear()
+        elif len(remaining) == 1:
+            # the last case falls through to the statements after the dispatch, which must all leave the flow
+            tail = rest[1:]
+            if not all(_go_exits(_go_stmt_list(b)) for b in bodies.values()):
+                return None
+            bodies[next(iter(remaining))] = tail
+            consumed += len(tail)
+            remaining.clear()
+        if remaining:
+            return None
+
+        # the cases (each is its own scope: the bound names may repeat)
+        cases = []
+        ok_key = _UseCounter.key(ok)
+        taken0 = set(self._taken)
+        introduced = set()
+        for k in sorted(bodies):
+            self._taken = set(taken0)
+            body = GoStatements(bodies[k], codegen=self._codegen)
+            if k == -1:
+                cases.append((GoSelectCase("default"), body))
+                continue
+            chan = channels[k]
+            slot = slots.get(k)
+            if k < nsends:
+                value = None
+                if slot is not None:
+                    store = next(
+                        (st for st in reversed(preceding) if isinstance(st, GoAssignment) and _go_is_var(st.lhs, slot)),
+                        None,
+                    )
+                    if store is None:
+                        return None
+                    value = store.rhs
+                    doomed.append(store)
+                cases.append((GoSelectCase("send", chan, value), body))
+                continue
+            value = None
+            ok_var = None
+            if slot is not None and _go_reads_in(body, _UseCounter.key(slot)):
+                chan_type = unpack_typeref(chan.type)
+                elem = chan_type.elem_type if isinstance(chan_type, GoSimTypeChan) else None
+                if elem is None:
+                    elem = unpack_typeref(slot.type)
+                value = GoFakeVariable(
+                    self._fresh("v"), elem.with_arch(self._codegen.project.arch), codegen=self._codegen
+                )
+                body = _VarSubstituter(_UseCounter.key(slot), value).handle(body)
+                self._dropped.add(_UseCounter.key(slot))
+            if _go_reads_in(body, ok_key):
+                ok_var = GoFakeVariable(self._fresh("ok"), ok.type, codegen=self._codegen)
+                body = _VarSubstituter(ok_key, ok_var).handle(body)
+            cases.append((GoSelectCase("recv", chan, value, ok_var), body))
+            introduced |= self._taken - taken0
+        self._taken = taken0 | introduced
+
+        for st in doomed:
+            if st in preceding:
+                preceding.remove(st)
+        self._dropped.add(_UseCounter.key(chosen))
+        self._dropped.add(ok_key)
+        return GoSelect(cases, tags=stmt.tags, codegen=self._codegen), consumed
+
+    @staticmethod
+    def _index_test(cond, aliases):
+        if not (isinstance(cond, GoBinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
+            return None, None
+        for a, b in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+            if _go_var_named(a) and _UseCounter.key(a) in aliases and isinstance(b, GoConstant):
+                value = b.value
+                if isinstance(value, int) and value >= 2**63:
+                    value -= 2**64
+                return value, cond.op == "CmpEQ"
+        return None, None
 
 
 class _DeadCopyRemover(GoStructuredCodeWalker):

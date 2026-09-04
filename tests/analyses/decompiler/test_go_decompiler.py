@@ -97,6 +97,15 @@ class TestBasicsGo122(GoDecompilationTarget):
         assert "long" not in header
         assert "void" not in self.texts["main.main"]
 
+    def test_main_data_flow_and_literals(self):
+        # the parsed value reaches n through the phi of a call's result register; a stack array is a slice literal
+        main = self.texts["main.main"]
+        main = main[main.index("func main.main") :]
+        m = re.search(r"^\s+(\w+), err := main\.parse\(os\.Args\[1\]\)$", main, re.MULTILINE)
+        assert m, main
+        assert re.search(rf"^\s+\w+ = {m.group(1)}$", main, re.MULTILINE), main
+        assert re.search(r"main\.bump\(\[\]int\{1, 2, 3, \w+\}\)", main), main
+
     def test_locals_use_var_declarations(self):
         text = self.texts["main.fib"]
         # locals are declared the Go way: a short declaration at first assignment, or a var line
@@ -146,7 +155,7 @@ class TestBasicsGo122(GoDecompilationTarget):
     def test_values_are_fused_at_call_sites(self):
         main = self.texts["main.main"]
         assert 'main.count("hello, world", ' in main
-        assert re.search(r"main\.sum\(\w+\)$", main, re.MULTILINE), main
+        assert re.search(r"main\.sum\(\w+\)", main), main
         assert re.search(r"main\.parse\([^,()]+\)$", main, re.MULTILINE), main
 
     def test_go_statement_syntax(self):
@@ -231,6 +240,18 @@ class TestIfaceGo122(GoDecompilationTarget):
                 and "panicdottype" not in self.texts[name]
             )
 
+    def test_range_over_slice_of_interfaces(self):
+        # a pointer walking the slice becomes the range value; calls through its itab are method calls
+        report = self.texts["main.report"]
+        report = report[report.index("func main.report") :]
+        assert re.search(r"for \w+, x := range shapes \{", report), report
+        assert "x.Name()" in report and "x.Area()" in report, report
+        assert re.search(
+            r'fmt\.Fprintf\(w, "%d: %s area=%d\\n", \w+, x\.Name\(\), x\.Area\(\)\)$', report, re.MULTILINE
+        ), report
+        for gone in ("field_", ".ptr", "string{", "len(shapes)"):
+            assert gone not in report, (gone, report)
+
     def test_boxing(self):
         # a value converted to an interface is the value itself
         assert "return n" in self.texts["main.box"]
@@ -270,7 +291,7 @@ class TestLangdetectWindowsPE(GoDecompilationTarget):
         for text in self.texts.values():
             assert "morestack" not in text
         main = self.texts["main.main"]
-        assert re.search(r'fmt\.Fprintf\(.*, "fibonacci\(%d\) = %d\\n", \w+, \w+\)$', main, re.MULTILINE), main
+        assert re.search(r'fmt\.Fprintf\(.*, "fibonacci\(%d\) = %d\\n", .+\)$', main, re.MULTILINE), main
         assert "go:itab" not in main and "convT" not in main
 
 
