@@ -4482,8 +4482,10 @@ class TestDecompiler(unittest.TestCase):
     def test_stop_iteration_in_canary_init_stmt(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "hello_gcc9_reassembler")
         proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True)
-        function = cfg.functions[4198577]
+        # 0x4010b1 is alignment padding ahead of register_tm_clones, which the smart scan no longer recovers as a
+        # function of its own, so ask for it by hand.
+        cfg = proj.analyses.CFGFast(normalize=True, function_starts=[0x4010B1])
+        function = cfg.functions[0x4010B1]
         function.normalize()
         d = proj.analyses.Decompiler(func=function, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)

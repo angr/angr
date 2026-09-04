@@ -6,6 +6,7 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING
 
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.knowledge_plugins.cfg import MemoryDataSort
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
@@ -56,6 +57,13 @@ class CodeCaveAnalysis(Analysis):
             if func.is_alignment:
                 for block in func.blocks:
                     self.codecaves.append(CodeCave(func, block.addr, block.size, CodeCaveClassification.ALIGNMENT))
+
+        # Alignment padding, which CFGFast records as data rather than recovering as a function
+        cfg = self.project.kb.cfgs.get_most_accurate()
+        if cfg is not None:
+            for data in cfg.memory_data.values():
+                if data.sort == MemoryDataSort.Alignment and data.size:
+                    self.codecaves.append(CodeCave(None, data.addr, data.size, CodeCaveClassification.ALIGNMENT))
 
         # Unreachable code
         for func in self.project.kb.functions.values():

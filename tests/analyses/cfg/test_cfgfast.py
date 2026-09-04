@@ -15,7 +15,7 @@ import archinfo
 import angr
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 from angr.codenode import FuncNode
-from angr.knowledge_plugins.cfg import CFGModel, CFGNode
+from angr.knowledge_plugins.cfg import CFGModel, CFGNode, MemoryDataSort
 from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgfast")
@@ -1140,6 +1140,89 @@ class TestCfgfast(unittest.TestCase):
         assert block_size(4096, repeating_byte_run_threshold=0) == 99
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
+
+    def test_smart_scan_skips_x86_nop_padding(self):
+        # 0x0:  xor eax, eax; ret            - a real function, reached from the entry point
+        # 0x3:  13 bytes of multi-byte NOPs  - padding that aligns the next function to 0x10
+        # 0x10: xor eax, eax; ret            - a function that only the linear scan can find
+        blobs = {
+            # nopl 0x0(%rax,%rax,1); nopl 0x0(%rax,%rax,1)
+            "AMD64": bytes.fromhex("0F1F840000000000") + bytes.fromhex("0F1F440000"),
+            # lea 0x0(%esi,%eiz,1),%esi; lea 0x0(%esi),%esi; mov %esi,%esi; nop
+            "X86": bytes.fromhex("8DB42600000000") + bytes.fromhex("8D7600") + bytes.fromhex("89F6") + b"\x90",
+        }
+        for arch, padding in blobs.items():
+            with self.subTest(arch=arch):
+                proj = self._blob_project(b"\x31\xc0\xc3" + padding + b"\x31\xc0\xc3", arch=arch)
+                cfg = proj.analyses.CFGFast(normalize=True)
+
+                assert 0 in cfg.kb.functions
+                assert 0x10 in cfg.kb.functions
+                assert 3 not in cfg.kb.functions, "alignment padding was recovered as a function"
+
+                data = cfg.model.memory_data[3]
+                assert data.sort == MemoryDataSort.Alignment
+                assert data.size == len(padding)
+
+    def test_gcc_nop_padding_does_not_become_functions(self):
+        # gcc pads with the multi-byte NOP encodings, and padding is unreachable by construction: whatever
+        # transfers control to the aligned address skips over it. The linear scan therefore lands on all of it, and
+        # used to seed a function at every run.
+        for arch, binary, padding_addr, padding_size in [
+            # nopw %cs:0x0(%rax,%rax,1); nopl 0x0(%rax,%rax,1)
+            ("x86_64", "cat_gcc17.0.0_O2", 0x402890, 16),
+            # mov %esi,%esi; lea 0x0(%edi,%eiz,1),%edi
+            ("i386", "nl", 0x401917, 9),
+        ]:
+            with self.subTest(arch=arch):
+                proj = angr.Project(os.path.join(test_location, arch, binary), auto_load_libs=False)
+                cfg = proj.analyses.CFGFast(normalize=True)
+
+                padding_funcs = [f for f in cfg.kb.functions.values() if f.is_alignment]
+                assert padding_funcs == [], f"{len(padding_funcs)} alignment functions, e.g. {padding_funcs[:4]}"
+
+                data = cfg.model.memory_data[padding_addr]
+                assert data.sort == MemoryDataSort.Alignment
+                assert data.size == padding_size
+
+                # the real functions are still there
+                assert "main" in cfg.kb.functions
+
+    def test_ppc_nop_padding_does_not_absorb_the_next_function(self):
+        # a stripped inter-function gap: the FDE before it ends at 0x415194, a run of PowerPC NOPs fills the gap up
+        # to the next FDE, and 0x4151a0 is that FDE's start -- an ELFv2 global entry point (addis r2, r12, ...)
+        # that no symbol covers. The linear scan used to seed a function at the padding, which swallowed the real
+        # entry into a block that starts two instructions early.
+        proj = angr.Project(os.path.join(test_location, "ppc64el", "ld64.so.2"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert cfg.model.get_any_node(0x415198) is None, "alignment padding was recovered as a basic block"
+        assert 0x415198 not in cfg.kb.functions, "alignment padding was recovered as a function"
+        assert cfg.model.get_any_node(0x4151A0) is not None, "the function entry point is not a block start"
+        assert 0x4151A0 in cfg.kb.functions, "the function entry point was not recovered as a function"
+
+        # three ori r0, r0, 0 fill the gap from the end of the previous FDE to the aligned entry
+        data = cfg.model.memory_data[0x415194]
+        assert data.sort == MemoryDataSort.Alignment
+        assert data.size == 12
+
+    def test_s390x_nop_padding_does_not_absorb_the_next_function(self):
+        # a stripped inter-function gap: the function before it returns with "br %r8" at 0x40139a, two
+        # "bcr 0,%r7" (GNU nopr %r7, encoded 07 07) fill 0x40139c-0x40139f, and 0x4013a0 is the next FDE's
+        # start -- "asi 0x4(%r2), 0x1", covered by no symbol. The linear scan used to seed a function at the
+        # padding, and that block ran on through the real entry.
+        proj = angr.Project(os.path.join(test_location, "s390x", "ld64.so.1"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert cfg.model.get_any_node(0x40139C) is None, "alignment padding was recovered as a basic block"
+        assert 0x40139C not in cfg.kb.functions, "alignment padding was recovered as a function"
+        assert cfg.model.get_any_node(0x4013A0) is not None, "the function entry point is not a block start"
+        assert 0x4013A0 in cfg.kb.functions, "the function entry point was not recovered as a function"
+
+        # two nopr %r7 fill the gap from the end of the previous function to the aligned entry
+        data = cfg.model.memory_data[0x40139C]
+        assert data.sort == MemoryDataSort.Alignment
+        assert data.size == 4
 
 
 if __name__ == "__main__":
