@@ -3504,9 +3504,9 @@ dependencies = [
 
 [[package]]
 name = "z3-sys"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ee055ba9ea6fdb01bb4e6c3bbb493cdd89b5a90976b2e5b8a6bd0f033c3c502"
+checksum = "96975839f50a909f6ec19671e5c06d7f0d6fc67287a120e1b010c5f8d91944d6"
 dependencies = [
  "pkg-config",
  "reqwest",
