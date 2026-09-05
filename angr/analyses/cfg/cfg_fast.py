@@ -3962,6 +3962,66 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if ref.data_size == self.project.arch.bytes and is_arm_arch(self.project.arch):
                 self._process_irsb_data_ref_inlined_data(irsb_addr, ref)
 
+    def _arm_find_literal_pc_addition(self, ldr_addr: int, thumb: bool) -> int | None:
+        """
+        Position-independent ARM code loads a displacement from a literal pool and then adds pc to
+        it, so the word in the pool is not an address at all:
+
+            ldr r3, [pc, #0x328]
+            add r3, pc, r3
+
+        Disassemble forward from the load at ``ldr_addr`` and return the address of the instruction
+        that adds pc to the loaded register, or None if there is none. The scan stops at the first
+        control-flow instruction, at the first other write to the loaded register, and after 16
+        instructions.
+
+        :param ldr_addr:    Address of the pc-relative load, with the THUMB bit already cleared.
+        :param thumb:       True if the block is a THUMB block.
+        """
+
+        max_insns = 16
+        md = self.project.arch.capstone_thumb if thumb else self.project.arch.capstone  # type: ignore
+        data = self._fast_memory_load_bytes(ldr_addr, 4 * max_insns)
+        if not data:
+            return None
+        insns = list(md.disasm(bytes(data), ldr_addr, count=max_insns))
+        if not insns:
+            return None
+
+        ldr = insns[0]
+        if ldr.address != ldr_addr or ldr.id != capstone.arm.ARM_INS_LDR or len(ldr.operands) != 2:
+            return None
+        op0, op1 = ldr.operands
+        if (
+            op0.type != capstone.arm.ARM_OP_REG
+            or op1.type != capstone.arm.ARM_OP_MEM
+            or op1.mem.base != capstone.arm.ARM_REG_PC
+        ):
+            return None
+        reg_dst = op0.value.reg
+
+        for insn in insns[1:]:
+            regs_write = insn.regs_access()[1]
+            if insn.id == capstone.arm.ARM_INS_ADD:
+                ops = insn.operands
+                # add rD, pc, rD, and the two-operand THUMB form add rD, pc
+                if (
+                    len(ops) in (2, 3)
+                    and all(op.type == capstone.arm.ARM_OP_REG for op in ops)
+                    and ops[0].value.reg == reg_dst
+                    and capstone.arm.ARM_REG_PC in {op.value.reg for op in ops[1:]}
+                    and (len(ops) == 2 or reg_dst in {op.value.reg for op in ops[1:]})
+                ):
+                    return insn.address
+            if (
+                reg_dst in regs_write
+                or capstone.arm.ARM_REG_PC in regs_write
+                or insn.group(capstone.arm.ARM_GRP_JUMP)
+                or insn.group(capstone.arm.ARM_GRP_CALL)
+            ):
+                return None
+        return None
+
     def _process_irsb_data_ref_inlined_data(self, irsb_addr: int, ref):
         # ARM (and maybe a few other architectures as well) has inline pointers
         sec = self.project.loader.find_section_containing(ref.data_addr)
@@ -3971,40 +4031,48 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if v is None:
                 return
 
+            thumb = (irsb_addr & 1) == 1
+            pc_add_addr = None
+
             # this value can either be a pointer or an offset from the pc... we need to try them both
             # attempt 1: a direct pointer
             sec_2nd = self.project.loader.find_section_containing(v)
             if sec_2nd is not None and sec_2nd.is_readable:
-                # found it!
-                self._add_data_reference(
-                    irsb_addr,
-                    ref.stmt_idx,
-                    ref.ins_addr,
-                    v,
-                    data_size=None,
-                    data_type=MemoryDataSort.Unknown,
-                )
+                # landing inside a readable section does not make it a pointer: a displacement that
+                # is about to have pc added to it lands wherever the linker happened to put things
+                pc_add_addr = self._arm_find_literal_pc_addition(ref.ins_addr & ~1 if thumb else ref.ins_addr, thumb)
 
-                if (
-                    sec_2nd.is_executable
-                    and not self._seg_list.is_occupied(v)
-                    and v % self.project.arch.instruction_alignment == 0
-                ):
-                    if is_arm_arch(self.project.arch) and not self._arch_options.has_arm_code and v % 2 != 1:
-                        # no ARM code in this binary!
-                        return
-
-                    # create a new CFG job
-                    ce = CFGJob(
+                if pc_add_addr is None:
+                    # found it!
+                    self._add_data_reference(
+                        irsb_addr,
+                        ref.stmt_idx,
+                        ref.ins_addr,
                         v,
-                        v,
-                        "Ijk_Boring",
-                        job_type=CFGJobType.DATAREF_HINTS,
+                        data_size=None,
+                        data_type=MemoryDataSort.Unknown,
                     )
-                    self._pending_jobs.add_job(ce)
-                    self._register_analysis_job(v, ce)
 
-                return
+                    if (
+                        sec_2nd.is_executable
+                        and not self._seg_list.is_occupied(v)
+                        and v % self.project.arch.instruction_alignment == 0
+                    ):
+                        if is_arm_arch(self.project.arch) and not self._arch_options.has_arm_code and v % 2 != 1:
+                            # no ARM code in this binary!
+                            return
+
+                        # create a new CFG job
+                        ce = CFGJob(
+                            v,
+                            v,
+                            "Ijk_Boring",
+                            job_type=CFGJobType.DATAREF_HINTS,
+                        )
+                        self._pending_jobs.add_job(ce)
+                        self._register_analysis_job(v, ce)
+
+                    return
 
             # attempt 2: pc + offset
             #   ldr r3, [pc, #0x328]
@@ -4019,7 +4087,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # - For all other instructions that use labels, the value of the PC is the address of the current
             #   instruction plus 4 bytes, with bit[1] of the result cleared to 0 to make it word-aligned.
             #
-            if (irsb_addr & 1) == 1:
+            # That last rule is about instructions that take a label -- ADR and LDR (literal). The pc that
+            # `add rD, pc` adds is a plain read of R[15], which is the address of the add plus 4 in THUMB and
+            # plus 8 in ARM, with no alignment. A THUMB `add` at a 2-mod-4 address would land two bytes low if
+            # bit[1] were cleared here.
+            if pc_add_addr is not None:
+                actual_ref_ins_addr = pc_add_addr
+                v += pc_add_addr + (4 if thumb else 8)
+                v &= 0xFFFF_FFFF
+            elif thumb:
                 actual_ref_ins_addr = ref.ins_addr + 2
                 v += 4 + actual_ref_ins_addr
                 v &= 0xFFFF_FFFF_FFFF_FFFE
