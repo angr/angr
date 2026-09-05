@@ -80,7 +80,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         structurer.whitelist_edges = set()
         structurer._region = region if region is not None else _Region()
         structurer._parent_region = parent_region
-        structurer._graph_helper = _GraphHelper(graph, head)
+        structurer._graph_helper = _GraphHelper(graph, head)  # type: ignore
         chosen = []
 
         def _virtualize_edge(src, dst):
@@ -206,6 +206,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         finally:
             logger.removeHandler(watch)
         assert dec.codegen is not None and dec.codegen.text is not None
+        assert dec.seq_node is not None
         print_decompilation_result(dec)
 
         assert not incomplete
