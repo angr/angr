@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict, defaultdict
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -2061,7 +2062,9 @@ class PhoenixStructurer(StructurerBase):
 
     def _switch_build_cases(
         self,
-        case_and_entryaddrs: dict[int, int | tuple[int, int | None]],
+        # Read-only: a Mapping so a caller that knows every value is a (addr, idx) pair can pass its
+        # narrower dict. dict is invariant in its value type, Mapping is covariant.
+        case_and_entryaddrs: Mapping[int, int | tuple[int, int | None]],
         head_node,
         node_a: BaseNode,
         node_b_addr: int | None,
