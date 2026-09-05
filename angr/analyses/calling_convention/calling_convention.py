@@ -568,6 +568,10 @@ class CallingConventionAnalysis(Analysis):
         # TODO: properly determine sp_delta
         sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
+        # a slice of a vector register at an unnamed offset (ymm10+4) can never be an argument
+        input_args = type(input_args)(
+            a for a in input_args if not (isinstance(a, SimRegArg) and a.reg_name not in self.project.arch.registers)
+        )
         full_input_args = self._consolidate_input_args(input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
         forced_cc_cls = self._forced_cc_cls()
@@ -1206,9 +1210,6 @@ class CallingConventionAnalysis(Analysis):
             for a in input_args:
                 if not isinstance(a, SimRegArg):
                     new_input_args.add(a)
-                    continue
-                if a.reg_name not in self.project.arch.registers:
-                    # a slice of a vector register at an unnamed offset (ymm10+4): not an argument
                     continue
                 reg_offset, reg_size = self.project.arch.registers[a.reg_name]
                 if self._is_fp_reg_offset(reg_offset):
