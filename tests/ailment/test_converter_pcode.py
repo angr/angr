@@ -3,14 +3,36 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.ailment"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
-
-import archinfo
 
 import angr
 from angr import ailment
 from angr.ailment.expression import Tmp
 from angr.ailment.statement import Assignment
+
+# 420e5c  dmulu.l r4, r5   -- SLEIGH writes the 64-bit product to one wide unique and reads a
+# 420e5e  sts     MACL, r1     32-bit half of it back for each of MACL and MACH, all under the
+# 420e60  sts     MACH, r2     first instruction. The two sts are register moves.
+# Derived the way tests/common.py derives bin_location. Importing it from here instead would be
+# the first `import tests` of a --collect-only run -- tests/ailment sorts before tests/analyses and
+# has no __init__.py, so pytest has only tests/ailment on sys.path at that point, and the "tests"
+# that binds is not this one. That poisons every later tests.* import: 337 collection errors.
+_binaries = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "binaries")
+TEST_BINARY = os.path.join(_binaries, "tests", "sh4", "test-instr_sh4")
+BLOCK_ADDR = 0x420E5C
+# The instruction bound is load-bearing. The natural block here is 8 instructions and contains two
+# shifts of its own, so without it test_the_two_halves_of_a_widening_multiply_differ finds a Shr and
+# passes on the unfixed converter. Three is a readable window; one would do.
+BLOCK_INSNS = 3
+
+
+def _convert():
+    """Convert the three-instruction block above to AIL. SuperH has no VEX lifter, so this goes
+    through pypcode and the p-code converter."""
+    project = angr.Project(TEST_BINARY, auto_load_libs=False)
+    block = project.factory.block(BLOCK_ADDR, num_inst=BLOCK_INSNS)
+    return ailment.IRSBConverter.convert(block.vex, ailment.Manager())
 
 
 def _tmp_indices(block):
@@ -45,12 +67,7 @@ class TestPcodeConverter(unittest.TestCase):
         used to name the parent by its unique-space address instead of its remapped index, producing a
         tmp that no statement defines. Nothing rejects that until the decompiler indexes it.
         """
-        # dmulu.l r1,r2 ; sts mach,r3 ; sts macl,r4 ; rts ; nop
-        code = bytes.fromhex("15320a031a040b000900")
-        arch = archinfo.ArchPcode("SuperH4:LE:32:default")
-        project = angr.load_shellcode(code, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode)
-
-        block = ailment.IRSBConverter.convert(project.factory.block(0x1000).vex, ailment.Manager())
+        block = _convert()
 
         defined, used = _tmp_indices(block)
         assert used, "the block should read at least one tmp"
@@ -62,11 +79,7 @@ class TestPcodeConverter(unittest.TestCase):
         a shift. Computing that offset the big-endian way returns the low half for both halves, which
         decompiles to two identical assignments instead of MACH and MACL.
         """
-        code = bytes.fromhex("15320a031a040b000900")
-        arch = archinfo.ArchPcode("SuperH4:LE:32:default")
-        project = angr.load_shellcode(code, arch=arch, load_address=0x1000, engine=angr.engines.UberEnginePcode)
-
-        block = ailment.IRSBConverter.convert(project.factory.block(0x1000).vex, ailment.Manager())
+        block = _convert()
 
         halves = [str(stmt.src) for stmt in block.statements if isinstance(stmt, Assignment)]
         shifted = [h for h in halves if "Shr" in h]
