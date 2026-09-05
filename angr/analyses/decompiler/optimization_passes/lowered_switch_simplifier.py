@@ -393,6 +393,8 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         successors = list(graph_copy.successors(node))
                         graph_copy.remove_node(node)
                         for succ in successors:
+                            if succ not in graph_copy:
+                                continue
                             in_edges = [(src, dst) for src, dst in graph_copy.in_edges(succ) if src is not succ]
                             if not in_edges:
                                 worklist.append(succ)
