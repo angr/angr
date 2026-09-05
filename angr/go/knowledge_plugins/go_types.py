@@ -62,6 +62,10 @@ class GoTypes(KnowledgeBasePlugin):
         """``(interface type, concrete type)`` of the itab at ``addr``."""
         return self.descriptors.resolve_itab(addr)
 
+    def method_at(self, addr: int) -> tuple[str, str, str] | None:
+        """``(receiver type, method name, func type)`` of the method whose code starts at ``addr``."""
+        return self.descriptors.methods.get(addr)
+
     def type_at(self, addr: int) -> SimType | None:
         """The SimType of the descriptor at ``addr``, built by ``kb.go_signatures``."""
         name = self.name_at(addr)

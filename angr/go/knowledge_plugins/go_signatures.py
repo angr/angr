@@ -85,6 +85,8 @@ class GoSignatures(KnowledgeBasePlugin):
         self._stdlib_loaded = False
         self._parser: GoTypeParser | None = None
         self._prototypes: dict[str, GoSimTypeFunction | None] = {}
+        self._arg_sizes: dict[int, int] | None = None
+        self._inferred: dict[str, list[str]] = {}
 
     #
     # Sources
@@ -226,6 +228,64 @@ class GoSignatures(KnowledgeBasePlugin):
         proto = self._build_prototype(sig) if sig is not None else None
         self._prototypes[name] = proto
         return proto
+
+    def set_inferred(self, name: str, param_types: list[str]) -> None:
+        """Record parameter types inferred for ``name`` from its callees (kept until a real signature appears)."""
+        self._inferred[normalize_go_func_name(name)] = list(param_types)
+        self._prototypes.pop(normalize_go_func_name(name), None)
+
+    def inferred(self, name: str) -> list[str] | None:
+        return self._inferred.get(normalize_go_func_name(name))
+
+    def inferred_prototype(self, name: str, returnty) -> GoSimTypeFunction | None:
+        """The inferred parameter types of ``name`` as a function type with the given (guessed) result type."""
+        types = self.inferred(name)
+        if not types:
+            return None
+        try:
+            args = [self.parser.parse(t) for t in types]
+        except Exception:  # pylint:disable=broad-exception-caught
+            return None
+        return GoSimTypeFunction(args, returnty, arg_names=[f"a{i}" for i in range(len(args))]).with_arch(
+            self._kb._project.arch
+        )
+
+    def arg_size_at(self, addr: int) -> int | None:
+        """The byte size of the parameters of the function at ``addr`` from the pclntab (results excluded)."""
+        if self._arg_sizes is None:
+            self._arg_sizes = {}
+            tab = getattr(self._kb._project.loader.main_object, "gopclntab", None)
+            for f in getattr(tab, "functions", None) or ():
+                if getattr(f, "args", None) is not None and f.args >= 0:
+                    self._arg_sizes[f.addr] = f.args
+        return self._arg_sizes.get(addr)
+
+    def prototype_at(self, addr: int) -> GoSimTypeFunction | None:
+        """
+        The function type of the method whose code starts at ``addr``, from the runtime type descriptors' method
+        tables (receiver first). Covers methods of named types in stripped binaries, which no signature source names.
+        """
+        go_types = getattr(self._kb, "go_types", None)
+        method = go_types.method_at(addr) if go_types is not None else None
+        if method is None:
+            return None
+        recv, _name, ftype = method
+        try:
+            fn = self.parser.parse(ftype)
+            recv_ty = self.parser.parse(recv)
+        except Exception:  # pylint:disable=broad-exception-caught
+            return None
+        # "func(...) ..." parses as the func value type wrapping the signature
+        fn = getattr(fn, "signature", fn)
+        if not isinstance(fn, GoSimTypeFunction):
+            return None
+        arch = self._kb._project.arch
+        return GoSimTypeFunction(
+            [recv_ty, *fn.args],
+            fn.returnty,
+            arg_names=["recv", *(fn.arg_names or [""] * len(fn.args))],
+            variadic=fn.variadic,
+        ).with_arch(arch)
 
     def _build_prototype(self, sig: GoFuncSignature) -> GoSimTypeFunction:
         parser = self.parser

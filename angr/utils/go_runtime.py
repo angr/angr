@@ -203,7 +203,22 @@ def _is_straight_line(ins) -> bool:
 
 # Sections the Go toolchain emits, and the marker Go stamps into .go.buildinfo, which survives even
 # when section headers do not.
-_GO_SECTION_NAMES = frozenset({".gopclntab", ".gosymtab", ".go.buildinfo", ".noptrdata", ".noptrbss"})
+_GO_SECTION_NAMES = frozenset(
+    {
+        # ELF
+        ".gopclntab",
+        ".gosymtab",
+        ".go.buildinfo",
+        ".noptrdata",
+        ".noptrbss",
+        # Mach-O
+        "__gopclntab",
+        "__gosymtab",
+        "__go_buildinfo",
+        "__noptrdata",
+        "__noptrbss",
+    }
+)
 _GO_BUILDINFO_MAGIC = b"\xff Go buildinf:"
 
 
@@ -213,9 +228,9 @@ def has_go_hint(project: Project) -> bool:
     off the vast majority of binaries.
     """
     obj = project.loader.main_object
-    if obj.sections:
-        return any(section.name in _GO_SECTION_NAMES for section in obj.sections)
-    # no section table: fall back to the .go.buildinfo marker in the raw image
+    if obj.sections and any(section.name in _GO_SECTION_NAMES for section in obj.sections):
+        return True
+    # no section table, or one without Go names (PE): fall back to the .go.buildinfo marker in the raw image
     memory = getattr(obj, "memory", None)
     if memory is None:
         return False

@@ -178,15 +178,17 @@ class GoTypeDescriptorTarget(unittest.TestCase):
 
     def test_stripped_matches_unstripped(self):
         for prog in ("basics", "builtins", "iface", "maps"):
-            full = descriptors(self.VERSION, prog)
-            stripped = descriptors(self.VERSION, prog + "_stripped")
+            # fresh parses: the memoized objects accumulate lazily resolved names from other tests
+            full = read_go_type_descriptors(project(self.VERSION, prog), use_cache=False)
+            stripped = read_go_type_descriptors(project(self.VERSION, prog + "_stripped"), use_cache=False)
             assert project(self.VERSION, prog + "_stripped").loader.find_symbol("runtime.firstmoduledata") is None
             assert stripped.moduledata_addr is not None and stripped.go_version == self.VERSION
             main_full = {n: t for n, t in full.types.types.items() if n.startswith("main.")}
             main_stripped = {n: t for n, t in stripped.types.types.items() if n.startswith("main.")}
             assert main_full == main_stripped
             assert main_full or prog in ("basics", "maps")
-            assert set(full.addr_to_name.values()) == set(stripped.addr_to_name.values())
+            a, b = set(full.addr_to_name.values()), set(stripped.addr_to_name.values())
+            assert a == b, (prog, sorted(a - b)[:8], sorted(b - a)[:8])
             assert set(full.itabs.values()) == set(stripped.itabs.values())
 
     def test_basics_point_is_dead_stripped(self):

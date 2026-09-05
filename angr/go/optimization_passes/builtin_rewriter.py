@@ -59,6 +59,14 @@ def _strip_converts(expr: Expression) -> Expression:
     return expr
 
 
+def _looks_like_text(data: str) -> bool:
+    """Printable text (a format string, a message), not a run of bytes that happens to decode."""
+    if not data:
+        return False
+    printable = sum(1 for ch in data if ch.isprintable() or ch in "\n\t\r")
+    return printable >= 0.9 * len(data)
+
+
 def _const(expr: Expression) -> int | None:
     return expr.value_int if isinstance(expr, Const) else None
 
@@ -393,13 +401,41 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             # go1.25+ inlines newobject into size-class specialized mallocgc variants
             rule = GoBuiltinRewriter._rw_mallocgc
         if rule is None:
-            return None
+            return self._rewrite_guessed_strings(call)
         args = list(call.args or [])
         try:
             return rule(self, call, args)
         except Exception:  # pylint:disable=broad-exception-caught
             l.debug("Rewriting %s failed", name, exc_info=True)
             return None
+
+    def _rewrite_guessed_strings(self, call: Call) -> Expression | None:
+        """
+        A callee without a Go signature keeps its guessed prototype; two consecutive constant arguments that spell
+        (read-only address, small length) of readable text are a string, passed as its two words.
+        """
+        if not call.tags.get("is_prototype_guessed", True):
+            return None
+        args = list(call.args or [])
+        if len(args) < 2:
+            return None
+        out = []
+        i = 0
+        changed = False
+        while i < len(args):
+            if i + 1 < len(args) and isinstance(args[i], Const) and isinstance(args[i + 1], Const):
+                n = _const(args[i + 1])
+                literal = self.values.literal(args[i], args[i + 1]) if n and 0 < n <= 4096 else None
+                if literal is not None and _looks_like_text(literal.data):
+                    out.append(literal)
+                    i += 2
+                    changed = True
+                    continue
+            out.append(args[i])
+            i += 1
+        if not changed:
+            return None
+        return Call(call.idx, call.target, out, bits=call.bits, **call.tags)
 
     def _rw_newobject(self, call: Call, args: list) -> Expression | None:
         ty = self.type_name(args[0]) if len(args) == 1 else None
@@ -480,8 +516,28 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             lhs = self.values.literal(args[0], size)
             ok = ok or lhs is not None
         if lhs is None or rhs is None or not ok:
-            return None
+            return self._memequal_fallback(call, args, a is None, b is None)
         return self.compare("CmpEQ", lhs, rhs, call.bits, call.tags)
+
+    def _memequal_fallback(self, call: Call, args: list, a_untracked: bool, b_untracked: bool) -> Expression | None:
+        """
+        An operand that is not a tracked string: a word-sized compare becomes a load compared with the literal's
+        value; anything else keeps the call, with the rodata pointer spelled as the literal of the compared length.
+        """
+        size = args[2]
+        n = _const(size)
+        lit_a = self.values.literal(args[0], size) if a_untracked else None
+        lit_b = self.values.literal(args[1], size) if b_untracked else None
+        if lit_a is None and lit_b is None:
+            return None
+        if n in (1, 2, 4, 8) and (lit_a is None) != (lit_b is None):
+            lit, other = (lit_a, args[1]) if lit_a is not None else (lit_b, args[0])
+            value = int.from_bytes(
+                lit.data.encode("utf-8"), "little" if self.project.arch.memory_endness == "Iend_LE" else "big"
+            )
+            load = Load(self.manager.next_atom(), other, n, self.project.arch.memory_endness, **other.tags)
+            return self.compare("CmpEQ", load, Const(self.manager.next_atom(), value, n * 8), call.bits, call.tags)
+        return self.builtin(call, "runtime.memequal", [lit_a or args[0], lit_b or args[1], size], bits=call.bits)
 
     def _rw_memequal_n(self, call: Call, args: list, size: int) -> Expression | None:
         if len(args) != 2:

@@ -140,7 +140,8 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
 
     def _flatten_hash_trees(self) -> bool:
         changed = False
-        for root in list(self._graph.nodes):
+        # outer trees first: an inner tree flattened first leaves the outer one looking at a jump block
+        for root in sorted(self._graph.nodes, key=lambda b: (b.addr, b.idx or 0)):
             if root not in self._graph:
                 continue
             hashed = self._hash_definition(root)
@@ -154,15 +155,54 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
             if len(leaves) < 1:
                 continue
             self._rewire_chain(root, leaves, default, internal)
+            self._drop_unreachable()
             l.debug("Flattened a %d-case type switch hash tree in %s", len(leaves), self._func.name)
             changed = True
         return changed
 
-    def _hash_definition(self, block: Block) -> tuple[VirtualVariable, VirtualVariable] | None:
-        """``h = t.Hash`` in ``block`` when the block ends with a comparison on ``h``."""
+    def _drop_unreachable(self) -> None:
+        """Blocks the rewiring cut off (the duplicate default copy blocks) go, with their phi entries."""
+        entry = self.entry_node_addr
+        while True:
+            dead = [b for b in self._graph.nodes if self._graph.in_degree(b) == 0 and (b.addr, b.idx) != entry]
+            if not dead:
+                return
+            for block in dead:
+                self._graph.remove_node(block)
+                self._block_by_addr_and_idx.pop((block.addr, block.idx), None)
+                self._update_phi_variables_after_removing_block(self._graph, [], block)
+
+    def _hash_load(self, expr: Expression) -> VirtualVariable | None:
+        """``t`` when ``expr`` is ``Load(t + 2*ws, 4)`` (``Type.Hash`` and ``itab.hash`` both sit there)."""
+        if isinstance(expr, Convert):
+            expr = expr.operand
+        if not (isinstance(expr, Load) and expr.size == 4):
+            return None
+        addr = expr.addr
+        if (
+            isinstance(addr, BinaryOp)
+            and addr.op == "Add"
+            and isinstance(addr.operands[0], VirtualVariable)
+            and isinstance(addr.operands[1], Const)
+            and addr.operands[1].value == 2 * self._ws
+        ):
+            return addr.operands[0]
+        return None
+
+    def _hash_definition(self, block: Block) -> tuple[VirtualVariable | None, VirtualVariable] | None:
+        """
+        ``h = t.Hash`` in ``block`` when the block ends with a comparison on ``h``; or, when the hash is read inside
+        the comparison itself, ``(None, t)``.
+        """
         last = block.statements[-1] if block.statements else None
         if not isinstance(last, ConditionalJump):
             return None
+        cond = last.condition
+        if isinstance(cond, BinaryOp) and cond.op in _HASH_COMPARES:
+            for a, b in ((cond.operands[0], cond.operands[1]), (cond.operands[1], cond.operands[0])):
+                t = self._hash_load(a)
+                if t is not None and isinstance(b, Const):
+                    return None, t
         for stmt in block.statements:
             if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)):
                 continue
@@ -178,19 +218,24 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
                 and isinstance(addr.operands[0], VirtualVariable)
                 and isinstance(addr.operands[1], Const)
                 and addr.operands[1].value == 2 * self._ws
-                and self._hash_compare(last.condition, stmt.dst) is not None
+                and self._hash_compare(last.condition, stmt.dst, addr.operands[0]) is not None
             ):
                 return stmt.dst, addr.operands[0]
         return None
 
-    @staticmethod
-    def _hash_compare(cond: Expression, hash_vvar: VirtualVariable):
+    def _hash_compare(self, cond: Expression, hash_vvar: VirtualVariable | None, type_word: VirtualVariable = None):
         if not (isinstance(cond, BinaryOp) and cond.op in _HASH_COMPARES):
             return None
         for a, b in ((cond.operands[0], cond.operands[1]), (cond.operands[1], cond.operands[0])):
+            if not isinstance(b, Const):
+                continue
             x = a.operand if isinstance(a, Convert) else a
-            if isinstance(x, VirtualVariable) and x.varid == hash_vvar.varid and isinstance(b, Const):
+            if hash_vvar is not None and isinstance(x, VirtualVariable) and x.varid == hash_vvar.varid:
                 return b.value
+            if hash_vvar is None and type_word is not None:
+                t = self._hash_load(a)
+                if t is not None and t.varid == type_word.varid:
+                    return b.value
         return None
 
     @staticmethod
@@ -203,9 +248,20 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
         return None
 
     def _block_at(self, target) -> Block | None:
-        if isinstance(target, Const):
-            return self._block_by_addr_and_idx.get((target.value, None))
-        return None
+        """The block a jump target names, looking through blocks that only jump on."""
+        if not isinstance(target, Const):
+            return None
+        block = self._block_by_addr_and_idx.get((target.value, None))
+        seen = set()
+        while block is not None and block not in seen:
+            seen.add(block)
+            if not all(isinstance(st, (Label, Jump)) for st in block.statements):
+                return block
+            succs = list(self._graph.successors(block))
+            if len(succs) != 1:
+                return block
+            block = succs[0]
+        return block
 
     def _collect_tree(self, root: Block, hash_vvar: VirtualVariable, type_word: VirtualVariable):
         """
@@ -219,7 +275,10 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
 
         def is_internal(block: Block) -> bool:
             last = block.statements[-1] if block.statements else None
-            if not isinstance(last, ConditionalJump) or self._hash_compare(last.condition, hash_vvar) is None:
+            if (
+                not isinstance(last, ConditionalJump)
+                or self._hash_compare(last.condition, hash_vvar, type_word) is None
+            ):
                 return False
             return all(
                 isinstance(st, (Label, ConditionalJump)) or (block is root and isinstance(st, Assignment))
@@ -262,6 +321,13 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
 
         if not visit(root):
             return None
+        if len(defaults) > 1:
+            # phi elimination gives each failing branch its own copy block ahead of the join; identical copy
+            # blocks that fall through to one target are one default
+            keys = {self._default_key(d) for d in defaults}
+            if len(keys) != 1 or None in keys:
+                return None
+            defaults = {min(defaults, key=lambda b: (b.addr, b.idx or 0))}
         if len(defaults) != 1 or not leaves:
             return None
         # every leaf and internal block must only be reachable from within the tree (the root aside)
@@ -273,6 +339,22 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
                 return None
         default = next(iter(defaults))
         return leaves, default, internal
+
+    def _default_key(self, block: Block):
+        """A key identifying a copy-only block by its assignments and its single successor, or None."""
+        succs = list(self._graph.successors(block))
+        if len(succs) != 1:
+            return None
+        body = []
+        for stmt in block.statements:
+            if isinstance(stmt, (Label, Jump)):
+                continue
+            if isinstance(stmt, Assignment) and not isinstance(stmt.src, (Call, Phi)) and find_call(stmt) is None:
+                # the destinations are per-path SSA names feeding one phi; the sources are what matters
+                body.append(str(stmt.src))
+                continue
+            return None
+        return (tuple(body), succs[0].addr, succs[0].idx)
 
     def _rewire_chain(self, root: Block, leaves: list[Block], default: Block, internal: list[Block]) -> None:
         # the root keeps its statements and jumps straight to the first descriptor test
@@ -286,9 +368,14 @@ class GoTypeSwitchSimplifier(OptimizationPass, CFGTransformationMixin):
         for i, leaf in enumerate(leaves):
             nxt = leaves[i + 1] if i + 1 < len(leaves) else default
             jump = leaf.statements[-1]
-            old = self._block_at(jump.false_target)
-            if old is nxt:
+            if self._block_at(jump.false_target) is nxt:
                 continue
+            # the edge to drop is the direct one (a jump-only block in between becomes unreachable)
+            old = (
+                self._block_by_addr_and_idx.get((jump.false_target.value, None))
+                if isinstance(jump.false_target, Const)
+                else None
+            )
             leaf.statements[-1] = ConditionalJump(
                 jump.idx,
                 jump.condition,

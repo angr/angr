@@ -1077,6 +1077,14 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
 
+        if not hasattr(condition, "verbose_op"):
+            # an atom without an operator (a struct or string literal, a call): keep it opaque
+            if condition.bits == 1:
+                var = claripy.BoolS(f"ailexpr_opaque_{hash(condition)}", explicit_name=True)
+            else:
+                var = claripy.BVS(f"ailexpr_opaque_{hash(condition)}", condition.bits, explicit_name=True)
+            self._condition_mapping[var.args[0]] = condition
+            return var
         lambda_expr = _ail2claripy_op_mapping.get(condition.verbose_op)
         if lambda_expr is None:
             # fall back to op

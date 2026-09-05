@@ -631,6 +631,9 @@ class SimEngineVRAIL(
     def _handle_expr_Const(self, expr: ailment.Expr.Const):
         return self._get_const(expr.value, expr.bits, expr=expr)
 
+    def _handle_unsupported_op(self, expr):
+        return RichR(self.state.top(expr.bits))
+
     def _handle_expr_Convert(self, expr: ailment.Expr.Convert):
         r = self._expr(expr.operand)
         typevar = None

@@ -680,7 +680,8 @@ class GoRuntimeRewriter(OptimizationPass):
             return self._stmt(new_call, stmt.idx, ret_expr=dst)
         if kind in ("chanrecv1", "chanrecv2") and len(args) == 2:
             # the value is written through the pointer, only the ok flag is assigned
-            return self._rewrite_chanrecv_statement(block, stmt_idx, call, tags, ok_dst=dst)
+            result = self._rewrite_chanrecv_statement(block, stmt_idx, call, tags, ok_dst=dst)
+            return stmt if result is call else result
         return stmt
 
     def _rewrite_tuple_access(self, stmt: Statement, dst: VirtualVariable, m, k, elem: SimType | None, tags: dict):
@@ -832,9 +833,15 @@ class GoRuntimeRewriter(OptimizationPass):
             return vvar
         return VirtualVariable(self._new_idx(), vvar.varid, bits, vvar.category, oident=vvar.oident)
 
+    def _result_registers(self) -> tuple[int, int]:
+        """Offsets of the first two ABIInternal result registers (rax/rbx on amd64, x0/x1 on arm64)."""
+        regs = self.project.arch.registers
+        names = ("rax", "rbx") if "rax" in regs else ("x0", "x1") if "x0" in regs else ("eax", "ebx")
+        return regs[names[0]][0], regs[names[1]][0]
+
     def _tuple_vvars(self, value_bits: int) -> tuple[VirtualVariable, VirtualVariable, VirtualVariable]:
         bits = self.project.arch.bits
-        rax, rbx = self.project.arch.registers["rax"][0], self.project.arch.registers["rbx"][0]
+        rax, rbx = self._result_registers()
         value = VirtualVariable(self._new_idx(), self._new_varid(), max(value_bits, bits), VVC.REGISTER, oident=rax)
         ok = VirtualVariable(self._new_idx(), self._new_varid(), bits, VVC.REGISTER, oident=rbx)
         combo = VirtualVariable(

@@ -111,6 +111,7 @@ class GoTypeDescriptors:
         "addr_to_name",
         "go_version",
         "itabs",
+        "methods",
         "moduledata_addr",
         "name_to_addr",
         "types",
@@ -127,8 +128,11 @@ class GoTypeDescriptors:
         moduledata_addr: int | None = None,
         types_addr: int | None = None,
         reader: _Reader | None = None,
+        methods: dict[int, tuple[str, str, str]] | None = None,
     ):
         self._reader = reader
+        # method function address -> (receiver type, method name, func type without receiver)
+        self.methods: dict[int, tuple[str, str, str]] = methods if methods is not None else {}
         self.go_version = go_version
         self.types = types if types is not None else GoSignatureSet(go_version=go_version, goarch=goarch)
         self.addr_to_name = addr_to_name if addr_to_name is not None else {}
@@ -257,6 +261,9 @@ class _Reader:
         self._pending: list[tuple[int, str, _Header]] = []
         self.types: dict[str, GoNamedType] = {}
         self.itabs: dict[int, tuple[str, str]] = {}
+        # method function address -> (receiver type, method name, func type without receiver)
+        self.methods: dict[int, tuple[str, str, str]] = {}
+        self._text: int | None = None
 
     # ------------------------------------------------------------------ primitives
 
@@ -459,6 +466,12 @@ class _Reader:
                 self.spell(addr)
             else:
                 log.debug("skipping non-descriptor typelink target %#x", addr)
+        self._drain()
+        # unnamed types with method tables (pointer types carry the pointer-receiver methods)
+        for addr in roots:
+            h = self.header(addr) if self.looks_like_descriptor(addr) else None
+            if h is not None and h.tflag & TFLAG_UNCOMMON and not h.tflag & TFLAG_NAMED:
+                self._methods(addr, h)
         self._drain()
 
         for addr in itab_addrs:
@@ -738,8 +751,17 @@ class _Reader:
             )
         return out
 
+    def _text_base(self) -> int | None:
+        """``moduledata.text``: the base of the method tables' text offsets."""
+        if self._text is None and self.md is not None:
+            self._text = self.word(self.md.addr + _MD_TEXT * self.ptr) or 0
+        return self._text or None
+
     def _methods(self, addr: int, h: _Header) -> None:
-        """Spell the method types of a concrete type so they land in addr_to_name."""
+        """
+        Spell the method types of a concrete type so they land in addr_to_name, and record each method's function
+        address with its signature (``tfn`` is the method itself, ``ifn`` the wrapper an itab points at).
+        """
         base = addr + self.kind_size(h.kind)
         r = self.mem.unpack(self._fmt_uncommon, base)
         if r is None:
@@ -750,10 +772,25 @@ class _Reader:
         raw = self.mem.unpack(self.end + "iiii" * mcount, base + moff)
         if raw is None:
             return
+        recv = self.spell(addr)
+        text = self._text_base()
         for i in range(mcount):
-            t = self.type_off(raw[4 * i + 1])
-            if t is not None and self.looks_like_descriptor(t):
-                self.spell(t)
+            name_off, mtyp, ifn, tfn = raw[4 * i : 4 * i + 4]
+            t = self.type_off(mtyp) if mtyp != -1 else None
+            if t is None or not self.looks_like_descriptor(t):
+                continue
+            ftype = self.spell(t)
+            if text is None or not ftype.startswith("func("):
+                continue
+            try:
+                mname = self.name_off(name_off)
+            except Exception:  # pylint:disable=broad-exception-caught
+                continue
+            if tfn != -1:
+                self.methods.setdefault(text + tfn, (recv, mname, ftype))
+            if ifn != -1 and ifn != tfn:
+                # the interface wrapper takes the pointer receiver
+                self.methods.setdefault(text + ifn, (recv if recv.startswith("*") else "*" + recv, mname, ftype))
 
     # ------------------------------------------------------------------ named types
 
@@ -809,6 +846,7 @@ def read_go_type_descriptors(project: Project, use_cache: bool = True) -> GoType
         types=GoSignatureSet(go_version=go_version, goarch=goarch, types=reader.types),
         addr_to_name=reader._names,
         itabs=reader.itabs,
+        methods=reader.methods,
         moduledata_addr=reader.md.addr if found and reader.md is not None else None,
         types_addr=reader.md.types if found and reader.md is not None else None,
         reader=reader if found else None,
