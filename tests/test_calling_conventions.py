@@ -10,8 +10,9 @@ from unittest import TestCase, main
 
 import archinfo
 
-from angr import Project, load_shellcode, types
+from angr import Project, claripy, load_shellcode, types
 from angr.calling_conventions import (
+    SimCCAArch64,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftFastcall,
     SimCCN32,
@@ -30,11 +31,14 @@ from angr.calling_conventions import (
 )
 from angr.sim_type import (
     SimCppClass,
+    SimStruct,
     SimStructValue,
     SimTypeChar,
     SimTypeDouble,
+    SimTypeFloat,
     SimTypeLongLong,
     SimTypeRef,
+    SimUnion,
     parse_file,
 )
 
@@ -247,6 +251,87 @@ class TestCallingConvention(TestCase):
         c_float = struct.unpack("<f", struct.pack("<I", c_bits))[0]
         assert abs(c_float - 102.3) < 0.00001
         assert (a3_val >> 32) == 60
+
+    def test_aarch64_float_args(self):
+        arch = archinfo.arch_from_id("aarch64")
+        cc = SimCCAArch64(arch)
+
+        def locs(*args):
+            return cc.arg_locs(SimTypeFunction(list(args), SimTypeInt()).with_arch(arch))
+
+        integer = SimTypeInt()
+        double = SimTypeDouble()
+        pair = SimStruct({"a": SimTypeDouble(), "b": SimTypeDouble()}, name="Pair")
+        triple = SimStruct({"x": SimTypeFloat(), "y": SimTypeFloat(), "z": SimTypeFloat()}, name="Triple")
+        array = SimStruct({"v": SimTypeFixedSizeArray(SimTypeDouble(), 3)}, name="Array")
+
+        # Floating-point arguments have eight registers of their own and do not consume integer ones.
+        assert locs(double, integer, double) == [SimRegArg("v0", 8), SimRegArg("x0", 4), SimRegArg("v1", 8)]
+        assert locs(*[double] * 9)[8] == SimStackArg(0, 8)
+
+        # Every member of a homogeneous floating-point aggregate takes a register of its own.
+        assert locs(pair)[0].get_footprint() == {SimRegArg("v0", 8), SimRegArg("v1", 8)}
+        assert locs(triple)[0].get_footprint() == {SimRegArg("v0", 4), SimRegArg("v1", 4), SimRegArg("v2", 4)}
+        assert locs(array)[0].get_footprint() == {SimRegArg("v0", 8), SimRegArg("v1", 8), SimRegArg("v2", 8)}
+
+        # Seven doubles leave one register free, which a two-member aggregate cannot use: it goes on the
+        # stack, and the register it skipped is not given to the argument after it either.
+        spilled = locs(*[double] * 7, pair, double)
+        assert spilled[6] == SimRegArg("v6", 8)
+        assert spilled[7].get_footprint() == {SimStackArg(0, 8), SimStackArg(8, 8)}
+        assert spilled[8] == SimStackArg(0x10, 8)
+
+        assert cc.return_val(SimTypeDouble().with_arch(arch)) == SimRegArg("v0", 8)
+        assert cc.return_val(SimTypeFloat().with_arch(arch)) == SimRegArg("v0", 4)
+
+    def test_aarch64_homogeneous_float_aggregates(self):
+        arch = archinfo.arch_from_id("aarch64")
+        cc = SimCCAArch64(arch)
+        floats = SimStruct({"a": SimTypeFloat(), "b": SimTypeFloat()}, name="TwoFloats")
+
+        # A union is one only if every member is, and the member with the most of them decides the layout.
+        homogeneous = SimUnion({"p": floats, "q": SimTypeFloat()}, name="Homogeneous")
+        proto = SimTypeFunction([homogeneous], SimTypeInt()).with_arch(arch)
+        assert cc.arg_locs(proto)[0].get_footprint() == {SimRegArg("v0", 4), SimRegArg("v1", 4)}
+
+        # None of these is homogeneous, so none of them goes in the SIMD registers: a member of another
+        # kind, a member of another floating-point type, or more than four members.
+        for name, aggregate in (
+            ("mixed union", SimUnion({"f": SimTypeFloat(), "i": SimTypeInt()}, name="MixedUnion")),
+            ("widened union", SimUnion({"f": SimTypeFloat(), "d": SimTypeDouble()}, name="WidenedUnion")),
+            ("mixed struct", SimStruct({"a": SimTypeDouble(), "n": SimTypeLongLong()}, name="MixedStruct")),
+            ("five doubles", SimStruct({k: SimTypeDouble() for k in "abcde"}, name="FiveDoubles")),
+            ("long array", SimStruct({"v": SimTypeFixedSizeArray(SimTypeDouble(), 5)}, name="LongArray")),
+        ):
+            assert cc._hfa_members(aggregate.with_arch(arch)) is None, name  # pylint: disable=protected-access
+
+    def test_aarch64_float_args_reach_the_callee(self):
+        proj = Project(os.path.join(test_location, "aarch64", "hfa_args_aarch64.so"), auto_load_libs=False)
+        double = SimTypeDouble()
+        pair = SimStruct({"a": SimTypeDouble(), "b": SimTypeDouble()}, name="Pair")
+        triple = SimStruct({"x": SimTypeFloat(), "y": SimTypeFloat(), "z": SimTypeFloat()}, name="Triple")
+        cases = [
+            ("take_pair", SimTypeFunction([pair], double), [(1.5, 2.25)], 3.75),
+            ("take_triple", SimTypeFunction([triple], SimTypeFloat()), [(1.0, 2.0, 4.0)], 7.0),
+            (
+                "take_mixed",
+                SimTypeFunction([SimTypeLongLong(), triple, double], double),
+                [10, (1.0, 2.0, 4.0), 0.5],
+                17.5,
+            ),
+            (
+                "spill_pair",
+                SimTypeFunction([double] * 7 + [pair, double], double),
+                [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, (8.0, 9.0), 10.0],
+                55.0,
+            ),
+        ]
+        for name, prototype, args, expected in cases:
+            symbol = proj.loader.main_object.get_symbol(name)
+            assert symbol is not None
+            result = proj.factory.callable(symbol.rebased_addr, prototype=prototype)(*args)
+            assert isinstance(result, claripy.ast.FP) and not result.symbolic
+            assert result.args[0] == expected
 
     def test_simcc_arg_locs_returnty_unresolved_simtyperef(self):
         func_proto = SimTypeFunction([], SimTypeRef("std::wstring_t", SimCppClass))

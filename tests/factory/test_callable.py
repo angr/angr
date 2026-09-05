@@ -204,6 +204,9 @@ class TestCallable(unittest.TestCase):
     def test_manysum_x86_64(self):
         self.run_manysum("x86_64")
 
+    def test_manyfloatsum_aarch64(self):
+        self.run_manyfloatsum("aarch64")
+
     def test_manyfloatsum_i386(self):
         self.run_manyfloatsum("i386")
 
