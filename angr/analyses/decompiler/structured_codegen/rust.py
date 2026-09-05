@@ -44,6 +44,7 @@ from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
+from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.sim_type import (
     EnumVariant,
     RustSimStruct,
@@ -77,7 +78,7 @@ from angr.sim_type import (
 )
 from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimTemporaryVariable, SimVariable
 from angr.utils.constants import should_use_hex
-from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
+from angr.utils.loader import is_known_writable_address
 
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
@@ -3295,7 +3296,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
             return self._access_constant_offset(result, remainder, data_type, lvalue, renegotiate_type)
 
-        if isinstance(base_type, SimStruct):
+        if isinstance(base_type, SimStruct) and base_type.offsets:
             # find the field that we're accessing
             field_name, field_offset = max(
                 ((x, y) for x, y in base_type.offsets.items() if y <= remainder), key=lambda x: x[1]
@@ -3516,7 +3517,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             # nothing has the ability to escape the kernel
             # go in deeper
-            if isinstance(kernel_type, SimStruct):
+            if isinstance(kernel_type, SimStruct) and kernel_type.offsets:
                 field_name, field_offset = max(
                     ((x, y) for x, y in kernel_type.offsets.items() if y <= constant), key=lambda x: x[1]
                 )
@@ -4056,26 +4057,16 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     reference_values[type_] = self.project.kb.functions[expr.value]
                     function_pointer = True
 
+                # the constant may be a Rust &str fat pointer: a data pointer followed by a length word
+                elif (decoded_str := extract_str_from_addr(self.project, expr.value)) is not None:
+                    type_ = RustSimTypeStrRef()
+                    reference_values[type_] = decoded_str
+                    inline_string = True
+
                 elif (section := self.project.loader.find_section_containing(expr.value)) and section.is_readable:
-                    memory = self.project.loader.memory
-                    str_addr = memory.unpack(expr.value, self.project.arch.struct_fmt())[0]
-                    if (
-                        (section := self.project.loader.find_section_containing(str_addr))
-                        and section.is_readable
-                        and not section.is_writable
-                    ):
-                        str_len = memory.unpack(expr.value + self.project.arch.bytes, self.project.arch.struct_fmt())[0]
-                        try:
-                            decoded_str = memory.load(str_addr, str_len).decode("utf-8")
-                            type_ = RustSimTypeStrRef()
-                            reference_values[type_] = decoded_str
-                            inline_string = True
-                        except UnicodeDecodeError:
-                            pass
                     # If we failed to extract UTF-8 characters, it might be an empty string
-                    if not inline_string and isinstance(type_, RustSimTypeStrRef):
-                        decoded_str = ""
-                        reference_values[type_] = decoded_str
+                    if isinstance(type_, RustSimTypeStrRef):
+                        reference_values[type_] = ""
                         inline_string = True
 
                 # pure guessing: is it possible that it's a string?
@@ -4091,20 +4082,16 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                             self.project.arch
                         )
                         reference_values[type_] = self._cfg.memory_data[expr.value]
-                        # is it a constant string?
-                        if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(
-                            self.project, expr.value
-                        ):
+                        # is it a constant string? an address the loader cannot call writable counts as one
+                        if not is_known_writable_address(self.project, expr.value):
                             inline_string = True
                     elif md.sort == MemoryDataSort.UnicodeString:
                         type_ = RustSimTypeReference(SimTypeWideChar().with_arch(self.project.arch)).with_arch(
                             self.project.arch
                         )
                         reference_values[type_] = self._cfg.memory_data[expr.value]
-                        # is it a constant string?
-                        if is_in_readonly_segment(self.project, expr.value) or is_in_readonly_section(
-                            self.project, expr.value
-                        ):
+                        # is it a constant string? an address the loader cannot call writable counts as one
+                        if not is_known_writable_address(self.project, expr.value):
                             inline_string = True
 
         if type_ is None:
