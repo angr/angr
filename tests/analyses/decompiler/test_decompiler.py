@@ -3002,7 +3002,7 @@ class TestDecompiler(unittest.TestCase):
             d.codegen.text,
             re.DOTALL,
         )
-        self.assertIsNotNone(error_region)
+        assert error_region is not None
         error_region_body = error_region.group("body")
         self.assertNotIn("else if (!v2)", error_region_body)
         self.assertIn('error(0, v5, dcgettext(NULL, "setting times of %s", 5));', error_region_body)
