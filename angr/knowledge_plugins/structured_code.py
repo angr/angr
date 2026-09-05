@@ -305,7 +305,7 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         return [flavor for func, flavor in self.cached if func == item]
 
     def all_flavors(self, item):  # pylint:disable=no-self-use, unused-argument
-        return ["pseudocode", "rust"]
+        return ["pseudocode", "rust", "go"]
 
     def copy(self):
         raise NotImplementedError

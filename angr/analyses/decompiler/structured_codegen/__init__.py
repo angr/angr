@@ -10,6 +10,7 @@ from .base import (
 from .c import CStructuredCodeGenerator, CStructuredCodeWalker
 from .dummy import DummyStructuredCodeGenerator
 from .dwarf_import import ImportSourceCode
+from .go import GoStructuredCodeGenerator
 from .rust import RustStructuredCodeGenerator
 
 __all__ = (
@@ -17,6 +18,7 @@ __all__ = (
     "CStructuredCodeGenerator",
     "CStructuredCodeWalker",
     "DummyStructuredCodeGenerator",
+    "GoStructuredCodeGenerator",
     "ImportSourceCode",
     "InstructionMapping",
     "InstructionMappingElement",

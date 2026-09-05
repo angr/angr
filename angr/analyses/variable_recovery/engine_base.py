@@ -221,7 +221,9 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             variable_manager = self.state.variable_manager["global"]
 
             # special case for global variables: find existing variable by base address
-            existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
+            existing_vars = [
+                (var, global_var_addr - var.addr) for var in variable_manager.get_global_variables(global_var_addr)
+            ]
 
             if not existing_vars:
                 sym = self.project.loader.find_symbol(global_var_addr)
@@ -275,7 +277,9 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             global_var_addr = data.concrete_value
             variable_manager = self.state.variable_manager["global"]
             # special case for global variables: find existing variable by base address
-            existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
+            existing_vars = [
+                (var, global_var_addr - var.addr) for var in variable_manager.get_global_variables(global_var_addr)
+            ]
         else:
             return
 
@@ -676,7 +680,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         if not existing_vars:
             # special case for global variables: find existing variable by base address
-            existing_vars = {(var, (offset, elem_size)) for var in variable_manager.get_global_variables(addr)}
+            existing_vars, offset, elem_size = self._global_variables_at(variable_manager, addr, offset, elem_size)
 
         if not existing_vars:
             variable = SimMemoryVariable(
@@ -983,7 +987,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
 
         if not existing_vars:
             # special case for global variables: find existing variable by base address
-            existing_vars = {(var, (offset, elem_size)) for var in variable_manager.get_global_variables(addr)}
+            existing_vars, offset, elem_size = self._global_variables_at(variable_manager, addr, offset, elem_size)
 
         if not existing_vars:
             # is this address mapped?
@@ -1001,8 +1005,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         codeloc = CodeLocation(
             self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
         )
-        for variable, _ in existing_vars:
-            variable_manager.read_from(variable, None, codeloc, atom=expr)
+        for variable, var_offset in existing_vars:
+            concrete = (
+                var_offset[0].concrete_value * var_offset[1]
+                if isinstance(var_offset, tuple) and var_offset[0] is not None and var_offset[0].concrete
+                else None
+            )
+            variable_manager.read_from(variable, concrete or None, codeloc, atom=expr)
 
         variable, _ = next(iter(existing_vars))
         # create type constraints
@@ -1026,6 +1035,20 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
 
         return RichR(self.state.top(size * self.project.arch.byte_width), typevar=typevar)
+
+    def _global_variables_at(self, variable_manager, addr: int, offset, elem_size):
+        """
+        Existing global variables covering ``addr``. An access that lands inside a multi-word global is recorded at
+        its byte offset into that variable.
+        """
+        found = variable_manager.get_global_variables(addr)
+        if found and offset is None and elem_size is None:
+            var = next(iter(found))
+            delta = addr - var.addr
+            if delta:
+                offset = claripy.BVV(delta, self.project.arch.bits)
+                elem_size = 1
+        return {(var, (offset, elem_size)) for var in found}, offset, elem_size
 
     def _read_from_register(self, offset, size, expr=None, force_variable_size=None, create_variable: bool = True):
         """

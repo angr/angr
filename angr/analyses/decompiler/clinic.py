@@ -54,6 +54,7 @@ from angr.calling_conventions import (
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
+from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -2710,6 +2711,7 @@ class Clinic(Analysis, Serializable):
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
+            type_translator=GoTypeTranslator(self.project.arch) if self.flavor == "go" else None,
             variable_map=self.variable_map,
         )
         # get ground-truth types
@@ -2718,6 +2720,12 @@ class Clinic(Analysis, Serializable):
         for variable in var_manager.variables_with_manual_types:
             vartype = var_manager.variable_to_types.get(variable, None)
             if vartype is not None:
+                for tv in vr.var_to_typevars[variable]:
+                    groundtruth[tv] = vartype
+        global_manager = tmp_kb.variables["global"]
+        for variable in global_manager.variables_with_manual_types:
+            vartype = global_manager.variable_to_types.get(variable, None)
+            if vartype is not None and variable in vr.var_to_typevars:
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
 
@@ -3103,7 +3111,9 @@ class Clinic(Analysis, Serializable):
                             global_vars = {global_var}
                 if global_vars:
                     global_var = _pick_var(global_vars)
-                    self._set_reference_variable(expr, global_var, 0)
+                    # the constant may point inside a multi-word global
+                    delta = expr.value_int - global_var.addr if isinstance(global_var.addr, int) else 0
+                    self._set_reference_variable(expr, global_var, delta if 0 <= delta < (global_var.size or 1) else 0)
                 else:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
