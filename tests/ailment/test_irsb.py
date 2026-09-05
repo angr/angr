@@ -94,6 +94,7 @@ class TestIrsb(unittest.TestCase):
         base_addr = block.addr & ~1
         memory = project.loader.memory_ro_view or project.loader.memory
         start, backer = next(memory.backers(base_addr))
+        assert isinstance(backer, (bytes, bytearray, memoryview))
         converted_from_lift = VEXIRSBConverter.convert_from_lift(
             project.arch,
             block.addr,

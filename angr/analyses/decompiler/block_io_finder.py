@@ -243,7 +243,7 @@ class BlockIOFinder(AILBlockViewer):
 
         return args
 
-    def _handle_DirtyExpression(
+    def _handle_DirtyExpression(  # type: ignore
         self,
         expr_idx: int,
         expr: DirtyExpression,
@@ -282,7 +282,7 @@ class BlockIOFinder(AILBlockViewer):
 
         return inputs
 
-    def _handle_MultiStatementExpression(
+    def _handle_MultiStatementExpression(  # type: ignore
         self,
         expr_idx: int,
         expr: MultiStatementExpression,

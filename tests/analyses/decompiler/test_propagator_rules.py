@@ -55,7 +55,11 @@ class TestPropagatorRules(unittest.TestCase):
             run_ccc=False,
         )
 
-        dec = proj.analyses.Decompiler(cfg.functions[func_addr], cfg=cfg, fail_fast=True)
+        dec = proj.analyses.Decompiler(
+            cfg.functions[func_addr],
+            cfg=cfg,
+            fail_fast=True,  # pyright: ignore[reportCallIssue]
+        )
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
