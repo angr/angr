@@ -4593,6 +4593,7 @@ class TestDecompiler(unittest.TestCase):
         assert decompilation.codegen.text is not None
         clinic = decompilation.clinic
         assert clinic is not None
+        assert clinic.graph is not None
         self.assertEqual(clinic.entry_node_addr, (function_addr, None))
         entry_nodes = [node for node in clinic.graph if (node.addr, node.idx) == clinic.entry_node_addr]
         self.assertEqual(len(entry_nodes), 1)
