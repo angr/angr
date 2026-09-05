@@ -25,6 +25,9 @@ class TestIrsb(unittest.TestCase):
         "554889E54883EC40897DCC488975C048C745F89508400048C745F0B6064000488B45C04883C008488B00BEA70840004889C7E883FEFFFF"
     )
     block_addr = 0x4006C6
+    # A Linux kernel text address: an ordinary address for a 64-bit target that
+    # does not fit in a signed 64-bit integer.
+    high_block_addr = 0xFFFFFFFF81000330
 
     def test_convert_from_vex_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
@@ -32,6 +35,20 @@ class TestIrsb(unittest.TestCase):
         irsb = pyvex.IRSB(self.block_bytes, self.block_addr, arch, opt_level=0)
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
+
+    def test_convert_from_vex_irsb_at_high_address(self):
+        arch = archinfo.arch_from_id("AMD64")
+        irsb = pyvex.IRSB(self.block_bytes, self.high_block_addr, arch, opt_level=0)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(
+            arch, self.high_block_addr, self.block_bytes, ailment.Manager(), opt_level=0
+        )
+        assert from_py == from_lift
+        for block in (from_py, from_lift):
+            assert block.addr == self.high_block_addr
+            assert block.statements
+            for stmt in block.statements:
+                assert self.high_block_addr <= stmt.tags["ins_addr"] < self.high_block_addr + irsb.size
 
     def test_convert_from_pcode_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
@@ -42,6 +59,22 @@ class TestIrsb(unittest.TestCase):
         irsb = p.factory.block(self.block_addr).vex
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
+
+    def test_convert_from_pcode_irsb_at_high_address(self):
+        # The P-code converter assigns Manager.ins_addr from Python, which the
+        # VEX converter never does.
+        arch = archinfo.arch_from_id("AMD64")
+        manager = ailment.Manager()
+        p = angr.load_shellcode(
+            self.block_bytes, arch, self.high_block_addr, self.high_block_addr, engine=angr.engines.UberEnginePcode
+        )
+        irsb = p.factory.block(self.high_block_addr).vex
+        ablock = ailment.IRSBConverter.convert(irsb, manager)
+        assert ablock.addr == self.high_block_addr
+        assert manager.block_addr == self.high_block_addr
+        ins_addr = manager.ins_addr
+        assert ins_addr is not None
+        assert self.high_block_addr <= ins_addr < self.high_block_addr + irsb.size
 
     def test_convert_pcode_uppercase_memory_space(self):
         arch = archinfo.ArchPcode("6502:LE:16:default")
