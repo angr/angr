@@ -1207,6 +1207,9 @@ class CallingConventionAnalysis(Analysis):
                 if not isinstance(a, SimRegArg):
                     new_input_args.add(a)
                     continue
+                if a.reg_name not in self.project.arch.registers:
+                    # a slice of a vector register at an unnamed offset (ymm10+4): not an argument
+                    continue
                 reg_offset, reg_size = self.project.arch.registers[a.reg_name]
                 if self._is_fp_reg_offset(reg_offset):
                     fp_reg_name = self._normalize_fp_reg_name(reg_offset)
