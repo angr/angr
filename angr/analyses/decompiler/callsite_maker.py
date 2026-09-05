@@ -10,6 +10,7 @@ from angr.ailment import Const, Expr, Stmt
 from angr.ailment.manager import Manager
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.calling_conventions import (
+    SimArrayArg,
     SimCC,
     SimComboArg,
     SimFunctionArgument,
@@ -651,6 +652,9 @@ class CallSiteMaker:
                     if field_name not in arg_loc.locs:
                         continue
                     expanded_arg_locs += self._expand_arglocs([arg_loc.locs[field_name]])
+            elif isinstance(arg_loc, SimArrayArg):
+                # a fixed-size array field: one location per element
+                expanded_arg_locs += self._expand_arglocs(list(arg_loc.locs))
             elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
                 expanded_arg_locs.append(arg_loc)
             else:

@@ -127,7 +127,8 @@ class GoValueFuser(OptimizationPass):
             (arg, len(arg.reg_vvars) if isinstance(arg, VirtualVariable) and getattr(arg, "reg_vvars", None) else 1)
             for arg in call.args
         ]
-        if sum(counts) != sum(n for _, n in entries) or all(c == 1 for c in counts):
+        if sum(counts) != sum(n for _, n in entries) or all(c == 1 for c in counts) or any(c == 0 for c in counts):
+            # zero-size parameters (empty structs) have no leaves to fuse
             return None
         new_args = []
         pos = 0

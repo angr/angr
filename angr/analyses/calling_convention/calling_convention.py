@@ -1003,6 +1003,9 @@ class CallingConventionAnalysis(Analysis):
             new_input_args = set()
             for a in input_args:
                 if isinstance(a, SimRegArg) and a.size < self.project.arch.bytes:
+                    if a.reg_name not in self.project.arch.registers:
+                        # a slice of a vector register at an unnamed offset (ymm10+4): not an argument
+                        continue
                     # use complete registers on AMD64 and X86
                     reg_offset, reg_size = self.project.arch.registers[a.reg_name]
                     full_reg_offset, full_reg_size = get_reg_offset_base_and_size(
