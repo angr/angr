@@ -11,12 +11,22 @@ from .successors import SuccessorsEngine
 log = logging.getLogger(name=__name__)
 
 
+def is_failure_jumpkind(jumpkind: str | None) -> bool:
+    """
+    Check whether a jumpkind reports an emulation failure, a memory-mapping failure, or a signal.
+
+    SimEngineFailure refuses to step a state that arrived on one of these, so anything choosing a
+    successor to continue from has to skip them.
+    """
+    return jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or (jumpkind is not None and jumpkind.startswith("Ijk_Sig"))
+
+
 class SimEngineFailure(SuccessorsEngine, ProcedureMixin):
     def process_successors(self, successors, **kwargs):
         state = self.state
         jumpkind = state.history.parent.jumpkind if state.history and state.history.parent else None
 
-        if jumpkind in ("Ijk_EmFail", "Ijk_MapFail") or (jumpkind is not None and jumpkind.startswith("Ijk_Sig")):
+        if is_failure_jumpkind(jumpkind):
             raise AngrExitError(f"Cannot execute following jumpkind {jumpkind}")
 
         if jumpkind == "Ijk_Exit":
