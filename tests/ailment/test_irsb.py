@@ -231,6 +231,8 @@ class TestLoadGConversion(unittest.TestCase):
             if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp)
         }
         for vex_stmt in loadgs:
+            assert isinstance(vex_stmt.guard, pyvex.IRExpr.RdTmp)
+            assert isinstance(vex_stmt.alt, pyvex.IRExpr.RdTmp)
             src = assignments[vex_stmt.dst].src
             assert isinstance(src, ailment.Expr.ITE)
             assert isinstance(src.cond, ailment.Expr.Tmp) and src.cond.tmp_idx == vex_stmt.guard.tmp
@@ -238,8 +240,11 @@ class TestLoadGConversion(unittest.TestCase):
             assert isinstance(src.iftrue, ailment.Expr.Load)
             assert src.iftrue.guard is None and src.iftrue.alt is None
 
-        first_load = assignments[loadgs[0].dst].src.iftrue
-        second_load = assignments[loadgs[1].dst].src.iftrue
+        first_src = assignments[loadgs[0].dst].src
+        second_src = assignments[loadgs[1].dst].src
+        assert isinstance(first_src, ailment.Expr.ITE) and isinstance(second_src, ailment.Expr.ITE)
+        first_load, second_load = first_src.iftrue, second_src.iftrue
+        assert isinstance(first_load, ailment.Expr.Load) and isinstance(second_load, ailment.Expr.Load)
         assert isinstance(first_load.addr, ailment.Expr.Tmp)
         assert isinstance(second_load.addr, ailment.Expr.Tmp)
         second_addr = assignments[second_load.addr.tmp_idx].src
