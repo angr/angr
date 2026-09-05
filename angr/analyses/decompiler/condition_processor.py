@@ -75,13 +75,8 @@ class AILExprIdAnnotation(claripy.Annotation):
     and size.
     """
 
-    @property
-    def eliminatable(self):
-        return True
-
-    @property
-    def relocatable(self):
-        return False
+    eliminatable = True
+    relocatable = False
 
     def __hash__(self):
         return 1

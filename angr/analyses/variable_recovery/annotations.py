@@ -4,18 +4,13 @@ from angr.claripy import Annotation
 
 
 class StackLocationAnnotation(Annotation):
+    eliminatable = False
+    relocatable = False
+
     def __init__(self, offset):
         super().__init__()
 
         self.offset = offset
-
-    @property
-    def eliminatable(self):
-        return False
-
-    @property
-    def relocatable(self):
-        return False
 
     def __hash__(self):
         return hash(("stack_location", self.offset))
@@ -28,20 +23,15 @@ class StackLocationAnnotation(Annotation):
 
 
 class VariableSourceAnnotation(Annotation):
+    eliminatable = False
+    relocatable = False
+
     def __init__(self, block_addr, stmt_idx, ins_addr):
         super().__init__()
 
         self.block_addr = block_addr
         self.stmt_idx = stmt_idx
         self.ins_addr = ins_addr
-
-    @property
-    def eliminatable(self):
-        return False
-
-    @property
-    def relocatable(self):
-        return False
 
     def __hash__(self):
         return hash((self.block_addr, self.stmt_idx, self.ins_addr))

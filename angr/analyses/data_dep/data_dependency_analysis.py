@@ -31,18 +31,13 @@ class NodalAnnotation(claripy.Annotation):
     Allows a node to be stored as an annotation to a BV in a DefaultMemory instance
     """
 
+    #: Can not be relocated in a simplification
+    relocatable = False
+    #: Can not be eliminated in a simplification
+    eliminatable = False
+
     def __init__(self, node: BaseDepNode):
         self.node = node
-
-    @property
-    def relocatable(self) -> bool:
-        """Can not be relocated in a simplification"""
-        return False
-
-    @property
-    def eliminatable(self):
-        """Can not be eliminated in a simplification"""
-        return False
 
 
 class DataDependencyGraphAnalysis(Analysis):

@@ -215,16 +215,11 @@ class RegOffsetAnnotation(claripy.Annotation):
 
     __slots__ = ("reg_offset",)
 
+    relocatable = False
+    eliminatable = False
+
     def __init__(self, reg_offset: RegisterOffset):
         self.reg_offset = reg_offset
-
-    @property
-    def relocatable(self):
-        return False
-
-    @property
-    def eliminatable(self):
-        return False
 
 
 binop_handler = SimEngineNostmtVEX[JumpTableProcessorState, claripy.ast.BV, JumpTableProcessorState].binop_handler
