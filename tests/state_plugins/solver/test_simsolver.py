@@ -54,5 +54,24 @@ class TestSolverEvalCasting(unittest.TestCase):
         assert s.solver.eval(claripy.BoolV(True), cast_to=int) == 1
 
 
+class TestSolverEvalConcreteShortcut(unittest.TestCase):
+    """
+    The eval* family short-circuits values that are already concrete Python primitives.
+    """
+
+    def test_eval_python_primitives(self):
+        s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
+        for value in [7, True, 1.5, "abc"]:
+            with self.subTest(value=value):
+                assert s.solver.eval(value) == value
+                assert s.solver.eval_one(value) == value
+                assert s.solver.eval_upto(value, 2) == [value]
+
+    def test_eval_string_ast(self):
+        s = angr.SimState(project=minimal_project("AMD64"), mode="symbolic")
+        assert s.solver.eval(claripy.StringV("abc")) == "abc"
+        assert s.solver.eval_upto(claripy.StringV("abc"), 2) == ["abc"]
+
+
 if __name__ == "__main__":
     unittest.main()
