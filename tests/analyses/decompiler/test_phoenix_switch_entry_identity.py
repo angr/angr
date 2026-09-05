@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import unittest
 from collections import defaultdict
 from types import SimpleNamespace
@@ -26,6 +27,9 @@ from angr.analyses.decompiler.structurer_nodes import (
     SwitchCaseNode,
 )
 from angr.analyses.decompiler.structuring import PhoenixStructurer, SAILRStructurer
+from tests.common import bin_location
+
+test_location = os.path.join(bin_location, "tests")
 
 
 class _FilteredDiGraph(networkx.DiGraph):
@@ -38,7 +42,7 @@ def _const(idx: int, value: int) -> Const:
 
 
 def _build_lowered_switch_graph():
-    project = angr.load_shellcode(b"\x90", "AMD64", load_address=0x4000)
+    project = angr.Project(os.path.join(test_location, "x86_64", "switch_default_abort.o"), auto_load_libs=False)
     manager = Manager()
     switch_variable = VirtualVariable(0, 1, 64, VirtualVariableCategory.REGISTER, oident=0)
     assignment_variable = VirtualVariable(1, 2, 64, VirtualVariableCategory.REGISTER, oident=8)
