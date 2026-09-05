@@ -10,6 +10,7 @@ import unittest
 
 import cle
 
+import angr
 from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
@@ -313,3 +314,21 @@ class TestBasicsGo127(GoDecompilationTarget):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReceiverFromName(unittest.TestCase):
+    """A method's receiver type is spelled in its name, even when the linker pruned it from the method table."""
+
+    def test_receiver_type_from_name(self):
+        from angr.go.optimization_passes.prototypes import receiver_type_from_name
+
+        proj = angr.Project(go_binary("go1.27.1", "iface_stripped"), auto_load_libs=False)
+        proj.kb.go_signatures.load_sources()
+        kb, arch = proj.kb, proj.arch
+        assert str(receiver_type_from_name(kb, arch, "main.(*Rect).Area")) == "*main.Rect"
+        assert str(receiver_type_from_name(kb, arch, "main.(*Square).Name")) == "*main.Square"
+        # a two-word struct receiver passed by value spans several registers: left to the guess
+        assert receiver_type_from_name(kb, arch, "main.Rect.Area") is None
+        assert receiver_type_from_name(kb, arch, "main.describe") is None
+        assert receiver_type_from_name(kb, arch, "main.(*Rect).Area.func1") is None
+        assert receiver_type_from_name(kb, arch, "main.(*Nope).Area") is None

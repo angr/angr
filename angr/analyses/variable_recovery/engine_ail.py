@@ -777,6 +777,10 @@ class SimEngineVRAIL(
     def _handle_expr_Const(self, expr: ailment.Expr.Const):
         return self._get_const(expr.value, expr.bits, expr=expr)
 
+    def _handle_unop_Default(self, expr):
+        self._expr(expr.operand)
+        return RichR(self.state.top(expr.bits))
+
     def _handle_expr_Convert(self, expr: ailment.Expr.Convert):
         r = self._expr(expr.operand)
         if expr.vector_count is not None:

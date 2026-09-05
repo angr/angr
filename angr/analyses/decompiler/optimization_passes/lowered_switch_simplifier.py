@@ -416,7 +416,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             if len(heads) > 1:
                 # case_addrs refer to the node by address and index; a later cascade may have replaced the block
                 # object itself (e.g., when the shared node is that cascade's head)
-                succ_node = nodes_by_addr_and_idx[shared_node.addr, shared_node.idx]
+                succ_node = nodes_by_addr_and_idx.get((shared_node.addr, shared_node.idx))
+                if succ_node is None:
+                    # removed above as part of a redundant-node chain
+                    continue
                 # each head gets a copy of the node!
                 node_successors = list(graph_copy.successors(succ_node))
                 next_id = 0 if succ_node.idx is None else succ_node.idx + 1

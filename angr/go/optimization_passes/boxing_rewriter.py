@@ -66,6 +66,7 @@ class GoBoxingRewriter(OptimizationPass):
         self._uses: Counter = Counter()
         self._dead: set[int] = set()  # varids of slot definitions folded into literals
         self._static_ints: tuple[int, int] | None = None
+        self._stmt_tags: dict = {}
         self.analyze()
 
     def _check(self):
@@ -141,6 +142,7 @@ class GoBoxingRewriter(OptimizationPass):
     #
 
     def rewrite_struct(self, expr: Struct, block: Block, stmt: Statement) -> Expression | None:
+        self._stmt_tags = {k: v for k, v in stmt.tags.items() if not k.startswith("go_")}
         if expr.name in _ANY_SLICE_NAMES:
             return self._rewrite_variadic(expr, block, stmt)
         if expr.name.startswith("[]"):
@@ -328,7 +330,7 @@ class GoBoxingRewriter(OptimizationPass):
             bits=2 * self._ws * self.project.arch.byte_width,
             go_render="box",
             go_box_type=concrete,
-            **{k: v for k, v in data_word.tags.items() if not k.startswith("go_")},
+            **{**{k: v for k, v in data_word.tags.items() if not k.startswith("go_")}, **self._stmt_tags},
         )
         self._set_result_type(box, iface_name)
         return box

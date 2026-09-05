@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.expression import Call, Const
+from angr.ailment.expression import Call, Const, VirtualVariable
 from angr.ailment.statement import Assignment, Jump, Label, SideEffectStatement, Store
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -14,7 +14,8 @@ from angr.utils.go_runtime import GO_CHECK_PANIC_NAMES, normalize_go_func_name
 
 l = logging.getLogger(__name__)
 
-_BARRIER_PREFIXES = ("runtime.gcWriteBarrier", "runtime.wbBufFlush")
+# wbMove/wbZero only record the pointers a bulk copy or clear will overwrite; the copy itself follows the join
+_BARRIER_PREFIXES = ("runtime.gcWriteBarrier", "runtime.wbBufFlush", "runtime.wbMove", "runtime.wbZero")
 
 
 def is_go_check_panic_name(name: str | None) -> bool:
@@ -132,9 +133,43 @@ class GoCheckRemover(OptimizationPass, CFGTransformationMixin):
         if cond is None:
             return None
         others = [s for s in self._graph.successors(cond) if not leads_to(self._graph, s, block)]
-        if len(others) == 1 and skip_jumps(self._graph, others[0]) is skip_jumps(self._graph, succs[0]):
+        if len(others) != 1:
+            return None
+        join = skip_jumps(self._graph, succs[0])
+        other = skip_jumps(self._graph, others[0])
+        if other is join:
+            return chain
+        # the compiler may place a register copy the join needs in both branches; the fast path then holds only
+        # that copy and the slow path must make the same one
+        other_succs = list(self._graph.successors(other))
+        if (
+            len(other_succs) == 1
+            and skip_jumps(self._graph, other_succs[0]) is join
+            and self._graph.in_degree(other) == 1
+            and self._copies_only(other)
+            and self._register_copies(chain) <= self._register_copies([other])
+        ):
             return chain
         return None
+
+    @staticmethod
+    def _copies_only(block: Block) -> bool:
+        return all(isinstance(stmt, (Label, Assignment, Jump)) for stmt in block.statements)
+
+    @staticmethod
+    def _register_copies(blocks: list[Block]) -> set[tuple]:
+        """(register, source) of every register-to-register or constant move in ``blocks``."""
+        copies = set()
+        for block in blocks:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_reg
+                    and isinstance(stmt.src, (VirtualVariable, Const))
+                ):
+                    copies.add((stmt.dst.oident, str(stmt.src)))
+        return copies
 
     #
     # Removal

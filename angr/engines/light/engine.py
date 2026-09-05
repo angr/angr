@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 _l = logging.getLogger(__name__)
 
 
+l = logging.getLogger(__name__)
+
+
 class BlockProtocol(Protocol):
     """
     The minimum protocol that a block an engine can process should adhere to.
