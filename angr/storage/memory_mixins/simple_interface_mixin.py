@@ -58,7 +58,7 @@ class SimpleInterfaceMixin(MemoryMixin):
         return self.state.solver.eval(s)
 
     def _translate_cond(self, c):
-        if isinstance(c, claripy.ast.Base) and not c.singlevalued:
+        if isinstance(c, claripy.ast.Base) and c.cardinality != 1:
             raise SimMemoryError("condition not supported")
         if c is None:
             return True

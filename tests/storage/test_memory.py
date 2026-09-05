@@ -592,6 +592,24 @@ class TestMemory(unittest.TestCase):
 
         self._concrete_memory_tests(s)
 
+    def test_fast_memory_condition(self):
+        s = SimState(project=minimal_project("AMD64"), add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
+
+        s.registers.store("rax", claripy.BVV(0x4142434445464748, 64))
+        s.registers.store("rax", claripy.BVV(0x1111111122222222, 64), condition=claripy.false())
+        assert s.solver.eval_upto(s.registers.load("rax", size=8), 2) == [0x4142434445464748]
+        s.registers.store("rax", claripy.BVV(0x1111111122222222, 64), condition=claripy.true())
+        assert s.solver.eval_upto(s.registers.load("rax", size=8, condition=claripy.true()), 2) == [0x1111111122222222]
+
+        s.memory.store(0x1000, claripy.BVV(b"asdf"), condition=claripy.true())
+        s.memory.store(0x1000, claripy.BVV(b"fdsa"), condition=claripy.false())
+        assert s.solver.eval_upto(s.memory.load(0x1000, 4, condition=claripy.true()), 2) == [0x61736466]
+
+        with self.assertRaises(SimMemoryError):
+            s.registers.store("rax", claripy.BVV(0, 64), condition=claripy.BoolS("cond"))
+        with self.assertRaises(SimMemoryError):
+            s.memory.load(0x1000, 4, condition=claripy.BoolS("cond"))
+
     def test_light_memory(self):
         s = SimState(project=minimal_project("AMD64"), plugins={"registers": SimLightRegisters()})
         assert type(s.registers) is SimLightRegisters
