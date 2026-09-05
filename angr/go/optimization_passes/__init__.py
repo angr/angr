@@ -10,6 +10,7 @@ from .multi_value import GoComboRegisterRewriter, GoRetExprRewriter
 from .parameter_types import GoParameterTypes
 from .pinned_register_namer import GoPinnedRegisterNamer
 from .pinned_register_rewriter import GoPinnedRegisterRewriter
+from .prototype_inference import GoPrototypeInference
 from .prototypes import GoPrototypes
 from .runtime_rewriter import GoRuntimeRewriter
 from .stack_check_remover import GoStackCheckRemover
@@ -36,6 +37,7 @@ def get_go_optimization_passes():
         GoRuntimeRewriter,
         GoBuiltinRewriter,
         GoBoxingRewriter,
+        GoPrototypeInference,
         # AFTER_VARIABLE_RECOVERY
         GoPinnedRegisterNamer,
         GoDescriptorNamer,

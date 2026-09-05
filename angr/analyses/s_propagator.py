@@ -495,7 +495,10 @@ class SPropagator:
             for tmp_atom, tmp_uses in tmp_and_uses.items():
                 # take a look at the definition and propagate the definition if supported
                 block = blocks[block_loc]
-                tmp_def_stmtidx = tmp_deflocs[block_loc][tmp_atom]
+                tmp_def_stmtidx = tmp_deflocs.get(block_loc, {}).get(tmp_atom)
+                if tmp_def_stmtidx is None:
+                    # defined by a dirty statement (load-linked, store-conditional): nothing to propagate
+                    continue
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):

@@ -408,6 +408,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         # requires jump threading reverter.
         for succ_node, heads in node_to_heads.items():
             if len(heads) > 1:
+                if succ_node not in graph_copy:
+                    # removed above as part of a redundant-node chain
+                    continue
                 # each head gets a copy of the node!
                 node_successors = list(graph_copy.successors(succ_node))
                 next_id = 0 if succ_node.idx is None else succ_node.idx + 1

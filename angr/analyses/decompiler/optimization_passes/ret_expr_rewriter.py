@@ -5,6 +5,7 @@ from angr.ailment.expression import Call, ComboRegister
 from angr.ailment.statement import SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStructArg
+from angr.errors import AngrTypeError
 
 from .rewriter_utils import SideEffectStatementRewriter
 
@@ -42,7 +43,11 @@ class RetExprRewriter(OptimizationPass):
             ):
                 func = self.kb.functions.get_by_addr(call_stmt.expr.target.value_int, meta_only=True)
                 if func.prototype is not None and func.calling_convention and func.prototype.returnty:
-                    ret_val = func.calling_convention.return_val(func.prototype.returnty)
+                    try:
+                        ret_val = func.calling_convention.return_val(func.prototype.returnty)
+                    except AngrTypeError:
+                        # a stack-based convention cannot place an aggregate result: leave the call alone
+                        return call_stmt
                     ret_locs = self._flatten_locs(ret_val)  # pyright: ignore[reportArgumentType]
                     if (
                         isinstance(ret_val, SimStructArg)

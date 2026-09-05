@@ -121,14 +121,31 @@ class GoValueFuser(OptimizationPass):
         except Exception:  # pylint:disable=broad-exception-caught
             return None
         counts = [len(_flatten_locs(loc)) for loc in arg_locs]
-        if sum(counts) != len(call.args) or all(c == 1 for c in counts):
+        # a combo-register argument (a multi-word parameter of this function passed on whole) stands for as many
+        # leaves as it has registers
+        entries = [
+            (arg, len(arg.reg_vvars) if isinstance(arg, VirtualVariable) and getattr(arg, "reg_vvars", None) else 1)
+            for arg in call.args
+        ]
+        if sum(counts) != sum(n for _, n in entries) or all(c == 1 for c in counts):
             return None
         new_args = []
         pos = 0
         for ty, n in zip(proto.args, counts):
-            leaves = list(call.args[pos : pos + n])
-            pos += n
-            new_args.append(self.fuse(ty, leaves) if n > 1 else leaves[0])
+            taken = []
+            have = 0
+            while have < n and pos < len(entries):
+                taken.append(entries[pos])
+                have += entries[pos][1]
+                pos += 1
+            if have != n:
+                return None
+            if len(taken) == 1 and taken[0][1] == n:
+                new_args.append(taken[0][0])
+            elif all(k == 1 for _, k in taken):
+                new_args.append(self.fuse(ty, [e for e, _ in taken]) if n > 1 else taken[0][0])
+            else:
+                return None
         return new_args
 
     def fuse_results(self, ret_exprs: list, proto: GoSimTypeFunction) -> list | None:

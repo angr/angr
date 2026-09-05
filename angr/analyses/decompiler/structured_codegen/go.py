@@ -1698,7 +1698,15 @@ class GoAssignment(GoStatement):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield from GoExpression._try_c_repr_chunks(self.lhs)
+        if isinstance(self.lhs, GoVariableField) and (
+            _go_is_seq_field(self.lhs, "len") or _go_is_seq_field(self.lhs, "cap")
+        ):
+            # `len(s)` is not assignable: spell the header word out
+            yield from self.lhs.variable.c_repr_chunks()
+            yield ".", self.lhs
+            yield from self.lhs.field.c_repr_chunks()
+        else:
+            yield from GoExpression._try_c_repr_chunks(self.lhs)
 
         compound_assignment_ops = {
             "Add": "+",
@@ -1990,7 +1998,9 @@ class GoFunctionCall(GoExpression):
                 proto = cast(SimTypeFunction, dereference_simtype_by_lib(proto, self.callee_func.prototype_libname))
             return proto
         returnty = SimTypeInt(signed=False)
-        return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
+        # an argument that is itself a call to a function without a result has no type
+        args = [arg.type if arg.type is not None else SimTypeBottom(label="void") for arg in self.args]
+        return SimTypeFunction(args, returnty).with_arch(self.codegen.project.arch)
 
     @property
     def prototype_returnty(self) -> SimType:
@@ -3761,6 +3771,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         CopyCleanup(self, self.cfunc).run()
         self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
         CopyCleanup(self, self.cfunc).run()
+        NamedFieldRetyping(self, self.cfunc).run()
+        self.cfunc.statements = _TypedCopies(self).handle(self.cfunc.statements)
         ShortDeclarations(self, self.cfunc).run()
 
         # TODO store extern fallback size somewhere lol
@@ -4213,10 +4225,16 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         terms.sort(key=lambda x: x[0])
 
         # suffering.
+        seen: set[tuple] = set()
         while terms:
             assert kernel.type is not None
             kernel_type = unpack_typeref(unpack_pointer_and_array(kernel.type))
             assert kernel_type
+            # descending into a field or element that leaves the kernel type unchanged would loop forever
+            state = (type(kernel_type), getattr(kernel_type, "name", None), kernel_type.size, constant, len(terms))
+            if state in seen or len(seen) > 64:
+                return bail_out()
+            seen.add(state)
 
             if kernel_type.size is None or kernel_type.size == 0:
                 return bail_out()
@@ -5047,6 +5065,20 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
+        if isinstance(rhs, GoConstant) and expr.op in {"Shl", "Shr", "Sar", "Rol", "Ror"}:
+            # a shift count is a number, never a rune
+            rhs.fmt_char = False
+        if expr.op.startswith("Cmp"):
+            # `x > 0` with a nilable-typed zero on one side and an integer on the other is an integer comparison
+            for const, other in ((lhs, rhs), (rhs, lhs)):
+                if (
+                    isinstance(const, GoConstant)
+                    and const.value == 0
+                    and _go_is_nilable(const.type)
+                    and other.type is not None
+                    and isinstance(unpack_typeref(other.type), SimTypeInt)
+                ):
+                    const._type = other.type
 
         return GoBinaryOp(
             expr.op,
@@ -6049,13 +6081,18 @@ def _go_assertion_var_name(type_name: str) -> str:
 class _DataReadSubstituter(GoStructuredCodeWalker):
     """Replaces reads of an interface value's data word with the asserted value."""
 
-    def __init__(self, value, replacement):
+    def __init__(self, value, replacement, holder_type=None):
         self._value = value
         self._replacement = replacement  # None counts the reads without changing anything
+        self._holder_type = holder_type  # set when the holder is untyped: its second word is the data word
         self.count = 0
 
     def _is_data_of_value(self, expr) -> bool:
         holder = _go_iface_word(expr, ("data",))
+        if holder is None and self._holder_type is not None and isinstance(expr, GoVariableField):
+            ws = expr.codegen.project.arch.bytes if expr.codegen is not None else 8
+            if expr.field.offset == ws and _go_var_named(expr.variable):
+                holder = expr.variable
         return holder is not None and _go_same_value(holder, self._value)
 
     def handle_GoUnaryOp(self, obj):
@@ -6327,6 +6364,232 @@ class _ItabMethodCalls(GoStructuredCodeWalker):
         return obj
 
 
+class _FieldRetyper(GoStructuredCodeWalker):
+    """``x.field_N`` on a variable whose type is now known becomes the named field at that offset."""
+
+    def __init__(self, codegen, var):
+        self._codegen = codegen
+        self._key = _UseCounter.key(var)
+        self._type = unpack_typeref(var.type)
+
+    def _struct(self):
+        ty = self._type
+        if isinstance(ty, SimTypePointer):
+            ty = unpack_typeref(ty.pts_to)
+        return ty if isinstance(ty, SimStruct) else None
+
+    def _access_size(self, field) -> int | None:
+        with contextlib.suppress(Exception):
+            return field.struct_type.fields[field.field].size // self._codegen.project.arch.byte_width
+        return None
+
+    def _path(self, struct, offset: int, size: int | None):
+        """The (field, ...) path from ``struct`` to the access at ``offset`` of ``size`` bytes, or None."""
+        byte_width = self._codegen.project.arch.byte_width
+        for name, off in struct.offsets.items():
+            fty = unpack_typeref(struct.fields[name])
+            fsize = (fty.size or 0) // byte_width if fty is not None else 0
+            if fsize == 0 or not off <= offset < off + fsize:
+                # zero-size fields (noCopy markers) share their offset with the real field
+                continue
+            if offset == off and (size is None or size == fsize or not isinstance(fty, SimStruct)):
+                return [(struct, off, name)]
+            if isinstance(fty, SimStruct):
+                inner = self._path(fty, offset - off, size)
+                if inner is not None:
+                    return [(struct, off, name), *inner]
+        return None
+
+    def handle_GoVariableField(self, obj):
+        obj = super().handle_GoVariableField(obj)
+        struct = self._struct()
+        base = obj.variable
+        while isinstance(base, GoTypeCast):
+            base = base.expr
+        if (
+            struct is not None
+            and _go_var_named(base)
+            and _UseCounter.key(base) == self._key
+            and isinstance(obj.field.offset, int)
+        ):
+            path = self._path(struct, obj.field.offset, self._access_size(obj.field))
+            if path is None or (len(path) == 1 and path[0][2] == obj.field.field):
+                return obj
+            expr = base
+            for owner, off, name in path:
+                expr = GoVariableField(
+                    expr, GoStructField(owner, off, name, codegen=self._codegen), codegen=self._codegen
+                )
+            return expr
+        return obj
+
+
+def _go_call_name(call) -> str | None:
+    """The callee's name for a direct call, whichever node carries it."""
+    if getattr(call, "callee_func", None) is not None:
+        return call.callee_func.name
+    target = call.callee_target
+    if isinstance(target, str):
+        return target
+    if isinstance(target, GoConstant):
+        if isinstance(target.value, Function):
+            return target.value.name
+        if isinstance(target.value, str):
+            return target.value
+    return None
+
+
+class _TypedCopies(GoStructuredCodeWalker):
+    """``runtime.memmove(dst, src, sizeof(T))`` / ``runtime.typedmemmove(&type:T, dst, src)`` become ``*dst = *src``."""
+
+    def __init__(self, codegen):
+        self._codegen = codegen
+
+    def handle_GoExpressionStatement(self, obj):
+        obj = super().handle_GoExpressionStatement(obj)
+        call = obj.expr
+        if not isinstance(call, GoFunctionCall):
+            return obj
+        name = _go_call_name(call)
+        if name is None:
+            return obj
+        name = normalize_go_func_name(name)
+        dst = src = struct = None
+        if name == "runtime.memmove" and len(call.args) == 3 and isinstance(call.args[2], GoConstant):
+            dst, src, n = call.args
+            struct = _go_named_struct_behind(dst.type) if dst.type is not None else None
+            if struct is None or struct.size != n.value * self._codegen.project.arch.byte_width:
+                return obj
+        elif name == "runtime.typedmemmove" and len(call.args) == 3:
+            dst, src = call.args[1], call.args[2]
+            struct = _go_named_struct_behind(dst.type) if dst.type is not None else None
+            if struct is None:
+                return obj
+        else:
+            return obj
+        arch = self._codegen.project.arch
+        ptr_ty = SimTypePointer(struct).with_arch(arch)
+        if src.type is None or _go_named_struct_behind(src.type) is not struct:
+            src = GoTypeCast(src.type, ptr_ty, src, codegen=self._codegen)
+        lhs = GoUnaryOp("Dereference", dst, codegen=self._codegen)
+        rhs = GoUnaryOp("Dereference", src, codegen=self._codegen)
+        return GoAssignment(lhs, rhs, tags=obj.tags, codegen=self._codegen)
+
+
+class NamedFieldRetyping:
+    """
+    Field accesses built on register copies carry the copy's inferred struct; once copy cleanup has folded them onto
+    an expression whose type is a named Go struct, name the fields after that struct. Variables defined by such a
+    read take its type, so the fix propagates through chains of copies and indexing.
+    """
+
+    MAX_ROUNDS = 4
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+
+    def run(self):
+        for _ in range(self.MAX_ROUNDS):
+            fixer = _NamedFieldFixer(self._codegen)
+            self._cfunc.statements = fixer.handle(self._cfunc.statements)
+            retyped = self._retype_defined_variables()
+            if not fixer.changed and not retyped:
+                break
+
+    def _retype_defined_variables(self) -> bool:
+        """``v := expr`` where ``expr`` has a named type and ``v`` an inferred one: ``v`` takes the named type."""
+        types: dict = {}
+
+        class _Collect(GoStructuredCodeWalker):
+            def handle_GoAssignment(inner, obj):
+                obj = super().handle_GoAssignment(obj)
+                if isinstance(obj.lhs, GoVariable) and _go_var_named(obj.lhs) and obj.rhs.type is not None:
+                    rhs_ty = unpack_typeref(obj.rhs.type)
+                    lhs_ty = unpack_typeref(obj.lhs.type) if obj.lhs.type is not None else None
+                    if (
+                        _go_mentions_named(rhs_ty)
+                        and not _go_mentions_named(lhs_ty)
+                        and (lhs_ty is None or lhs_ty.size == rhs_ty.size)
+                    ):
+                        key = _UseCounter.key(obj.lhs)
+                        types.setdefault(key, obj.rhs.type)
+                return obj
+
+        _Collect().handle(self._cfunc.statements)
+        # a variable assigned from several places keeps its own type unless every source agrees
+        if not types:
+            return False
+        self._cfunc.statements = _Retyper(types).handle(self._cfunc.statements)
+        return True
+
+
+def _go_mentions_named(ty, depth: int = 0) -> bool:
+    """Whether ``ty`` is, points to, or is a sequence of a named Go type (up to three levels deep)."""
+    ty = unpack_typeref(ty)
+    if ty is None or depth > 3:
+        return False
+    if _go_descriptor_name(ty):
+        return True
+    if isinstance(ty, SimTypePointer):
+        return _go_mentions_named(ty.pts_to, depth + 1)
+    if isinstance(ty, GoSimTypeSlice):
+        return _go_mentions_named(ty.elem_type, depth + 1)
+    if isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
+        return _go_mentions_named(ty.elem_type, depth + 1)
+    return False
+
+
+def _go_descriptor_name(ty) -> str | None:
+    """The qualified Go name of a struct-shaped type from the binary; type inference's ``struct_N`` does not count."""
+    name = getattr(ty, "go_name", None) if isinstance(ty, GoSimStruct) else None
+    return name if name and not name.startswith("struct_") else None
+
+
+def _go_named_struct_behind(ty):
+    """The named Go struct ``ty`` is, or points to (one level), else None."""
+    ty = unpack_typeref(ty)
+    if isinstance(ty, SimTypePointer):
+        ty = unpack_typeref(ty.pts_to)
+    return ty if _go_descriptor_name(ty) else None
+
+
+class _NamedFieldFixer(GoStructuredCodeWalker):
+    """``base.field_N`` where ``base`` has a named struct type becomes the named field path at that offset."""
+
+    def __init__(self, codegen):
+        self._codegen = codegen
+        self.changed = False
+
+    def handle_GoVariableField(self, obj):
+        obj = super().handle_GoVariableField(obj)
+        base = obj.variable
+        while isinstance(base, GoTypeCast):
+            base = base.expr
+        struct = None
+        if isinstance(base, GoIndexedVariable) and base.variable.type is not None:
+            # the element type follows the (possibly retyped) variable, not the type recorded when it was built
+            vt = unpack_typeref(base.variable.type)
+            elem = vt.pts_to if isinstance(vt, SimTypePointer) else getattr(vt, "elem_type", None)
+            struct = _go_named_struct_behind(elem) if elem is not None else None
+        elif base.type is not None:
+            struct = _go_named_struct_behind(base.type)
+        if struct is None or not isinstance(obj.field.offset, int) or struct is obj.field.struct_type:
+            return obj
+        if getattr(obj.field.struct_type, "go_name", None) == struct.go_name:
+            return obj
+        helper = _FieldRetyper(self._codegen, base)
+        helper._type = struct
+        path = helper._path(struct, obj.field.offset, helper._access_size(obj.field))
+        if path is None or (len(path) == 1 and path[0][2] == obj.field.field):
+            return obj
+        expr = base
+        for owner, off, name in path:
+            expr = GoVariableField(expr, GoStructField(owner, off, name, codegen=self._codegen), codegen=self._codegen)
+        self.changed = True
+        return expr
+
+
 class TypeSwitchRecovery(GoStructuredCodeWalker):
     """
     An if/else-if chain comparing one interface value's type word against type descriptors becomes
@@ -6338,11 +6601,14 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         self._cfunc = cfunc
         self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
         self._dead_copies: set = set()
+        self._scan = None
 
     def run(self):
         root = self._cfunc.statements
         if not isinstance(root, GoStatements):
             root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            self._cfunc.statements = root
+        self._scan = _Scan(self._cfunc)
         self._cfunc.statements = self.handle(root)
         if self._dead_copies:
             self._cfunc.statements = _DeadCopyRemover(self._dead_copies, self._cfunc).handle(self._cfunc.statements)
@@ -6357,6 +6623,11 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         out = []
         for stmt in obj.statements:
             stmt = self.handle(stmt)
+            if isinstance(stmt, GoSwitchCase):
+                # the structurer's switch over descriptor addresses: name them, then treat it as the if-chain it is
+                chain = self._descriptor_switch_to_chain(stmt)
+                if chain is not None:
+                    stmt = chain
             if isinstance(stmt, GoIfElse):
                 replaced = self._try_switch(stmt)
                 if replaced is not None:
@@ -6366,19 +6637,127 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         obj.statements = out
         return obj
 
+    def handle_GoSwitchCase(self, obj):
+        # a switch sitting directly under an if or a loop (not in a statement list)
+        obj = super().handle_GoSwitchCase(obj)
+        chain = self._descriptor_switch_to_chain(obj)
+        if chain is None:
+            return obj
+        replaced = self._try_switch(chain)
+        return replaced if replaced is not None else chain
+
+    def _descriptor_reference(self, addr: int):
+        """``&type:T`` / ``&go:itab.C,I`` for a descriptor address, as a reference to its global variable."""
+        go_types = self._codegen.kb.go_types
+        if go_types.itab_at(addr) is None and go_types.name_at(addr) is None:
+            return None
+        manager = self._codegen.kb.dec_variables["global"]
+        for var in manager.get_global_variables(addr):
+            if var.addr == addr:
+                cvar = self._codegen._variable(var, None)
+                return self._codegen._get_variable_reference(cvar)
+        return None
+
+    def _descriptor_switch_to_chain(self, stmt):
+        ids = []
+        for id_or_ids, _ in stmt.cases:
+            values = id_or_ids if isinstance(id_or_ids, tuple) else (id_or_ids,)
+            ids.append(values)
+        if not ids or any(len(v) != 1 for v in ids):
+            return None
+        refs = [self._descriptor_reference(v[0]) for v in ids]
+        if any(r is None for r in refs):
+            return None
+
+        def without_switch_break(body):
+            stmts = _go_stmt_list(body)
+            if stmts and isinstance(stmts[-1], GoBreak):
+                stmts = stmts[:-1]
+            return GoStatements(stmts, codegen=self._codegen)
+
+        conditions = [
+            (GoBinaryOp("CmpEQ", stmt.switch, ref, codegen=self._codegen), without_switch_break(body))
+            for ref, (_, body) in zip(refs, stmt.cases)
+        ]
+        default = without_switch_break(stmt.default) if stmt.default is not None else None
+        return GoIfElse(conditions, else_node=default, tags=stmt.tags, codegen=self._codegen)
+
     def _match_check(self, cond):
+        """(holder, concrete type, interface type or None) for ``v.tab == descriptor``."""
         if not isinstance(cond, GoBinaryOp) or cond.op != "CmpEQ":
             return None
         for word, desc in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
-            value = _go_iface_word(word, ("tab", "_type"))
             addr = _go_descriptor_addr(desc)
-            if value is None or addr is None:
+            if addr is None:
                 continue
             go_types = self._codegen.kb.go_types
             itab = go_types.itab_at(addr)
+            value = _go_iface_word(word, ("tab", "_type"))
+            iface_name = None
+            if value is None and itab is not None:
+                # the first word of an untyped holder compared against an itab: the holder is that interface
+                holder = self._untyped_holder(word)
+                if holder is None:
+                    continue
+                value, iface_name = holder, itab[0]
+            if value is None:
+                continue
             concrete = itab[1] if itab is not None else go_types.name_at(addr)
-            return (value, concrete) if concrete is not None else None
+            return (value, concrete, iface_name) if concrete is not None else None
         return None
+
+    def _word_of(self, expr, offset: int):
+        """The holder whose word at ``offset`` ``expr`` reads, directly or through a single-assignment copy."""
+        if _go_var_named(expr):
+            # the assignment that reads a holder's word at this offset (a reused register may have others)
+            defs = self._scan.assigns.get(_UseCounter.key(expr), []) if self._scan is not None else []
+            sources = [
+                d.rhs
+                for d in defs
+                if isinstance(d, GoAssignment) and isinstance(d.rhs, GoVariableField) and d.rhs.field.offset == offset
+            ]
+            if len(sources) == 1:
+                expr = sources[0]
+        if isinstance(expr, GoVariableField) and expr.field.offset == offset and _go_var_named(expr.variable):
+            return expr.variable
+        return None
+
+    def _untyped_holder(self, word):
+        """The variable whose word at offset 0 ``word`` reads (``h.field_0``), when ``h`` is not interface-typed."""
+        holder = self._word_of(word, 0)
+        if holder is not None and not isinstance(unpack_typeref(holder.type), GoSimTypeInterface):
+            return holder
+        return None
+
+    def _data_aliases(self, holder) -> list:
+        """Variables assigned once from the holder's second word (its data pointer), and copies of those."""
+        ws = self._codegen.project.arch.bytes
+        out = []
+        assigns = self._scan.assigns.items() if self._scan is not None else ()
+        for key, defs in assigns:
+            if len(defs) == 1 and isinstance(defs[0], GoAssignment):
+                rhs = defs[0].rhs
+                if (
+                    isinstance(rhs, GoVariableField)
+                    and rhs.field.offset == ws
+                    and _go_var_named(rhs.variable)
+                    and _go_same_value(rhs.variable, holder)
+                ):
+                    out.append(key)
+        # copies of copies
+        changed = True
+        while changed:
+            changed = False
+            for key, defs in assigns:
+                if key in out or len(defs) != 1 or not isinstance(defs[0], GoAssignment):
+                    continue
+                rhs = defs[0].rhs
+                while isinstance(rhs, GoTypeCast):
+                    rhs = rhs.expr
+                if _go_var_named(rhs) and _UseCounter.key(rhs) in out:
+                    out.append(key)
+                    changed = True
+        return out
 
     def _fresh(self, base: str) -> str:
         name, n = base, 1
@@ -6398,6 +6777,17 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         concretes = [c[1] for c in checks]
         if len(set(concretes)) != len(concretes):
             return None
+        iface_names = {c[2] for c in checks}
+        if len(iface_names) != 1:
+            return None
+        iface_name = next(iter(iface_names))
+        holder_type = None
+        if iface_name is not None:
+            # the holder was untyped: it is a value of the interface every compared itab belongs to
+            with contextlib.suppress(Exception):
+                holder_type = self._codegen.kb.go_signatures.type(iface_name).with_arch(self._codegen.project.arch)
+            if not isinstance(holder_type, GoSimTypeInterface):
+                return None
         bound = self._fresh("x")
         cases = []
         reads = 0
@@ -6408,10 +6798,36 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
                 ty = self._codegen.kb.go_signatures.type(concrete).with_arch(self._codegen.project.arch)
             if ty is not None:
                 target = GoFakeVariable(bound, ty, codegen=self._codegen)
-                sub = _DataReadSubstituter(value, target)
+                sub = _DataReadSubstituter(value, target, holder_type=holder_type)
                 body = sub.handle(body)
                 reads += sub.count
+                if holder_type is not None:
+                    for key in self._data_aliases(value):
+                        n = _go_reads_in(body, key)
+                        if n:
+                            body = _VarSubstituter(key, target).handle(body)
+                            reads += n
+                    # the alias copies themselves are now x = x
+                    body = GoStatements(
+                        [
+                            st
+                            for st in _go_stmt_list(body)
+                            if not (
+                                isinstance(st, GoAssignment)
+                                and _go_var_named(st.lhs)
+                                and _go_var_named(st.rhs)
+                                and _UseCounter.key(st.lhs) == _UseCounter.key(st.rhs)
+                            )
+                        ],
+                        codegen=self._codegen,
+                    )
+                body = _FieldRetyper(self._codegen, target).handle(body)
             cases.append((concrete, body))
+        if holder_type is not None:
+            # every node of the holder now carries its interface type (renders as v.(type), v.tab, v.data)
+            self._cfunc.statements = _Retyper({_UseCounter.key(value): holder_type}).handle(self._cfunc.statements)
+            if isinstance(value, GoVariable):
+                value.variable_type = holder_type
         default = stmt.else_node
         iface_cases, default, iface_reads = self._interface_cases(default, value, bound)
         cases += iface_cases
@@ -7215,10 +7631,32 @@ class CopyCleanup:
         self._cfunc.statements = collapser.handle(self._cfunc.statements)
         if collapser.retyped:
             self._cfunc.statements = _Retyper(collapser.retyped).handle(self._cfunc.statements)
+        self._fuse_split_stores(_Scan(self._cfunc))
         for _ in range(self.MAX_ROUNDS):
             if not self._fold_calls(_Scan(self._cfunc)):
                 break
         self._recover_iterators(self._cfunc.statements)
+        self._drop_self_assignments()
+
+    def _drop_self_assignments(self):
+        """``x = x`` left behind by copy folding says nothing."""
+        dead = []
+
+        class _Find(GoStructuredCodeWalker):
+            def handle_GoAssignment(inner, obj):
+                if (
+                    not obj.declares
+                    and isinstance(obj.lhs, GoVariable)
+                    and isinstance(obj.rhs, GoVariable)
+                    and _go_var_named(obj.lhs)
+                    and _UseCounter.key(obj.lhs) == _UseCounter.key(obj.rhs)
+                ):
+                    dead.append(obj)
+                return obj
+
+        _Find().handle(self._cfunc.statements)
+        if dead:
+            self._cfunc.statements = _StmtRemover(dead).handle(self._cfunc.statements)
 
     def _params(self):
         return {_UseCounter.key(a) for a in self._cfunc.arg_list}
@@ -7423,6 +7861,63 @@ class CopyCleanup:
             return False
         self._remove(doomed)
         return True
+
+    # -- rule 4b: a two-word call result stored word by word (the second word is a dangling register)
+    def _fuse_split_stores(self, scan: _Scan) -> None:
+        ws = self._codegen.project.arch.bytes
+        params = self._params()
+
+        def word_store(stmt):
+            if isinstance(stmt, GoAssignment) and isinstance(stmt.lhs, GoVariableField):
+                off = stmt.lhs.field.offset
+                if off in (0, ws) and _go_var_named(stmt.lhs.variable) and _go_var_named(stmt.rhs):
+                    return _UseCounter.key(stmt.lhs.variable), off, stmt.rhs
+            return None
+
+        def whole_call_result(var):
+            key = _UseCounter.key(var)
+            defs = scan.assigns.get(key, [])
+            if len(defs) != 1 or not isinstance(defs[0], GoAssignment):
+                return None
+            rhs = defs[0].rhs
+            ty = unpack_typeref(rhs.type) if isinstance(rhs, (GoFunctionCall, GoMethodCall)) else None
+            return ty if ty is not None and getattr(ty, "size", None) == 2 * self._codegen.project.arch.bits else None
+
+        def dangling(var):
+            key = _UseCounter.key(var)
+            return key not in params and not scan.assigns.get(key) and key[0] == "v"
+
+        for stmts in list(scan.scopes.values()):
+            i = 0
+            while i + 1 < len(stmts):
+                a, b = word_store(stmts[i]), word_store(stmts[i + 1])
+                if a and b and a[0] == b[0] and {a[1], b[1]} == {0, ws}:
+                    first = a if a[1] == 0 else b
+                    second = b if first is a else a
+                    if whole_call_result(first[2]) is not None and dangling(second[2]):
+                        base = stmts[i].lhs.variable
+                        target = base
+                        if isinstance(unpack_typeref(base.type), SimTypePointer):
+                            target = GoUnaryOp("Dereference", base, codegen=self._codegen)
+                        fused = GoAssignment(target, first[2], tags=stmts[i].tags, codegen=self._codegen)
+                        self._cfunc.statements = _StmtRemover([stmts[i + 1]]).handle(self._cfunc.statements)
+                        self._cfunc.statements = _VarSubstituter(("stmt", id(stmts[i])), fused).handle(
+                            self._cfunc.statements
+                        )
+                        # replace the first store in its list
+                        self._replace_stmt(stmts[i], fused)
+                        stmts = _go_stmt_list(GoStatements(stmts, codegen=self._codegen))
+                        i += 1
+                        continue
+                i += 1
+
+    def _replace_stmt(self, old, new):
+        class _Replacer(GoStructuredCodeWalker):
+            def handle_GoStatements(inner, obj):
+                obj.statements = [new if st is old else inner.handle(st) for st in obj.statements]
+                return obj
+
+        self._cfunc.statements = _Replacer().handle(self._cfunc.statements)
 
     # -- rule 5: a call result read once, by the next statement, ahead of that statement's other calls
     def _fold_calls(self, scan: _Scan) -> bool:
