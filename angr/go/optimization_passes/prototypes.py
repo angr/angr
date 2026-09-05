@@ -6,6 +6,7 @@ import re
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structured_codegen.c import type_equals
 from angr.calling_conventions import GO_ABI0_CC, default_cc_for_project
+from angr.go.sim_type import GoSimStruct
 from angr.go.utils.names import call_target_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from angr.sim_type import SimTypeFunction
@@ -36,7 +37,9 @@ def receiver_type_from_name(kb, arch, name: str):
         ty = kb.go_signatures.type(("*" if m.group("ptr") else "") + tyname)
     except Exception:  # pylint:disable=broad-exception-caught
         return None
-    if ty is None or (not m.group("ptr") and ty.size != arch.bits):
+    if ty is None or (not m.group("ptr") and (isinstance(ty, GoSimStruct) or ty.size != arch.bits)):
+        # value receivers: only one-word named scalars; structs by value would send the stack-based
+        # conventions through struct-location refinement they cannot always satisfy
         return None
     return ty.with_arch(arch)
 
