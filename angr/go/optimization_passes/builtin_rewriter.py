@@ -13,6 +13,7 @@ from angr.ailment.expression import (
     Const,
     Convert,
     Expression,
+    Extract,
     Load,
     Phi,
     StringLiteral,
@@ -34,7 +35,7 @@ from angr.ailment.statement import (
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.go.sim_type import GoSimTypeFunction
+from angr.go.sim_type import GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
 from angr.go.utils.graph import is_jump_only
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
@@ -380,6 +381,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         super().__init__(func, manager, **kwargs)
         CFGTransformationMixin.__init__(self, self._graph)
         self.values: _Values | None = None
+        self._cur_block: Block | None = None
+        self._cur_stmt: Statement | None = None
         self.analyze()
 
     def _check(self):
@@ -388,6 +391,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _analyze(self, cache=None):
         self.values = _Values(self)
         touched = self._fold_growslice()
+        touched += self._fold_map_slots()
         if touched:
             self._drop_dead_defs(touched)
             self.values = _Values(self)
@@ -541,22 +545,74 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     # Call rules
     #
 
-    def rewrite_call(self, call: Call) -> Expression | None:
+    def rewrite_call(self, call: Call, block: Block | None = None, stmt: Statement | None = None) -> Expression | None:
         name = self.callee_name(call)
         if name is None:
             return None
+        if name in ("mapindex", "mapassign") and block is not None:
+            return self._rw_map_key_pointer(call, block, stmt)
+        self._cur_block, self._cur_stmt = block, stmt
         rule = _CALL_RULES.get(name)
         if rule is None and name.startswith("runtime.mallocgc"):
             # go1.25+ inlines newobject into size-class specialized mallocgc variants
             rule = GoBuiltinRewriter._rw_mallocgc
         if rule is None:
-            return self._rewrite_guessed_strings(call)
+            return self._rewrite_guessed_strings(call) or self._rewrite_descriptor_arg(call, name)
         args = list(call.args or [])
         try:
             return rule(self, call, args)
         except Exception:  # pylint:disable=broad-exception-caught
             l.debug("Rewriting %s failed", name, exc_info=True)
             return None
+
+    def _rw_map_key_pointer(self, call: Call, block: Block, stmt: Statement) -> Expression | None:
+        """``m[&slot]`` (a key the caller spilled to the stack for the generic runtime entry) -> ``m[key]``."""
+        args = list(call.args or [])
+        if len(args) < 2:
+            return None
+        key = args[1]
+        slot = key.operand if isinstance(key, UnaryOp) and key.op == "Reference" else None
+        if not isinstance(slot, VirtualVariable):
+            return None
+        map_name = self._map_type_name_of(args[0])
+        ty = None
+        with contextlib.suppress(Exception):
+            ty = self.kb.go_signatures.type(map_name).with_arch(self.project.arch) if map_name else None
+        if not isinstance(ty, GoSimTypeMap):
+            return None
+        key_ty = ty.key_type.with_arch(self.project.arch)
+        size = self._type_size_bytes(key_ty)
+        if not size:
+            return None
+        value = self._key_behind(key, size, key_ty.go_repr() if hasattr(key_ty, "go_repr") else "", block, stmt)
+        return Call(call.idx, call.target, [args[0], value, *args[2:]], bits=call.bits, **call.tags)
+
+    def _map_type_name_of(self, m: Expression) -> str | None:
+        """The Go type of a map value: a typed struct field, a parameter, or a ``make`` result."""
+        e = self.values.expand(m)
+        if isinstance(e, Load):
+            base, off = _addr_and_offset(e.addr)
+            return self._field_type_name(base, off) if base is not None else None
+        if isinstance(e, Call) and e.target == "make":
+            type_args = list(e.tags.get("go_type_args", ()) or ())
+            return type_args[0] if type_args else None
+        resolved = self.values.resolve(m)
+        proto = self._func.prototype
+        if isinstance(resolved, VirtualVariable) and self._arg_vvars and isinstance(proto, GoSimTypeFunction):
+            for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable) and vvar.varid == resolved.varid and isinstance(ty, GoSimTypeMap):
+                    return ty.go_repr()
+        return None
+
+    def _rewrite_descriptor_arg(self, call: Call, name: str) -> Expression | None:
+        """A surviving runtime call whose first argument is a type descriptor: the type is spelled, not its address."""
+        args = list(call.args or [])
+        if not name.startswith(_DESCRIPTOR_CALLS) or not args:
+            return None
+        ty = self.type_name(args[0])
+        if ty is None:
+            return None
+        return self.builtin(call, name, args[1:], go_type_args=[ty])
 
     def _rewrite_guessed_strings(self, call: Call) -> Expression | None:
         """
@@ -1220,6 +1276,30 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             pos += size
         return out if pos == width else []
 
+    def _fields_of(self, ty, pieces: list[tuple[int, Expression]]):
+        """Group ``pieces`` by the struct field they fall in; a multi-piece field becomes a literal of its type."""
+        out = []
+        names = {}
+        used = 0
+        for field, off in ty.offsets.items():
+            fty = ty.fields[field]
+            size = self._type_size_bytes(fty)
+            if not size:
+                continue
+            sub = [(at - off, v) for at, v in pieces if off <= at < off + size]
+            if not sub:
+                continue
+            used += len(sub)
+            if len(sub) == 1 and sub[0][0] == 0 and sub[0][1].bits == size * 8:
+                value = sub[0][1]
+            elif self._covering([(at, v.bits // 8, v) for at, v in sub], size):
+                value = self._map_value(fty.go_repr() if hasattr(fty, "go_repr") else "", size, sub)
+            else:
+                return None
+            out.append((off, value))
+            names[off] = field
+        return (out, names) if used == len(pieces) else None
+
     def _element_value(self, g: _Growth, pieces: list[tuple[int, Expression]]) -> Expression:
         """The stored pieces (byte offset, value) of one element as a value of the element type."""
         if len(pieces) == 1:
@@ -1242,10 +1322,14 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         else:
             ty = None
             with contextlib.suppress(Exception):
-                ty = self.kb.go_signatures.type(name)
+                ty = self.kb.go_signatures.type(name).with_arch(self.project.arch)
             offsets = getattr(ty, "offsets", None)
             if offsets:
-                names = {off: field for field, off in offsets.items()}
+                nested = self._fields_of(ty, pieces)
+                if nested is not None:
+                    pieces, names = nested
+                else:
+                    names = {off: field for field, off in offsets.items()}
         if names is None or any(at not in names for at, _ in pieces):
             names = {at: f"f{at}" for at, _ in pieces}
         bits = 0
@@ -1607,6 +1691,346 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if any(find_call(st) is not None for st in block.statements):
                 return out
 
+    #
+    # Map slots: mapassign/mapaccess results that are written or read through offsets (multi-word values)
+    #
+
+    def _fold_map_slots(self) -> list[Block]:
+        touched: list[Block] = []
+        counts = None
+        candidates = [
+            (block, stmt)
+            for block in list(self._graph.nodes)
+            for stmt in list(block.statements)
+            if isinstance(stmt, (Assignment, SideEffectStatement)) and find_call(stmt) is not None
+        ]
+        for block, stmt in candidates:
+            call = stmt.src if isinstance(stmt, Assignment) else stmt.expr
+            if not isinstance(call, Call) or block not in self._graph or stmt not in block.statements:
+                continue
+            name = self.callee_name(call) or ""
+            if name.startswith("runtime.mapassign") or name.startswith("runtime.mapaccess"):
+                if counts is None:
+                    counts = self._use_counts()
+                if name.startswith("runtime.mapassign"):
+                    done = self._fold_mapassign(block, stmt, call, name, counts)
+                elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    done = self._fold_mapaccess(block, stmt, call, name, counts)
+                else:
+                    done = []
+                touched += done
+        return touched
+
+    def _map_types(self, call: Call):
+        """(map type name, key type, elem type) from the descriptor argument, sizes in bytes."""
+        args = list(call.args or [])
+        addr = _const(args[0]) if args else None
+        ty = go_type_at(self.project, addr) if addr is not None else None
+        if not isinstance(ty, GoSimTypeMap):
+            return None
+        arch = self.project.arch
+        key, elem = ty.key_type.with_arch(arch), ty.elem_type.with_arch(arch)
+        return ty.go_repr(), key, elem
+
+    def _type_size_bytes(self, ty) -> int | None:
+        size = getattr(ty, "size", None)
+        return size // self.project.arch.byte_width if isinstance(size, int) else None
+
+    def _map_key(self, name: str, call: Call, block: Block, stmt: Statement, key_ty) -> Expression | None:
+        """The key of a map call: passed by value (fast variants) or through a pointer to a stack slot."""
+        args = list(call.args or [])
+        if len(args) < 3:
+            return None
+        key = args[2]
+        if "_fast" in name:
+            return key
+        size = self._type_size_bytes(key_ty)
+        if size is None:
+            return None
+        return self._key_behind(key, size, key_ty.go_repr() if hasattr(key_ty, "go_repr") else "", block, stmt)
+
+    def _key_behind(self, key: Expression, size: int, key_name: str, block: Block, stmt: Statement) -> Expression:
+        """The value a pointer argument points at: a whole stack-resident value, its pieces, or a load."""
+        slot = key.operand if isinstance(key, UnaryOp) and key.op == "Reference" else None
+        if isinstance(slot, VirtualVariable):
+            # the spilled home of a register-passed value: the value itself
+            hit = self.values.combo_of.get(slot.varid)
+            if hit is not None and hit[1] == 0 and hit[0].size == size:
+                return hit[0]
+            if slot.size == size and (slot.category == VVC.PARAMETER or slot.was_reg):
+                return slot
+        if isinstance(slot, VirtualVariable) and (slot.was_stack or slot.category == VVC.PARAMETER):
+            if slot.was_stack:
+                pieces = self._stack_pieces(block, stmt, slot.stack_offset, size)
+                if pieces is not None:
+                    if len(pieces) == 1:
+                        return pieces[0][1]
+                    return self._map_value(key_name, size, pieces)
+            if slot.size == size:
+                return slot
+        return Load(self.manager.next_atom(), key, size, self.project.arch.memory_endness, **key.tags)
+
+    def _stack_pieces(self, block: Block, stmt: Statement, base: int, size: int) -> list | None:
+        """The stack stores covering ``size`` bytes at stack offset ``base`` that reach ``stmt``, as (offset, value)."""
+        found: dict[int, tuple[int, Expression]] = {}
+        cur = block
+        stmts = list(cur.statements)
+        end = next((i for i, st in enumerate(stmts) if st is stmt), len(stmts))
+        seen = set()
+        while True:
+            for st in reversed(stmts[:end]):
+                if not (isinstance(st, Assignment) and isinstance(st.dst, VirtualVariable) and st.dst.was_stack):
+                    continue
+                dst = st.dst
+                if dst.stack_offset >= base + size or dst.stack_offset + dst.size <= base:
+                    continue
+                at = dst.stack_offset - base
+                if at < 0 or at + dst.size > size or any(a <= at < a + s for a, (s, _) in found.items()):
+                    return None
+                found[at] = (dst.size, st.src)
+                if sum(s for s, _ in found.values()) == size:
+                    pieces = sorted((at, s, v) for at, (s, v) in found.items())
+                    covered = self._covering(pieces, size)
+                    return [(at, v) for at, _, v in pieces] if covered else None
+            seen.add(cur)
+            preds = list(self._graph.predecessors(cur))
+            if len(preds) != 1 or preds[0] in seen:
+                return None
+            cur = preds[0]
+            stmts = list(cur.statements)
+            end = len(stmts)
+
+    def _slot_window(self, block: Block, stmt: Statement) -> list[tuple[Block, Statement]]:
+        """The statements after ``stmt``: the rest of its block, then straight-line successors up to a call."""
+        stmts = list(block.statements)
+        pos = next((i for i, st in enumerate(stmts) if st is stmt), len(stmts))
+        out = [(block, st) for st in stmts[pos + 1 :]]
+        if any(find_call(st) is not None for _, st in out):
+            return out
+        cur = block
+        seen = {block}
+        while True:
+            succs = list(self._graph.successors(cur))
+            if len(succs) != 1 or succs[0] in seen or self._graph.in_degree(succs[0]) != 1:
+                return out
+            cur = succs[0]
+            seen.add(cur)
+            for st in cur.statements:
+                out.append((cur, st))
+                if find_call(st) is not None:
+                    return out
+
+    def _slot_offset(self, addr: Expression, slot: VirtualVariable) -> int | None:
+        base, off = _addr_and_offset(addr)
+        if base is None:
+            return None
+        base = self.values.resolve(base)
+        return off if isinstance(base, VirtualVariable) and base.varid == slot.varid else None
+
+    def _fold_mapassign(self, block: Block, stmt, call: Call, name: str, counts: Counter) -> list[Block]:
+        types = self._map_types(call)
+        if types is None:
+            return []
+        _, key_ty, elem_ty = types
+        elem_size = self._type_size_bytes(elem_ty)
+        key = self._map_key(name, call, block, stmt, key_ty)
+        if key is None or elem_size is None:
+            return []
+        elem_name = elem_ty.go_repr() if hasattr(elem_ty, "go_repr") else ""
+        m = list(call.args)[1]
+        stores: list[tuple[Block, Store, int]] = []
+        slot = stmt.dst if isinstance(stmt, Assignment) else None
+        if slot is not None:
+            if elem_size == 0:
+                return []
+            found: dict[int, tuple[int, Expression]] = {}
+            for blk, st in self._slot_window(block, stmt):
+                if not isinstance(st, Store):
+                    continue
+                at = self._slot_offset(st.addr, slot)
+                if at is None or at < 0 or at + st.size > elem_size or at in found:
+                    continue
+                found[at] = (st.size, st.data)
+                stores.append((blk, st, at))
+            pieces = sorted((at, s, v) for at, (s, v) in found.items())
+            if not self._covering(pieces, elem_size) or counts[slot.varid] != len(stores) + 1:
+                return []
+            values = [(at, v) for at, _, v in pieces]
+            value = values[0][1] if len(values) == 1 else self._map_value(elem_name, elem_size, values)
+        elif elem_size == 0:
+            value = Struct(self.manager.next_atom(), elem_name or "struct{}", OrderedDict(), OrderedDict(), 0)
+        else:
+            return []
+        tags = {k: v for k, v in stmt.tags.items() if not k.startswith("go_")}
+        assign = Call(self.manager.next_atom(), "mapassign", [m, key, value], bits=None, go_render="assign", **tags)
+        new_stmt = SideEffectStatement(stmt.idx, assign, **dict(assign.tags))
+        block.statements = [new_stmt if st is stmt else st for st in block.statements]
+        dropped = {id(st) for _, st, _ in stores}
+        touched = [block]
+        for blk, _, _ in stores:
+            blk.statements = [st for st in blk.statements if id(st) not in dropped]
+            if blk not in touched:
+                touched.append(blk)
+        return touched
+
+    def _map_value(self, elem_name: str, size: int, pieces: list[tuple[int, Expression]]) -> Expression:
+        ws = self.project.arch.bytes
+        if (elem_name == "string" or elem_name.startswith("[]")) and all(at % ws == 0 for at, _ in pieces):
+            value = self.values.whole(size, *pieces)
+            if value is None and elem_name == "string" and len(pieces) == 2:
+                value = self.values.literal(pieces[0][1], pieces[1][1])
+            if value is not None:
+                return value
+        return self._struct_of(elem_name, pieces)
+
+    def _fold_mapaccess(self, block: Block, stmt: Assignment, call: Call, name: str, counts: Counter) -> list[Block]:
+        """``t = mapaccess*(...)`` whose result is only read through offsets: one typed value ``m[k]``."""
+        types = self._map_types(call)
+        if types is None:
+            return []
+        map_name, key_ty, elem_ty = types
+        elem_size = self._type_size_bytes(elem_ty)
+        key = self._map_key(name, call, block, stmt, key_ty)
+        if key is None or not elem_size:
+            return []
+        dst = stmt.dst
+        two = name.startswith("runtime.mapaccess2")
+        if two:
+            if not (dst.was_combo_reg and dst.reg_vvars and len(dst.reg_vvars) == 2):
+                return []
+            slot, ok = dst.reg_vvars
+        else:
+            slot, ok = dst, None
+        loads = self._count_slot_loads(slot, elem_size)
+        # the use count includes the definition of a plain result, not of a combo's register piece
+        if loads < 0 or counts[slot.varid] - loads not in (0, 1):
+            return []
+        m = list(call.args)[1]
+        bits = self.project.arch.bits
+        rax, rbx = self._result_registers()
+        val = VirtualVariable(
+            self.manager.next_atom(), self._new_varid(), max(elem_size * 8, bits), VVC.REGISTER, oident=rax
+        )
+        tags = {k: v for k, v in stmt.tags.items() if not k.startswith("go_") and k != "is_prototype_guessed"}
+        index = Call(
+            self.manager.next_atom(),
+            "mapindex",
+            [m, key],
+            bits=val.bits + (ok.bits if ok is not None else 0),
+            go_render="index",
+            is_prototype_guessed=False,
+            **tags,
+        )
+        map_ty = self.kb.go_signatures.type(map_name)
+        returnty = GoSimTypeTuple([elem_ty, self.kb.go_signatures.type("bool")]) if two else elem_ty
+        with contextlib.suppress(Exception):
+            proto = GoSimTypeFunction([map_ty, key_ty], returnty).with_arch(self.project.arch)
+            variable_map_of(self.manager).set_prototype(index, proto)
+        if two:
+            result = VirtualVariable(
+                self.manager.next_atom(),
+                self._new_varid(),
+                val.bits + ok.bits,
+                VVC.COMBO_REGISTER,
+                oident=(rax, rbx),
+                reg_vvars=[val, ok],
+            )
+        else:
+            result = val
+        block.statements = [
+            SideEffectStatement(stmt.idx, index, ret_expr=result, **dict(index.tags)) if st is stmt else st
+            for st in block.statements
+        ]
+        rewriter = _SlotLoadRewriter(self, slot, val, elem_size)
+        touched = [block]
+        for blk in self._graph.nodes:
+            rewriter.walk(blk)
+            if rewriter.changed and blk not in touched:
+                touched.append(blk)
+            rewriter.changed = False
+        return touched
+
+    def _count_slot_loads(self, slot: VirtualVariable, elem_size: int) -> int:
+        counter = _SlotLoadCounter(self, slot, elem_size)
+        for blk in self._graph.nodes:
+            counter.walk(blk)
+        return counter.count if counter.ok else -1
+
+    def _result_registers(self) -> tuple[int, int]:
+        regs = self.project.arch.registers
+        names = ("rax", "rbx") if "rax" in regs else ("x0", "x1") if "x0" in regs else ("eax", "ebx")
+        return regs[names[0]][0], regs[names[1]][0]
+
+    def _new_varid(self) -> int:
+        varid = self.vvar_id_start
+        self.vvar_id_start += 1
+        return varid
+
+    def _rw_makemap_small(self, call: Call, args: list) -> Expression | None:
+        """``makemap_small()`` is ``make(map[K]V)`` of the typed struct field it is stored into."""
+        stmt = self._cur_stmt
+        name = None
+        if isinstance(stmt, Store) and isinstance(stmt.data, Call) and stmt.data.idx == call.idx:
+            base, off = _addr_and_offset(stmt.addr)
+            name = self._field_type_name(base, off) if base is not None else None
+        elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+            dst = self.values.resolve(stmt.dst)
+            for blk in self._graph.nodes:
+                for st in blk.statements:
+                    if isinstance(st, Store) and self.values.resolve(st.data).likes(dst):
+                        base, off = _addr_and_offset(st.addr)
+                        name = self._field_type_name(base, off) if base is not None else None
+                        if name is not None:
+                            break
+                if name is not None:
+                    break
+        ty = None
+        with contextlib.suppress(Exception):
+            ty = self.kb.go_signatures.type(name) if name is not None else None
+        if not isinstance(ty, GoSimTypeMap):
+            return None
+        return self.builtin(call, "make", [], go_type_args=[name], go_result_type=name)
+
+    def _pointee_type_name(self, expr: Expression) -> str | None:
+        """The Go type ``*T`` points to when ``expr`` is a typed pointer: a ``new(T)`` result or a parameter."""
+        e = self.values.expand(expr)
+        if isinstance(e, Call):
+            if e.target == "new":
+                type_args = list(e.tags.get("go_type_args", ()) or ())
+                return type_args[0] if type_args else None
+            name = self.callee_name(e)
+            args = list(e.args or [])
+            if name == "runtime.newobject" and len(args) == 1:
+                return self.type_name(args[0])
+            if name is not None and name.startswith("runtime.mallocgc") and len(args) == 3:
+                return self.type_name(args[1])
+            return None
+        resolved = self.values.resolve(expr)
+        proto = self._func.prototype
+        if isinstance(resolved, VirtualVariable) and self._arg_vvars and isinstance(proto, GoSimTypeFunction):
+            for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable) and vvar.varid == resolved.varid:
+                    pts_to = getattr(ty, "pts_to", None)
+                    return pts_to.go_repr() if pts_to is not None and hasattr(pts_to, "go_repr") else None
+        return None
+
+    def _field_type_name(self, base: Expression, off: int) -> str | None:
+        type_name = self._pointee_type_name(base)
+        if type_name is None:
+            return None
+        try:
+            ty = self.kb.go_signatures.type(type_name)
+        except Exception:  # pylint:disable=broad-exception-caught
+            return None
+        offsets = getattr(ty, "offsets", None)
+        fields = getattr(ty, "fields", None)
+        if not offsets or not fields:
+            return None
+        for field, at in offsets.items():
+            if at == off and hasattr(fields[field], "go_repr"):
+                return fields[field].go_repr()
+        return None
+
 
 class _Growth:
     """One growslice call and what was matched around it."""
@@ -1658,6 +2082,22 @@ class _Growth:
 
 _GROWSLICE_NAMES = frozenset({"runtime.growslice", "runtime.growsliceBuf"})
 
+# runtime calls nothing downstream matches by argument position: a surviving one spells its descriptor as a type
+_DESCRIPTOR_CALLS = (
+    "runtime.mapassign",
+    "runtime.mapaccess",
+    "runtime.mapdelete",
+    "runtime.mapclear",
+    "runtime.mapclone",
+    "runtime.makemap",
+    "runtime.makeslice",
+    "runtime.growslice",
+    "runtime.typedslicecopy",
+    "runtime.typedmemclr",
+    "runtime.moveSliceNoCap",
+    "runtime.assertE2I",
+)
+
 
 _SWAPPED = {"CmpEQ": "CmpEQ", "CmpNE": "CmpNE", "CmpLT": "CmpGT", "CmpGT": "CmpLT", "CmpLE": "CmpGE", "CmpGE": "CmpLE"}
 
@@ -1688,6 +2128,7 @@ _CALL_RULES = {
     "runtime.slicecopy": GoBuiltinRewriter._rw_slicecopy,
     "runtime.memmove": GoBuiltinRewriter._rw_memmove,
     "runtime.gopanic": GoBuiltinRewriter._rw_gopanic,
+    "runtime.makemap_small": GoBuiltinRewriter._rw_makemap_small,
 }
 
 
@@ -1705,7 +2146,7 @@ class _BuiltinRewriter(AILBlockRewriter):
 
     def _handle_Call(self, expr_idx, expr: Call, stmt_idx, stmt, block):
         expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
-        return self._apply(expr, self._pass.rewrite_call(expr))
+        return self._apply(expr, self._pass.rewrite_call(expr, block, stmt))
 
     def _handle_BinaryOp(self, expr_idx, expr: BinaryOp, stmt_idx, stmt, block):
         expr = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
@@ -1724,6 +2165,55 @@ class _BuiltinRewriter(AILBlockRewriter):
         if isinstance(stmt, SideEffectStatement):
             return self._apply(stmt, self._pass.rewrite_call_stmt(stmt))
         return stmt
+
+
+class _SlotLoadCounter(AILBlockViewer):
+    """Uses of a map slot pointer: ok when every use is a load of a piece inside the element."""
+
+    def __init__(self, pass_: GoBuiltinRewriter, slot: VirtualVariable, size: int):
+        super().__init__()
+        self._pass = pass_
+        self._slot = slot
+        self._size = size
+        self.count = 0
+        self.ok = True
+
+    def _handle_Load(self, expr_idx, expr: Load, stmt_idx, stmt, block):
+        at = self._pass._slot_offset(expr.addr, self._slot)
+        if at is not None and 0 <= at and at + expr.size <= self._size:
+            self.count += 1
+            return
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr: VirtualVariable, stmt_idx, stmt, block):
+        if expr.varid == self._slot.varid:
+            self.ok = False
+
+    def _handle_Assignment(self, stmt_idx, stmt, block):
+        # the definition itself is not a use
+        self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+
+
+class _SlotLoadRewriter(AILBlockRewriter):
+    """``Load(slot + k, n)`` -> the piece of the map value at ``k``."""
+
+    def __init__(self, pass_: GoBuiltinRewriter, slot: VirtualVariable, val: VirtualVariable, size: int):
+        super().__init__()
+        self._pass = pass_
+        self._slot = slot
+        self._val = val
+        self._size = size
+        self.changed = False
+
+    def _handle_Load(self, expr_idx, expr: Load, stmt_idx, stmt, block):
+        at = self._pass._slot_offset(expr.addr, self._slot)
+        if at is not None and 0 <= at and at + expr.size <= self._size:
+            self.changed = True
+            if at == 0 and expr.size * 8 == self._val.bits:
+                return self._val
+            offset = Const(self._pass.manager.next_atom(), at, self._pass.project.arch.bits)
+            return Extract(self._pass.manager.next_atom(), expr.size * 8, self._val, offset, expr.endness, **expr.tags)
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class _VVarCounter(AILBlockViewer):
