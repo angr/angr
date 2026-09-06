@@ -6,7 +6,7 @@ import re
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structured_codegen.c import type_equals
 from angr.calling_conventions import GO_ABI0_CC, default_cc_for_project
-from angr.go.sim_type import GoSimStruct
+from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
 from angr.go.utils.names import call_target_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from angr.sim_type import SimTypeFunction
@@ -122,10 +122,14 @@ class GoPrototypes(OptimizationPass):
         proto = self.kb.go_signatures.prototype(func.name)
         if proto is None:
             proto = self.kb.go_signatures.prototype_at(func.addr)
-        if proto is None and func.prototype is not None:
-            proto = self.kb.go_signatures.inferred_prototype(func.name, func.prototype.returnty)
         if proto is None:
-            return self._bound_guess(func)
+            bounded = self._bound_guess(func)
+            if func.prototype is None:
+                return bounded
+            proto = self.kb.go_signatures.inferred_prototype(func.name, func.prototype)
+            if proto is None:
+                return bounded
+            proto = self._with_receiver(func, proto)
         cc_cls = (
             GO_ABI0_CC.get(self.project.arch.name)
             if func.name.endswith(".abi0")
@@ -139,3 +143,12 @@ class GoPrototypes(OptimizationPass):
         func.prototype_source = _SOURCE
         l.debug("Applied Go prototype to %s: %s", func.name, proto.repr(func.name))
         return True
+
+    def _with_receiver(self, func: Function, proto: GoSimTypeFunction) -> GoSimTypeFunction:
+        """The receiver spelled out in a method's name beats whatever was inferred for its first parameter."""
+        recv = receiver_type_from_name(self.kb, self.project.arch, func.name)
+        if recv is None or not proto.args or type_equals(proto.args[0], recv):
+            return proto
+        return GoSimTypeFunction(
+            [recv, *proto.args[1:]], proto.returnty, arg_names=proto.arg_names, variadic=proto.variadic
+        ).with_arch(self.project.arch)
