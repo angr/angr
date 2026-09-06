@@ -29,7 +29,7 @@ use crate::ailment::ail_stmt::{AilStatement, Statement};
 use crate::ailment::const_value::ConstValue;
 use crate::ailment::enums::{ConvertType, ExpressionKind, RoundingMode, VirtualVariableCategory};
 use crate::ailment::tags::{Tags, TagsView};
-use crate::ailment::{CachedHash, CmpMode, hash_of};
+use crate::ailment::{Addr, CachedHash, CmpMode, hash_of};
 use indexmap::IndexMap;
 use serde::de::{self, EnumAccess, SeqAccess, VariantAccess, Visitor};
 use serde::ser::{SerializeStruct, SerializeTupleVariant};
@@ -726,7 +726,8 @@ impl OIdent {
 /// is enforced by ``extract_phi_entries`` at construction time.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhiEntry {
-    pub src_addr: i64,
+    #[serde(with = "crate::ailment::addr_repr")]
+    pub src_addr: Addr,
     pub src_idx: Option<i64>,
     pub vvar: Option<Arc<AilExpression>>,
 }
@@ -4980,10 +4981,13 @@ fn extract_phi_entries(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<Vec<P
                 ),
             ));
         }
-        let src_addr: i64 = src_tuple.get_item(0)?.extract().map_err(|_| {
+        let src_addr: Addr = src_tuple.get_item(0)?.extract().map_err(|_| {
             phi_validation_error(
                 py,
-                &format!("Phi.src_and_vvars[{}] src_addr must be int", idx),
+                &format!(
+                    "Phi.src_and_vvars[{}] src_addr must be an address (an int in [0, 2**64))",
+                    idx
+                ),
             )
         })?;
         let src_idx_obj = src_tuple.get_item(1)?;

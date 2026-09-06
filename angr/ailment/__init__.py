@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from angr.rustylib.ailment import ExpressionKind
+from angr.rustylib.ailment import INVALID_ADDR, ExpressionKind
 
 from . import expression, statement
 from .block import Block
@@ -62,6 +62,7 @@ class IRSBConverter(Converter):
 
 
 __all__ = [
+    "INVALID_ADDR",
     "AILBlockRewriter",
     "AILBlockViewer",
     "AILBlockWalker",
