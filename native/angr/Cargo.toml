@@ -52,4 +52,4 @@ tempfile = "3.27.0"
 # ships none, so take the one from Z3's own release of the same version. setup.py points the other
 # platforms at the wheel, and angr/_z3.py loads the wheel's libz3 at runtime everywhere.
 [target.'cfg(windows)'.dependencies]
-z3-sys = { version = "0.12", features = ["gh-release"] }
+z3-sys = { version = "0.13", features = ["gh-release"] }
