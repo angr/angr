@@ -277,7 +277,7 @@ class PCodeIRSBConverter(Converter):
             self._unique_tracker[offset] = self._unique_counter, size
             self._unique_counter += 1
             return self._unique_tracker[offset][0]
-        if offset in self._unique_tracker:
+        if offset in self._unique_tracker and self._unique_tracker[offset][1] == size:
             return self._unique_tracker[offset][0]
         # this might be a partial access of an existing temporary variable. return None for now
         return None
@@ -309,7 +309,7 @@ class PCodeIRSBConverter(Converter):
             if offset is None:
                 # this might be a partial access of an existing temporary variable
                 unique_offset = None
-                for delta in range(-1, -8, -1):
+                for delta in range(0, -8, -1):
                     if varnode.offset + delta in self._unique_tracker:
                         unique_offset = varnode.offset + delta
                         break
