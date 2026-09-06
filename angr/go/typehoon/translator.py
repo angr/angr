@@ -174,6 +174,13 @@ class GoTypeTranslator(TypeTranslator):
             return self.memo[key]
         if name is not None:
             self.known_structs.setdefault(name, ty)
+        if _is_descriptor_named_struct(ty):
+            # a named struct from the binary is an opaque atom: the solver never reads the fields of a type
+            # constant (the SimType comes back from known_structs by name), while spelling them out drags the whole
+            # reachable type graph into every hash, comparison and repr
+            obj = typeconsts.Struct(fields={}, name=name, size=_struct_size_bytes(ty, self.arch))
+            self.memo[key] = obj
+            return obj
         obj = typeconsts.Struct(fields={}, name=name)
         self.memo[key] = obj
         offsets = ty.offsets
@@ -206,6 +213,19 @@ class GoTypeTranslator(TypeTranslator):
 
 def _is_builtin_struct(ty) -> bool:
     return isinstance(ty, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface, GoSimTypeTuple))
+
+
+def _is_descriptor_named_struct(ty: GoSimStruct) -> bool:
+    """A struct with a qualified Go name from the binary; type inference's own ``struct_N`` does not count."""
+    return ty.go_name is not None and not ty.go_name.startswith("struct_") and not _is_builtin_struct(ty)
+
+
+def _struct_size_bytes(ty: GoSimStruct, arch) -> int | None:
+    try:
+        size = ty.size
+    except (ValueError, NotImplementedError, TypeError):
+        return None
+    return None if size is None else size // arch.byte_width
 
 
 GoTypeConstHandlers = {
