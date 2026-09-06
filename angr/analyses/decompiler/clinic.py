@@ -2861,6 +2861,12 @@ class Clinic(Analysis, Serializable):
         return pts_to if isinstance(pts_to, SimStruct) else None
 
     @staticmethod
+    def _real_field_count(struct: SimStruct) -> int:
+        """Number of fields that are not padding. ``SimStruct.offsets`` counts padding entries too, which must not be
+        mistaken for evidence of a struct."""
+        return sum(1 for name in struct.fields if not name.startswith("padding_"))
+
+    @staticmethod
     def _struct_layout_signature(struct: SimStruct) -> tuple | None:
         """A name-independent signature of a struct's field layout, used to deduplicate identical layouts."""
         try:
@@ -2987,7 +2993,7 @@ class Clinic(Analysis, Serializable):
 
             # only synthesize a struct when there is genuine multi-field evidence; a single field at one offset is just
             # a scalar pointer (e.g. a char*), and turning it into a struct would clobber better scalar-pointer types.
-            if len(union_struct.offsets) < 2:
+            if self._real_field_count(union_struct) < 2:
                 continue
 
             # drop nested references to per-function-named structs: carrying e.g. a callee-local "struct_1 *" field
@@ -3003,9 +3009,9 @@ class Clinic(Analysis, Serializable):
             # already canonicalized (equal field count under the canonical name)
             current_struct = self._pointee_struct(current)
             if current_struct is not None and (
-                len(current_struct.offsets) > len(union_struct.offsets)
+                self._real_field_count(current_struct) > self._real_field_count(union_struct)
                 or (
-                    len(current_struct.offsets) == len(union_struct.offsets)
+                    self._real_field_count(current_struct) == self._real_field_count(union_struct)
                     and current_struct._name == canonical_ref.name  # pylint:disable=protected-access
                 )
             ):
@@ -3035,9 +3041,9 @@ class Clinic(Analysis, Serializable):
             # equal-count layout under a different name is still rewritten so all contributors share one typedef
             existing_struct = self._pointee_struct(proto.args[arg_idx])
             if existing_struct is not None and (
-                len(existing_struct.offsets) > len(union_struct.offsets)
+                self._real_field_count(existing_struct) > self._real_field_count(union_struct)
                 or (
-                    len(existing_struct.offsets) == len(union_struct.offsets)
+                    self._real_field_count(existing_struct) == self._real_field_count(union_struct)
                     and existing_struct._name == union_struct._name  # pylint:disable=protected-access
                 )
             ):
