@@ -27,7 +27,26 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Statement, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.go.sim_type import GoSimTypeChan, GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
+from angr.go.analyses.block_scan import (
+    CTX,
+    RegisterEnv,
+    callee_name,
+    function_blocks,
+    is_function_addr,
+    lift_ail,
+    loads_in,
+)
+from angr.go.analyses.runtime_globals import is_readonly_data
+from angr.go.runtime_types import CONTEXT_REGISTERS
+from angr.go.sim_type import (
+    GoSimStruct,
+    GoSimType,
+    GoSimTypeChan,
+    GoSimTypeFunc,
+    GoSimTypeFunction,
+    GoSimTypeMap,
+    GoSimTypeTuple,
+)
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
 from angr.sim_type import SimType
@@ -56,6 +75,8 @@ _PREFIXES = (
     ("runtime.mapassign", "mapassign"),
     ("runtime.mapdelete", "mapdelete"),
 )
+_CLOSURE_STRUCT = "struct { F uintptr"
+_ALLOCATORS = {"runtime.newobject": 0, "runtime.mallocgc": 1}
 _INT_KINDS = frozenset(
     {"int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr", "bool"}
 )
@@ -195,6 +216,14 @@ class GoRuntimeRewriter(OptimizationPass):
         self._dropped_defs: set[int] = set()
         # stack slots that only park the frame pointer around duffzero/duffcopy calls
         self._restore_loads: set[int] = set()
+        # vvar -> the func value type it holds
+        self._func_types: dict[int, GoSimTypeFunc] = {}
+        # stack funcval slot vvar -> the closure expression that replaces references to it
+        self._replace_refs: dict[int, Expression] = {}
+        self._static_funcvals: dict[int, int | None] = {}
+        self._context_offsets_cache: dict[int, dict[int, int]] = {}
+        # statements that only fill stack closure records; dropped once the defer rewrite has seen them
+        self._closure_slot_stmts: set[int] = set()
         self.analyze()
 
     def _check(self):
@@ -209,10 +238,13 @@ class GoRuntimeRewriter(OptimizationPass):
             return
         self._reindex()
         self._collect_reference_types()
+        self._collect_func_values()
         self._collect_slots()
+        self._rewrite_closures()
         for block in list(self._graph.nodes):
             self._rewrite_statements(block)
         self._rewrite_open_coded_defers()
+        self._drop_closure_slots()
         rewriter = _ExprRewriter(self)
         for block in list(self._graph.nodes):
             rewriter.walk(block)
@@ -855,6 +887,395 @@ class GoRuntimeRewriter(OptimizationPass):
         return combo, value, ok
 
     #
+    # Closures
+    #
+
+    def _context_register(self) -> int | None:
+        name = CONTEXT_REGISTERS.get(self.project.arch.name)
+        return self.project.arch.registers[name][0] if name in self.project.arch.registers else None
+
+    def _func_type_at(self, code: int) -> tuple[GoSimTypeFunc | None, bool]:
+        """
+        ``(func value type, exact)`` of the function at ``code``: exact when a signature names it; a function the
+        pclntab says takes nothing is spelled ``func()``.
+        """
+        proto = None
+        name = callee_name(self.project, code)
+        if self.kb.functions.contains_addr(code):
+            func = self.kb.functions.get_by_addr(code)
+            if isinstance(func.prototype, GoSimTypeFunction) and not func.is_prototype_guessed:
+                proto = func.prototype
+        if proto is None and name is not None:
+            proto = self.kb.go_signatures.prototype(name)
+        if proto is None:
+            proto = self.kb.go_signatures.prototype_at(code)
+        if isinstance(proto, GoSimTypeFunction):
+            return GoSimTypeFunc(proto).with_arch(self.project.arch), True
+        if self.kb.go_signatures.arg_size_at(code) == 0:
+            return GoSimTypeFunc(GoSimTypeFunction([], None)).with_arch(self.project.arch), False
+        return None, False
+
+    def _collect_func_values(self) -> None:
+        """Vvars holding func values: parameters, results of calls with Go prototypes, closure-record fields."""
+        proto = self._func.prototype
+        if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
+            for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable) and isinstance(ty, GoSimTypeFunc):
+                    self._func_types[vvar.varid] = ty
+        record = self._go_type(self.kb.go_signatures.closure_context(self._func.addr))
+        fields = {}
+        if isinstance(record, GoSimStruct):
+            fields = {record.offsets[name]: ty for name, ty in record.fields.items() if name in record.offsets}
+        ctx_reg = self._context_register()
+        copies: list[tuple[int, list[int]]] = []
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                call_def = _call_def(stmt)
+                if call_def is not None:
+                    dst, call = call_def
+                    results = self._result_types(self._callee_prototype(call))
+                    if len(results) == 1 and isinstance(results[0], GoSimTypeFunc):
+                        self._func_types[dst.varid] = results[0]
+                    elif len(results) > 1 and dst.was_combo_reg and dst.reg_vvars:
+                        # one register per word of the result list
+                        regs = list(dst.reg_vvars)
+                        for ty in results:
+                            words = max(1, (ty.size or self.project.arch.bits) // self.project.arch.bits)
+                            if isinstance(ty, GoSimTypeFunc) and regs:
+                                self._func_types[regs[0].varid] = ty
+                            regs = regs[words:]
+                    continue
+                if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)):
+                    continue
+                src = stmt.src
+                if isinstance(src, VirtualVariable):
+                    copies.append((stmt.dst.varid, [src.varid]))
+                elif stmt.is_phi_assignment and hasattr(src, "src_and_vvars"):
+                    copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
+                elif isinstance(src, Load) and fields:
+                    base, off = _addr_and_offset(src.addr)
+                    if (
+                        isinstance(base, VirtualVariable)
+                        and base.was_reg
+                        and base.oident == ctx_reg
+                        and base.varid not in self._index.defs
+                        and isinstance(fields.get(off), GoSimTypeFunc)
+                    ):
+                        self._func_types[stmt.dst.varid] = fields[off]
+        for _ in range(3):
+            for dst, srcs in copies:
+                known = [self._func_types[v] for v in srcs if v in self._func_types]
+                if known and dst not in self._func_types:
+                    self._func_types[dst] = known[0]
+
+    def _allocation_descriptor(self, call: Call) -> int | None:
+        name = call_target_name(self.project, call)
+        if name is None:
+            return None
+        name = normalize_go_func_name(name)
+        idx = _ALLOCATORS.get("runtime.mallocgc" if name.startswith("runtime.mallocgc") else name)
+        args = list(call.args or [])
+        if idx is None or idx >= len(args) or not isinstance(args[idx], Const):
+            return None
+        return args[idx].value_int
+
+    def _closure_expr(self, code: int, captures: list, names: list[str], func_ty: GoSimTypeFunc | None) -> Call:
+        """``closure(f, captures...)``: the func value of ``f`` bound to its captured variables."""
+        result_type = func_ty.go_repr() if func_ty is not None else "*runtime.funcval"
+        call = Call(
+            self._new_idx(),
+            "closure",
+            args=[self._const_bits(code), *[c.copy() for c in captures]],
+            bits=self.project.arch.bits,
+            go_render="closure",
+            go_capture_names=list(names),
+            go_result_type=result_type,
+            is_prototype_guessed=False,
+        )
+        returnty = func_ty if func_ty is not None else self._go_type("*runtime.funcval")
+        if returnty is not None:
+            variable_map_of(self.manager).set_prototype(
+                call, GoSimTypeFunction([], returnty).with_arch(self.project.arch)
+            )
+        return call
+
+    def _rewrite_closures(self) -> None:
+        for block in list(self._graph.nodes):
+            for stmt in list(block.statements):
+                call_def = _call_def(stmt)
+                if call_def is None:
+                    continue
+                desc = self._allocation_descriptor(call_def[1])
+                type_name = go_type_name_at(self.project, desc) if desc is not None else None
+                if (
+                    type_name is not None
+                    and type_name.startswith(_CLOSURE_STRUCT)
+                    and self._fold_heap_closure(call_def[0], stmt, type_name)
+                ):
+                    self._reindex()
+        for block in list(self._graph.nodes):
+            for stmt in list(block.statements):
+                self._fold_stack_closure(block, stmt)
+        self._reindex()
+
+    def _fold_heap_closure(self, rec: VirtualVariable, def_stmt: Statement, type_name: str) -> bool:
+        """
+        ``rec = newobject(&type:struct { F uintptr; X0 T; ... })`` followed by one store per field becomes
+        ``closure(F, X0, ...)``; the record type is remembered for the closure body.
+        """
+        assert self._index is not None
+        record = self._go_type(type_name)
+        if not isinstance(record, GoSimStruct) or not record.offsets:
+            return False
+        stores: dict[int, tuple[Block, int, Store]] = {}
+        for block in self._graph.nodes:
+            for i, stmt in enumerate(block.statements):
+                if not isinstance(stmt, Store):
+                    continue
+                base, off = _addr_and_offset(stmt.addr)
+                if isinstance(base, VirtualVariable) and base.varid == rec.varid:
+                    if off in stores:
+                        return False
+                    stores[off] = (block, i, stmt)
+        if set(stores) != set(record.offsets.values()) or 0 not in stores:
+            return False
+        code_expr = stores[0][2].data
+        if not isinstance(code_expr, Const) or not is_function_addr(self.project, code_expr.value_int):
+            return False
+        code = code_expr.value_int
+        self.kb.go_signatures.set_closure_context(code, type_name)
+        # the fold sits at the store every other store dominates; every remaining use must come after it
+        store_blocks = {block for block, _, _ in stores.values()}
+        last_block = next((b for b in store_blocks if all(self._dominates(o, b) for o in store_blocks)), None)
+        if last_block is None:
+            return False
+        last_idx = max(i for block, i, _ in stores.values() if block is last_block)
+        dropped = {stmt.idx for _, _, stmt in stores.values()} | {def_stmt.idx}
+        # a spill of the record pointer before the fold point is an alias of the record
+        aliases: list[VirtualVariable] = []
+        uses = []
+        for block, i in self._index.sites.get(rec.varid, []):
+            stmt = block.statements[i]
+            if stmt.idx in dropped:
+                continue
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and isinstance(stmt.src, VirtualVariable)
+                and stmt.src.varid == rec.varid
+            ):
+                aliases.append(stmt.dst)
+                dropped.add(stmt.idx)
+                uses.extend(self._index.sites.get(stmt.dst.varid, []))
+                continue
+            uses.append((block, i))
+        for block, i in uses:
+            stmt = block.statements[i]
+            if isinstance(stmt, Assignment) and stmt.is_phi_assignment:
+                return False
+            if block is last_block:
+                if i <= last_idx:
+                    return False
+            elif not self._dominates(last_block, block):
+                return False
+        names = [name for name, off in sorted(record.offsets.items(), key=lambda kv: kv[1]) if off != 0]
+        captures = [stores[record.offsets[name]][2].data for name in names]
+        func_ty, _ = self._func_type_at(code)
+        closure = self._closure_expr(code, captures, names, func_ty)
+        if len(uses) == 1 and uses[0][0] is last_block:
+            value: Expression = closure
+            replacement = None
+        else:
+            value = VirtualVariable(self._new_idx(), self._new_varid(), rec.bits, VVC.REGISTER, oident=rec.oident)
+            replacement = Assignment(self._new_idx(), value, closure, **stores[0][2].tags)
+        self._replace[rec.varid] = value
+        for alias in aliases:
+            self._replace[alias.varid] = value
+        last_stmt_idx = last_block.statements[last_idx].idx
+        alias_blocks = {self._index.defs[a.varid][0] for a in aliases if a.varid in self._index.defs}
+        for block in store_blocks | {self._index.defs[rec.varid][0]} | alias_blocks:
+            new_stmts = []
+            for stmt in block.statements:
+                if stmt.idx == last_stmt_idx and replacement is not None:
+                    new_stmts.append(replacement)
+                elif stmt.idx not in dropped:
+                    new_stmts.append(stmt)
+            block.statements = new_stmts
+        self._changed = True
+        return True
+
+    def _fold_stack_closure(self, block: Block, stmt: Statement) -> None:
+        """
+        A stack funcval: a slot holding a code pointer whose address is taken, with the captures the body reads at
+        ``ctx+8, ctx+16, ...`` in the slots that follow it. References to the slot become ``closure(F, captures...)``.
+        """
+        assert self._index is not None
+        if not (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and stmt.dst.size == self.project.arch.bytes
+            and isinstance(stmt.src, Const)
+            and isinstance(stmt.src.value, int)
+            and is_function_addr(self.project, stmt.src.value)
+        ):
+            return
+        slot = stmt.dst
+        code = stmt.src.value
+        refs = self._index.refs.get(slot.varid, 0)
+        if refs == 0 or self._index.total.get(slot.varid, 0) != refs or slot.varid in self._replace_refs:
+            return
+        offsets = self._context_offsets(code)
+        captures: list[Expression] = []
+        capture_stmts: list[Statement] = []
+        for off in sorted(offsets):
+            cap = self._stack_slot_assignment(block, slot.stack_offset + off, stmt.idx)
+            if cap is None:
+                return
+            captures.append(cap.src)
+            capture_stmts.append(cap)
+        names = [f"cap_{k}" for k in range(len(captures))]
+        func_ty, _ = self._func_type_at(code)
+        self._replace_refs[slot.varid] = self._closure_expr(code, captures, names, func_ty)
+        self._closure_slot_stmts.add(stmt.idx)
+        self._closure_slot_stmts.update(
+            cap.idx for cap in capture_stmts if self._index.total.get(cap.dst.varid, 0) == 0
+        )
+        types = [self._capture_type(c) for c in captures]
+        if captures and all(types):
+            fields = "; ".join(f"{n} {t}" for n, t in zip(names, types))
+            self.kb.go_signatures.set_closure_context(code, f"struct {{ F uintptr; {fields} }}")
+
+    def _drop_closure_slots(self) -> None:
+        if not self._closure_slot_stmts:
+            return
+        for block in self._graph.nodes:
+            block.statements = [stmt for stmt in block.statements if stmt.idx not in self._closure_slot_stmts]
+        self._changed = True
+
+    @staticmethod
+    def _stack_slot_assignment(block: Block, stack_offset: int, after_idx: int | None) -> Assignment | None:
+        """The single word-sized assignment to the stack slot at ``stack_offset`` in ``block``."""
+        found = None
+        for stmt in block.statements:
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_stack
+                and stmt.dst.stack_offset == stack_offset
+                and stmt.idx != after_idx
+            ):
+                if found is not None:
+                    return None
+                found = stmt
+        return found
+
+    def _context_offsets(self, code: int) -> dict[int, int]:
+        """``{offset: size}`` of the loads the closure body at ``code`` makes through its context register."""
+        cached = self._context_offsets_cache.get(code)
+        if cached is not None:
+            return cached
+        out: dict[int, int] = {}
+        ctx_reg = self._context_register()
+        if ctx_reg is not None:
+            order, _ = function_blocks(self.project, code, limit=64)
+            for addr in order[:64]:
+                env = RegisterEnv(self.project.arch)
+                env.values[("r", ctx_reg)] = (CTX, 0)
+                for stmt in lift_ail(self.project, addr):
+                    if not isinstance(stmt, Assignment):
+                        continue
+                    loads: list = []
+                    loads_in(stmt.src, loads)
+                    for load in loads:
+                        target = env.eval(load.addr)
+                        if target is not None and target[0] == CTX and target[1] > 0:
+                            out[target[1]] = max(out.get(target[1], 0), load.size)
+                    env.assign(stmt)
+        self._context_offsets_cache[code] = out
+        return out
+
+    def _capture_type(self, expr) -> str | None:
+        """The Go spelling of a captured value's type when the parent knows it."""
+        assert self._index is not None
+        if not isinstance(expr, VirtualVariable):
+            return None
+        ty = self._func_types.get(expr.varid)
+        if ty is not None:
+            return ty.go_repr()
+        name = self._map_vvars.get(expr.varid) or self._chan_vvars.get(expr.varid)
+        if name is not None:
+            return name
+        proto = self._func.prototype
+        if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
+            for (vvar, _), arg_ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable) and vvar.varid == expr.varid and isinstance(arg_ty, GoSimType):
+                    return arg_ty.go_repr()
+        loc = self._index.defs.get(expr.varid)
+        if loc is not None:
+            call_def = _call_def(loc[0].statements[loc[1]])
+            if call_def is not None:
+                results = self._result_types(self._callee_prototype(call_def[1]))
+                if len(results) == 1 and isinstance(results[0], GoSimType):
+                    return results[0].go_repr()
+        return None
+
+    def _static_funcval(self, expr: Const) -> int | None:
+        """The code address behind a static funcval (a read-only word holding a function entry), else None."""
+        if not isinstance(expr.value, int) or expr.bits != self.project.arch.bits:
+            return None
+        addr = expr.value
+        if addr in self._static_funcvals:
+            return self._static_funcvals[addr]
+        code = None
+        if addr % self.project.arch.bytes == 0 and is_readonly_data(self.project, addr):
+            with contextlib.suppress(KeyError):
+                word = self.project.loader.memory.unpack_word(addr, size=self.project.arch.bytes)
+                if is_function_addr(self.project, word):
+                    code = word
+        self._static_funcvals[addr] = code
+        return code
+
+    def _func_type_of(self, expr) -> GoSimTypeFunc | None:
+        """The func value type of ``expr``: a typed vvar, a load of one from its stack slot, or a closure field."""
+        if isinstance(expr, VirtualVariable):
+            return self._func_types.get(expr.varid)
+        if not (isinstance(expr, Load) and expr.size == self.project.arch.bytes):
+            return None
+        slot = _ref_vvar(expr.addr)
+        if slot is not None:
+            return self._func_types.get(slot.varid)
+        base, off = _addr_and_offset(expr.addr)
+        if not (isinstance(base, VirtualVariable) and base.was_reg and base.oident == self._context_register()):
+            return None
+        record = self._go_type(self.kb.go_signatures.closure_context(self._func.addr))
+        if not isinstance(record, GoSimStruct):
+            return None
+        for name, ty in record.fields.items():
+            if record.offsets.get(name) == off and isinstance(ty, GoSimTypeFunc):
+                return ty
+        return None
+
+    def func_value_call(self, call: Call) -> Call | None:
+        """``(*f)(args...)`` through a func value becomes ``f(args...)`` with the signature's arity."""
+        target = call.target
+        if not isinstance(target, Load):
+            return None
+        fv = target.addr
+        func_ty = self._func_type_of(fv)
+        if func_ty is None:
+            return None
+        sig = func_ty.signature
+        args = list(call.args or [])
+        if call.tags.get("is_prototype_guessed", True) and len(args) > len(sig.args):
+            args = args[: len(sig.args)]
+        tags = dict(call.tags)
+        tags["is_prototype_guessed"] = False
+        new_call = Call(call.idx, fv.copy(), args=args, bits=call.bits, **tags)
+        variable_map_of(self.manager).set_prototype(new_call, sig.with_arch(self.project.arch))
+        return new_call
+
+    #
     # Goroutines and defer
     #
 
@@ -870,6 +1291,8 @@ class GoRuntimeRewriter(OptimizationPass):
             code = self._closure_code_pointer(fn)
             if code is not None and not self._closure_has_captures(fn):
                 return [code]
+        if isinstance(fn, Call) and fn.tags.get("go_render") == "closure" and len(fn.args or ()) == 1:
+            return [fn.args[0]]
         return [fn]
 
     def _closure_code_pointer(self, closure: VirtualVariable) -> Const | None:
@@ -991,6 +1414,11 @@ class GoRuntimeRewriter(OptimizationPass):
             if fn_loc is not None:
                 fn_src = fn_loc[0].statements[fn_loc[1]].src
                 fn = fn_src if isinstance(fn_src, Const) else fn
+        # a stack closure record with captures stands in for its code pointer
+        for varid in (slot_varid, funcval.varid if funcval is not None else None):
+            if varid in self._replace_refs:
+                fn = self._replace_refs[varid]
+                break
         for j in range(idx + 1, len(block.statements)):
             stmt = block.statements[j]
             if self._is_bits_assign(stmt) and stmt.dst.stack_offset == bits_offset and stmt.src.value_int != 0:
@@ -1085,6 +1513,8 @@ class _ExprRewriter(AILBlockRewriter):
         super().__init__()
         self._o = owner
         self.changed = False
+        # inside a load/store address: a constant there is an address, never a func value
+        self._addr_depth = 0
 
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
         rep = self._o._replace.get(expr.varid)
@@ -1093,8 +1523,40 @@ class _ExprRewriter(AILBlockRewriter):
             return rep.copy()
         return expr
 
+    def _handle_Const(self, expr_idx, expr, stmt_idx, stmt, block):
+        # expr_idx -1 is a call target
+        if expr_idx == -1 or self._addr_depth:
+            return expr
+        code = self._o._static_funcval(expr)
+        if code is None:
+            return expr
+        self.changed = True
+        func_ty, _ = self._o._func_type_at(code)
+        return self._o._closure_expr(code, [], [], func_ty)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+            rep = self._o._replace_refs.get(expr.operand.varid)
+            if rep is not None:
+                self.changed = True
+                return rep.copy()
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        new_expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+        call = new_expr if new_expr is not None else expr
+        rewritten = self._o.func_value_call(call)
+        if rewritten is not None:
+            self.changed = True
+            return rewritten
+        return new_expr
+
     def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
-        new_expr = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+        self._addr_depth += 1
+        try:
+            new_expr = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+        finally:
+            self._addr_depth -= 1
         expr = new_expr if new_expr is not None else expr
         addr = expr.addr
         if isinstance(addr, Call) and self._o._kind(addr) == "mapaccess1" and len(addr.args) >= 3:
@@ -1114,7 +1576,16 @@ class _ExprRewriter(AILBlockRewriter):
         return new_expr
 
     def _handle_Store(self, stmt_idx, stmt, block):
-        new_stmt = super()._handle_Store(stmt_idx, stmt, block)
+        self._addr_depth += 1
+        try:
+            addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
+        finally:
+            self._addr_depth -= 1
+        data = self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
+        guard = None if stmt.guard is None else self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
+        new_stmt = None
+        if addr != stmt.addr or data != stmt.data or guard != stmt.guard:
+            new_stmt = Store(stmt.idx, addr, data, stmt.size, stmt.endness, guard=guard, **stmt.tags)
         stmt = new_stmt if new_stmt is not None else stmt
         addr = stmt.addr
         call = None

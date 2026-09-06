@@ -8,6 +8,13 @@ G_REGISTERS = {
     "AARCH64": "x28",
 }
 
+# the register a closure body receives its closure record (context) pointer in
+CONTEXT_REGISTERS = {
+    "AMD64": "rdx",
+    "AARCH64": "x26",
+    "X86": "edx",
+}
+
 
 def go_g_struct(arch) -> SimStruct:
     """
