@@ -23,9 +23,13 @@ def _pointee_struct(ty):
     return pts if isinstance(pts, SimStruct) else None
 
 
+def _real_offsets(struct: SimStruct) -> set[int]:
+    return {off for name, off in struct.offsets.items() if not name.startswith("padding_")}
+
+
 class TestCrossFunctionArgTypes(unittest.TestCase):
-    def _project(self):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "cross_function_struct")
+    def _project(self, binary="cross_function_struct"):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", binary)
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions()
@@ -76,6 +80,79 @@ class TestCrossFunctionArgTypes(unittest.TestCase):
         print_decompilation_result(dec)
         # func_c reads z (offset 8) and w (offset 16) as fields of the unioned struct
         assert "->field_8" in dec.codegen.text and "->field_10" in dec.codegen.text, dec.codegen.text
+
+    def _decompile_struct2(self):
+        proj, cfg = self._project("cross_function_struct2")
+        callees = ("starts_with_dashes", "name_matches", "node_weight", "node_flags", "wide_sum")
+        for fn in callees:
+            proj.analyses.Decompiler(cfg.functions[fn], cfg=cfg.model)
+        for fn in ("wide_head", "walk", "main"):
+            proj.analyses.Decompiler(cfg.functions[fn], cfg=cfg.model)
+        # a second round, as a user re-opening the callees would trigger, must keep every guarantee below
+        decs = {}
+        for fn in (*callees, "wide_head", "walk"):
+            decs[fn] = proj.analyses.Decompiler(cfg.functions[fn], cfg=cfg.model, regen_clinic=True)
+            assert decs[fn].codegen is not None and decs[fn].codegen.text is not None
+        return proj, cfg, decs
+
+    def test_library_prototypes_and_strings_stay_scalar(self):
+        proj, cfg, decs = self._decompile_struct2()
+
+        # strcmp is a library function: its prototype must never be rewritten from call-site evidence
+        strcmp = cfg.functions["strcmp"]
+        assert strcmp.prototype is not None
+        assert _pointee_struct(strcmp.prototype.args[0]) is None, strcmp.prototype
+        assert _pointee_struct(strcmp.prototype.args[1]) is None, strcmp.prototype
+
+        # the string compared against a node name through strcmp stays a string in the callee ...
+        proto = cfg.functions["name_matches"].prototype
+        assert proto is not None and len(proto.args) >= 2
+        assert _pointee_struct(proto.args[1]) is None, proto
+        # ... while the node pointer next to it has picked up the fields the other callees see
+        node = _pointee_struct(proto.args[0])
+        assert node is not None, proto
+        assert {16, 24, 32} <= _real_offsets(node), node.fields
+
+        # a callee that reads s[0] and s[1] is reading a string, not a struct {char; char;}
+        proto = cfg.functions["starts_with_dashes"].prototype
+        assert proto is not None and proto.args
+        assert _pointee_struct(proto.args[0]) is None, proto
+        print_decompilation_result(decs["starts_with_dashes"])
+        text = decs["starts_with_dashes"].codegen.text
+        assert "ustruct" not in text and "field_1" not in text, text
+
+        # the strings the caller passes down stay strings in the caller too
+        walk_proto = cfg.functions["walk"].prototype
+        assert walk_proto is not None and len(walk_proto.args) >= 3
+        assert _pointee_struct(walk_proto.args[1]) is None, walk_proto
+        assert _pointee_struct(walk_proto.args[2]) is None, walk_proto
+
+    def test_union_never_takes_fields_away_from_a_callee(self):
+        proj, cfg, decs = self._decompile_struct2()
+
+        # wide_sum establishes all four fields on its own; wide_head only touches the first one. After wide_head is
+        # decompiled, wide_sum's argument must still carry every field, and its output must still name them.
+        proto = cfg.functions["wide_sum"].prototype
+        assert proto is not None and proto.args
+        wide = _pointee_struct(proto.args[0])
+        assert wide is not None, proto
+        assert {0, 8, 12, 16} <= _real_offsets(wide), wide.fields
+        print_decompilation_result(decs["wide_sum"])
+        text = decs["wide_sum"].codegen.text
+        for field in ("field_8", "field_c", "field_10"):
+            assert f"->{field}" in text, (field, text)
+
+        # every union struct the output names is declared in that output
+        for fn, dec in decs.items():
+            text = dec.codegen.text
+            for name in {m for m in _union_struct_names(text)}:
+                assert f"typedef struct {name} " in text, (fn, name, text)
+
+
+def _union_struct_names(text: str) -> set[str]:
+    import re  # pylint:disable=import-outside-toplevel
+
+    return set(re.findall(r"\b(ustruct_\d+)\b", text))
 
 
 if __name__ == "__main__":
