@@ -11,6 +11,7 @@ from angr.ailment.expression import (
     Expression,
     Load,
     Phi,
+    StringLiteral,
     Struct,
     UnaryOp,
     VirtualVariable,
@@ -19,7 +20,16 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Store
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.go.sim_type import GoSimStruct, GoSimType, GoSimTypeFunction, GoSimTypePointer, go_type_repr
+from angr.go.sim_type import (
+    GoSimStruct,
+    GoSimType,
+    GoSimTypeFunction,
+    GoSimTypeInterface,
+    GoSimTypePointer,
+    GoSimTypeSlice,
+    GoSimTypeString,
+    go_type_repr,
+)
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_name_at
 from angr.utils.go_runtime import normalize_go_func_name
@@ -149,10 +159,10 @@ class GoPrototypeInference(OptimizationPass):
             for stmt in block.statements:
                 if not isinstance(stmt, Return) or not stmt.ret_exprs:
                     continue
-                leaves = list(stmt.ret_exprs)
+                leaves = self._flatten(list(stmt.ret_exprs))
                 w = 0
                 while w < len(leaves):
-                    hit = self._classify(leaves, w, depth=0)
+                    hit = leaves[w] if isinstance(leaves[w], tuple) else self._classify(leaves, w, depth=0)
                     if hit is None:
                         w += 1
                         continue
@@ -167,10 +177,54 @@ class GoPrototypeInference(OptimizationPass):
             found.pop(w, None)
         return found or None
 
-    def _classify(self, leaves: list[Expression], i: int, depth: int) -> tuple[str, int] | None:
+    def _flatten(self, exprs: list) -> list:
+        """
+        One entry per result word: the word's expression, or an already known (type, words) for a fused value the
+        value fuser rebuilt from an applied prototype (a re-inference pass).
+        """
+        out: list = []
+        bytes_ = self.project.arch.bytes
+        for expr in exprs:
+            if isinstance(expr, Struct):
+                out.extend(self._flatten([expr.fields[off] for off in sorted(expr.fields)]))
+            elif isinstance(expr, VirtualVariable) and expr.reg_vvars:
+                out.extend(expr.reg_vvars)
+            elif isinstance(expr, StringLiteral):
+                out.append(("string", 2))
+            elif (
+                isinstance(expr, Load)
+                and expr.size > bytes_
+                and isinstance(expr.addr, (UnaryOp, BinaryOp))
+                and self._combo_piece_of(expr) is not None
+            ):
+                out.extend(self._combo_piece_of(expr))
+            else:
+                out.append(expr)
+        return out
+
+    def _combo_piece_of(self, load: Load) -> list | None:
+        """The register vvars a ``Load(&combo + off, size)`` covers."""
+        addr, off = _addr_base_and_offset(load.addr)
+        if not (isinstance(addr, UnaryOp) and addr.op == "Reference" and isinstance(addr.operand, VirtualVariable)):
+            return None
+        regs = addr.operand.reg_vvars
+        bytes_ = self.project.arch.bytes
+        if not regs or off % bytes_ or load.size % bytes_:
+            return None
+        pieces = regs[off // bytes_ : (off + load.size) // bytes_]
+        return pieces if len(pieces) == load.size // bytes_ else None
+
+    def _classify(self, leaves: list, i: int, depth: int) -> tuple[str, int] | None:
         """The Go type of the value whose first word is ``leaves[i]`` and how many of the leaves it spans."""
         assert self._values is not None
+        if isinstance(leaves[i], tuple):
+            return leaves[i]
         expr = self._values.resolve(leaves[i])
+        if isinstance(expr, BinaryOp) and expr.op == "Add":
+            base = self._values.resolve(expr.operands[0])
+            hit = self._values.combo_of.get(base.varid) if isinstance(base, VirtualVariable) else None
+            if hit is not None:
+                return self._classify_combo_word(leaves, i, hit[0], hit[1])
         if isinstance(expr, VirtualVariable):
             ty = self._values.param_types.get(expr.varid)
             if isinstance(ty, GoSimType) and ty.size == self.project.arch.bits:
@@ -180,7 +234,7 @@ class GoPrototypeInference(OptimizationPass):
                 return self._classify_combo_word(leaves, i, hit[0], hit[1])
             src = self._values.defs.get(expr.varid)
             if isinstance(src, Call):
-                return self._single_result(src)
+                return self._single_result(src, leaves, i)
             if isinstance(src, Phi):
                 return self._classify_phi(leaves, i, depth)
             if isinstance(src, Convert):
@@ -195,22 +249,27 @@ class GoPrototypeInference(OptimizationPass):
             return self._classify_load(leaves, i, expr)
         return None
 
+    def _combo_words(self, combo: VirtualVariable) -> list:
+        """Per register word of a fused parameter or call result: (type, word within it, words), None if untyped."""
+        assert self._values is not None
+        ty = self._values.param_types.get(combo.varid)
+        if ty is not None:
+            return _value_words([ty])
+        call = self._values.defs.get(combo.varid)
+        proto = self._callee_prototype(call) if isinstance(call, Call) else None
+        if proto is None:
+            return []
+        words = _result_words(proto)
+        if len(words) == 3 and words[0] is not None and go_type_repr(words[0][0]) == "runtime.slice":
+            # growslice returns the runtime's untyped header; the element descriptor argument types it
+            elem = self._slice_elem_of(call)
+            words = _value_words([elem]) if elem is not None else []
+        return words
+
     def _classify_combo_word(self, leaves, i, combo: VirtualVariable, word: int) -> tuple[str, int] | None:
         """A register of a multi-word call result or parameter: the typed value that starts at this word."""
         assert self._values is not None
-        words: list = []
-        ty = self._values.param_types.get(combo.varid)
-        if ty is not None:
-            words = _value_words([ty])
-        else:
-            call = self._values.defs.get(combo.varid)
-            proto = self._callee_prototype(call) if isinstance(call, Call) else None
-            if proto is not None:
-                words = _result_words(proto)
-                if len(words) == 3 and words[0] is not None and go_type_repr(words[0][0]) == "runtime.slice":
-                    # growslice returns the runtime's untyped header; the element descriptor argument types it
-                    elem = self._slice_elem_of(call)
-                    words = _value_words([elem]) if elem is not None else []
+        words = self._combo_words(combo)
         if word >= len(words) or words[word] is None:
             return None
         ty, start, span = words[word]
@@ -223,16 +282,31 @@ class GoPrototypeInference(OptimizationPass):
             return None
         if all(isinstance(g, VirtualVariable) and g.varid == v for g, v in zip(got, wanted)):
             return go_type_repr(ty), span
+        if isinstance(ty, GoSimTypeSlice) and span == 3:
+            return self._classify_resliced(leaves, i, combo, word, ty)
         return None
+
+    def _classify_resliced(self, leaves, i, combo: VirtualVariable, word: int, ty) -> tuple[str, int] | None:
+        """``s[k:]`` of a typed slice: (ptr + k*w, len - k, cap - k) over the words of ``s``."""
+        assert self._values is not None
+        ids = [rv.varid for rv in combo.reg_vvars or []][word : word + 3]
+        if len(ids) != 3 or i + 2 >= len(leaves):
+            return None
+        for k, op in enumerate(("Add", "Sub", "Sub")):
+            leaf = self._values.resolve(leaves[i + k])
+            # the pointer advances by a masked amount (no advance past an empty slice), the lengths by a constant
+            if isinstance(leaf, BinaryOp) and leaf.op == op and (k == 0 or isinstance(leaf.operands[1], Const)):
+                leaf = self._values.resolve(leaf.operands[0])
+            if not isinstance(leaf, VirtualVariable) or leaf.varid != ids[k]:
+                return None
+        return go_type_repr(ty), 3
 
     def _slice_elem_of(self, call: Call):
         """``[]T`` for a raw ``runtime.growslice(..., &type:T)`` call."""
         name = call_target_name(self.project, call)
-        args = list(call.args or [])
-        if name is None or normalize_go_func_name(name) != "runtime.growslice" or len(args) != 5:
+        if name is None or normalize_go_func_name(name) != "runtime.growslice":
             return None
-        et = args[4]
-        elem = go_type_name_at(self.project, et.value_int) if isinstance(et, Const) and et.is_int else None
+        elem = self._descriptor_arg(call, 4)
         if elem is None:
             return None
         try:
@@ -240,14 +314,33 @@ class GoPrototypeInference(OptimizationPass):
         except Exception:  # pylint:disable=broad-exception-caught
             return None
 
-    def _single_result(self, call: Call) -> tuple[str, int] | None:
+    def _single_result(self, call: Call, leaves=None, i: int = 0) -> tuple[str, int] | None:
         proto = self._callee_prototype(call)
         if proto is None:
             return None
         results = proto.results
         if len(results) != 1 or not isinstance(results[0], GoSimType) or results[0].size != self.project.arch.bits:
             return None
-        return go_type_repr(results[0]), 1
+        name = call_target_name(self.project, call)
+        name = normalize_go_func_name(name) if name is not None else ""
+        if name in ("runtime.makeslice", "runtime.makeslicecopy"):
+            # the pointer word of a fresh slice; the len and cap words follow
+            elem = self._descriptor_arg(call, 0)
+            if elem is not None and leaves is not None and i + 2 < len(leaves):
+                return f"[]{elem}", 3
+            return None
+        repr_ = go_type_repr(results[0])
+        if name.startswith("runtime.") and repr_ == "unsafe.Pointer":
+            # allocation helpers return the raw word of whatever they built
+            return None
+        return repr_, 1
+
+    def _descriptor_arg(self, call: Call, index: int) -> str | None:
+        args = list(call.args or [])
+        if index >= len(args):
+            return None
+        arg = args[index]
+        return go_type_name_at(self.project, arg.value_int) if isinstance(arg, Const) and arg.is_int else None
 
     def _classify_phi(self, leaves, i, depth: int) -> tuple[str, int] | None:
         """Leaves defined by phis over the same blocks are classified per incoming block and must agree."""
@@ -315,7 +408,11 @@ class GoPrototypeInference(OptimizationPass):
             pointee = self._pointee_type(base)
             if not isinstance(pointee, GoSimStruct):
                 return None
-            fty = _field_at(pointee, off)
+            if off == 0 and isinstance(pointee, (GoSimTypeString, GoSimTypeSlice, GoSimTypeInterface)):
+                # the words of a string/slice/interface behind a pointer (an element of a typed slice)
+                fty = pointee
+            else:
+                fty = _field_at(pointee, off)
         if not isinstance(fty, GoSimType) or not fty.size:
             return None
         span = _leaf_count(fty)
@@ -339,11 +436,20 @@ class GoPrototypeInference(OptimizationPass):
             return None
         ty = self._values.param_types.get(base.varid)
         if ty is None:
-            src = self._values.defs.get(base.varid)
-            if isinstance(src, Call):
-                proto = self._callee_prototype(src)
-                if proto is not None and len(proto.results) == 1:
-                    ty = proto.results[0]
+            hit = self._values.combo_of.get(base.varid)
+            if hit is not None:
+                # the pointer word of a fused value: a slice's array or a pointer result
+                words = self._combo_words(hit[0])
+                if hit[1] < len(words) and words[hit[1]] is not None and words[hit[1]][1] == 0:
+                    ty = words[hit[1]][0]
+                    if isinstance(ty, GoSimTypeSlice):
+                        return ty.elem_type
+            else:
+                src = self._values.defs.get(base.varid)
+                if isinstance(src, Call):
+                    proto = self._callee_prototype(src)
+                    if proto is not None and len(proto.results) == 1:
+                        ty = proto.results[0]
         if isinstance(ty, GoSimTypePointer):
             return ty.pts_to
         return None
@@ -390,7 +496,8 @@ class GoPrototypeInference(OptimizationPass):
             _record(found.setdefault(name, {}), word, type_str, span)
 
         def note(expr, ty) -> None:
-            if isinstance(ty, GoSimType) and ty.size:
+            # an untyped pointer or word says nothing about the value
+            if isinstance(ty, GoSimType) and ty.size and go_type_repr(ty) not in ("unsafe.Pointer", "uintptr"):
                 note_words(expr, go_type_repr(ty), _leaf_count(ty))
 
         own = self._func.prototype
