@@ -307,5 +307,45 @@ class TestVexOpParity(unittest.TestCase):
         assert not mismatches, "vexop parity mismatches:\n" + "\n".join(f"  {n}: {m}" for n, m in mismatches[:50])
 
 
+class TestPcodeUnmodeledOpOutput(unittest.TestCase):
+    """A p-code op the converter cannot model still writes its output varnode, so the
+    converter has to define that output. SuperH ``fsca`` computes its sine/cosine pair
+    with two CALLOTHER ops; dropping their writes left the uniques they define with no
+    definition at all, and the FLOAT2FLOAT that reads them back asserted."""
+
+    # test-instr_sh4 has six `fsca` blocks; this one is a single instruction.
+    fsca_addr = 0x45125C
+
+    def test_callother_output_is_defined(self):
+        path = os.path.normpath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "binaries", "tests", "sh4", "test-instr_sh4")
+        )
+        proj = angr.Project(path, auto_load_libs=False, engine=angr.engines.UberEnginePcode)
+        block = proj.factory.block(self.fsca_addr)
+        ablock = ailment.IRSBConverter.convert(block.vex, ailment.Manager())
+
+        dirty: list[tuple[ailment.Expr.Tmp, ailment.Expr.DirtyExpression]] = []
+        read: set[int] = set()
+        for stmt in ablock.statements:
+            if not isinstance(stmt, ailment.Stmt.Assignment):
+                continue
+            src = stmt.src
+            dst = stmt.dst
+            if isinstance(src, ailment.Expr.DirtyExpression):
+                assert isinstance(dst, ailment.Expr.Tmp)
+                dirty.append((dst, src))
+            elif isinstance(dst, ailment.Expr.Register) and isinstance(src, ailment.Expr.Convert):
+                operand = src.operand
+                if isinstance(operand, ailment.Expr.Tmp):
+                    read.add(operand.tmp_idx)
+
+        assert len(dirty) == 2
+        for dst, src in dirty:
+            assert src.callee == "CALLOTHER"
+            assert dst.bits == 32
+        # both halves of the pair are read back out of the temporaries just defined
+        assert {dst.tmp_idx for dst, _ in dirty} == read
+
+
 if __name__ == "__main__":
     unittest.main()
