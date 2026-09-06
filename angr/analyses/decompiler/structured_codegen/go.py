@@ -3771,6 +3771,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         CopyCleanup(self, self.cfunc).run()
         self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
         CopyCleanup(self, self.cfunc).run()
+        ITEHoisting(self, self.cfunc).run()
         NamedFieldRetyping(self, self.cfunc).run()
         self.cfunc.statements = _TypedCopies(self).handle(self.cfunc.statements)
         ShortDeclarations(self, self.cfunc).run()
@@ -4101,9 +4102,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # pointer cast time!
             # TODO: BYTE2() and other ida-isms if we're okay with an rvalue
             if stride != 1:
-                expr = GoTypeCast(
-                    expr.type, SimTypePointer(SimTypeChar()).with_arch(self.project.arch), expr, codegen=self
+                # a pointer type inference made up is integer math to the reader; a known pointee keeps byte steps
+                as_int = _go_anonymous_pointee(expr.type)
+                cast_to = (
+                    (SimTypeLongLong(signed=False) if self.project.arch.bits == 64 else SimTypeInt(signed=False))
+                    if as_int
+                    else SimTypePointer(SimTypeChar())
                 )
+                expr = GoTypeCast(expr.type, cast_to.with_arch(self.project.arch), expr, codegen=self)
             expr_with_offset = GoBinaryOp("Add", expr, GoConstant(remainder, SimTypeInt(), codegen=self), codegen=self)
             return GoUnaryOp(
                 "Dereference",
@@ -4152,21 +4158,26 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             pointer_length_int_type = (
                 SimTypeLongLong(signed=False) if self.project.arch.bits == 64 else SimTypeInt(signed=False)
             )
+
+            def _byte_pointer(t):
+                # a pointer to a known type keeps byte arithmetic explicit; a pointer only type inference
+                # made up (an anonymous struct, an unknown pointee) is integer math to the reader
+                if not isinstance(t.type, SimTypePointer):
+                    return t
+                pointee = unpack_typeref(t.type.pts_to)
+                if isinstance(pointee, SimTypeBottom) or (
+                    isinstance(pointee, GoSimStruct) and _go_descriptor_name(pointee) is None
+                ):
+                    return GoTypeCast(t.type, pointer_length_int_type, t, codegen=self)
+                return GoTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
+
             for c, t in o_terms:
                 op = "Add"
                 if c == -1 and result is not None:
                     op = "Sub"
-                    piece = (
-                        t
-                        if not isinstance(t.type, SimTypePointer)
-                        else GoTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
-                    )
+                    piece = _byte_pointer(t)
                 elif c == 1:
-                    piece = (
-                        t
-                        if not isinstance(t.type, SimTypePointer)
-                        else GoTypeCast(t.type, SimTypePointer(SimTypeChar()), t, codegen=self)
-                    )
+                    piece = _byte_pointer(t)
                 else:
                     assert t.type is not None
                     piece = GoBinaryOp(
@@ -4197,7 +4208,29 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # also identify the "kernel", the root of the expression
         constant, terms = o_constant, list(o_terms)
         if constant < 0:
-            return bail_out()
+            # a whole number of elements back (p[i - 1]) folds into the index term below; anything else bails
+            kernel_candidates = [t for c, t in terms if c == 1 and isinstance(unpack_typeref(t.type), SimTypePointer)]
+            kt = unpack_typeref(unpack_pointer_and_array(kernel_candidates[0].type)) if kernel_candidates else None
+            stride = (kt.size or 0) // self.project.arch.byte_width if kt is not None and kt.size else 0
+            if stride <= 0 or constant % stride != 0 or not any(c == stride for c, _ in terms):
+                return bail_out()
+            back = constant // stride
+            terms = [
+                (c, GoBinaryOp("Add", t, GoConstant(back, SimTypeInt(), codegen=self), codegen=self))
+                if c == stride
+                else (c, t)
+                for c, t in terms
+            ]
+            back_applied = False
+            new_terms = []
+            for c, t in terms:
+                if c == stride and not back_applied:
+                    new_terms.append((c, t))
+                    back_applied = True
+                else:
+                    new_terms.append((c, t.lhs if isinstance(t, GoBinaryOp) and t.op == "Add" and c == stride else t))
+            terms = new_terms
+            constant = 0
 
         i = 0
         kernel = None
@@ -6476,6 +6509,93 @@ class _TypedCopies(GoStructuredCodeWalker):
         return GoAssignment(lhs, rhs, tags=obj.tags, codegen=self._codegen)
 
 
+class ITEHoisting:
+    """
+    ``x = c ? a : b`` renders as an immediately invoked closure in Go. Inside a statement list the value is hoisted
+    into a temporary assigned by an ``if/else`` placed before the statement; ITEs in loop headers stay as they are.
+    """
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._taken = {v.name for v in cfunc.unified_local_vars if v.name} | {n for n, _ in cfunc.extra_decls}
+        self._counter = 0
+
+    def _fresh(self, ty) -> GoFakeVariable:
+        while True:
+            self._counter += 1
+            name = f"t{self._counter}" if self._counter > 1 else "t"
+            if name not in self._taken:
+                self._taken.add(name)
+                break
+        self._cfunc.extra_decls.append((name, ty))
+        return GoFakeVariable(name, ty, codegen=self._codegen)
+
+    def run(self):
+        root = self._cfunc.statements
+        if not isinstance(root, GoStatements):
+            root = GoStatements([root], addr=getattr(root, "addr", None), codegen=self._codegen)
+            self._cfunc.statements = root
+        self._cfunc.statements = self._handle_list(root)
+
+    def _handle_list(self, stmts: GoStatements) -> GoStatements:
+        out = []
+        for stmt in stmts.statements:
+            stmt = self._recurse(stmt)
+            if isinstance(stmt, (GoAssignment, GoExpressionStatement, GoReturn, GoIfElse)):
+                out.extend(self._hoist_from(stmt))
+            else:
+                out.append(stmt)
+        stmts.statements = out
+        return stmts
+
+    def _recurse(self, stmt):
+        # descend into nested statement lists (bodies), not into loop headers
+        for attr in ("body", "else_node"):
+            child = getattr(stmt, attr, None)
+            if isinstance(child, GoStatements):
+                setattr(stmt, attr, self._handle_list(child))
+        if isinstance(stmt, GoIfElse):
+            stmt.condition_and_nodes = [
+                (cond, self._handle_list(node) if isinstance(node, GoStatements) else node)
+                for cond, node in stmt.condition_and_nodes
+            ]
+        if isinstance(stmt, GoSwitchCase):
+            stmt.cases = [
+                (ids, self._handle_list(node) if isinstance(node, GoStatements) else node) for ids, node in stmt.cases
+            ]
+            if isinstance(stmt.default, GoStatements):
+                stmt.default = self._handle_list(stmt.default)
+        if isinstance(stmt, GoStatements):
+            return self._handle_list(stmt)
+        return stmt
+
+    def _hoist_from(self, stmt) -> list:
+        """Replace every ITE reachable from ``stmt`` (outside nested bodies) by a temporary; innermost first."""
+        prelude: list = []
+        codegen = self._codegen
+        hoister = self
+
+        class _Replace(GoStructuredCodeWalker):
+            def handle_GoStatements(inner, obj):
+                return obj  # bodies were handled by the recursion
+
+            def handle_GoITE(inner, obj):
+                obj = super().handle_GoITE(obj)  # inner ITEs first
+                ty = obj.type if obj.type is not None else SimTypeLongLong()
+                tmp = hoister._fresh(ty)
+                then = GoStatements([GoAssignment(tmp, obj.iftrue, codegen=codegen)], codegen=codegen)
+                other = GoStatements([GoAssignment(tmp, obj.iffalse, codegen=codegen)], codegen=codegen)
+                prelude.append(GoIfElse([(obj.cond, then)], else_node=other, tags=obj.tags, codegen=codegen))
+                return tmp
+
+        if isinstance(stmt, GoIfElse):
+            stmt.condition_and_nodes = [(_Replace().handle(cond), node) for cond, node in stmt.condition_and_nodes]
+        else:
+            stmt = _Replace().handle(stmt)
+        return [*prelude, stmt]
+
+
 class NamedFieldRetyping:
     """
     Field accesses built on register copies carry the copy's inferred struct; once copy cleanup has folded them onto
@@ -6538,6 +6658,29 @@ def _go_mentions_named(ty, depth: int = 0) -> bool:
     if isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
         return _go_mentions_named(ty.elem_type, depth + 1)
     return False
+
+
+def _go_anonymous_pointee(ty) -> bool:
+    """Whether ``ty`` (through any chain of pointers) ends in a struct only type inference named (``struct_N``)."""
+    ty = unpack_typeref(ty)
+    if not isinstance(ty, SimTypePointer):
+        return False
+    pointee = unpack_typeref(ty.pts_to)
+    while isinstance(pointee, SimTypePointer):
+        pointee = unpack_typeref(pointee.pts_to)
+    return isinstance(pointee, GoSimStruct) and _go_descriptor_name(pointee) is None
+
+
+def _go_off_stride_step(obj) -> bool:
+    """``p + c`` on an inferred pointer where ``c`` is not a multiple of the pointee size: integer math, not a step."""
+    if not _go_anonymous_pointee(obj.type):
+        return False
+    const = obj.rhs if isinstance(obj.rhs, GoConstant) else obj.lhs if isinstance(obj.lhs, GoConstant) else None
+    if const is None or not isinstance(const.value, int):
+        return False
+    pointee = unpack_typeref(unpack_typeref(obj.type).pts_to)
+    size = (pointee.size or 0) // 8 if pointee is not None and pointee.size else 0
+    return size == 0 or const.value % size != 0
 
 
 def _go_descriptor_name(ty) -> str | None:
@@ -8563,6 +8706,7 @@ class PointerArithmeticFixer(GoStructuredCodeWalker):
             obj.op in ("Add", "Sub")
             and isinstance(obj.type, SimTypePointer)
             and not isinstance(obj.type.pts_to, SimTypeBottom)
+            and not _go_off_stride_step(obj)
         ):
             out = obj.codegen._access_reference(obj, obj.type.pts_to)
             if (
