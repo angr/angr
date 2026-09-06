@@ -12,6 +12,7 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses.calling_convention import FactCollector
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -292,6 +293,32 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         assert cca.prototype is not None
         assert cca.prototype.returnty is not None
+
+    def test_x64_ignored_return_value_only_demotes_a_leftover(self):
+        # A caller that ignores the result is not proof there is none. Call-site evidence makes a prototype void
+        # only when the function's own evidence for a return value is a leftover: rax written by a load whose
+        # value is then stored or tested, and merely still there at the ret.
+        binary_path = os.path.join(test_location, "x86_64", "decompiler", "known_patterns_stl4")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        # swap_ints: mov eax,[rdi]; mov edx,[rsi]; mov [rdi],edx; mov [rsi],eax; ret -- void, and main ignores rax
+        func = cfg.functions.function(name="swap_ints")
+        assert func is not None
+        facts = proj.analyses[FactCollector].prep()(func)
+        assert facts.retval_size == 4 and facts.retval_incidental
+        cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, analyze_callsites=True, collect_facts=True)
+        assert cca.prototype is not None and isinstance(cca.prototype.returnty, SimTypeBottom)
+
+        # f_neg: xorpd xmm0, [mask]; ret -- returns in xmm0, which the call-site fact never looks at
+        binary_path = os.path.join(test_location, "x86_64", "decompiler", "known_patterns_libm_bits")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = cfg.functions.function(name="f_neg")
+        assert func is not None
+        facts = proj.analyses[FactCollector].prep()(func)
+        assert facts.retval_size is None and not facts.retval_incidental
+        cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, analyze_callsites=True, collect_facts=True)
+        assert cca.prototype is not None and not isinstance(cca.prototype.returnty, SimTypeBottom)
 
     def test_armhf_thumb_movcc(self):
         binary_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc")

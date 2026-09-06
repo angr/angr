@@ -857,6 +857,17 @@ class TestCtypeMacros(TestCase):
         pattern = TEMPLATE_BY_CALL_NAME["tolower"].instantiate(PatternContext.from_project(proj))
         assert "__ctype_tolower_loc" in pattern.pure_calls
 
+    def test_a_void_function_keeps_nothing_for_its_return(self):
+        # classify() is void; main calls it and ignores rax. Without asking
+        # main, CCA saw rax written last (by the hoisted table load) and made
+        # that the return value, which kept the load -- and with it the
+        # __ctype_b_loc() that fed it -- alive in every iteration
+        _, _, _, dec = _decompile(CTYPE_BIN, "classify", preset="full")
+        text = dec.codegen.text
+        assert text.startswith("void classify("), text
+        assert "__ctype_b_loc" not in text, text
+        assert "(short *)" not in text, text
+
     def test_folded_masks_are_not_matched(self):
         # `isspace(c) || isalnum(c)` is one `& 0x2008` test by the time it
         # reaches us: gcc merged two predicates into one mask, and no
@@ -1612,22 +1623,26 @@ class TestSwapWidthsAndInterleaving(TestCase):
 
     @staticmethod
     def _decompile_pair_swap():
-        """pair_swap, decompiled the way a real run does it.
-
-        ``data_references=True`` is not decoration: without it calling-convention
-        recovery keeps a spurious return value for this void function, which
-        pins one swap's temporary and makes it unnameable. That is a CC
-        over-approximation, not a pattern gap -- the finder-level test below
-        matches all three either way.
-        """
+        """pair_swap, decompiled the way a real run does it."""
         proj = angr.Project(TestSwapWidthsAndInterleaving.STL4_BIN, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(name="pair_swap")
         assert func is not None
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
         assert dec.codegen is not None and dec.codegen.text is not None
         return proj, cfg, func, dec
+
+    def test_the_swaps_are_void(self):
+        # every swap in the fixture is void, and every one of them used to come
+        # back with a return value because rax is written last: the clinic's own
+        # calling-convention pass never asked the callers whether they read it
+        proj, cfg, _, dec = self._decompile_pair_swap()
+        assert dec.codegen.text.startswith("void pair_swap("), dec.codegen.text
+        for name in ("swap_ints", "swap_chars"):
+            func = cfg.functions.function(name=name)
+            text = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full").codegen.text
+            assert text.startswith(f"void {name}("), text
 
     def test_all_three_field_swaps_are_matched(self):
         # Pair's three fields are 8, 4 and 1 bytes and gcc interleaves the three

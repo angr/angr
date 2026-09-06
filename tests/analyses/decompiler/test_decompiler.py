@@ -5470,10 +5470,14 @@ class TestDecompiler(unittest.TestCase):
         # good output:
         #     else if (g_14002bf04)
         #     {
-        #         return GetCurrentThreadId();
+        #         GetCurrentThreadId();
         #     }
+        #
+        # (the function is void: the call's result is only compared, and its callers ignore rax. It used to read
+        # `return GetCurrentThreadId();` while rax-written-last alone decided the return value.)
         assert "None" not in dec.codegen.text
-        assert "return GetCurrentThreadId();" in dec.codegen.text
+        assert "GetCurrentThreadId();" in dec.codegen.text
+        assert "return GetCurrentThreadId();" not in dec.codegen.text
 
     def test_decompiling_many_consecutive_regions(self, decompiler_options=None):
         bin_path = os.path.join(

@@ -139,6 +139,7 @@ class CallingConventionAnalysis(Analysis):
         self._input_args = input_args
         self._unused_args: list[SimRegArg] = []
         self._retval_size = retval_size
+        self._retval_incidental: bool | None = None
         self._extra_pop: int | None = extra_pop
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
@@ -283,6 +284,7 @@ class CallingConventionAnalysis(Analysis):
             )
             self._input_args = facts.input_args
             self._retval_size = facts.retval_size
+            self._retval_incidental = facts.retval_incidental
             self._callsites = facts.callsites
             self._pointer_arg_derefs = facts.pointer_arg_derefs
             self._unused_args = facts.unused_args
@@ -876,7 +878,19 @@ class CallingConventionAnalysis(Analysis):
         # is the return value used anywhere?
         if facts:
             if all(fact.return_value_used is False for fact in facts):
-                proto.returnty = SimTypeBottom(label="void")
+                # callers ignoring a result is not proof there is none -- printf's is ignored all day. It settles the
+                # question only when the function's own evidence for a return value is a leftover: rax written by
+                # a load or a move whose value is then stored or tested, and merely still there at the ret. The
+                # call-site fact only ever looked at the integer return register, so a floating-point return is
+                # out of its reach entirely
+                # -- unless there is no function body to ask (call-site-only analysis) or no type at all yet, where
+                # the call sites are the only evidence there is
+                if (
+                    self._function is None
+                    or proto.returnty is None
+                    or (self._is_retval_incidental() and not isinstance(proto.returnty, (SimTypeFloat, SimTypeDouble)))
+                ):
+                    proto.returnty = SimTypeBottom(label="void")
             else:
                 if proto.returnty is None or isinstance(proto.returnty, SimTypeBottom):
                     returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
@@ -1168,6 +1182,16 @@ class CallingConventionAnalysis(Analysis):
             return SimTypeChar()
         # Unsupported for now
         return SimTypeBottom()
+
+    def _is_retval_incidental(self) -> bool:
+        """See :attr:`FactCollector.retval_incidental`. Collected with the other facts in fact-collecting mode;
+        computed on demand when the return value size came from variable recovery instead."""
+        if self._retval_incidental is None:
+            self._retval_incidental = (
+                self._function is not None
+                and self.project.analyses[FactCollector].prep(kb=self.kb)(self._function).retval_incidental
+            )
+        return self._retval_incidental
 
     def _guess_retval_type(self, cc: SimCC, ret_val_size: int | None) -> SimType:
         assert self._function is not None
