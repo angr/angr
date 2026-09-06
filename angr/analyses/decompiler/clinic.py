@@ -3011,7 +3011,7 @@ class Clinic(Analysis, Serializable):
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
                             var = _pick_var(variables)
-                            self._set_store_variable(stmt, var, 0)
+                            self._set_store_variable(stmt, var, stmt.addr.value - var.addr)
                     else:
                         self._link_variables_on_expr(
                             variable_manager, global_variables, block, stmt_idx, stmt, stmt.addr

@@ -695,7 +695,8 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             variable, _ = next(iter(existing_vars))
 
         data_expr: claripy.ast.Base = data.data
-        data_expr = self.state.annotate_with_variables(data_expr, [(0, variable)])
+        # a store inside a multi-word global is recorded at its byte offset into that variable
+        data_expr = self.state.annotate_with_variables(data_expr, [(addr - variable.addr, variable)])
 
         if abs_addr is not None:
             self.state.global_region.store(
