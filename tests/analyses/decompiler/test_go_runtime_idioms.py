@@ -134,8 +134,11 @@ class GoroutineIdioms(GoDecompilationTarget):
                     assert call not in text, f"{call} survived in {name}:\n{text}"
 
     def test_go_statement_on_closure(self):
-        assert re.search(r"^\s+go \w+\(\)$", self.texts["main.runAll"], re.MULTILINE)
-        assert re.search(r"^\s+go \w+\(\)$", self.texts["main.main"], re.MULTILINE)
+        # the goroutine runs a closure record: the closure body with its captured variables
+        assert re.search(
+            r"^\s+go main\.runAll\.func1\{X0: \w+, X1: [^}]+\}\(\)$", self.texts["main.runAll"], re.MULTILINE
+        )
+        assert re.search(r"^\s+go main\.main\.gowrap1\{X0: \w+\}\(\)$", self.texts["main.main"], re.MULTILINE)
 
     def test_make_chan_and_send_constant(self):
         text = self.texts["main.main"]
@@ -157,8 +160,9 @@ class DeferIdioms(GoDecompilationTarget):
         assert re.search(r"^\s+defer main\.\(\*counter\)\.inc\.deferwrap1\(\)$", text, re.MULTILINE), text
         # the deferBits byte and the inline call at the exit are gone
         assert not re.search(r"^\s+\w+\(\w+, \w+, \w+", body(text), re.MULTILINE), text
-        assert "defer main.safeDiv.func1()" in self.texts["main.safeDiv"]
-        assert "defer main.runAll.func1.deferwrap1()" in self.texts["main.runAll.func1"]
+        # stack closure records carry their captures (&err; the WaitGroup the wrapper calls Done on)
+        assert re.search(r"defer main\.safeDiv\.func1\{cap_0: &\w+\}\(\)", self.texts["main.safeDiv"])
+        assert re.search(r"defer main\.runAll\.func1\.deferwrap1\{cap_0: [\w.]+\}\(\)", self.texts["main.runAll.func1"])
 
 
 class PanicIdioms(GoDecompilationTarget):

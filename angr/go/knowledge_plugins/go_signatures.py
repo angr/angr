@@ -160,6 +160,8 @@ class GoSignatures(KnowledgeBasePlugin):
         self._prototypes: dict[str, GoSimTypeFunction | None] = {}
         self._arg_sizes: dict[int, int] | None = None
         self._inferred: dict[str, GoInferredSignature] = {}
+        # closure body address -> the record type its parent builds (``struct { F uintptr; X0 T; ... }``)
+        self._closures: dict[int, str] = {}
 
     #
     # Sources
@@ -396,6 +398,14 @@ class GoSignatures(KnowledgeBasePlugin):
         names = list(guessed.arg_names[: len(args)]) if rec.params is None and guessed.arg_names else None
         return GoSimTypeFunction(args, returnty, arg_names=names or [f"a{i}" for i in range(len(args))]).with_arch(arch)
 
+    def set_closure_context(self, addr: int, type_str: str) -> None:
+        """Record the closure record type a parent function builds for the closure body at ``addr``."""
+        self._closures[addr] = type_str
+
+    def closure_context(self, addr: int) -> str | None:
+        """The closure record type of the body at ``addr`` (captures are its fields after ``F``), if known."""
+        return self._closures.get(addr)
+
     def arg_size_at(self, addr: int) -> int | None:
         """The byte size of the parameters of the function at ``addr`` from the pclntab (results excluded)."""
         if self._arg_sizes is None:
@@ -461,6 +471,7 @@ class GoSignatures(KnowledgeBasePlugin):
         o._sources = list(self._sources)
         o._stdlib_loaded = self._stdlib_loaded
         o._inferred = dict(self._inferred)
+        o._closures = dict(self._closures)
         return o
 
 

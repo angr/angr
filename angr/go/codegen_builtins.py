@@ -16,13 +16,15 @@ printer, which also prints the ``go_type_args`` tag (a list of Go type strings) 
 - ``"go"``: ``[f, args...]`` -> ``go f(args...)``
 - ``"defer"``: ``[f, args...]`` -> ``defer f(args...)``
 - ``"concat"``: ``[a, b]`` -> ``a + b`` (string concatenation)
+- ``"closure"``: ``[f, captures...]`` -> ``f{X0: a, X1: b}`` (the closure record of ``f``; the field names come
+  from the ``go_capture_names`` tag), or just ``f`` without captures
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 
-RENDER_KINDS = frozenset({"index", "assign", "send", "recv", "go", "defer", "concat"})
+RENDER_KINDS = frozenset({"index", "assign", "send", "recv", "go", "defer", "concat", "closure"})
 
 
 def _chunks(obj) -> Iterator[tuple[str, object]]:
@@ -50,10 +52,10 @@ def render_builtin_call(call) -> Iterator[tuple[str, object]] | None:
     kind = tags.get("go_render") if hasattr(tags, "get") else None
     if kind not in RENDER_KINDS:
         return None
-    return _render(kind, list(call.args), call)
+    return _render(kind, list(call.args), call, tags)
 
 
-def _render(kind: str, args: list, node) -> Iterator[tuple[str, object]]:
+def _render(kind: str, args: list, node, tags) -> Iterator[tuple[str, object]]:
     if kind == "index" and len(args) == 2:
         yield from _chunks(args[0])
         yield "[", node
@@ -79,6 +81,18 @@ def _render(kind: str, args: list, node) -> Iterator[tuple[str, object]]:
     elif kind in ("go", "defer") and args:
         yield f"{kind} ", node
         yield from _call_chunks(args[0], args[1:], node)
+    elif kind == "closure" and args:
+        yield from _chunks(args[0])
+        if len(args) > 1:
+            names = list(tags.get("go_capture_names") or ())
+            yield "{", node
+            for i, arg in enumerate(args[1:]):
+                if i:
+                    yield ", ", None
+                if i < len(names):
+                    yield f"{names[i]}: ", None
+                yield from _chunks(arg)
+            yield "}", node
     else:
         yield f"{kind}", node
         yield "(", node
