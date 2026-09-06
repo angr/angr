@@ -106,12 +106,15 @@ class GoCheckRemover(OptimizationPass, CFGTransformationMixin):
             for stmt in block.statements
         )
 
+    def _barrier_calls_only(self, block: Block) -> bool:
+        return all(is_go_write_barrier_name(call_target_name(self.project, call)) for call in self._calls(block))
+
     def _barrier_chain(self, block: Block) -> list[Block] | None:
-        """The blocks of a write-barrier slow path starting at ``block``: the call, then the buffer fills."""
-        calls = self._calls(block)
-        if len(calls) != 1 or not is_go_write_barrier_name(call_target_name(self.project, calls[0])):
-            return None
-        if not self._fills_buffer_only(block):
+        """
+        The blocks of a write-barrier slow path starting at ``block``: the barrier call(s) (a swap records two
+        ``wbMove``), then the buffer fills, possibly a further ``wbMove`` block, up to the join.
+        """
+        if not self._calls(block) or not self._barrier_calls_only(block) or not self._fills_buffer_only(block):
             return None
         chain = [block]
         succs = list(self._graph.successors(block))
@@ -123,7 +126,7 @@ class GoCheckRemover(OptimizationPass, CFGTransformationMixin):
             len(succs) == 1
             and self._graph.in_degree(succs[0]) == 1
             and self._fills_buffer_only(succs[0])
-            and not self._calls(succs[0])
+            and self._barrier_calls_only(succs[0])
         ):
             chain.append(succs[0])
             succs = list(self._graph.successors(succs[0]))
@@ -186,17 +189,35 @@ class GoCheckRemover(OptimizationPass, CFGTransformationMixin):
         return True
 
     def _collapse_same_target(self, block: Block) -> None:
-        """A conditional jump whose two arms reach the same block (through trampolines) is a plain jump."""
+        """
+        After the slow path went, the check's two arms both reach the join: through trampolines (the check becomes
+        a plain jump), or one through the copy-only fast path (the check falls through to it, keeping the copies
+        the join needs).
+        """
         if block not in self._graph or not (block.statements and isinstance(block.statements[-1], ConditionalJump)):
             return
         succs = list(self._graph.successors(block))
-        if len(succs) != 2 or skip_jumps(self._graph, succs[0]) is not skip_jumps(self._graph, succs[1]):
+        if len(succs) != 2:
             return
-        # keep the direct edge when there is one
-        drop = succs[0] if is_jump_only(succs[0]) else succs[1]
-        self.remove_jump_target(block, drop.addr, drop.idx)
-        if drop in self._graph and self._graph.in_degree(drop) == 0:
-            self.remove_block(drop)
+        if skip_jumps(self._graph, succs[0]) is skip_jumps(self._graph, succs[1]):
+            # keep the direct edge when there is one
+            drop = succs[0] if is_jump_only(succs[0]) else succs[1]
+            self.remove_jump_target(block, drop.addr, drop.idx)
+            if drop in self._graph and self._graph.in_degree(drop) == 0:
+                self.remove_block(drop)
+            return
+        for fast, direct in ((succs[0], succs[1]), (succs[1], succs[0])):
+            fast_succs = list(self._graph.successors(fast))
+            if (
+                self._graph.in_degree(fast) == 1
+                and self._copies_only(fast)
+                and len(fast_succs) == 1
+                and skip_jumps(self._graph, fast_succs[0]) is skip_jumps(self._graph, direct)
+            ):
+                self.remove_jump_target(block, direct.addr, direct.idx)
+                if direct in self._graph and self._graph.in_degree(direct) == 0 and is_jump_only(direct):
+                    self.remove_block(direct)
+                return
 
     def _prune_dead_end(self, block: Block) -> None:
         # a trampoline whose jump was just removed has nothing left; take its predecessors' branch away too
