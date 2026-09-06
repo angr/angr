@@ -4,10 +4,10 @@ import logging
 
 from angr.ailment.block import Block
 from angr.ailment.expression import Call, Const, VirtualVariable
-from angr.ailment.statement import Assignment, Jump, Label, SideEffectStatement, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, SideEffectStatement, Store
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.go.utils.graph import conditional_pred, leads_to, skip_jumps
+from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.names import call_target_name
 from angr.utils.ail import CallFinder, get_terminal_call
 from angr.utils.go_runtime import GO_CHECK_PANIC_NAMES, normalize_go_func_name
@@ -182,7 +182,21 @@ class GoCheckRemover(OptimizationPass, CFGTransformationMixin):
                 return False
         for pred in preds:
             self._prune_dead_end(pred)
+            self._collapse_same_target(pred)
         return True
+
+    def _collapse_same_target(self, block: Block) -> None:
+        """A conditional jump whose two arms reach the same block (through trampolines) is a plain jump."""
+        if block not in self._graph or not (block.statements and isinstance(block.statements[-1], ConditionalJump)):
+            return
+        succs = list(self._graph.successors(block))
+        if len(succs) != 2 or skip_jumps(self._graph, succs[0]) is not skip_jumps(self._graph, succs[1]):
+            return
+        # keep the direct edge when there is one
+        drop = succs[0] if is_jump_only(succs[0]) else succs[1]
+        self.remove_jump_target(block, drop.addr, drop.idx)
+        if drop in self._graph and self._graph.in_degree(drop) == 0:
+            self.remove_block(drop)
 
     def _prune_dead_end(self, block: Block) -> None:
         # a trampoline whose jump was just removed has nothing left; take its predecessors' branch away too
