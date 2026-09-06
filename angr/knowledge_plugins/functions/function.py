@@ -449,6 +449,24 @@ class Function(Serializable):
         return self._prototype_source in {PrototypeSource.NONE, PrototypeSource.GUESSED, PrototypeSource.CCA_LOW}
 
     @property
+    def prototype_refinable(self) -> bool:
+        """
+        Whether the decompiler may refine this function's prototype from evidence gathered at its call sites. Only real
+        code in the main binary qualifies: PLT stubs, SimProcedures, syscalls, and functions whose prototype comes from a
+        library definition, a signature match, or the user are never rewritten.
+        """
+        if self.is_plt or self.is_simprocedure or self.is_syscall:
+            return False
+        if self._prototype_source >= PrototypeSource.SIMPROC:
+            return False
+        project = self.project
+        if project is not None:
+            main_object = project.loader.main_object
+            if main_object is not None and not main_object.contains_addr(self.addr):
+                return False
+        return True
+
+    @property
     def prototype_source(self) -> PrototypeSource:
         return self._prototype_source
 

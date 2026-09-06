@@ -249,7 +249,11 @@ class SimEngineVRAIL(
                 or expr.tags.get("is_prototype_guessed", True) is False
             ) and expr.args is not None:
                 self._call_add_arg_based_type_constraints(
-                    prototype, prototype_libname, args, list(expr.args), func.addr if func is not None else None
+                    prototype,
+                    prototype_libname,
+                    args,
+                    list(expr.args),
+                    func.addr if func is not None and func.prototype_refinable else None,
                 )
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
@@ -324,7 +328,11 @@ class SimEngineVRAIL(
                 or stmt.tags.get("is_prototype_guessed", True) is False
             ):
                 self._call_add_arg_based_type_constraints(
-                    prototype, prototype_libname, args, stmt.expr.args, func.addr if func is not None else None
+                    prototype,
+                    prototype_libname,
+                    args,
+                    stmt.expr.args,
+                    func.addr if func is not None and func.prototype_refinable else None,
                 )
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
@@ -381,7 +389,8 @@ class SimEngineVRAIL(
                 continue
             arg_type = dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
             # record pointer arguments so the decompiler can later union partial struct layouts recovered for the same
-            # caller value across multiple callees.
+            # caller value across multiple callees. Only callees whose prototypes the decompiler owns are recorded: a
+            # library function's ``char *`` view carries no layout evidence and must never be rewritten.
             if (
                 callee_addr is not None
                 and isinstance(arg.typevar, typevars.TypeVariable)

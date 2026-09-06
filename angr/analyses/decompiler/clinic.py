@@ -3033,8 +3033,10 @@ class Clinic(Analysis, Serializable):
             proto = callee.prototype
             if proto is None or arg_idx >= len(proto.args):
                 continue
-            # never override user-specified prototypes
-            if callee.prototype_source >= PrototypeSource.USER:
+            # never rewrite library, PLT, SimProcedure, signature-matched, or user-specified prototypes: a rewritten
+            # library prototype (e.g. strcmp) becomes ground truth for every later caller and spreads the struct to
+            # every string passed to it
+            if not callee.prototype_refinable:
                 continue
             # skip when the callee already has strictly more detail, or the exact same canonical struct; an
             # equal-count layout under a different name is still rewritten so all contributors share one typedef
