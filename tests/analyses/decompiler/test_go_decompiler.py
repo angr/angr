@@ -422,11 +422,11 @@ class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
     """
 
     def test_len_and_cap_words_are_pinned(self):
-        from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
         from angr.analyses.decompiler.optimization_passes.optimization_pass import (
             OptimizationPass,
             OptimizationPassStage,
         )
+        from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
         from angr.go.optimization_passes import GoHeaderWordTypes, get_go_optimization_passes
         from angr.go.optimization_passes.header_word_types import GROUND_TRUTH_KEY
         from angr.go.sim_type import go_type_repr
@@ -470,8 +470,14 @@ class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
         print_decompilation_result(dec)
         assert pinned and all(go_type_repr(t) == "int" for t in pinned.values())
         text = dec.codegen.text
-        assert re.search(r"return \[\]int\{ptr: \w+, len: \w+, cap: \w+\}", text)
+        # the slice header is returned (or fed to the folded append) with its len and cap words as plain ints
+        assert re.search(r"return (?:append\()?\[\]int\{ptr: \w+, len: \w+, cap: \w+\}", text)
         assert "(*int8)(&" not in text
+        assert self.header(text).endswith(") []int {")
+
+    @staticmethod
+    def header(text: str) -> str:
+        return next(line for line in text.splitlines() if line.startswith("func "))
 
 
 class TestReceiverFromName(unittest.TestCase):
