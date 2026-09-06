@@ -7716,6 +7716,149 @@ def _go_pure(expr) -> bool:
     return True
 
 
+def _go_size_bytes(ty) -> int | None:
+    if ty is None:
+        return None
+    size = getattr(unpack_typeref(ty), "size", None)
+    return size // 8 if isinstance(size, int) and size > 0 else None
+
+
+def _go_peel_offset(expr):
+    """``expr`` as ``(base, constant byte offset)``: pointer casts dropped, ``base + c`` and ``base - c`` peeled."""
+    off = 0
+    while True:
+        if isinstance(expr, GoTypeCast):
+            expr = expr.expr
+        elif isinstance(expr, GoBinaryOp) and expr.op in ("Add", "Sub"):
+            if isinstance(expr.rhs, GoConstant) and isinstance(expr.rhs.value, int):
+                off += expr.rhs.value if expr.op == "Add" else -expr.rhs.value
+                expr = expr.lhs
+            elif expr.op == "Add" and isinstance(expr.lhs, GoConstant) and isinstance(expr.lhs.value, int):
+                off += expr.lhs.value
+                expr = expr.rhs
+            else:
+                break
+        else:
+            break
+    return expr, off
+
+
+def _go_mem_access(expr, addressed) -> tuple[str, int, int | None] | None:
+    """
+    The memory ``expr`` denotes as ``(base, byte offset, size)``, or None for a register-like local. A named object
+    (a global, an address-taken local) gets an ``&``-prefixed base; a computed address gets the text of its base.
+    """
+    size = _go_size_bytes(getattr(expr, "type", None))
+    if isinstance(expr, GoVariable):
+        if _Scan.is_local(expr) and _UseCounter.key(expr) not in addressed:
+            return None
+        return "&" + _go_text(expr), 0, size
+    if isinstance(expr, GoUnaryOp) and expr.op == "Dereference":
+        base, off = _go_peel_offset(expr.operand)
+        return _go_text(base), off, size
+    if isinstance(expr, GoIndexedVariable):
+        if isinstance(expr.index, GoConstant) and isinstance(expr.index.value, int) and size is not None:
+            return _go_text(expr.variable) + "[]", expr.index.value * size, size
+        return _go_text(expr), 0, size
+    if isinstance(expr, GoVariableField):
+        foff = expr.field.offset
+        if not isinstance(foff, int):
+            foff, size = 0, None
+        base_type = getattr(expr.variable, "type", None)
+        if expr.var_is_ptr or (base_type is not None and isinstance(unpack_typeref(base_type), SimTypePointer)):
+            base, off = _go_peel_offset(expr.variable)
+            return _go_text(base), off + foff, size
+        inner = _go_mem_access(expr.variable, addressed)
+        return None if inner is None else (inner[0], inner[1] + foff, size)
+    return None
+
+
+def _go_may_alias(a, b) -> bool:
+    (base_a, off_a, size_a), (base_b, off_b, size_b) = a, b
+    if base_a != base_b:
+        # two distinct named objects never overlap; anything computed may
+        return not (base_a.startswith("&") and base_b.startswith("&"))
+    if size_a is None or size_b is None:
+        return True
+    return off_a < off_b + size_b and off_b < off_a + size_a
+
+
+def _go_children(node):
+    for name in _go_node_attr_names(node):
+        child = getattr(node, name, None)
+        if isinstance(child, GoConstruct):
+            yield child
+        elif isinstance(child, (list, tuple)):
+            for item in child:
+                if isinstance(item, GoConstruct):
+                    yield item
+                elif isinstance(item, tuple):
+                    yield from (x for x in item if isinstance(x, GoConstruct))
+        elif isinstance(child, dict):
+            yield from (x for x in child.values() if isinstance(x, GoConstruct))
+
+
+def _go_mem_reads(expr, addressed) -> list:
+    """The memory ``expr`` reads, as accesses; ``&x`` reads nothing."""
+    reads = []
+
+    def visit(n):
+        if isinstance(n, GoUnaryOp) and n.op == "Reference":
+            return
+        acc = _go_mem_access(n, addressed)
+        if acc is not None:
+            reads.append(acc)
+        for child in _go_children(n):
+            visit(child)
+
+    visit(expr)
+    return reads
+
+
+_GO_OPAQUE_WRITERS = (
+    GoFunctionCall,
+    GoMethodCall,
+    GoAILBlock,
+    GoDirtyStatement,
+    GoDirtyExpression,
+    GoUnsupportedStatement,
+    GoVEXCCallExpression,
+    GoSelect,
+)
+
+
+def _go_mem_writes(node, addressed) -> list | None:
+    """The memory ``node`` may write, as accesses; None when it may write anywhere (a call, an opaque statement)."""
+    writes = []
+
+    def visit(n) -> bool:
+        if isinstance(n, _GO_OPAQUE_WRITERS):
+            return False
+        if isinstance(n, GoAssignment):
+            targets = [n.lhs]
+        elif isinstance(n, GoMultiAssignment):
+            targets = list(n.lhs)
+        elif isinstance(n, GoRangeLoop):
+            targets = [t for t in (n.index, n.value) if t is not None]
+        else:
+            targets = []
+        for t in targets:
+            acc = _go_mem_access(t, addressed)
+            if acc is not None:
+                writes.append(acc)
+            elif not _go_var_named(t):
+                return False
+        return all(visit(child) for child in _go_children(n))
+
+    return writes if visit(node) else None
+
+
+def _go_may_clobber(stmt, loads, addressed) -> bool:
+    """Whether ``stmt`` may write memory that one of ``loads`` reads."""
+    writes = _go_mem_writes(stmt, addressed)
+    return writes is None or any(_go_may_alias(w, ld) for w in writes for ld in loads)
+
+
 class _SplitValueCollapser(GoStructuredCodeWalker):
     """
     ``T{a, r}`` assembling a two-word value from a variable holding a call's whole result and a dangling register
@@ -8041,6 +8184,8 @@ class CopyCleanup:
                     ykeys = list(reads.counts)
                     if key in ykeys:
                         continue
+                # memory the value was loaded from: it must not be stored to (or a call made) before the reads
+                loads = _go_mem_reads(rhs, scan.addressed)
                 found = 0
                 targets = []
                 ok = True
@@ -8052,11 +8197,18 @@ class CopyCleanup:
                         if assigns_y and not isinstance(st, (GoAssignment, GoMultiAssignment)):
                             ok = False
                             break
+                        # a load lands in st only where it is still evaluated ahead of st's calls and stores
+                        if loads and not _go_call_position_ok(st, key):
+                            ok = False
+                            break
                         found += n
                         targets.append(st)
                         if found == total:
                             break
                     if assigns_y:
+                        ok = False
+                        break
+                    if loads and _go_may_clobber(st, loads, scan.addressed):
                         ok = False
                         break
                 if not ok or found != total:
