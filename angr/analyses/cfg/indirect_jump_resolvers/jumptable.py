@@ -463,16 +463,12 @@ class JumpTableProcessor(
             return self._handle_Comparison(*shr_args)
         return super()._handle_binop_CmpNE(expr)
 
-    def _match_shr_zero_bound_check(
-        self, expr
-    ) -> tuple[pyvex.IRExpr.IRExpr, pyvex.IRExpr.Const] | None:
+    def _match_shr_zero_bound_check(self, expr) -> tuple[pyvex.IRExpr.IRExpr, pyvex.IRExpr.Const] | None:
         # libVEX 3.27+ spechelpers fold the unsigned bound check `x <=u 2**k-1` into `CmpEQ(Shr(x, k), 0)` (and its
         # negation into CmpNE). Recognize this form and return (x, k) so it can be treated as a comparison against
         # a constant bound.
         arg0, arg1 = expr.args
-        if not (
-            isinstance(arg1, pyvex.IRExpr.Const) and arg1.con.value == 0 and isinstance(arg0, pyvex.IRExpr.RdTmp)
-        ):
+        if not (isinstance(arg1, pyvex.IRExpr.Const) and arg1.con.value == 0 and isinstance(arg0, pyvex.IRExpr.RdTmp)):
             return None
         for stmt in self.block.vex.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp) and stmt.tmp == arg0.tmp:

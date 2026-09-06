@@ -85,9 +85,7 @@ def amd64g_dirtyhelper_CPUID_baseline(state, _):
 
 # Since Valgrind 3.27, these helpers take three extra args (hasF16C, hasRDRAND, hasRDSEED). Our faked
 # CPUID reports these features as absent, so the args are accepted but ignored.
-def amd64g_dirtyhelper_CPUID_avx_and_cx16(
-    state, _, hasF16C=None, hasRDRAND=None, hasRDSEED=None
-):  # pylint:disable=unused-argument
+def amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _, hasF16C=None, hasRDRAND=None, hasRDSEED=None):  # pylint:disable=unused-argument
     return amd64g_dirtyhelper_CPUID_baseline(state, _)
 
 
