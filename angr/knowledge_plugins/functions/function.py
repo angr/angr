@@ -473,6 +473,8 @@ class Function(Serializable):
         self._info = info
         # update the owner
         self._info._func = self
+        if self._function_manager is not None:
+            self._function_manager.index_key_func_addrs(self)
 
     @property
     def is_plt(self) -> bool:

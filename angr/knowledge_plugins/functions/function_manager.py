@@ -1264,9 +1264,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         self._func_from_signature[func.addr] = func.from_signature
 
         # update key function address cache
-        for key, value in func.info.items():
-            if key.startswith("is_") and value is True:
-                self.add_key_func_addr(key[3:], func.addr)
+        self.index_key_func_addrs(func)
 
         # make sure all functions exist in the call graph
         self.callgraph.add_node(func.addr)
@@ -1596,6 +1594,14 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
     def add_key_func_addr(self, func_type: str, addr: K) -> None:
         self._key_func_addrs[func_type].add(addr)
+
+    def index_key_func_addrs(self, func: Function) -> None:
+        """
+        Record every key-function flag that ``func.info`` carries in the key-function address cache.
+        """
+        for key, value in func.info.items():
+            if key.startswith("is_") and value is True:
+                self.add_key_func_addr(key[3:], func.addr)
 
     #
     # LRU Cache Management (delegates to SpillingFunctionDict when available)
