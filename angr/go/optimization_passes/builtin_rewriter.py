@@ -21,12 +21,21 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.expression import VirtualVariableCategory as VVC
-from angr.ailment.statement import Assignment, Jump, Label, Return, SideEffectStatement, Statement, Store
+from angr.ailment.statement import (
+    Assignment,
+    ConditionalJump,
+    Jump,
+    Label,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+)
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import GoSimTypeFunction
-from angr.go.utils.graph import block_before, conditional_pred, is_jump_only, leads_to, skip_jumps
+from angr.go.utils.graph import is_jump_only
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
 from angr.utils.ail import find_call
@@ -82,27 +91,65 @@ def _has_node(expr: Expression, pred) -> bool:
 
 
 class _Base:
-    """Where a string/slice value lives: a combo-register variable or memory at ``addr``."""
+    """
+    Where a string/slice value lives: a combo-register variable, memory at ``addr + off``, or ``words`` (a header
+    the compiler keeps in separate scalars; only a call that takes the header apart proves they belong together).
+    """
 
-    __slots__ = ("addr", "combo")
+    __slots__ = ("addr", "combo", "name", "off", "words")
 
-    def __init__(self, combo: VirtualVariable | None = None, addr: Expression | None = None):
+    def __init__(
+        self,
+        combo: VirtualVariable | None = None,
+        addr: Expression | None = None,
+        off: int = 0,
+        words: tuple[Expression, ...] | None = None,
+        name: str | None = None,
+    ):
         self.combo = combo
         self.addr = addr
+        self.off = off
+        self.words = words
+        self.name = name
 
     def same(self, other: _Base) -> bool:
         if self.combo is not None:
             return other.combo is not None and other.combo.varid == self.combo.varid
-        if other.combo is not None or self.addr is None or other.addr is None:
-            return False
-        return self.addr.likes(other.addr)
+        if self.addr is not None:
+            return other.addr is not None and self.off == other.off and self.addr.likes(other.addr)
+        if self.words is not None:
+            return (
+                other.words is not None
+                and len(self.words) == len(other.words)
+                and all(a.likes(b) for a, b in zip(self.words, other.words))
+            )
+        return False
 
-    def value(self, manager, arch, size: int | None, tags) -> Expression | None:
+    def address(self, manager, arch) -> Expression | None:
+        if self.addr is None:
+            return None
+        if not self.off:
+            return self.addr
+        return BinaryOp(manager.next_atom(), "Add", [self.addr, Const(manager.next_atom(), self.off, arch.bits)], False)
+
+    def value(self, manager, arch, size: int | None, tags, name: str | None = None) -> Expression | None:
         if self.combo is not None:
             return self.combo if size is None or self.combo.size == size else None
-        if self.addr is None or size is None:
-            return None
-        return Load(manager.next_atom(), self.addr, size, arch.memory_endness, **tags)
+        if self.addr is not None:
+            if size is None:
+                return None
+            return Load(manager.next_atom(), self.address(manager, arch), size, arch.memory_endness, **tags)
+        if self.words is not None:
+            ws = arch.bytes
+            words = self.words if size is None else self.words[: size // ws]
+            name = name or self.name or ("string" if len(words) == 2 else "[]byte")
+            if all(_const(w) == 0 for w in words):
+                # the nil slice
+                return Struct(manager.next_atom(), name, OrderedDict(), OrderedDict(), len(words) * arch.bits, **tags)
+            fields = OrderedDict((i * ws, w) for i, w in enumerate(words))
+            names = OrderedDict((n, i * ws) for i, n in enumerate(("ptr", "len", "cap")[: len(words)]))
+            return Struct(manager.next_atom(), name, fields, names, len(words) * arch.bits, **tags)
+        return None
 
 
 class _Values:
@@ -113,6 +160,8 @@ class _Values:
         self.manager = pass_.manager
         self.combo_of: dict[int, tuple[VirtualVariable, int]] = {}
         self.defs: dict[int, Expression] = {}
+        # phis that a pending rewrite will collapse: varid -> the value that survives
+        self.aliases: dict[int, Expression] = {}
 
         def note(vvar: VirtualVariable):
             is_combo = vvar.category == VVC.COMBO_REGISTER or (
@@ -134,15 +183,22 @@ class _Values:
                     note(stmt.dst)
                     self.defs[stmt.dst.varid] = stmt.src
 
-    def resolve(self, expr: Expression) -> Expression:
-        """Look through virtual-variable copies (register moves and spills)."""
-        seen = set()
+    def resolve(self, expr: Expression, seen: set | None = None) -> Expression:
+        """Look through virtual-variable copies (register moves and spills) and phis of one value."""
+        seen = set() if seen is None else seen
         while isinstance(expr, VirtualVariable) and expr.varid not in seen:
             seen.add(expr.varid)
-            src = self.defs.get(expr.varid)
-            if not isinstance(src, VirtualVariable):
-                break
-            expr = src
+            src = self.aliases.get(expr.varid, self.defs.get(expr.varid))
+            if isinstance(src, VirtualVariable):
+                expr = src
+                continue
+            if isinstance(src, Phi):
+                sources = [self.resolve(v, seen) for _, v in src.src_and_vvars if v is not None]
+                sources = [v for v in sources if not (isinstance(v, VirtualVariable) and v.varid == expr.varid)]
+                if sources and all(v.likes(sources[0]) for v in sources[1:]):
+                    expr = sources[0]
+                    continue
+            break
         return expr
 
     def expand(self, expr: Expression) -> Expression:
@@ -154,30 +210,109 @@ class _Values:
                 return src
         return expr
 
-    def field(self, expr: Expression) -> tuple[_Base, int] | None:
-        """The (value, byte offset) a pointer-sized expression is a piece of."""
-        expr = self.resolve(expr)
-        if isinstance(expr, VirtualVariable):
-            hit = self.combo_of.get(expr.varid)
-            return (_Base(combo=hit[0]), hit[1]) if hit is not None else None
-        if isinstance(expr, Load) and expr.size == self.project.arch.bytes:
+    def same(self, a: Expression, b: Expression) -> bool:
+        return self.expand(a).likes(self.expand(b))
+
+    def load_of(self, expr: Expression) -> tuple[Expression | None, int] | None:
+        """(base, offset) when ``expr`` is (a copy of) a word-sized load from ``base + offset``."""
+        expr = self.expand(expr)
+        if not (isinstance(expr, Load) and expr.size == self.project.arch.bytes):
+            return None
+        base, off = _addr_and_offset(expr.addr)
+        return (self.resolve(base) if base is not None else None), off
+
+    def base_of(self, expr: Expression, want: int) -> _Base | None:
+        """The value ``expr`` is the piece at byte offset ``want`` of (a combo-register value or memory)."""
+        resolved = self.resolve(expr)
+        if isinstance(resolved, VirtualVariable):
+            hit = self.combo_of.get(resolved.varid)
+            if hit is not None:
+                return _Base(combo=hit[0]) if hit[1] == want else None
+        load = self.load_of(expr)
+        if load is None:
+            return None
+        base, off = load
+        if base is None:
+            return _Base(addr=Const(self.manager.next_atom(), off - want, self.project.arch.bits))
+        return _Base(addr=base, off=off - want)
+
+    def base_of_value(self, expr: Expression) -> _Base | None:
+        """The place a whole string/slice expression stands for."""
+        resolved = self.resolve(expr)
+        if isinstance(resolved, VirtualVariable):
+            return _Base(combo=resolved) if resolved.varid not in self.combo_of else None
+        if isinstance(expr, Load):
             base, off = _addr_and_offset(expr.addr)
             if base is None:
-                base = Const(self.manager.next_atom(), off, self.project.arch.bits)
-                off = 0
-            return _Base(addr=base), off
+                return _Base(addr=Const(self.manager.next_atom(), off, self.project.arch.bits))
+            return _Base(addr=self.resolve(base), off=off)
+        if isinstance(expr, Struct):
+            ws = self.project.arch.bytes
+            fields = expr.fields
+            if sorted(fields) in ([0, ws], [0, ws, 2 * ws]):
+                return _Base(words=tuple(self.resolve(fields[k]) for k in sorted(fields)), name=expr.name)
         return None
+
+    def piece(self, expr: Expression, base: _Base) -> int | None:
+        """The byte offset at which ``expr`` sits inside ``base``, or None when it is not a piece of it."""
+        resolved = self.resolve(expr)
+        if base.combo is not None:
+            if isinstance(resolved, VirtualVariable):
+                hit = self.combo_of.get(resolved.varid)
+                if hit is not None and hit[0].varid == base.combo.varid:
+                    return hit[1]
+            return None
+        if base.addr is not None:
+            load = self.load_of(expr)
+            if load is None:
+                return None
+            b, off = load
+            if b is None:
+                if _const(base.addr) is None:
+                    return None
+                return off - base.addr.value_int - base.off
+            return off - base.off if b.likes(base.addr) else None
+        if base.words is not None:
+            for i, word in enumerate(base.words):
+                if self.same(expr, word):
+                    return i * self.project.arch.bytes
+        return None
+
+    def field(self, expr: Expression) -> tuple[_Base, int] | None:
+        """The (value, byte offset) a pointer-sized expression is a piece of, the value taken to start at the load base."""
+        resolved = self.resolve(expr)
+        if isinstance(resolved, VirtualVariable):
+            hit = self.combo_of.get(resolved.varid)
+            if hit is not None:
+                return _Base(combo=hit[0]), hit[1]
+        load = self.load_of(expr)
+        if load is None:
+            return None
+        base, off = load
+        if base is None:
+            return _Base(addr=Const(self.manager.next_atom(), off, self.project.arch.bits)), 0
+        return _Base(addr=base), off
+
+    def header(self, ptr: Expression, cap: Expression, length: Expression | None, name: str | None) -> _Base | None:
+        """
+        The slice whose pointer and capacity words are ``ptr`` and ``cap``: a tracked value when the pointer word
+        belongs to one, else the header made of the three scalars (``length`` is its length word).
+        """
+        base = self.base_of(ptr, _PTR)
+        if base is not None:
+            return base if self.piece(cap, base) == _CAP else None
+        if length is None:
+            return None
+        return _Base(words=(self.resolve(ptr), self.resolve(length), self.resolve(cap)), name=name)
 
     def whole(self, size: int | None, *pieces: tuple[Expression, int], tags=None) -> Expression | None:
         """The value whose pieces at the given byte offsets are ``pieces``; ``size`` None means any size."""
-        base = None
-        for expr, want in pieces:
-            hit = self.field(expr)
-            if hit is None or hit[1] != want or (base is not None and not hit[0].same(base)):
-                return None
-            base = hit[0]
+        base = self.base_of(pieces[0][0], pieces[0][1])
         if base is None:
             return None
+        for expr, want in pieces[1:]:
+            if self.piece(expr, base) != want:
+                return None
         return base.value(self.manager, self.project.arch, size, tags or pieces[0][0].tags)
 
     def string(self, ptr: Expression, length: Expression) -> Expression | None:
@@ -202,13 +337,12 @@ class _Values:
 
     def slice(self, ptr: Expression, length: Expression) -> Expression | None:
         """The slice (or string, when that is what the pieces belong to) with the given ptr and len pieces."""
-        base = self.field(ptr)
-        size = None if base is not None and base[0].combo is not None else _SLICE_BITS // 8
+        base = self.base_of(ptr, _PTR)
+        size = None if base is not None and base.combo is not None else _SLICE_BITS // 8
         return self.whole(size, (ptr, _PTR), (length, _LEN))
 
     def is_len_of(self, expr: Expression, base: _Base) -> bool:
-        hit = self.field(expr)
-        return hit is not None and hit[1] == _LEN and hit[0].same(base)
+        return self.piece(expr, base) == _LEN
 
 
 class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
@@ -217,9 +351,12 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     ``make``, ``append``, ``copy``, ``panic``, string concatenation/comparison and the string/slice conversions.
 
     ``growslice`` is special: the compiler only calls it when the slice must grow, so the call sits under an
-    ``if newLen > cap`` diamond whose join block stores the appended elements. The diamond is folded into one
-    unconditional ``append(s, elems...)`` (append grows on demand itself) and the element stores are dropped. When the
-    element stores cannot be matched the call still becomes ``append(s)`` with a comment giving the element count.
+    ``if newLen > cap`` diamond whose join block stores the appended elements (go1.25+ nests a stack-buffer choice
+    under the check). The diamond is folded into one unconditional ``append(s, elems...)`` (append grows on demand
+    itself) and the element stores are dropped; a ``memmove``/``typedslicecopy`` of the new elements is
+    ``append(s, t...)``. The slice may be a tracked value, a field of a struct in memory, a header the compiler keeps
+    in three scalars, or an array (``arr[:n]``). When the elements cannot be matched the call still becomes
+    ``append(s)`` with a comment giving the element count.
     """
 
     ARCHES = None
@@ -460,17 +597,22 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return self.builtin(call, "make", dims, go_type_args=[f"[]{ty}"], go_result_type="unsafe.Pointer")
 
     def _rw_growslice(self, call: Call, args: list) -> Expression | None:
-        # the diamond was not folded; keep the growth visible as append(s) with the missing elements in a comment
-        if len(args) != 5:
+        # the elements were not matched; keep the growth visible as append(s) with the missing elements in a comment
+        if len(args) not in (5, 7):
             return None
-        s = self.values.whole(_SLICE_BITS // 8, (args[0], _PTR), (args[2], _CAP))
-        if s is None:
+        old_ptr, new_len, old_cap, num, et = args[:5]
+        count = _const(num)
+        old_len = self._old_length(new_len, old_cap, num, count)
+        ty = self.type_name(et)
+        s = self.values.header(old_ptr, old_cap, old_len, f"[]{ty}" if ty else None)
+        if s is None or (s.words is None and old_len is not None and not self.values.is_len_of(old_len, s)):
             return None
-        num = _const(args[3])
-        comment = f"{num} element(s) not recovered" if num is not None else "elements not recovered"
-        ty = self.type_name(args[4])
+        value = s.value(self.manager, self.project.arch, _SLICE_BITS // 8, call.tags)
+        if value is None:
+            return None
+        comment = f"{count} element(s) not recovered" if count is not None else "elements not recovered"
         extra = {"go_result_type": f"[]{ty}"} if ty else {}
-        return self.builtin(call, "append", [s], bits=_SLICE_BITS, go_comment=comment, **extra)
+        return self.builtin(call, "append", [value], bits=_SLICE_BITS, go_comment=comment, **extra)
 
     def _rw_concatstring(self, call: Call, args: list) -> Expression | None:
         # a typed "+" call rather than an integer Add: type inference must see strings, not 128-bit integers
@@ -497,18 +639,16 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _rw_memequal(self, call: Call, args: list) -> Expression | None:
         if len(args) != 3:
             return None
-        a = self.values.field(args[0])
-        b = self.values.field(args[1])
+        a = self.values.base_of(args[0], _PTR)
+        b = self.values.base_of(args[1], _PTR)
         size = args[2]
         lhs = rhs = None
-        if a is not None and a[1] == _PTR:
-            lhs = a[0].value(self.manager, self.project.arch, _STRING_BITS // 8, args[0].tags)
-        if b is not None and b[1] == _PTR:
-            rhs = b[0].value(self.manager, self.project.arch, _STRING_BITS // 8, args[1].tags)
+        if a is not None:
+            lhs = a.value(self.manager, self.project.arch, _STRING_BITS // 8, args[0].tags)
+        if b is not None:
+            rhs = b.value(self.manager, self.project.arch, _STRING_BITS // 8, args[1].tags)
         # the compared length must be the length of one of the operands (or of a literal)
-        ok = (a is not None and self.values.is_len_of(size, a[0])) or (
-            b is not None and self.values.is_len_of(size, b[0])
-        )
+        ok = (a is not None and self.values.is_len_of(size, a)) or (b is not None and self.values.is_len_of(size, b))
         if rhs is None and lhs is not None:
             rhs = self.values.literal(args[1], size)
             ok = ok or rhs is not None
@@ -580,18 +720,18 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         # copy(dst, src): memmove(dst.ptr, src.ptr, min(len(dst), len(src)) * width)
         if len(args) != 3:
             return None
-        dst = self.values.field(args[0])
-        src = self.values.field(args[1])
-        if dst is None or src is None or dst[1] != _PTR or src[1] != _PTR:
+        dst = self.values.base_of(args[0], _PTR)
+        src = self.values.base_of(args[1], _PTR)
+        if dst is None or src is None:
             return None
         count = args[2]
         if isinstance(count, BinaryOp) and count.op == "Mul" and isinstance(count.operands[1], Const):
             count = count.operands[0]
-        if not self._is_min_len(count, dst[0], src[0]):
+        if not self._is_min_len(count, dst, src):
             return None
         arch = self.project.arch
-        dst_val = dst[0].value(self.manager, arch, _SLICE_BITS // 8, args[0].tags)
-        src_val = src[0].value(self.manager, arch, None if src[0].combo else _SLICE_BITS // 8, args[1].tags)
+        dst_val = dst.value(self.manager, arch, _SLICE_BITS // 8, args[0].tags)
+        src_val = src.value(self.manager, arch, None if src.combo else _SLICE_BITS // 8, args[1].tags)
         if dst_val is None or src_val is None:
             return None
         return self.builtin(call, "copy", [dst_val, src_val], bits=self.project.arch.bits, go_result_type="int")
@@ -690,15 +830,10 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _is_len_check(self, operand: Expression, a: Expression, b: Expression) -> bool:
         for value in (a, b):
             if isinstance(value, StringLiteral):
-                base = None
                 if _const(operand) == len(value.data.encode("utf-8")):
                     return True
-            elif isinstance(value, VirtualVariable):
-                base = _Base(combo=value)
-            elif isinstance(value, Load):
-                base = _Base(addr=value.addr)
-            else:
-                base = None
+                continue
+            base = self.values.base_of_value(value)
             if base is not None and self.values.is_len_of(operand, base):
                 return True
         return False
@@ -708,9 +843,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if not fields:
             return None
         # the pieces of one combo-register value, in order: the value itself
-        first = self.values.field(fields[0])
-        if first is not None and first[0].combo is not None and first[1] == 0:
-            combo = first[0].combo
+        first = self.values.base_of(fields[0], 0)
+        if first is not None and first.combo is not None:
+            combo = first.combo
             pieces = [self.values.resolve(f) for f in fields]
             ids = [rv.varid for rv in combo.reg_vvars]
             if (
@@ -729,29 +864,23 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         base = None
         low = None
         if isinstance(cap, BinaryOp) and cap.op == "Sub":
-            hit = self.values.field(cap.operands[0])
-            if hit is None or hit[1] != _CAP:
-                return None
-            base, low = hit[0], cap.operands[1]
+            base = self.values.base_of(cap.operands[0], _CAP)
+            low = cap.operands[1]
         else:
-            hit = self.values.field(cap)
-            if hit is None or hit[1] != _CAP:
-                return None
-            base = hit[0]
+            base = self.values.base_of(cap, _CAP)
+        if base is None:
+            return None
         if low is None:
             # s[:j]
-            hit = self.values.field(ptr)
-            if hit is None or hit[1] != _PTR or not hit[0].same(base) or self.values.is_len_of(length, base):
+            if self.values.piece(ptr, base) != _PTR or self.values.is_len_of(length, base):
                 return None
             high = length
         else:
             if not (isinstance(ptr, BinaryOp) and ptr.op == "Add"):
                 return None
             p, advance = ptr.operands
-            hit = self.values.field(p)
-            if hit is None or hit[1] != _PTR or not hit[0].same(base):
-                hit = self.values.field(advance)
-                if hit is None or hit[1] != _PTR or not hit[0].same(base):
+            if self.values.piece(p, base) != _PTR:
+                if self.values.piece(advance, base) != _PTR:
                     return None
                 advance = p
             if not self._is_guarded_advance(advance, low):
@@ -793,179 +922,519 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         for block in list(self._graph.nodes):
             if block not in self._graph:
                 continue
-            match = self._match_growslice(block)
-            if match is not None:
-                self._apply_append(*match)
-                touched += [block, match[5], match[7]]
+            growth = self._match_growslice(block)
+            if growth is not None:
+                touched += self._apply_append(growth)
         return touched
 
-    def _match_growslice(self, block: Block):
+    def _match_growslice(self, block: Block) -> _Growth | None:
         call_stmt = None
         for stmt in block.statements:
             if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
-                if call_stmt is not None or self.callee_name(stmt.src) != "runtime.growslice":
+                if call_stmt is not None or self.callee_name(stmt.src) not in _GROWSLICE_NAMES:
                     return None
                 call_stmt = stmt
-            elif isinstance(stmt, Assignment):
-                # copies, and values re-read after the call (registers the call clobbered)
-                if find_call(stmt.src) is not None:
+            elif isinstance(stmt, (Assignment, Store)):
+                # copies, stores and values re-read after the call (registers the call clobbered)
+                if find_call(stmt) is not None:
                     return None
             elif not isinstance(stmt, (Label, Jump)):
                 return None
-        if call_stmt is None or not isinstance(call_stmt.dst, VirtualVariable):
+        if call_stmt is None or not isinstance(call_stmt.dst, VirtualVariable) or not call_stmt.dst.reg_vvars:
             return None
         args = list(call_stmt.src.args or [])
-        if len(args) != 5:
+        if len(args) not in (5, 7):
             return None
-        old_ptr, new_len, old_cap, num, et = args
-        base = self.values.field(old_ptr)
-        if base is None or base[1] != _PTR:
-            return None
-        base = base[0]
-        cap_hit = self.values.field(old_cap)
-        if cap_hit is None or cap_hit[1] != _CAP or not cap_hit[0].same(base):
-            return None
+        old_ptr, new_len, old_cap, num, et = args[:5]
         count = _const(num)
-        if count is None or count <= 0:
+        if count is not None and count <= 0:
             return None
-        # newLen = len(s) + num
-        grown = self.values.expand(new_len)
-        if not (isinstance(grown, BinaryOp) and grown.op == "Add"):
+        old_len = self._old_length(new_len, old_cap, num, count)
+        if old_len is None:
             return None
-        x, y = grown.operands
-        if not (
-            (self.values.is_len_of(x, base) and _const(y) == count)
-            or (self.values.is_len_of(y, base) and _const(x) == count)
-        ):
+        ty = self.type_name(et)
+        base = self.values.header(old_ptr, old_cap, old_len, f"[]{ty}" if ty else None)
+        if base is None or (base.words is None and not self.values.is_len_of(old_len, base)):
             return None
-
-        succs = list(self._graph.successors(block))
-        if len(succs) != 1:
-            return None
-        join = skip_jumps(self._graph, succs[0])
-        cond_block = conditional_pred(self._graph, block)
-        if cond_block is None or join is cond_block:
-            return None
-        cond_jump = cond_block.statements[-1]
-        cond = cond_jump.condition
-        if not (isinstance(cond, BinaryOp) and cond.op in ("CmpLT", "CmpLE", "CmpGT", "CmpGE")):
-            return None
-        operands = [self.values.resolve(o) for o in cond.operands]
-        wanted = [self.values.resolve(old_cap), self.values.resolve(new_len)]
-        if not (
-            (operands[0].likes(wanted[0]) and operands[1].likes(wanted[1]))
-            or (operands[0].likes(wanted[1]) and operands[1].likes(wanted[0]))
-        ):
-            return None
-        other = [s for s in self._graph.successors(cond_block) if not leads_to(self._graph, s, block)]
-        if len(other) != 1 or skip_jumps(self._graph, other[0]) is not join:
-            return None
-        other = other[0]
-        pre_join = cond_block if other is join else block_before(self._graph, other, join)
-        post_grow = block if succs[0] is join else block_before(self._graph, succs[0], join)
-        if pre_join is None or post_grow is None:
-            return None
-
-        # element stores in the join block: ptr[newLen - num + i] = elem_i
-        phis = self._phis(join)
-        ptr_phi = len_phi = None
-        for dst, phi in phis.values():
-            entries = dict(phi.src_and_vvars)
-            grown_side = entries.get((post_grow.addr, post_grow.idx))
-            old_side = entries.get((pre_join.addr, pre_join.idx))
-            if grown_side is None or old_side is None:
-                continue
-            grown_hit = self.values.combo_of.get(grown_side.varid)
-            if grown_hit is None or grown_hit[0].varid != call_stmt.dst.varid:
-                continue
-            old_hit = self.values.field(old_side)
-            if grown_hit[1] == _PTR and old_hit is not None and old_hit[1] == _PTR and old_hit[0].same(base):
-                ptr_phi = dst
-            elif grown_hit[1] == _LEN and self.values.resolve(old_side).likes(self.values.resolve(new_len)):
-                len_phi = dst
-        elems = None
-        stores: list[Store] = []
-        if ptr_phi is not None and len_phi is not None:
-            ws = self.project.arch.bytes
-            width = self.type_size(et) or ws
-            words = max(1, width // ws)
-            found: dict[tuple[int, int], tuple[Store, Expression]] = {}
-            for stmt in self._store_window(join):
-                if isinstance(stmt, Store):
-                    parsed = self._parse_elem_store(stmt.addr, ptr_phi, len_phi)
-                    if parsed is None:
-                        continue
-                    k, word = parsed
-                    if 1 <= k <= count and 0 <= word < words and (k, word) not in found:
-                        found[(k, word)] = (stmt, stmt.data)
-            if len(found) == count * words:
-                pieces = self._elements(
-                    join, phis, post_grow, [found[(k, w)][1] for k in range(count, 0, -1) for w in range(words)]
+        ws = self.project.arch.bytes
+        g = _Growth(block, call_stmt, base, count, num, et, old_len, new_len, self.type_size(et) or ws)
+        g.ptrs = [call_stmt.dst.reg_vvars[0]]
+        g.len_new = [call_stmt.dst.reg_vvars[1], self.values.resolve(new_len)]
+        g.len_old = [self.values.resolve(old_len)]
+        self._match_diamond(g, base, old_cap, new_len)
+        if g.join is not None:
+            g.phis = self._phis(g.join)
+            gone = {(pre_join.addr, pre_join.idx) for _, _, pre_join in g.arms}
+            for dst, phi in g.phis.values():
+                survivors = [v for src, v in phi.src_and_vvars if src not in gone and v is not None]
+                if survivors and all(v.varid == survivors[0].varid for v in survivors[1:]):
+                    self.values.aliases[dst.varid] = survivors[0]
+            for dst, phi in g.phis.values():
+                entries = dict(phi.src_and_vvars)
+                grown_side = entries.get((g.post_grow.addr, g.post_grow.idx))
+                old_side = entries.get((g.arms[-1][2].addr, g.arms[-1][2].idx))
+                if grown_side is None or old_side is None:
+                    continue
+                grown_side = self.values.resolve(grown_side)
+                grown_hit = (
+                    self.values.combo_of.get(grown_side.varid) if isinstance(grown_side, VirtualVariable) else None
                 )
-                if pieces is not None:
-                    elems = self._assemble_elements(pieces, words, et)
-                stores = [st for st, _ in found.values()]
-        return block, call_stmt, base, count, et, cond_block, other, join, pre_join, phis, elems, stores
+                if grown_hit is None or grown_hit[0].varid != call_stmt.dst.varid:
+                    if self._is_alias(grown_side, g.len_old) and self._is_alias(old_side, g.len_old):
+                        g.len_old.append(dst)
+                    continue
+                old_piece = self.values.piece(old_side, base)
+                if grown_hit[1] == _PTR and old_piece == _PTR:
+                    g.ptrs.append(dst)
+                elif grown_hit[1] == _LEN and self.values.same(old_side, new_len):
+                    g.len_new.append(dst)
+        self._match_elements(g)
+        if g.elems is None and g.src is None:
+            # nothing folded: the phis stay
+            for dst, _ in g.phis.values():
+                self.values.aliases.pop(dst.varid, None)
+        return g
 
-    def _store_window(self, join: Block) -> list[Statement]:
-        """The join block's statements followed by those of its straight-line successors, up to the first call."""
-        out = list(join.statements)
-        block = join
-        seen = {join}
+    def _old_length(self, new_len, old_cap, num, count: int | None) -> Expression | None:
+        """The old length word: ``new_len`` is ``old_len + num``."""
+        grown = self.values.expand(new_len)
+        if isinstance(grown, BinaryOp) and grown.op == "Add":
+            x, y = grown.operands
+            for a, b in ((x, y), (y, x)):
+                if (count is not None and _const(b) == count) or (count is None and self.values.same(b, num)):
+                    return a
+        bits = self.project.arch.bits
+        n = _const(new_len)
+        if count is not None and n is not None and n >= count:
+            return Const(self.manager.next_atom(), n - count, bits)
+        if _const(old_cap) == 0 and self.values.same(new_len, num):
+            return Const(self.manager.next_atom(), 0, bits)
+        return None
+
+    def _match_diamond(self, g: _Growth, base: _Base, old_cap, new_len) -> None:
+        """
+        ``if newLen > cap { growslice }`` around the call block; the join is where both paths meet. go1.25+ nests
+        further choices under the check (a small result lives in a stack buffer); every arm joins the same block.
+        """
+        # the grow path: the call block and its copy-only successors up to the join
+        chain = [g.block]
+        while True:
+            succs = list(self._graph.successors(chain[-1]))
+            if len(succs) != 1 or succs[0] in chain:
+                return
+            if self._graph.in_degree(succs[0]) > 1:
+                join = succs[0]
+                break
+            if not self._copies_only(succs[0]):
+                return
+            chain.append(succs[0])
+        post_grow = chain[-1]
+        # the conditions above the call block, up to the capacity check; their other arms all reach the join
+        region = {g.block}
+        entry = None
+        arms: list[tuple[Block, Block, Block]] = []
+        changed = True
+        while changed and entry is None and len(region) < 8:
+            changed = False
+            preds = {p for b in region for p in self._graph.predecessors(b) if p not in region and p is not join}
+            for pred in sorted(preds, key=lambda b: (b.addr, b.idx or 0), reverse=True):
+                if is_jump_only(pred):
+                    region.add(pred)
+                    changed = True
+                    continue
+                if not (pred.statements and isinstance(pred.statements[-1], ConditionalJump)):
+                    continue
+                pred_succs = list(self._graph.successors(pred))
+                if len(pred_succs) != 2:
+                    continue
+                new_arms = []
+                for succ in pred_succs:
+                    if succ in region:
+                        continue
+                    if succ in preds:
+                        # an inner condition: it joins the region first
+                        new_arms = None
+                        break
+                    pre_join = pred if succ is join else self._arm_end(succ, join)
+                    if pre_join is None:
+                        new_arms = None
+                        break
+                    new_arms.append((pred, succ, pre_join))
+                if new_arms is None:
+                    continue
+                region.add(pred)
+                arms += new_arms
+                changed = True
+                if self._is_grow_check(pred.statements[-1].condition, base, old_cap, new_len):
+                    entry = pred
+                    break
+        if entry is None or not arms:
+            return
+        for block in region:
+            if block is not entry and any(p not in region for p in self._graph.predecessors(block)):
+                return
+        g.cond_block, g.join, g.post_grow, g.arms = entry, join, post_grow, arms
+
+    def _arm_end(self, arm: Block, join: Block) -> Block | None:
+        """The last block of a path that skips the growth: copy-only blocks straight to the join."""
+        if arm is join:
+            return None
+        cur = arm
+        seen = set()
+        while cur not in seen:
+            seen.add(cur)
+            if self._graph.in_degree(cur) != 1 or not self._copies_only(cur):
+                return None
+            succs = list(self._graph.successors(cur))
+            if len(succs) != 1:
+                return None
+            if succs[0] is join:
+                return cur
+            cur = succs[0]
+        return None
+
+    @staticmethod
+    def _copies_only(block: Block) -> bool:
+        return all(
+            isinstance(st, (Label, Jump, Store)) or (isinstance(st, Assignment) and find_call(st.src) is None)
+            for st in block.statements
+        ) and not any(find_call(st) is not None for st in block.statements)
+
+    def _is_grow_check(self, cond, base: _Base, old_cap, new_len) -> bool:
+        if not isinstance(cond, BinaryOp) or cond.op not in ("CmpLT", "CmpLE", "CmpGT", "CmpGE", "CmpEQ", "CmpNE"):
+            return False
+        a, b = cond.operands
+        if cond.op in ("CmpEQ", "CmpNE"):
+            # a nil slice grows unless the new length is zero
+            return _const(old_cap) == 0 and (
+                (_const(b) == 0 and self.values.same(a, new_len)) or (_const(a) == 0 and self.values.same(b, new_len))
+            )
+
+        def is_cap(x):
+            return self.values.piece(x, base) == _CAP or self.values.same(x, old_cap)
+
+        return (is_cap(a) and self.values.same(b, new_len)) or (is_cap(b) and self.values.same(a, new_len))
+
+    #
+    # The appended elements: stores past the old end, or a copy of a whole slice
+    #
+
+    def _is_alias(self, expr, aliases: list) -> bool:
+        resolved = self.values.resolve(expr)
+        return any(resolved.likes(a) for a in aliases)
+
+    def _window(self, g: _Growth) -> list[Statement]:
+        """
+        Statements that may hold the element stores: the rest of the call block and its straight-line successors up
+        to the join, then the join and its straight-line successors. Stops at (and includes) the first other call.
+        """
+        stmts = list(g.block.statements)
+        pos = next((i for i, st in enumerate(stmts) if st is g.call_stmt), len(stmts))
+        out: list[Statement] = stmts[pos + 1 :]
+        block = g.block
+        seen = {block}
         while True:
             succs = list(self._graph.successors(block))
-            if len(succs) != 1 or succs[0] in seen or self._graph.in_degree(succs[0]) != 1:
+            if len(succs) != 1 or succs[0] in seen:
                 return out
             block = succs[0]
             seen.add(block)
-            for stmt in block.statements:
-                if find_call(stmt) is not None:
-                    return out
-                out.append(stmt)
+            if block is g.join:
+                out += list(block.statements)
+            elif self._graph.in_degree(block) != 1:
+                return out
+            else:
+                for stmt in block.statements:
+                    out.append(stmt)
+                    if find_call(stmt) is not None:
+                        return out
+
+    def _match_elements(self, g: _Growth) -> None:
+        ws = self.project.arch.bytes
+        words = max(1, g.width // ws)
+        window = self._window(g)
+        found: dict[tuple[int, int], tuple[Store, Expression]] = {}
+        for stmt in window:
+            if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+                if self._match_copy(g, stmt):
+                    return
+                continue
+            if not isinstance(stmt, Store):
+                continue
+            parsed = self._store_offset(stmt.addr, g)
+            if parsed is None:
+                continue
+            kind, off = parsed
+            if g.count is None:
+                continue
+            if kind == "old" and off == 0 and stmt.size == g.width * g.count and g.count > 1:
+                # one wide store of every appended element: append(s, src...)
+                src = self._wide_source(g, stmt.data)
+                if src is not None:
+                    g.src, g.stores = src, [stmt]
+                    return
+                continue
+            hit = self._element_of(kind, off, g)
+            if hit is None:
+                continue
+            k, word = hit
+            if 1 <= k <= g.count and (k, word) not in found:
+                if stmt.size == g.width and words > 1 and word == 0:
+                    found[(k, 0)] = (stmt, stmt.data)
+                    for w in range(1, words):
+                        found[(k, w)] = (stmt, None)
+                elif stmt.size == (ws if words > 1 else g.width) and 0 <= word < words:
+                    found[(k, word)] = (stmt, stmt.data)
+        if g.count is None or len(found) != g.count * words:
+            return
+        pieces = [found[(k, w)][1] for k in range(g.count, 0, -1) for w in range(words)]
+        if any(p is None for p in pieces[1::words]) and words > 1:
+            # a whole-element store: the element is its data
+            elems = []
+            for k in range(g.count, 0, -1):
+                data = found[(k, 0)][1]
+                if data is None:
+                    return
+                elems.append(data)
+            elems = self._elements(g, elems)
+        else:
+            elems = self._elements(g, pieces)
+            if elems is not None:
+                elems = self._assemble_elements(elems, words, g.et)
+        if elems is not None:
+            g.elems = elems
+            g.stores = list({id(st): st for st, _ in found.values()}.values())
+
+    def _match_copy(self, g: _Growth, stmt: SideEffectStatement) -> bool:
+        """``memmove(end, src, n*w)`` / ``typedslicecopy(T, end, n, src, n)`` after the growth: ``append(s, src...)``."""
+        call = stmt.expr
+        name = self.callee_name(call)
+        args = list(call.args or [])
+        if name == "runtime.memmove" and len(args) == 3:
+            dst, src, n = args
+            if not self._is_count_bytes(n, g):
+                return False
+        elif name == "runtime.typedslicecopy" and len(args) == 5:
+            _, dst, _, src, n = args
+            if not self._is_num(n, g):
+                return False
+        else:
+            return False
+        if not self._is_end(dst, g):
+            return False
+        value = self.values.slice(src, g.num)
+        if value is None:
+            value = self._slice_literal(g, src, g.num)
+        g.src, g.stores = value, [stmt]
+        return True
+
+    def _slice_literal(self, g: _Growth, ptr: Expression, length: Expression) -> Expression:
+        return self._struct_of(g.base.name or "[]byte", [ptr, length])
+
+    def _wide_source(self, g: _Growth, data: Expression) -> Expression | None:
+        data = self.values.expand(data)
+        if isinstance(data, Load):
+            count = Const(self.manager.next_atom(), g.count, self.project.arch.bits)
+            return Call(
+                self.manager.next_atom(), "[:]", [data.addr, count], bits=_SLICE_BITS, go_slice="[:j]", **data.tags
+            )
+        return None
+
+    def _is_num(self, expr, g: _Growth) -> bool:
+        return self.values.same(expr, g.num) or (g.count is not None and _const(expr) == g.count)
+
+    def _is_count_bytes(self, expr, g: _Growth) -> bool:
+        if g.width == 1 and self._is_num(expr, g):
+            return True
+        if g.count is not None and _const(expr) == g.count * g.width:
+            return True
+        e = self.values.expand(expr)
+        if isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[1]) == g.width:
+            return self._is_num(e.operands[0], g)
+        if isinstance(e, BinaryOp) and e.op == "Shl" and (1 << (_const(e.operands[1]) or 0)) == g.width:
+            return self._is_num(e.operands[0], g)
+        return False
+
+    def _is_end(self, addr, g: _Growth) -> bool:
+        """``ptr + oldLen*w``: where the appended elements start."""
+        parsed = self._store_offset(addr, g)
+        if parsed is None:
+            return False
+        kind, off = parsed
+        if kind == "old":
+            return off == 0
+        if kind == "new":
+            return g.count is not None and off == -g.count * g.width
+        old = _const(g.old_len)
+        return old is not None and off == old * g.width
+
+    def _element_of(self, kind: str, off: int, g: _Growth) -> tuple[int, int] | None:
+        """(k, word) of the store at byte ``off`` past ``ptr + len*w``: element k counted back from the new end."""
+        ws, w = self.project.arch.bytes, g.width
+        if kind == "old":
+            off -= g.count * w
+        elif kind == "abs":
+            n = _const(g.new_len)
+            if n is None:
+                return None
+            off -= n * w
+        if off >= 0:
+            return None
+        k = (-off + w - 1) // w
+        word_bytes = off + k * w
+        if word_bytes % ws:
+            return None
+        return k, word_bytes // ws
+
+    def _terms(self, expr, g: _Growth, sign: int = 1) -> list[tuple[int, Expression]]:
+        if self._is_alias(expr, g.ptrs) or self._is_alias(expr, g.len_new) or self._is_alias(expr, g.len_old):
+            return [(sign, expr)]
+        e = self.values.expand(expr) if isinstance(expr, VirtualVariable) else expr
+        if isinstance(e, BinaryOp) and e.op == "Add":
+            return self._terms(e.operands[0], g, sign) + self._terms(e.operands[1], g, sign)
+        if isinstance(e, BinaryOp) and e.op == "Sub":
+            return self._terms(e.operands[0], g, sign) + self._terms(e.operands[1], g, -sign)
+        return [(sign, expr)]
+
+    def _store_offset(self, addr, g: _Growth) -> tuple[str, int] | None:
+        """
+        Decompose a store address into the pointer word plus an offset: ("new", c) for ``ptr + newLen*w + c``,
+        ("old", c) for ``ptr + oldLen*w + c`` and ("abs", c) for ``ptr + c``.
+        """
+        terms = self._terms(addr, g)
+        rest = []
+        found_ptr = False
+        for sign, term in terms:
+            if sign > 0 and not found_ptr and self._is_alias(term, g.ptrs):
+                found_ptr = True
+                continue
+            rest.append((sign, term))
+        if not found_ptr:
+            return None
+        bits = self.project.arch.bits
+        const = 0
+        var = None
+        for sign, term in rest:
+            c = _const(term)
+            if c is not None:
+                c = c - (1 << bits) if c >= 1 << (bits - 1) else c
+                const += sign * c
+            elif var is None and sign > 0:
+                var = term
+            else:
+                return None
+        if var is None:
+            return "abs", const
+        var = self._strip_guard(var, g)
+        factor, inner = 1, var
+        e = self._expand_non_alias(var, g)
+        if isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[1]) is not None:
+            factor, inner = _const(e.operands[1]), e.operands[0]
+        elif isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[0]) is not None:
+            factor, inner = _const(e.operands[0]), e.operands[1]
+        elif isinstance(e, BinaryOp) and e.op == "Shl" and _const(e.operands[1]) is not None:
+            factor, inner = 1 << _const(e.operands[1]), e.operands[0]
+        if factor != g.width:
+            return None
+        inner = self._strip_guard(inner, g)
+        if self._is_alias(inner, g.len_new):
+            return "new", const
+        if self._is_alias(inner, g.len_old):
+            return "old", const
+        e = self._expand_non_alias(inner, g)
+        if isinstance(e, BinaryOp) and e.op in ("Add", "Sub") and _const(e.operands[1]) is not None:
+            delta = _const(e.operands[1]) * (1 if e.op == "Add" else -1)
+            if self._is_alias(e.operands[0], g.len_new):
+                return "new", delta * g.width + const
+            if self._is_alias(e.operands[0], g.len_old):
+                return "old", delta * g.width + const
+        return None
+
+    def _expand_non_alias(self, expr, g: _Growth) -> Expression:
+        if self._is_alias(expr, g.ptrs) or self._is_alias(expr, g.len_new) or self._is_alias(expr, g.len_old):
+            return expr
+        return self.values.expand(expr)
+
+    def _strip_guard(self, expr, g: _Growth) -> Expression:
+        """``x & ((a - b) >> 63)`` (the mask that keeps an empty result inside the array) -> ``x``."""
+        e = self._expand_non_alias(expr, g)
+        if isinstance(e, BinaryOp) and e.op == "And":
+            a, b = e.operands
+            for x, y in ((a, b), (b, a)):
+                if _has_node(self._expand_non_alias(y, g), lambda n: isinstance(n, BinaryOp) and n.op == "Sar"):
+                    return x
+        return expr
 
     def _assemble_elements(self, pieces: list, words: int, et: Expression) -> list | None:
-        """Word-sized pieces, ``words`` per element, into element values (strings and two-word structs)."""
+        """Word-sized pieces, ``words`` per element, into element values (strings, slices and small structs)."""
         if words == 1:
             return pieces
         elem_name = self.type_name(et) or ""
         out = []
         for i in range(0, len(pieces), words):
             group = pieces[i : i + words]
-            if words == 2 and elem_name == "string":
-                value = self.values.string(group[0], group[1])
-                if value is None:
-                    return None
-            elif words == 2:
-                ws = self.project.arch.bytes
-                value = Struct(
-                    self.manager.next_atom(),
-                    elem_name or "struct",
-                    OrderedDict([(0, group[0]), (ws, group[1])]),
-                    OrderedDict([("f0", 0), ("f1", ws)]),
-                    2 * self.project.arch.bits,
-                )
-            else:
-                return None
-            out.append(value)
+            value = None
+            if elem_name == "string" or elem_name.startswith("[]"):
+                value = self.values.whole(words * self.project.arch.bytes, *[(g, k * 8) for k, g in enumerate(group)])
+            out.append(value if value is not None else self._struct_of(elem_name, group))
         return out
 
-    def _elements(self, join: Block, phis: dict, post_grow: Block, data: list) -> list | None:
+    def _struct_of(self, name: str, words: list) -> Struct:
+        """A ``words``-sized value spelled as a literal of its type, field by field."""
+        ws = self.project.arch.bytes
+        names = ("ptr", "len", "cap") if name == "string" or name.startswith("[]") else None
+        if names is None:
+            ty = None
+            with contextlib.suppress(Exception):
+                ty = self.kb.go_signatures.type(name)
+            fields = getattr(ty, "fields", None)
+            offsets = getattr(ty, "offsets", None)
+            if fields and offsets and [offsets.get(f) for f in fields] == [k * ws for k in range(len(words))]:
+                names = tuple(fields)
+        if names is None or len(names) < len(words):
+            names = tuple(f"f{k}" for k in range(len(words)))
+        return Struct(
+            self.manager.next_atom(),
+            name or "struct",
+            OrderedDict((k * ws, w) for k, w in enumerate(words)),
+            OrderedDict((n, k * ws) for k, n in enumerate(names[: len(words)])),
+            len(words) * self.project.arch.bits,
+            **words[0].tags,
+        )
+
+    def _elements(self, g: _Growth, data: list) -> list | None:
         """The stored values as seen on the grow path; None when one is computed in the join block itself."""
-        defined_in_join = {
-            stmt.dst.varid
-            for stmt in join.statements
-            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
-        }
+        defined_in_join = (
+            {
+                stmt.dst.varid
+                for stmt in g.join.statements
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+            }
+            if g.join is not None
+            else set()
+        )
+        grow_side: dict[int, Expression] = {}
+        for varid, (_, phi) in g.phis.items():
+            value = dict(phi.src_and_vvars).get((g.post_grow.addr, g.post_grow.idx))
+            if value is not None:
+                grow_side[varid] = self.values.resolve(value)
         elems = []
         for value in data:
             value = self.values.resolve(value)
-            if isinstance(value, VirtualVariable) and value.varid in phis:
-                value = dict(phis[value.varid][1].src_and_vvars).get((post_grow.addr, post_grow.idx))
-                value = self.values.resolve(value) if value is not None else None
-            if isinstance(value, Const) or (isinstance(value, VirtualVariable) and value.varid not in defined_in_join):
-                elems.append(value)
-            else:
+            if isinstance(value, VirtualVariable):
+                value = grow_side.get(value.varid, value)
+            elif not isinstance(value, (Const, StringLiteral, Struct)):
+                # computed at the store: fine when its variables are known on the grow path
+                counter = _VVarCounter()
+                counter.walk_expression(value)
+                subst = {v: grow_side[v] for v in counter.counts if v in grow_side}
+                if any(v in defined_in_join and v not in subst for v in counter.counts):
+                    return None
+                if subst:
+                    value = _VVarSubstituter(subst).walk_expression(value)
+            if isinstance(value, VirtualVariable) and value.varid in defined_in_join:
                 return None
+            elems.append(value)
         return elems
 
     @staticmethod
@@ -976,117 +1445,193 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 phis[stmt.dst.varid] = (stmt.dst, stmt.src)
         return phis
 
-    def _parse_elem_store(self, addr: Expression, ptr_phi: VirtualVariable, len_phi: VirtualVariable):
-        """``(ptr + len*w) - k*w`` or ``ptr + (len - k)*w``, plus an optional word offset -> (k, word)."""
-        if not (isinstance(addr, BinaryOp) and addr.op in ("Sub", "Add")):
-            return None
-        lhs, rhs = addr.operands
-        # (element address) + c: a word inside a multi-word element
-        if addr.op == "Add" and isinstance(rhs, Const) and isinstance(lhs, BinaryOp):
-            inner = self._parse_elem_store(lhs, ptr_phi, len_phi)
-            if inner is not None:
-                ws = self.project.arch.bytes
-                k, word = inner
-                if word == 0 and rhs.value % ws == 0 and 0 < rhs.value < 8 * ws:
-                    return k, rhs.value // ws
-                return None
-        if addr.op == "Sub":
-            back = _const(rhs)
-            if back is None or not (isinstance(lhs, BinaryOp) and lhs.op == "Add"):
-                return None
-            p, scaled = lhs.operands
-            if not self.values.resolve(p).likes(ptr_phi):
-                return None
-            width = self._scaled_len(scaled, len_phi)
-            return (back // width, 0) if width and back % width == 0 else None
-        p, scaled = lhs, rhs
-        if not self.values.resolve(p).likes(ptr_phi):
-            p, scaled = rhs, lhs
-            if not self.values.resolve(p).likes(ptr_phi):
-                return None
-        scaled = self.values.expand(scaled)
-        if isinstance(scaled, BinaryOp) and scaled.op == "Mul" and isinstance(scaled.operands[1], Const):
-            inner = scaled.operands[0]
-            if (
-                isinstance(inner, BinaryOp)
-                and inner.op == "Sub"
-                and self.values.resolve(inner.operands[0]).likes(len_phi)
-            ):
-                k = _const(inner.operands[1])
-                return (k, 0) if k is not None else None
-        elif (
-            isinstance(scaled, BinaryOp)
-            and scaled.op == "Sub"
-            and self.values.resolve(scaled.operands[0]).likes(len_phi)
-        ):
-            k = _const(scaled.operands[1])
-            return (k, 0) if k is not None else None
-        return None
-
-    def _scaled_len(self, expr: Expression, len_phi: VirtualVariable) -> int | None:
-        if self.values.resolve(expr).likes(len_phi):
-            return 1
-        expr = self.values.expand(expr)
-        if isinstance(expr, BinaryOp) and expr.op == "Mul":
-            a, b = expr.operands
-            if self.values.resolve(a).likes(len_phi) and isinstance(b, Const):
-                return b.value_int
-            if self.values.resolve(b).likes(len_phi) and isinstance(a, Const):
-                return a.value_int
-        return None
-
-    def _apply_append(self, block, call_stmt, base, count, et, cond_block, other, join, pre_join, phis, elems, stores):
-        call = call_stmt.src
-        s = base.value(self.manager, self.project.arch, _SLICE_BITS // 8, call.tags)
+    def _apply_append(self, g: _Growth) -> list[Block]:
+        call = g.call_stmt.src
+        s = g.base.value(self.manager, self.project.arch, _SLICE_BITS // 8, call.tags)
         if s is None:
-            return
-        ty = self.type_name(et)
+            return []
+        s = self._array_slice(g, s)
+        ty = self.type_name(g.et)
         extra = {"go_result_type": f"[]{ty}"} if ty else {}
-        if elems is None:
-            extra["go_comment"] = f"{count} element(s) not recovered"
-        new_call = self.builtin(call, "append", [s, *(elems or [])], bits=_SLICE_BITS, **extra)
-        block.statements = [
-            Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags) if stmt is call_stmt else stmt
-            for stmt in block.statements
+        if g.src is not None:
+            args = [s, g.src]
+            extra["go_ellipsis"] = True
+        elif g.elems is not None:
+            args = [s, *g.elems]
+        else:
+            args = [s]
+            num = g.count if g.count is not None else "n"
+            extra["go_comment"] = f"{num} element(s) not recovered"
+        new_call = self.builtin(call, "append", args, bits=_SLICE_BITS, **extra)
+        g.block.statements = [
+            Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags) if stmt is g.call_stmt else stmt
+            for stmt in g.block.statements
         ]
+        touched = [g.block]
+        store_ids = {id(st) for st in g.stores}
+        for other_block in list(self._graph.nodes):
+            if any(id(st) in store_ids for st in other_block.statements):
+                other_block.statements = [st for st in other_block.statements if id(st) not in store_ids]
+                touched.append(other_block)
+        if g.join is not None:
+            touched += self._collapse_diamond(g)
+        if g.base.addr is not None:
+            touched += self._fold_header_writeback(g)
+        l.debug("Folded growslice at %#x of %s into append", g.block.addr, self._func.name)
+        return touched
 
-        # the grow path is now the only path: append itself decides whether to grow
-        self.remove_jump_target(cond_block, other.addr, other.idx)
-        dead = other
-        while dead is not join and dead in self._graph and self._graph.in_degree(dead) == 0:
-            succs = list(self._graph.successors(dead))
-            self._graph.remove_node(dead)
-            self._block_by_addr_and_idx.pop((dead.addr, dead.idx), None)
-            if len(succs) != 1:
-                break
-            dead = succs[0]
+    def _array_slice(self, g: _Growth, s: Expression) -> Expression:
+        """A constant header over an array (``&arr``/``new([N]T)``, len, cap) is the slicing ``arr[:len]``."""
+        base = g.base
+        if base.words is None or len(base.words) != 3 or not isinstance(s, Struct) or not s.fields:
+            return s
+        ptr, length, cap = base.words
+        n, c = _const(length), _const(cap)
+        if c == 0:
+            return Struct(self.manager.next_atom(), s.name, OrderedDict(), OrderedDict(), s.bits, **s.tags)
+        if _const(ptr) is not None or n is None or c is None:
+            return s
+        array = ptr.operand if isinstance(ptr, UnaryOp) and ptr.op == "Reference" else ptr
+        high = Const(self.manager.next_atom(), n, self.project.arch.bits)
+        return Call(self.manager.next_atom(), "[:]", [array, high], bits=_SLICE_BITS, go_slice="[:j]", **s.tags)
 
-        # the join no longer merges two paths
+    def _collapse_diamond(self, g: _Growth) -> list[Block]:
+        """The grow path is now the only path: append itself decides whether to grow."""
+        gone = set()
+        for cond, other, pre_join in g.arms:
+            self.remove_jump_target(cond, other.addr, other.idx)
+            gone.add((pre_join.addr, pre_join.idx))
+            dead = other
+            while dead is not g.join and dead in self._graph and self._graph.in_degree(dead) == 0:
+                succs = list(self._graph.successors(dead))
+                self._graph.remove_node(dead)
+                self._block_by_addr_and_idx.pop((dead.addr, dead.idx), None)
+                if len(succs) != 1:
+                    break
+                dead = succs[0]
+        # the join no longer merges the paths
         replacements: dict[int, VirtualVariable] = {}
         new_stmts = []
-        store_ids = {id(st) for st in stores}
-        for other_block in list(self._graph.nodes):
-            if other_block is join or not any(id(st) in store_ids for st in other_block.statements):
-                continue
-            other_block.statements = [st for st in other_block.statements if id(st) not in store_ids]
-        for stmt in join.statements:
-            if stmt in stores:
-                continue
-            if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and stmt.dst.varid in phis:
-                entries = [(src, v) for src, v in stmt.src.src_and_vvars if src != (pre_join.addr, pre_join.idx)]
-                if len(entries) == 1 and entries[0][1] is not None:
-                    replacements[stmt.dst.varid] = self.values.resolve(entries[0][1])
+        for stmt in g.join.statements:
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and stmt.dst.varid in g.phis:
+                entries = [(src, v) for src, v in stmt.src.src_and_vvars if src not in gone]
+                values = [v for _, v in entries]
+                if values and all(v is not None for v in values) and all(v.varid == values[0].varid for v in values):
+                    replacements[stmt.dst.varid] = self.values.resolve(values[0])
                     continue
                 if len(entries) != len(stmt.src.src_and_vvars):
                     phi = Phi(stmt.src.idx, stmt.src.bits, entries, **stmt.src.tags)
                     stmt = Assignment(stmt.idx, stmt.dst, phi, **stmt.tags)
             new_stmts.append(stmt)
-        join.statements = new_stmts
+        g.join.statements = new_stmts
         if replacements:
             subst = _VVarSubstituter(replacements)
             for blk in self._graph.nodes:
                 subst.walk(blk)
-        l.debug("Folded growslice diamond at %#x of %s into append", block.addr, self._func.name)
+        return [cond for cond, _, _ in g.arms] + [g.join]
+
+    def _fold_header_writeback(self, g: _Growth) -> list[Block]:
+        """``p.s.ptr = t.array; p.s.cap = t.cap; p.s.len = t.len`` after the growth -> ``p.s = t``."""
+        ws = self.project.arch.bytes
+        result = g.call_stmt.dst
+        pieces = {i * ws: rv.varid for i, rv in enumerate(result.reg_vvars)}
+        found: dict[int, tuple[Block, Store]] = {}
+        for block in self._chain(g):
+            for stmt in block.statements:
+                if not isinstance(stmt, Store) or stmt.size != ws:
+                    continue
+                addr_base, off = _addr_and_offset(stmt.addr)
+                if addr_base is None or not self.values.resolve(addr_base).likes(g.base.addr):
+                    continue
+                k = off - g.base.off
+                data = self.values.resolve(stmt.data)
+                if k in pieces and isinstance(data, VirtualVariable) and data.varid == pieces[k] and k not in found:
+                    found[k] = (block, stmt)
+        if len(found) != len(pieces):
+            return []
+        _, last = list(found.values())[-1]
+        wide = Store(
+            last.idx,
+            g.base.address(self.manager, self.project.arch),
+            result,
+            len(pieces) * ws,
+            self.project.arch.memory_endness,
+            **last.tags,
+        )
+        dropped = {id(st) for _, st in found.values()}
+        touched = []
+        for block, _ in found.values():
+            block.statements = [
+                wide if st is last else st for st in block.statements if st is last or id(st) not in dropped
+            ]
+            touched.append(block)
+        return touched
+
+    def _chain(self, g: _Growth) -> list[Block]:
+        """The call block, its straight-line successors up to the join, the join and its straight-line successors."""
+        out = [g.block]
+        block = g.block
+        seen = {block}
+        while True:
+            succs = list(self._graph.successors(block))
+            if len(succs) != 1 or succs[0] in seen or (succs[0] is not g.join and self._graph.in_degree(succs[0]) != 1):
+                return out
+            block = succs[0]
+            seen.add(block)
+            out.append(block)
+            if any(find_call(st) is not None for st in block.statements):
+                return out
+
+
+class _Growth:
+    """One growslice call and what was matched around it."""
+
+    __slots__ = (
+        "arms",
+        "base",
+        "block",
+        "call_stmt",
+        "cond_block",
+        "count",
+        "elems",
+        "et",
+        "join",
+        "len_new",
+        "len_old",
+        "new_len",
+        "num",
+        "old_len",
+        "phis",
+        "post_grow",
+        "ptrs",
+        "src",
+        "stores",
+        "width",
+    )
+
+    def __init__(self, block, call_stmt, base, count, num, et, old_len, new_len, width):
+        self.block = block
+        self.call_stmt = call_stmt
+        self.base = base
+        self.count = count
+        self.num = num
+        self.et = et
+        self.old_len = old_len
+        self.new_len = new_len
+        self.width = width
+        self.cond_block = self.join = None
+        self.arms: list = []  # (conditional block, its arm that skips the growth, that arm's last block)
+        self.post_grow = block
+        self.phis: dict = {}
+        self.ptrs: list = []
+        self.len_new: list = []
+        self.len_old: list = []
+        self.elems: list | None = None
+        self.src = None
+        self.stores: list = []
+
+
+_GROWSLICE_NAMES = frozenset({"runtime.growslice", "runtime.growsliceBuf"})
 
 
 _SWAPPED = {"CmpEQ": "CmpEQ", "CmpNE": "CmpNE", "CmpLT": "CmpGT", "CmpGT": "CmpLT", "CmpLE": "CmpGE", "CmpGE": "CmpLE"}
@@ -1097,6 +1642,7 @@ _CALL_RULES = {
     "runtime.makeslice": GoBuiltinRewriter._rw_makeslice,
     "runtime.makeslice64": GoBuiltinRewriter._rw_makeslice,
     "runtime.growslice": GoBuiltinRewriter._rw_growslice,
+    "runtime.growsliceBuf": GoBuiltinRewriter._rw_growslice,
     "runtime.concatstring2": GoBuiltinRewriter._rw_concatstring,
     "runtime.concatstring3": GoBuiltinRewriter._rw_concatstring,
     "runtime.concatstring4": GoBuiltinRewriter._rw_concatstring,

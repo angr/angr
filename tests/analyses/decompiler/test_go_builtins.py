@@ -162,5 +162,39 @@ class TestBuiltinsGo122Stripped(GoBuiltinsTarget):
         assert "if " not in self.body("main.push")
 
 
+class SliceGrowth(GoBuiltinsTarget):
+    """growslice diamonds: a struct field, a loop-carried header in scalars, a variadic copy and array-backed bases."""
+
+    FUNCS = ("main.(*bag).add", "main.(*bag).addName", "main.squares", "main.concat", "main.withPrefix", "main.pair")
+
+    def test_no_growth_helpers(self):
+        self.assert_absent(("growslice", "memmove", "typedslicecopy"))
+
+    def test_append_to_struct_field(self):
+        assert "b.items = append(b.items, v)\n" in self.texts["main.(*bag).add"]
+        assert "b.names = append(b.names, s)\n" in self.texts["main.(*bag).addName"]
+        assert "if " not in self.body("main.(*bag).add")
+
+    def test_append_variadic(self):
+        assert "return append(a, b...)\n" in self.texts["main.concat"]
+        assert re.search(r"return append\(\w+\[:2\], s\.\.\.\)\n", self.texts["main.withPrefix"])
+
+    def test_append_in_loop(self):
+        # the header lives in three scalars; the appended element is the computed square
+        text = self.texts["main.squares"]
+        assert re.search(r"= append\(\[\]int\{ptr: \w+, len: \w+, cap: \w+\}, (\w+) \* \1\)\n", text), text
+
+
+class TestSlicesGo122(SliceGrowth):
+    BINARY = go_binary("go1.22.5", "slices")
+
+    def test_append_to_array_literal(self):
+        assert re.search(r"return append\(\w+\[:1\], b\)\[:2\]\n", self.texts["main.pair"])
+
+
+class TestSlicesGo127(SliceGrowth):
+    BINARY = go_binary("go1.27.1", "slices")
+
+
 if __name__ == "__main__":
     unittest.main()

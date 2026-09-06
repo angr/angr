@@ -2114,6 +2114,9 @@ class GoFunctionCall(GoExpression):
                 yield from arg.elem_chunks()
                 continue
             yield from GoExpression._try_c_repr_chunks(arg)
+        if self.args and call_tag(self, "go_ellipsis", False):
+            # append(s, t...)
+            yield "...", None
 
         yield ")", paren
 
