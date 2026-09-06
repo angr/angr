@@ -21,6 +21,7 @@ from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.calling_conventions import default_cc_for_project
 from angr.go.analyses.block_scan import (
     CONST,
+    SP,
     TYPED,
     RegisterEnv,
     allocator,
@@ -45,6 +46,7 @@ l = logging.getLogger(__name__)
 _INIT_RE = re.compile(r"^(?P<pkg>.+?)\.init(?:\.\d+)?$")
 _MAX_STRING = 1 << 20
 _CLOSURE_STRUCT = "*struct { F uintptr"
+_MAP_OPS = ("runtime.mapassign", "runtime.mapaccess", "runtime.mapdelete")
 _PRESERVING = ("runtime.gcWriteBarrier", "runtime.wbMove", "runtime.wbZero", "runtime.duffzero", "runtime.duffcopy")
 
 
@@ -79,6 +81,8 @@ class _Scan:
         self.stores: dict[int, list[tuple[int, tuple | None, str]]] = defaultdict(list)
         # origin of a typed closure record -> the code pointer stored at its word 0
         self.closure_fn: dict[int, int] = {}
+        # origin of an allocation whose descriptor was not an argument -> the type a later map operation named
+        self.origin_types: dict[int, str] = {}
         self._origin = 0
 
     # ------------------------------------------------------------------ driver
@@ -146,6 +150,7 @@ class _Scan:
         return env.eval(expr), 0
 
     def _store(self, stmt: Store, env: RegisterEnv, pkg: str) -> None:
+        env.store(stmt.addr, stmt.data, stmt.size)
         base, off = self._base_and_offset(env, stmt.addr)
         if base is None:
             return
@@ -154,6 +159,7 @@ class _Scan:
             # a field store through a fresh allocation: a closure record's code pointer
             if (
                 off == 0
+                and base[1] is not None
                 and base[1].startswith(_CLOSURE_STRUCT)
                 and data is not None
                 and data[0] == CONST
@@ -176,13 +182,29 @@ class _Scan:
             return
         pre = env.registers()
         env.clear_call_clobbers()
+        if self.arch.call_pushes_ret:
+            # the callee's ret pops the return address the call pushed
+            sp = env.values.get(("r", self.arch.sp_offset))
+            if sp is not None and sp[0] == SP:
+                env.values.pop(("s", sp[1]), None)
+                env.values[("r", self.arch.sp_offset)] = (SP, sp[1] + self.ptr)
         if target is None:
             return
         self._origin += 1
+        if name is not None and name.startswith(_MAP_OPS) and len(self.result_regs) > 1:
+            # mapassign(&type:map[K]V, m, ...): names the type of a map made by makemap_small
+            desc, m = pre.get(self.result_regs[0]), pre.get(self.result_regs[1])
+            if desc is not None and desc[0] == CONST and m is not None and m[0] == TYPED and m[1] is None:
+                type_name = go_type_name_at(self.project, desc[1])
+                if type_name is not None:
+                    self.origin_types.setdefault(m[4], type_name)
         alloc = allocator(name)
         if alloc is not None:
             prefix, arg = alloc
-            if arg is None or arg >= len(self.result_regs):
+            if arg is None:
+                env.values[("r", self.result_regs[0])] = (TYPED, None, 0, 1, self._origin)
+                return
+            if arg >= len(self.result_regs):
                 return
             desc = pre.get(self.result_regs[arg])
             type_name = go_type_name_at(self.project, desc[1]) if desc is not None and desc[0] == CONST else None
@@ -241,7 +263,9 @@ class _Scan:
             return None
         if value[0] == TYPED:
             _, type_str, word, words, origin = value
-            if word != 0 or not all(self._stored_at(addr + k * self.ptr) for k in range(1, words)):
+            if type_str is None:
+                type_str = self.origin_types.get(origin)
+            if type_str is None or word != 0 or not all(self._stored_at(addr + k * self.ptr) for k in range(1, words)):
                 return None
             if type_str.startswith(_CLOSURE_STRUCT) and origin in self.closure_fn:
                 return self._func_type(self.closure_fn[origin]) or type_str
