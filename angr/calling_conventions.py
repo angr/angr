@@ -131,6 +131,10 @@ class AllocHelper:
         raise TypeError(type(val))
 
 
+class _LayoutOverflow(Exception):
+    """The type's layout runs past the locations reserved for it."""
+
+
 def refine_locs_with_struct_type(
     arch: archinfo.Arch,
     locs: list,
@@ -142,7 +146,22 @@ def refine_locs_with_struct_type(
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
+    try:
+        return _refine_locs_with_struct_type(arch, locs, arg_type, offset, treat_bot_as_int, treat_unsupported_as_int)
+    except _LayoutOverflow:
+        # the fields of arg_type (a struct whose declared size disagrees with its field layout, or a type wider
+        # than the words the convention reserved) run past locs; the unrefined locations are still right
+        return locs[0] if len(locs) == 1 else SimComboArg(list(locs))
 
+
+def _refine_locs_with_struct_type(
+    arch: archinfo.Arch,
+    locs: list,
+    arg_type: SimType,
+    offset: int,
+    treat_bot_as_int: bool,
+    treat_unsupported_as_int: bool,
+):
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
 
@@ -157,6 +176,8 @@ def refine_locs_with_struct_type(
             chunk_remaining = arch.bytes - chunk_offset
             type_remaining = arg_type.size // arch.byte_width - seen_bytes
             use_bytes = min(chunk_remaining, type_remaining)
+            if chunk >= len(locs):
+                raise _LayoutOverflow
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
 
@@ -168,15 +189,22 @@ def refine_locs_with_struct_type(
         assert arg_type.elem_type.size is not None and arg_type.length is not None
         # TODO explicit stride
         locs_list = [
-            refine_locs_with_struct_type(
-                arch, locs, arg_type.elem_type, offset=offset + i * arg_type.elem_type.size // arch.byte_width
+            _refine_locs_with_struct_type(
+                arch,
+                locs,
+                arg_type.elem_type,
+                offset + i * arg_type.elem_type.size // arch.byte_width,
+                treat_bot_as_int,
+                treat_unsupported_as_int,
             )
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs_list)
     if isinstance(arg_type, SimStruct):
         locs_dict = {
-            field: refine_locs_with_struct_type(arch, locs, field_ty, offset=offset + arg_type.offsets[field])
+            field: _refine_locs_with_struct_type(
+                arch, locs, field_ty, offset + arg_type.offsets[field], treat_bot_as_int, treat_unsupported_as_int
+            )
             for field, field_ty in arg_type.fields.items()
         }
         return SimStructArg(arg_type, locs_dict)
@@ -184,19 +212,14 @@ def refine_locs_with_struct_type(
         # Treat a SimUnion as functionality equivalent to its longest member
         for member in arg_type.members.values():
             if member.size == arg_type.size:
-                return refine_locs_with_struct_type(arch, locs, member, offset)
+                return _refine_locs_with_struct_type(
+                    arch, locs, member, offset, treat_bot_as_int, treat_unsupported_as_int
+                )
 
     # for all other types, we basically treat them as integers until someone implements proper layouting logic
     if treat_unsupported_as_int:
         arg_type = SimTypeInt().with_arch(arch)
-        return refine_locs_with_struct_type(
-            arch,
-            locs,
-            arg_type,
-            offset=offset,
-            treat_bot_as_int=treat_bot_as_int,
-            treat_unsupported_as_int=treat_unsupported_as_int,
-        )
+        return _refine_locs_with_struct_type(arch, locs, arg_type, offset, treat_bot_as_int, treat_unsupported_as_int)
 
     raise TypeError(f"I don't know how to lay out a {arg_type}")
 

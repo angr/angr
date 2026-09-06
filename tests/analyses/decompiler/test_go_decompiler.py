@@ -329,6 +329,39 @@ class TestUninitializedStackReadGo127(GoDecompilationTarget):
         assert "make([]*int" in text
 
 
+class TestStructValueReceiver386(unittest.TestCase):
+    """
+    A struct value receiver on a stack convention: the string field's layout runs past the two words the receiver
+    occupies on 386, and refine_locs_with_struct_type falls back to the unrefined words instead of raising.
+    """
+
+    def test_struct_value_receiver_falls_back_to_words(self):
+        from angr.calling_conventions import SimComboArg, default_cc_for_project
+        from angr.knowledge_plugins.functions.function import PrototypeSource
+        from angr.sim_type import SimTypeFunction
+
+        binary = go_binary("go1.27.1", "recv", arch="i386")
+        name = "main.gitHubRecipientError.Error"
+        addr = go_func_addrs(binary, name)[name]
+        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
+        func = proj.kb.functions[addr]
+        proj.kb.go_signatures.load_sources()
+        recv = proj.kb.go_signatures.type("main.gitHubRecipientError").with_arch(proj.arch)
+        ret = proj.kb.go_signatures.type("string").with_arch(proj.arch)
+        func.prototype = SimTypeFunction([recv], ret, arg_names=["e"]).with_arch(proj.arch)
+        func.prototype_source = PrototypeSource.USER
+        func.calling_convention = default_cc_for_project(proj)(proj.arch)
+
+        (loc,) = func.calling_convention.arg_locs(func.prototype)
+        assert isinstance(loc, SimComboArg) and len(loc.locations) == 2
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text
+        print_decompilation_result(dec)
+        header = next(line for line in dec.codegen.text.splitlines() if line.startswith("func "))
+        assert "gitHubRecipientError" in header and "Error(" in header
+
+
 if __name__ == "__main__":
     unittest.main()
 
