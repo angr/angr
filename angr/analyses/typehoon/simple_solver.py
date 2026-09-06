@@ -512,7 +512,7 @@ class FORGOTTEN(enum.Enum):
 
 
 class ConstraintGraphNode:
-    __slots__ = ("_hash", "forgotten", "tag", "typevar", "variance")
+    __slots__ = ("_hash", "_repr", "forgotten", "tag", "typevar", "variance")
 
     def __init__(
         self,
@@ -526,8 +526,15 @@ class ConstraintGraphNode:
         self.tag = tag
         self.forgotten = forgotten
         self._hash = hash(("ConstraintGraphNode", typevar, variance, tag, forgotten))
+        self._repr: str | None = None
 
     def __repr__(self):
+        # the automaton keys its states by (hash, repr); every edge repr's both endpoints
+        if self._repr is None:
+            self._repr = self._compute_repr()
+        return self._repr
+
+    def _compute_repr(self):
         variance_str = "CO" if self.variance == Variance.COVARIANT else "CONTRA"
         if self.tag == ConstraintGraphTag.LEFT:
             tag_str = "L"
@@ -1655,10 +1662,9 @@ class SimpleSolver:
                     and isinstance(curr_type.basetype, Struct)
                     and 0 in curr_type.basetype.fields
                 ):
-                    # replace all fields with the first field
+                    # replace all fields with the first field (a new dict, so the cached hash is dropped)
                     first_field = curr_type.basetype.fields[0]
-                    for offset in curr_type.basetype.fields:
-                        curr_type.basetype.fields[offset] = first_field
+                    curr_type.basetype.fields = dict.fromkeys(curr_type.basetype.fields, first_field)
 
     #
     # Constraint graph
