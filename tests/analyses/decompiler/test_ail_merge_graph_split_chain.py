@@ -139,6 +139,61 @@ class TestAILMergeGraphSplitChain(unittest.TestCase):
         self.assertEqual(set(cloned_graph.edges), {(live_first, split_second), (split_second, live_first)})
         self.assertTrue(all(replacement in cloned_graph for replacement in updated_blocks.values()))
 
+    def test_replacement_jump_retargeted_to_earlier_replacement(self):
+        # a replacement is cut out of the unsplit original, so its terminator names the
+        # successor's pre-split address; here that successor was already replaced
+        target = Block(0x4010, 4, statements=[Return(0, [])])
+        source = Block(0x4000, 4, statements=[Jump(0, Const(0, target.addr, 64))])
+        graph = nx.DiGraph([(source, target)])
+
+        split_target = Block(0x5010, 4, statements=[Return(0, [])])
+        split_source = Block(0x5000, 4, statements=[Jump(0, Const(0, target.addr, 64))])
+
+        cloned_graph, _ = AILMergeGraph.clone_graph_replace_splits(graph, {target: split_target, source: split_source})
+
+        self.assertEqual(set(cloned_graph.nodes), {split_source, split_target})
+        self.assertEqual(set(cloned_graph.edges), {(split_source, split_target)})
+        jump = cast(Jump, split_source.statements[-1])
+        self.assertEqual(jump.target.value, split_target.addr)
+
+    def test_copied_replacement_keeps_earlier_retarget(self):
+        # the replacement for source becomes the predecessor of a later split and is
+        # copied again; the retarget it already carries must survive that copy
+        condition = Const(0, 1, 1)
+        first_target = Block(0x4010, 4, statements=[Return(0, [])])
+        second_target = Block(0x4020, 4, statements=[Return(0, [])])
+        source = Block(
+            0x4000,
+            4,
+            statements=[
+                ConditionalJump(0, condition, Const(1, first_target.addr, 64), Const(2, second_target.addr, 64))
+            ],
+        )
+        graph = nx.DiGraph([(source, first_target), (source, second_target)])
+
+        split_first_target = Block(0x5010, 4, statements=[Return(0, [])])
+        split_second_target = Block(0x5020, 4, statements=[Return(0, [])])
+        split_source = Block(
+            0x5000,
+            4,
+            statements=[
+                ConditionalJump(0, condition, Const(1, first_target.addr, 64), Const(2, second_target.addr, 64))
+            ],
+        )
+
+        cloned_graph, updated_blocks = AILMergeGraph.clone_graph_replace_splits(
+            graph,
+            {first_target: split_first_target, source: split_source, second_target: split_second_target},
+        )
+
+        live_source = updated_blocks[split_source]
+        self.assertEqual(set(cloned_graph.nodes), {live_source, split_first_target, split_second_target})
+        jump = cast(ConditionalJump, live_source.statements[-1])
+        self.assertEqual(
+            {jump.true_target.value, jump.false_target.value},
+            {split_first_target.addr, split_second_target.addr},
+        )
+
     def test_equal_predecessor_copy_resolves_by_identity(self):
         target = Block(0x8010, 8, statements=[Label(0, "target"), Return(1, [])])
         predecessor = Block(0x8000, 4, statements=[Jump(0, Const(0, target.addr, 64))])
