@@ -1360,6 +1360,44 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         resolved = self.values.resolve(expr)
         return any(resolved.likes(a) for a in aliases)
 
+    def _after_barrier(self, block: Block) -> Block | None:
+        """
+        ``if runtime.writeBarrier.enabled { gcWriteBarrier(); buf fills }`` ends ``block``: the block where both arms
+        meet again (the pointer store the barrier guards sits there), or None when ``block`` ends otherwise.
+        """
+        if not (block.statements and isinstance(block.statements[-1], ConditionalJump)):
+            return None
+        cond = _strip_converts(block.statements[-1].condition)
+        if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
+            return None
+        flag = next((o for o in cond.operands if isinstance(o, Load) and isinstance(o.addr, Const)), None)
+        if flag is None:
+            return None
+        sym = self.project.loader.find_symbol(flag.addr.value_int)
+        named = sym is not None and sym.name == "runtime.writeBarrier"
+        succs = list(self._graph.successors(block))
+        if len(succs) != 2:
+            return None
+        if skip_jumps(self._graph, succs[0]) is skip_jumps(self._graph, succs[1]):
+            # the barrier arm is already gone; both arms fall through to the store
+            return skip_jumps(self._graph, succs[0])
+        for fast, slow in ((succs[0], succs[1]), (succs[1], succs[0])):
+            join = skip_jumps(self._graph, fast)
+            cur = slow
+            seen = set()
+            barrier = named
+            while cur is not join and cur not in seen and len(seen) < 4:
+                seen.add(cur)
+                names = [self.callee_name(c) or "" for c in (find_call(st) for st in cur.statements) if c is not None]
+                barrier = barrier or any(n.startswith(("runtime.gcWriteBarrier", "runtime.wbBufFlush")) for n in names)
+                nxt = list(self._graph.successors(cur))
+                if len(nxt) != 1:
+                    break
+                cur = nxt[0]
+            if cur is join and barrier:
+                return join
+        return None
+
     def _window(self, g: _Growth) -> list[Statement]:
         """
         Statements that may hold the element stores: the rest of the call block and its straight-line successors up
@@ -1372,13 +1410,19 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         seen = {block}
         while True:
             succs = list(self._graph.successors(block))
-            if len(succs) != 1 or succs[0] in seen:
+            join = self._after_barrier(block) if len(succs) == 2 else None
+            if join is not None:
+                block = join
+            elif len(succs) != 1 or succs[0] in seen:
                 return out
-            block = succs[0]
+            else:
+                block = succs[0]
+            if block in seen:
+                return out
             seen.add(block)
             if block is g.join:
                 out += list(block.statements)
-            elif self._graph.in_degree(block) != 1:
+            elif self._graph.in_degree(block) != 1 and join is None:
                 return out
             else:
                 for stmt in block.statements:
@@ -1415,9 +1459,10 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if g.count is None or len(found) != g.count:
             return
         elems = []
+        elem_name = self.type_name(g.et) or ""
         for k in range(g.count, 0, -1):
             pieces = sorted((at, stmt.size, data) for at, (stmt, data) in found[k].items())
-            if [(at, size) for at, size, _ in pieces] != self._covering(pieces, g.width):
+            if not self._covers(pieces, g.width, elem_name):
                 return
             values = self._elements(g, [data for _, _, data in pieces])
             if values is None:
@@ -1425,6 +1470,28 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             elems.append(self._element_value(g, [(at, v) for (at, _, _), v in zip(pieces, values)]))
         g.elems = elems
         g.stores = list({id(st): st for k in found for st, _ in found[k].values()}.values())
+
+    def _covers(self, pieces: list, size: int, name: str) -> bool:
+        """The (offset, size, ...) pieces fill ``size`` bytes, or every field of the struct ``name`` (padding aside)."""
+        if self._covering(pieces, size):
+            return True
+        ty = None
+        with contextlib.suppress(Exception):
+            ty = self.kb.go_signatures.type(name).with_arch(self.project.arch) if name else None
+        offsets = getattr(ty, "offsets", None)
+        fields = getattr(ty, "fields", None)
+        if not offsets or not fields:
+            return False
+        covered = bytearray(size)
+        for at, piece_size, *_ in pieces:
+            if at < 0 or at + piece_size > size or any(covered[at : at + piece_size]):
+                return False
+            covered[at : at + piece_size] = b"\x01" * piece_size
+        for field, off in offsets.items():
+            fsize = self._type_size_bytes(fields[field]) or 0
+            if not all(covered[off : off + fsize]):
+                return False
+        return True
 
     @staticmethod
     def _covering(pieces: list, width: int) -> list:
@@ -1845,9 +1912,15 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         seen = {block}
         while True:
             succs = list(self._graph.successors(block))
-            if len(succs) != 1 or succs[0] in seen or (succs[0] is not g.join and self._graph.in_degree(succs[0]) != 1):
+            join = self._after_barrier(block) if len(succs) == 2 else None
+            if join is not None:
+                block = join
+            elif len(succs) != 1 or (succs[0] is not g.join and self._graph.in_degree(succs[0]) != 1):
                 return out
-            block = succs[0]
+            else:
+                block = succs[0]
+            if block in seen:
+                return out
             seen.add(block)
             out.append(block)
             if any(find_call(st) is not None for st in block.statements):
@@ -2012,7 +2085,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return slot
         if isinstance(slot, VirtualVariable) and (slot.was_stack or slot.category == VVC.PARAMETER):
             if slot.was_stack:
-                pieces = self._stack_pieces(block, stmt, slot.stack_offset, size)
+                pieces = self._stack_pieces(block, stmt, slot.stack_offset, size, key_name)
                 if pieces is not None:
                     if len(pieces) == 1:
                         return pieces[0][1]
@@ -2021,7 +2094,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return slot
         return Load(self.manager.next_atom(), key, size, self.project.arch.memory_endness, **key.tags)
 
-    def _stack_pieces(self, block: Block, stmt: Statement, base: int, size: int) -> list | None:
+    def _stack_pieces(self, block: Block, stmt: Statement, base: int, size: int, name: str = "") -> list | None:
         """The stack stores covering ``size`` bytes at stack offset ``base`` that reach ``stmt``, as (offset, value)."""
         found: dict[int, tuple[int, Expression]] = {}
         cur = block
@@ -2039,10 +2112,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 if at < 0 or at + dst.size > size or any(a <= at < a + s for a, (s, _) in found.items()):
                     return None
                 found[at] = (dst.size, st.src)
-                if sum(s for s, _ in found.values()) == size:
-                    pieces = sorted((at, s, v) for at, (s, v) in found.items())
-                    covered = self._covering(pieces, size)
-                    return [(at, v) for at, _, v in pieces] if covered else None
+                pieces = sorted((at, s, v) for at, (s, v) in found.items())
+                if self._covers(pieces, size, name):
+                    return [(at, v) for at, _, v in pieces]
             seen.add(cur)
             preds = list(self._graph.predecessors(cur))
             if len(preds) != 1 or preds[0] in seen:
@@ -2062,9 +2134,15 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         seen = {block}
         while True:
             succs = list(self._graph.successors(cur))
-            if len(succs) != 1 or succs[0] in seen or self._graph.in_degree(succs[0]) != 1:
+            join = self._after_barrier(cur) if len(succs) == 2 else None
+            if join is not None:
+                cur = join
+            elif len(succs) != 1 or self._graph.in_degree(succs[0]) != 1:
                 return out
-            cur = succs[0]
+            else:
+                cur = succs[0]
+            if cur in seen:
+                return out
             seen.add(cur)
             for st in cur.statements:
                 out.append((cur, st))
@@ -2104,7 +2182,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 found[at] = (st.size, st.data)
                 stores.append((blk, st, at))
             pieces = sorted((at, s, v) for at, (s, v) in found.items())
-            if not self._covering(pieces, elem_size) or counts[slot.varid] != len(stores) + 1:
+            if not self._covers(pieces, elem_size, elem_name) or counts[slot.varid] != len(stores) + 1:
                 return []
             values = [(at, v) for at, _, v in pieces]
             value = values[0][1] if len(values) == 1 else self._map_value(elem_name, elem_size, values)
