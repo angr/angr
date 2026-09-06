@@ -9,13 +9,15 @@ from typing import TYPE_CHECKING
 
 from angr.go.analyses.dwarf_signatures import read_go_dwarf_signatures
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
-from angr.go.sim_type import GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple
+from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple
 from angr.go.type_parser import GoTypeParser
 from angr.go.utils.version import go_minor_version, identify_go_version
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.sim_type import SimTypeBottom
 from angr.utils.go_runtime import normalize_go_func_name
 
 if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions.function import Function
     from angr.sim_type import SimType
 
 l = logging.getLogger(__name__)
@@ -28,6 +30,78 @@ _LINKNAME_ALIASES = {
     "runtime.memequal": "internal/bytealg.abigen_runtime_memequal",
     "runtime.memequal_varlen": "internal/bytealg.abigen_runtime_memequal_varlen",
 }
+
+
+def _words(d) -> dict[int, tuple[str, int]]:
+    """Normalize a word table that may have been through JSON (string keys, list values)."""
+    return {int(k): (str(v[0]), int(v[1])) for k, v in (d or {}).items()}
+
+
+class GoInferredSignature(dict):
+    """
+    What the decompiler inferred about a function nobody names: parameter types from the callees its parameters
+    reach, and result types from its own return statements (``results``, word -> (type, words spanned)) and from how
+    callers use the result registers (``caller_results``). Word indices count ABIInternal result registers. A plain
+    dict underneath so records survive JSON and pickling between the processes of a sweep.
+    """
+
+    def __init__(self, params=None, results=None, caller_results=None):
+        super().__init__(params=list(params) if params else None, results={}, caller_results={})
+        self.merge(params=None, results=results, caller_results=caller_results)
+
+    @property
+    def params(self) -> list[str] | None:
+        return self["params"]
+
+    @property
+    def results(self) -> dict[int, tuple[str, int]]:
+        return self["results"]
+
+    @property
+    def caller_results(self) -> dict[int, tuple[str, int]]:
+        return self["caller_results"]
+
+    @property
+    def has_results(self) -> bool:
+        return bool(self["results"] or self["caller_results"])
+
+    def merge(self, params=None, results=None, caller_results=None) -> None:
+        """
+        Parameter and callee-side result types replace the earlier ones; caller-side result types accumulate over
+        callers, the first caller to type a word wins unless a later one types a wider value there.
+        """
+        if params:
+            self["params"] = list(params)
+        if results:
+            self["results"] = _words(results)
+        for word, (ty, span) in _words(caller_results).items():
+            old = self["caller_results"].get(word)
+            if old is None or old[1] < span:
+                self["caller_results"][word] = (ty, span)
+
+    def result_types(self, floor: int) -> list[str]:
+        """
+        The result list: callee-side types win, caller-side types fill the gaps, words nobody typed stay ``uintptr``.
+        ``floor`` is the number of words the guessed prototype already returns.
+        """
+        results, caller = self.results, self.caller_results
+        ends = [w + n for w, (_, n) in (*results.items(), *caller.items())]
+        count = max(floor, *ends) if ends else floor
+        types: list[str] = []
+        w = 0
+        while w < count:
+            hit = results.get(w)
+            if hit is None:
+                hit = caller.get(w)
+                if hit is not None and any(w < k < w + hit[1] for k in results):
+                    hit = None
+            if hit is None:
+                types.append("uintptr")
+                w += 1
+            else:
+                types.append(hit[0])
+                w += hit[1]
+        return types
 
 
 def available_signature_dbs() -> dict[str, Path]:
@@ -86,7 +160,7 @@ class GoSignatures(KnowledgeBasePlugin):
         self._parser: GoTypeParser | None = None
         self._prototypes: dict[str, GoSimTypeFunction | None] = {}
         self._arg_sizes: dict[int, int] | None = None
-        self._inferred: dict[str, list[str]] = {}
+        self._inferred: dict[str, GoInferredSignature] = {}
 
     #
     # Sources
@@ -229,26 +303,74 @@ class GoSignatures(KnowledgeBasePlugin):
         self._prototypes[name] = proto
         return proto
 
-    def set_inferred(self, name: str, param_types: list[str]) -> None:
-        """Record parameter types inferred for ``name`` from its callees (kept until a real signature appears)."""
-        self._inferred[normalize_go_func_name(name)] = list(param_types)
-        self._prototypes.pop(normalize_go_func_name(name), None)
+    def set_inferred(
+        self,
+        name: str,
+        param_types: list[str] | dict | None = None,
+        results: dict[int, tuple[str, int]] | None = None,
+        caller_results: dict[int, tuple[str, int]] | None = None,
+    ) -> GoInferredSignature:
+        """
+        Record what was inferred for ``name`` (kept until a real signature appears): parameter types, callee-side
+        result types and caller-side result types, or a whole record (as ``inferred_record`` returns it, possibly
+        after a round trip through JSON) in place of the parameter types.
+        """
+        name = normalize_go_func_name(name)
+        rec = self._inferred.get(name)
+        if rec is None:
+            rec = self._inferred[name] = GoInferredSignature()
+        if isinstance(param_types, dict):
+            other = param_types
+            rec.merge(other.get("params"), other.get("results"), other.get("caller_results"))
+            param_types = None
+        rec.merge(param_types, results, caller_results)
+        self._prototypes.pop(name, None)
+        return rec
 
     def inferred(self, name: str) -> list[str] | None:
+        """The inferred parameter types of ``name``."""
+        rec = self._inferred.get(normalize_go_func_name(name))
+        return rec.params if rec is not None else None
+
+    def inferred_record(self, name: str) -> GoInferredSignature | None:
         return self._inferred.get(normalize_go_func_name(name))
 
-    def inferred_prototype(self, name: str, returnty) -> GoSimTypeFunction | None:
-        """The inferred parameter types of ``name`` as a function type with the given (guessed) result type."""
-        types = self.inferred(name)
-        if not types:
+    def results_guessed(self, func: Function) -> bool:
+        """
+        True when nothing but the calling-convention guess describes the results of ``func``: its prototype is
+        guessed, or it was rebuilt (a promoted receiver, inferred parameters) around the guessed result type.
+        """
+        if func.is_prototype_guessed:
+            return True
+        proto = func.prototype
+        if proto is None or func.prototype_source.name == "USER" or isinstance(proto.returnty, GoSimType):
+            return False
+        return self.prototype(func.name) is None and self.prototype_at(func.addr) is None
+
+    def inferred_prototype(self, name: str, guessed) -> GoSimTypeFunction | None:
+        """
+        The inferred signature of ``name`` as a function type: inferred parameter types (else the guessed ones) and
+        inferred result types (else the guessed result type ``guessed.returnty``).
+        """
+        rec = self._inferred.get(normalize_go_func_name(name))
+        if rec is None or (rec.params is None and not rec.has_results):
             return None
+        arch = self._kb._project.arch
         try:
-            args = [self.parser.parse(t) for t in types]
+            if rec.params is not None:
+                args = [self.parser.parse(t) for t in rec.params]
+            else:
+                args = [a.with_arch(arch) for a in guessed.args]
+            if rec.has_results:
+                floor = _word_count(guessed.returnty, arch)
+                results = [self.parser.parse(t) for t in rec.result_types(floor)]
+                returnty = results[0] if len(results) == 1 else GoSimTypeTuple(results) if results else None
+            else:
+                returnty = guessed.returnty
         except Exception:  # pylint:disable=broad-exception-caught
             return None
-        return GoSimTypeFunction(args, returnty, arg_names=[f"a{i}" for i in range(len(args))]).with_arch(
-            self._kb._project.arch
-        )
+        names = list(guessed.arg_names[: len(args)]) if rec.params is None and guessed.arg_names else None
+        return GoSimTypeFunction(args, returnty, arg_names=names or [f"a{i}" for i in range(len(args))]).with_arch(arch)
 
     def arg_size_at(self, addr: int) -> int | None:
         """The byte size of the parameters of the function at ``addr`` from the pclntab (results excluded)."""
@@ -315,6 +437,14 @@ class GoSignatures(KnowledgeBasePlugin):
         o._sources = list(self._sources)
         o._stdlib_loaded = self._stdlib_loaded
         return o
+
+
+def _word_count(ty, arch) -> int:
+    """How many machine words a (guessed) result type occupies."""
+    if ty is None or isinstance(ty, SimTypeBottom):
+        return 0
+    size = ty.with_arch(arch).size
+    return max(1, (size or arch.bits) // arch.bits)
 
 
 KnowledgeBasePlugin.register_default("go_signatures", GoSignatures)

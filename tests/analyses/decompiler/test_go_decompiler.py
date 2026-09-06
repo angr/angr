@@ -41,6 +41,8 @@ class GoDecompilationTarget(unittest.TestCase):
     BINARY: str = ""
     FUNCS: tuple[str, ...] = ()
     CALL_TREE_DEPTH = 1
+    # decompile everything this many extra times first, so signatures inferred from one function reach the others
+    WARMUP_PASSES = 0
 
     proj = None
     cfg = None
@@ -56,12 +58,18 @@ class GoDecompilationTarget(unittest.TestCase):
         cls.proj, cls.cfg = load_project_with_scoped_cfg(
             cls.BINARY, first, extra_func_addrs=rest, call_tree_depth=cls.CALL_TREE_DEPTH
         )
+        for _ in range(cls.WARMUP_PASSES):
+            for name in cls.FUNCS:
+                cls.proj.analyses.Decompiler(
+                    cls.addrs[name], cfg=cls.cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True
+                )
         cls.texts = {name: cls.decompile(name) for name in cls.FUNCS}
 
     @classmethod
     def decompile(cls, name: str) -> str:
         func = cls.proj.kb.functions[cls.addrs[name]]
-        dec = cls.proj.analyses.Decompiler(func, cfg=cls.cfg.model, flavor="go", fail_fast=True)
+        fresh = {"use_cache": False, "regen_clinic": True} if cls.WARMUP_PASSES else {}
+        dec = cls.proj.analyses.Decompiler(func, cfg=cls.cfg.model, flavor="go", fail_fast=True, **fresh)
         assert dec.codegen is not None, f"no codegen for {name}"
         assert isinstance(dec.codegen, GoStructuredCodeGenerator)
         assert dec.codegen.text
@@ -364,6 +372,47 @@ class TestStructValueReceiver386(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestInferredResultsGo127Stripped(GoDecompilationTarget):
+    """
+    ``main.parse`` has no signature source (stripped, not in the stdlib database): its results come from its own
+    returns (``strconv.Atoi``'s error, the int it returns as is) and reach ``main.main`` on the second pass.
+    """
+
+    BINARY = go_binary("go1.27.1", "basics_stripped")
+    FUNCS = ("main.parse", "main.main")
+    WARMUP_PASSES = 1
+
+    def test_results_inferred_from_returns(self):
+        assert self.header(self.texts["main.parse"]) == "func main.parse(a0 string) (int, error) {"
+        rec = self.proj.kb.go_signatures.inferred_record("main.parse")
+        assert rec is not None and rec.result_types(1) == ["int", "error"]
+
+    def test_caller_uses_inferred_results(self):
+        text = self.texts["main.main"]
+        assert re.search(r", err := main\.parse\(", text)
+        assert "err == nil" in text
+        assert "int128" not in text
+
+
+class TestInferredResultsIfaceGo127Stripped(GoDecompilationTarget):
+    """Results of guessed callees: an itab pair is its interface, a ``(ptr, len)`` from a known callee a string."""
+
+    BINARY = go_binary("go1.27.1", "iface_stripped")
+    FUNCS = ("main.wrap", "main.box", "main.describe", "main.main")
+    WARMUP_PASSES = 1
+
+    def test_interface_and_string_results(self):
+        assert self.header(self.texts["main.wrap"]).endswith(") error {")
+        assert self.header(self.texts["main.box"]) == "func main.box(a0 int) any {"
+        assert self.header(self.texts["main.describe"]).endswith(") string {")
+        assert "return fmt.Errorf(" in self.texts["main.wrap"]
+
+    def test_caller_sees_typed_results(self):
+        text = self.texts["main.main"]
+        assert "main.describe(" in text
+        assert "int128" not in text and "int192" not in text
 
 
 class TestReceiverFromName(unittest.TestCase):

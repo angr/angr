@@ -12,6 +12,7 @@ from .pinned_register_namer import GoPinnedRegisterNamer
 from .pinned_register_rewriter import GoPinnedRegisterRewriter
 from .prototype_inference import GoPrototypeInference
 from .prototypes import GoPrototypes
+from .result_widener import GoResultWidener
 from .runtime_rewriter import GoRuntimeRewriter
 from .stack_check_remover import GoStackCheckRemover
 from .type_switch_simplifier import GoTypeSwitchSimplifier
@@ -27,6 +28,7 @@ def get_go_optimization_passes():
         GoCheckRemover,
         GoPinnedRegisterRewriter,
         GoRetExprRewriter,
+        GoResultWidener,
         # BEFORE_VARIABLE_RECOVERY
         GoParameterTypes,
         GoGlobalTypes,
