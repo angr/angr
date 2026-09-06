@@ -1051,8 +1051,8 @@ class GoRuntimeRewriter(OptimizationPass):
             return False
         last_idx = max(i for block, i, _ in stores.values() if block is last_block)
         dropped = {stmt.idx for _, _, stmt in stores.values()} | {def_stmt.idx}
-        # a spill of the record pointer before the fold point is an alias of the record
-        aliases: list[VirtualVariable] = []
+        # a spill of the record pointer before the fold point is an alias of the record; it is re-issued after it
+        aliases: list[Assignment] = []
         uses = []
         for block, i in self._index.sites.get(rec.varid, []):
             stmt = block.statements[i]
@@ -1064,7 +1064,7 @@ class GoRuntimeRewriter(OptimizationPass):
                 and isinstance(stmt.src, VirtualVariable)
                 and stmt.src.varid == rec.varid
             ):
-                aliases.append(stmt.dst)
+                aliases.append(stmt)
                 dropped.add(stmt.idx)
                 uses.extend(self._index.sites.get(stmt.dst.varid, []))
                 continue
@@ -1082,22 +1082,21 @@ class GoRuntimeRewriter(OptimizationPass):
         captures = [stores[record.offsets[name]][2].data for name in names]
         func_ty, _ = self._func_type_at(code)
         closure = self._closure_expr(code, captures, names, func_ty)
-        if len(uses) == 1 and uses[0][0] is last_block:
+        if len(uses) == 1 and uses[0][0] is last_block and not aliases:
             value: Expression = closure
-            replacement = None
+            replacement: list[Statement] = []
         else:
             value = VirtualVariable(self._new_idx(), self._new_varid(), rec.bits, VVC.REGISTER, oident=rec.oident)
-            replacement = Assignment(self._new_idx(), value, closure, **stores[0][2].tags)
+            replacement = [Assignment(self._new_idx(), value, closure, **stores[0][2].tags)]
+            replacement += [Assignment(self._new_idx(), a.dst, value.copy(), **a.tags) for a in aliases]
         self._replace[rec.varid] = value
-        for alias in aliases:
-            self._replace[alias.varid] = value
         last_stmt_idx = last_block.statements[last_idx].idx
-        alias_blocks = {self._index.defs[a.varid][0] for a in aliases if a.varid in self._index.defs}
+        alias_blocks = {self._index.defs[a.dst.varid][0] for a in aliases if a.dst.varid in self._index.defs}
         for block in store_blocks | {self._index.defs[rec.varid][0]} | alias_blocks:
             new_stmts = []
             for stmt in block.statements:
-                if stmt.idx == last_stmt_idx and replacement is not None:
-                    new_stmts.append(replacement)
+                if stmt.idx == last_stmt_idx:
+                    new_stmts.extend(replacement)
                 elif stmt.idx not in dropped:
                     new_stmts.append(stmt)
             block.statements = new_stmts
