@@ -320,6 +320,46 @@ class TestBasicsGo127(GoDecompilationTarget):
         assert self.header(self.texts["main.add"]).startswith("func main.add(")
 
 
+class TestSwapGo127(GoDecompilationTarget):
+    """
+    ``s[i], s[j] = s[j], s[i]``: the element loaded before the first store must reach the second store as a
+    temporary, not be re-read after it was overwritten.
+    """
+
+    BINARY = go_binary("go1.27.1", "swap")
+    FUNCS = ("main.swapInts", "main.swapPairs", "main.swapNodes")
+
+    @staticmethod
+    def body(text: str) -> list[str]:
+        lines = text[text.index("func main.") :].splitlines()[1:]
+        return [line.strip() for line in lines if line.strip() not in ("", "}")]
+
+    def test_int_swap_keeps_its_temporary(self):
+        body = self.body(self.texts["main.swapInts"])
+        m = re.fullmatch(r"(\w+) := s\[(\w+)\]", body[0])
+        assert m, body
+        tmp, i = m.groups()
+        m = re.fullmatch(rf"s\[{i}\] = s\[(\w+)\]", body[1])
+        assert m, body
+        assert body[2] == f"s[{m.group(1)}] = {tmp}", body
+
+    def test_no_stored_element_is_read_back(self):
+        # a slot written by an earlier statement is never loaded by a later one; casts do not tell slots apart
+        for name in self.FUNCS:
+            stored: list[str] = []
+            for line in self.body(self.texts[name]):
+                lhs, sep, rhs = re.sub(r"\(\*u?int\d+\)", "", line).partition(" = ")
+                if not sep:
+                    continue
+                assert not any(slot in rhs for slot in stored), (name, line, stored)
+                stored.append(lhs)
+            assert len(stored) >= 2, name
+
+
+class TestSwapGo122(TestSwapGo127):
+    BINARY = go_binary("go1.22.5", "swap")
+
+
 class TestUninitializedStackReadGo127(GoDecompilationTarget):
     """
     A header struct is built in a temporary and copied over with 16-byte moves; the 4-byte field read afterwards
