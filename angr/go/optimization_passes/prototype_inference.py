@@ -331,6 +331,12 @@ class GoPrototypeInference(OptimizationPass):
             return None
         name = call_target_name(self.project, call)
         name = normalize_go_func_name(name) if name is not None else ""
+        if name == "make":
+            # the rewritten makeslice: its pointer word, with the len and cap words following
+            made = (call.tags.get("go_type_args") or [None])[0]
+            if isinstance(made, str) and made.startswith("[]") and leaves is not None and i + 2 < len(leaves):
+                return made, 3
+            return None
         if name in ("runtime.makeslice", "runtime.makeslicecopy"):
             # the pointer word of a fresh slice; the len and cap words follow
             elem = self._descriptor_arg(call, 0)
@@ -504,9 +510,17 @@ class GoPrototypeInference(OptimizationPass):
             _record(found.setdefault(name, {}), word, type_str, span)
 
         def note(expr, ty) -> None:
-            # an untyped pointer or word says nothing about the value
-            if isinstance(ty, GoSimType) and ty.size and go_type_repr(ty) not in ("unsafe.Pointer", "uintptr"):
-                note_words(expr, go_type_repr(ty), _leaf_count(ty))
+            if not isinstance(ty, GoSimType) or not ty.size:
+                return
+            repr_ = go_type_repr(ty)
+            if repr_ in ("unsafe.Pointer", "uintptr"):
+                # an untyped pointer or word says nothing about the value
+                return
+            if repr_ == "*internal/abi.Type":
+                # the type word of an empty interface handed to a runtime helper
+                note_words(expr, "any", 2, exact=False)
+                return
+            note_words(expr, repr_, _leaf_count(ty))
 
         own = self._func.prototype
         for block in self._graph.nodes:
