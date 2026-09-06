@@ -87,6 +87,12 @@ GO_CHECK_PANIC_NAMES: frozenset[str] = frozenset(
 )
 
 
+#: Failure stubs of type assertions (``x.(T)``): the check that guards them is the assertion itself.
+GO_ASSERT_PANIC_NAMES: frozenset[str] = frozenset(
+    {"runtime.panicdottypeE", "runtime.panicdottypeI", "runtime.panicnildottype"}
+)
+
+
 #: Go runtime (and a few closely related standard library) functions that never transfer control back
 #: to the instruction following their call site. ``runtime.morestack`` and friends do resume the
 #: caller, but at its entry point rather than at the return address, so they do not "return" in the

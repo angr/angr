@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 from collections import Counter
 
-from angr.ailment import Block, Statement
+import networkx
+
+from angr.ailment import AILBlockRewriter, Block, Statement
 from angr.ailment.expression import (
     BinaryOp,
     Call,
@@ -16,7 +18,9 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement
+from angr.ailment.expression import VirtualVariableCategory as VVC
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement, Store
+from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import (
@@ -28,8 +32,11 @@ from angr.go.sim_type import (
     GoSimTypeString,
     GoSimTypeUnsafePointer,
 )
+from angr.go.utils.graph import conditional_pred
 from angr.go.utils.names import call_target_name, normalize_go_func_name
 from angr.go.utils.types import go_type_name_at
+from angr.utils.ail import get_terminal_call
+from angr.utils.go_runtime import GO_ASSERT_PANIC_NAMES
 
 l = logging.getLogger(__name__)
 
@@ -42,14 +49,17 @@ _CONVT_POINTER = frozenset({"runtime.convT", "runtime.convTnoptr"})
 _ANY_SLICE_NAMES = frozenset({"[]any", "[]interface {}", "[]interface{}"})
 
 
-class GoBoxingRewriter(OptimizationPass):
+class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
     """
-    Recover the values behind interface conversions.
+    Recover the values behind interface conversions and type assertions.
 
     A value converted to an interface is a (type descriptor or itab, data pointer) pair. Passed directly, the pair is
     already fused into an interface-typed struct literal; the literal becomes ``box(x)`` tagged with the dynamic type.
     A variadic ``...any`` argument is a stack array of such pairs referenced through a ``[]any`` header; its element
     stores are folded into one ``[]any{...}`` literal and dropped.
+
+    A panicking assertion ``x.(T)`` is ``if x.tab != T { panicdottype*() }`` followed by reads of ``x.data``; the
+    sink and the branch are dropped and the data reads become the assertion.
     """
 
     ARCHES = None
@@ -59,14 +69,17 @@ class GoBoxingRewriter(OptimizationPass):
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
+        CFGTransformationMixin.__init__(self, self._graph)
         self._ws = self.project.arch.bytes
         self._string_bits = 2 * self.project.arch.bits
         self._stack_defs: dict[int, tuple[Block, Assignment]] = {}
         self._defs: dict[int, Assignment] = {}
+        self._combo_of: dict[int, tuple[VirtualVariable, int]] = {}
         self._uses: Counter = Counter()
         self._dead: set[int] = set()  # varids of slot definitions folded into literals
         self._static_ints: tuple[int, int] | None = None
         self._stmt_tags: dict = {}
+        self._idoms: dict | None = None
         self.analyze()
 
     def _check(self):
@@ -74,10 +87,13 @@ class GoBoxingRewriter(OptimizationPass):
 
     def _analyze(self, cache=None):
         self._index()
+        changed = self._recover_assertions()
+        if changed:
+            self._index()
         rewriter = _BoxingRewriter(self)
         for block in list(self._graph.nodes):
             rewriter.walk(block)
-        changed = rewriter.changed
+        changed = changed or rewriter.changed
         if self._dead:
             self._drop_dead_slots()
             self._drop_dead_defs()
@@ -91,11 +107,28 @@ class GoBoxingRewriter(OptimizationPass):
 
     def _index(self) -> None:
         counter = _UseCounter()
+        self._defs, self._stack_defs, self._combo_of = {}, {}, {}
+
+        def note(vvar: VirtualVariable):
+            is_combo = vvar.category == VVC.COMBO_REGISTER or (
+                vvar.category == VVC.PARAMETER and vvar.parameter_category == VVC.COMBO_REGISTER
+            )
+            if is_combo and vvar.reg_vvars:
+                offset = 0
+                for reg_vvar in vvar.reg_vvars:
+                    self._combo_of[reg_vvar.varid] = (vvar, offset)
+                    offset += reg_vvar.size
+
+        if self._arg_vvars:
+            for arg_vvar, _ in self._arg_vvars.values():
+                if isinstance(arg_vvar, VirtualVariable):
+                    note(arg_vvar)
         for block in self._graph.nodes:
             counter.walk(block)
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     self._defs[stmt.dst.varid] = stmt
+                    note(stmt.dst)
                     if stmt.dst.was_stack:
                         self._stack_defs[stmt.dst.varid] = (block, stmt)
         self._uses = counter.counts
@@ -136,6 +169,157 @@ class GoBoxingRewriter(OptimizationPass):
                 block.statements = kept
             if not dropped:
                 return
+
+    #
+    # Type assertions
+    #
+
+    def _recover_assertions(self) -> bool:
+        changed = False
+        for block in list(self._graph.nodes):
+            if block not in self._graph or self._graph.out_degree(block) != 0:
+                continue
+            call = get_terminal_call(block)
+            name = self._callee(call) if call is not None else None
+            if name not in GO_ASSERT_PANIC_NAMES or not _only_spills(block):
+                continue
+            cond_block = conditional_pred(self._graph, block)
+            if cond_block is None:
+                continue
+            check = self._match_assertion(cond_block.statements[-1].condition, name, list(call.args or []))
+            preds = list(self._graph.predecessors(block))
+            if not self.remove_block(block):
+                continue
+            for pred in preds:
+                self._prune_dead_end(pred)
+            changed = True
+            if check is not None:
+                self._substitute_assertion(cond_block, *check)
+            l.debug("Removed assertion sink at %#x of %s", block.addr, self._func.name)
+        return changed
+
+    def _prune_dead_end(self, block: Block) -> None:
+        while (
+            block in self._graph
+            and self._graph.out_degree(block) == 0
+            and all(isinstance(stmt, Label) for stmt in block.statements)
+        ):
+            preds = list(self._graph.predecessors(block))
+            if not self.remove_block(block) or len(preds) != 1:
+                return
+            block = preds[0]
+
+    def _match_assertion(self, cond, name: str, args: list):
+        """(holder, its data word, concrete type, interface type) for ``x.tab == T`` guarding a panicdottype* sink."""
+        if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
+            return None
+        iface = (
+            go_type_name_at(self.project, args[2].value_int) if len(args) == 3 and isinstance(args[2], Const) else None
+        )
+        lhs, rhs = cond.operands
+        for word, desc in ((lhs, rhs), (rhs, lhs)):
+            addr = desc.value_int if isinstance(desc, Const) and isinstance(desc.value, int) else None
+            if addr is None or addr == 0:
+                continue
+            itab = self.kb.go_types.itab_at(addr)
+            concrete = itab[1] if itab is not None else go_type_name_at(self.project, addr)
+            if concrete is None:
+                continue
+            holder = self._holder_of(word)
+            if holder is None:
+                return None
+            return holder[0], holder[1], concrete, (itab[0] if itab is not None else iface) or "any"
+        return None
+
+    def _holder_of(self, word: Expression) -> tuple[Expression, Expression] | None:
+        """The two-word interface value whose type word ``word`` is, and its data word: (holder, data)."""
+        resolved = self._resolve_copies(word)
+        if isinstance(resolved, VirtualVariable):
+            hit = self._combo_of.get(resolved.varid)
+            if hit is not None and hit[1] == 0 and hit[0].reg_vvars and len(hit[0].reg_vvars) == 2:
+                return hit[0], hit[0].reg_vvars[1]
+            definition = self._defs.get(resolved.varid)
+            resolved = definition.src if definition is not None and isinstance(definition.src, Load) else resolved
+        if isinstance(resolved, Load) and resolved.size == self._ws:
+            base = self._resolve_copies(resolved.addr)
+            holder = Load(self.manager.next_atom(), base, 2 * self._ws, resolved.endness, **resolved.tags)
+            data_addr = BinaryOp(
+                self.manager.next_atom(), "Add", [base, Const(self.manager.next_atom(), self._ws, base.bits)], False
+            )
+            return holder, Load(self.manager.next_atom(), data_addr, self._ws, resolved.endness, **resolved.tags)
+        return None
+
+    def _substitute_assertion(self, cond_block: Block, holder, data, concrete: str, iface: str) -> None:
+        """Define ``val = holder.(T)`` at the check and read it where the data word was read after the check."""
+        ty = self._type_named(concrete)
+        pointer_shaped = _is_pointer_shaped(ty, concrete)
+        size = self._ws if pointer_shaped or ty is None or not ty.size else ty.size // self.project.arch.byte_width
+        oident = data.oident if isinstance(data, VirtualVariable) and data.was_reg else self._result_register()
+        val = VirtualVariable(self.manager.next_atom(), self._new_varid(), size * 8, VVC.REGISTER, oident=oident)
+        assertion = Call(
+            self.manager.next_atom(),
+            "typeassert",
+            [holder],
+            bits=size * 8,
+            go_render="assert",
+            go_assert_type=concrete,
+            **self._stmt_tags_of(cond_block),
+        )
+        self._set_result_type(assertion, concrete, arg_type=iface)
+        subst = _AssertionSubstituter(self, cond_block, data, val, pointer_shaped, size)
+        for block in list(self._graph.nodes):
+            # reads are guarded when their block is; a phi's entry when the block it comes from is
+            subst.guarded = block is not cond_block and self._dominates(cond_block, block)
+            subst.walk(block)
+        if not subst.count:
+            return
+        stmts = list(cond_block.statements)
+        pos = len(stmts) - 1 if stmts and isinstance(stmts[-1], (Jump, ConditionalJump)) else len(stmts)
+        stmts.insert(pos, Assignment(self.manager.next_atom(), val, assertion, **self._stmt_tags_of(cond_block)))
+        cond_block.statements = stmts
+
+    @staticmethod
+    def _stmt_tags_of(block: Block) -> dict:
+        last = block.statements[-1] if block.statements else None
+        return {k: v for k, v in (last.tags.items() if last is not None else ()) if not k.startswith("go_")}
+
+    def _result_register(self) -> int:
+        regs = self.project.arch.registers
+        for name in ("rbx", "x1", "ebx"):
+            if name in regs:
+                return regs[name][0]
+        return 16
+
+    def _new_varid(self) -> int:
+        varid = self.vvar_id_start
+        self.vvar_id_start += 1
+        return varid
+
+    def _dominates(self, a: Block, b: Block) -> bool:
+        if self._idoms is None:
+            entry = next((n for n in self._graph.nodes if (n.addr, n.idx) == self.entry_node_addr), None)
+            if entry is None:
+                entry = next(iter(self._graph.nodes))
+            self._idoms = networkx.immediate_dominators(self._graph, entry)
+        node = b
+        while True:
+            if node is a:
+                return True
+            parent = self._idoms.get(node)
+            if parent is None or parent is node:
+                return False
+            node = parent
+
+    def _same_data_addr(self, addr: Expression, data: Load) -> bool:
+        """``addr`` is the data word's address ``base + ws`` of a memory holder."""
+        if not (isinstance(addr, BinaryOp) and addr.op == "Add"):
+            return False
+        a, b = addr.operands
+        want = data.addr.operands[0]
+        for x, y in ((a, b), (b, a)):
+            if isinstance(y, Const) and y.value_int == self._ws and self._resolve_copies(x).likes(want):
+                return True
+        return False
 
     #
     # Rewrites
@@ -489,14 +673,105 @@ class GoBoxingRewriter(OptimizationPass):
         except UnicodeDecodeError:
             return None
 
-    def _set_result_type(self, call: Call, type_name: str) -> None:
+    def _set_result_type(self, call: Call, type_name: str, arg_type: str | None = None) -> None:
         from angr.go.sim_type import GoSimTypeFunction  # pylint:disable=import-outside-toplevel
 
         ty = self._type_named(type_name)
         if ty is None:
             return
-        proto = GoSimTypeFunction([], ty).with_arch(self.project.arch)
+        args = [self._type_named(arg_type)] if arg_type is not None else []
+        if any(a is None for a in args):
+            args = []
+        proto = GoSimTypeFunction(args, ty).with_arch(self.project.arch)
         variable_map_of(self.manager).set_prototype(call, proto)
+
+
+def _only_spills(block: Block) -> bool:
+    """Register moves and non-global stores only before the terminal call."""
+    for stmt in block.statements[:-1]:
+        if isinstance(stmt, (Label, Assignment, Jump)):
+            continue
+        if isinstance(stmt, Store) and not isinstance(stmt.addr, Const):
+            continue
+        return False
+    return True
+
+
+class _AssertionSubstituter(AILBlockRewriter):
+    """Reads of an interface value's data word after the check become the asserted value."""
+
+    def __init__(self, pass_: GoBoxingRewriter, cond_block: Block, data, val: VirtualVariable, pointer: bool, size):
+        super().__init__(replace_phi_stmt=True)
+        self._pass = pass_
+        self._cond_block = cond_block
+        self._data = data
+        self._data_ids: set[int] = set()
+        self._val = val
+        self._pointer = pointer
+        self._size = size
+        self.count = 0
+        self.guarded = False
+        if isinstance(data, VirtualVariable):
+            self._data_ids.add(data.varid)
+        # copies of the data word, and loads of it when the holder is in memory
+        for varid, definition in pass_._defs.items():
+            src = definition.src
+            if isinstance(src, VirtualVariable) and pass_._resolve_copies(src) is not None:
+                resolved = pass_._resolve_copies(src)
+                if isinstance(resolved, VirtualVariable) and resolved.varid in self._data_ids:
+                    self._data_ids.add(varid)
+            elif isinstance(data, Load) and isinstance(src, Load) and src.size == pass_._ws:
+                if pass_._same_data_addr(src.addr, data):
+                    self._data_ids.add(varid)
+
+    def _word(self) -> Expression:
+        """The data word itself: the value for pointer-shaped types, else the address of the value."""
+        self.count += 1
+        if self._pointer:
+            return self._val
+        return UnaryOp(self._pass.manager.next_atom(), "Reference", self._val, bits=self._pass.project.arch.bits)
+
+    def _handle_VirtualVariable(self, expr_idx, expr: VirtualVariable, stmt_idx, stmt, block):
+        if self.guarded and expr.varid in self._data_ids:
+            return self._word()
+        return expr
+
+    def _handle_Phi(self, expr_idx, expr: Phi, stmt_idx, stmt, block):
+        entries = []
+        changed = False
+        for src, vvar in expr.src_and_vvars:
+            if vvar is not None and vvar.varid in self._data_ids and self._pointer:
+                src_block = self._pass._block_by_addr_and_idx.get(src)
+                if src_block is not None and self._pass._dominates(self._cond_block, src_block):
+                    entries.append((src, self._val))
+                    changed = True
+                    self.count += 1
+                    continue
+            entries.append((src, vvar))
+        return Phi(expr.idx, expr.bits, entries, **expr.tags) if changed else expr
+
+    def _handle_Load(self, expr_idx, expr: Load, stmt_idx, stmt, block):
+        if not self.guarded:
+            return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+        addr = expr.addr
+        # the value behind the data word: *(*T)(x.data)
+        if not self._pointer and expr.size == self._size:
+            inner = self._pass._resolve_copies(addr)
+            if (isinstance(inner, VirtualVariable) and inner.varid in self._data_ids) or (
+                isinstance(self._data, Load)
+                and isinstance(inner, Load)
+                and self._pass._same_data_addr(inner.addr, self._data)
+            ):
+                self.count += 1
+                return self._val
+        # the data word of a holder in memory
+        if (
+            isinstance(self._data, Load)
+            and expr.size == self._pass._ws
+            and self._pass._same_data_addr(addr, self._data)
+        ):
+            return self._word()
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def _is_plain_value(expr: Expression) -> bool:
