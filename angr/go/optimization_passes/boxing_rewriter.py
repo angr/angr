@@ -656,9 +656,11 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         ty = self._type_named(concrete)
         resolved = self._resolve_copies(data_word)
         if isinstance(resolved, VirtualVariable):
+            # a variable holding a convT* result: the box is the call's argument
             definition = self._defs.get(resolved.varid)
-            if definition is not None and isinstance(definition.src, Call) and self._callee(definition.src) is not None:
-                data_word = definition.src
+            src = definition.src if definition is not None else None
+            if isinstance(src, Call) and self._callee(src) in _CONVT_VALUE | _CONVT_POINTER:
+                data_word = src
         if isinstance(data_word, Call):
             name = self._callee(data_word)
             args = list(data_word.args or [])
