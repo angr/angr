@@ -186,43 +186,39 @@ class GoResultWidener(OptimizationPass):
     def _call_words(self, call: Call, ret_expr, state: frozenset[int]) -> tuple[frozenset[int], bool]:
         """
         A call clobbers every result register; the ones its results land in are defined afterwards. The flag says
-        the callee's results are unknown (an unresolved target).
+        the callee's results are not known for sure (an unresolved target, or a callee whose results are guessed).
         """
         if self._preserves_registers(call):
             return state, False
-        words: set[int] = set()
+        target = call.target.value_int if hasattr(call.target, "value_int") else None
+        callee = (
+            self.kb.functions.get_by_addr(target, meta_only=True)
+            if isinstance(target, int) and self.kb.functions.contains_addr(target)
+            else None
+        )
+        # the guess may stop short of the callee's real results: a site reading them proves nothing
+        unknown = callee is None or self.kb.go_signatures.results_guessed(callee)
         regs = []
-        unknown = False
         if isinstance(ret_expr, ComboRegister):
             regs = [r.reg_offset for r in ret_expr.registers if isinstance(r, Register)]
         elif isinstance(ret_expr, Register):
             regs = [ret_expr.reg_offset]
-        else:
-            target = call.target.value_int if hasattr(call.target, "value_int") else None
-            callee = (
-                self.kb.functions.get_by_addr(target, meta_only=True)
-                if isinstance(target, int) and self.kb.functions.contains_addr(target)
-                else None
-            )
-            if callee is None:
-                unknown = True
-            elif self.kb.go_signatures.results_guessed(callee):
-                # the guess may stop short of the callee's real results: this site proves nothing
-                unknown = True
-            if callee is not None and (
-                callee.prototype is not None
-                and callee.calling_convention is not None
-                and callee.prototype.returnty is not None
-                and not isinstance(callee.prototype.returnty, SimTypeBottom)
-            ):
-                try:
-                    regs = [
-                        self.project.arch.registers[x.reg_name][0]
-                        for x in _flatten_locs(callee.calling_convention.return_val(callee.prototype.returnty))
-                        if isinstance(x, SimRegArg)
-                    ]
-                except Exception:  # pylint:disable=broad-exception-caught
-                    regs = []
+        elif (
+            callee is not None
+            and callee.prototype is not None
+            and callee.calling_convention is not None
+            and callee.prototype.returnty is not None
+            and not isinstance(callee.prototype.returnty, SimTypeBottom)
+        ):
+            try:
+                regs = [
+                    self.project.arch.registers[x.reg_name][0]
+                    for x in _flatten_locs(callee.calling_convention.return_val(callee.prototype.returnty))
+                    if isinstance(x, SimRegArg)
+                ]
+            except Exception:  # pylint:disable=broad-exception-caught
+                regs = []
+        words: set[int] = set()
         for off in regs:
             word = self._word_of(off)
             if word is not None:
