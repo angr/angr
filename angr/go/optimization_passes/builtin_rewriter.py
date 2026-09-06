@@ -551,7 +551,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def rewrite_call(self, call: Call, block: Block | None = None, stmt: Statement | None = None) -> Expression | None:
         name = self.callee_name(call)
         if name is None:
-            return None
+            return self._rw_itab_target(call)
         if name in ("mapindex", "mapassign") and block is not None:
             return self._rw_map_key_pointer(call, block, stmt)
         self._cur_block, self._cur_stmt = block, stmt
@@ -567,6 +567,29 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         except Exception:  # pylint:disable=broad-exception-caught
             l.debug("Rewriting %s failed", name, exc_info=True)
             return None
+
+    def _rw_itab_target(self, call: Call) -> Expression | None:
+        """``itab.fun[i](data, ...)`` through a constant itab is a direct call of the concrete method."""
+        target = self.values.expand(call.target) if isinstance(call.target, VirtualVariable) else call.target
+        if not (isinstance(target, Load) and target.size == self.project.arch.bytes):
+            return None
+        addr = _const(self.values.resolve(target.addr)) if not isinstance(target.addr, Const) else target.addr.value_int
+        if addr is None:
+            return None
+        sym = self.project.loader.find_symbol(addr, fuzzy=True)
+        if sym is None or not sym.name.startswith("go:itab."):
+            return None
+        with contextlib.suppress(KeyError):
+            fun = self.project.loader.memory.unpack_word(addr, size=self.project.arch.bytes)
+            if self.kb.functions.contains_addr(fun):
+                return Call(
+                    call.idx,
+                    Const(self.manager.next_atom(), fun, self.project.arch.bits),
+                    list(call.args or []),
+                    bits=call.bits,
+                    **call.tags,
+                )
+        return None
 
     def _rw_map_key_pointer(self, call: Call, block: Block, stmt: Statement) -> Expression | None:
         """``m[&slot]`` (a key the caller spilled to the stack for the generic runtime entry) -> ``m[key]``."""
