@@ -241,7 +241,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             return []
 
         # record all variables
-        for var, offset in existing_vars:
+        for var, offset in list(existing_vars):
             if offset == 0:
                 offset = None
             variable_manager.record_variable(codeloc, var, offset, atom=src_expr)
@@ -719,7 +719,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     for var_offset, var in self.state.extract_variables(v):
                         variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
         else:
-            for var, var_offset in existing_vars:
+            for var, var_offset in list(existing_vars):
                 variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
 
         # create type constraints
@@ -1006,7 +1006,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         codeloc = CodeLocation(
             self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
         )
-        for variable, var_offset in existing_vars:  # the loop may register new globals into this set
+        for variable, var_offset in list(existing_vars):  # the loop may register new globals into this set
             concrete = (
                 var_offset[0].concrete_value * var_offset[1]
                 if isinstance(var_offset, tuple) and var_offset[0] is not None and var_offset[0].concrete
