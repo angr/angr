@@ -299,7 +299,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         # accessed or not
 
         # invoke variable_manager.reference_at for every variable
-        for var, offset in existing_vars:
+        for var, offset in list(existing_vars):
             if offset == 0:
                 offset = None
             variable_manager.reference_at(var, offset, codeloc, atom=src)
