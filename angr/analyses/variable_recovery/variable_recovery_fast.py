@@ -743,11 +743,15 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.vvar_type_hints.update(self.project.kb.type_hints.get_type_hints(self.function.addr))
 
     def _collect_go_type_hints(self, graph):
-        from angr.go.typehoon.hints import collect_call_result_hints  # pylint:disable=import-outside-toplevel
+        from angr.go.typehoon.hints import (  # pylint:disable=import-outside-toplevel
+            collect_call_result_hints,
+            collect_closure_context_hints,
+        )
 
         self.vvar_type_hints.update(
             collect_call_result_hints(self.project, graph, self._variable_map, self.type_lifter)
         )
+        self.vvar_type_hints.update(collect_closure_context_hints(self.project, self.function, graph, self.type_lifter))
 
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)

@@ -4,6 +4,7 @@ from .arg_spill_remover import GoArgSpillRemover
 from .boxing_rewriter import GoBoxingRewriter
 from .builtin_rewriter import GoBuiltinRewriter
 from .check_remover import GoCheckRemover
+from .closure_context import GoClosureContextNamer
 from .descriptor_namer import GoDescriptorNamer
 from .global_types import GoGlobalTypes
 from .header_word_types import GoHeaderWordTypes
@@ -44,5 +45,6 @@ def get_go_optimization_passes():
         GoPrototypeInference,
         # AFTER_VARIABLE_RECOVERY
         GoPinnedRegisterNamer,
+        GoClosureContextNamer,
         GoDescriptorNamer,
     ]
