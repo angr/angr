@@ -1542,6 +1542,9 @@ class Clinic(Analysis, Serializable):
                 skip_other_funcs=True,
                 skip_signature_matched_functions=False,
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
+                # a function that writes rax last is not thereby returning it; its callers know whether they read
+                # it, and this is one function, so asking them is cheap
+                analyze_callsites=True,
             )
 
             if (
