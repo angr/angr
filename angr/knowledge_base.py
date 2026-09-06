@@ -73,18 +73,11 @@ class KnowledgeBase:
         return self.indirect_jumps.resolved
 
     def __setstate__(self, state):
-        object.__setattr__(self, "_project", state["project"])
-        object.__setattr__(self, "_plugins", state["plugins"])
+        self.__dict__.update(state)
 
         # iterate over a copy: set_kb() may lazily create plugins (e.g., rtdb) and mutate self._plugins
         for plugin in list(self._plugins.values()):
             plugin.set_kb(self)
-
-    def __getstate__(self):
-        return {
-            "project": self._project,
-            "plugins": self._plugins,
-        }
 
     def __dir__(self):
         x = list(super().__dir__())
