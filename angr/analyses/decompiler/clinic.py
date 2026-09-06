@@ -3054,6 +3054,52 @@ class Clinic(Analysis, Serializable):
             if name in minted_names and name not in var_manager.types and name in self.kb.types:
                 var_manager.types[name] = self.kb.types.get_own(name)
 
+    @staticmethod
+    def _layouts_consistent(structs: list[SimStruct]) -> bool:
+        """
+        Whether several layouts describe the same object: at every offset that more than one layout populates the
+        fields must have the same size, and no field may start inside another layout's field.
+        """
+        spans: dict[int, int] = {}
+        for struct in structs:
+            offsets = struct.offsets
+            for name, fld_ty in struct.fields.items():
+                if name.startswith("padding_"):
+                    continue
+                offset = offsets.get(name)
+                if offset is None:
+                    continue
+                try:
+                    size = fld_ty.size // 8 if fld_ty.size else 1
+                except Exception:  # pylint:disable=broad-except
+                    size = 1
+                if offset in spans:
+                    if spans[offset] != size:
+                        return False
+                    continue
+                for other_off, other_size in spans.items():
+                    if other_off < offset < other_off + other_size or offset < other_off < offset + size:
+                        return False
+                spans[offset] = size
+        return True
+
+    def _union_of_evidence(self, candidates: list[SimType]) -> tuple[TypeRef, SimStruct] | None:
+        """Union candidate layouts into a canonical union struct, or None when the evidence does not make a struct."""
+        union = union_pointer_struct_types(candidates, self.project.arch)
+        union_struct = self._pointee_struct(union)
+        if union_struct is None:
+            return None
+        # only synthesize a struct when there is genuine multi-field evidence; a single field at one offset is just
+        # a scalar pointer (e.g. a char*), and turning it into a struct would clobber better scalar-pointer types.
+        if self._real_field_count(union_struct) < 2:
+            return None
+        # drop nested references to per-function-named structs: carrying e.g. a callee-local "struct_1 *" field
+        # into the caller collides with the caller's own per-function type names
+        self._sanitize_union_struct_fields(union_struct)
+        # reuse a project-wide canonical struct for this layout (or register a fresh one) so identical unions
+        # across values, functions, and re-decompilations share a single typedef
+        return self._canonicalize_union_struct(union_struct), union_struct
+
     def _unify_callee_argument_structs(self, vr, var_manager, arg_vvars=None) -> None:
         """
         Progressively unify partial struct layouts recovered for the same caller value across multiple callees.
@@ -3063,57 +3109,67 @@ class Clinic(Analysis, Serializable):
         the caller value, and back-propagate the combined struct to the involved callees so subsequent decompilations
         stay consistent and become progressively more complete. Only direct evidence is unioned: a struct minted by an
         earlier union is never an input to the next one, so contamination cannot compound across functions.
+
+        Observations are grouped by the SSA value that reached the call site. Each value gets its own union and its
+        own back-propagation; the caller variable, which variable recovery may have shared between several values, is
+        only pinned when those per-value unions agree with each other.
         """
         observations = getattr(vr, "arg_struct_observations", None)
         if not observations:
             return
         arch = self.project.arch
         for variable, tvs in vr.var_to_typevars.items():
-            observed: list[SimType] = []
-            contributors: list[tuple[int, int]] = []
-            contaminated: set[int] = set()
+            groups: dict = {}
             for tv in tvs:
-                for callee_addr, arg_idx, simtype in observations.get(tv, ()):
-                    contributors.append((callee_addr, arg_idx))
+                for callee_addr, arg_idx, simtype, value_id in observations.get(tv, ()):
+                    key = value_id if value_id is not None else ("tv", tv)
+                    group = groups.setdefault(key, {"observed": [], "contributors": [], "contaminated": set()})
+                    group["contributors"].append((callee_addr, arg_idx))
                     if self._is_minted_union_type(simtype):
                         # fields a previous union pushed into this callee are not evidence, and Typehoon has copied
                         # them into the caller's local as well; remember them so the caller's own type can be cleaned
                         pushed = self._pointee_struct(simtype)
-                        contaminated.update(
+                        group["contaminated"].update(
                             off for name, off in pushed.offsets.items() if not name.startswith("padding_")
                         )
                     evidence = self._contributor_evidence(callee_addr, arg_idx, simtype)
                     if evidence is not None:
-                        observed.append(evidence)
-            if not contributors:
+                        group["observed"].append(evidence)
+            if not groups:
                 continue
 
-            # include the layout the caller's own accesses imply so caller-side fields are preserved in the union
             current = var_manager.get_variable_type(variable)
-            candidates = list(observed)
-            caller_evidence = self._caller_evidence(variable, current, arg_vvars, contaminated)
-            if caller_evidence is not None:
-                candidates.append(caller_evidence)
-            if not candidates:
+            unions: list[tuple[TypeRef, SimStruct, list[tuple[int, int]]]] = []
+            for group in groups.values():
+                candidates = list(group["observed"])
+                # include the layout the caller's own accesses imply so caller-side fields are preserved in the union
+                caller_evidence = self._caller_evidence(variable, current, arg_vvars, group["contaminated"])
+                if caller_evidence is not None:
+                    candidates.append(caller_evidence)
+                if not candidates:
+                    continue
+                result = self._union_of_evidence(candidates)
+                if result is None:
+                    continue
+                canonical_ref, union_struct = result
+                unions.append((canonical_ref, union_struct, group["contributors"]))
+            if not unions:
                 continue
 
-            union = union_pointer_struct_types(candidates, arch)
-            union_struct = self._pointee_struct(union)
-            if union_struct is None:
-                continue
+            # each value's union goes back to the callees that saw that value
+            for canonical_ref, _, contributors in unions:
+                self._propagate_arg_struct_to_callees(contributors, SimTypePointer(canonical_ref).with_arch(arch))
 
-            # only synthesize a struct when there is genuine multi-field evidence; a single field at one offset is just
-            # a scalar pointer (e.g. a char*), and turning it into a struct would clobber better scalar-pointer types.
-            if self._real_field_count(union_struct) < 2:
-                continue
-
-            # drop nested references to per-function-named structs: carrying e.g. a callee-local "struct_1 *" field
-            # into the caller collides with the caller's own per-function type names
-            self._sanitize_union_struct_fields(union_struct)
-
-            # reuse a project-wide canonical struct for this layout (or register a fresh one) so identical unions
-            # across values, functions, and re-decompilations share a single typedef
-            canonical_ref = self._canonicalize_union_struct(union_struct)
+            # pin the caller variable only when every value it carried agrees on the layout
+            if len(unions) == 1:
+                canonical_ref, union_struct, _ = unions[0]
+            else:
+                if not self._layouts_consistent([us for _, us, _ in unions]):
+                    continue
+                result = self._union_of_evidence([SimTypePointer(us).with_arch(arch) for _, us, _ in unions])
+                if result is None:
+                    continue
+                canonical_ref, union_struct = result
             union_ptr = SimTypePointer(canonical_ref).with_arch(arch)
 
             # skip when what we have is already at least as detailed: either strictly more fields, or the same layout
@@ -3129,7 +3185,6 @@ class Clinic(Analysis, Serializable):
                 continue
 
             var_manager.set_variable_type(variable, union_ptr, all_unified=True)
-            self._propagate_arg_struct_to_callees(contributors, union_ptr)
 
     def _propagate_arg_struct_to_callees(self, contributors: list[tuple[int, int]], union_ptr: SimTypePointer) -> None:
         """Upgrade callee prototype argument types to the unioned struct when it is strictly more detailed."""

@@ -396,7 +396,13 @@ class SimEngineVRAIL(
                 and isinstance(arg.typevar, typevars.TypeVariable)
                 and isinstance(arg_type, SimTypePointer)
             ):
-                self.state._analysis.arg_struct_observations[arg.typevar].append((callee_addr, arg_idx, arg_type))
+                # the SSA id of the argument value, taken before vvar_to_vvar collapses phi-related values into one
+                # variable: a register that carries different objects at different call sites must not have their
+                # layouts unioned just because variable recovery gave both the same variable
+                value_id = _arg_atom.varid if isinstance(_arg_atom, ailment.Expr.VirtualVariable) else None
+                self.state._analysis.arg_struct_observations[arg.typevar].append(
+                    (callee_addr, arg_idx, arg_type, value_id)
+                )
             arg_ty = self.type_lifter.lift(arg_type)
             if arg.typevar is not None and isinstance(
                 arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)

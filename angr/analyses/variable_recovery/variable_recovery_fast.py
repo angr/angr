@@ -345,9 +345,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.ret_val_size = None
         self.stack_offset_typevars: dict[int, TypeVariable] = {}
         # records pointer/struct argument types observed at call sites, keyed by the type variable of the caller-side
-        # argument expression. Each entry is (callee_addr, arg_index, callee_arg_simtype). Used by the decompiler to
-        # union partial struct layouts recovered for the same value across multiple callees.
-        self.arg_struct_observations: defaultdict[TypeVariable, list[tuple[int, int, Any]]] = defaultdict(list)
+        # argument expression. Each entry is (callee_addr, arg_index, callee_arg_simtype, value_id) where value_id is
+        # the SSA id of the argument value (None when the argument is not a virtual variable). Used by the decompiler
+        # to union partial struct layouts recovered for the same value across multiple callees.
+        self.arg_struct_observations: defaultdict[TypeVariable, list[tuple[int, int, Any, int | None]]] = defaultdict(
+            list
+        )
 
         self._analyze()
 
