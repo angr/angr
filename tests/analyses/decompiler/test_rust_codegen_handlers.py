@@ -77,8 +77,8 @@ class TestRustCodegenHandlers(unittest.TestCase):
         cases = [
             # PowerPC renders essentially every conditional through CmpORD.
             ("ppc", "brancher", 0x1000048C, "CmpORD("),
-            # ARM's division helper counts leading zeros.
-            ("armel", "test_division", 0x8678, "Clz("),
+            # ARM's division helper counts leading zeros (Iop_ClzNat32 since libVEX 3.27).
+            ("armel", "test_division", 0x8678, "ClzNat("),
         ]
 
         for arch, name, function_addr, rendered in cases:
