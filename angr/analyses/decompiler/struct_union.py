@@ -143,6 +143,11 @@ def _build_struct(fields: dict[int, SimType], arch, name: str | None) -> SimStru
     return s
 
 
+def pointer_to_layout(fields: dict[int, SimType], arch) -> SimTypePointer:
+    """Build a pointer to a struct with the given byte offset -> field type layout (padding filled in)."""
+    return SimTypePointer(_build_struct(fields, arch, None)).with_arch(arch)
+
+
 def union_pointer_struct_types(types: list[SimType], arch, name: str | None = None) -> SimTypePointer | None:
     """
     Union partial struct layouts recovered for the same pointer value across multiple callees.

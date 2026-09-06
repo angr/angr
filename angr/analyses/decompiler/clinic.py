@@ -119,7 +119,7 @@ from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
-from .struct_union import union_pointer_struct_types
+from .struct_union import pointer_to_layout, union_pointer_struct_types
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -2793,9 +2793,12 @@ class Clinic(Analysis, Serializable):
                     },
                 )
                 self.typehoon = tp
+                # remember the layouts this function's own accesses give its arguments before any union or pin can
+                # rewrite them; they are the only evidence later unions may build on
+                self._record_own_argument_layouts(arg_vvars, var_manager)
                 # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
                 # the combined type onto the caller-side value, and back-propagate it to the involved callees.
-                self._unify_callee_argument_structs(vr, var_manager)
+                self._unify_callee_argument_structs(vr, var_manager, arg_vvars)
                 self._register_referenced_union_structs(var_manager)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
@@ -2889,6 +2892,93 @@ class Clinic(Analysis, Serializable):
             return None
         return sig or None
 
+    @property
+    def _own_arg_layouts(self) -> dict[tuple[int, int], SimType]:
+        """
+        Session-lifetime table of the argument types each decompiled function's *own* accesses imply, keyed by
+        (function address, argument index). Kept on the types store next to the union-struct registry (deliberately
+        not serialized). This is the only layout evidence argument-struct unions build on: reading a callee's current
+        prototype instead would feed an earlier union back into the next one, and contamination would compound across
+        functions.
+        """
+        table = getattr(self.kb.types, "_own_arg_layouts", None)
+        if table is None:
+            table = {}
+            self.kb.types._own_arg_layouts = table  # pylint:disable=protected-access
+        return table
+
+    def _minted_union_struct_names(self) -> set[str]:
+        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        return set(registry.values())
+
+    def _is_minted_union_type(self, ty) -> bool:
+        """Whether a (pointer-to-)struct type is one of the union structs minted by this decompiler session."""
+        struct = self._pointee_struct(ty)
+        if struct is None:
+            inner = ty.ty if isinstance(ty, TypeRef) else ty
+            struct = inner if isinstance(inner, SimStruct) else None
+        return struct is not None and struct._name in self._minted_union_struct_names()  # pylint:disable=protected-access
+
+    def _record_own_argument_layouts(self, arg_vvars, var_manager) -> None:
+        """
+        Record, for each argument, the type this function's own accesses gave it. An argument whose type was pinned to
+        a struct pointer through the prototype (a back-propagated union or a call-site constraint) carries no evidence
+        of its own, so an earlier record for it is kept and nothing new is written.
+        """
+        if not arg_vvars:
+            return
+        proto = self.function.prototype
+        pinned = proto is not None and not self.function.is_prototype_guessed
+        for arg_idx, (_, variable) in arg_vvars.items():
+            if pinned and arg_idx < len(proto.args) and self._pointee_struct(proto.args[arg_idx]) is not None:
+                continue
+            ty = var_manager.get_variable_type(variable)
+            if ty is None or self._is_minted_union_type(ty):
+                continue
+            self._own_arg_layouts[(self.function.addr, arg_idx)] = ty
+
+    def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> SimType | None:
+        """
+        The layout a callee argument contributes to a union: the callee's own recorded layout when there is one,
+        otherwise the type observed at the call site unless that type is itself a union struct (no evidence).
+        """
+        own = self._own_arg_layouts.get((callee_addr, arg_idx))
+        if own is not None:
+            return own
+        if self._is_minted_union_type(observed):
+            return None
+        return observed
+
+    def _caller_evidence(self, variable, current, arg_vvars, contaminated: set[int]) -> SimType | None:
+        """
+        The layout the caller's own accesses give a value. For the caller's own arguments this is the recorded own
+        layout. For locals it is the inferred type minus any field that a union struct among the callee prototypes
+        already carried, because Typehoon copies callee prototype layouts into the locals passed to them.
+        """
+        if arg_vvars:
+            for arg_idx, (_, arg_var) in arg_vvars.items():
+                if arg_var is variable:
+                    return self._own_arg_layouts.get((self.function.addr, arg_idx))
+        if not isinstance(current, SimTypePointer):
+            return None
+        if self._is_minted_union_type(current):
+            return None
+        struct = self._pointee_struct(current)
+        if struct is None or not contaminated:
+            return current
+        offsets = struct.offsets
+        kept: dict[int, SimType] = {}
+        for fld_name, fld_ty in struct.fields.items():
+            if fld_name.startswith("padding_"):
+                continue
+            offset = offsets.get(fld_name)
+            if offset is None or offset in contaminated:
+                continue
+            kept[offset] = fld_ty
+        if not kept:
+            return None
+        return pointer_to_layout(kept, self.project.arch)
+
     def _sanitize_union_struct_fields(self, union_struct: SimStruct) -> None:
         """
         Replace pointer-to-struct fields with ``void *`` unless they point to a struct minted by union
@@ -2964,14 +3054,15 @@ class Clinic(Analysis, Serializable):
             if name in minted_names and name not in var_manager.types and name in self.kb.types:
                 var_manager.types[name] = self.kb.types.get_own(name)
 
-    def _unify_callee_argument_structs(self, vr, var_manager) -> None:
+    def _unify_callee_argument_structs(self, vr, var_manager, arg_vvars=None) -> None:
         """
         Progressively unify partial struct layouts recovered for the same caller value across multiple callees.
 
-        For each caller value that is passed as a pointer argument to one or more callees, union the callee-side
-        argument layouts (plus the value's own inferred type) into a single struct, pin it onto the caller value, and
-        back-propagate the combined struct to the involved callees so subsequent decompilations stay consistent and
-        become progressively more complete.
+        For each caller value that is passed as a pointer argument to one or more callees, union the layouts the
+        callees' own accesses imply (plus the layout the caller's own accesses imply) into a single struct, pin it onto
+        the caller value, and back-propagate the combined struct to the involved callees so subsequent decompilations
+        stay consistent and become progressively more complete. Only direct evidence is unioned: a struct minted by an
+        earlier union is never an input to the next one, so contamination cannot compound across functions.
         """
         observations = getattr(vr, "arg_struct_observations", None)
         if not observations:
@@ -2980,18 +3071,31 @@ class Clinic(Analysis, Serializable):
         for variable, tvs in vr.var_to_typevars.items():
             observed: list[SimType] = []
             contributors: list[tuple[int, int]] = []
+            contaminated: set[int] = set()
             for tv in tvs:
                 for callee_addr, arg_idx, simtype in observations.get(tv, ()):
-                    observed.append(simtype)
                     contributors.append((callee_addr, arg_idx))
-            if not observed:
+                    if self._is_minted_union_type(simtype):
+                        # fields a previous union pushed into this callee are not evidence, and Typehoon has copied
+                        # them into the caller's local as well; remember them so the caller's own type can be cleaned
+                        pushed = self._pointee_struct(simtype)
+                        contaminated.update(
+                            off for name, off in pushed.offsets.items() if not name.startswith("padding_")
+                        )
+                    evidence = self._contributor_evidence(callee_addr, arg_idx, simtype)
+                    if evidence is not None:
+                        observed.append(evidence)
+            if not contributors:
                 continue
 
-            # include the value's own inferred type so caller-side fields are preserved in the union
+            # include the layout the caller's own accesses imply so caller-side fields are preserved in the union
             current = var_manager.get_variable_type(variable)
             candidates = list(observed)
-            if isinstance(current, SimTypePointer):
-                candidates.append(current)
+            caller_evidence = self._caller_evidence(variable, current, arg_vvars, contaminated)
+            if caller_evidence is not None:
+                candidates.append(caller_evidence)
+            if not candidates:
+                continue
 
             union = union_pointer_struct_types(candidates, arch)
             union_struct = self._pointee_struct(union)
