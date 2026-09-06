@@ -7,10 +7,12 @@ import networkx
 
 from angr.ailment import AILBlockRewriter, Block, Statement
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Call,
     Const,
     Expression,
+    Extract,
     Load,
     Phi,
     StringLiteral,
@@ -47,6 +49,8 @@ _CONVT_VALUE = frozenset(
 # runtime.convT(typ, ptr) / convTnoptr(typ, ptr) copy *ptr
 _CONVT_POINTER = frozenset({"runtime.convT", "runtime.convTnoptr"})
 _ANY_SLICE_NAMES = frozenset({"[]any", "[]interface {}", "[]interface{}"})
+# callees whose descriptor arguments are not interface values
+_NO_PAIR_CALLEES = ("runtime.", "internal/", "reflect.", "unsafe.")
 
 
 class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
@@ -96,8 +100,8 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         changed = changed or rewriter.changed
         if self._dead:
             self._drop_dead_slots()
+        if changed:
             self._drop_dead_defs()
-            changed = True
         if changed:
             self.out_graph = self._graph
 
@@ -145,8 +149,15 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                 )
             ]
 
+    def _is_box_alloc(self, expr: Expression) -> bool:
+        """``convT*``: an allocation whose only effect is the data word it returns."""
+        if not isinstance(expr, Call):
+            return False
+        name = self._callee(expr)
+        return name in _CONVT_VALUE or name in _CONVT_POINTER
+
     def _drop_dead_defs(self) -> None:
-        """Drop side-effect-free definitions (phis and loads included) left without uses by the folding."""
+        """Drop side-effect-free definitions (phis, loads and box allocations) left without uses by the folding."""
         while True:
             counter = _UseCounter()
             for block in self._graph.nodes:
@@ -160,7 +171,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                         isinstance(stmt, Assignment)
                         and isinstance(stmt.dst, VirtualVariable)
                         and not stmt.dst.was_stack  # stack slots may be read through memory
-                        and not isinstance(stmt.src, Call)
+                        and (not isinstance(stmt.src, Call) or self._is_box_alloc(stmt.src))
                         and counts[stmt.dst.varid] <= 1
                     ):
                         dropped = True
@@ -491,6 +502,36 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         self._set_result_type(literal, expr.name)
         return literal
 
+    def fuse_pairs(self, exprs: list, stmt: Statement) -> list:
+        """
+        Adjacent (type descriptor or itab, data word) words in an argument or result list are one interface value:
+        the register pair of a boxed value passed to a callee without a Go prototype, or returned.
+        """
+        self._stmt_tags = {k: v for k, v in stmt.tags.items() if not k.startswith("go_")}
+        out = []
+        i = 0
+        while i < len(exprs):
+            expr = exprs[i]
+            if i + 1 < len(exprs) and isinstance(expr, Const) and isinstance(expr.value, int) and expr.value:
+                iface = self._iface_name_at(expr.value)
+                data = exprs[i + 1]
+                if iface is not None and data.bits == self.project.arch.bits:
+                    box = self._box(expr, data, iface)
+                    if box is not None:
+                        out.append(box)
+                        i += 2
+                        continue
+            out.append(expr)
+            i += 1
+        return out
+
+    def _iface_name_at(self, addr: int) -> str | None:
+        """The interface a type word at ``addr`` stands for: the itab's interface, or ``any`` for a descriptor."""
+        itab = self.kb.go_types.itab_at(addr)
+        if itab is not None:
+            return itab[0]
+        return "any" if go_type_name_at(self.project, addr) is not None else None
+
     def _box(self, type_word: Expression, data_word: Expression, iface_name: str) -> Expression | None:
         """``box(value)`` for the (type descriptor or itab, data pointer) pair, or None when it is not understood."""
         value = None
@@ -558,6 +599,15 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             return tab
         resolved = self._resolve_copies(type_word)
         definition = self._defs.get(resolved.varid) if isinstance(resolved, VirtualVariable) else None
+        expr = definition.src if definition is not None else resolved
+        if isinstance(expr, ITE):
+            cond = expr.cond
+            if isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE"):
+                nil_side, load_side = (expr.iftrue, expr.iffalse) if cond.op == "CmpEQ" else (expr.iffalse, expr.iftrue)
+                tab = self._itab_type_load(load_side)
+                if tab is not None and isinstance(nil_side, Const) and nil_side.value_int == 0:
+                    return tab
+            return None
         if definition is None or not isinstance(definition.src, Phi):
             return None
         sources = [self._resolve_copies(v) for _, v in definition.src.src_and_vvars if v is not None]
@@ -584,17 +634,31 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                     return arg_vvar
         for definition in self._defs.values():
             dst = definition.dst
-            if (
-                isinstance(dst, VirtualVariable)
-                and dst.was_combo_reg
-                and dst.reg_vvars
-                and [v.varid for v in dst.reg_vvars] == wanted
-            ):
+            if not (isinstance(dst, VirtualVariable) and dst.was_combo_reg and dst.reg_vvars):
+                continue
+            ids = [v.varid for v in dst.reg_vvars]
+            if ids == wanted:
                 return dst
+            for i in range(len(ids) - 1):
+                if ids[i : i + 2] == wanted:
+                    # the pair is one result among several: the piece of the tuple at its offset
+                    offset = sum(v.size for v in dst.reg_vvars[:i])
+                    return Extract(
+                        self.manager.next_atom(),
+                        2 * self.project.arch.bits,
+                        dst,
+                        Const(self.manager.next_atom(), offset, self.project.arch.bits),
+                        self.project.arch.memory_endness,
+                    )
         return None
 
     def _unbox_data(self, data_word: Expression, concrete: str) -> Expression | None:
         ty = self._type_named(concrete)
+        resolved = self._resolve_copies(data_word)
+        if isinstance(resolved, VirtualVariable):
+            definition = self._defs.get(resolved.varid)
+            if definition is not None and isinstance(definition.src, Call) and self._callee(definition.src) is not None:
+                data_word = definition.src
         if isinstance(data_word, Call):
             name = self._callee(data_word)
             args = list(data_word.args or [])
@@ -625,6 +689,17 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                     return StringLiteral(self.manager.next_atom(), literal, self._string_bits, **data_word.tags)
         if _is_pointer_shaped(ty, concrete):
             return data_word
+        if ty is not None and ty.size:
+            size = ty.size // self.project.arch.byte_width
+            # the value sits in memory: its address is the data word
+            if isinstance(data_word, UnaryOp) and data_word.op == "Reference":
+                operand = data_word.operand
+                if isinstance(operand, VirtualVariable) and operand.size == size:
+                    return operand
+            if not isinstance(data_word, Const):
+                return Load(
+                    self.manager.next_atom(), data_word, size, self.project.arch.memory_endness, **data_word.tags
+                )
         return None
 
     #
@@ -833,8 +908,8 @@ class _BoxingRewriter:
             return SideEffectStatement(stmt.idx, new_expr, **stmt.tags) if new_expr is not expr else None
         if isinstance(stmt, Return) and stmt.ret_exprs:
             exprs = list(stmt.ret_exprs)
-            new_exprs = [self._rewrite_expr(e) for e in exprs]
-            if any(a is not b for a, b in zip(exprs, new_exprs)):
+            new_exprs = self._pass.fuse_pairs([self._rewrite_expr(e) for e in exprs], stmt)
+            if len(new_exprs) != len(exprs) or any(a is not b for a, b in zip(exprs, new_exprs)):
                 return Return(stmt.idx, new_exprs, **stmt.tags)
             return None
         if isinstance(stmt, ConditionalJump):
@@ -862,7 +937,10 @@ class _BoxingRewriter:
         if isinstance(expr, Call):
             args = list(expr.args or [])
             new_args = [self._rewrite_expr(a) for a in args]
-            if any(a is not b for a, b in zip(args, new_args)):
+            callee = self._pass._callee(expr) or ""
+            if not callee.startswith(_NO_PAIR_CALLEES):
+                new_args = self._pass.fuse_pairs(new_args, self._stmt)
+            if len(new_args) != len(args) or any(a is not b for a, b in zip(args, new_args)):
                 return Call(expr.idx, expr.target, new_args, bits=expr.bits, **expr.tags)
             return expr
         return expr
