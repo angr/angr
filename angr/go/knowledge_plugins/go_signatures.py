@@ -253,7 +253,9 @@ class GoSignatures(KnowledgeBasePlugin):
             for var in src.variables.values():
                 if var.addr == addr:
                     return var
-        return None
+        # runtime globals located by shape and package variables typed from their initializers
+        go_globals = getattr(self._kb, "go_globals", None)
+        return go_globals.variable_at(addr) if go_globals is not None else None
 
     def named_type(self, name: str) -> GoNamedType | None:
         first = None
@@ -458,6 +460,7 @@ class GoSignatures(KnowledgeBasePlugin):
         o.go_version = self.go_version
         o._sources = list(self._sources)
         o._stdlib_loaded = self._stdlib_loaded
+        o._inferred = dict(self._inferred)
         return o
 
 

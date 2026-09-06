@@ -50,14 +50,18 @@ class GoGlobalTypes(OptimizationPass):
             try:
                 ty = sigs.type(record.type_str).with_arch(self.project.arch)
             except Exception:  # pylint:disable=broad-exception-caught
-                continue
-            size = (ty.size or self.project.arch.bits) // self.project.arch.byte_width
-            existing = global_manager.get_global_variables(addr)
+                ty = None
+            size = (ty.size or self.project.arch.bits) // self.project.arch.byte_width if ty is not None else None
+            existing = [v for v in global_manager.get_global_variables(addr) if v.addr == addr]
             if existing:
-                var = next(iter(existing))
+                var = existing[0]
             else:
-                var = SimMemoryVariable(addr, size, ident=global_manager.next_variable_ident("global"))
+                var = SimMemoryVariable(
+                    addr, size or self.project.arch.bytes, ident=global_manager.next_variable_ident("global")
+                )
                 global_manager.set_variable("global", addr, var)
-            if var.name is None:
+            if var.name is None or var.name.startswith("g_"):
                 var.name = record.name
-            global_manager.set_variable_type(var, ty, mark_manual=True)
+                var.renamed = True
+            if ty is not None:
+                global_manager.set_variable_type(var, ty, mark_manual=True)
