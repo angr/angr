@@ -813,6 +813,13 @@ class _AssertionSubstituter(AILBlockRewriter):
             return self._word()
         return expr
 
+    def _handle_Assignment(self, stmt_idx, stmt: Assignment, block):
+        # a copy of the data word is itself an alias: rewrite what it reads, never the variable it defines
+        src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+        if src is not stmt.src and src != stmt.src:
+            return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
+        return stmt
+
     def _handle_Phi(self, expr_idx, expr: Phi, stmt_idx, stmt, block):
         entries = []
         changed = False
