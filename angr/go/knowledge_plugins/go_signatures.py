@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from angr.go.analyses.dwarf_signatures import read_go_dwarf_signatures
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
-from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple
+from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple, go_type_repr
 from angr.go.type_parser import GoTypeParser
 from angr.go.utils.version import go_minor_version, identify_go_version
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -352,6 +352,22 @@ class GoSignatures(KnowledgeBasePlugin):
         rec = self._inferred.get(normalize_go_func_name(func.name))
         arch = self._kb._project.arch
         return rec is not None and "uintptr" in rec.result_types(_word_count(proto.returnty, arch))
+
+    def untyped_params(self, func: Function) -> frozenset[int]:
+        """
+        Indices of the parameters of ``func`` that only the calling-convention guess describes: a prototype rebuilt
+        around a promoted receiver or inferred results keeps the guessed words (non-Go types, or the ``uintptr`` an
+        inferred record spells for words it could not type). Type inference may know better about those, so they
+        are no ground truth. Parameters of a real signature always are.
+        """
+        proto = func.prototype
+        if not isinstance(proto, GoSimTypeFunction) or func.prototype_source.name == "USER":
+            return frozenset()
+        if self.prototype(func.name) is not None or self.prototype_at(func.addr) is not None:
+            return frozenset()
+        return frozenset(
+            i for i, a in enumerate(proto.args) if not isinstance(a, GoSimType) or go_type_repr(a) == "uintptr"
+        )
 
     def inferred_prototype(self, name: str, guessed) -> GoSimTypeFunction | None:
         """

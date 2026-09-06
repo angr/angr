@@ -2936,11 +2936,43 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    def _untyped_go_params(self) -> frozenset[int]:
+        """Parameters of a Go prototype that only the calling-convention guess describes (see ``untyped_params``)."""
+        if self.flavor != "go" or not hasattr(self.kb, "go_signatures"):
+            return frozenset()
+        return self.kb.go_signatures.untyped_params(self.function)
+
+    def _refine_untyped_go_params(self, arg_list: list[SimVariable]) -> None:
+        """Give the guessed words of a Go prototype the types variable recovery found for them."""
+        untyped = self._untyped_go_params()
+        proto = self.function.prototype
+        if not untyped or proto is None:
+            return
+        variables = self.kb.dec_variables[self.function.addr]
+        args = list(proto.args)
+        changed = False
+        for i in untyped:
+            if i >= len(arg_list) or i >= len(args):
+                continue
+            ty = variables.get_variable_type(arg_list[i])
+            if (
+                ty is not None
+                and not isinstance(ty, SimTypeBottom)
+                and ty.size == args[i].with_arch(self.project.arch).size
+            ):
+                args[i] = ty
+                changed = True
+        if changed:
+            new_proto = proto.copy()
+            new_proto.args = args
+            self.function.prototype = new_proto.with_arch(self.project.arch)
+
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
         if self.function.prototype is not None:
             if self.function.is_prototype_groundtruth:
                 # do not overwrite a prototype that came from outside our own analyses
+                self._refine_untyped_go_params(arg_list)
                 return
             if isinstance(self.function.prototype.returnty, SimTypeFloat) or any(
                 isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args
@@ -3030,8 +3062,9 @@ class Clinic(Analysis, Serializable):
 
         if self.function.is_prototype_groundtruth:
             assert self.function.prototype is not None
+            untyped = self._untyped_go_params()
             for arg_i, (_, variable) in arg_vvars.items():
-                if arg_i < len(self.function.prototype.args):
+                if arg_i < len(self.function.prototype.args) and arg_i not in untyped:
                     for tv in vr.var_to_typevars[variable]:
                         groundtruth[tv] = self.function.prototype.args[arg_i]
 

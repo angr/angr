@@ -31,7 +31,8 @@ class GoParameterTypes(OptimizationPass):
         params = [var for _, var in self._arg_vvars.values()]
         if len(params) != len(proto.args):
             return
-        for var, ty in zip(params, proto.args):
-            if var is None or ty is None:
+        untyped = self.kb.go_signatures.untyped_params(self._func)
+        for i, (var, ty) in enumerate(zip(params, proto.args)):
+            if var is None or ty is None or i in untyped:
                 continue
             var_manager.set_variable_type(var, ty.with_arch(self.project.arch), mark_manual=True)

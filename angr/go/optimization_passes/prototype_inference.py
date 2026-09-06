@@ -191,15 +191,23 @@ class GoPrototypeInference(OptimizationPass):
                 out.extend(expr.reg_vvars)
             elif isinstance(expr, StringLiteral):
                 out.append(("string", 2))
-            elif (
-                isinstance(expr, Load)
-                and expr.size > bytes_
-                and isinstance(expr.addr, (UnaryOp, BinaryOp))
-                and self._combo_piece_of(expr) is not None
-            ):
-                out.extend(self._combo_piece_of(expr))
+            elif isinstance(expr, Load) and expr.size > bytes_ and expr.size % bytes_ == 0:
+                pieces = self._combo_piece_of(expr)
+                out.extend(pieces if pieces is not None else self._word_loads(expr))
             else:
                 out.append(expr)
+        return out
+
+    def _word_loads(self, load: Load) -> list[Load]:
+        """A wide load (a string or slice read from memory) as one load per word."""
+        bits = self.project.arch.bits
+        bytes_ = self.project.arch.bytes
+        base, off = _addr_base_and_offset(load.addr)
+        out = []
+        for k in range(load.size // bytes_):
+            const = Const(self.manager.next_atom(), off + k * bytes_, bits)
+            addr = const if base is None else BinaryOp(self.manager.next_atom(), "Add", [base, const], bits=bits)
+            out.append(Load(self.manager.next_atom(), addr, bytes_, load.endness, **load.tags))
         return out
 
     def _combo_piece_of(self, load: Load) -> list | None:
@@ -260,8 +268,8 @@ class GoPrototypeInference(OptimizationPass):
         if proto is None:
             return []
         words = _result_words(proto)
-        if len(words) == 3 and words[0] is not None and go_type_repr(words[0][0]) == "runtime.slice":
-            # growslice returns the runtime's untyped header; the element descriptor argument types it
+        if len(words) == 3 and _untyped_slice_header(words):
+            # growslice/moveSliceNoCap return the runtime's untyped header; the element descriptor argument types it
             elem = self._slice_elem_of(call)
             words = _value_words([elem]) if elem is not None else []
         return words
@@ -302,11 +310,11 @@ class GoPrototypeInference(OptimizationPass):
         return go_type_repr(ty), 3
 
     def _slice_elem_of(self, call: Call):
-        """``[]T`` for a raw ``runtime.growslice(..., &type:T)`` call."""
+        """``[]T`` for a runtime slice helper (``growslice``, ``moveSliceNoCap``) called with the descriptor of T."""
         name = call_target_name(self.project, call)
-        if name is None or normalize_go_func_name(name) != "runtime.growslice":
+        if name is None or not normalize_go_func_name(name).startswith("runtime."):
             return None
-        elem = self._descriptor_arg(call, 4)
+        elem = next((e for e in (self._descriptor_arg(call, i) for i in range(len(call.args or []))) if e), None)
         if elem is None:
             return None
         try:
@@ -704,6 +712,14 @@ def _value_words(types: list) -> list[tuple[SimType, int, int] | None]:
         n = _leaf_count(ty)
         words.extend((ty, k, n) for k in range(n))
     return words
+
+
+def _untyped_slice_header(words: list) -> bool:
+    """Three result words spelling a slice header without its element type (``runtime.slice`` or its fields)."""
+    if any(w is None for w in words):
+        return False
+    reprs = [go_type_repr(w[0]) for w in words]
+    return reprs == ["runtime.slice"] * 3 or reprs == ["unsafe.Pointer", "int", "int"]
 
 
 def _result_words(proto: GoSimTypeFunction) -> list[tuple[SimType, int, int] | None]:

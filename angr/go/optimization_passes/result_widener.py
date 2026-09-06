@@ -66,14 +66,15 @@ class GoResultWidener(OptimizationPass):
         entry = next((n for n in self._graph.nodes if (n.addr, n.idx) == self.entry_node_addr), None)
         if entry is None:
             return
-        # must-analysis: result registers holding a value at the end of each block
-        out: dict[Block, frozenset[int]] = dict.fromkeys(self._graph.nodes, everything)
+        # must-analysis: result registers holding a value at the end of each block, and whether that value may come
+        # from a call whose results are unknown
+        out: dict[Block, tuple[frozenset[int], bool]] = dict.fromkeys(self._graph.nodes, (everything, False))
         worklist = list(self._graph.nodes)
         rounds = 0
         while worklist and rounds < 50 * len(out):
             rounds += 1
             block = worklist.pop()
-            state, _ = self._transfer(block, self._in_state(block, out, entry, everything))
+            state = self._transfer(block, *self._in_state(block, out, entry, everything))
             if state != out[block]:
                 out[block] = state
                 worklist.extend(self._graph.successors(block))
@@ -86,7 +87,7 @@ class GoResultWidener(OptimizationPass):
             for idx, stmt in enumerate(block.statements):
                 if not isinstance(stmt, Return) or RET_FLOOR_TAG in stmt.tags:
                     continue
-                state, unknown = self._transfer(block, self._in_state(block, out, entry, everything), stop=idx)
+                state, unknown = self._transfer(block, *self._in_state(block, out, entry, everything), stop=idx)
                 extent = 0
                 while extent < len(self._regs) and extent in state:
                     extent += 1
@@ -120,14 +121,18 @@ class GoResultWidener(OptimizationPass):
         if changed:
             self.out_graph = self._graph
 
-    def _in_state(self, block: Block, out: dict, entry: Block, everything: frozenset[int]) -> frozenset[int]:
+    def _in_state(
+        self, block: Block, out: dict, entry: Block, everything: frozenset[int]
+    ) -> tuple[frozenset[int], bool]:
         preds = list(self._graph.predecessors(block))
         state = everything
+        unknown = False
         for pred in preds:
-            state &= out[pred]
+            state &= out[pred][0]
+            unknown |= out[pred][1]
         if block is entry:
             state = (state if preds else frozenset()) | self._param_words()
-        return state
+        return state, unknown
 
     def _param_words(self) -> frozenset[int]:
         """The result registers that carry a parameter on entry (a parameter returned as is is never rewritten)."""
@@ -146,8 +151,9 @@ class GoResultWidener(OptimizationPass):
                     words.add(self._names.index(leaf.reg_name))
         return frozenset(words)
 
-    def _transfer(self, block: Block, state: frozenset[int], stop: int | None = None) -> tuple[frozenset[int], bool]:
-        unknown = False
+    def _transfer(
+        self, block: Block, state: frozenset[int], unknown: bool, stop: int | None = None
+    ) -> tuple[frozenset[int], bool]:
         for idx, stmt in enumerate(block.statements):
             if stop is not None and idx >= stop:
                 break
