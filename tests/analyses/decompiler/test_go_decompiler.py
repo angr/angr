@@ -312,6 +312,23 @@ class TestBasicsGo127(GoDecompilationTarget):
         assert self.header(self.texts["main.add"]).startswith("func main.add(")
 
 
+class TestUninitializedStackReadGo127(GoDecompilationTarget):
+    """
+    A header struct is built in a temporary and copied over with 16-byte moves; the 4-byte field read afterwards
+    reaches no definition ssailification tracks. It must take the guesstimated-variable path under fail_fast too.
+    """
+
+    BINARY = go_binary("go1.27.1", "uninit_inlined")
+    FUNCS = ("main.(*context).handleHeader",)
+
+    def test_read_of_undefined_stack_slot_decompiles(self):
+        text = self.texts["main.(*context).handleHeader"]
+        assert self.header(text).startswith("func (ctx *main.context) handleHeader(")
+        # the body past the read is intact
+        assert "internal/sync.(*Mutex).lockSlow" in text
+        assert "make([]*int" in text
+
+
 if __name__ == "__main__":
     unittest.main()
 
