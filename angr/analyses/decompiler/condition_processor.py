@@ -118,6 +118,30 @@ def _dummy_bools(condition, condition_mapping, name_suffix=""):
     return var
 
 
+def _same_width(a, b):
+    """Zero-extend the narrower of two bit-vectors so they can be compared (a string header against a word)."""
+    if isinstance(a, claripy.ast.BV) and isinstance(b, claripy.ast.BV) and a.size() != b.size():
+        if a.size() < b.size():
+            a = claripy.ZeroExt(b.size() - a.size(), a)
+        else:
+            b = claripy.ZeroExt(a.size() - b.size(), b)
+    return a, b
+
+
+def _cmp_eq(expr, conv, ia):
+    a, b = _same_width(
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+    )
+    return a == b
+
+
+def _cmp_ne(expr, conv, ia):
+    a, b = _same_width(
+        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
+    )
+    return a != b
+
+
 _ail2claripy_op_mapping = {
     "LogicalAnd": lambda expr, conv, _, ia, *args: claripy.And(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
@@ -125,12 +149,8 @@ _ail2claripy_op_mapping = {
     "LogicalOr": lambda expr, conv, _, ia, *args: claripy.Or(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
-    "CmpEQ": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) == conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpNE": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) != conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
+    "CmpEQ": lambda expr, conv, _, ia, *args: _cmp_eq(expr, conv, ia),
+    "CmpNE": lambda expr, conv, _, ia, *args: _cmp_ne(expr, conv, ia),
     "CmpLE": lambda expr, conv, _, ia, *args: (
         conv(expr.operands[0], nobool=True, ins_addr=ia) <= conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
