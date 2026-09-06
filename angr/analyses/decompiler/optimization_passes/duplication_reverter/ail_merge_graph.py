@@ -7,6 +7,7 @@ import networkx as nx
 
 from angr.ailment.block import Block
 from angr.ailment.statement import ConditionalJump
+from angr.analyses.decompiler.utils import extract_jump_targets
 
 from .errors import SAILRSemanticError
 from .similarity import ail_similarity_to_orig_blocks
@@ -480,6 +481,7 @@ class AILMergeGraph:
 
         # replace every block that has been split
         updated_blocks: dict[Block, Block] = {}
+        split_addrs: dict[int, int] = {}
 
         def resolve_updated_block(block: Block) -> Block:
             path = []
@@ -497,10 +499,16 @@ class AILMergeGraph:
             block = resolve_updated_block(original_node)
             predecessors = list(graph.predecessors(block))
             successors = list(graph.successors(block))
-            if any(pred == block for pred in predecessors):
-                new_node.statements[-1] = correct_jump_targets(
-                    new_node.statements[-1], {original_node.addr: new_node.addr}, new_stmt=True
-                )
+            split_addrs[original_node.addr] = new_node.addr
+            # a replacement is cut out of the unsplit original, so its terminator still names
+            # pre-split addresses; retarget only the ones that moved
+            terminator = new_node.statements[-1]
+            moved = {
+                addr: split_addrs[addr]
+                for addr in extract_jump_targets(terminator)
+                if split_addrs.get(addr, addr) != addr
+            }
+            new_node.statements[-1] = correct_jump_targets(terminator, moved, new_stmt=True)
             graph.add_node(new_node)
             # correct every in_edge to this node, with new targets for jumps
             for pred in predecessors:
