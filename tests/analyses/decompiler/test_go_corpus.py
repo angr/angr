@@ -68,6 +68,46 @@ class TestGoCorpusLinuxAmd64(_Corpus):
         assert "gcWriteBarrier" not in text and "wbMove" not in text
 
 
+class TestGoCorpusInferredResults(_Corpus):
+    """
+    Once ParseIdentities is typed ([]Identity, error) by the result inference, main.convert's loop walks a pointer to
+    a typed interface element: the switch on the element's itab and the method call through it must survive. A fresh
+    project takes the inferred records the way a second sweep pass does (built once for the class).
+    """
+
+    PATH = LINUX
+    FUNCS = ("main.convert", "filippo.io/age.ParseIdentities")
+    text = ""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        callee = "filippo.io/age.ParseIdentities"
+        cls.proj.analyses.Decompiler(cls.addrs[callee], cfg=cls.cfg.model, flavor="go", fail_fast=True)
+        cls.record = cls.proj.kb.go_signatures.inferred_record(callee)
+        proj, cfg = load_project_with_scoped_cfg(
+            cls.PATH, cls.addrs["main.convert"], extra_func_addrs=[cls.addrs[callee]], call_tree_depth=1
+        )
+        if cls.record is not None:
+            proj.kb.go_signatures.set_inferred(callee, dict(cls.record))
+        dec = proj.analyses.Decompiler(cls.addrs["main.convert"], cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text
+        cls.text = dec.codegen.text
+
+    def test_callee_results_are_inferred(self):
+        assert self.record is not None and self.record.result_types(2)[0] == "[]filippo.io/age.Identity"
+        assert re.search(r", err := filippo\.io/age\.ParseIdentities\(", self.text)
+
+    def test_type_switch_over_typed_elements(self):
+        text = self.text
+        assert re.search(r"switch \w+ := \w+\.\(type\) \{", text)
+        assert "case *filippo.io/age.HybridIdentity:" in text and "case *filippo.io/age.X25519Identity:" in text
+        # the method call through the element's itab renders on the bound value
+        assert re.search(r"\w+\.k\.PublicKey\(\)", text)
+        # no two-word integer result for a function that returns nothing
+        assert "int128" not in text.split("{", 1)[0]
+
+
 class TestGoCorpusDarwinArm64(_Corpus):
     PATH = DARWIN
     FUNCS = ("filippo.io/age.(*HybridRecipient).String", "filippo.io/age.(*ScryptIdentity).Unwrap")

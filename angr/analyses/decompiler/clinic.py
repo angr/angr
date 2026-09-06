@@ -55,6 +55,7 @@ from angr.calling_conventions import (
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
+from angr.go.sim_type import GoSimType
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
@@ -2721,7 +2722,7 @@ class Clinic(Analysis, Serializable):
         """Give the guessed words of a Go prototype the types variable recovery found for them."""
         untyped = self._untyped_go_params()
         proto = self.function.prototype
-        if not untyped or proto is None:
+        if proto is None or self.flavor != "go" or not hasattr(self.kb, "go_signatures"):
             return
         variables = self.kb.dec_variables[self.function.addr]
         args = list(proto.args)
@@ -2737,9 +2738,19 @@ class Clinic(Analysis, Serializable):
             ):
                 args[i] = ty
                 changed = True
+        # a result nobody typed (an inferred-parameters record kept the calling-convention guess) follows type
+        # inference as a guessed prototype would
+        returnty = proto.returnty
+        sigs = self.kb.go_signatures
+        if not isinstance(returnty, GoSimType) and sigs.results_guessed(self.function):
+            ret_ty = variables.get_variable_type(self.func_ret_var)
+            if ret_ty is not None and not isinstance(ret_ty, SimTypeBottom):
+                returnty = ret_ty
+                changed = True
         if changed:
             new_proto = proto.copy()
             new_proto.args = args
+            new_proto.returnty = returnty
             self.function.prototype = new_proto.with_arch(self.project.arch)
 
     @timethis

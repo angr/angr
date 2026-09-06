@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import re
 import unittest
 
 from .test_go_decompiler import GoDecompilationTarget, go_binary
@@ -27,9 +28,14 @@ class PanickingAssertions(GoDecompilationTarget):
         assert "\n    return v2.(int)\n" in self.texts["main.viaCall"], self.texts["main.viaCall"]
 
     def test_memory_holder(self):
-        # a non-pointer type reads the value behind the data word; a pointer-shaped one is the data word itself
-        assert "return (*h).(string)\n" in self.texts["main.viaField"], self.texts["main.viaField"]
-        assert "return (*h).(*main.holder)\n" in self.texts["main.viaFieldPtr"], self.texts["main.viaFieldPtr"]
+        # a non-pointer type reads the value behind the data word; a pointer-shaped one is the data word itself.
+        # The holder is the interface field of the struct h points at (h.v); older renders spelled it (*h).
+        assert re.search(r"return (\(\*h\)|h\.v)\.\(string\)\n", self.texts["main.viaField"]), self.texts[
+            "main.viaField"
+        ]
+        assert re.search(r"return (\(\*h\)|h\.v)\.\(\*main\.holder\)\n", self.texts["main.viaFieldPtr"]), self.texts[
+            "main.viaFieldPtr"
+        ]
 
 
 class TestAssertionsGo122(PanickingAssertions):

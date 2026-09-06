@@ -3772,6 +3772,9 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         TypeAssertionRecovery(self, self.cfunc).run()
         self.cfunc = RangeLoopRecovery(self).handle(self.cfunc)
         TupleDestructuring(self, self.cfunc).run()
+        # destructured results type the variables read off them (a walking pointer into a typed slice): name the
+        # reads through those before the switch and range recoveries look for the holder's words
+        NamedFieldRetyping(self, self.cfunc).run()
         TypeSwitchRecovery(self, self.cfunc).run()
         MapRangeRecovery(self, self.cfunc).run()
         ChannelRangeRecovery(self, self.cfunc).run()
@@ -4053,7 +4056,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return base_expr
 
                 if not type_equals(base_type, data_type):
-                    return _force_type_cast(base_type, data_type, expr)
+                    # expr is the pointer itself: reinterpret it, never the address of the pointer variable
+                    return GoUnaryOp(
+                        "Dereference",
+                        GoTypeCast(
+                            expr.type, SimTypePointer(data_type).with_arch(self.project.arch), expr, codegen=self
+                        ),
+                        codegen=self,
+                    )
                 return GoUnaryOp("Dereference", expr, codegen=self)
 
         stride = 1 if base_type.size is None else base_type.size // self.project.arch.byte_width or 1
@@ -6718,11 +6728,61 @@ def _go_named_struct_behind(ty):
 
 
 class _NamedFieldFixer(GoStructuredCodeWalker):
-    """``base.field_N`` where ``base`` has a named struct type becomes the named field path at that offset."""
+    """
+    ``base.field_N`` where ``base`` has a named struct type becomes the named field path at that offset; so does a
+    raw read ``*(*T)(p + k)`` through a pointer whose pointee type has since become a named struct.
+    """
 
     def __init__(self, codegen):
         self._codegen = codegen
         self.changed = False
+
+    def handle_GoUnaryOp(self, obj):
+        obj = super().handle_GoUnaryOp(obj)
+        if obj.op != "Dereference":
+            return obj
+        inner = obj.operand
+        while isinstance(inner, GoTypeCast):
+            inner = inner.expr
+        offset = 0
+        if isinstance(inner, GoBinaryOp) and inner.op == "Add" and isinstance(inner.rhs, GoConstant):
+            offset = inner.rhs.value
+            inner = inner.lhs
+            while isinstance(inner, GoTypeCast):
+                inner = inner.expr
+        elif (
+            isinstance(inner, GoUnaryOp)
+            and inner.op == "Reference"
+            and isinstance(inner.operand, GoIndexedVariable)
+            and isinstance(inner.operand.index, GoConstant)
+        ):
+            # &p[k] built while p pointed at bytes: k times the element size it was built with
+            indexed = inner.operand
+            elem = unpack_typeref(indexed.type) if indexed.type is not None else None
+            elem_size = (elem.size or 0) // self._codegen.project.arch.byte_width if elem is not None else 0
+            if not elem_size:
+                return obj
+            offset = indexed.index.value * elem_size
+            inner = indexed.variable
+            while isinstance(inner, GoTypeCast):
+                inner = inner.expr
+        if not (_go_var_named(inner) and inner.type is not None and isinstance(offset, int)):
+            return obj
+        pointee = unpack_typeref(inner.type)
+        pointee = unpack_typeref(pointee.pts_to) if isinstance(pointee, SimTypePointer) else None
+        struct = _go_named_struct_behind(pointee) if pointee is not None else None
+        if struct is None or pointee is not struct:
+            return obj
+        size = (obj.type.size or 0) // self._codegen.project.arch.byte_width if obj.type is not None else None
+        helper = _FieldRetyper(self._codegen, inner)
+        path = helper._path(struct, offset, size or None)
+        if path is None:
+            return obj
+        expr = inner
+        for owner, off, name in path:
+            expr = GoVariableField(expr, GoStructField(owner, off, name, codegen=self._codegen), codegen=self._codegen)
+        self.changed = True
+        return expr
 
     def handle_GoVariableField(self, obj):
         obj = super().handle_GoVariableField(obj)
