@@ -3039,20 +3039,40 @@ class Clinic(Analysis, Serializable):
         minted_names = set(registry.values())
         if not minted_names:
             return
-        candidate_types: list = list(var_manager.variable_to_types.values())
+        worklist: list = list(var_manager.variable_to_types.values())
         if self.function.prototype is not None:
-            candidate_types += list(self.function.prototype.args or ())
-            candidate_types.append(self.function.prototype.returnty)
-        for ty in candidate_types:
+            worklist += list(self.function.prototype.args or ())
+            worklist.append(self.function.prototype.returnty)
+        # expression types come straight from the Typehoon solution (e.g. the type of a value stored into a field), so
+        # every solved type is a candidate as well
+        if self.typehoon is not None and self.typehoon.simtypes_solution:
+            worklist += list(self.typehoon.simtypes_solution.values())
+        # casts at call sites carry the callees' argument types, which may name union structs too
+        callgraph = self.kb.functions.callgraph
+        if self.function.addr in callgraph:
+            for callee_addr in callgraph.successors(self.function.addr):
+                if self.kb.functions.contains_addr(callee_addr):
+                    callee_proto = self.kb.functions.get_by_addr(callee_addr).prototype
+                    if callee_proto is not None:
+                        worklist += list(callee_proto.args or ())
+        # walk field types transitively: a union struct referenced only as the type of another struct's field still
+        # shows up in the output (e.g. as a cast on a field store) and needs its typedef
+        seen: set[int] = set()
+        while worklist:
+            ty = worklist.pop()
+            if ty is None:
+                continue
             struct = self._pointee_struct(ty)
             if struct is None:
                 inner = ty.ty if isinstance(ty, TypeRef) else ty
                 struct = inner if isinstance(inner, SimStruct) else None
-            if struct is None:
+            if struct is None or id(struct) in seen:
                 continue
+            seen.add(id(struct))
             name = struct._name  # pylint:disable=protected-access
             if name in minted_names and name not in var_manager.types and name in self.kb.types:
                 var_manager.types[name] = self.kb.types.get_own(name)
+            worklist.extend(struct.fields.values())
 
     @staticmethod
     def _layouts_consistent(structs: list[SimStruct]) -> bool:
