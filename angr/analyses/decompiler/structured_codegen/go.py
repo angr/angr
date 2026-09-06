@@ -8867,6 +8867,9 @@ class MakeTypecastsImplicit(GoStructuredCodeWalker):
 
     def handle_GoBinaryOp(self, obj: GoBinaryOp):
         obj = super().handle_GoBinaryOp(obj)
+        if obj.lhs.type is None or obj.rhs.type is None:
+            # an operand without a type (a call to a function without a result): nothing to make implicit
+            return obj
         while True:
             new_lhs = self.collapse(obj.common_type, obj.lhs)
             assert obj.rhs.type is not None and new_lhs.type is not None
