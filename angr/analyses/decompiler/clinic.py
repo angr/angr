@@ -43,6 +43,7 @@ from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
 from angr.calling_conventions import (
+    SimArrayArg,
     SimCCUsercall,
     SimComboArg,
     SimFunctionArgument,
@@ -2556,6 +2557,12 @@ class Clinic(Analysis, Serializable):
                 if field_name not in arg_loc.locs:
                     continue
                 tmp_locs += Clinic._expand_argloc(arg_loc.locs[field_name])
+            return tmp_locs
+        if isinstance(arg_loc, SimArrayArg):
+            # a fixed-size array field: one location per element
+            tmp_locs = []
+            for loc in arg_loc.locs:
+                tmp_locs += Clinic._expand_argloc(loc)
             return tmp_locs
         if isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
             return [arg_loc]
