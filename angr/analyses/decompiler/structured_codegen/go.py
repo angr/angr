@@ -4216,7 +4216,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return bail_out()
             back = constant // stride
             terms = [
-                (c, GoBinaryOp("Add", t, GoConstant(back, SimTypeInt(), codegen=self), codegen=self))
+                (c, GoBinaryOp("Sub", t, GoConstant(-back, SimTypeInt(), codegen=self), codegen=self))
                 if c == stride
                 else (c, t)
                 for c, t in terms
@@ -4228,7 +4228,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     new_terms.append((c, t))
                     back_applied = True
                 else:
-                    new_terms.append((c, t.lhs if isinstance(t, GoBinaryOp) and t.op == "Add" and c == stride else t))
+                    new_terms.append((c, t.lhs if isinstance(t, GoBinaryOp) and t.op == "Sub" and c == stride else t))
             terms = new_terms
             constant = 0
 
