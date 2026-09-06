@@ -3481,7 +3481,12 @@ class GoTypeAssertion(GoExpression):
         if self.collapsed:
             yield "...", self
             return
+        compound = isinstance(self.expr, (GoUnaryOp, GoBinaryOp, GoTypeCast))
+        if compound:
+            yield "(", None
         yield from GoExpression._try_c_repr_chunks(self.expr)
+        if compound:
+            yield ")", None
         paren = GoClosingObject("(")
         yield ".(", paren
         yield self.type_name, self
@@ -4729,6 +4734,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if kind == "slice_literal":
                 elems = [self._handle(arg) for arg in expr.args or []]
                 return GoSliceLiteral(expr.tags.get("go_elem_type", "any"), elems, tags=expr.tags, codegen=self)
+            if kind == "assert" and expr.args:
+                return GoTypeAssertion(
+                    self._handle(expr.args[0]), expr.tags.get("go_assert_type", "any"), tags=expr.tags, codegen=self
+                )
         try:
             target = self._handle(expr.target, lvalue=True) if not isinstance(expr.target, str) else expr.target
         except UnsupportedNodeTypeError:
