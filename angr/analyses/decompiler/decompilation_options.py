@@ -52,6 +52,7 @@ O = DecompilationOption
 DEFAULT_MAX_FUNCTION_BLOCKS = 50_000
 DEFAULT_MAX_AIL_STATEMENTS = 1_000_000
 
+
 def parse_known_patterns(value) -> str | tuple[str, ...] | None:
     """Normalize the ``known_patterns`` option value into ``None`` (force-enable
     nothing), the string ``"all"``, or a tuple of pattern names.
