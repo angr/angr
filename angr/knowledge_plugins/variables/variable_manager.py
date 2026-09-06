@@ -774,6 +774,10 @@ class VariableManagerInternal(Serializable):
             return variables[0]
         return None
 
+    def variable_by_vvar_id(self, varid: int) -> SimVariable | None:
+        """The variable that was assigned to the virtual variable with the given id, if any."""
+        return self._vvarid_to_variable.get(varid)
+
     def find_variables_by_atom(
         self, block_addr, stmt_idx, atom: ailment.expression.Expression, block_idx: int | None = None
     ) -> set[tuple[SimVariable, int | None]]:

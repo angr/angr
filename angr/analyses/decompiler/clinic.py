@@ -2810,6 +2810,13 @@ class Clinic(Analysis, Serializable):
                     for tv in vr.var_to_typevars[variable]:
                         groundtruth[tv] = self.function.prototype.args[arg_i]
 
+        # types an optimization pass proved for virtual variables (vvar id -> SimType); ids may have been unified
+        for varid, vartype in (self.optimization_scratch.pop("vvar_ground_truth", None) or {}).items():
+            variable = var_manager.variable_by_vvar_id(vvar2vvar.get(varid, varid))
+            if variable is not None and variable in vr.var_to_typevars:
+                for tv in vr.var_to_typevars[variable]:
+                    groundtruth[tv] = vartype
+
         # get maximum sizes of each stack variable, regardless of its original type
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
         tv_max_sizes = {}

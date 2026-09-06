@@ -415,6 +415,65 @@ class TestInferredResultsIfaceGo127Stripped(GoDecompilationTarget):
         assert "int128" not in text and "int192" not in text
 
 
+class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
+    """
+    ``main.appendOne`` returns ``[]int{ptr, len, cap}`` whose len word is a phi over the appended length: the pass
+    pins that word (and the words passed to growslice) to ``int`` as ground truth for type inference.
+    """
+
+    def test_len_and_cap_words_are_pinned(self):
+        from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
+        from angr.analyses.decompiler.optimization_passes.optimization_pass import (
+            OptimizationPass,
+            OptimizationPassStage,
+        )
+        from angr.go.optimization_passes import GoHeaderWordTypes, get_go_optimization_passes
+        from angr.go.optimization_passes.header_word_types import GROUND_TRUTH_KEY
+        from angr.go.sim_type import go_type_repr
+
+        binary = go_binary("go1.27.1", "builtins_stripped")
+        addr = go_func_addrs(binary, "main.appendOne")["main.appendOne"]
+        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
+        pinned: dict = {}
+
+        class Recorder(OptimizationPass):
+            ARCHES = None
+            PLATFORMS = None
+            STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
+            NAME = "record pins"
+
+            def __init__(self, func, manager, **kwargs):
+                super().__init__(func, manager, **kwargs)
+                pinned.update(self._scratch.get(GROUND_TRUTH_KEY, {}))
+
+            def _check(self):
+                return True, None
+
+            def _analyze(self, cache=None):
+                pass
+
+        passes = DECOMPILATION_PRESETS["default"].get_optimization_passes(proj.arch, proj.simos.name)
+        passes += get_go_optimization_passes()
+        passes.insert(passes.index(GoHeaderWordTypes) + 1, Recorder)
+        # first pass: the ([]int) result is inferred from the return; second pass: rendered with it
+        proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True, use_cache=False, regen_clinic=True)
+        dec = proj.analyses.Decompiler(
+            addr,
+            cfg=cfg.model,
+            flavor="go",
+            fail_fast=True,
+            use_cache=False,
+            regen_clinic=True,
+            optimization_passes=passes,
+        )
+        assert dec.codegen is not None
+        print_decompilation_result(dec)
+        assert pinned and all(go_type_repr(t) == "int" for t in pinned.values())
+        text = dec.codegen.text
+        assert re.search(r"return \[\]int\{ptr: \w+, len: \w+, cap: \w+\}", text)
+        assert "(*int8)(&" not in text
+
+
 class TestReceiverFromName(unittest.TestCase):
     """A method's receiver type is spelled in its name, even when the linker pruned it from the method table."""
 

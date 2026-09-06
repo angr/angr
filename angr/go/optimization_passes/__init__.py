@@ -6,6 +6,7 @@ from .builtin_rewriter import GoBuiltinRewriter
 from .check_remover import GoCheckRemover
 from .descriptor_namer import GoDescriptorNamer
 from .global_types import GoGlobalTypes
+from .header_word_types import GoHeaderWordTypes
 from .multi_value import GoComboRegisterRewriter, GoRetExprRewriter
 from .parameter_types import GoParameterTypes
 from .pinned_register_namer import GoPinnedRegisterNamer
@@ -39,6 +40,7 @@ def get_go_optimization_passes():
         GoRuntimeRewriter,
         GoBuiltinRewriter,
         GoBoxingRewriter,
+        GoHeaderWordTypes,
         GoPrototypeInference,
         # AFTER_VARIABLE_RECOVERY
         GoPinnedRegisterNamer,
