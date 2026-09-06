@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import BinaryOp, Call, Const, Load, Struct, UnaryOp, VirtualVariable
 from angr.ailment.expression import VirtualVariableCategory as VVC
-from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement
+from angr.ailment.statement import Assignment, ConditionalJump, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import GoSimTypeFunction, GoSimTypeInt
@@ -17,6 +18,16 @@ GROUND_TRUTH_KEY = "vvar_ground_truth"
 
 _ORDERED = frozenset({"CmpLT", "CmpLE", "CmpGT", "CmpGE"})
 _HEADER_WORDS = frozenset({"len", "cap"})
+
+
+class _CallCollector(AILBlockViewer):
+    def __init__(self):
+        super().__init__()
+        self.calls: list[Call] = []
+
+    def _handle_Call(self, expr_idx, expr: Call, stmt_idx, stmt, block):
+        self.calls.append(expr)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class GoHeaderWordTypes(OptimizationPass):
@@ -50,16 +61,15 @@ class GoHeaderWordTypes(OptimizationPass):
         if int_ty is None:
             return
         proto = self._func.prototype
+        calls = _CallCollector()
+        for block in self._graph.nodes:
+            calls.walk(block)
+        for call in calls.calls:
+            # calls anywhere in a statement: a folded append sits inside the return that yields it
+            self._pin_call(call, pins, int_ty)
         for block in self._graph.nodes:
             for stmt in block.statements:
-                call = None
-                if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
-                    call = stmt.src
-                elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
-                    call = stmt.expr
-                if call is not None:
-                    self._pin_call(call, pins, int_ty)
-                elif isinstance(stmt, Return) and stmt.ret_exprs:
+                if isinstance(stmt, Return) and stmt.ret_exprs:
                     results = proto.results if isinstance(proto, GoSimTypeFunction) else []
                     exprs = list(stmt.ret_exprs)
                     for i, expr in enumerate(exprs):

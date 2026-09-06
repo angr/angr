@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import (
     BinaryOp,
     Call,
@@ -101,13 +102,18 @@ class GoPrototypeInference(OptimizationPass):
         if not words:
             return None
         found: dict[int, tuple[str, int]] = {}  # word -> (type string, words spanned)
-        for _stmt, call in self._values.calls:
+        for call in self._values.all_calls:
             if not call.args:
                 continue
-            proto = self._callee_prototype(call)
-            if proto is None:
-                continue
-            for arg, ty in zip(call.args, proto.args):
+            if call.tags.get("go_render") == "box":
+                # box(value): the boxed value has the box's concrete type
+                types = [self._type_named(call.tags.get("go_box_type"))]
+            else:
+                proto = self._callee_prototype(call)
+                if proto is None:
+                    continue
+                types = list(proto.args)
+            for arg, ty in zip(call.args, types):
                 if not isinstance(ty, GoSimType) or not ty.size:
                     continue
                 span = ty.size // self.project.arch.bits
@@ -136,6 +142,14 @@ class GoPrototypeInference(OptimizationPass):
                 types.append("uintptr")
                 w += 1
         return types
+
+    def _type_named(self, name) -> SimType | None:
+        if not isinstance(name, str):
+            return None
+        try:
+            return self.kb.go_signatures.type(name).with_arch(self.project.arch)
+        except Exception:  # pylint:disable=broad-exception-caught
+            return None
 
     def _callee_prototype(self, call: Call) -> GoSimTypeFunction | None:
         proto = variable_map_of(self.manager).prototype(call)
@@ -191,6 +205,8 @@ class GoPrototypeInference(OptimizationPass):
                 out.extend(expr.reg_vvars)
             elif isinstance(expr, StringLiteral):
                 out.append(("string", 2))
+            elif isinstance(expr, Call) and expr.tags.get("go_render") == "box":
+                out.append((self._box_interface(expr), 2))
             elif isinstance(expr, Load) and expr.size > bytes_ and expr.size % bytes_ == 0:
                 pieces = self._combo_piece_of(expr)
                 out.extend(pieces if pieces is not None else self._word_loads(expr))
@@ -209,6 +225,13 @@ class GoPrototypeInference(OptimizationPass):
             addr = const if base is None else BinaryOp(self.manager.next_atom(), "Add", [base, const], bits=bits)
             out.append(Load(self.manager.next_atom(), addr, bytes_, load.endness, **load.tags))
         return out
+
+    def _box_interface(self, box: Call) -> str:
+        """The interface type a ``box(value)`` call (the boxing rewriter's) builds: its result type, else its name."""
+        proto = variable_map_of(self.manager).prototype(box)
+        if isinstance(proto, GoSimTypeFunction) and isinstance(proto.returnty, GoSimType):
+            return go_type_repr(proto.returnty)
+        return box.target if isinstance(box.target, str) else "any"
 
     def _combo_piece_of(self, load: Load) -> list | None:
         """The register vvars a ``Load(&combo + off, size)`` covers."""
@@ -254,6 +277,11 @@ class GoPrototypeInference(OptimizationPass):
         if isinstance(expr, Const) and expr.is_int:
             return self._classify_const(leaves, i, expr.value_int)
         if isinstance(expr, Load):
+            piece = self._combo_piece_of(expr) if expr.size == self.project.arch.bytes else None
+            if piece:
+                hit = self._values.combo_of.get(piece[0].varid)
+                if hit is not None:
+                    return self._classify_combo_word(leaves, i, hit[0], hit[1])
             return self._classify_load(leaves, i, expr)
         return None
 
@@ -510,6 +538,10 @@ class GoPrototypeInference(OptimizationPass):
             _record(found.setdefault(name, {}), word, type_str, span)
 
         def note(expr, ty) -> None:
+            if isinstance(expr, Call) and expr.tags.get("go_render") == "box" and expr.args:
+                # box(value) handed on or returned: the value has the box's concrete type
+                note(expr.args[0], self._type_named(expr.tags.get("go_box_type")))
+                return
             if not isinstance(ty, GoSimType) or not ty.size:
                 return
             repr_ = go_type_repr(ty)
@@ -534,9 +566,14 @@ class GoPrototypeInference(OptimizationPass):
                         note(stmt.data, _field_at(pointee, off))
                 elif isinstance(stmt, ConditionalJump):
                     self._note_compare(stmt.condition, note_words)
-        for _stmt, call in self._values.calls:
+        for call in self._values.all_calls:
+            if not call.args:
+                continue
+            if call.tags.get("go_render") == "box":
+                note(call, None)
+                continue
             proto = self._callee_prototype(call)
-            if proto is None or not call.args or _converts_arguments(call_target_name(self.project, call)):
+            if proto is None or _converts_arguments(call_target_name(self.project, call)):
                 continue
             for arg, ty in zip(call.args, proto.args):
                 note(arg, ty)
@@ -654,6 +691,7 @@ class _Values:
         self.combo_of: dict[int, tuple[VirtualVariable, int]] = {}
         self.param_types: dict[int, SimType] = {}
         self.calls: list[tuple[object, Call]] = []
+        self.all_calls: list[Call] = []  # every call, nested ones included (a folded append inside a return)
         bytes_ = pass_.project.arch.bytes
 
         def note(vvar: VirtualVariable):
@@ -674,7 +712,9 @@ class _Values:
                     note(arg_vvar)
                     if i < len(args):
                         self.param_types[arg_vvar.varid] = args[i]
+        collector = _CallCollector()
         for block in pass_._graph.nodes:
+            collector.walk(block)
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     note(stmt.dst)
@@ -686,6 +726,7 @@ class _Values:
                     if isinstance(stmt.ret_expr, VirtualVariable):
                         note(stmt.ret_expr)
                         self.defs[stmt.ret_expr.varid] = stmt.expr
+        self.all_calls = collector.calls
 
     def resolve(self, expr: Expression) -> Expression:
         """Look through virtual-variable copies."""
@@ -697,6 +738,16 @@ class _Values:
                 break
             expr = src
         return expr
+
+
+class _CallCollector(AILBlockViewer):
+    def __init__(self):
+        super().__init__()
+        self.calls: list[Call] = []
+
+    def _handle_Call(self, expr_idx, expr: Call, stmt_idx, stmt, block):
+        self.calls.append(expr)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def _converts_arguments(name: str | None) -> bool:
