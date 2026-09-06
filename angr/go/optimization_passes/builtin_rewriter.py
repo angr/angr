@@ -96,7 +96,7 @@ class _Base:
     the compiler keeps in separate scalars; only a call that takes the header apart proves they belong together).
     """
 
-    __slots__ = ("addr", "combo", "name", "off", "words")
+    __slots__ = ("addr", "combo", "conv", "name", "off", "words")
 
     def __init__(
         self,
@@ -111,6 +111,7 @@ class _Base:
         self.off = off
         self.words = words
         self.name = name
+        self.conv: str | None = None  # a conversion applied to the value ([]byte of a string)
 
     def same(self, other: _Base) -> bool:
         if self.combo is not None:
@@ -133,6 +134,11 @@ class _Base:
         return BinaryOp(manager.next_atom(), "Add", [self.addr, Const(manager.next_atom(), self.off, arch.bits)], False)
 
     def value(self, manager, arch, size: int | None, tags, name: str | None = None) -> Expression | None:
+        if self.conv is not None:
+            inner = _Base(combo=self.combo, addr=self.addr, off=self.off).value(manager, arch, _STRING_BITS // 8, tags)
+            if inner is None:
+                return None
+            return Call(manager.next_atom(), self.conv, [inner], bits=_SLICE_BITS, go_result_type="[]uint8", **tags)
         if self.combo is not None:
             return self.combo if size is None or self.combo.size == size else None
         if self.addr is not None:
@@ -300,7 +306,13 @@ class _Values:
         """
         base = self.base_of(ptr, _PTR)
         if base is not None:
-            return base if self.piece(cap, base) == _CAP else None
+            at = self.piece(cap, base)
+            if at == _CAP:
+                return base
+            if at == _LEN and (base.combo is None or base.combo.size == _STRING_BITS // 8):
+                # a string's bytes: []byte(s) has cap == len
+                base.conv = "[]byte"
+                return base
         if length is None:
             return None
         return _Base(words=(self.resolve(ptr), self.resolve(length), self.resolve(cap)), name=name)
@@ -605,8 +617,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         old_len = self._old_length(new_len, old_cap, num, count)
         ty = self.type_name(et)
         s = self.values.header(old_ptr, old_cap, old_len, f"[]{ty}" if ty else None)
-        if s is None or (s.words is None and old_len is not None and not self.values.is_len_of(old_len, s)):
+        if s is None:
             return None
+        if s.words is None and old_len is not None and not self.values.is_len_of(old_len, s):
+            s = _Base(
+                words=(self.values.resolve(old_ptr), self.values.resolve(old_len), self.values.resolve(old_cap)),
+                name=f"[]{ty}" if ty else None,
+            )
         value = s.value(self.manager, self.project.arch, _SLICE_BITS // 8, call.tags)
         if value is None:
             return None
@@ -955,7 +972,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         ty = self.type_name(et)
         base = self.values.header(old_ptr, old_cap, old_len, f"[]{ty}" if ty else None)
         if base is None or (base.words is None and not self.values.is_len_of(old_len, base)):
-            return None
+            base = self.values.header(old_ptr, old_cap, old_len, None) if base is None else None
+            if base is None or base.words is None:
+                return None
         ws = self.project.arch.bytes
         g = _Growth(block, call_stmt, base, count, num, et, old_len, new_len, self.type_size(et) or ws)
         g.ptrs = [call_stmt.dst.reg_vvars[0]]
@@ -1007,9 +1026,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         n = _const(new_len)
         if count is not None and n is not None and n >= count:
             return Const(self.manager.next_atom(), n - count, bits)
-        if _const(old_cap) == 0 and self.values.same(new_len, num):
+        if self.values.same(new_len, num):
             return Const(self.manager.next_atom(), 0, bits)
-        return None
+        return BinaryOp(self.manager.next_atom(), "Sub", [new_len, num], False, bits=bits, **new_len.tags)
 
     def _match_diamond(self, g: _Growth, base: _Base, old_cap, new_len) -> None:
         """
@@ -1150,60 +1169,96 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                         return out
 
     def _match_elements(self, g: _Growth) -> None:
-        ws = self.project.arch.bytes
-        words = max(1, g.width // ws)
         window = self._window(g)
-        found: dict[tuple[int, int], tuple[Store, Expression]] = {}
+        found: dict[int, dict[int, tuple[Store, Expression]]] = {}  # element k -> byte offset -> store
         for stmt in window:
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
                 if self._match_copy(g, stmt):
                     return
                 continue
-            if not isinstance(stmt, Store):
+            if not isinstance(stmt, Store) or g.count is None:
                 continue
             parsed = self._store_offset(stmt.addr, g)
             if parsed is None:
                 continue
-            kind, off = parsed
-            if g.count is None:
+            hit = self._element_of(*parsed, g)
+            if hit is None:
                 continue
-            if kind == "old" and off == 0 and stmt.size == g.width * g.count and g.count > 1:
+            k, at = hit
+            if k == g.count and at == 0 and stmt.size == g.width * g.count and g.count > 1:
                 # one wide store of every appended element: append(s, src...)
                 src = self._wide_source(g, stmt.data)
                 if src is not None:
                     g.src, g.stores = src, [stmt]
                     return
                 continue
-            hit = self._element_of(kind, off, g)
-            if hit is None:
-                continue
-            k, word = hit
-            if 1 <= k <= g.count and (k, word) not in found:
-                if stmt.size == g.width and words > 1 and word == 0:
-                    found[(k, 0)] = (stmt, stmt.data)
-                    for w in range(1, words):
-                        found[(k, w)] = (stmt, None)
-                elif stmt.size == (ws if words > 1 else g.width) and 0 <= word < words:
-                    found[(k, word)] = (stmt, stmt.data)
-        if g.count is None or len(found) != g.count * words:
+            if 1 <= k <= g.count and at + stmt.size <= g.width and at not in found.setdefault(k, {}):
+                found[k][at] = (stmt, stmt.data)
+        if g.count is None or len(found) != g.count:
             return
-        pieces = [found[(k, w)][1] for k in range(g.count, 0, -1) for w in range(words)]
-        if any(p is None for p in pieces[1::words]) and words > 1:
-            # a whole-element store: the element is its data
-            elems = []
-            for k in range(g.count, 0, -1):
-                data = found[(k, 0)][1]
-                if data is None:
-                    return
-                elems.append(data)
-            elems = self._elements(g, elems)
+        elems = []
+        for k in range(g.count, 0, -1):
+            pieces = sorted((at, stmt.size, data) for at, (stmt, data) in found[k].items())
+            if [(at, size) for at, size, _ in pieces] != self._covering(pieces, g.width):
+                return
+            values = self._elements(g, [data for _, _, data in pieces])
+            if values is None:
+                return
+            elems.append(self._element_value(g, [(at, v) for (at, _, _), v in zip(pieces, values)]))
+        g.elems = elems
+        g.stores = list({id(st): st for k in found for st, _ in found[k].values()}.values())
+
+    @staticmethod
+    def _covering(pieces: list, width: int) -> list:
+        """The (offset, size) list that would cover ``width`` bytes without gaps or overlaps."""
+        out = []
+        pos = 0
+        for at, size, _ in pieces:
+            if at != pos:
+                return []
+            out.append((at, size))
+            pos += size
+        return out if pos == width else []
+
+    def _element_value(self, g: _Growth, pieces: list[tuple[int, Expression]]) -> Expression:
+        """The stored pieces (byte offset, value) of one element as a value of the element type."""
+        if len(pieces) == 1:
+            return pieces[0][1]
+        elem_name = self.type_name(g.et) or ""
+        ws = self.project.arch.bytes
+        if (elem_name == "string" or elem_name.startswith("[]")) and all(at % ws == 0 for at, _ in pieces):
+            value = self.values.whole(g.width, *pieces)
+            if value is None and elem_name == "string" and len(pieces) == 2:
+                value = self.values.literal(pieces[0][1], pieces[1][1])
+            if value is not None:
+                return value
+        return self._struct_of(elem_name, pieces)
+
+    def _struct_of(self, name: str, pieces: list[tuple[int, Expression]]) -> Struct:
+        """A value spelled as a literal of its type, field by field (fields named by their offsets)."""
+        names = None
+        if name == "string" or name.startswith("[]"):
+            names = {0: "ptr", self.project.arch.bytes: "len", 2 * self.project.arch.bytes: "cap"}
         else:
-            elems = self._elements(g, pieces)
-            if elems is not None:
-                elems = self._assemble_elements(elems, words, g.et)
-        if elems is not None:
-            g.elems = elems
-            g.stores = list({id(st): st for st, _ in found.values()}.values())
+            ty = None
+            with contextlib.suppress(Exception):
+                ty = self.kb.go_signatures.type(name)
+            offsets = getattr(ty, "offsets", None)
+            if offsets:
+                names = {off: field for field, off in offsets.items()}
+        if names is None or any(at not in names for at, _ in pieces):
+            names = {at: f"f{at}" for at, _ in pieces}
+        bits = 0
+        for at, value in pieces:
+            bits = max(bits, at * 8 + value.bits)
+        return Struct(
+            self.manager.next_atom(),
+            name or "struct",
+            OrderedDict((at, value) for at, value in pieces),
+            OrderedDict((names[at], at) for at, _ in pieces),
+            bits,
+            **pieces[0][1].tags,
+        )
 
     def _match_copy(self, g: _Growth, stmt: SideEffectStatement) -> bool:
         """``memmove(end, src, n*w)`` / ``typedslicecopy(T, end, n, src, n)`` after the growth: ``append(s, src...)``."""
@@ -1229,7 +1284,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return True
 
     def _slice_literal(self, g: _Growth, ptr: Expression, length: Expression) -> Expression:
-        return self._struct_of(g.base.name or "[]byte", [ptr, length])
+        return self._struct_of(g.base.name or "[]byte", [(0, ptr), (self.project.arch.bytes, length)])
 
     def _wide_source(self, g: _Growth, data: Expression) -> Expression | None:
         data = self.values.expand(data)
@@ -1269,8 +1324,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return old is not None and off == old * g.width
 
     def _element_of(self, kind: str, off: int, g: _Growth) -> tuple[int, int] | None:
-        """(k, word) of the store at byte ``off`` past ``ptr + len*w``: element k counted back from the new end."""
-        ws, w = self.project.arch.bytes, g.width
+        """(k, byte offset) of the store at byte ``off`` past ``ptr + len*w``: element k counted back from the end."""
+        w = g.width
         if kind == "old":
             off -= g.count * w
         elif kind == "abs":
@@ -1281,10 +1336,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if off >= 0:
             return None
         k = (-off + w - 1) // w
-        word_bytes = off + k * w
-        if word_bytes % ws:
-            return None
-        return k, word_bytes // ws
+        return k, off + k * w
 
     def _terms(self, expr, g: _Growth, sign: int = 1) -> list[tuple[int, Expression]]:
         if self._is_alias(expr, g.ptrs) or self._is_alias(expr, g.len_new) or self._is_alias(expr, g.len_old):
@@ -1323,17 +1375,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 var = term
             else:
                 return None
+        if var is not None and _const(self._strip_guard(var, g)) is not None:
+            const += _const(self._strip_guard(var, g))
+            var = None
         if var is None:
             return "abs", const
         var = self._strip_guard(var, g)
-        factor, inner = 1, var
-        e = self._expand_non_alias(var, g)
-        if isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[1]) is not None:
-            factor, inner = _const(e.operands[1]), e.operands[0]
-        elif isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[0]) is not None:
-            factor, inner = _const(e.operands[0]), e.operands[1]
-        elif isinstance(e, BinaryOp) and e.op == "Shl" and _const(e.operands[1]) is not None:
-            factor, inner = 1 << _const(e.operands[1]), e.operands[0]
+        factor, inner = self._scale(var, g)
         if factor != g.width:
             return None
         inner = self._strip_guard(inner, g)
@@ -1350,6 +1398,20 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return "old", delta * g.width + const
         return None
 
+    def _scale(self, expr, g: _Growth) -> tuple[int, Expression]:
+        """``(x * a) * b`` / ``x << s`` -> (a*b, x)."""
+        factor = 1
+        while True:
+            e = self._expand_non_alias(expr, g)
+            if isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[1]) is not None:
+                factor, expr = factor * _const(e.operands[1]), e.operands[0]
+            elif isinstance(e, BinaryOp) and e.op == "Mul" and _const(e.operands[0]) is not None:
+                factor, expr = factor * _const(e.operands[0]), e.operands[1]
+            elif isinstance(e, BinaryOp) and e.op == "Shl" and _const(e.operands[1]) is not None:
+                factor, expr = factor << _const(e.operands[1]), e.operands[0]
+            else:
+                return factor, expr
+
     def _expand_non_alias(self, expr, g: _Growth) -> Expression:
         if self._is_alias(expr, g.ptrs) or self._is_alias(expr, g.len_new) or self._is_alias(expr, g.len_old):
             return expr
@@ -1364,43 +1426,6 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 if _has_node(self._expand_non_alias(y, g), lambda n: isinstance(n, BinaryOp) and n.op == "Sar"):
                     return x
         return expr
-
-    def _assemble_elements(self, pieces: list, words: int, et: Expression) -> list | None:
-        """Word-sized pieces, ``words`` per element, into element values (strings, slices and small structs)."""
-        if words == 1:
-            return pieces
-        elem_name = self.type_name(et) or ""
-        out = []
-        for i in range(0, len(pieces), words):
-            group = pieces[i : i + words]
-            value = None
-            if elem_name == "string" or elem_name.startswith("[]"):
-                value = self.values.whole(words * self.project.arch.bytes, *[(g, k * 8) for k, g in enumerate(group)])
-            out.append(value if value is not None else self._struct_of(elem_name, group))
-        return out
-
-    def _struct_of(self, name: str, words: list) -> Struct:
-        """A ``words``-sized value spelled as a literal of its type, field by field."""
-        ws = self.project.arch.bytes
-        names = ("ptr", "len", "cap") if name == "string" or name.startswith("[]") else None
-        if names is None:
-            ty = None
-            with contextlib.suppress(Exception):
-                ty = self.kb.go_signatures.type(name)
-            fields = getattr(ty, "fields", None)
-            offsets = getattr(ty, "offsets", None)
-            if fields and offsets and [offsets.get(f) for f in fields] == [k * ws for k in range(len(words))]:
-                names = tuple(fields)
-        if names is None or len(names) < len(words):
-            names = tuple(f"f{k}" for k in range(len(words)))
-        return Struct(
-            self.manager.next_atom(),
-            name or "struct",
-            OrderedDict((k * ws, w) for k, w in enumerate(words)),
-            OrderedDict((n, k * ws) for k, n in enumerate(names[: len(words)])),
-            len(words) * self.project.arch.bits,
-            **words[0].tags,
-        )
 
     def _elements(self, g: _Growth, data: list) -> list | None:
         """The stored values as seen on the grow path; None when one is computed in the join block itself."""
