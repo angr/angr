@@ -958,6 +958,30 @@ class TestDb(unittest.TestCase):
             assert o1.min_addr == o2.min_addr
             assert o1.max_addr == o2.max_addr
 
+    def test_angrdb_non_default_kb_roundtrip(self):
+        # Regression test: Project.get_kb() passed the name into KnowledgeBase.__init__'s
+        # deprecated `obj` parameter, so the knowledge base was named kb_<n> instead. AngrDB
+        # stores each knowledge base under kb.name, so a non-default knowledge base went into
+        # the database under the generated name and AngrDB.load() returned nothing for the
+        # name it was asked for, losing the whole knowledge base without an error.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        other = proj.get_kb("other")
+
+        proj.analyses.CFGFast()
+        proj.analyses.CFGFast(kb=other)
+        assert len(other.functions) > 0
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "two-kbs.adb")
+            AngrDB(proj, nullpool=True).dump(db_file, kbs=[proj.kb, other])
+
+            restored_kbs = {}
+            AngrDB(nullpool=True).load(db_file, kb_names=["global", "other"], other_kbs=restored_kbs)
+
+        assert set(restored_kbs) == {"other"}
+        assert set(restored_kbs["other"].functions) == set(other.functions)
+
 
 if __name__ == "__main__":
     unittest.main()
