@@ -1155,6 +1155,11 @@ class KnownPatternFinder(Analysis):
             return src
         return self._resolve_stack_slot(src.varid, _depth + 1)
 
+    def call_target_names(self, call: Call) -> frozenset[str]:
+        """Public face of :meth:`_resolve_call_target`, for the outliner's
+        clean-up of calls a pattern declared pure."""
+        return self._resolve_call_target(call)
+
     def _resolve_call_target(self, call: Call) -> frozenset[str]:
         """Every name the callee of ``call`` is known by.
 

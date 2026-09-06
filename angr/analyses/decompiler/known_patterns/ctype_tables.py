@@ -128,6 +128,7 @@ def _build_predicate(macro: str, mask: int):
             pattern=PChoice(*alternatives),
             params=(PatternParam("c", type="int"),),
             returnty="int",
+            pure_calls=CTYPE_B_LOC,
         )
 
     return make_template(macro, build, arches=INTEL, languages=(C, CPP), platforms=("linux",), name=f"ctype_{macro}")
@@ -143,6 +144,7 @@ def _build_case_map(macro: str, names: frozenset[str]):
             pattern=_indexed_load(names, 4),
             params=(PatternParam("c", type="int"),),
             returnty="int",
+            pure_calls=names,
         )
 
     return make_template(macro, build, arches=INTEL, languages=(C, CPP), platforms=("linux",), name=f"ctype_{macro}")

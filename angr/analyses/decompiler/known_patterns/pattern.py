@@ -151,6 +151,13 @@ class KnownPattern:
     #: object beyond doubt but are not worth naming -- a vector's capacity check
     #: says "this is a vector" and nothing a reader wants a call for.
     claims_only: bool = False
+    #: Callees this pattern reads through :class:`~.dsl.PCallResult` whose only
+    #: effect is their result: once the pattern has consumed that result and
+    #: nothing else does, the call goes too. Naming a callee in a pattern is
+    #: already a claim about what it computes; this is the claim that it
+    #: computes nothing else. ``__ctype_b_loc`` returns a table pointer, and a
+    #: bare ``__ctype_b_loc();`` left behind after ``isspace(c)`` is noise.
+    pure_calls: frozenset[str] = frozenset()
 
     def applicable(self, arch_name: str, platform: str | None) -> bool:
         if self.arches is not None and arch_name not in self.arches:
