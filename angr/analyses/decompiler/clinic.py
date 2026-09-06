@@ -3186,8 +3186,32 @@ class Clinic(Analysis, Serializable):
 
             var_manager.set_variable_type(variable, union_ptr, all_unified=True)
 
+    @staticmethod
+    def _layout_covers(big: SimStruct, small: SimStruct) -> bool:
+        """Whether every non-padding field of ``small`` exists in ``big`` at the same offset with at least its size."""
+
+        def sizes(struct: SimStruct) -> dict[int, int]:
+            offsets = struct.offsets
+            out: dict[int, int] = {}
+            for name, fld_ty in struct.fields.items():
+                if name.startswith("padding_") or offsets.get(name) is None:
+                    continue
+                try:
+                    out[offsets[name]] = fld_ty.size // 8 if fld_ty.size else 1
+                except Exception:  # pylint:disable=broad-except
+                    out[offsets[name]] = 1
+            return out
+
+        big_sizes = sizes(big)
+        return all(offset in big_sizes and big_sizes[offset] >= size for offset, size in sizes(small).items())
+
     def _propagate_arg_struct_to_callees(self, contributors: list[tuple[int, int]], union_ptr: SimTypePointer) -> None:
-        """Upgrade callee prototype argument types to the unioned struct when it is strictly more detailed."""
+        """
+        Upgrade callee prototype argument types to the unioned struct. A callee's argument is only rewritten when the
+        union covers the layout the callee's own accesses imply: a union that lost one of the callee's fields (an
+        overlapping caller-side field, a different value) would otherwise be pinned onto the callee as ground truth
+        and take that field away from it.
+        """
         union_struct = self._pointee_struct(union_ptr)
         if union_struct is None:
             return
@@ -3202,6 +3226,10 @@ class Clinic(Analysis, Serializable):
             # library prototype (e.g. strcmp) becomes ground truth for every later caller and spreads the struct to
             # every string passed to it
             if not callee.prototype_refinable:
+                continue
+            # never take a field away from the callee: the union must cover what its own accesses established
+            own_struct = self._pointee_struct(self._own_arg_layouts.get((callee_addr, arg_idx)))
+            if own_struct is not None and not self._layout_covers(union_struct, own_struct):
                 continue
             # skip when the callee already has strictly more detail, or the exact same canonical struct; an
             # equal-count layout under a different name is still rewritten so all contributors share one typedef
