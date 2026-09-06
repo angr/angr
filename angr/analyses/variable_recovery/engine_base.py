@@ -1006,7 +1006,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         codeloc = CodeLocation(
             self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, block_idx=getattr(self.block, "idx", None)
         )
-        for variable, var_offset in existing_vars:
+        for variable, var_offset in existing_vars:  # the loop may register new globals into this set
             concrete = (
                 var_offset[0].concrete_value * var_offset[1]
                 if isinstance(var_offset, tuple) and var_offset[0] is not None and var_offset[0].concrete
