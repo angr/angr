@@ -4237,6 +4237,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         while i < len(terms):
             c, t = terms[i]
             if isinstance(unpack_typeref(t.type), (SimTypePointer, SimTypeArray)):
+                if c not in (1, -1) and _go_anonymous_pointee(t.type):
+                    # `8 * p` is an index whose type inference guessed wrong, not a pointer
+                    i += 1
+                    continue
                 if kernel is not None:
                     l.warning("Summing two different pointers together. Uh oh!")
                     return bail_out()
