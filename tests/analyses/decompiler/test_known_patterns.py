@@ -845,6 +845,18 @@ class TestCtypeMacros(TestCase):
                 _, _, _, dec = _decompile(CTYPE_BIN, func, preset="full")
                 assert f"{macro}(" in dec.codegen.text
 
+    def test_the_hoisted_table_call_goes_with_the_macro(self):
+        # the table pointer was hoisted out of the loop as `v = __ctype_tolower_loc()`,
+        # and the case-map pattern read through that definition. Once tolower()
+        # is named nothing uses v; the outliner removes the dead assignment, and
+        # the pattern vouches for the callee being pure, so the bare call goes too
+        proj, _, _, dec = _decompile(CTYPE_BIN, "lower_all", preset="full")
+        text = dec.codegen.text
+        assert "tolower(" in text
+        assert "__ctype_tolower_loc" not in text, text
+        pattern = TEMPLATE_BY_CALL_NAME["tolower"].instantiate(PatternContext.from_project(proj))
+        assert "__ctype_tolower_loc" in pattern.pure_calls
+
     def test_folded_masks_are_not_matched(self):
         # `isspace(c) || isalnum(c)` is one `& 0x2008` test by the time it
         # reaches us: gcc merged two predicates into one mask, and no
