@@ -1093,6 +1093,25 @@ class TestCfgfast(unittest.TestCase):
             archinfo.ArchPcode("sparc:BE:32:default"),
         )
 
+    def test_merged_branch_and_delay_slot_indirect_jump_on_mips(self):
+        # 0x0: jr $t9; nop   - libVEX 3.27.1+ lifts the branch and its delay slot as one IMark. the block is a
+        #                      single IMark long but holds two instructions, so it is a real indirect jump
+        # 0x8: jr $ra; nop
+        proj = self._blob_project(
+            b"\x03\x20\x00\x08" + b"\x00\x00\x00\x00" + b"\x03\xe0\x00\x08" + b"\x00\x00\x00\x00",
+            arch=archinfo.ArchMIPS32(endness=archinfo.Endness.BE),
+        )
+        block = proj.factory.block(proj.entry)
+        assert len(block.instruction_addrs) == 1 and block.size == 8
+
+        cfg = proj.analyses.CFGFast()
+
+        assert 0 in cfg.indirect_jumps
+        assert cfg.indirect_jumps[0].ins_addr == 0
+        node = cfg.model.get_any_node(0)
+        assert node is not None
+        assert list(cfg.graph.successors(node))
+
     def test_single_instruction_indirect_jump_on_mips(self):
         # 0x0: trunc.l.s $f0, $f0   - an instruction VEX does not implement, so it lifts to Ijk_SigILL
         # 0x4: jr $ra; nop          - a real function that the scan must still pick up afterwards

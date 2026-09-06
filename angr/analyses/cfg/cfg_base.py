@@ -49,7 +49,7 @@ from angr.procedures.procedure_dict import SIM_PROCEDURES
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
-from angr.utils.vex import block_branch_ins_addr
+from angr.utils.vex import block_branch_ins_addr, block_is_single_instruction
 
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
@@ -3109,6 +3109,11 @@ class CFGBase(Analysis):
         # Add it to our set. Will process it later if user allows.
         # Create an IndirectJump instance
         if addr not in self.indirect_jumps:
+            if self.project.arch.branch_delay_slot and block_is_single_instruction(
+                cfg_node.instruction_addrs, cfg_node.addr, cfg_node.size, self.project.arch
+            ):
+                # the block cannot hold both a branch and its delay slot; the indirect exit is a decode artifact
+                return False, set(), None
             ins_addr = block_branch_ins_addr(
                 cfg_node.instruction_addrs, cfg_node.addr, cfg_node.size, self.project.arch
             )

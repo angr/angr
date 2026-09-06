@@ -50,3 +50,28 @@ def block_branch_ins_addr(
         return last_ins_addr
     # the delay slot has its own IMark; the branch is the previous instruction
     return ins_addrs[-2]
+
+
+def block_is_single_instruction(
+    ins_addrs: Sequence[int], block_addr: int, block_size: int, arch: archinfo.Arch
+) -> bool:
+    """
+    Determine whether a block holds at most one instruction, i.e. it is too short to carry a branch together with
+    its delay slot. Only libVEX (Valgrind 3.27.1+) merges a branch and its delay slot into one IMark; such an IMark
+    spans two fixed-width instructions, so on libVEX architectures a lone IMark counts as a single instruction only
+    if it is no longer than one instruction.
+
+    :param ins_addrs:   Instruction addresses of the block (IMark start addresses).
+    :param block_addr:  Address of the block.
+    :param block_size:  Size of the block in bytes.
+    :param arch:        The architecture.
+    :return:            True if the block holds at most one instruction.
+    """
+    if len(ins_addrs) > 1:
+        return False
+    if not ins_addrs:
+        return True
+    max_inst_bytes = getattr(arch, "max_inst_bytes", None)
+    if getattr(arch, "vex_arch", None) is not None and max_inst_bytes:
+        return block_addr + block_size - ins_addrs[0] <= max_inst_bytes
+    return True
