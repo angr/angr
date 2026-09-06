@@ -91,6 +91,43 @@ def _resolve_overlaps(fields: dict[int, SimType], arch) -> dict[int, SimType]:
     return chosen
 
 
+def _array_element(fields: dict[int, SimType], arch) -> SimType | None:
+    """
+    Recognize a layout that is really a run of array elements rather than a struct: every field has the same scalar type
+    and the fields sit back to back from offset 0. A run of ``char`` (``s[0]``, ``s[1]``) is a string as soon as it has
+    two elements; wider scalars need three back-to-back elements before a struct of equally typed members (``{int x;
+    int y;}``) is given up for an array. Returns the element type, or ``None`` if the layout is not array-like.
+    """
+    if len(fields) < 2:
+        return None
+    offsets = sorted(fields)
+    if offsets[0] != 0:
+        return None
+    first = _resolve(fields[0])
+    if first is None or isinstance(first, (SimStruct, SimTypePointer, SimTypeFixedSizeArray)):
+        return None
+    size = _byte_size(first, arch)
+    if not size:
+        return None
+    try:
+        first_repr = first.c_repr()
+    except Exception:  # pylint:disable=broad-except
+        return None
+    for idx, offset in enumerate(offsets):
+        if offset != idx * size:
+            return None
+        ty = _resolve(fields[offset])
+        try:
+            same = ty is not None and ty.c_repr() == first_repr and _byte_size(ty, arch) == size
+        except Exception:  # pylint:disable=broad-except
+            return None
+        if not same:
+            return None
+    if size > 1 and len(offsets) < 3:
+        return None
+    return first
+
+
 def _build_struct(fields: dict[int, SimType], arch, name: str | None) -> SimStruct:
     """Build a SimStruct with explicit offsets, inserting char-array padding for gaps (mirrors TypeTranslator)."""
     s = SimStruct({}, name=name).with_arch(arch)
@@ -112,8 +149,9 @@ def union_pointer_struct_types(types: list[SimType], arch, name: str | None = No
 
     Each input is expected to be a pointer type (pointer-to-struct or pointer-to-scalar). The pointed-to layouts are
     merged field-by-field by offset: at each offset the most informative (largest / most-specific) field wins, and
-    fields fully covered by a larger field are dropped. Returns a ``SimTypePointer`` to the combined struct, or
-    ``None`` if no struct fields could be recovered (e.g. all inputs were ``void*``).
+    fields fully covered by a larger field are dropped. Returns a ``SimTypePointer`` to the combined struct, a pointer
+    to the element type when the combined layout is a run of array elements, or ``None`` if no fields could be
+    recovered (e.g. all inputs were ``void*``).
     """
     collected: dict[int, list[SimType]] = {}
     for ty in types:
@@ -130,6 +168,11 @@ def union_pointer_struct_types(types: list[SimType], arch, name: str | None = No
     resolved = _resolve_overlaps(best, arch)
     if not resolved:
         return None
+
+    # back-to-back equally typed scalars are array elements, not struct members: return a pointer to the element type
+    element = _array_element(resolved, arch)
+    if element is not None:
+        return SimTypePointer(element).with_arch(arch)
 
     struct = _build_struct(resolved, arch, name)
     return SimTypePointer(struct).with_arch(arch)
