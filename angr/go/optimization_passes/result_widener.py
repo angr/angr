@@ -8,6 +8,7 @@ from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimRegArg, SimStructArg
 from angr.sim_type import SimTypeBottom
+from angr.utils.go_runtime import normalize_go_func_name
 from angr.utils.ssa import get_reg_offset_base_and_size
 
 l = logging.getLogger(__name__)
@@ -151,25 +152,38 @@ class GoResultWidener(OptimizationPass):
             if stop is not None and idx >= stop:
                 break
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
-                state, unknown = self._call_words(stmt.expr, stmt.ret_expr)
+                state, unknown = self._call_words(stmt.expr, stmt.ret_expr, state)
             elif isinstance(stmt, Assignment):
                 if isinstance(stmt.src, Call):
-                    state, unknown = self._call_words(stmt.src, stmt.dst)
+                    state, unknown = self._call_words(stmt.src, stmt.dst, state)
                 elif isinstance(stmt.dst, Register):
                     word = self._word_of(stmt.dst.reg_offset)
                     if word is not None:
                         state = state | {word}
         return state, unknown
 
+    def _preserves_registers(self, call: Call) -> bool:
+        """Write barriers and the duff helpers keep the caller's registers (the compiler emits them mid-epilogue)."""
+        target = call.target.value_int if hasattr(call.target, "value_int") else None
+        if not isinstance(target, int):
+            return False
+        sym = self.project.loader.find_symbol(target, fuzzy=True)
+        if sym is None:
+            return False
+        name = normalize_go_func_name(sym.name)
+        return name.startswith("runtime.gcWriteBarrier") or name in ("runtime.duffzero", "runtime.duffcopy")
+
     def _word_of(self, reg_offset: int) -> int | None:
         base, _ = get_reg_offset_base_and_size(reg_offset, self.project.arch)
         return self._index.get(base)
 
-    def _call_words(self, call: Call, ret_expr) -> tuple[frozenset[int], bool]:
+    def _call_words(self, call: Call, ret_expr, state: frozenset[int]) -> tuple[frozenset[int], bool]:
         """
         A call clobbers every result register; the ones its results land in are defined afterwards. The flag says
         the callee's results are unknown (an unresolved target).
         """
+        if self._preserves_registers(call):
+            return state, False
         words: set[int] = set()
         regs = []
         unknown = False
@@ -186,7 +200,10 @@ class GoResultWidener(OptimizationPass):
             )
             if callee is None:
                 unknown = True
-            elif (
+            elif self.kb.go_signatures.results_guessed(callee):
+                # the guess may stop short of the callee's real results: this site proves nothing
+                unknown = True
+            if callee is not None and (
                 callee.prototype is not None
                 and callee.calling_convention is not None
                 and callee.prototype.returnty is not None

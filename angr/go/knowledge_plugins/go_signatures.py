@@ -67,17 +67,16 @@ class GoInferredSignature(dict):
 
     def merge(self, params=None, results=None, caller_results=None) -> None:
         """
-        Parameter and callee-side result types replace the earlier ones; caller-side result types accumulate over
-        callers, the first caller to type a word wins unless a later one types a wider value there.
+        Parameter types replace the earlier ones; result types accumulate (over callers, and over passes as callees
+        get typed), the first to type a word wins unless a later one types a wider value there.
         """
         if params:
             self["params"] = list(params)
-        if results:
-            self["results"] = _words(results)
-        for word, (ty, span) in _words(caller_results).items():
-            old = self["caller_results"].get(word)
-            if old is None or old[1] < span:
-                self["caller_results"][word] = (ty, span)
+        for table, new in (("results", results), ("caller_results", caller_results)):
+            for word, (ty, span) in _words(new).items():
+                old = self[table].get(word)
+                if old is None or old[1] < span:
+                    self[table][word] = (ty, span)
 
     def result_types(self, floor: int) -> list[str]:
         """
@@ -343,9 +342,16 @@ class GoSignatures(KnowledgeBasePlugin):
         if func.is_prototype_guessed:
             return True
         proto = func.prototype
-        if proto is None or func.prototype_source.name == "USER" or isinstance(proto.returnty, GoSimType):
+        if proto is None or func.prototype_source.name == "USER":
             return False
-        return self.prototype(func.name) is None and self.prototype_at(func.addr) is None
+        if self.prototype(func.name) is not None or self.prototype_at(func.addr) is not None:
+            return False
+        if not isinstance(proto.returnty, GoSimType):
+            return True
+        # an inferred result list with words nobody typed yet may still gain from callees typed since
+        rec = self._inferred.get(normalize_go_func_name(func.name))
+        arch = self._kb._project.arch
+        return rec is not None and "uintptr" in rec.result_types(_word_count(proto.returnty, arch))
 
     def inferred_prototype(self, name: str, guessed) -> GoSimTypeFunction | None:
         """
