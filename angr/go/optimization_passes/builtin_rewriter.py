@@ -36,7 +36,7 @@ from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransfor
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
-from angr.go.utils.graph import is_jump_only
+from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_jumps
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
 from angr.utils.ail import find_call
@@ -392,6 +392,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         self.values = _Values(self)
         touched = self._fold_growslice()
         touched += self._fold_map_slots()
+        touched += self._fold_move_slice()
         if touched:
             self._drop_dead_defs(touched)
             self.values = _Values(self)
@@ -452,7 +453,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 for rv in stmt.dst.reg_vvars or ():
                     uses += counts[rv.varid]
                 if uses <= 0:
-                    block.statements[i] = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
+                    # the code generator reads render tags off the statement
+                    tags = {**stmt.tags, **{k: v for k, v in stmt.src.tags.items() if k.startswith("go_")}}
+                    block.statements[i] = SideEffectStatement(stmt.idx, stmt.src, **tags)
                     changed = True
         return changed
 
@@ -764,10 +767,104 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return self.builtin(call, name, args)
 
     def _rw_slicebytetostring(self, call: Call, args: list) -> Expression | None:
-        b = self.values.slice(args[1], args[2]) if len(args) == 3 else None
+        if len(args) != 3:
+            return None
+        b = self._slice_from_pair(args[1], args[2], "[]uint8")
         if b is None:
             return None
         return self.builtin(call, "string", [b], bits=_STRING_BITS, go_result_type="string")
+
+    def _slice_from_pair(self, ptr: Expression, length: Expression, name: str) -> Expression | None:
+        """
+        The slice with the given pointer and length words: a tracked value, a slicing of one (``s[i:]``), an array
+        (``arr[:n]``), or the two words spelled as a literal.
+        """
+        value = self.values.slice(ptr, length)
+        if value is not None:
+            return value
+        p = self.values.expand(ptr) if isinstance(ptr, VirtualVariable) else ptr
+        if isinstance(p, BinaryOp) and p.op == "Add":
+            for base_word, advance in (p.operands, p.operands[::-1]):
+                base = self.values.base_of(base_word, _PTR)
+                if base is None:
+                    continue
+                low = self._advance_index(advance)
+                l_expr = self.values.expand(length) if isinstance(length, VirtualVariable) else length
+                if (
+                    low is not None
+                    and isinstance(l_expr, BinaryOp)
+                    and l_expr.op == "Sub"
+                    and self.values.is_len_of(l_expr.operands[0], base)
+                    and self.values.same(l_expr.operands[1], low)
+                ):
+                    whole = base.value(self.manager, self.project.arch, _SLICE_BITS // 8, ptr.tags)
+                    if whole is not None:
+                        return Call(
+                            self.manager.next_atom(), "[:]", [whole, low], bits=_SLICE_BITS, go_slice="[i:]", **ptr.tags
+                        )
+        if isinstance(ptr, UnaryOp) and ptr.op == "Reference" and _const(length) is not None:
+            return Call(
+                self.manager.next_atom(), "[:]", [ptr.operand, length], bits=_SLICE_BITS, go_slice="[:j]", **ptr.tags
+            )
+        return self._struct_of(name, [(0, ptr), (self.project.arch.bytes, length)])
+
+    def _advance_index(self, advance: Expression) -> Expression | None:
+        """``i*w & ((i - cap) >> 63)`` / ``i*w`` / ``i`` -> ``i``."""
+        e = self.values.expand(advance) if isinstance(advance, VirtualVariable) else advance
+        if isinstance(e, BinaryOp) and e.op == "And":
+            a, b = e.operands
+            for x, y in ((a, b), (b, a)):
+                if _has_node(y, lambda n: isinstance(n, BinaryOp) and n.op == "Sar"):
+                    e = self.values.expand(x) if isinstance(x, VirtualVariable) else x
+                    break
+        if isinstance(e, BinaryOp) and e.op == "Mul":
+            a, b = e.operands
+            if _const(b) is not None:
+                return a
+            if _const(a) is not None:
+                return b
+        if isinstance(e, BinaryOp) and e.op == "Shl" and _const(e.operands[1]) is not None:
+            return e.operands[0]
+        return e if isinstance(e, (VirtualVariable, Const)) else None
+
+    def _rw_makeslicecopy(self, call: Call, args: list) -> Expression | None:
+        """``makeslicecopy(T, tolen, fromlen, from)`` with equal lengths -> ``append([]T{}, from...)``."""
+        if len(args) != 4 or not self.values.same(args[1], args[2]):
+            return None
+        ty = self.type_name(args[0])
+        name = f"[]{ty}" if ty else "[]byte"
+        src = self._slice_from_pair(args[3], args[2], name)
+        if src is None:
+            return None
+        empty = Struct(self.manager.next_atom(), name, OrderedDict(), OrderedDict(), _SLICE_BITS, **args[3].tags)
+        # the compiler keeps the pointer word; the length words are the ones it passed
+        return self.builtin(call, "append", [empty, src], go_ellipsis=True, go_result_type="unsafe.Pointer")
+
+    def _rw_typedslicecopy(self, call: Call, args: list) -> Expression | None:
+        if len(args) != 5:
+            return None
+        ty = self.type_name(args[0])
+        name = f"[]{ty}" if ty else "[]byte"
+        dst = self._slice_from_pair(args[1], args[2], name)
+        src = self._slice_from_pair(args[3], args[4], name)
+        if dst is None or src is None:
+            return None
+        return self.builtin(call, "copy", [dst, src], bits=self.project.arch.bits, go_result_type="int")
+
+    def _rw_ifaceeq(self, call: Call, args: list) -> Expression | None:
+        """``ifaceeq(x.tab, x.data, y.data)`` (the tabs compared equal by the caller) -> ``x == y``."""
+        size = _STRING_BITS // 8
+        if len(args) == 2 and args[0].bits == _STRING_BITS:
+            x = args[0]
+        elif len(args) == 3:
+            x = self.values.whole(size, (args[0], 0), (args[1], self.project.arch.bytes))
+        else:
+            return None
+        y_base = self.values.base_of(args[-1], self.project.arch.bytes)
+        y = y_base.value(self.manager, self.project.arch, size, args[-1].tags) if y_base is not None else None
+        if x is None or y is None:
+            return None
+        return self.compare("CmpEQ", x, y, call.bits, call.tags)
 
     def _rw_conversion(self, call: Call, args: list, name: str, bits: int, result: str) -> Expression | None:
         if len(args) != 2:
@@ -868,10 +965,16 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     #
 
     def rewrite_binop(self, expr: BinaryOp) -> Expression | None:
+        lhs, rhs = expr.operands
+        if expr.op == "Xor" and _const(rhs) == 1:
+            # !(a == b) as the compiler spells it
+            inner = _strip_converts(lhs)
+            if isinstance(inner, BinaryOp) and inner.op in ("CmpEQ", "CmpNE") and inner.bits == 1:
+                return self.compare(_NEGATED[inner.op], inner.operands[0], inner.operands[1], expr.bits, expr.tags)
+            return None
         # cmpstring(a, b) <op> 0  ->  a <op> b
         if expr.op not in _COMPARISONS:
             return None
-        lhs, rhs = expr.operands
         op = expr.op
         if _const(lhs) == 0 and isinstance(_strip_converts(rhs), Call):
             lhs, rhs = rhs, lhs
@@ -885,20 +988,51 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return self.compare(op, args[0], args[1], expr.bits, expr.tags)
 
     def rewrite_ite(self, expr: ITE) -> Expression | None:
-        # len(a) == len(b) ? a == b : false  ->  a == b
+        # len(a) == len(b) ? a == b : false  ->  a == b   (also the tab words of two interface values)
         cond = _strip_converts(expr.cond)
         eq = _strip_converts(expr.iftrue)
         iffalse = _strip_converts(expr.iffalse)
-        if not (isinstance(cond, BinaryOp) and cond.op == "CmpEQ" and isinstance(eq, BinaryOp) and eq.op == "CmpEQ"):
+        if not (isinstance(cond, BinaryOp) and cond.op == "CmpEQ"):
             return None
         if not (_const(iffalse) == 0 or iffalse.likes(cond)):
+            return None
+        if isinstance(eq, Call) and self.callee_name(eq) == "runtime.memequal":
+            eq = self._loose_memequal(cond, eq)
+            return self.to_bits(eq, expr.bits) if eq is not None else None
+        if not (isinstance(eq, BinaryOp) and eq.op == "CmpEQ"):
             return None
         a, b = eq.operands
         if a.bits != _STRING_BITS or b.bits != _STRING_BITS:
             return None
-        if not all(self._is_len_check(operand, a, b) for operand in cond.operands):
+        if not (
+            all(self._is_len_check(operand, a, b) for operand in cond.operands)
+            or self._is_tab_check(cond.operands, a, b)
+        ):
             return None
         return self.to_bits(eq, expr.bits)
+
+    def _is_tab_check(self, operands, a: Expression, b: Expression) -> bool:
+        """The compared words are the type words of the two interface values ``a`` and ``b``."""
+        bases = [self.values.base_of_value(v) for v in (a, b)]
+        if any(base is None for base in bases):
+            return False
+        for x, y in ((operands[0], operands[1]), (operands[1], operands[0])):
+            if self.values.piece(x, bases[0]) == 0 and self.values.piece(y, bases[1]) == 0:
+                return True
+        return False
+
+    def _loose_memequal(self, cond: BinaryOp, call: Call) -> Expression | None:
+        """``la == lb ? memequal(pa, pb, la) : 0`` with untracked words -> ``string{pa, la} == string{pb, lb}``."""
+        args = list(call.args or [])
+        if len(args) != 3:
+            return None
+        pa, pb, n = args
+        la, lb = cond.operands
+        if not (self.values.same(n, la) or self.values.same(n, lb)):
+            return None
+        a = self.values.string(pa, la) or self._struct_of("string", [(0, pa), (self.project.arch.bytes, la)])
+        b = self.values.string(pb, lb) or self._struct_of("string", [(0, pb), (self.project.arch.bytes, lb)])
+        return self.compare("CmpEQ", a, b, call.bits, call.tags)
 
     def _is_len_check(self, operand: Expression, a: Expression, b: Expression) -> bool:
         for value in (a, b):
@@ -1092,18 +1226,10 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         further choices under the check (a small result lives in a stack buffer); every arm joins the same block.
         """
         # the grow path: the call block and its copy-only successors up to the join
-        chain = [g.block]
-        while True:
-            succs = list(self._graph.successors(chain[-1]))
-            if len(succs) != 1 or succs[0] in chain:
-                return
-            if self._graph.in_degree(succs[0]) > 1:
-                join = succs[0]
-                break
-            if not self._copies_only(succs[0]):
-                return
-            chain.append(succs[0])
-        post_grow = chain[-1]
+        chain = self._copy_chain(g.block)
+        if chain is None:
+            return
+        join, post_grow = chain
         # the conditions above the call block, up to the capacity check; their other arms all reach the join
         region = {g.block}
         entry = None
@@ -1149,6 +1275,19 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if block is not entry and any(p not in region for p in self._graph.predecessors(block)):
                 return
         g.cond_block, g.join, g.post_grow, g.arms = entry, join, post_grow, arms
+
+    def _copy_chain(self, block: Block) -> tuple[Block, Block] | None:
+        """(join, last block before it): ``block`` and its copy-only successors up to a block with several preds."""
+        chain = [block]
+        while True:
+            succs = list(self._graph.successors(chain[-1]))
+            if len(succs) != 1 or succs[0] in chain:
+                return None
+            if self._graph.in_degree(succs[0]) > 1:
+                return succs[0], chain[-1]
+            if not self._copies_only(succs[0]):
+                return None
+            chain.append(succs[0])
 
     def _arm_end(self, arm: Block, join: Block) -> Block | None:
         """The last block of a path that skips the growth: copy-only blocks straight to the join."""
@@ -1692,6 +1831,95 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return out
 
     #
+    # moveSliceNoCap: a slice backed by a stack buffer is copied to the heap when it escapes; the reader sees
+    # the same slice, so the `if ptr - &buf < N { copy }` diamond goes
+    #
+
+    def _fold_move_slice(self) -> list[Block]:
+        touched: list[Block] = []
+        for block in list(self._graph.nodes):
+            if block not in self._graph:
+                continue
+            calls = [st for st in block.statements if find_call(st) is not None]
+            if len(calls) != 1:
+                continue
+            call = calls[0].src if isinstance(calls[0], Assignment) else getattr(calls[0], "expr", None)
+            if not isinstance(call, Call) or (
+                isinstance(calls[0], SideEffectStatement) and calls[0].ret_expr is not None
+            ):
+                continue
+            name = self.callee_name(call) or ""
+            rest = [st for st in block.statements if st is not calls[0]]
+            if not name.startswith("runtime.moveSliceNoCap") or not all(
+                isinstance(st, (Label, Jump)) or (isinstance(st, Assignment) and find_call(st.src) is None)
+                for st in rest
+            ):
+                continue
+            result = calls[0].dst if isinstance(calls[0], Assignment) else None
+            if result is not None and not (isinstance(result, VirtualVariable) and result.reg_vvars):
+                continue
+            cond_block = conditional_pred(self._graph, block)
+            chain = self._copy_chain(block)
+            if cond_block is None or chain is None:
+                continue
+            join, post = chain
+            others = [s for s in self._graph.successors(cond_block) if not leads_to(self._graph, s, block)]
+            if len(others) != 1 or skip_jumps(self._graph, others[0]) is not join or join is cond_block:
+                continue
+            pieces = {rv.varid for rv in result.reg_vvars} if result is not None else set()
+            phis = self._phis(join)
+            ok = True
+            for _, phi in phis.values():
+                entries = dict(phi.src_and_vvars)
+                grown = entries.pop((post.addr, post.idx), None)
+                if grown is None:
+                    continue
+                grown = self.values.resolve(grown)
+                # the copy's pieces, or a spill the other arm made as well
+                if not (
+                    (isinstance(grown, VirtualVariable) and grown.varid in pieces)
+                    or all(v is not None and self.values.resolve(v).likes(grown) for v in entries.values())
+                ):
+                    ok = False
+            if not ok:
+                continue
+            self.remove_jump_target(cond_block, block.addr, block.idx)
+            dead = block
+            while dead is not join and dead in self._graph and self._graph.in_degree(dead) == 0:
+                nxt = list(self._graph.successors(dead))
+                self._graph.remove_node(dead)
+                self._block_by_addr_and_idx.pop((dead.addr, dead.idx), None)
+                if len(nxt) != 1:
+                    break
+                dead = nxt[0]
+            replacements: dict[int, VirtualVariable] = {}
+            new_stmts = []
+            for stmt in join.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and stmt.dst.varid in phis:
+                    entries = [(src, v) for src, v in stmt.src.src_and_vvars if src != (post.addr, post.idx)]
+                    values = [v for _, v in entries]
+                    if (
+                        values
+                        and all(v is not None for v in values)
+                        and all(v.varid == values[0].varid for v in values)
+                    ):
+                        replacements[stmt.dst.varid] = self.values.resolve(values[0])
+                        continue
+                    if len(entries) != len(stmt.src.src_and_vvars):
+                        stmt = Assignment(
+                            stmt.idx, stmt.dst, Phi(stmt.src.idx, stmt.src.bits, entries, **stmt.src.tags), **stmt.tags
+                        )
+                new_stmts.append(stmt)
+            join.statements = new_stmts
+            if replacements:
+                subst = _VVarSubstituter(replacements)
+                for blk in self._graph.nodes:
+                    subst.walk(blk)
+            touched += [cond_block, join]
+            l.debug("Dropped %s at %#x of %s", name, block.addr, self._func.name)
+        return touched
+
+    #
     # Map slots: mapassign/mapaccess results that are written or read through offsets (multi-word values)
     #
 
@@ -1709,7 +1937,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if not isinstance(call, Call) or block not in self._graph or stmt not in block.statements:
                 continue
             name = self.callee_name(call) or ""
-            if name.startswith("runtime.mapassign") or name.startswith("runtime.mapaccess"):
+            if name.startswith(("runtime.mapassign", "runtime.mapaccess")):
                 if counts is None:
                     counts = self._use_counts()
                 if name.startswith("runtime.mapassign"):
@@ -2100,6 +2328,7 @@ _DESCRIPTOR_CALLS = (
 
 
 _SWAPPED = {"CmpEQ": "CmpEQ", "CmpNE": "CmpNE", "CmpLT": "CmpGT", "CmpGT": "CmpLT", "CmpLE": "CmpGE", "CmpGE": "CmpLE"}
+_NEGATED = {"CmpEQ": "CmpNE", "CmpNE": "CmpEQ"}
 
 _CALL_RULES = {
     "runtime.newobject": GoBuiltinRewriter._rw_newobject,
@@ -2126,6 +2355,10 @@ _CALL_RULES = {
     "runtime.slicerunetostring": lambda p, c, a: p._rw_conversion(c, a, "string", _STRING_BITS, "string"),
     "runtime.intstring": GoBuiltinRewriter._rw_intstring,
     "runtime.slicecopy": GoBuiltinRewriter._rw_slicecopy,
+    "runtime.typedslicecopy": GoBuiltinRewriter._rw_typedslicecopy,
+    "runtime.makeslicecopy": GoBuiltinRewriter._rw_makeslicecopy,
+    "runtime.ifaceeq": GoBuiltinRewriter._rw_ifaceeq,
+    "runtime.efaceeq": GoBuiltinRewriter._rw_ifaceeq,
     "runtime.memmove": GoBuiltinRewriter._rw_memmove,
     "runtime.gopanic": GoBuiltinRewriter._rw_gopanic,
     "runtime.makemap_small": GoBuiltinRewriter._rw_makemap_small,
@@ -2163,7 +2396,13 @@ class _BuiltinRewriter(AILBlockRewriter):
     def _handle_SideEffectStatement(self, stmt_idx, stmt: SideEffectStatement, block):
         stmt = super()._handle_SideEffectStatement(stmt_idx, stmt, block)
         if isinstance(stmt, SideEffectStatement):
-            return self._apply(stmt, self._pass.rewrite_call_stmt(stmt))
+            new_stmt = self._pass.rewrite_call_stmt(stmt)
+            if new_stmt is None and isinstance(stmt.expr, Call):
+                # the code generator reads render tags off the statement
+                extra = {k: v for k, v in stmt.expr.tags.items() if k.startswith("go_") and k not in stmt.tags}
+                if extra:
+                    new_stmt = SideEffectStatement(stmt.idx, stmt.expr, ret_expr=stmt.ret_expr, **stmt.tags, **extra)
+            return self._apply(stmt, new_stmt)
         return stmt
 
 
@@ -2180,7 +2419,7 @@ class _SlotLoadCounter(AILBlockViewer):
 
     def _handle_Load(self, expr_idx, expr: Load, stmt_idx, stmt, block):
         at = self._pass._slot_offset(expr.addr, self._slot)
-        if at is not None and 0 <= at and at + expr.size <= self._size:
+        if at is not None and at >= 0 and at + expr.size <= self._size:
             self.count += 1
             return
         super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
@@ -2207,7 +2446,7 @@ class _SlotLoadRewriter(AILBlockRewriter):
 
     def _handle_Load(self, expr_idx, expr: Load, stmt_idx, stmt, block):
         at = self._pass._slot_offset(expr.addr, self._slot)
-        if at is not None and 0 <= at and at + expr.size <= self._size:
+        if at is not None and at >= 0 and at + expr.size <= self._size:
             self.changed = True
             if at == 0 and expr.size * 8 == self._val.bits:
                 return self._val
