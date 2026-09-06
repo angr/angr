@@ -779,6 +779,50 @@ class TestStringInternals(TestCase):
         assert "std::string::~string" in STRING_WITNESSED.witnesses
 
 
+class TestVectorClaims(TestCase):
+    """std::string::length yields to anything vector-shaped on the same base."""
+
+    def _finder(self, func_name, **kw):
+        proj, _, func, dec = _decompile(STL5_BIN, func_name, preset="fast")
+        return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, **kw), dec
+
+    def test_push_back_is_not_a_string(self):
+        # push_back opens with _M_finish == _M_end_of_storage; the +8 word in
+        # that comparison is not a string length, however much it reads like one
+        finder, dec = self._finder("vec_push")
+        assert "std::string::length" not in dec.codegen.text, dec.codegen.text
+        assert not any(m.pattern.name == "std_string_length" for m in finder.matches)
+
+    def test_byte_vector_size_is_not_a_string(self):
+        # size() of a vector<char> is _M_finish - _M_start with nothing to key
+        # a size() template on, so it is claimed rather than named
+        finder, dec = self._finder("vec_bytes")
+        assert "std::string::length" not in dec.codegen.text, dec.codegen.text
+        assert not any(m.pattern.name == "std_string_length" for m in finder.matches)
+
+    def test_claims_never_surface(self):
+        # a claims-only pattern is evidence, not output: no call, no match
+        finder, dec = self._finder("vec_push")
+        assert not any(m.pattern.claims_only for m in finder.matches)
+        assert "(claim)" not in dec.codegen.text
+
+    def test_the_fixture_exercises_the_suppression(self):
+        # without the claim the bare load at +8 *is* a length match on this
+        # function; the test above passes because of the suppression, not
+        # because the shape went away
+        from unittest import mock
+
+        with mock.patch.object(KnownPatternFinder, "_suppress_on_claimed_bases", lambda self, sel, _all: sel):
+            finder, _ = self._finder("vec_push")
+        assert any(m.pattern.name == "std_string_length" for m in finder.matches)
+
+    def test_a_real_string_still_has_a_length(self):
+        # the suppression is keyed on the base: a load at +8 on an object
+        # nothing claims as a vector is still a string length
+        _, _, _, dec = _decompile(STL_BIN, "get_len", preset="full")
+        assert "std::string::length(" in dec.codegen.text, dec.codegen.text
+
+
 class TestCtypeMacros(TestCase):
     """The glibc <ctype.h> macros: a call, a table load, a mask."""
 
