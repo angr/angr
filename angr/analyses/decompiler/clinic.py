@@ -2911,6 +2911,30 @@ class Clinic(Analysis, Serializable):
         registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
         return set(registry.values())
 
+    @property
+    def _union_struct_evidence(self) -> dict[str, list[SimType]]:
+        """
+        Session-lifetime provenance of every minted union struct: the direct layouts (recorded own-argument layouts
+        and callers' own accesses) it was built from, keyed by the struct's canonical name. When a later union meets
+        a minted struct, it expands it into these layouts instead of trusting or discarding it, so unions stay
+        transitive across callers while never taking an earlier union itself as evidence.
+        """
+        table = getattr(self.kb.types, "_union_struct_evidence", None)
+        if table is None:
+            table = {}
+            self.kb.types._union_struct_evidence = table  # pylint:disable=protected-access
+        return table
+
+    def _expand_union_evidence(self, ty) -> list[SimType]:
+        """The direct layouts behind a minted union struct type (empty when the struct has no recorded provenance)."""
+        struct = self._pointee_struct(ty)
+        if struct is None:
+            inner = ty.ty if isinstance(ty, TypeRef) else ty
+            struct = inner if isinstance(inner, SimStruct) else None
+        if struct is None:
+            return []
+        return list(self._union_struct_evidence.get(struct._name, ()))  # pylint:disable=protected-access
+
     def _is_minted_union_type(self, ty) -> bool:
         """Whether a (pointer-to-)struct type is one of the union structs minted by this decompiler session."""
         struct = self._pointee_struct(ty)
@@ -2937,35 +2961,37 @@ class Clinic(Analysis, Serializable):
                 continue
             self._own_arg_layouts[(self.function.addr, arg_idx)] = ty
 
-    def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> SimType | None:
+    def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> list[SimType]:
         """
-        The layout a callee argument contributes to a union: the callee's own recorded layout when there is one,
-        otherwise the type observed at the call site unless that type is itself a union struct (no evidence).
+        The layouts a callee argument contributes to a union: the callee's own recorded layout when there is one,
+        otherwise the type observed at the call site, expanded into its provenance when it is itself a union struct.
         """
         own = self._own_arg_layouts.get((callee_addr, arg_idx))
         if own is not None:
-            return own
+            return [own]
         if self._is_minted_union_type(observed):
-            return None
-        return observed
+            return self._expand_union_evidence(observed)
+        return [observed]
 
-    def _caller_evidence(self, variable, current, arg_vvars, contaminated: set[int]) -> SimType | None:
+    def _caller_evidence(self, variable, current, arg_vvars, contaminated: set[int]) -> list[SimType]:
         """
-        The layout the caller's own accesses give a value. For the caller's own arguments this is the recorded own
-        layout. For locals it is the inferred type minus any field that a union struct among the callee prototypes
-        already carried, because Typehoon copies callee prototype layouts into the locals passed to them.
+        The layouts the caller's own accesses give a value. For the caller's own arguments this is the recorded own
+        layout. For a local already typed as a union struct it is that struct's provenance. For any other local it is
+        the inferred type minus any field that a union struct among the callee prototypes already carried, because
+        Typehoon copies callee prototype layouts into the locals passed to them.
         """
         if arg_vvars:
             for arg_idx, (_, arg_var) in arg_vvars.items():
                 if arg_var is variable:
-                    return self._own_arg_layouts.get((self.function.addr, arg_idx))
+                    own = self._own_arg_layouts.get((self.function.addr, arg_idx))
+                    return [own] if own is not None else []
         if not isinstance(current, SimTypePointer):
-            return None
+            return []
         if self._is_minted_union_type(current):
-            return None
+            return self._expand_union_evidence(current)
         struct = self._pointee_struct(current)
         if struct is None or not contaminated:
-            return current
+            return [current]
         offsets = struct.offsets
         kept: dict[int, SimType] = {}
         for fld_name, fld_ty in struct.fields.items():
@@ -2976,8 +3002,8 @@ class Clinic(Analysis, Serializable):
                 continue
             kept[offset] = fld_ty
         if not kept:
-            return None
-        return pointer_to_layout(kept, self.project.arch)
+            return []
+        return [pointer_to_layout(kept, self.project.arch)]
 
     def _sanitize_union_struct_fields(self, union_struct: SimStruct) -> None:
         """
@@ -3118,7 +3144,15 @@ class Clinic(Analysis, Serializable):
         self._sanitize_union_struct_fields(union_struct)
         # reuse a project-wide canonical struct for this layout (or register a fresh one) so identical unions
         # across values, functions, and re-decompilations share a single typedef
-        return self._canonicalize_union_struct(union_struct), union_struct
+        canonical_ref = self._canonicalize_union_struct(union_struct)
+        # remember what the struct was built from; a later union that meets it expands it into these layouts
+        provenance = self._union_struct_evidence.setdefault(canonical_ref.name, [])
+        known = {id(x) for x in provenance}
+        for layout in candidates:
+            if id(layout) not in known and not self._is_minted_union_type(layout):
+                provenance.append(layout)
+                known.add(id(layout))
+        return canonical_ref, union_struct
 
     def _unify_callee_argument_structs(self, vr, var_manager, arg_vvars=None) -> None:
         """
@@ -3152,9 +3186,7 @@ class Clinic(Analysis, Serializable):
                         group["contaminated"].update(
                             off for name, off in pushed.offsets.items() if not name.startswith("padding_")
                         )
-                    evidence = self._contributor_evidence(callee_addr, arg_idx, simtype)
-                    if evidence is not None:
-                        group["observed"].append(evidence)
+                    group["observed"].extend(self._contributor_evidence(callee_addr, arg_idx, simtype))
             if not groups:
                 continue
 
@@ -3163,9 +3195,7 @@ class Clinic(Analysis, Serializable):
             for group in groups.values():
                 candidates = list(group["observed"])
                 # include the layout the caller's own accesses imply so caller-side fields are preserved in the union
-                caller_evidence = self._caller_evidence(variable, current, arg_vvars, group["contaminated"])
-                if caller_evidence is not None:
-                    candidates.append(caller_evidence)
+                candidates.extend(self._caller_evidence(variable, current, arg_vvars, group["contaminated"]))
                 if not candidates:
                     continue
                 result = self._union_of_evidence(candidates)
