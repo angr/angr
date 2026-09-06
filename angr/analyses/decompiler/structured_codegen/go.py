@@ -255,6 +255,10 @@ def type_layout_key(ty, _seen: frozenset = frozenset()) -> str:
     if isinstance(ty, SimStruct):
         if id(ty) in _seen:
             return "@"  # a reference back to an enclosing struct (recursive type)
+        if _seen and _go_descriptor_name(ty):
+            # a named Go struct reached from another type is a leaf: its layout is fixed by the binary, and the
+            # graph of named types reachable through its fields can be hundreds of types deep
+            return f"S[{_safe_type_size(ty)};{len(ty.fields)}]"
         _seen = _seen | {id(ty)}
         offsets = ty.offsets
         fields = sorted(f"{offsets.get(fname, -1)}:{type_layout_key(fty, _seen)}" for fname, fty in ty.fields.items())
