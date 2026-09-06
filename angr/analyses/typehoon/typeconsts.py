@@ -367,13 +367,23 @@ _STRUCT_ID = itertools.count()
 
 
 class Struct(TypeConstant):
-    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False, idx: int = -1):
+    def __init__(
+        self,
+        fields=None,
+        name=None,
+        field_names=None,
+        is_cppclass: bool = False,
+        idx: int = -1,
+        size: int | None = None,
+    ):
         super().__init__(name=name)
         self._cached_hash: int | None = None
         self._fields: dict[int, TypeConstant] = {} if fields is None else fields  # offset to type
         self.field_names = field_names
         self.is_cppclass = is_cppclass
         self.idx = idx if idx != -1 else next(_STRUCT_ID)
+        # a pinned size (bytes) for structs whose fields are not spelled out (opaque known types)
+        self._size = size
 
     @property
     def fields(self) -> dict[int, TypeConstant]:
@@ -408,6 +418,8 @@ class Struct(TypeConstant):
 
     @property
     def size(self) -> int:
+        if self._size is not None:
+            return self._size
         if not self.fields:
             return 0
         max_field_off = max(self.fields.keys())
