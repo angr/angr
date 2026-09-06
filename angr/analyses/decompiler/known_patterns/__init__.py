@@ -91,6 +91,7 @@ from .std_vector_size import (
 from .stl_accessors2 import ALL_STL2_TEMPLATES
 from .stl_containers import STD_VECTOR_INDEX_TEMPLATES, STD_VECTOR_INT_EMPTY, STD_VECTOR_INT_INDEX
 from .templates import KnownPatternTemplate, make_template
+from .vector_claims import ALL_VECTOR_CLAIM_TEMPLATES
 from .vector_math import ALL_VECTOR_MATH_TEMPLATES
 from .wdk_shared_data import ALL_WDK_TEMPLATES
 
@@ -148,6 +149,8 @@ for _t in ALL_STRING_DTOR_TEMPLATES:
 for _t in ALL_STRING_INTERNALS_TEMPLATES:
     register_pattern_template(_t)
 for _t in STD_SWAP_TEMPLATES:
+    register_pattern_template(_t)
+for _t in ALL_VECTOR_CLAIM_TEMPLATES:
     register_pattern_template(_t)
 # C macros / kernel / library idioms
 register_pattern_template(CONTAINING_RECORD_PATTERN)
@@ -286,6 +289,7 @@ __all__ = [
     "ALL_STL_TEMPLATES",
     "ALL_STRING_DTOR_TEMPLATES",
     "ALL_STRING_INTERNALS_TEMPLATES",
+    "ALL_VECTOR_CLAIM_TEMPLATES",
     "ALL_VECTOR_MATH_TEMPLATES",
     "ALL_WDK_TEMPLATES",
     "CONTAINING_RECORD_PATTERN",

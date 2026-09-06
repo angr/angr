@@ -4,6 +4,7 @@ and outline them into calls via the Outliner analysis."""
 from __future__ import annotations
 
 import logging
+import re
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -529,11 +530,47 @@ class KnownPatternFinder(Analysis):
                 pattern_order[id(m.pattern)],
             )
         )
+        # Claims-only matches never compete: they exist to say "this base is a
+        # vector", and letting one win a conflict would silence a real match in
+        # favour of nothing.
+        claims = [m for m in raw_matches if m.pattern.claims_only]
+        raw_matches = [m for m in raw_matches if not m.pattern.claims_only]
         selected: list[KnownPatternMatch] = []
         for m in raw_matches:
             if not any(self._conflicts(m, s) for s in selected):
                 selected.append(m)
-        return self._collapse_folded_idioms(selected)
+        return self._suppress_on_claimed_bases(self._collapse_folded_idioms(selected), raw_matches + claims)
+
+    def _suppress_on_claimed_bases(
+        self, selected: list[KnownPatternMatch], everything: list[KnownPatternMatch]
+    ) -> list[KnownPatternMatch]:
+        """Apply :attr:`KnownPattern.suppressed_by`: drop a selected match whose
+        base another family also claimed.
+
+        The claims come from *every* match of the suppressing family in the
+        function -- selected, unselected, claims-only -- because whether the
+        vector's size() happened to win its own conflict has no bearing on
+        whether the object is a vector."""
+        out = []
+        for m in selected:
+            spec = m.pattern.suppressed_by
+            if spec is None:
+                out.append(m)
+                continue
+            name_re, mine, theirs = spec
+            base = m.captures.get(mine)
+            claimed = base is not None and any(
+                o is not m
+                and re.match(name_re, o.pattern.name)
+                and (ob := o.captures.get(theirs)) is not None
+                and ob.likes(base)
+                for o in everything
+            )
+            if claimed:
+                _l.debug("Suppressing %r: its base is claimed by a %s match", m, name_re)
+            else:
+                out.append(m)
+        return out
 
     def _collapse_folded_idioms(self, matches: list[KnownPatternMatch]) -> list[KnownPatternMatch]:
         """Keep one match per ``collapse_capture`` value, the one with the

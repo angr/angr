@@ -55,6 +55,12 @@ def _build_string_length(ctx: PatternContext) -> KnownPattern:
         pattern=_string_field("s", string_size_offset(ctx), ctx.word_size),
         params=(PatternParam("s", type=CppRef(STD_BASIC_STRING)),),
         returnty=size_t_typename(ctx.bits),
+        # A bare one-word load at +8 is also std::vector's _M_finish, and the
+        # corpus says so: 63% of this pattern's false positives sit in functions
+        # with a vector at that site. Where anything vector-shaped matched on the
+        # same base -- size(), capacity(), or the claims-only fingerprints in
+        # vector_claims.py -- this is not a string.
+        suppressed_by=(r"^std_vector_", "s", "v"),
     )
 
 

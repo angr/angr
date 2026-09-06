@@ -137,6 +137,20 @@ class KnownPattern:
     collapse_max_capture: str | None = None
     binary_guard: Callable[[Project], bool] | None = None
     enabled_by_default: bool = True
+    #: Drop a match of this pattern when a pattern whose *name* matches the regex
+    #: matched on the same object: ``(name regex, my capture, their capture)``.
+    #: The two captures must bind ``.likes()``-equal expressions. This is how a
+    #: generic accessor yields to a specific one on the same base -- a bare
+    #: ``Load(s + 8)`` is std::string::length on a string and _M_finish on a
+    #: vector, and the vector's other fields say which. Judged against every
+    #: match of the suppressing family, selected or not, so it cannot interact
+    #: with largest-match selection.
+    suppressed_by: tuple[str, str, str] | None = None
+    #: Match only to *claim* a base for ``suppressed_by`` purposes; never
+    #: outlined, never rewritten, never reported. For shapes that identify an
+    #: object beyond doubt but are not worth naming -- a vector's capacity check
+    #: says "this is a vector" and nothing a reader wants a call for.
+    claims_only: bool = False
 
     def applicable(self, arch_name: str, platform: str | None) -> bool:
         if self.arches is not None and arch_name not in self.arches:
