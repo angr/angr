@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from angr.ailment import AILBlockViewer
-from angr.ailment.expression import Const
+from angr.ailment import AILBlockRewriter, AILBlockViewer
+from angr.ailment.expression import Const, Convert, Load
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.sim_variable import SimMemoryVariable
 
@@ -14,6 +14,23 @@ class _ConstCollector(AILBlockViewer):
     def _handle_Const(self, expr_idx, expr: Const, stmt_idx, stmt, block):
         if isinstance(expr.value, int):
             self.values.add(expr.value)
+
+
+class _FlagLoadNarrower(AILBlockRewriter):
+    """``cmpl $0, runtime.writeBarrier`` reads the bool ``enabled`` and its padding as one word; read the bool."""
+
+    def __init__(self, manager, addr: int):
+        super().__init__()
+        self._manager = manager
+        self._addr = addr
+        self.changed = False
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.addr, Const) and expr.addr.value == self._addr and expr.size > 1:
+            self.changed = True
+            narrow = Load(self._manager.next_atom(), expr.addr, 1, expr.endness, **expr.tags)
+            return Convert(self._manager.next_atom(), 8, expr.bits, False, narrow, **expr.tags)
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class GoGlobalTypes(OptimizationPass):
@@ -47,6 +64,12 @@ class GoGlobalTypes(OptimizationPass):
             record = sigs.variable_at(addr)
             if record is None:
                 continue
+            if record.name == "runtime.writeBarrier":
+                narrower = _FlagLoadNarrower(self.manager, addr)
+                for block in self._graph.nodes:
+                    narrower.walk(block)
+                if narrower.changed:
+                    self.out_graph = self._graph
             try:
                 ty = sigs.type(record.type_str).with_arch(self.project.arch)
             except Exception:  # pylint:disable=broad-exception-caught

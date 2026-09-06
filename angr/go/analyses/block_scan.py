@@ -19,10 +19,12 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(__name__)
 
-# value kinds held by a register: a constant, word ``k`` of an ``n``-word typed value, the closure context + off
+# value kinds held by a register: a constant, word ``k`` of an ``n``-word typed value, the closure context + off,
+# the stack pointer + off
 CONST = "c"
 TYPED = "ty"
 CTX = "ctx"
+SP = "sp"
 
 # (Go function name, index of the type descriptor argument) of the allocators; the descriptor gives the type
 _ALLOCATORS = {
@@ -113,6 +115,8 @@ class RegisterEnv:
     def __init__(self, arch, values: dict | None = None):
         self.arch = arch
         self.values: dict[tuple, tuple] = dict(values) if values else {}
+        if not values:
+            self.values[("r", arch.sp_offset)] = (SP, 0)
 
     def copy(self) -> RegisterEnv:
         return RegisterEnv(self.arch, self.values)
@@ -121,7 +125,7 @@ class RegisterEnv:
         """Meet of two environments: only agreeing register values survive (temporaries are block-local)."""
         out = {}
         for key, value in self.values.items():
-            if key[0] == "r" and other.values.get(key) == value:
+            if key[0] in ("r", "s") and other.values.get(key) == value:
                 out[key] = value
         return RegisterEnv(self.arch, out)
 
@@ -138,16 +142,32 @@ class RegisterEnv:
             return self.values.get(("t", expr.tmp_idx))
         if isinstance(expr, Convert):
             return self.eval(expr.operand) if expr.from_bits == expr.to_bits else None
+        if isinstance(expr, Load) and expr.size == self.arch.bytes:
+            slot = self.eval(expr.addr)
+            return self.values.get(("s", slot[1])) if slot is not None and slot[0] == SP else None
         if isinstance(expr, BinaryOp) and expr.op in ("Add", "Sub"):
             a, b = expr.operands
             va, vb = self.eval(a), self.eval(b)
             if vb is not None and vb[0] == CONST:
                 delta = vb[1] if expr.op == "Add" else -vb[1]
-                if va is not None and va[0] in (CONST, CTX):
+                if va is not None and va[0] in (CONST, CTX, SP):
                     return (va[0], va[1] + delta)
-            if expr.op == "Add" and va is not None and va[0] == CONST and vb is not None and vb[0] in (CONST, CTX):
+            if expr.op == "Add" and va is not None and va[0] == CONST and vb is not None and vb[0] in (CONST, CTX, SP):
                 return (vb[0], vb[1] + va[1])
         return None
+
+    def store(self, addr_expr, data_expr, size: int) -> None:
+        """Remember a word stored into a stack slot."""
+        if size != self.arch.bytes:
+            return
+        slot = self.eval(addr_expr)
+        if slot is None or slot[0] != SP:
+            return
+        value = self.eval(data_expr)
+        if value is None:
+            self.values.pop(("s", slot[1]), None)
+        else:
+            self.values[("s", slot[1])] = value
 
     def assign(self, stmt: Assignment) -> None:
         dst = stmt.dst
@@ -167,9 +187,9 @@ class RegisterEnv:
             self.values[key] = value
 
     def clear_call_clobbers(self, keep: Iterable[int] = ()) -> None:
-        """Forget every register except ``keep`` (offsets) and every temporary."""
-        keep = set(keep)
-        self.values = {k: v for k, v in self.values.items() if k[0] == "r" and k[1] in keep}
+        """Forget every register except the stack pointer and ``keep`` (offsets), and every temporary."""
+        keep = set(keep) | {self.arch.sp_offset}
+        self.values = {k: v for k, v in self.values.items() if k[0] == "s" or (k[0] == "r" and k[1] in keep)}
 
 
 def call_target(stmt) -> int | None:
@@ -225,6 +245,7 @@ def allocator(name: str | None) -> tuple[str, int | None] | None:
 __all__ = [
     "CONST",
     "CTX",
+    "SP",
     "TYPED",
     "RegisterEnv",
     "allocator",
