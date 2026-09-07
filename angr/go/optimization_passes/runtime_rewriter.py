@@ -1106,7 +1106,8 @@ class GoRuntimeRewriter(OptimizationPass):
     def _fold_stack_closure(self, block: Block, stmt: Statement) -> None:
         """
         A stack funcval: a slot holding a code pointer whose address is taken, with the captures the body reads at
-        ``ctx+8, ctx+16, ...`` in the slots that follow it. References to the slot become ``closure(F, captures...)``.
+        ``ctx+8, ctx+16, ...`` in the slots that follow it. References to the slot become ``closure(F, captures...)``
+        and the record type (``struct { F uintptr; cap_0 T0; ... }``, unknown words as uintptr) is kept for the body.
         """
         assert self._index is not None
         if not (
@@ -1125,14 +1126,50 @@ class GoRuntimeRewriter(OptimizationPass):
         if refs == 0 or self._index.total.get(slot.varid, 0) != refs or slot.varid in self._replace_refs:
             return
         offsets = self._context_offsets(code)
-        captures: list[Expression] = []
-        capture_stmts: list[Statement] = []
-        for off in sorted(offsets):
+        ptr = self.project.arch.bytes
+        words = self._word_sources() if offsets else {}
+        end = max((off + size for off, size in offsets.items()), default=ptr)
+        fields: list[tuple[str, Expression | None]] = []  # (type spelling, captured value; None for padding)
+        capture_stmts: list[Assignment] = []
+        off = ptr
+        while off < end:
             cap = self._stack_slot_assignment(block, slot.stack_offset + off, stmt.idx)
             if cap is None:
-                return
-            captures.append(cap.src)
+                if any(o <= off < o + n for o, n in offsets.items()):
+                    return  # the body reads a word the parent never fills: not a closure record after all
+                fields.append((f"[{ptr}]uint8", None))
+                off += ptr
+                continue
+            src = cap.src
+            size = cap.dst.size
+            info = words.get(src.varid) if isinstance(src, VirtualVariable) else None
+            if size == ptr and info is not None and info[1] == 0:
+                # word 0 of a multi-word parameter or result: the following slots hold its other words
+                ty, _, n, whole = info
+                parts = [cap]
+                for k in range(1, n):
+                    c2 = self._stack_slot_assignment(block, slot.stack_offset + off + k * ptr, stmt.idx)
+                    i2 = words.get(c2.src.varid) if c2 is not None and isinstance(c2.src, VirtualVariable) else None
+                    if i2 is None or i2[1] != k or i2[3] is not whole:
+                        parts = []
+                        break
+                    parts.append(c2)
+                if parts:
+                    fields.append((ty, whole))
+                    capture_stmts.extend(parts)
+                    off += n * ptr
+                    continue
+            ty = self._capture_type(src)
+            if ty is None:
+                ref = _ref_vvar(src)
+                pointee = self._stack_var_type(ref) if ref is not None and ref.was_stack else None
+                ty = f"*{pointee}" if pointee is not None else None
+            if ty is None:
+                ty = "uintptr" if size == ptr else f"uint{size * 8}" if size < ptr else f"[{size}]uint8"
+            fields.append((ty, src))
             capture_stmts.append(cap)
+            off += max(size, ptr)
+        captures = [expr for _, expr in fields if expr is not None]
         names = [f"cap_{k}" for k in range(len(captures))]
         func_ty, _ = self._func_type_at(code)
         self._replace_refs[slot.varid] = self._closure_expr(code, captures, names, func_ty)
@@ -1140,10 +1177,65 @@ class GoRuntimeRewriter(OptimizationPass):
         self._closure_slot_stmts.update(
             cap.idx for cap in capture_stmts if self._index.total.get(cap.dst.varid, 0) == 0
         )
-        types = [self._capture_type(c) for c in captures]
-        if captures and all(types):
-            fields = "; ".join(f"{n} {t}" for n, t in zip(names, types))
-            self.kb.go_signatures.set_closure_context(code, f"struct {{ F uintptr; {fields} }}")
+        if captures:
+            spelled = []
+            k = 0
+            for i, (ty, expr) in enumerate(fields):
+                if expr is None:
+                    spelled.append(f"pad_{i} {ty}")
+                else:
+                    spelled.append(f"cap_{k} {ty}")
+                    k += 1
+            self.kb.go_signatures.set_closure_context(code, "struct { F uintptr; " + "; ".join(spelled) + " }")
+
+    def _word_sources(self) -> dict[int, tuple[str, int, int, VirtualVariable]]:
+        """vvar -> (Go type, word index, word count, whole value) for the words of multi-word parameters/results."""
+        out: dict[int, tuple[str, int, int, VirtualVariable]] = {}
+        bits = self.project.arch.bits
+
+        def note(whole, ty) -> None:
+            regs = getattr(whole, "reg_vvars", None)
+            if not regs or not isinstance(ty, GoSimType) or not ty.size or ty.size // bits != len(regs):
+                return
+            for k, v in enumerate(regs):
+                out[v.varid] = (ty.go_repr(), k, len(regs), whole)
+
+        proto = self._func.prototype
+        if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
+            for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable):
+                    note(vvar, ty)
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                call_def = _call_def(stmt)
+                if call_def is None:
+                    continue
+                results = self._result_types(self._callee_prototype(call_def[1]))
+                if len(results) == 1 and call_def[0].was_combo_reg:
+                    note(call_def[0], results[0])
+        return out
+
+    def _stack_var_type(self, ref: VirtualVariable) -> str | None:
+        """The Go type of the stack variable at ``ref``'s offset: what is assigned to it, or the result it is returned as."""
+        assert self._index is not None
+        offset = ref.stack_offset
+        results = self._result_types(self._func.prototype)
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_stack
+                    and stmt.dst.stack_offset == offset
+                ):
+                    ty = self._capture_type(stmt.src)
+                    if ty is not None:
+                        return ty
+                elif isinstance(stmt, Return) and stmt.ret_exprs and len(stmt.ret_exprs) == len(results):
+                    for expr, ty in zip(stmt.ret_exprs, results):
+                        if isinstance(ty, GoSimType) and _reads_stack_slot(expr, offset):
+                            return ty.go_repr()
+        return None
 
     def _drop_closure_slots(self) -> None:
         if not self._closure_slot_stmts:
@@ -1468,6 +1560,17 @@ class GoRuntimeRewriter(OptimizationPass):
             ):
                 out.add(stmt.idx)
         return out
+
+
+def _reads_stack_slot(expr, offset: int) -> bool:
+    """``expr`` is the stack vvar at ``offset`` or a struct/extract built from it."""
+    if isinstance(expr, VirtualVariable):
+        return expr.was_stack and expr.stack_offset == offset
+    if isinstance(expr, Struct):
+        values = expr.fields.values() if hasattr(expr.fields, "values") else expr.fields
+        return any(_reads_stack_slot(v, offset) for v in values)
+    base = getattr(expr, "base", None)
+    return base is not None and _reads_stack_slot(base, offset)
 
 
 def _stack_overlap(a: VirtualVariable, b: VirtualVariable) -> bool:
