@@ -766,8 +766,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         if to_node_region != from_node_region:
             return False
 
-        # get a subgraph
-        all_nodes = [self._get_block(a, idx=idx) for a, idx in to_node_region]
+        # resolve nodes by (addr, idx) in the input graph: a block this round already rewrote (a case head turned
+        # switch head) is a new object that _get_block returns but the input graph and the regions do not hold
+        by_addr_and_idx = {(node.addr, node.idx): node for node in self._graph}
+        from_node = by_addr_and_idx.get((from_node.addr, from_node.idx))
+        to_node = by_addr_and_idx.get((to_node.addr, to_node.idx))
+        if from_node is None or to_node is None:
+            return False
+        all_nodes = [by_addr_and_idx[key] for key in to_node_region if key in by_addr_and_idx]
         subgraph = self._graph.subgraph(all_nodes)
 
         return networkx.has_path(subgraph, from_node, to_node)
