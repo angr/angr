@@ -358,7 +358,7 @@ class GoHeaderWordTypes(OptimizationPass):
                     pins[vvar.varid] = int_ty
 
     def _is_header_word(self, expr) -> bool:
-        """``Load(&combo + 8|16)``: the len or cap word of a fused multi-word value."""
+        """``Load(&combo + ws|2ws)``: the len or cap word of a fused multi-word value."""
         if not isinstance(expr, Load) or expr.size != self.project.arch.bytes:
             return False
         addr = expr.addr

@@ -95,11 +95,12 @@ class GoTypeParser:
             for f in record.fields:
                 fname = f.name or _embedded_field_name(f.type_str)
                 if fname in fields:
-                    fname = f"{fname}_{f.offset:x}"
+                    fname = f"{fname}_{f.offset:x}" if f.offset is not None else f"{fname}_{len(fields)}"
                 fields[fname] = self._safe_parse(f.type_str)
                 offsets[fname] = f.offset
             st.fields = OrderedDict((k, v.with_arch(self.arch)) for k, v in fields.items())
-            st.offsets = offsets
+            if all(off is not None for off in offsets.values()):
+                st.offsets = offsets
             return st
 
         if record.kind == "interface":

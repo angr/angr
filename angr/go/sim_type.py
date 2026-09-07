@@ -25,6 +25,8 @@ from angr.sim_type import (
     SimTypePointer,
 )
 
+WORD_SIZED_NAMES = frozenset({"int", "uint", "uintptr"})
+
 
 class GoSimType(SimType):
     _ident = "go"
@@ -92,7 +94,9 @@ class GoSimTypeInt(GoSimType, SimTypeInt):
         return GoSimTypeInt(self._size, self.signed, self.go_name, self.label).with_arch(self._arch)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        out = GoSimTypeInt(self._size, self.signed, self.go_name, self.label)
+        # int/uint/uintptr are word-sized: header words (len, cap) follow the target
+        size = arch.bits if self.go_name in WORD_SIZED_NAMES else self._size
+        out = GoSimTypeInt(size, self.signed, self.go_name, self.label)
         out._arch = arch
         return out
 

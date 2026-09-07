@@ -45,9 +45,7 @@ from angr.utils.go_runtime import normalize_go_func_name
 l = logging.getLogger(__name__)
 
 _COMPARISONS = frozenset({"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE"})
-_STRING_BITS = 128
-_SLICE_BITS = 192
-_PTR, _LEN, _CAP = 0, 8, 16
+_PTR = 0
 
 
 def _addr_and_offset(addr: Expression) -> tuple[Expression | None, int]:
@@ -136,10 +134,10 @@ class _Base:
 
     def value(self, manager, arch, size: int | None, tags, name: str | None = None) -> Expression | None:
         if self.conv is not None:
-            inner = _Base(combo=self.combo, addr=self.addr, off=self.off).value(manager, arch, _STRING_BITS // 8, tags)
+            inner = _Base(combo=self.combo, addr=self.addr, off=self.off).value(manager, arch, 2 * arch.bytes, tags)
             if inner is None:
                 return None
-            return Call(manager.next_atom(), self.conv, [inner], bits=_SLICE_BITS, go_result_type="[]uint8", **tags)
+            return Call(manager.next_atom(), self.conv, [inner], bits=3 * arch.bits, go_result_type="[]uint8", **tags)
         if self.combo is not None:
             return self.combo if size is None or self.combo.size == size else None
         if self.addr is not None:
@@ -165,6 +163,8 @@ class _Values:
     def __init__(self, pass_: GoBuiltinRewriter):
         self.project = pass_.project
         self.manager = pass_.manager
+        self._string_bits, self._slice_bits = pass_._string_bits, pass_._slice_bits
+        self._len_off, self._cap_off = pass_._len_off, pass_._cap_off
         self.combo_of: dict[int, tuple[VirtualVariable, int]] = {}
         self.defs: dict[int, Expression] = {}
         # phis that a pending rewrite will collapse: varid -> the value that survives
@@ -308,9 +308,9 @@ class _Values:
         base = self.base_of(ptr, _PTR)
         if base is not None:
             at = self.piece(cap, base)
-            if at == _CAP:
+            if at == self._cap_off:
                 return base
-            if at == _LEN and (base.combo is None or base.combo.size == _STRING_BITS // 8):
+            if at == self._len_off and (base.combo is None or base.combo.size == self._string_bits // 8):
                 # a string's bytes: []byte(s) has cap == len
                 base.conv = "[]byte"
                 return base
@@ -329,7 +329,7 @@ class _Values:
         return base.value(self.manager, self.project.arch, size, tags or pieces[0][0].tags)
 
     def string(self, ptr: Expression, length: Expression) -> Expression | None:
-        value = self.whole(_STRING_BITS // 8, (ptr, _PTR), (length, _LEN))
+        value = self.whole(self._string_bits // 8, (ptr, _PTR), (length, self._len_off))
         if value is not None:
             return value
         return self.literal(ptr, length)
@@ -339,23 +339,23 @@ class _Values:
         if addr is None or n is None or n < 0 or n > 0x10000:
             return None
         if n == 0:
-            return StringLiteral(self.manager.next_atom(), "", _STRING_BITS, **ptr.tags)
+            return StringLiteral(self.manager.next_atom(), "", self._string_bits, **ptr.tags)
         section = self.project.loader.find_section_containing(addr)
         if section is None or not section.is_readable or section.is_writable:
             return None
         with contextlib.suppress(KeyError, UnicodeDecodeError):
             data = self.project.loader.memory.load(addr, n).decode("utf-8")
-            return StringLiteral(self.manager.next_atom(), data, _STRING_BITS, **ptr.tags)
+            return StringLiteral(self.manager.next_atom(), data, self._string_bits, **ptr.tags)
         return None
 
     def slice(self, ptr: Expression, length: Expression) -> Expression | None:
         """The slice (or string, when that is what the pieces belong to) with the given ptr and len pieces."""
         base = self.base_of(ptr, _PTR)
-        size = None if base is not None and base.combo is not None else _SLICE_BITS // 8
-        return self.whole(size, (ptr, _PTR), (length, _LEN))
+        size = None if base is not None and base.combo is not None else self._slice_bits // 8
+        return self.whole(size, (ptr, _PTR), (length, self._len_off))
 
     def is_len_of(self, expr: Expression, base: _Base) -> bool:
-        return self.piece(expr, base) == _LEN
+        return self.piece(expr, base) == self._len_off
 
 
 class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
@@ -380,6 +380,10 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
         CFGTransformationMixin.__init__(self, self._graph)
+        # string {ptr, len} and slice {ptr, len, cap} headers are made of machine words
+        bits, ws = self.project.arch.bits, self.project.arch.bytes
+        self._string_bits, self._slice_bits = 2 * bits, 3 * bits
+        self._len_off, self._cap_off = ws, 2 * ws
         self.values: _Values | None = None
         self._cur_block: Block | None = None
         self._cur_stmt: Statement | None = None
@@ -471,7 +475,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 continue
             src = last.src
             if not isinstance(src, Call) and not (
-                isinstance(src, BinaryOp) and src.op == "Add" and src.bits == _STRING_BITS
+                isinstance(src, BinaryOp) and src.op == "Add" and src.bits == self._string_bits
             ):
                 continue
             chain = []
@@ -706,17 +710,17 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 words=(self.values.resolve(old_ptr), self.values.resolve(old_len), self.values.resolve(old_cap)),
                 name=f"[]{ty}" if ty else None,
             )
-        value = s.value(self.manager, self.project.arch, _SLICE_BITS // 8, call.tags)
+        value = s.value(self.manager, self.project.arch, self._slice_bits // 8, call.tags)
         if value is None:
             return None
         comment = f"{count} element(s) not recovered" if count is not None else "elements not recovered"
         extra = {"go_result_type": f"[]{ty}"} if ty else {}
-        return self.builtin(call, "append", [value], bits=_SLICE_BITS, go_comment=comment, **extra)
+        return self.builtin(call, "append", [value], bits=self._slice_bits, go_comment=comment, **extra)
 
     def _rw_concatstring(self, call: Call, args: list) -> Expression | None:
         # a typed "+" call rather than an integer Add: type inference must see strings, not 128-bit integers
         parts = args[1:]
-        if len(parts) < 2 or any(p.bits != _STRING_BITS for p in parts):
+        if len(parts) < 2 or any(p.bits != self._string_bits for p in parts):
             return None
         variable_map = variable_map_of(self.manager)
         expr = parts[0]
@@ -725,7 +729,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 call,
                 "+",
                 [expr, part],
-                bits=_STRING_BITS,
+                bits=self._string_bits,
                 arg_types=["string", "string"],
                 go_render="concat",
                 go_result_type="string",
@@ -743,9 +747,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         size = args[2]
         lhs = rhs = None
         if a is not None:
-            lhs = a.value(self.manager, self.project.arch, _STRING_BITS // 8, args[0].tags)
+            lhs = a.value(self.manager, self.project.arch, self._string_bits // 8, args[0].tags)
         if b is not None:
-            rhs = b.value(self.manager, self.project.arch, _STRING_BITS // 8, args[1].tags)
+            rhs = b.value(self.manager, self.project.arch, self._string_bits // 8, args[1].tags)
         # the compared length must be the length of one of the operands (or of a literal)
         ok = (a is not None and self.values.is_len_of(size, a)) or (b is not None and self.values.is_len_of(size, b))
         if rhs is None and lhs is not None:
@@ -795,7 +799,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         b = self._slice_from_pair(args[1], args[2], "[]uint8")
         if b is None:
             return None
-        return self.builtin(call, "string", [b], bits=_STRING_BITS, go_result_type="string")
+        return self.builtin(call, "string", [b], bits=self._string_bits, go_result_type="string")
 
     def _slice_from_pair(self, ptr: Expression, length: Expression, name: str) -> Expression | None:
         """
@@ -820,14 +824,24 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                     and self.values.is_len_of(l_expr.operands[0], base)
                     and self.values.same(l_expr.operands[1], low)
                 ):
-                    whole = base.value(self.manager, self.project.arch, _SLICE_BITS // 8, ptr.tags)
+                    whole = base.value(self.manager, self.project.arch, self._slice_bits // 8, ptr.tags)
                     if whole is not None:
                         return Call(
-                            self.manager.next_atom(), "[:]", [whole, low], bits=_SLICE_BITS, go_slice="[i:]", **ptr.tags
+                            self.manager.next_atom(),
+                            "[:]",
+                            [whole, low],
+                            bits=self._slice_bits,
+                            go_slice="[i:]",
+                            **ptr.tags,
                         )
         if isinstance(ptr, UnaryOp) and ptr.op == "Reference" and _const(length) is not None:
             return Call(
-                self.manager.next_atom(), "[:]", [ptr.operand, length], bits=_SLICE_BITS, go_slice="[:j]", **ptr.tags
+                self.manager.next_atom(),
+                "[:]",
+                [ptr.operand, length],
+                bits=self._slice_bits,
+                go_slice="[:j]",
+                **ptr.tags,
             )
         return self._struct_of(name, [(0, ptr), (self.project.arch.bytes, length)])
 
@@ -859,7 +873,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         src = self._slice_from_pair(args[3], args[2], name)
         if src is None:
             return None
-        empty = Struct(self.manager.next_atom(), name, OrderedDict(), OrderedDict(), _SLICE_BITS, **args[3].tags)
+        empty = Struct(self.manager.next_atom(), name, OrderedDict(), OrderedDict(), self._slice_bits, **args[3].tags)
         # the compiler keeps the pointer word; the length words are the ones it passed
         return self.builtin(call, "append", [empty, src], go_ellipsis=True, go_result_type="unsafe.Pointer")
 
@@ -876,8 +890,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _rw_ifaceeq(self, call: Call, args: list) -> Expression | None:
         """``ifaceeq(x.tab, x.data, y.data)`` (the tabs compared equal by the caller) -> ``x == y``."""
-        size = _STRING_BITS // 8
-        if len(args) == 2 and args[0].bits == _STRING_BITS:
+        size = self._string_bits // 8
+        if len(args) == 2 and args[0].bits == self._string_bits:
             x = args[0]
         elif len(args) == 3:
             x = self.values.whole(size, (args[0], 0), (args[1], self.project.arch.bytes))
@@ -898,7 +912,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if len(args) != 2:
             return None
         rune = Call(self.manager.next_atom(), "rune", [args[1]], bits=32, go_result_type="rune", **args[1].tags)
-        return self.builtin(call, "string", [rune], bits=_STRING_BITS, go_result_type="string")
+        return self.builtin(call, "string", [rune], bits=self._string_bits, go_result_type="string")
 
     def _rw_slicecopy(self, call: Call, args: list) -> Expression | None:
         if len(args) != 5:
@@ -923,8 +937,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if not self._is_min_len(count, dst, src):
             return None
         arch = self.project.arch
-        dst_val = dst.value(self.manager, arch, _SLICE_BITS // 8, args[0].tags)
-        src_val = src.value(self.manager, arch, None if src.combo else _SLICE_BITS // 8, args[1].tags)
+        dst_val = dst.value(self.manager, arch, self._slice_bits // 8, args[0].tags)
+        src_val = src.value(self.manager, arch, None if src.combo else self._slice_bits // 8, args[1].tags)
         if dst_val is None or src_val is None:
             return None
         return self.builtin(call, "copy", [dst_val, src_val], bits=self.project.arch.bits, go_result_type="int")
@@ -1006,7 +1020,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if _const(rhs) != 0 or not isinstance(call, Call) or self.callee_name(call) != "runtime.cmpstring":
             return None
         args = list(call.args or [])
-        if len(args) != 2 or any(a.bits != _STRING_BITS for a in args):
+        if len(args) != 2 or any(a.bits != self._string_bits for a in args):
             return None
         return self.compare(op, args[0], args[1], expr.bits, expr.tags)
 
@@ -1025,7 +1039,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if not (isinstance(eq, BinaryOp) and eq.op == "CmpEQ"):
             return None
         a, b = eq.operands
-        if a.bits != _STRING_BITS or b.bits != _STRING_BITS:
+        if a.bits != self._string_bits or b.bits != self._string_bits:
             return None
         if not (
             all(self._is_len_check(operand, a, b) for operand in cond.operands)
@@ -1088,16 +1102,16 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _rewrite_slicing(self, expr: Struct, fields: list) -> Expression | None:
         # s[i:j] / s[i:] / s[:j]: {ptr: s.ptr + i*w (guarded), len: j - i, cap: s.cap - i}
-        if len(fields) != 3 or expr.bits != _SLICE_BITS:
+        if len(fields) != 3 or expr.bits != self._slice_bits:
             return None
         ptr, length, cap = fields
         base = None
         low = None
         if isinstance(cap, BinaryOp) and cap.op == "Sub":
-            base = self.values.base_of(cap.operands[0], _CAP)
+            base = self.values.base_of(cap.operands[0], self._cap_off)
             low = cap.operands[1]
         else:
-            base = self.values.base_of(cap, _CAP)
+            base = self.values.base_of(cap, self._cap_off)
         if base is None:
             return None
         if low is None:
@@ -1118,7 +1132,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if not (isinstance(length, BinaryOp) and length.op == "Sub" and length.operands[1].likes(low)):
                 return None
             high = None if self.values.is_len_of(length.operands[0], base) else length.operands[0]
-        s = base.value(self.manager, self.project.arch, _SLICE_BITS // 8, expr.tags)
+        s = base.value(self.manager, self.project.arch, self._slice_bits // 8, expr.tags)
         if s is None:
             return None
         if low is None:
@@ -1127,13 +1141,14 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             shape, args = "[i:]", [s, low]
         else:
             shape, args = "[i:j]", [s, low, high]
-        return Call(expr.idx, "[:]", args, bits=_SLICE_BITS, go_slice=shape, **expr.tags)
+        return Call(expr.idx, "[:]", args, bits=self._slice_bits, go_slice=shape, **expr.tags)
 
-    @staticmethod
-    def _is_guarded_advance(advance: Expression, low: Expression) -> bool:
-        # i*w masked by (-(cap - i) >> 63) so an empty result does not point past the array
+    def _is_guarded_advance(self, advance: Expression, low: Expression) -> bool:
+        # i*w masked by (-(cap - i) >> (bits-1)) so an empty result does not point past the array
+        sign_shift = self.project.arch.bits - 1
+
         def is_guard(e):
-            return isinstance(e, BinaryOp) and e.op == "Sar" and _const(e.operands[1]) == 63
+            return isinstance(e, BinaryOp) and e.op == "Sar" and _const(e.operands[1]) == sign_shift
 
         def is_offset(e):
             if isinstance(e, BinaryOp) and e.op == "Mul":
@@ -1218,7 +1233,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 old_piece = self.values.piece(old_side, base)
                 if grown_hit[1] == _PTR and old_piece == _PTR:
                     g.ptrs.append(dst)
-                elif grown_hit[1] == _LEN and self.values.same(old_side, new_len):
+                elif grown_hit[1] == self._len_off and self.values.same(old_side, new_len):
                     g.len_new.append(dst)
         self._match_elements(g)
         if g.elems is None and g.src is None:
@@ -1348,7 +1363,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             )
 
         def is_cap(x):
-            return self.values.piece(x, base) == _CAP or self.values.same(x, old_cap)
+            return self.values.piece(x, base) == self._cap_off or self.values.same(x, old_cap)
 
         return (is_cap(a) and self.values.same(b, new_len)) or (is_cap(b) and self.values.same(a, new_len))
 
@@ -1604,7 +1619,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if isinstance(data, Load):
             count = Const(self.manager.next_atom(), g.count, self.project.arch.bits)
             return Call(
-                self.manager.next_atom(), "[:]", [data.addr, count], bits=_SLICE_BITS, go_slice="[:j]", **data.tags
+                self.manager.next_atom(), "[:]", [data.addr, count], bits=self._slice_bits, go_slice="[:j]", **data.tags
             )
         return None
 
@@ -1785,7 +1800,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _apply_append(self, g: _Growth) -> list[Block]:
         call = g.call_stmt.src
-        s = g.base.value(self.manager, self.project.arch, _SLICE_BITS // 8, call.tags)
+        s = g.base.value(self.manager, self.project.arch, self._slice_bits // 8, call.tags)
         if s is None:
             return []
         s = self._array_slice(g, s)
@@ -1800,7 +1815,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             args = [s]
             num = g.count if g.count is not None else "n"
             extra["go_comment"] = f"{num} element(s) not recovered"
-        new_call = self.builtin(call, "append", args, bits=_SLICE_BITS, **extra)
+        new_call = self.builtin(call, "append", args, bits=self._slice_bits, **extra)
         g.block.statements = [
             Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags) if stmt is g.call_stmt else stmt
             for stmt in g.block.statements
@@ -1831,7 +1846,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return s
         array = ptr.operand if isinstance(ptr, UnaryOp) and ptr.op == "Reference" else ptr
         high = Const(self.manager.next_atom(), n, self.project.arch.bits)
-        return Call(self.manager.next_atom(), "[:]", [array, high], bits=_SLICE_BITS, go_slice="[:j]", **s.tags)
+        return Call(self.manager.next_atom(), "[:]", [array, high], bits=self._slice_bits, go_slice="[:j]", **s.tags)
 
     def _collapse_diamond(self, g: _Growth) -> list[Block]:
         """The grow path is now the only path: append itself decides whether to grow."""
@@ -2451,9 +2466,9 @@ _CALL_RULES = {
     "internal/bytealg.Equal": lambda p, c, a: p._rw_rename(c, a, "bytes.Equal"),
     "internal/bytealg.Compare": lambda p, c, a: p._rw_rename(c, a, "bytes.Compare"),
     "runtime.slicebytetostring": GoBuiltinRewriter._rw_slicebytetostring,
-    "runtime.stringtoslicebyte": lambda p, c, a: p._rw_conversion(c, a, "[]byte", _SLICE_BITS, "[]uint8"),
-    "runtime.stringtoslicerune": lambda p, c, a: p._rw_conversion(c, a, "[]rune", _SLICE_BITS, "[]int32"),
-    "runtime.slicerunetostring": lambda p, c, a: p._rw_conversion(c, a, "string", _STRING_BITS, "string"),
+    "runtime.stringtoslicebyte": lambda p, c, a: p._rw_conversion(c, a, "[]byte", p._slice_bits, "[]uint8"),
+    "runtime.stringtoslicerune": lambda p, c, a: p._rw_conversion(c, a, "[]rune", p._slice_bits, "[]int32"),
+    "runtime.slicerunetostring": lambda p, c, a: p._rw_conversion(c, a, "string", p._string_bits, "string"),
     "runtime.intstring": GoBuiltinRewriter._rw_intstring,
     "runtime.slicecopy": GoBuiltinRewriter._rw_slicecopy,
     "runtime.typedslicecopy": GoBuiltinRewriter._rw_typedslicecopy,

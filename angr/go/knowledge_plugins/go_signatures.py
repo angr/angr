@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from angr.go.analyses.dwarf_signatures import read_go_dwarf_signatures
+from angr.go.analyses.dwarf_signatures import _goarch, read_go_dwarf_signatures
 from angr.go.signature import GoFuncSignature, GoNamedType, GoParam, GoSignatureSet, GoVariable
 from angr.go.sim_type import GoSimType, GoSimTypeFunction, GoSimTypeSlice, GoSimTypeTuple, go_type_repr
 from angr.go.type_parser import GoTypeParser
@@ -144,6 +144,16 @@ def load_signature_db(go_version: str | None) -> GoSignatureSet | None:
     return _DB_CACHE[chosen]
 
 
+_LAYOUT_FREE_CACHE: dict[tuple[int, str], GoSignatureSet] = {}
+
+
+def _layout_free_db(db: GoSignatureSet, goarch: str) -> GoSignatureSet:
+    key = (id(db), goarch)
+    if key not in _LAYOUT_FREE_CACHE:
+        _LAYOUT_FREE_CACHE[key] = db.without_layout(goarch)
+    return _LAYOUT_FREE_CACHE[key]
+
+
 class GoSignatures(KnowledgeBasePlugin):
     """
     Go function signatures and named types known for this binary, merged from every source (external tools, DWARF,
@@ -206,6 +216,10 @@ class GoSignatures(KnowledgeBasePlugin):
         if db is None:
             l.warning("No Go signature database is installed (angr-data).")
         else:
+            goarch = _goarch(project.arch) if project is not None else None
+            if goarch is not None and db.goarch is not None and db.goarch != goarch:
+                # the database is built for one GOARCH; its layouts do not transfer (word width, alignment)
+                db = _layout_free_db(db, goarch)
             self._sources.append(db)
         self._prototypes.clear()
         self._parser = None

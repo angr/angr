@@ -89,7 +89,7 @@ class GoFuncSignature:
 class GoStructField:
     name: str
     type_str: str
-    offset: int
+    offset: int | None  # None: the layout is not known for the target
 
 
 @dataclass(slots=True)
@@ -177,3 +177,17 @@ class GoSignatureSet:
             types={name: GoNamedType.from_json(name, ty) for name, ty in d.get("types", {}).items()},
             variables={name: GoVariable(name, addr, ty) for name, (addr, ty) in d.get("variables", {}).items()},
         )
+
+    def without_layout(self, goarch: str | None) -> GoSignatureSet:
+        """The same set with sizes, alignments and field offsets dropped: they were computed for another GOARCH."""
+        types = {
+            name: GoNamedType(
+                ty.name,
+                ty.kind,
+                fields=[GoStructField(f.name, f.type_str, None) for f in ty.fields],
+                methods=list(ty.methods),
+                underlying=ty.underlying,
+            )
+            for name, ty in self.types.items()
+        }
+        return GoSignatureSet(self.go_version, goarch, self.functions, types, self.variables, self.runtime_types)
