@@ -1,10 +1,13 @@
 WebAssembly and browsers
 ========================
 
-angr can run inside browsers and other WebAssembly hosts using Pyodide. WebAssembly wheels are built for angr,
-PyVEX, pypcode, Capstone, pydemumble, and Z3; the remaining Python dependencies are installed as pure Python or Pyodide
-packages. The VEX execution engine, Claripy/Z3, CLE loaders, CFG recovery, AIL, and the portable Rust extension
-modules are supported.
+angr targets browsers and other WebAssembly hosts using Pyodide. WebAssembly wheels are built for angr,
+PyVEX, pypcode, Capstone and pydemumble, and Z3's own Emscripten wheel is downloaded; the remaining Python
+dependencies are installed as pure Python or Pyodide packages. The VEX execution engine, Z3, CLE loaders, CFG
+recovery, AIL, and the portable Rust extension modules are all carried into the build.
+
+The build does not run yet. Pyodide cannot resolve ``libz3.so`` when it loads ``angr.rustylib``, which has linked
+Z3 since angr/angr#6550, so importing angr in the browser fails.
 
 The browser host does not provide every native operating-system facility. WebAssembly builds do not provide
 LMDB-backed spilling, psutil memory monitoring, Unicorn, Icicle, subprocesses, or multiprocessing. Analyses use
