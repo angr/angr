@@ -36,6 +36,7 @@ docs/_build
 docs/api/
 uv.lock
 target/
+/wasm/.z3-lib
 /wasm/manifest.json
 /wasm/samples/
 .DS_Store

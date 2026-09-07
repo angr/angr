@@ -240,7 +240,7 @@ class RuntimeDb(KnowledgeBasePlugin):
 
         return None
 
-    def _open_new_lmdb_under(self, basedir: str, basename: str) -> tuple[str, lmdb.Environment] | None:
+    def _open_new_lmdb_under(self, basedir: str, basename: str) -> tuple[str, lmdb_types.Environment] | None:
         """
         Reserve a directory under basedir and open an LMDB environment in it, giving the directory back if the
         environment cannot be opened.

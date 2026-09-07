@@ -8,7 +8,8 @@ xbuildenv_path="${PYODIDE_XBUILDENV_PATH:-$workspace/.pyodide-xbuildenv}"
 out_dir="$angr_dir/wasm/dist"
 sample_dir="$angr_dir/wasm/samples"
 pyodide=(uvx --python 3.14 --from 'pyodide-build[resolve]' pyodide)
-source_repos=(archinfo claripy cle pypcode pyvex)
+z3_version="$(python3 -c "import re,sys; print(re.search(r'\"z3-solver==([^\"]+)\"', open(sys.argv[1]).read()).group(1))" "$angr_dir/pyproject.toml")"
+source_repos=(archinfo cle pypcode pyvex)
 
 missing_repos=()
 for repo in "${source_repos[@]}"; do
@@ -21,7 +22,7 @@ if (( ${#missing_repos[@]} )); then
         "$workspace" "${missing_repos[@]}"
 fi
 
-for repo in "${source_repos[@]}" z3; do
+for repo in "${source_repos[@]}"; do
     if [[ ! -d "$workspace/$repo" ]]; then
         echo "Missing sibling repository: $workspace/$repo" >&2
         exit 1
@@ -56,16 +57,21 @@ source "$emsdk_env"
 git -C "$workspace/pyvex" submodule update --init --recursive
 "${pyodide[@]}" build "$workspace/pyvex" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 "${pyodide[@]}" build "$workspace/pypcode" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
-real_make="$(command -v make)"
-PATH="$angr_dir/wasm/z3-build-tools:$PATH" ANGR_WASM_REAL_MAKE="$real_make" \
-    "${pyodide[@]}" build "$workspace/z3/src/api/python" --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
+python3 -m pip download --no-deps --only-binary :all: --dest "$out_dir" \
+    --platform pyemscripten_2026_0_wasm32 "z3-solver==$z3_version"
 "${pyodide[@]}" build 'capstone==5.0.9' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 "${pyodide[@]}" build 'pydemumble==0.1.3' --xbuildenv-path "$xbuildenv_path" --outdir "$out_dir"
 
 uv build --wheel --out-dir "$out_dir" "$workspace/archinfo"
-uv build --wheel --out-dir "$out_dir" "$workspace/claripy"
 uv build --wheel --out-dir "$out_dir" "$workspace/cle"
 python3 -m pip wheel --no-deps --wheel-dir "$out_dir" 'mulpyplexer==0.09' 'arpy==1.1.1'
+
+z3_lib_dir="$angr_dir/wasm/.z3-lib"
+rm -rf "$z3_lib_dir"
+mkdir -p "$z3_lib_dir"
+python3 -c "import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); [z.extract(n, sys.argv[2]) for n in z.namelist() if n.startswith('z3/lib/')]" \
+    "$out_dir"/z3_solver-*-pyemscripten_*_wasm32.whl "$z3_lib_dir"
+export Z3_LIBRARY_PATH_OVERRIDE="$z3_lib_dir/z3/lib"
 
 (
     cd "$angr_dir"
