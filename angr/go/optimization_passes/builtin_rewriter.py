@@ -37,8 +37,10 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import GoSimTypeFunction, GoSimTypeMap, GoSimTypeTuple
 from angr.go.utils.graph import conditional_pred, is_jump_only, leads_to, skip_jumps
+from angr.go.utils.multiword import extract_piece, multiword_vvars
 from angr.go.utils.names import call_target_name
 from angr.go.utils.types import go_type_at, go_type_name_at
+from angr.sim_type import SimType
 from angr.utils.ail import find_call
 from angr.utils.go_runtime import normalize_go_func_name
 
@@ -165,6 +167,8 @@ class _Values:
         self.manager = pass_.manager
         self._string_bits, self._slice_bits = pass_._string_bits, pass_._slice_bits
         self._len_off, self._cap_off = pass_._len_off, pass_._cap_off
+        # whole values held in one stack variable (ABI0): their words are Extract(v, k) rather than piece vvars
+        self.multiword: dict[int, SimType] = multiword_vvars(pass_)
         self.combo_of: dict[int, tuple[VirtualVariable, int]] = {}
         self.defs: dict[int, Expression] = {}
         # phis that a pending rewrite will collapse: varid -> the value that survives
@@ -228,6 +232,13 @@ class _Values:
         base, off = _addr_and_offset(expr.addr)
         return (self.resolve(base) if base is not None else None), off
 
+    def extract_of(self, expr: Expression) -> tuple[VirtualVariable, int] | None:
+        """(whole value, byte offset) when ``expr`` is (a copy of) a word extracted from a multi-word variable."""
+        hit = extract_piece(self.expand(expr))
+        if hit is not None and hit[0].varid in self.multiword:
+            return hit
+        return None
+
     def base_of(self, expr: Expression, want: int) -> _Base | None:
         """The value ``expr`` is the piece at byte offset ``want`` of (a combo-register value or memory)."""
         resolved = self.resolve(expr)
@@ -235,6 +246,9 @@ class _Values:
             hit = self.combo_of.get(resolved.varid)
             if hit is not None:
                 return _Base(combo=hit[0]) if hit[1] == want else None
+        ex = self.extract_of(expr)
+        if ex is not None:
+            return _Base(combo=ex[0]) if ex[1] == want else None
         load = self.load_of(expr)
         if load is None:
             return None
@@ -268,6 +282,9 @@ class _Values:
                 hit = self.combo_of.get(resolved.varid)
                 if hit is not None and hit[0].varid == base.combo.varid:
                     return hit[1]
+            ex = self.extract_of(expr)
+            if ex is not None and ex[0].varid == base.combo.varid:
+                return ex[1]
             return None
         if base.addr is not None:
             load = self.load_of(expr)
@@ -292,6 +309,9 @@ class _Values:
             hit = self.combo_of.get(resolved.varid)
             if hit is not None:
                 return _Base(combo=hit[0]), hit[1]
+        ex = self.extract_of(expr)
+        if ex is not None:
+            return _Base(combo=ex[0]), ex[1]
         load = self.load_of(expr)
         if load is None:
             return None
