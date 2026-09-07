@@ -10,6 +10,7 @@ import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    Call,
     Const,
     Convert,
     Expression,
@@ -233,9 +234,10 @@ class SPropagator:
                 and isinstance(stmt.dst, VirtualVariable)
                 and stmt.dst.was_stack
                 and stmt.dst.stack_offset in self.stack_arg_offsets
-                and not isinstance(stmt.src, Phi)
+                and not isinstance(stmt.src, (Phi, Call))
             ):
                 # force propagation of stack variables to callsites; we set v to stmt.src, but const_value stays None
+                # (never a call: a result slot in the argument area must not re-issue the call at every use)
                 r = True
                 v = stmt.src
             elif not vvar.was_reg and not vvar.was_parameter:

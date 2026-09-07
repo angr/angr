@@ -2113,10 +2113,58 @@ class SimCCGoAArch64ABI0(SimCCGoAArch64):
     OVERFLOW_FP_RETURN_VAL = None
 
 
+class SimCCGoX86(SimCCGoAMD64):
+    """
+    Go on 386 only ever had the all-stack ABI0: arguments start at 4(SP) in declaration order, results follow them
+    at the next word boundary. Where the results start depends on the argument sizes, which ``return_val`` does not
+    see: :meth:`for_prototype` builds an instance that knows them; a bare instance assumes no arguments.
+    """
+
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    STACKARG_SP_DIFF = 4
+    CALLER_SAVED_REGS = ["eax", "ebx", "ecx", "edx", "esi", "edi", *[f"xmm{i}" for i in range(8)]]
+    RETURN_ADDR = SimStackArg(0, 4)
+    RETURN_VAL = None
+    OVERFLOW_RETURN_VAL = None
+    FP_RETURN_VAL = None
+    OVERFLOW_FP_RETURN_VAL = None
+    ARCH = archinfo.ArchX86
+    STACK_ALIGNMENT = 4
+
+    def __init__(self, arch: archinfo.Arch, args_size: int | None = None):
+        super().__init__(arch)
+        self.args_size = args_size
+
+    @classmethod
+    def for_prototype(cls, arch: archinfo.Arch, prototype: SimTypeFunction) -> SimCCGoX86:
+        cc = cls(arch)
+        end = cc.STACKARG_SP_DIFF
+        for loc in cc.arg_locs(prototype):
+            for piece in loc.get_footprint():
+                if isinstance(piece, SimStackArg):
+                    end = max(end, piece.stack_offset + piece.size)
+        args_size = -(-(end - cc.STACKARG_SP_DIFF) // arch.bytes) * arch.bytes
+        return cls(arch, args_size)
+
+    def return_val(self, ty: SimType | None, perspective_returned=False):
+        if ty is None or isinstance(ty, SimTypeBottom):
+            return None
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        size = self.arch.bytes if ty.size is None else ty.size // self.arch.byte_width
+        base = self.STACKARG_SP_DIFF + (self.args_size or 0)
+        locs = [
+            SimStackArg(base + i * self.arch.bytes, self.arch.bytes) for i in range(max(1, -(-size // self.arch.bytes)))
+        ]
+        return refine_locs_with_struct_type(self.arch, locs, ty)
+
+
 # Go's legacy all-stack ABI0 per architecture, for symbols the gc linker suffixes with ".abi0"
 GO_ABI0_CC: dict[str, type[SimCC]] = {
     "AMD64": SimCCGoAMD64ABI0,
     "AARCH64": SimCCGoAArch64ABI0,
+    "X86": SimCCGoX86,
 }
 
 
@@ -3054,6 +3102,11 @@ CC_BY_LANGUAGE: dict[str, dict[str, dict[str, list[type[SimCC]]]]] = {
             "Linux": [SimCCGoAArch64],
             "Win32": [SimCCGoAArch64],
         },
+        "X86": {
+            "default": [SimCCGoX86],
+            "Linux": [SimCCGoX86],
+            "Win32": [SimCCGoX86],
+        },
     },
 }
 
@@ -3068,6 +3121,11 @@ DEFAULT_CC_BY_LANGUAGE: dict[str, dict[str, dict[str, type[SimCC]]]] = {
             "default": SimCCGoAArch64,
             "Linux": SimCCGoAArch64,
             "Win32": SimCCGoAArch64,
+        },
+        "X86": {
+            "default": SimCCGoX86,
+            "Linux": SimCCGoX86,
+            "Win32": SimCCGoX86,
         },
     },
 }
