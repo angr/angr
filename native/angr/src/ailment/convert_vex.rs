@@ -1578,6 +1578,7 @@ unsafe fn const_value(c: *const vex_ffi::IRConst) -> ConstVal {
             ICO_U16 => (ConstValue::Int(ico.u16_ as i128), 16),
             ICO_U32 => (ConstValue::Int(ico.u32_ as i128), 32),
             ICO_U64 => (ConstValue::Int(ico.u64_ as i128), 64),
+            ICO_U128 => (expand_vector(ico.u128 as u64, 16), 128),
             ICO_F32 | ICO_F32I => (ConstValue::Float(ico.f32_ as f64), 32),
             ICO_F64 | ICO_F64I => (ConstValue::Float(ico.f64_), 64),
             ICO_V128 => (expand_vector(ico.v128 as u64, 16), 128),
@@ -1944,7 +1945,7 @@ fn const_bits(tag: u32) -> u32 {
         ICO_U16 => 16,
         ICO_U32 | ICO_F32 | ICO_F32I => 32,
         ICO_U64 | ICO_F64 | ICO_F64I => 64,
-        ICO_V128 => 128,
+        ICO_U128 | ICO_V128 => 128,
         ICO_V256 => 256,
         _ => 0,
     }

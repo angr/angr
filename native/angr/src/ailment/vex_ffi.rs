@@ -32,12 +32,13 @@ pub const ICO_U8: u32 = 0x1301;
 pub const ICO_U16: u32 = 0x1302;
 pub const ICO_U32: u32 = 0x1303;
 pub const ICO_U64: u32 = 0x1304;
-pub const ICO_F32: u32 = 0x1305;
-pub const ICO_F32I: u32 = 0x1306;
-pub const ICO_F64: u32 = 0x1307;
-pub const ICO_F64I: u32 = 0x1308;
-pub const ICO_V128: u32 = 0x1309;
-pub const ICO_V256: u32 = 0x130A;
+pub const ICO_U128: u32 = 0x1305;
+pub const ICO_F32: u32 = 0x1306;
+pub const ICO_F32I: u32 = 0x1307;
+pub const ICO_F64: u32 = 0x1308;
+pub const ICO_F64I: u32 = 0x1309;
+pub const ICO_V128: u32 = 0x130A;
+pub const ICO_V256: u32 = 0x130B;
 
 // IRExprTag
 pub const IEX_BINDER: u32 = 0x1900;
@@ -127,6 +128,7 @@ pub union IcoUnion {
     pub u16_: u16,
     pub u32_: u32,
     pub u64_: u64,
+    pub u128: u16,
     pub f32_: f32,
     pub f32i: u32,
     pub f64_: f64,
