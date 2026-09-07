@@ -256,7 +256,22 @@ impl StridedInterval {
                 if straddling {
                     // Split into two parts
                     // First part: [lower_bound, north_pole_left] aligned to stride
-                    let a_upper = &north_pole_left - ((&north_pole_left - lower_bound) % stride);
+                    //
+                    // A wrapping interval can start above the north pole -- 8-bit
+                    // 1[0xf0, 0x90] -- so north_pole_left - lower_bound can be negative.
+                    let modulus = BigUint::one() << *bits;
+                    let offset = if lower_bound <= &north_pole_left {
+                        (&north_pole_left - lower_bound) % stride
+                    } else {
+                        let overshoot = (lower_bound - &north_pole_left) % stride;
+                        if overshoot.is_zero() {
+                            BigUint::zero()
+                        } else {
+                            stride - overshoot
+                        }
+                    };
+                    let a_upper =
+                        (&modulus + &north_pole_left - offset % &modulus) & max_int(*bits);
                     let a = Self::new(*bits, stride.clone(), lower_bound.clone(), a_upper.clone());
 
                     // Second part: [north_pole_right or next stride point, upper_bound]
@@ -3160,6 +3175,76 @@ mod si_bounds_tests {
         let (min_s, max_s) = si.get_signed_bounds();
         assert_eq!(min_s, BigInt::zero());
         assert_eq!(max_s, BigInt::zero());
+    }
+
+    #[test]
+    fn test_nsplit_wrapping_above_north_pole() {
+        // Wrapping interval starting above the north pole: 1[0xf0, 0x90] covers
+        // 0xf0..=0xff and 0x00..=0x90, so it crosses 0x7f -> 0x80 once.
+        let si = StridedInterval::Normal {
+            bits: 8,
+            stride: BigUint::one(),
+            lower_bound: BigUint::from(0xf0u32),
+            upper_bound: BigUint::from(0x90u32),
+        };
+        assert_eq!(
+            si.nsplit(),
+            vec![
+                StridedInterval::new(8, 1u32, 0xf0u32, 0x7fu32),
+                StridedInterval::new(8, 1u32, 0x80u32, 0x90u32),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_nsplit_wrapping_above_north_pole_odd_stride() {
+        // A stride that does not divide 2^bits: 0x7f - ((0x7f - 0xf0) mod 3) is
+        // 0x7e under a floored remainder and 0x7d under a modulo-2^bits one.
+        let si = StridedInterval::Normal {
+            bits: 8,
+            stride: BigUint::from(3u32),
+            lower_bound: BigUint::from(0xf0u32),
+            upper_bound: BigUint::from(0x90u32),
+        };
+        assert_eq!(
+            si.nsplit(),
+            vec![
+                StridedInterval::new(8, 3u32, 0xf0u32, 0x7eu32),
+                StridedInterval::new(8, 3u32, 0x81u32, 0x90u32),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_nsplit_wrapping_above_north_pole_stride_wider_than_bits() {
+        // Nothing masks the stride to the bit width, so the split has to hold
+        // for one that exceeds it. 0x7f - ((0x7f - 0xf0) mod 385) is -145, and
+        // claripy stores that as -145 & 0xff = 0x6f.
+        let si = StridedInterval::Normal {
+            bits: 8,
+            stride: BigUint::from(385u32),
+            lower_bound: BigUint::from(0xf0u32),
+            upper_bound: BigUint::from(0x90u32),
+        };
+        assert_eq!(
+            si.nsplit(),
+            vec![
+                StridedInterval::new(8, 385u32, 0xf0u32, 0x6fu32),
+                StridedInterval::new(8, 385u32, 0xf0u32, 0x90u32),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_mul_wrapping_above_north_pole() {
+        // mul splits both operands at the poles, which is how nsplit is reached.
+        let si = StridedInterval::Normal {
+            bits: 8,
+            stride: BigUint::one(),
+            lower_bound: BigUint::from(0xf0u32),
+            upper_bound: BigUint::from(0x90u32),
+        };
+        assert!(!si.mul(&StridedInterval::constant(8, 2u32)).is_empty());
     }
 }
 
