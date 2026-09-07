@@ -51,7 +51,7 @@ class GoTypeTranslator(TypeTranslator):
         return go_int(self.arch, 16, True)
 
     def _translate_Int32(self, tc):
-        return go_int(self.arch, 32, True)
+        return go_int(self.arch, 32, True, "int" if self.arch.bits == 32 else None)
 
     def _translate_Int64(self, tc):
         # word-sized integers are far more often ``int`` than ``int64`` in Go source
@@ -76,10 +76,10 @@ class GoTypeTranslator(TypeTranslator):
         return go_int(self.arch, 16, False)
 
     def _translate_SInt32(self, tc):
-        return go_int(self.arch, 32, True)
+        return go_int(self.arch, 32, True, "int" if self.arch.bits == 32 else None)
 
     def _translate_UInt32(self, tc):
-        return go_int(self.arch, 32, False)
+        return go_int(self.arch, 32, False, "uint" if self.arch.bits == 32 else None)
 
     def _translate_SInt64(self, tc):
         return go_int(self.arch, 64, True, "int" if self.arch.bits == 64 else None)
