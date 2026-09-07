@@ -325,6 +325,7 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
         # side exits (zero-division checks, for one) keep executing the rest of
         # the instruction.
         if self.state.arch.branch_delay_slot and cont_state.scratch.guard.is_false():
+            assert self.successors is not None
             self.successors.add_successor(
                 cont_state, cont_state.scratch.ins_addr, cont_state.scratch.guard, "Ijk_Boring"
             )

@@ -13,6 +13,7 @@ import unittest
 import angr
 from angr import claripy
 from angr import options as so
+from angr.state_plugins.unicorn_engine import _UC_NATIVE, _check_vex_archinfo_layout
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -508,8 +509,6 @@ class TestUnicorn(unittest.TestCase):
         drifts from libvex.h, fields land at the wrong offsets and blocks are lifted with the wrong
         settings (e.g. a zeroed x86_cr0 makes the x86 front end decode 16-bit real-mode code).
         """
-
-        from angr.state_plugins.unicorn_engine import _UC_NATIVE, _check_vex_archinfo_layout
 
         if _UC_NATIVE is None:
             raise unittest.SkipTest("native unicorn support is unavailable")

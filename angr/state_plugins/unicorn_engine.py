@@ -413,7 +413,7 @@ def _check_vex_archinfo_layout(handle):
     compare offsets rather than sizes alone.
     """
 
-    field_names = [name for name, _ in _VexArchInfo._fields_]
+    field_names = [field[0] for field in _VexArchInfo._fields_]
     expected = [ctypes.sizeof(_VexArchInfo), *(getattr(_VexArchInfo, name).offset for name in field_names)]
     buf = (ctypes.c_uint32 * len(expected))()
     native_count = handle.vex_archinfo_layout(buf, len(expected))

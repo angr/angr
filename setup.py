@@ -11,8 +11,8 @@ import subprocess
 import sys
 
 import setuptools_rust
-from distutils.command.build import build as st_build
 from setuptools import Command, setup
+from setuptools.command.build import build as st_build
 from setuptools.command.develop import develop as st_develop
 from setuptools.errors import LibError
 
@@ -40,8 +40,10 @@ def build_unicornlib():
         # importlib.resources.files() returns a MultiplexedPath for editable
         # installs, whose str() is not a filesystem path; resolve via the
         # imported package's location instead.
-        base = os.path.dirname(importlib.import_module(pkg).__file__)
-        env[var] = os.path.join(base, *fnm.split("\\"))
+        pkg_file = importlib.import_module(pkg).__file__
+        if pkg_file is None:
+            raise LibError(f"Cannot locate {pkg} on disk; is it installed as a namespace package?")
+        env[var] = os.path.join(os.path.dirname(pkg_file), *fnm.split("\\"))
 
     if sys.platform == "win32":
         cmd = ["nmake", "/f", "Makefile-win"]
