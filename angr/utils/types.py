@@ -56,7 +56,12 @@ def replace_pointer_pts_to(ty: SimType, old_pts_to: SimType, new_pts_to: SimType
             inner = replace_pointer_pts_to(ty.pts_to, old_pts_to, new_pts_to)
         else:
             return None
-        return SimTypePointer(inner, label=ty.label, offset=ty.offset)
+        if type(ty) is SimTypePointer:
+            return SimTypePointer(inner, label=ty.label, offset=ty.offset)
+        # a pointer subclass (a Go map, chan or func value points at an opaque runtime struct) keeps its class
+        out = ty.copy()
+        out.pts_to = inner
+        return out
     return None
 
 
