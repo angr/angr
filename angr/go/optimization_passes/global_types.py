@@ -36,7 +36,8 @@ class _FlagLoadNarrower(AILBlockRewriter):
 class GoGlobalTypes(OptimizationPass):
     """
     Give package-level variables referenced by this function the types the signature sources (DWARF) know for them,
-    pinned as manual types so type inference treats them as ground truth.
+    and the runtime's itabs and type descriptors their struct types, pinned as manual types so type inference treats
+    them as ground truth (an itab's Type word read through ``go:itab.*T,I`` is then ``.Type``, not ``field_8``).
     """
 
     ARCHES = None
@@ -60,9 +61,17 @@ class GoGlobalTypes(OptimizationPass):
         if not collector.values:
             return
         global_manager = self.kb.dec_variables["global"]
+        go_types = self.kb.go_types
         for addr in collector.values:
             record = sigs.variable_at(addr)
             if record is None:
+                runtime_ty = None
+                if go_types.itab_at(addr) is not None:
+                    runtime_ty = sigs.parser.itab_type()
+                elif go_types.name_at(addr) is not None:
+                    runtime_ty = sigs.parser.type_descriptor_type()
+                if runtime_ty is not None:
+                    self._pin_global(global_manager, addr, runtime_ty.with_arch(self.project.arch))
                 continue
             if record.name == "runtime.writeBarrier":
                 narrower = _FlagLoadNarrower(self.manager, addr)
@@ -88,3 +97,13 @@ class GoGlobalTypes(OptimizationPass):
                 var.renamed = True
             if ty is not None:
                 global_manager.set_variable_type(var, ty, mark_manual=True)
+
+    def _pin_global(self, global_manager, addr: int, ty) -> None:
+        size = (ty.size or self.project.arch.bits) // self.project.arch.byte_width
+        existing = [v for v in global_manager.get_global_variables(addr) if v.addr == addr]
+        if existing:
+            var = existing[0]
+        else:
+            var = SimMemoryVariable(addr, size, ident=global_manager.next_variable_ident("global"))
+            global_manager.set_variable("global", addr, var)
+        global_manager.set_variable_type(var, ty, mark_manual=True)
