@@ -3786,6 +3786,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         CopyCleanup(self, self.cfunc).run()
         self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
         CopyCleanup(self, self.cfunc).run()
+        self.cfunc.statements = _StructLiteralCollapser(self).handle(self.cfunc.statements)
         ITEHoisting(self, self.cfunc).run()
         NamedFieldRetyping(self, self.cfunc).run()
         self.cfunc.statements = _TypedCopies(self).handle(self.cfunc.statements)
@@ -4616,7 +4617,8 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 or stmt.src.base.tags.get("uninitialized", False)
             )
         ):
-            offset = stmt.src.offset.value
+            # the slot may be a word of a wider variable: its byte offset into that variable comes first
+            offset = stmt.src.offset.value + (self._variable_map.variable_offset(stmt.dst) or 0)
             var = self._variable_map.variable(stmt.dst)
             cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
             csrc = self._handle(stmt.src.value)
@@ -5186,23 +5188,55 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return GoTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Struct(self, expr: Struct, **kwargs):
-        return GoStructLiteral(
-            expr.name,
-            OrderedDict((offset, self._handle(field)) for offset, field in expr.fields.items()),
-            dict(expr.field_names),
-            tags=expr.tags,
-            codegen=self,
-        )
+        fields = OrderedDict((offset, self._handle(field)) for offset, field in expr.fields.items())
+        whole = self._struct_of_one_variable(expr, fields)
+        if whole is not None:
+            return whole
+        return GoStructLiteral(expr.name, fields, dict(expr.field_names), tags=expr.tags, codegen=self)
+
+    @staticmethod
+    def _struct_of_one_variable(expr: Struct, fields: OrderedDict):
+        """The variable a fused value is, when its words are the fields of one variable of that type, in order."""
+        holder = None
+        for offset, node in fields.items():
+            if not (isinstance(node, GoVariableField) and isinstance(node.variable, GoVariable)):
+                return None
+            if node.field.offset != offset:
+                return None
+            if holder is None:
+                holder = node.variable
+            elif not _same_variable(node.variable, holder):
+                return None
+        if holder is None or holder.type is None:
+            return None
+        ty = unpack_typeref(holder.type)
+        if (
+            not isinstance(ty, GoSimStruct)
+            or ty.size != expr.bits
+            or getattr(ty, "go_repr", lambda: None)() != expr.name
+        ):
+            return None
+        if len(fields) != len([n for n, t in ty.fields.items() if t is not None]):
+            return None
+        return holder
 
     def _handle_Expr_StringLiteral(self, expr: StringLiteral, **kwargs):
         return GoStringLiteral(expr.data, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Extract(self, expr: Expr.Extract, **kwargs):
-        child = self._handle(expr.base)
-        target_type = self.default_simtype_from_bits(expr.bits, False)
         offset = (
             expr.offset.value if isinstance(expr.offset, Expr.Const) and isinstance(expr.offset.value, int) else None
         )
+        base = expr.base
+        if isinstance(base, Expr.VirtualVariable) and offset is not None:
+            base_var = self._variable_map.variable(base)
+            base_off = self._variable_map.variable_offset(base) or 0
+            if base_var is not None and base_var.size is not None and base_var.size > base.size:
+                # a word of a wider variable read through one of its slots
+                cvar = self._variable(base_var, None, vvar_id=base.varid)
+                return self._access_wide_variable(cvar, base_off + offset, expr.bits, False)
+        child = self._handle(base)
+        target_type = self.default_simtype_from_bits(expr.bits, False)
         child_type = child.type
         assert child_type is not None
         if isinstance(child_type, TypeRef):
@@ -5300,6 +5334,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
             cvar = self._variable(expr_var, None, vvar_id=expr.varid)
+            offset = self._variable_map.variable_offset(expr) or 0
+            if expr_var.size is not None and expr_var.size > expr.size and offset + expr.size <= expr_var.size:
+                # a word of a wider variable (a header spilled word by word): the field at that offset
+                return self._access_wide_variable(cvar, offset, expr.bits, lvalue, type_)
 
             if not lvalue and expr_var.size != expr.size:
                 l.warning(
@@ -5319,6 +5357,21 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return GoTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
             return cvar
         return GoDirtyExpression(expr, codegen=self)
+
+    def _access_wide_variable(self, cvar, offset: int, bits: int, lvalue: bool, type_: SimType | None = None):
+        """``v.field`` for the ``bits`` wide word at byte ``offset`` of the variable ``cvar``."""
+        expected = unpack_typeref(type_)
+        if expected is not None and expected.size == bits and not isinstance(expected, SimTypeBottom):
+            ty = expected
+        else:
+            ty = self.default_simtype_from_bits(bits)
+
+        def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
+            if old_ty.size == proposed_ty.size and not isinstance(old_ty, SimStruct):
+                return proposed_ty
+            return old_ty
+
+        return self._access_constant_offset(GoUnaryOp("Reference", cvar, codegen=self), offset, ty, lvalue, negotiate)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         expr_var = self._variable_map.variable(expr)
@@ -6725,6 +6778,35 @@ def _go_named_struct_behind(ty):
     if isinstance(ty, SimTypePointer):
         ty = unpack_typeref(ty.pts_to)
     return ty if _go_descriptor_name(ty) else None
+
+
+class _StructLiteralCollapser(GoStructuredCodeWalker):
+    """``T{f0: v.f0, f1: v.f1, ...}`` spelling every field of ``v`` (a value of type ``T``) in order is ``v``."""
+
+    def __init__(self, codegen):
+        self._codegen = codegen
+
+    def handle_GoStructLiteral(self, obj):
+        obj = super().handle_GoStructLiteral(obj)
+        holder = None
+        for offset, node in obj.fields.items():
+            base = node
+            while isinstance(base, GoTypeCast):
+                base = base.expr
+            if not (isinstance(base, GoVariableField) and isinstance(base.variable, GoVariable)):
+                return obj
+            if base.field.offset != offset:
+                return obj
+            if holder is None:
+                holder = base.variable
+            elif not _same_variable(base.variable, holder):
+                return obj
+        if holder is None or holder.type is None:
+            return obj
+        ty = unpack_typeref(holder.type)
+        if not isinstance(ty, GoSimStruct) or ty.go_repr() != obj.name or len(obj.fields) != len(ty.fields):
+            return obj
+        return holder
 
 
 class _NamedFieldFixer(GoStructuredCodeWalker):
