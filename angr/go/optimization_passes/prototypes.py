@@ -5,7 +5,7 @@ import re
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structured_codegen.c import type_equals
-from angr.calling_conventions import GO_ABI0_CC, default_cc_for_project
+from angr.calling_conventions import GO_ABI0_CC, SimCC, default_cc_for_project
 from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
 from angr.go.utils.names import call_target_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
@@ -110,11 +110,26 @@ class GoPrototypes(OptimizationPass):
         ).with_arch(self.project.arch)
         if recv is not None:
             # a known receiver is worth keeping through variable recovery: promote the prototype out of "guessed"
-            cc_cls = default_cc_for_project(self.project)
-            if cc_cls is not None and not isinstance(func.calling_convention, cc_cls):
-                func.calling_convention = cc_cls(self.project.arch)
+            cc = self._cc_for(func, func.prototype)
+            if cc is not None:
+                func.calling_convention = cc
             func.prototype_source = _SOURCE
         return True
+
+    def _cc_for(self, func: Function, proto: SimTypeFunction) -> SimCC | None:
+        """The convention ``func`` uses with ``proto``; stack-result conventions need the prototype to place results."""
+        cc_cls = (
+            GO_ABI0_CC.get(self.project.arch.name)
+            if func.name.endswith(".abi0")
+            else default_cc_for_project(self.project)
+        )
+        if cc_cls is None:
+            return None
+        if hasattr(cc_cls, "for_prototype"):
+            return cc_cls.for_prototype(self.project.arch, proto)
+        if func.calling_convention is not None and isinstance(func.calling_convention, cc_cls):
+            return func.calling_convention
+        return cc_cls(self.project.arch)
 
     def _apply(self, func: Function) -> bool:
         if func.prototype is not None and func.prototype_source.value > _SOURCE.value:
@@ -130,15 +145,10 @@ class GoPrototypes(OptimizationPass):
             if proto is None:
                 return bounded
             proto = self._with_receiver(func, proto)
-        cc_cls = (
-            GO_ABI0_CC.get(self.project.arch.name)
-            if func.name.endswith(".abi0")
-            else default_cc_for_project(self.project)
-        )
-        if cc_cls is None:
+        cc = self._cc_for(func, proto)
+        if cc is None:
             return False
-        if func.calling_convention is None or not isinstance(func.calling_convention, cc_cls):
-            func.calling_convention = cc_cls(self.project.arch)
+        func.calling_convention = cc
         func.prototype = proto
         func.prototype_source = _SOURCE
         l.debug("Applied Go prototype to %s: %s", func.name, proto.repr(func.name))
