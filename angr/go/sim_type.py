@@ -488,7 +488,9 @@ class GoSimTypeInterface(GoSimStruct):
         return hash((GoSimTypeInterface, self.go_name, tuple(n for n, _ in self.methods)))
 
     def _new_like(self) -> GoSimStruct:
-        return GoSimTypeInterface(list(self.methods), go_name=self.go_name)
+        out = GoSimTypeInterface(list(self.methods), go_name=self.go_name)
+        out.fields = OrderedDict(self.fields)
+        return out
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
         key = f"<iface:{self.go_name}>" if self.go_name is not None else f"<iface:{id(self)}>"
@@ -498,7 +500,8 @@ class GoSimTypeInterface(GoSimStruct):
         out._arch = arch
         memo[key] = out
         out.methods = [(n, t.with_arch(arch, memo=memo)) for n, t in self.methods]
-        out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in out.fields.items())
+        # the words keep their types (the tab word may point at the runtime's itab struct)
+        out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
         return out
 
 

@@ -482,6 +482,13 @@ def type_to_go_repr_chunks(
         assert False
 
 
+_RUNTIME_INTERNAL_PREFIXES = ("internal/abi.", "runtime.itab", "runtime._type")
+
+
+def _go_runtime_internal(name) -> bool:
+    return isinstance(name, str) and name.startswith(_RUNTIME_INTERNAL_PREFIXES)
+
+
 def _recursively_collect_referenced_structs(ty, out: dict[int, SimStruct], _seen: set[int] | None = None) -> None:
     """
     Walk ``ty`` transitively and record every ``SimStruct`` reachable from it into ``out`` (keyed
@@ -495,6 +502,10 @@ def _recursively_collect_referenced_structs(ty, out: dict[int, SimStruct], _seen
         return
     _seen.add(id(ty))
     if isinstance(ty, SimStruct):
+        if _go_runtime_internal(getattr(ty, "go_name", None)):
+            # the runtime's own itab/type descriptor structs: reached through every interface value's tab word,
+            # known to the reader, not worth a definition in every function
+            return
         out[id(ty)] = ty
         for ftype in ty.fields.values():
             _recursively_collect_referenced_structs(ftype, out, _seen=_seen)
@@ -4069,6 +4080,22 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         stride = 1 if base_type.size is None else base_type.size // self.project.arch.byte_width or 1
         index, remainder = divmod(offset, stride)
+        if index != 0 and _go_open_ended_tail(base_type, offset):
+            # the itab's method table (fun [1]uintptr) runs past the struct: stay in that field
+            index, remainder = 0, offset
+        if index != 0 and base_expr is not None and isinstance(base_type, (SimTypeFixedSizeArray, SimTypeArray)):
+            # an element past the first of an array value: index the array, not a pointer to it
+            result = GoUnaryOp(
+                "Reference",
+                GoIndexedVariable(
+                    base_expr,
+                    GoConstant(index, SimTypeInt(), codegen=self),
+                    variable_type=base_type.elem_type,
+                    codegen=self,
+                ),
+                codegen=self,
+            )
+            return self._access_constant_offset(result, remainder, data_type, lvalue, renegotiate_type)
         if index != 0:
             index = GoConstant(index, SimTypeInt(), codegen=self)
             kernel = expr
@@ -5642,6 +5669,11 @@ class _PointerWalkSubstituter(GoStructuredCodeWalker):
         target = obj.callee_target
         while isinstance(target, GoTypeCast):
             target = target.expr
+        fun = _go_itab_fun_read(target)
+        if fun is not None:
+            # x.tab.Fun[i] with the tab word read through the walking pointer
+            word, offset = fun
+            target = GoVariableField(word, GoStructField(word.field.struct_type, offset, None), codegen=self._codegen)
         if (
             isinstance(self._elem, GoSimTypeInterface)
             and isinstance(target, GoVariableField)
@@ -6097,11 +6129,51 @@ def _go_itab_fun_offset(arch) -> int:
     return -(-(2 * ws + 4) // ws) * ws
 
 
+def _go_open_ended_tail(struct, offset: int) -> bool:
+    """A named Go struct whose last field is a one-element array reached at or past it (the itab's ``fun``)."""
+    if not isinstance(struct, GoSimStruct) or not struct.offsets or _go_descriptor_name(struct) is None:
+        return False
+    last = max(struct.offsets, key=struct.offsets.get)
+    last_ty = unpack_typeref(struct.fields.get(last))
+    return (
+        isinstance(last_ty, (SimTypeArray, SimTypeFixedSizeArray))
+        and getattr(last_ty, "length", None) == 1
+        and offset >= struct.offsets[last]
+    )
+
+
+def _go_itab_fun_read(expr):
+    """
+    ``x.tab.Fun[i]`` (the itab word typed as the runtime's itab struct): (the tab word, byte offset of the slot).
+    """
+    while isinstance(expr, GoTypeCast):
+        expr = expr.expr
+    if not (isinstance(expr, GoIndexedVariable) and isinstance(expr.index, GoConstant)):
+        return None
+    field = expr.variable
+    while isinstance(field, GoTypeCast):
+        field = field.expr
+    if not (isinstance(field, GoVariableField) and isinstance(field.field.offset, int)):
+        return None
+    if field.field.field not in ("Fun", "fun"):
+        return None
+    word = field.variable
+    if not (isinstance(word, GoVariableField) and word.field.field == "tab"):
+        return None
+    elem = 8
+    with contextlib.suppress(Exception):
+        elem = field.codegen.project.arch.bytes if field.codegen is not None else 8
+    return word, field.field.offset + expr.index.value * elem
+
+
 def _go_itab_slot(expr):
     """(interface value, byte offset) when ``expr`` reads a slot of an interface value's itab; else None."""
     while isinstance(expr, GoTypeCast):
         expr = expr.expr
-    if isinstance(expr, GoIndexedVariable) and isinstance(expr.index, GoConstant):
+    fun = _go_itab_fun_read(expr)
+    if fun is not None:
+        base, offset = fun
+    elif isinstance(expr, GoIndexedVariable) and isinstance(expr.index, GoConstant):
         base, offset = expr.variable, expr.index.value
     elif isinstance(expr, GoVariableField) and isinstance(expr.field.offset, int) and _go_is_iface_word(expr.variable):
         # the method table read as a field of the itab word

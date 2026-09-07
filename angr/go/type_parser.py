@@ -72,12 +72,18 @@ class GoTypeParser:
     # Named types
     #
 
+    # the runtime's itab struct, by the name each Go version gives it (go1.22+ moved it into internal/abi)
+    ITAB_NAMES = ("internal/abi.ITab", "runtime.itab")
+    TYPE_NAMES = ("internal/abi.Type", "runtime._type")
+
     def resolve_named(self, name: str) -> SimType:
         if name in self._named:
             return self._named[name]
         if name in PREDECLARED:
             ty = PREDECLARED[name](self.arch)
             self._named[name] = ty
+            if isinstance(ty, GoSimTypeInterface):
+                self._type_itab_word(ty)
             return ty
 
         record = self.resolver(name) if self.resolver is not None else None
@@ -107,6 +113,7 @@ class GoTypeParser:
             iface = GoSimTypeInterface([], go_name=name).with_arch(self.arch)
             self._named[name] = iface
             iface.methods = [(mname, self._safe_parse(mtype)) for mname, mtype in record.methods]
+            self._type_itab_word(iface)
             return iface
 
         # kind == "named": the underlying type with a new name
@@ -251,7 +258,39 @@ class GoTypeParser:
             name = item[:paren]
             sig, _ = self._parse_func(item, paren)
             methods.append((name, sig))
-        return GoSimTypeInterface(methods), close + 1
+        iface = GoSimTypeInterface(methods).with_arch(self.arch)
+        self._type_itab_word(iface)
+        return iface, close + 1
+
+    def itab_type(self) -> SimType | None:
+        """The runtime's itab struct as the binary describes it, or None."""
+        return self._runtime_struct(self.ITAB_NAMES)
+
+    def type_descriptor_type(self) -> SimType | None:
+        """The runtime's type descriptor struct as the binary describes it, or None."""
+        return self._runtime_struct(self.TYPE_NAMES)
+
+    def _runtime_struct(self, names: tuple[str, ...]) -> SimType | None:
+        """The first of the runtime structs the binary describes (by any of its spellings)."""
+        if self.resolver is None:
+            return None
+        for name in names:
+            if name in self._named or self.resolver(name) is not None:
+                ty = self.resolve_named(name)
+                if isinstance(ty, GoSimStruct) and ty.fields:
+                    return ty
+        return None
+
+    def _type_itab_word(self, iface: GoSimTypeInterface) -> None:
+        """
+        The first word of an interface value points at the runtime's itab (``internal/abi.ITab``, ``runtime.itab``
+        before go1.22), or at the type descriptor for an empty interface: reads through it name the itab's fields
+        (``Type``, ``Hash``, ``Fun``) instead of raw offsets.
+        """
+        target = self._runtime_struct(self.TYPE_NAMES if iface.is_empty else self.ITAB_NAMES)
+        if target is None:
+            return
+        iface.fields["tab"] = GoSimTypePointer(target).with_arch(self.arch)
 
 
 #

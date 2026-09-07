@@ -51,7 +51,15 @@ class _Corpus(unittest.TestCase):
 
 class TestGoCorpusLinuxAmd64(_Corpus):
     PATH = LINUX
-    FUNCS = ("main.convert", "main.generate")
+    FUNCS = ("main.convert", "main.generate", "main.main")
+
+    def test_itab_reads_use_named_fields(self):
+        # an error's itab word points at the runtime's itab struct: its Type pointer is read by name
+        text = self.decompile("main.main")
+        assert re.search(r"\w+\.tab\.Type\b", text), text
+        assert ".tab[" not in text and "padding_0 [8]uint8" not in text
+        tab = self.proj.kb.go_signatures.type("error").fields["tab"]
+        assert tab.pts_to.go_name in ("internal/abi.ITab", "runtime.itab") and "Type" in tab.pts_to.fields
 
     def test_convert_type_switch_and_print(self):
         text = self.decompile("main.convert")
