@@ -13,10 +13,12 @@ import archinfo
 
 import angr
 from angr.calling_conventions import (
+    GO_ABI0_CC,
     SimCCGoAArch64,
     SimCCGoAArch64ABI0,
     SimCCGoAMD64,
     SimCCGoAMD64ABI0,
+    SimCCGoX86,
     SimCCSystemVAMD64,
     SimRegArg,
     SimStackArg,
@@ -263,6 +265,31 @@ class TestGoCallingConventionRecovery(unittest.TestCase):
         locs = func.calling_convention.arg_locs(func.prototype)
         assert locs, "expected at least one stack argument"
         assert all(_reg_names(loc) is None for loc in locs)
+
+
+class TestGoX86ABI0(unittest.TestCase):
+    """386 only has the all-stack ABI0: arguments from 4(SP), results after them at the next word boundary."""
+
+    def test_selected_for_go_on_x86(self):
+        assert default_cc("X86", "Linux", language="go") is SimCCGoX86
+        assert GO_ABI0_CC["X86"] is SimCCGoX86
+
+    def test_args_then_results_on_the_stack(self):
+        arch = archinfo.ArchX86()
+        string = SimStruct({"ptr": SimTypePointer(SimTypeChar()), "len": SimTypeInt()}, name="string")
+        error = SimStruct({"tab": SimTypePointer(SimTypeChar()), "data": SimTypePointer(SimTypeChar())}, name="error")
+        proto = SimTypeFunction([SimTypeInt(), string], SimStruct({"s": string, "err": error}, name="ret")).with_arch(
+            arch
+        )
+        cc = SimCCGoX86.for_prototype(arch, proto)
+        locs = cc.arg_locs(proto)
+        assert all(_reg_names(loc) is None for loc in locs)
+        assert locs[0].stack_offset == 4
+        assert {f.stack_offset for f in locs[1].get_footprint()} == {8, 12}
+        assert cc.args_size == 12
+        assert {f.stack_offset for f in cc.return_val(proto.returnty).get_footprint()} == {16, 20, 24, 28}
+        # without the prototype the results are assumed to start right above the return address
+        assert {f.stack_offset for f in SimCCGoX86(arch).return_val(string.with_arch(arch)).get_footprint()} == {4, 8}
 
 
 if __name__ == "__main__":
