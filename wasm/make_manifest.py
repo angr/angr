@@ -11,7 +11,6 @@ REQUIRED_DISTRIBUTIONS = (
     "pypcode",
     "pyvex",
     "archinfo",
-    "claripy",
     "cle",
     "mulpyplexer",
     "arpy",

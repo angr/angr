@@ -73,7 +73,6 @@ jobs:
           cargo test --release --features z3-sys/gh-release --no-run
           (Get-ChildItem target/release/build -Recurse -Filter libz3.dll | Select-Object -First 1).DirectoryName >> $env:GITHUB_PATH
       - run: cargo test --release --features z3-sys/gh-release
-      - run: cargo test --release
 
   browser_runtime:
     name: Test WebAssembly browser runtime
@@ -83,11 +82,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           path: workspace/angr
-      - name: Checkout Z3
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          repository: Z3Prover/z3
-          path: workspace/z3
       - name: Checkout test binaries
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
