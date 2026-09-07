@@ -55,9 +55,16 @@ class SimEngineVRAIL(
         tv_manager: typevars.TypeVariableManager | None = None,
         variable_map=None,
         flavor: str | None = None,
+        stack_region_vars=None,
         **kwargs,
     ):
-        super().__init__(*args, vvar_type_hints=vvar_type_hints, tv_manager=tv_manager, **kwargs)
+        super().__init__(
+            *args,
+            vvar_type_hints=vvar_type_hints,
+            tv_manager=tv_manager,
+            stack_region_vars=stack_region_vars,
+            **kwargs,
+        )
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}

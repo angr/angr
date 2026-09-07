@@ -455,6 +455,36 @@ class TestInferredResultsIfaceGo127Stripped(GoDecompilationTarget):
         assert "int128" not in text and "int192" not in text
 
 
+class TestSpilledHeadersGo127Stripped(GoDecompilationTarget):
+    """
+    ``spill.go``: a slice and a string whose address is taken live in stack memory and are returned from there. The
+    header words of the returned value form one variable of the slice/string type (seeded from the fused return once
+    the callee results are inferred), so the return is ``return v, err`` rather than the words spelled out.
+    """
+
+    BINARY = go_binary("go1.27.1", "spill_stripped")
+    FUNCS = ("main.piece", "main.name", "main.gather", "main.joined")
+    WARMUP_PASSES = 1
+
+    def test_slice_header_is_one_variable(self):
+        text = self.texts["main.gather"]
+        assert self.header(text).endswith(") ([]uint8, error) {")
+        assert re.search(r"^\s+var (\w+) \[\]uint8", text, re.MULTILINE)
+        assert re.search(r"return \w+, nil$", text, re.MULTILINE)
+        assert re.search(r"return \w+, \S+$", text, re.MULTILINE)
+        returns = [line for line in text.splitlines() if line.strip().startswith("return ")]
+        assert returns and all("{" not in line and "unsafe.Pointer" not in line for line in returns)
+        # the fields the append reads are the variable itself
+        assert re.search(r"append\(\w+, \w+\.\.\.\)", text)
+
+    def test_string_header_is_one_variable(self):
+        text = self.texts["main.joined"]
+        assert self.header(text).endswith(") (string, error) {")
+        assert re.search(r"return \w+, err$", text, re.MULTILINE)
+        assert re.search(r"return \w+, nil$", text, re.MULTILINE)
+        assert "unsafe.Pointer(&" not in text and "string{ptr:" not in text
+
+
 class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
     """
     ``main.appendOne`` returns ``[]int{ptr, len, cap}`` whose len word is a phi over the appended length: the pass

@@ -101,8 +101,11 @@ class Typehoon(Analysis):
             return
 
         manager = self._variable_manager_for(func_addr, flavor)
-
+        manual = manager.variables_with_manual_types
         for var, typevars in var_to_typevars.items():
+            if var in manual:
+                # a type an analysis or the user set is ground truth; the solution never replaces it
+                continue
             # if the variable is a stack variable, does the stack offset have any corresponding type variable?
             typevars_list = sorted(typevars, key=lambda tv: tv.idx)
             if stack_offset_tvs and isinstance(var, SimStackVariable) and var.offset in stack_offset_tvs:
@@ -369,9 +372,11 @@ class Typehoon(Analysis):
             if len(tc.fields) == 1 and 0 in tc.fields:
                 return field0
 
-            # are all fields the same?
+            # are all fields the same? (a named struct keeps its shape: an interface value is two pointers, not an
+            # array of two)
             if (
                 len(tc.fields) > 1
+                and not tc.name
                 and not self._is_pointer_to(field0, tc)
                 and all(tc.fields[off] == field0 for off in offsets)
             ):

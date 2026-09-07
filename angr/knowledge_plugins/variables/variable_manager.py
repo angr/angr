@@ -1437,6 +1437,12 @@ class VariableManagerInternal(Serializable):
                     for v2 in sorted(
                         vs - cast(set[SimStackVariable], congruence_classes[v1]), key=lambda v: v.ident or ""
                     ):
+                        if v1.size != v2.size and (
+                            v1 in self.variables_with_manual_types or v2 in self.variables_with_manual_types
+                        ):
+                            # a variable an analysis sized and typed (a multi-word value spilled to the stack) keeps
+                            # its shape; a narrower use of the same slot is another variable
+                            continue
                         if self._stack_vars_are_slot_reuse(v1, v2):
                             continue
                         # Check that merging v1's class with v2's class
