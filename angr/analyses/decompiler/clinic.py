@@ -2623,6 +2623,19 @@ class Clinic(Analysis, Serializable):
                                 name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                                 region=self.function.addr,
                             )
+                        elif locs and all(isinstance(loc, SimStackArg) for loc in locs):
+                            # a stack-resident aggregate (Go's ABI0 strings, slices, interfaces): one stack variable
+                            # over the whole span; the body's word reads extract from it
+                            start = min(loc.stack_offset for loc in locs)
+                            end = max(loc.stack_offset + loc.size for loc in locs)
+                            argvar = SimStackVariable(
+                                start,
+                                end - start,
+                                base="bp",
+                                ident=f"arg_{idx}",
+                                name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
+                                region=self.function.addr,
+                            )
                         else:
                             if not locs:
                                 l.warning(
@@ -2996,9 +3009,13 @@ class Clinic(Analysis, Serializable):
         # _rewrite_combo_reg_param_references), which variable recovery does not track, so no accesses were recorded
         # for them; link them to their argument variables directly. the variable map is keyed by expression idx and
         # every occurrence in the graph is the same expression object, so one call covers all of them.
+        # stack-passed aggregates (Go's ABI0) are read through References too.
         if arg_vvars is not None:
             for vvar, var in arg_vvars.values():
-                if vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER:
+                if vvar.parameter_category in (
+                    ailment.Expr.VirtualVariableCategory.COMBO_REGISTER,
+                    ailment.Expr.VirtualVariableCategory.STACK,
+                ):
                     self._set_expr_variable(vvar, var, 0)
 
         if self._cache is not None:

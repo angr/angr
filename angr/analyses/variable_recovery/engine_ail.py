@@ -736,11 +736,18 @@ class SimEngineVRAIL(
         return richr
 
     def _handle_unop_Reference(self, expr: ailment.Expr.UnaryOp):
-        if isinstance(expr.operand, ailment.Expr.VirtualVariable) and expr.operand.was_stack:
+        operand = expr.operand
+        # a stack-passed parameter is a stack variable of the caller's frame (e.g., Go's all-stack ABI0)
+        is_stack_param = (
+            isinstance(operand, ailment.Expr.VirtualVariable)
+            and operand.was_parameter
+            and operand.parameter_category == ailment.Expr.VirtualVariableCategory.STACK
+        )
+        if isinstance(operand, ailment.Expr.VirtualVariable) and (operand.was_stack or is_stack_param):
             if expr.tags.get("extra_def", False):
                 self._assign_to_vvar(expr.operand, self._top(expr.operand.bits), dst=expr.operand)
             refbase_typevar = None
-            off = expr.operand.stack_offset
+            off = operand.parameter_stack_offset if is_stack_param else operand.stack_offset
 
             # does this variable exist?
             value: claripy.ast.BV | None = self.vvar_region.get(expr.operand.varid, None)
