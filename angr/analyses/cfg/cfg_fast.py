@@ -5928,8 +5928,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 nodecode_size = 1
 
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
-                if self.project.arch.name == "AMD64" and irsb_string[-2:] == b"\x0f\x0b":
-                    # VEX supports ud2 and make it part of the block size, only in AMD64.
+                if is_x86_x64_arch and irsb_string[-2:] == b"\x0f\x0b":
+                    # VEX decodes ud2 on both x86 and AMD64 and counts it towards the block size.
                     valid_ins = True
                     nodecode_size = 0
                 elif (
@@ -5946,7 +5946,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 ):
                     # ud0, ud1, and ud2 are actually valid instructions.
                     valid_ins = True
-                    # VEX does not support ud0 or ud1 or ud2 under AMD64. they are not part of the block size.
+                    # VEX decodes none of ud0/ud1 here, so they are not part of the block size. ud2 only
+                    # reaches this branch when it is not the instruction the block stopped on.
                     nodecode_size = 2
                 elif is_arm_arch(self.project.arch):
                     # check for UND
