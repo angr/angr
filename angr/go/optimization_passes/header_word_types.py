@@ -3,12 +3,24 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import AILBlockViewer
-from angr.ailment.expression import BinaryOp, Call, Const, Extract, Insert, Load, Struct, UnaryOp, VirtualVariable
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Expression,
+    Extract,
+    Insert,
+    Load,
+    Struct,
+    UnaryOp,
+    VirtualVariable,
+)
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, ConditionalJump, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.go.sim_type import GoSimStruct, GoSimType, GoSimTypeFunction, GoSimTypeInt, GoSimTypeSlice, go_type_repr
+from angr.go.utils.multiword import extract_piece, multiword_vvars
 from angr.sim_type import SimType
 
 l = logging.getLogger(__name__)
@@ -80,6 +92,7 @@ class GoHeaderWordTypes(OptimizationPass):
                         self._pin_value(expr, results[i] if len(results) == len(exprs) else None, pins, int_ty)
                 elif isinstance(stmt, ConditionalJump):
                     self._pin_compare(stmt.condition, pins, int_ty)
+        pins.update(self._multiword)
         if pins:
             self._scratch.setdefault(GROUND_TRUTH_KEY, {}).update(pins)
             l.debug("Pinned %d header words to int in %s", len(pins), self._func.name)
@@ -295,12 +308,18 @@ class GoHeaderWordTypes(OptimizationPass):
             for arg_vvar, _ in self._arg_vvars.values():
                 if isinstance(arg_vvar, VirtualVariable):
                     note(arg_vvar)
+        self._defs: dict[int, Expression] = {}
         for block in self._graph.nodes:
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     note(stmt.dst)
                     if isinstance(stmt.src, Call) and stmt.dst.varid in self._combo_words:
                         self._combo_defs[stmt.dst.varid] = stmt.src
+                    self._defs[stmt.dst.varid] = stmt.src
+        # whole values held in one stack variable (ABI0): as many words as they are wide, and typed as the whole
+        self._multiword = multiword_vvars(self)
+        for varid, ty in self._multiword.items():
+            self._combo_words[varid] = max(1, (ty.size or 0) // self.project.arch.bits)
 
     def _int_type(self) -> SimType | None:
         try:
@@ -358,7 +377,15 @@ class GoHeaderWordTypes(OptimizationPass):
                     pins[vvar.varid] = int_ty
 
     def _is_header_word(self, expr) -> bool:
-        """``Load(&combo + ws|2ws)``: the len or cap word of a fused multi-word value."""
+        """``Load(&combo + ws|2ws)`` or ``Extract(v, ws|2ws)``: the len or cap word of a fused multi-word value."""
+        if isinstance(expr, VirtualVariable):
+            expr = self._defs.get(expr.varid, expr)
+        hit = extract_piece(expr)
+        if hit is not None:
+            return hit[0].varid in self._combo_words and hit[1] in (
+                self.project.arch.bytes,
+                2 * self.project.arch.bytes,
+            )
         if not isinstance(expr, Load) or expr.size != self.project.arch.bytes:
             return False
         addr = expr.addr

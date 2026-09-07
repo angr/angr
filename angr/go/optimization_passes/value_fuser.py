@@ -5,12 +5,23 @@ import logging
 from collections import OrderedDict
 
 from angr.ailment import AILBlockRewriter
-from angr.ailment.expression import BinaryOp, Call, Const, Load, StringLiteral, Struct, UnaryOp, VirtualVariable
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Expression,
+    Load,
+    StringLiteral,
+    Struct,
+    UnaryOp,
+    VirtualVariable,
+)
 from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.calling_conventions import SimArrayArg, SimComboArg, SimStructArg
-from angr.go.sim_type import GoSimStruct, GoSimTypeFunction, GoSimTypeString
+from angr.go.sim_type import GoSimStruct, GoSimTypeFunction, GoSimTypeString, go_type_repr
+from angr.go.utils.multiword import extract_piece, multiword_vvars, vvar_use_counts
 from angr.go.utils.names import call_target_name
 from angr.sim_type import SimType
 
@@ -72,11 +83,49 @@ class GoValueFuser(OptimizationPass):
 
     def _analyze(self, cache=None):
         self._collect_combo_vvars()
+        self._multiword = multiword_vvars(self)
+        self._defs: dict[int, Expression] = {}
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    self._defs[stmt.dst.varid] = stmt.src
         rewriter = _FusingRewriter(self)
         for block in list(self._graph.nodes):
             rewriter.walk(block)
-        if rewriter.changed:
+        changed = rewriter.changed
+        if self._multiword:
+            changed |= self._normalize_multiword_words()
+        if changed:
             self.out_graph = self._graph
+
+    def _normalize_multiword_words(self) -> bool:
+        """
+        Words of a stack-held value read as ``Extract(v, k)`` become ``Load(&v + k)``, the shape the header-word
+        machinery knows from combo registers; copies of them into the result slots of the caller's frame that a
+        fused return no longer reads are dropped.
+        """
+        rewriter = _ExtractToLoadRewriter(self)
+        for block in list(self._graph.nodes):
+            rewriter.walk(block)
+        counts = vvar_use_counts(self._graph)
+        dropped = False
+        for block in self._graph.nodes:
+            kept = []
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_stack
+                    and stmt.dst.stack_offset is not None
+                    and stmt.dst.stack_offset >= 0
+                    and counts.get(stmt.dst.varid, 0) <= 1
+                    and not isinstance(stmt.src, Call)
+                ):
+                    dropped = True
+                    continue
+                kept.append(stmt)
+            block.statements = kept
+        return rewriter.changed or dropped
 
     def _collect_combo_vvars(self) -> None:
         def note(vvar):
@@ -123,10 +172,7 @@ class GoValueFuser(OptimizationPass):
         counts = [len(_flatten_locs(loc)) for loc in arg_locs]
         # a combo-register argument (a multi-word parameter of this function passed on whole) stands for as many
         # leaves as it has registers
-        entries = [
-            (arg, len(arg.reg_vvars) if isinstance(arg, VirtualVariable) and getattr(arg, "reg_vvars", None) else 1)
-            for arg in call.args
-        ]
+        entries = [(arg, self._leaves_of(arg)) for arg in call.args]
         if sum(counts) != sum(n for _, n in entries) or all(c == 1 for c in counts) or any(c == 0 for c in counts):
             # zero-size parameters (empty structs) have no leaves to fuse
             return None
@@ -148,6 +194,51 @@ class GoValueFuser(OptimizationPass):
             else:
                 return None
         return new_args
+
+    def _leaves_of(self, arg) -> int:
+        """How many words a call argument stands for: a whole multi-word value counts once per word."""
+        if isinstance(arg, VirtualVariable):
+            if getattr(arg, "reg_vvars", None):
+                return len(arg.reg_vvars)
+            if arg.varid in self._multiword:
+                return max(1, arg.size // self.project.arch.bytes)
+        return 1
+
+    def _extract_of(self, leaf) -> tuple[VirtualVariable, int] | None:
+        seen = set()
+        while isinstance(leaf, VirtualVariable) and leaf.varid not in seen:
+            seen.add(leaf.varid)
+            src = self._defs.get(leaf.varid)
+            if src is None:
+                return None
+            leaf = src
+        hit = extract_piece(leaf)
+        return hit if hit is not None and hit[0].varid in self._multiword else None
+
+    def _fuse_extract_slice(self, leaves: list, size: int | None, ty: SimType | None = None):
+        """Consecutive words extracted from one multi-word variable: the variable, or a load of the run."""
+        pieces = [self._extract_of(leaf) for leaf in leaves]
+        if any(p is None for p in pieces):
+            return None
+        whole = pieces[0][0]
+        expected = pieces[0][1]
+        for (v, off), leaf in zip(pieces, leaves):
+            if v.varid != whole.varid or off != expected:
+                return None
+            expected += leaf.size
+        first = pieces[0][1]
+        width = expected - first
+        if first == 0 and width == whole.size and go_type_repr(self._multiword[whole.varid]) == go_type_repr(ty):
+            return whole
+        if size is not None and width != size:
+            width = size
+        bits = self.project.arch.bits
+        addr = UnaryOp(self.manager.next_atom(), "Reference", whole, bits=bits)
+        if first:
+            addr = BinaryOp(
+                self.manager.next_atom(), "Add", [addr, Const(self.manager.next_atom(), first, bits)], bits=bits
+            )
+        return Load(self.manager.next_atom(), addr, width, self.project.arch.memory_endness, **leaves[0].tags)
 
     def fuse_results(self, ret_exprs: list, proto: GoSimTypeFunction) -> list | None:
         results = proto.results
@@ -171,6 +262,8 @@ class GoValueFuser(OptimizationPass):
         size = ty.size // self.project.arch.byte_width if ty.size else None
 
         fused = self._fuse_combo_slice(leaves, size)
+        if fused is None:
+            fused = self._fuse_extract_slice(leaves, size, ty)
         if fused is None:
             fused = self._fuse_contiguous_loads(leaves)
         if fused is None and isinstance(ty, GoSimTypeString):
@@ -243,14 +336,15 @@ class GoValueFuser(OptimizationPass):
         ptr, length = leaves[0].value_int, leaves[1].value_int
         if length < 0 or length > 0x10000:
             return None
+        bits = 2 * self.project.arch.bits
         if length == 0:
-            return StringLiteral(self.manager.next_atom(), "", 128, **leaves[0].tags)
+            return StringLiteral(self.manager.next_atom(), "", bits, **leaves[0].tags)
         section = self.project.loader.find_section_containing(ptr)
         if section is None or not section.is_readable or section.is_writable:
             return None
         with contextlib.suppress(KeyError, UnicodeDecodeError):
             data = self.project.loader.memory.load(ptr, length).decode("utf-8")
-            return StringLiteral(self.manager.next_atom(), data, 128, **leaves[0].tags)
+            return StringLiteral(self.manager.next_atom(), data, bits, **leaves[0].tags)
         return None
 
     def _struct_expr(self, ty: SimType, leaves: list):
@@ -271,11 +365,38 @@ class GoValueFuser(OptimizationPass):
             bits = ty.size or sum(leaf.bits for leaf in leaves)
             name = ty.go_repr()
         else:
-            fields = OrderedDict((i * 8, leaf) for i, leaf in enumerate(leaves))
-            field_offsets = OrderedDict((f"f{i}", i * 8) for i in range(len(leaves)))
+            ws = self.project.arch.bytes
+            fields = OrderedDict((i * ws, leaf) for i, leaf in enumerate(leaves))
+            field_offsets = OrderedDict((f"f{i}", i * ws) for i in range(len(leaves)))
             bits = sum(leaf.bits for leaf in leaves)
             name = ty.go_repr() if hasattr(ty, "go_repr") else str(ty)
         return Struct(self.manager.next_atom(), name, fields, field_offsets, bits, **leaves[0].tags)
+
+
+class _ExtractToLoadRewriter(AILBlockRewriter):
+    def __init__(self, fuser: GoValueFuser):
+        super().__init__()
+        self._fuser = fuser
+        self.changed = False
+
+    def _handle_Extract(self, expr_idx: int, expr, stmt_idx: int, stmt, block):
+        hit = extract_piece(expr)
+        if hit is None or hit[0].varid not in self._fuser._multiword:
+            return super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
+        whole, off = hit
+        bits = self._fuser.project.arch.bits
+        addr = UnaryOp(self._fuser.manager.next_atom(), "Reference", whole, bits=bits)
+        if off:
+            addr = BinaryOp(
+                self._fuser.manager.next_atom(),
+                "Add",
+                [addr, Const(self._fuser.manager.next_atom(), off, bits)],
+                bits=bits,
+            )
+        self.changed = True
+        return Load(
+            self._fuser.manager.next_atom(), addr, expr.size, self._fuser.project.arch.memory_endness, **expr.tags
+        )
 
 
 class _FusingRewriter(AILBlockRewriter):
