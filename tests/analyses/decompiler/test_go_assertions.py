@@ -25,7 +25,10 @@ class PanickingAssertions(GoDecompilationTarget):
                 assert "if " not in text.split("{", 1)[1], text
 
     def test_call_result_holder(self):
-        assert "\n    return v2.(int)\n" in self.texts["main.viaCall"], self.texts["main.viaCall"]
+        # the any-typed call result is asserted directly (older renders held it in a variable first)
+        assert re.search(r"\n    return (v2|main\.mk\(n\))\.\(int\)\n", self.texts["main.viaCall"]), self.texts[
+            "main.viaCall"
+        ]
 
     def test_memory_holder(self):
         # a non-pointer type reads the value behind the data word; a pointer-shaped one is the data word itself.

@@ -10,6 +10,8 @@ from angr.ailment.expression import (
     Const,
     Convert,
     Expression,
+    Extract,
+    Insert,
     Load,
     Phi,
     StringLiteral,
@@ -250,6 +252,12 @@ class GoPrototypeInference(OptimizationPass):
         assert self._values is not None
         if isinstance(leaves[i], tuple):
             return leaves[i]
+        if isinstance(leaves[i], Extract):
+            inserted = self._wide_word(leaves[i])
+            if inserted is not None:
+                return self._classify([*leaves[:i], inserted, *leaves[i + 1 :]], i, depth)
+            if self._phi_operands(leaves[i]) is not None:
+                return self._classify_phi(leaves, i, depth)
         expr = self._values.resolve(leaves[i])
         if isinstance(expr, BinaryOp) and expr.op == "Add":
             base = self._values.resolve(expr.operands[0])
@@ -313,7 +321,7 @@ class GoPrototypeInference(OptimizationPass):
             return None
         ids = [rv.varid for rv in combo.reg_vvars or []]
         wanted = ids[word : word + span]
-        got = [self._values.resolve(x) for x in leaves[i : i + span]]
+        got = [self._values.resolve(self._wide_word(x) or x) for x in leaves[i : i + span]]
         if len(wanted) != span or len(got) != span:
             return None
         if all(isinstance(g, VirtualVariable) and g.varid == v for g, v in zip(got, wanted)):
@@ -391,11 +399,10 @@ class GoPrototypeInference(OptimizationPass):
             return None
         phis = []
         for leaf in leaves[i:]:
-            r = self._values.resolve(leaf)
-            src = self._values.defs.get(r.varid) if isinstance(r, VirtualVariable) else None
-            if not isinstance(src, Phi):
+            operands = self._phi_operands(leaf)
+            if operands is None:
                 break
-            phis.append(dict(src.src_and_vvars))
+            phis.append(operands)
             if len(phis) == 3:
                 break
         if not phis:
@@ -414,6 +421,52 @@ class GoPrototypeInference(OptimizationPass):
             elif best[0] != hit[0] and best[1] == hit[1]:
                 return None
         return best
+
+    def _phi_operands(self, leaf) -> dict | None:
+        """
+        The incoming values of a leaf defined by a phi, per source block: the phi's operands, or, for a word
+        extracted from a wide stack slot that is a phi, that word of each incoming slot value.
+        """
+        assert self._values is not None
+        if isinstance(leaf, tuple):
+            return None
+        extract = None
+        r = self._values.resolve(leaf)
+        if isinstance(leaf, Extract) and isinstance(leaf.offset, Const) and leaf.offset.is_int:
+            extract = leaf
+            r = self._values.resolve(leaf.base)
+        src = self._values.defs.get(r.varid) if isinstance(r, VirtualVariable) else None
+        if not isinstance(src, Phi):
+            return None
+        out = {}
+        for block, vvar in src.src_and_vvars:
+            if vvar is None:
+                out[block] = None
+            elif extract is None:
+                out[block] = vvar
+            else:
+                out[block] = Extract(
+                    self.manager.next_atom(), extract.bits, vvar, extract.offset, extract.endness, **extract.tags
+                )
+        return out
+
+    def _wide_word(self, expr):
+        """``Extract(slot, k)`` where the slot is built by ``Insert``s: the value inserted at word ``k``."""
+        assert self._values is not None
+        if not (isinstance(expr, Extract) and isinstance(expr.offset, Const) and expr.offset.is_int):
+            return None
+        want = expr.offset.value_int
+        base = self._values.resolve(expr.base)
+        seen = set()
+        while isinstance(base, VirtualVariable) and base.varid not in seen:
+            seen.add(base.varid)
+            src = self._values.defs.get(base.varid)
+            if not (isinstance(src, Insert) and isinstance(src.offset, Const) and src.offset.is_int):
+                return None
+            if src.offset.value_int == want and src.value.bits == expr.bits:
+                return src.value
+            base = self._values.resolve(src.base)
+        return None
 
     def _classify_const(self, leaves, i, value: int) -> tuple[str, int] | None:
         if value == 0:

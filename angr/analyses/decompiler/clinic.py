@@ -2712,6 +2712,34 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    def _seed_stack_regions(self, vvar2vvar: dict[int, int]) -> dict[int, tuple[SimStackVariable, int]]:
+        """
+        Stack regions an optimization pass proved to hold one typed value (``optimization_scratch["stack_regions"]``:
+        offset -> (size, SimType, {vvar id: stack offset})) get one variable of that type before variable recovery
+        runs; the stack vvars carrying its words (ids after the phi unification) map to that variable and their
+        byte offset into it, so they render as its fields.
+        """
+        regions = self.optimization_scratch.pop("stack_regions", None) or {}
+        out: dict[int, tuple[SimStackVariable, int]] = {}
+        if not regions:
+            return out
+        var_manager = self.kb.dec_variables[self.function.addr]
+        # every vvar of a phi web shares the representative; definitions keep their own ids, so map the whole class
+        classes: dict[int, set[int]] = defaultdict(set)
+        for varid, rep in vvar2vvar.items():
+            classes[rep].add(varid)
+        for offset, (size, ty, pieces) in sorted(regions.items()):
+            variable = SimStackVariable(
+                offset, size, base="bp", ident=var_manager.next_variable_ident("stack"), region=self.function.addr
+            )
+            var_manager.add_variable("stack", offset, variable)
+            var_manager.set_variable_type(variable, ty.with_arch(self.project.arch), mark_manual=True)
+            for varid, stack_off in pieces.items():
+                rep = vvar2vvar.get(varid, varid)
+                for member in {varid, rep, *classes.get(rep, ())}:
+                    out[member] = (variable, stack_off - offset)
+        return out
+
     def _untyped_go_params(self) -> frozenset[int]:
         """Parameters of a Go prototype that only the calling-convention guess describes (see ``untyped_params``)."""
         if self.flavor != "go" or not hasattr(self.kb, "go_signatures"):
@@ -2816,6 +2844,7 @@ class Clinic(Analysis, Serializable):
         tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
+        stack_region_vars = self._seed_stack_regions(vvar2vvar)
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -2831,6 +2860,7 @@ class Clinic(Analysis, Serializable):
             type_hints=type_hints,
             type_translator=GoTypeTranslator(self.project.arch) if self.flavor == "go" else None,
             variable_map=self.variable_map,
+            stack_region_vars=stack_region_vars,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]

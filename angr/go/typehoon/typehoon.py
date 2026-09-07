@@ -53,10 +53,11 @@ class GoTypehoon(Typehoon):
         if not self.simtypes_solution:
             return
 
-        manual_globals = self.kb.variables["global"].variables_with_manual_types if func_addr == "global" else ()
+        manual = self.kb.variables[func_addr].variables_with_manual_types
         for var, typevars in var_to_typevars.items():
-            if var in manual_globals:
-                # a pinned global type (DWARF) is the truth; the pointer-unpacking hack below must not touch it
+            if var in manual:
+                # a pinned type (DWARF globals, prototype parameters, a seeded stack header) is the truth; the
+                # solution and the pointer-unpacking hack below must not touch it
                 continue
             typevars_list = sorted(typevars, key=lambda tv: tv.idx)
             if stack_offset_tvs and isinstance(var, SimStackVariable) and var.offset in stack_offset_tvs:

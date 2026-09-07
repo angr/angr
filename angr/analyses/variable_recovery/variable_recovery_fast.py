@@ -280,6 +280,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         vvar_to_vvar: dict[int, int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+        stack_region_vars: dict[int, tuple[SimStackVariable, int]] | None = None,
         type_translator=None,
         variable_map=None,
     ):
@@ -352,6 +353,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             call_info=call_info,
             vvar_to_vvar=self.vvar_to_vvar,
             vvar_type_hints=self.vvar_type_hints,
+            stack_region_vars=stack_region_vars,
             type_lifter=self.type_lifter,
             func_ret_var=self._func_ret_var,
             tv_manager=self.tv_manager,
