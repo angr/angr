@@ -13,6 +13,7 @@ import unittest
 import angr
 from angr import claripy
 from angr import options as so
+from angr.state_plugins.unicorn_engine import _UC_NATIVE, _check_vex_archinfo_layout
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -501,6 +502,18 @@ class TestUnicorn(unittest.TestCase):
                 break
 
         assert result == b"FLAG{l00ps_4r3_t00_34sy_r1gh7??}"
+
+    def test_vex_archinfo_ctypes_mirror_matches_native(self):
+        """
+        The ctypes mirror of VexArchInfo is passed by value into unicornlib, which lifts with it. If it
+        drifts from libvex.h, fields land at the wrong offsets and blocks are lifted with the wrong
+        settings (e.g. a zeroed x86_cr0 makes the x86 front end decode 16-bit real-mode code).
+        """
+
+        if _UC_NATIVE is None:
+            raise unittest.SkipTest("native unicorn support is unavailable")
+
+        _check_vex_archinfo_layout(_UC_NATIVE)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,14 @@ class CmpMaskedShift(PeepholeOptimizationExprBase):
     shift/extract form: the masked compare is the clearer form in decompiled
     output, so restore it.
 
+    As a special case, when the compared bits are *all* bits above ``n`` and the
+    constant is 0, the comparison is an unsigned bound check (libVEX 3.27+
+    spechelpers fold ``x <=u 2**n-1`` into this form), so emit the bound check
+    instead:
+
+        (x >> n) == 0                   ==>  x <=u 2**n - 1
+        (x >> n) != 0                   ==>  x >u 2**n - 1
+
     Only logical right shifts and unsigned truncations are handled, and only
     ``n > 0`` (a low-mask compare, ``n == 0``, already reads as a cast).
     """
@@ -69,6 +77,22 @@ class CmpMaskedShift(PeepholeOptimizationExprBase):
         if c >> width != 0:
             # The constant does not fit in the compared width; not this pattern.
             return None
+
+        if c == 0 and n + width == bits:
+            # all bits above n are compared against 0: this is the unsigned bound check x <=u 2**n - 1
+            return BinaryOp(
+                expr.idx,
+                "CmpLE" if expr.op == "CmpEQ" else "CmpGT",
+                (
+                    x,
+                    Const(self.manager.next_atom(), (1 << n) - 1, bits),
+                ),
+                False,
+                bits=expr.bits,
+                floating_point=expr.floating_point,
+                rounding_mode=expr.rounding_mode,
+                **expr.tags,
+            )
 
         mask = ((1 << width) - 1) << n
         new_const = c << n

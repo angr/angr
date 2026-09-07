@@ -449,6 +449,40 @@ class JumpTableProcessor(
     def _handle_binop_CmpGT(self, expr):
         return self._handle_Comparison(*expr.args)
 
+    @binop_handler
+    def _handle_binop_CmpEQ(self, expr):
+        shr_args = self._match_shr_zero_bound_check(expr)
+        if shr_args is not None:
+            return self._handle_Comparison(*shr_args)
+        return super()._handle_binop_CmpEQ(expr)
+
+    @binop_handler
+    def _handle_binop_CmpNE(self, expr):
+        shr_args = self._match_shr_zero_bound_check(expr)
+        if shr_args is not None:
+            return self._handle_Comparison(*shr_args)
+        return super()._handle_binop_CmpNE(expr)
+
+    def _match_shr_zero_bound_check(self, expr) -> tuple[pyvex.IRExpr.IRExpr, pyvex.IRExpr.Const] | None:
+        # libVEX 3.27+ spechelpers fold the unsigned bound check `x <=u 2**k-1` into `CmpEQ(Shr(x, k), 0)` (and its
+        # negation into CmpNE). Recognize this form and return (x, k) so it can be treated as a comparison against
+        # a constant bound.
+        arg0, arg1 = expr.args
+        if not (isinstance(arg1, pyvex.IRExpr.Const) and arg1.con.value == 0 and isinstance(arg0, pyvex.IRExpr.RdTmp)):
+            return None
+        for stmt in self.block.vex.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) and stmt.tmp == arg0.tmp:
+                data = stmt.data
+                if (
+                    isinstance(data, pyvex.IRExpr.Binop)
+                    and data.op in {"Iop_Shr8", "Iop_Shr16", "Iop_Shr32", "Iop_Shr64"}
+                    and isinstance(data.args[1], pyvex.IRExpr.Const)
+                    and data.args[1].con.value > 0
+                ):
+                    return data.args[0], data.args[1]
+                return None
+        return None
+
     def _handle_expr_CCall(self, expr):
         if isinstance(expr.args[0], pyvex.IRExpr.Const):
             cond_type_enum = expr.args[0].con.value
@@ -649,6 +683,48 @@ class PutHook:
         state.inspect.attrs.reg_write_expr = claripy.BVS(
             "instrumented_put", state.solver.eval(state.inspect.attrs.reg_write_length) * 8
         )
+
+
+class ShrBoundsConstraintHook:
+    """
+    Hook for rewriting folded bound-check constraints.
+
+    libVEX 3.27+ spechelpers fold the unsigned bound check `x <=u 2**k-1` into `Shr(x, k) == 0`. The VSA constraint
+    handler keys its replacement on the LShR expression instead of x itself, so the bound never narrows x (and thus
+    the jump table address) during slice execution. Rewrite such constraints into the canonical ULE/UGT form.
+    """
+
+    @staticmethod
+    def hook(state):
+        constraints = state.inspect.attrs.added_constraints
+        if constraints:
+            rewritten = [ShrBoundsConstraintHook._rewrite(c) for c in constraints]
+            if any(r is not c for c, r in zip(constraints, rewritten)):
+                state.inspect.attrs.added_constraints = tuple(rewritten)
+
+    @staticmethod
+    def _rewrite(cons):
+        if cons.op == "Not":
+            r = ShrBoundsConstraintHook._rewrite_cmp(cons.args[0], invert=True)
+        else:
+            r = ShrBoundsConstraintHook._rewrite_cmp(cons, invert=False)
+        return r if r is not None else cons
+
+    @staticmethod
+    def _rewrite_cmp(cons, invert: bool):
+        if cons.op not in {"__eq__", "__ne__"}:
+            return None
+        arg0, arg1 = cons.args
+        if arg1.op == "LShR":
+            arg0, arg1 = arg1, arg0
+        if not (arg0.op == "LShR" and arg1.op == "BVV" and arg1.args[0] == 0):
+            return None
+        value_expr, shift = arg0.args
+        if shift.op != "BVV" or not 0 < shift.args[0] < value_expr.size():
+            return None
+        bound = (1 << shift.args[0]) - 1
+        is_le = (cons.op == "__eq__") ^ invert
+        return claripy.ULE(value_expr, bound) if is_le else claripy.UGT(value_expr, bound)
 
 
 class RegisterInitializerHook:
@@ -1054,6 +1130,10 @@ class JumpTableResolver(IndirectJumpResolver):
             self._cached_memread_addrs.clear()
             init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=self._init_registers_on_demand)
             start_state.inspect.add_breakpoint("mem_read", init_registers_on_demand_bp)
+
+            # rewrite folded bound-check constraints (Shr(x, k) == 0) into forms that VSA can narrow x with
+            shr_bounds_bp = BP(when=BP_BEFORE, enabled=True, action=ShrBoundsConstraintHook.hook)
+            start_state.inspect.add_breakpoint("constraints", shr_bounds_bp)
 
             # constant value manager
             if cv_manager is not None:

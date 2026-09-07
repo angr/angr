@@ -60,6 +60,7 @@ from angr.utils.funcid import (
 )
 from angr.utils.go_runtime import find_go_noreturn_functions, has_go_hint
 from angr.utils.ins_addr_list import InsAddrList
+from angr.utils.vex import block_branch_ins_addr
 
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
@@ -3312,9 +3313,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if irsb.statements:
             last_ins_addr = None
             ins_addr = addr
+            ins_len = None
             for i, stmt in enumerate(irsb.statements):
                 if isinstance(stmt, pyvex.IRStmt.Exit):
-                    branch_ins_addr = last_ins_addr if self.project.arch.branch_delay_slot else ins_addr
+                    if not self.project.arch.branch_delay_slot:
+                        branch_ins_addr = ins_addr
+                    elif last_ins_addr is None or (ins_len is not None and ins_len > ins_addr - last_ins_addr):
+                        # the current IMark spans more bytes than a single instruction: the lifter
+                        # merged the branch and its delay slot into one IMark (Valgrind 3.27.1+),
+                        # so the exit belongs to the branch itself
+                        branch_ins_addr = ins_addr
+                    else:
+                        # the exit sits in the delay-slot IMark; the branch is the previous
+                        # instruction
+                        branch_ins_addr = last_ins_addr
                     assert branch_ins_addr is not None
                     if self._is_branch_vex_artifact_only(irsb, branch_ins_addr, stmt):
                         continue
@@ -3322,6 +3334,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 elif isinstance(stmt, pyvex.IRStmt.IMark):
                     last_ins_addr = ins_addr
                     ins_addr = stmt.addr + stmt.delta
+                    ins_len = stmt.len
         else:
             for ins_addr, stmt_idx, exit_stmt in irsb.exit_statements:
                 branch_ins_addr = ins_addr
@@ -3332,20 +3345,25 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 ):
                     idx_ = irsb.instruction_addresses.index(ins_addr)
                     if idx_ > 0:
-                        branch_ins_addr = irsb.instruction_addresses[idx_ - 1]
+                        next_ins_addr = (
+                            irsb.instruction_addresses[idx_ + 1]
+                            if idx_ + 1 < len(irsb.instruction_addresses)
+                            else irsb.addr + irsb.size
+                        )
+                        if next_ins_addr - ins_addr <= ins_addr - irsb.instruction_addresses[idx_ - 1]:
+                            # the exit-carrying IMark covers a single instruction: it is the delay
+                            # slot and the branch is the previous instruction. otherwise the IMark
+                            # merges the branch and its delay slot (Valgrind 3.27.1+) and ins_addr
+                            # is already the branch address
+                            branch_ins_addr = irsb.instruction_addresses[idx_ - 1]
                 elif self._is_branch_vex_artifact_only(irsb, branch_ins_addr, exit_stmt):
                     continue
                 successors.append((stmt_idx, branch_ins_addr, exit_stmt.dst, exit_stmt.jumpkind))
 
         # default statement
-        default_branch_ins_addr = None
-        if irsb.instruction_addresses:
-            if self.project.arch.branch_delay_slot and len(irsb.instruction_addresses) > 1:
-                # the last instruction is the delay slot, so the branch is the one before it. a
-                # single-instruction block has no delay slot and is its own branch.
-                default_branch_ins_addr = irsb.instruction_addresses[-2]
-            else:
-                default_branch_ins_addr = irsb.instruction_addresses[-1]
+        default_branch_ins_addr = block_branch_ins_addr(
+            irsb.instruction_addresses, irsb.addr, irsb.size, self.project.arch
+        )
 
         successors.append((DEFAULT_STATEMENT, default_branch_ins_addr, irsb_next, jumpkind))
 
@@ -3458,10 +3476,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         is_syscall = jumpkind.startswith("Ijk_Sys")
 
         # Special handling:
-        # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring jump
+        # If a call instruction has a target that points to the immediate next instruction, we treat it as a boring
+        # jump. This does not apply to delay-slot architectures: a call whose target is the address right past the
+        # delay slot (e.g., MIPS "bal .+8" in crt code) still updates the return-address register, and its target is
+        # treated as a function start.
         if (
             jumpkind == "Ijk_Call"
             and not self.project.arch.call_pushes_ret
+            and not self.project.arch.branch_delay_slot
             and cfg_node.instruction_addrs
             and ins_addr == cfg_node.instruction_addrs[-1]
             and irsb is not None
@@ -5129,18 +5151,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 src = self.model.get_any_node(ep.addr)
                 assert src is not None
                 for rt in return_targets:
-                    if not src.instruction_addrs:
-                        ins_addr = None
-                    else:
-                        if self.project.arch.branch_delay_slot:
-                            if len(src.instruction_addrs) > 1:
-                                ins_addr = src.instruction_addrs[-2]
-                            else:
-                                l.error("At %s: expecting more than one instruction. Only got one.", src)
-                                ins_addr = None
-                        else:
-                            ins_addr = src.instruction_addrs[-1]
-
+                    ins_addr = block_branch_ins_addr(src.instruction_addrs, src.addr, src.size, self.project.arch)
                     self._graph_add_edge(rt, src, "Ijk_Ret", ins_addr, DEFAULT_STATEMENT)
 
     #
@@ -5917,8 +5928,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 nodecode_size = 1
 
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
-                if self.project.arch.name == "AMD64" and irsb_string[-2:] == b"\x0f\x0b":
-                    # VEX supports ud2 and make it part of the block size, only in AMD64.
+                if is_x86_x64_arch and irsb_string[-2:] == b"\x0f\x0b":
+                    # VEX decodes ud2 on both x86 and AMD64 and counts it towards the block size.
                     valid_ins = True
                     nodecode_size = 0
                 elif (
@@ -5935,7 +5946,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 ):
                     # ud0, ud1, and ud2 are actually valid instructions.
                     valid_ins = True
-                    # VEX does not support ud0 or ud1 or ud2 under AMD64. they are not part of the block size.
+                    # VEX decodes none of ud0/ud1 here, so they are not part of the block size. ud2 only
+                    # reaches this branch when it is not the instruction the block stopped on.
                     nodecode_size = 2
                 elif is_arm_arch(self.project.arch):
                     # check for UND

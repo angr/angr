@@ -112,11 +112,13 @@ class TestInspect(unittest.TestCase):
         irsb.pp()
         InspectEngine(p).process(s, irsb=irsb)
         assert counts.reg_write == 7
-        assert counts.reg_read == 2
-        assert counts.tmp_write == 1
-        assert counts.tmp_read == 1
-        assert counts.expr == 3
-        assert counts.statement == 11
+        # A direct jmp rel8 no longer reads rip into a temp: libVEX emits a
+        # constant PUT(rip) for the block's default exit.
+        assert counts.reg_read == 1
+        assert counts.tmp_write == 0
+        assert counts.tmp_read == 0
+        assert counts.expr == 2
+        assert counts.statement == 10
         assert counts.instruction == 2
         assert counts.constraints == 0
         assert counts.mem_write == 1

@@ -1085,6 +1085,20 @@ class TestCfgfast(unittest.TestCase):
         assert 0 not in cfg.indirect_jumps
         assert 4 in cfg.kb.functions
 
+    def test_x86_ud2_is_part_of_the_block(self):
+        # VEX decodes ud2 on x86, as it has always done on AMD64, and counts it towards the block
+        # size. The scan has to resume right after the ud2; it used to treat the instruction as
+        # undecodable on x86 and pick back up one byte into it.
+        for arch in ("x86", "amd64"):
+            with self.subTest(arch=arch):
+                # xor eax, eax; ud2; then padding the scan picks up as a second function
+                proj = self._blob_project(b"\x31\xc0\x0f\x0b" + b"\x90" * 12, arch=arch)
+                cfg = proj.analyses.CFGFast()
+
+                assert proj.factory.block(0).size == 4
+                assert cfg.kb.functions.contains_addr(4), "the scan did not resume right after the ud2"
+                assert not cfg.kb.functions.contains_addr(5)
+
     def test_single_instruction_indirect_jump_on_sparc(self):
         # 0x0: illtrap 0   - a run of zero bytes, which p-code lifts to a trap and an indirect goto
         # 0x4: retl; nop   - a real function that the scan must still pick up afterwards
@@ -1092,6 +1106,25 @@ class TestCfgfast(unittest.TestCase):
             b"\x00\x00\x00\x00" + b"\x81\xc3\xe0\x08" + b"\x01\x00\x00\x00",
             archinfo.ArchPcode("sparc:BE:32:default"),
         )
+
+    def test_merged_branch_and_delay_slot_indirect_jump_on_mips(self):
+        # 0x0: jr $t9; nop   - libVEX 3.27.1+ lifts the branch and its delay slot as one IMark. the block is a
+        #                      single IMark long but holds two instructions, so it is a real indirect jump
+        # 0x8: jr $ra; nop
+        proj = self._blob_project(
+            b"\x03\x20\x00\x08" + b"\x00\x00\x00\x00" + b"\x03\xe0\x00\x08" + b"\x00\x00\x00\x00",
+            arch=archinfo.ArchMIPS32(endness=archinfo.Endness.BE),
+        )
+        block = proj.factory.block(proj.entry)
+        assert len(block.instruction_addrs) == 1 and block.size == 8
+
+        cfg = proj.analyses.CFGFast()
+
+        assert 0 in cfg.indirect_jumps
+        assert cfg.indirect_jumps[0].ins_addr == 0
+        node = cfg.model.get_any_node(0)
+        assert node is not None
+        assert list(cfg.graph.successors(node))
 
     def test_single_instruction_indirect_jump_on_mips(self):
         # 0x0: trunc.l.s $f0, $f0   - an instruction VEX does not implement, so it lifts to Ijk_SigILL

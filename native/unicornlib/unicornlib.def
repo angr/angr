@@ -22,6 +22,7 @@ EXPORTS
   simunicorn_uncache_pages_touching_region
   simunicorn_clear_page_cache
   simunicorn_enable_symbolic_reg_tracking
+  simunicorn_vex_archinfo_layout
   simunicorn_disable_symbolic_reg_tracking
   simunicorn_symbolic_register_data
   simunicorn_get_symbolic_registers

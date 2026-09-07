@@ -715,6 +715,18 @@ class SimIROp:
             wtf_expr = claripy.If(bit == 1, claripy.BVV(a, piece_size), wtf_expr)
         return wtf_expr
 
+    # Valgrind 3.27 renamed the scalar Clz/Ctz ops to ClzNat/CtzNat (result at zero is undefined either way)
+    _op_generic_ClzNat = _op_generic_Clz
+    _op_generic_CtzNat = _op_generic_Ctz
+
+    def _op_generic_PopCount(self, args):
+        """Count the set bits"""
+        piece_size = len(args[0])
+        res = claripy.BVV(0, piece_size)
+        for a in range(piece_size):
+            res += claripy.Extract(a, a, args[0]).zero_extend(piece_size - 1)
+        return res
+
     def generic_minmax(self, args, cmp_op):
         res_comps = []
         for i in reversed(range(self._vector_count)):
@@ -1188,6 +1200,10 @@ class SimIROp:
             res.append(killed)
 
         return claripy.Concat(*reversed(res))
+
+    # libVEX split the zeroing behavior out of Perm into its own op; pshufb
+    # emits PermOrZero, which is what _op_generic_Perm already implements.
+    _op_generic_PermOrZero = _op_generic_Perm
 
     @supports_vector
     def _op_generic_CatEvenLanes(self, args):

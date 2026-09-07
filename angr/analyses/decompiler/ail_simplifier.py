@@ -212,6 +212,32 @@ class PartialConstantExprRewriter(AILBlockRewriter):
         return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
 
+class InsertLowBitsReadRewriter(AILBlockRewriter):
+    """
+    Rewrites truncating reads of Insert definitions: given ``vvar = Insert(base, 0, value)``, the use
+    ``Convert(vvar.bits->value.bits, vvar)`` reads back exactly the inserted value.
+    """
+
+    def __init__(self, varid: int, value_expr: Expression):
+        super().__init__(update_block=False)
+        self.varid = varid
+        self.value_expr = value_expr
+
+    def _handle_Convert(  # type: ignore
+        self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if (
+            expr.from_bits > expr.to_bits
+            and expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+            and isinstance(expr.operand, VirtualVariable)
+            and expr.operand.varid == self.varid
+            and expr.to_bits == self.value_expr.bits
+        ):
+            return self.value_expr
+        return super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
@@ -322,6 +348,15 @@ class AILSimplifier(Analysis):
 
         if self._only_consts:
             return
+
+        _l.debug("Propagating low-bits reads of Insert definitions")
+        insert_reads_propagated = self._propagate_insert_low_bits_reads()
+        self.simplified |= insert_reads_propagated
+        if insert_reads_propagated:
+            _l.debug("... low-bits reads of Insert definitions propagated")
+            self._rebuild_func_graph()
+            # reaching definition analysis results are no longer reliable
+            self._clear_cache()
 
         _l.debug("Removing dead assignments")
         r = self._iteratively_remove_dead_assignments()
@@ -1054,6 +1089,74 @@ class AILSimplifier(Analysis):
                     changed = True
 
         return changed
+
+    def _propagate_insert_low_bits_reads(self) -> bool:
+        """
+        Serve truncating reads of Insert definitions directly from the inserted value: with
+        ``vvar = Insert(base, 0, value)``, the use ``Convert(vvar.bits->value.bits, vvar)`` equals ``value``.
+        vvars are in SSA form here, so the substitution is sound even when vvar has other (full-width) uses that
+        keep the Insert definition alive.
+        """
+
+        # vvar_insert_values[varid] = value  ==>  the low bits of vvar varid always equal value
+        vvar_insert_values: dict[int, Expression] = {}
+
+        for block in self.func_graph:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, Insert)
+                    and isinstance(stmt.src.offset, Const)
+                    and stmt.src.offset.value == 0  # note: assumes little-endian byte order, like elsewhere
+                    and stmt.src.value.bits < stmt.dst.bits
+                    and self._is_pure_timeless_expr(stmt.src.value)
+                ):
+                    vvar_insert_values[stmt.dst.varid] = stmt.src.value
+
+        if not vvar_insert_values:
+            return False
+
+        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
+        for block in self.func_graph:
+            addr_and_idx_to_block[(block.addr, block.idx)] = block
+
+        rda = self._compute_reaching_definitions()
+        changed = False
+        for vvarid, value_expr in vvar_insert_values.items():
+            rewriter = InsertLowBitsReadRewriter(vvarid, value_expr)
+            for _, use_loc in rda.all_vvar_uses[vvarid]:
+                assert use_loc.block_addr is not None
+                original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                block = self.blocks.get(original_block, original_block)
+                stmt = block.statements[use_loc.stmt_idx]
+                new_stmt = rewriter.walk_statement(stmt, block)
+
+                if new_stmt is not None and new_stmt is not stmt:
+                    statements = block.statements[::]
+                    statements[use_loc.stmt_idx] = new_stmt
+                    new_block = block.copy(statements=statements)
+
+                    self.blocks[original_block] = new_block
+                    changed = True
+
+        return changed
+
+    @staticmethod
+    def _is_pure_timeless_expr(expr: Expression) -> bool:
+        """
+        Check if an expression can be safely re-evaluated at a later program point: no side effects and no
+        dependencies on mutable state (memory).
+        """
+        if isinstance(expr, (VirtualVariable, Const)):
+            return True
+        if isinstance(expr, Convert):
+            return AILSimplifier._is_pure_timeless_expr(expr.operand)
+        if isinstance(expr, UnaryOp):
+            return AILSimplifier._is_pure_timeless_expr(expr.operand)
+        if isinstance(expr, BinaryOp):
+            return all(AILSimplifier._is_pure_timeless_expr(op) for op in expr.operands)
+        return False
 
     #
     # Rewriting constant expressions with phi variables

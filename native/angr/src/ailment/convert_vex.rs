@@ -1986,10 +1986,18 @@ fn build_archinfo(arch: &Bound<'_, PyAny>) -> PyResult<vex_ffi::VexArchInfo> {
         },
         ppc_icache_line_sz_b: geti("ppc_icache_line_szB").unwrap_or(0) as std::ffi::c_int,
         ppc_dcbz_sz_b: geti("ppc_dcbz_szB").unwrap_or(0) as u32,
+        ppc_scv_supported: geti("ppc_scv_supported").unwrap_or(0) as u8,
         ppc_dcbzl_sz_b: geti("ppc_dcbzl_szB").unwrap_or(0) as u32,
         arm64_d_min_line_lg2_sz_b: geti("arm64_dMinLine_lg2_szB").unwrap_or(0) as u32,
         arm64_i_min_line_lg2_sz_b: geti("arm64_iMinLine_lg2_szB").unwrap_or(0) as u32,
-        x86_cr0: geti("x86_cr0").unwrap_or(0) as u32,
+        arm64_cache_block_size: geti("arm64_cache_block_size").unwrap_or(0) as u8,
+        arm64_requires_fallback_llsc: geti("arm64_requires_fallback_LLSC").unwrap_or(0) as u8,
+        // cr0 == 0 means real mode to the x86 lifter, so a missing key must
+        // fall back to libVEX's protected-mode default, not to zero.
+        x86_cr0: match geti("x86_cr0") {
+            Ok(0) | Err(_) => 0xFFFF_FFFF,
+            Ok(v) => v as u32,
+        },
     })
 }
 
