@@ -379,35 +379,49 @@ class TestUninitializedStackReadGo127(GoDecompilationTarget):
 
 class TestStructValueReceiver386(unittest.TestCase):
     """
-    A struct value receiver on a stack convention: the string field's layout runs past the two words the receiver
-    occupies on 386, and refine_locs_with_struct_type falls back to the unrefined words instead of raising.
+    386 lays string headers out as two 4-byte words: a struct holding one is 8 bytes, its ``len`` sits at 4, a
+    struct value receiver spans two stack words, and the stack result of ``Error`` is read back as ``len(...)``.
     """
 
-    def test_struct_value_receiver_falls_back_to_words(self):
-        from angr.calling_conventions import SimComboArg, default_cc_for_project
-        from angr.knowledge_plugins.functions.function import PrototypeSource
-        from angr.sim_type import SimTypeFunction
+    def test_word_width_follows_the_arch(self):
+        from angr.calling_conventions import SimCCGoX86, SimStructArg
 
         binary = go_binary("go1.27.1", "recv", arch="i386")
         name = "main.gitHubRecipientError.Error"
         addr = go_func_addrs(binary, name)[name]
-        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
-        func = proj.kb.functions[addr]
+        proj, _ = load_project_with_scoped_cfg(binary, addr, call_tree_depth=0)
         proj.kb.go_signatures.load_sources()
+        string = proj.kb.go_signatures.type("string").with_arch(proj.arch)
+        assert string.size == 64 and string.offsets == {"ptr": 0, "len": 4}
         recv = proj.kb.go_signatures.type("main.gitHubRecipientError").with_arch(proj.arch)
-        ret = proj.kb.go_signatures.type("string").with_arch(proj.arch)
-        func.prototype = SimTypeFunction([recv], ret, arg_names=["e"]).with_arch(proj.arch)
-        func.prototype_source = PrototypeSource.USER
-        func.calling_convention = default_cc_for_project(proj)(proj.arch)
+        assert recv.size == 64 and recv.fields["username"].offsets == {"ptr": 0, "len": 4}
+        assert proj.kb.go_signatures.type("[]byte").with_arch(proj.arch).size == 96
 
-        (loc,) = func.calling_convention.arg_locs(func.prototype)
-        assert isinstance(loc, SimComboArg) and len(loc.locations) == 2
+        proto = proj.kb.go_signatures.prototype(name)
+        cc = SimCCGoX86.for_prototype(proj.arch, proto)
+        (loc,) = cc.arg_locs(proto)
+        assert isinstance(loc, SimStructArg)
+        assert {f.stack_offset for f in loc.get_footprint()} == {4, 8}
+        # the string result follows the receiver on the stack
+        assert {f.stack_offset for f in cc.return_val(proto.returnty).get_footprint()} == {12, 16}
 
-        dec = proj.analyses.Decompiler(func, cfg=cfg.model, flavor="go", fail_fast=True)
+    def test_receiver_and_len_of_stack_result(self):
+        binary = go_binary("go1.27.1", "recv", arch="i386")
+        addrs = go_func_addrs(binary, "main.gitHubRecipientError.Error", "main.main")
+        error_addr, main_addr = addrs["main.gitHubRecipientError.Error"], addrs["main.main"]
+        proj, cfg = load_project_with_scoped_cfg(binary, error_addr, extra_func_addrs=[main_addr], call_tree_depth=1)
+
+        dec = proj.analyses.Decompiler(error_addr, cfg=cfg.model, flavor="go", fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text
         print_decompilation_result(dec)
-        header = next(line for line in dec.codegen.text.splitlines() if line.startswith("func "))
-        assert "gitHubRecipientError" in header and "Error(" in header
+        text = dec.codegen.text
+        assert "func (e main.gitHubRecipientError) Error() string {" in text
+        assert 'return "github recipient " + e' in text and '+ " has no public keys"' in text
+
+        dec = proj.analyses.Decompiler(main_addr, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text
+        print_decompilation_result(dec)
+        assert "os.Exit(len(main.gitHubRecipientError.Error(" in dec.codegen.text
 
 
 if __name__ == "__main__":
