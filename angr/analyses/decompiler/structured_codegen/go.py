@@ -5613,8 +5613,6 @@ def _go_is_increment(stmt, var) -> bool:
 class _PointerWalkSubstituter(GoStructuredCodeWalker):
     """Reads through a pointer that walks a slice become reads of the range value it points at."""
 
-    ITAB_FUN_OFFSET = 24
-
     def __init__(self, codegen, pointer, value, elem_type):
         self._codegen = codegen
         self._pointer = pointer
@@ -5652,7 +5650,9 @@ class _PointerWalkSubstituter(GoStructuredCodeWalker):
             and target.variable.field.offset == 0
             and isinstance(target.field.offset, int)
         ):
-            index, rem = divmod(target.field.offset - self.ITAB_FUN_OFFSET, self._codegen.project.arch.bytes)
+            index, rem = divmod(
+                target.field.offset - _go_itab_fun_offset(self._codegen.project.arch), self._codegen.project.arch.bytes
+            )
             if not rem and 0 <= index < len(self._elem.methods):
                 name, sig = self._elem.methods[index]
                 args = [self.handle(a) for a in list(obj.args)[1:]]
@@ -6091,6 +6091,12 @@ class PrintFolding(GoStructuredCodeWalker):
         return obj
 
 
+def _go_itab_fun_offset(arch) -> int:
+    """Offset of ``fun[0]`` in ``runtime.itab``: inter, type, hash (uint32) padded to a word."""
+    ws = arch.bytes
+    return -(-(2 * ws + 4) // ws) * ws
+
+
 def _go_itab_slot(expr):
     """(interface value, byte offset) when ``expr`` reads a slot of an interface value's itab; else None."""
     while isinstance(expr, GoTypeCast):
@@ -6116,9 +6122,7 @@ def _go_itab_slot(expr):
 
 
 class InterfaceMethodCalls(GoStructuredCodeWalker):
-    """``x.tab[24 + 8*i](x.data, args...)`` becomes ``x.Method(args...)`` using the interface's method set."""
-
-    ITAB_FUN_OFFSET = 24
+    """``x.tab.fun[i](x.data, args...)`` becomes ``x.Method(args...)`` using the interface's method set."""
 
     def __init__(self, codegen):
         self._codegen = codegen
@@ -6132,7 +6136,7 @@ class InterfaceMethodCalls(GoStructuredCodeWalker):
             return obj
         receiver, offset = slot
         iface = unpack_typeref(receiver.type)
-        index, rem = divmod(offset - self.ITAB_FUN_OFFSET, self._codegen.project.arch.bytes)
+        index, rem = divmod(offset - _go_itab_fun_offset(self._codegen.project.arch), self._codegen.project.arch.bytes)
         if rem or index < 0 or index >= len(iface.methods):
             return obj
         name, sig = iface.methods[index]
@@ -6407,8 +6411,6 @@ class _UseCounter(GoStructuredCodeWalker):
 class _ItabMethodCalls(GoStructuredCodeWalker):
     """Calls through the method table of a known interface's itab become method calls on the bound value."""
 
-    ITAB_FUN_OFFSET = 24
-
     def __init__(self, codegen, itab_vars, receiver, iface):
         self._codegen = codegen
         self._itab_keys = {_UseCounter.key(v) for v in itab_vars}
@@ -6453,7 +6455,7 @@ class _ItabMethodCalls(GoStructuredCodeWalker):
         offset = self._slot(obj.callee_target)
         if offset is None:
             return obj
-        index, rem = divmod(offset - self.ITAB_FUN_OFFSET, self._codegen.project.arch.bytes)
+        index, rem = divmod(offset - _go_itab_fun_offset(self._codegen.project.arch), self._codegen.project.arch.bytes)
         if rem or index < 0 or index >= len(self._iface.methods):
             return obj
         name, sig = self._iface.methods[index]
