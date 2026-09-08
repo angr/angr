@@ -45,6 +45,7 @@ if TYPE_CHECKING:
         Extract,
         FunctionLikeMacro,
         Insert,
+        IRegister,
         Let,
         Load,
         Macro,
@@ -170,6 +171,35 @@ else:
         def __new__(cls, idx, registers, **tags) -> _Expression:  # type: ignore[misc]
             return _Expression._new_combo_register(idx, registers, **tags)
 
+    class IRegister(metaclass=_AilMarkerMeta):
+        """Marker for ``Expression`` instances whose variant is ``IRegister``: a register addressed through a VEX
+        GetI/PutI register array as ``array_base + (((ix + array_bias) % array_nElems) << array_shift)``."""
+
+        _kind = EK.IRegister
+
+        def __new__(  # type: ignore[misc]
+            cls,
+            idx,
+            reg_offset,
+            bits,
+            *,
+            array_base=0,
+            array_bias=0,
+            array_nElems=1,
+            array_shift=0,
+            **tags,
+        ) -> _Expression:
+            return _Expression._new_iregister(
+                idx,
+                reg_offset,
+                bits,
+                array_base=array_base,
+                array_bias=array_bias,
+                array_nElems=array_nElems,
+                array_shift=array_shift,
+                **tags,
+            )
+
     class Phi(metaclass=_AilMarkerMeta):
         """Marker for ``Expression`` instances whose variant is ``Phi``."""
 
@@ -214,9 +244,10 @@ else:
             op,
             operand,
             bits=None,
+            floating_point=False,
             **tags,
         ) -> _Expression:
-            return _Expression._new_unary_op(idx, op, operand, bits=bits, **tags)
+            return _Expression._new_unary_op(idx, op, operand, bits=bits, floating_point=floating_point, **tags)
 
     class Convert(metaclass=_AilMarkerMeta):
         """Marker for ``Expression`` instances whose variant is ``Convert``."""
@@ -564,6 +595,7 @@ if not TYPE_CHECKING:
             Tmp,
             Register,
             ComboRegister,
+            IRegister,
             VirtualVariable,
             Phi,
             UnaryOp,
@@ -626,7 +658,7 @@ if not TYPE_CHECKING:
     class _AtomMeta(type):
         """Metaclass that makes ``isinstance(x, Atom)`` match any atom marker."""
 
-        _MEMBERS = (Const, Tmp, Register, ComboRegister, VirtualVariable, Phi)
+        _MEMBERS = (Const, Tmp, Register, ComboRegister, IRegister, VirtualVariable, Phi)
 
         def __instancecheck__(cls, instance):
             return isinstance(instance, cls._MEMBERS)
@@ -686,6 +718,7 @@ __all__ = [
     "Expression",
     "Extract",
     "FunctionLikeMacro",
+    "IRegister",
     "Insert",
     "Let",
     "Load",

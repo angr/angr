@@ -21,7 +21,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use pyo3::IntoPyObjectExt;
-use pyo3::exceptions::{PyAttributeError, PyTypeError};
+use pyo3::exceptions::{PyAttributeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
@@ -209,6 +209,7 @@ pub enum ExprInner {
     UnaryOp {
         op: String,
         operand: Arc<AilExpression>,
+        floating_point: bool,
     },
     Convert {
         operand: Arc<AilExpression>,
@@ -354,6 +355,16 @@ pub enum ExprInner {
     StackBaseOffset {
         offset: i64,
     },
+    /// A register addressed through a VEX ``GetI``/``PutI`` register array:
+    /// ``array_base + (((ix + array_bias) % array_n_elems) << array_shift)``,
+    /// where ``reg_offset`` holds the raw index ``ix``.
+    IRegister {
+        reg_offset: Arc<AilExpression>,
+        array_base: i64,
+        array_bias: i64,
+        array_n_elems: i64,
+        array_shift: u32,
+    },
 }
 
 impl ExprInner {
@@ -388,6 +399,7 @@ impl ExprInner {
             ExprInner::StringLiteral { .. } => ExpressionKind::StringLiteral,
             ExprInner::BasePointerOffset { .. } => ExpressionKind::BasePointerOffset,
             ExprInner::StackBaseOffset { .. } => ExpressionKind::StackBaseOffset,
+            ExprInner::IRegister { .. } => ExpressionKind::IRegister,
         }
     }
 }
@@ -807,9 +819,15 @@ impl Hash for AilExpression {
                 category.hash(h);
                 oident.hash(h);
             }
-            ExprInner::UnaryOp { op, operand, .. } => {
+            ExprInner::UnaryOp {
+                op,
+                operand,
+                floating_point,
+                ..
+            } => {
                 op.hash(h);
                 operand.cached_hash_or_compute().hash(h);
+                floating_point.hash(h);
                 bits.hash(h);
             }
             ExprInner::Convert {
@@ -1001,6 +1019,21 @@ impl Hash for AilExpression {
                 offset.hash(h);
                 bits.hash(h);
             }
+            ExprInner::IRegister {
+                reg_offset,
+                array_base,
+                array_bias,
+                array_n_elems,
+                array_shift,
+                ..
+            } => {
+                reg_offset.cached_hash_or_compute().hash(h);
+                array_base.hash(h);
+                array_bias.hash(h);
+                array_n_elems.hash(h);
+                array_shift.hash(h);
+                bits.hash(h);
+            }
         }
     }
 }
@@ -1032,6 +1065,7 @@ impl AilExpression {
             | ExprInner::DirtyExpression { .. }
             | ExprInner::Macro { .. }
             | ExprInner::FunctionLikeMacro { .. } => 1,
+            ExprInner::IRegister { reg_offset, .. } => reg_offset.header.depth + 1,
             ExprInner::UnaryOp { operand, .. }
             | ExprInner::Convert { operand, .. }
             | ExprInner::Reinterpret { operand, .. } => operand.header.depth + 1,
@@ -1150,7 +1184,11 @@ impl AilExpression {
             }
         };
         match &self.inner {
-            ExprInner::UnaryOp { op, operand } => {
+            ExprInner::UnaryOp {
+                op,
+                operand,
+                floating_point,
+            } => {
                 let (c, r) = walk(operand);
                 if !c {
                     return (false, self.clone());
@@ -1160,6 +1198,7 @@ impl AilExpression {
                     self.rebuilt(ExprInner::UnaryOp {
                         op: op.clone(),
                         operand: r,
+                        floating_point: *floating_point,
                     }),
                 )
             }
@@ -1552,6 +1591,28 @@ impl AilExpression {
                     }),
                 )
             }
+            ExprInner::IRegister {
+                reg_offset,
+                array_base,
+                array_bias,
+                array_n_elems,
+                array_shift,
+            } => {
+                let (c, r) = walk(reg_offset);
+                if !c {
+                    return (false, self.clone());
+                }
+                (
+                    true,
+                    self.rebuilt(ExprInner::IRegister {
+                        reg_offset: r,
+                        array_base: *array_base,
+                        array_bias: *array_bias,
+                        array_n_elems: *array_n_elems,
+                        array_shift: *array_shift,
+                    }),
+                )
+            }
             // Leaf-like variants (no operand subtrees to recurse into).
             _ => (false, self.clone()),
         }
@@ -1656,6 +1717,7 @@ impl AilExpression {
             ExprInner::RustEnum { fields, .. } => {
                 fields.iter().any(|f| f.has_atom_ail(atom, identity))
             }
+            ExprInner::IRegister { reg_offset, .. } => any(&[reg_offset]),
             ExprInner::BasePointerOffset { .. } | ExprInner::StackBaseOffset { .. } => false,
             _ => false,
         }
@@ -1729,9 +1791,14 @@ impl AilExpression {
                     .map(|vec| vec.iter().map(|b| recurse(b)).collect::<PyResult<Vec<_>>>())
                     .transpose()?,
             },
-            ExprInner::UnaryOp { op, operand } => ExprInner::UnaryOp {
+            ExprInner::UnaryOp {
+                op,
+                operand,
+                floating_point,
+            } => ExprInner::UnaryOp {
                 op: op.clone(),
                 operand: recurse(operand)?,
+                floating_point: *floating_point,
             },
             ExprInner::Convert {
                 operand,
@@ -1841,6 +1908,19 @@ impl AilExpression {
                 offset: *offset,
             },
             ExprInner::StackBaseOffset { offset } => ExprInner::StackBaseOffset { offset: *offset },
+            ExprInner::IRegister {
+                reg_offset,
+                array_base,
+                array_bias,
+                array_n_elems,
+                array_shift,
+            } => ExprInner::IRegister {
+                reg_offset: recurse(reg_offset)?,
+                array_base: *array_base,
+                array_bias: *array_bias,
+                array_n_elems: *array_n_elems,
+                array_shift: *array_shift,
+            },
             ExprInner::DirtyExpression {
                 callee,
                 operands,
@@ -2059,15 +2139,16 @@ impl AilExpression {
                 ExprInner::UnaryOp {
                     op: a_op,
                     operand: a_op_,
-                    ..
+                    floating_point: a_fp,
                 },
                 ExprInner::UnaryOp {
                     op: b_op,
                     operand: b_op_,
-                    ..
+                    floating_point: b_fp,
                 },
             ) => {
                 a_op == b_op
+                    && a_fp == b_fp
                     && self.header.bits == other.header.bits
                     && a_op_.cmp_ail::<MODE>(b_op_)
             }
@@ -2438,6 +2519,29 @@ impl AilExpression {
                 ExprInner::StackBaseOffset { offset: a },
                 ExprInner::StackBaseOffset { offset: b },
             ) => a == b && self.header.bits == other.header.bits,
+            (
+                ExprInner::IRegister {
+                    reg_offset: a,
+                    array_base: a_base,
+                    array_bias: a_bias,
+                    array_n_elems: a_n,
+                    array_shift: a_shift,
+                },
+                ExprInner::IRegister {
+                    reg_offset: b,
+                    array_base: b_base,
+                    array_bias: b_bias,
+                    array_n_elems: b_n,
+                    array_shift: b_shift,
+                },
+            ) => {
+                self.header.bits == other.header.bits
+                    && a_base == b_base
+                    && a_bias == b_bias
+                    && a_n == b_n
+                    && a_shift == b_shift
+                    && a.cmp_ail::<MODE>(b)
+            }
             _ => false,
         }
     }
@@ -2531,7 +2635,7 @@ impl Clone for Expression {
 /// still pays the boundary on every call -- skipping that recovers
 /// the ~50-75 ms construction tax seen in the per-instance
 /// ``Py<int>`` cache.
-static EXPR_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 27]> =
+static EXPR_PYKINDS: pyo3::sync::PyOnceLock<[Py<pyo3::types::PyAny>; 28]> =
     pyo3::sync::PyOnceLock::new();
 
 fn expr_pykind_for(py: Python<'_>, kind: ExpressionKind) -> Py<pyo3::types::PyAny> {
@@ -2681,12 +2785,43 @@ impl Expression {
     }
 
     #[staticmethod]
-    #[pyo3(signature = (idx, op, operand, *, bits=None, **kwargs))]
+    #[pyo3(signature = (idx, reg_offset, bits, *, array_base=0, array_bias=0, array_nElems=1, array_shift=0, **kwargs))]
+    #[allow(non_snake_case)]
+    fn _new_iregister(
+        idx: i64,
+        reg_offset: AilExpression,
+        bits: u32,
+        array_base: i64,
+        array_bias: i64,
+        array_nElems: i64,
+        array_shift: u32,
+        kwargs: Option<Tags>,
+    ) -> PyResult<Self> {
+        if array_nElems <= 0 {
+            return Err(PyValueError::new_err("IRegister array_nElems must be positive"));
+        }
+        let tags = kwargs.unwrap_or_default();
+        let depth = reg_offset.header.depth + 1;
+        Ok(Self::wrap(AilExpression {
+            header: ExprHeader::new(idx, depth, bits, tags),
+            inner: ExprInner::IRegister {
+                reg_offset: Arc::new(reg_offset),
+                array_base,
+                array_bias,
+                array_n_elems: array_nElems,
+                array_shift,
+            },
+        }))
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (idx, op, operand, *, bits=None, floating_point=false, **kwargs))]
     fn _new_unary_op(
         idx: i64,
         op: String,
         operand: AilExpression,
         bits: Option<u32>,
+        floating_point: bool,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
@@ -2697,6 +2832,7 @@ impl Expression {
             inner: ExprInner::UnaryOp {
                 op,
                 operand: Arc::new(operand),
+                floating_point,
             },
         }))
     }
@@ -3396,19 +3532,95 @@ impl Expression {
     /// Register.reg_offset / VirtualVariable.reg_offset (when category is
     /// REGISTER, or parameter with REGISTER inner category).
     #[getter]
-    fn reg_offset(&self) -> PyResult<i64> {
+    fn reg_offset<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
-            ExprInner::Register { reg_offset, .. } => Ok(*reg_offset),
+            ExprInner::Register { reg_offset, .. } => Ok(reg_offset.into_pyobject(py)?.into_any()),
+            // IRegister.reg_offset is the index Expression
+            ExprInner::IRegister { reg_offset, .. } => Ok((&**reg_offset).into_pyobject(py)?.into_any()),
             ExprInner::VirtualVariable { oident, .. } if self.was_reg() => match oident {
-                OIdent::Int(v) => Ok(*v),
+                OIdent::Int(v) => Ok(v.into_pyobject(py)?.into_any()),
                 _ => Err(PyTypeError::new_err("Is not a register")),
             },
             ExprInner::VirtualVariable { oident, .. } if self.was_parameter() => match oident {
-                OIdent::Parameter(ParameterOIdent::Register(v)) => Ok(*v),
+                OIdent::Parameter(ParameterOIdent::Register(v)) => Ok(v.into_pyobject(py)?.into_any()),
                 _ => Err(PyTypeError::new_err("Is not a register")),
             },
             _ => Err(PyAttributeError::new_err(
                 "no 'reg_offset' on this Expression",
+            )),
+        }
+    }
+    #[setter]
+    fn set_reg_offset(&mut self, value: AilExpression) -> PyResult<()> {
+        match &mut self.expr.inner {
+            ExprInner::IRegister { reg_offset, .. } => {
+                self.expr.header.cached_hash.clear();
+                *reg_offset = Arc::new(value);
+                self.expr.header.depth = self.expr.compute_depth();
+                Ok(())
+            }
+            _ => Err(PyAttributeError::new_err(
+                "'reg_offset' is read-only on this Expression",
+            )),
+        }
+    }
+
+    /// IRegister.array_base
+    #[getter]
+    fn array_base(&self) -> PyResult<i64> {
+        match &self.expr.inner {
+            ExprInner::IRegister { array_base, .. } => Ok(*array_base),
+            _ => Err(PyAttributeError::new_err("no 'array_base' on this Expression")),
+        }
+    }
+    /// IRegister.array_bias
+    #[getter]
+    fn array_bias(&self) -> PyResult<i64> {
+        match &self.expr.inner {
+            ExprInner::IRegister { array_bias, .. } => Ok(*array_bias),
+            _ => Err(PyAttributeError::new_err("no 'array_bias' on this Expression")),
+        }
+    }
+    /// IRegister.array_nElems
+    #[getter]
+    #[allow(non_snake_case)]
+    fn array_nElems(&self) -> PyResult<i64> {
+        match &self.expr.inner {
+            ExprInner::IRegister { array_n_elems, .. } => Ok(*array_n_elems),
+            _ => Err(PyAttributeError::new_err("no 'array_nElems' on this Expression")),
+        }
+    }
+    /// IRegister.array_shift
+    #[getter]
+    fn array_shift(&self) -> PyResult<u32> {
+        match &self.expr.inner {
+            ExprInner::IRegister { array_shift, .. } => Ok(*array_shift),
+            _ => Err(PyAttributeError::new_err("no 'array_shift' on this Expression")),
+        }
+    }
+
+    /// IRegister.concrete_reg_offset(): the register offset when the index is a Const, else None.
+    fn concrete_reg_offset(&self) -> PyResult<Option<i64>> {
+        match &self.expr.inner {
+            ExprInner::IRegister {
+                reg_offset,
+                array_base,
+                array_bias,
+                array_n_elems,
+                array_shift,
+            } => {
+                let ix = match &reg_offset.inner {
+                    ExprInner::Const { value: ConstValue::Int(v) } => *v as i64,
+                    _ => return Ok(None),
+                };
+                // indices wrap as signed 32-bit values (e.g. ftop = -1)
+                let ix = if ix >= 0x8000_0000 { ix - 0x1_0000_0000 } else { ix };
+                Ok(Some(
+                    *array_base + ((ix + *array_bias).rem_euclid(*array_n_elems) << *array_shift),
+                ))
+            }
+            _ => Err(PyAttributeError::new_err(
+                "no 'concrete_reg_offset' on this Expression",
             )),
         }
     }
@@ -4226,7 +4438,8 @@ impl Expression {
     #[getter]
     fn floating_point(&self) -> PyResult<bool> {
         match &self.expr.inner {
-            ExprInner::BinaryOp { floating_point, .. } => Ok(*floating_point),
+            ExprInner::BinaryOp { floating_point, .. }
+            | ExprInner::UnaryOp { floating_point, .. } => Ok(*floating_point),
             _ => Err(PyAttributeError::new_err(
                 "no 'floating_point' on this Expression",
             )),
@@ -4635,6 +4848,10 @@ impl Expression {
             ExprInner::Tmp { tmp_idx, .. } => Ok(format!("t{}", tmp_idx)),
             ExprInner::Register { reg_offset, .. } => {
                 Ok(format!("reg{}<{}>", reg_offset, self.expr.header.bits))
+            }
+            ExprInner::IRegister { reg_offset, .. } => {
+                let o = Expression::wrap((**reg_offset).clone()).__str__(py)?;
+                Ok(format!("ireg_{}<{}>", o, self.expr.header.bits / 8))
             }
             ExprInner::ComboRegister { registers, .. } => {
                 let parts = registers
@@ -5226,10 +5443,11 @@ const EXPR_VARIANTS: &[&str] = &[
     "StringLiteral",
     "BasePointerOffset",
     "StackBaseOffset",
+    "IRegister",
 ];
 #[rustfmt::skip]
 const EXPR_FIELD_COUNTS: &[usize] = &[
-    1, 1, 1, 1, 1, 4, 2, 7, 5, 7, 5, 3, 6, 2, 2, 3, 2, 1, 2, 2, 3, 3, 3, 4, 1, 2, 1,
+    1, 1, 1, 1, 1, 4, 3, 7, 5, 7, 5, 3, 6, 2, 2, 3, 2, 1, 2, 2, 3, 3, 3, 4, 1, 2, 1, 5,
 ];
 
 impl Serialize for ExprInner {
@@ -5273,10 +5491,15 @@ impl Serialize for ExprInner {
                 tv.serialize_field(reg_vvars)?;
                 tv.end()
             }
-            ExprInner::UnaryOp { op, operand } => {
-                let mut tv = s.serialize_tuple_variant("ExprInner", 6, "UnaryOp", 2)?;
+            ExprInner::UnaryOp {
+                op,
+                operand,
+                floating_point,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 6, "UnaryOp", 3)?;
                 tv.serialize_field(op)?;
                 tv.serialize_field(operand)?;
+                tv.serialize_field(floating_point)?;
                 tv.end()
             }
             ExprInner::Convert {
@@ -5484,6 +5707,21 @@ impl Serialize for ExprInner {
                 tv.serialize_field(offset)?;
                 tv.end()
             }
+            ExprInner::IRegister {
+                reg_offset,
+                array_base,
+                array_bias,
+                array_n_elems,
+                array_shift,
+            } => {
+                let mut tv = s.serialize_tuple_variant("ExprInner", 27, "IRegister", 5)?;
+                tv.serialize_field(reg_offset)?;
+                tv.serialize_field(array_base)?;
+                tv.serialize_field(array_bias)?;
+                tv.serialize_field(array_n_elems)?;
+                tv.serialize_field(array_shift)?;
+                tv.end()
+            }
         }
     }
 }
@@ -5544,6 +5782,7 @@ impl<'de> Deserialize<'de> for ExprInner {
                     6 => ExprInner::UnaryOp {
                         op: next(&mut seq)?,
                         operand: next(&mut seq)?,
+                        floating_point: next(&mut seq)?,
                     },
                     7 => ExprInner::Convert {
                         operand: next(&mut seq)?,
@@ -5657,6 +5896,13 @@ impl<'de> Deserialize<'de> for ExprInner {
                     },
                     26 => ExprInner::StackBaseOffset {
                         offset: next(&mut seq)?,
+                    },
+                    27 => ExprInner::IRegister {
+                        reg_offset: next(&mut seq)?,
+                        array_base: next(&mut seq)?,
+                        array_bias: next(&mut seq)?,
+                        array_n_elems: next(&mut seq)?,
+                        array_shift: next(&mut seq)?,
                     },
                     // visit_enum validated the tag before dispatching here.
                     _ => unreachable!(),

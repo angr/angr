@@ -25,6 +25,7 @@ from .expression import (
     Extract,
     FunctionLikeMacro,
     Insert,
+    IRegister,
     Let,
     Load,
     Macro,
@@ -80,6 +81,7 @@ _DEFAULT_EXPR_HANDLER_TYPES = {
     Tmp,
     Register,
     ComboRegister,
+    IRegister,
     Reinterpret,
     Const,
     MultiStatementExpression,
@@ -116,6 +118,7 @@ _EXPR_MARKERS = (
     Tmp,
     Register,
     ComboRegister,
+    IRegister,
     VirtualVariable,
     Phi,
     UnaryOp,
@@ -435,6 +438,12 @@ class AILBlockWalker[ExprType, StmtType, BlockType]:
     ) -> ExprType:
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_IRegister(
+        self, expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.reg_offset, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
     def _handle_Const(
         self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
@@ -639,6 +648,11 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         return None
+
+    def _handle_IRegister(
+        self, expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self._handle_expr(0, expr.reg_offset, stmt_idx, stmt, block)
 
     def _handle_ComboRegister(
         self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -1057,6 +1071,17 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         if changed:
             new_expr = expr.copy()
             new_expr.operand = new_operand
+            return new_expr
+        return expr
+
+    def _handle_IRegister(
+        self, expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        reg_offset_in = expr.reg_offset
+        new_reg_offset = self._handle_expr(0, reg_offset_in, stmt_idx, stmt, block)
+        if new_reg_offset != reg_offset_in:
+            new_expr = expr.copy()
+            new_expr.reg_offset = new_reg_offset
             return new_expr
         return expr
 
