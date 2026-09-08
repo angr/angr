@@ -1622,6 +1622,41 @@ class SimTypeDouble(SimTypeFloat):
         return SimTypeDouble(align_double=self.align_double)
 
 
+class SimTypeLongDouble(SimTypeFloat):
+    """
+    An x87 80-bit extended-precision floating point number (long double on i386/amd64).
+    Stored as 10 bytes with platform-dependent padding (12 bytes on i386, 16 on amd64).
+    """
+
+    _base_name = "long double"
+    _args = ("label", "qualifier")
+    _ident = "long double"
+
+    def __init__(self, label=None, qualifier: Iterable | None = None):
+        super().__init__(80, label=label, qualifier=qualifier)
+
+    sort = claripy.FSORT_DOUBLE  # no 80-bit sort in claripy; use double as approximation
+
+    @property
+    def size(self) -> int:
+        return 80
+
+    def __repr__(self):
+        return "long double"
+
+    @property
+    def alignment(self):
+        if self._arch is not None and self._arch.bits == 64:
+            return 16
+        return 4
+
+    def _init_str(self):
+        return f"{self.__class__.__name__}()"
+
+    def copy(self):
+        return SimTypeLongDouble(label=self.label, qualifier=self.qualifier)
+
+
 class SimStruct(NamedTypeMixin, SimType):
     # note: def_order is NOT in _fields; it must not participate in equality/hashing
     _fields = ("name", "fields", "anonymous")
@@ -2763,7 +2798,7 @@ BASIC_TYPES: dict[str, SimType] = {
     "_Bool": SimTypeBool(),
     "float": SimTypeFloat(),
     "double": SimTypeDouble(),
-    "long double": SimTypeDouble(),
+    "long double": SimTypeLongDouble(),
     "void": SimTypeBottom(label="void"),
 }
 ALL_TYPES.update(BASIC_TYPES)

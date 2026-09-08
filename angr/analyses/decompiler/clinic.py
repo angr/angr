@@ -5,6 +5,7 @@ import copy
 import enum
 import importlib
 import logging
+import math
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard
 
 import capstone
 import networkx
+import pyvex
 
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
@@ -71,9 +73,11 @@ from angr.sim_type import (
     SimTypeArray,
     SimTypeBottom,
     SimTypeChar,
+    SimTypeDouble,
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
+    SimTypeLongDouble,
     SimTypeLongLong,
     SimTypeNum,
     SimTypePointer,
@@ -106,6 +110,7 @@ from angr.utils.vex import block_branch_ins_addr
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .decompilation_options import DEFAULT_MAX_AIL_STATEMENTS
+from .ireg_resolver import IRegisterResolver
 from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
@@ -668,18 +673,25 @@ class Clinic(Analysis, Serializable):
     def _decompilation_fixups(self, ail_graph):
         is_pcode_arch = ":" in self.project.arch.name
 
+        ail_graph = self._rewrite_indirect_register_accesses(ail_graph)
+
+        # We should be able to resolve all indirect register loads by this point
+
         self._remove_redundant_jump_blocks(ail_graph)
         # _fix_abnormal_switch_case_heads may re-lift from VEX blocks, so it should be placed as high up as possible
         self._fix_abnormal_switch_case_heads(ail_graph)
-        if self._rewrite_ites_to_diamonds:
-            self._rewrite_ite_expressions(ail_graph)
         self._remove_redundant_jump_blocks(ail_graph)
         if self._insert_labels:
             self._insert_block_labels(ail_graph)
 
-        # Run simplification passes
+        # Run simplification passes first so that x87 fptag NaN ITE checks and
+        # CmpF bit-manipulation patterns are simplified by peephole passes before
+        # we convert remaining ITEs to diamond control flow.
         self._update_progress(22.0, text="Optimizing fresh ailment graph")
         _, ail_graph = self._run_simplification_passes(ail_graph, OptimizationPassStage.AFTER_AIL_GRAPH_CREATION)
+
+        if self._rewrite_ites_to_diamonds:
+            self._rewrite_ite_expressions(ail_graph)
 
         # Fix "fake" indirect jumps and calls
         self._update_progress(25.0, text="Analyzing simple indirect jumps")
@@ -696,6 +708,10 @@ class Clinic(Analysis, Serializable):
         if is_pcode_arch:
             self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
             self._recover_calling_conventions(func_graph=ail_graph)
+
+        # ITE-to-diamond rewriting and other fixups above re-lift blocks from VEX, which can reintroduce raw
+        # IRegisters. Resolve them again now, while index registers (x87 ftop) are still plain registers.
+        ail_graph = self._rewrite_indirect_register_accesses(ail_graph)
 
         return self._apply_callsite_prototype_and_calling_convention(ail_graph)
 
@@ -974,6 +990,13 @@ class Clinic(Analysis, Serializable):
     def _stage_make_function_argument_list(self) -> None:
         self._update_progress(33.0, text="Making argument list")
         self.arg_list = self._make_argument_list()
+
+        # On i386, merge adjacent 4-byte stack args into 8-byte doubles early
+        # (before SSA) so that the SSA creates 8-byte parameter VVars.  This
+        # prevents the two-half Insert pattern that produces ugly half-writes.
+        if self.project.arch.name == "X86" and self.function.prototype is not None:
+            self.arg_list = self._early_merge_adjacent_stack_args_to_doubles(self.arg_list)
+
         self.arg_vvars = self._create_function_argument_vvars(self.arg_list)
         self.func_args = {arg_vvar for arg_vvar, _ in self.arg_vvars.values()}
 
@@ -1146,6 +1169,7 @@ class Clinic(Analysis, Serializable):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
+            remove_dead_assignments=True,
         )
 
         self.arg_list = []
@@ -1493,7 +1517,7 @@ class Clinic(Analysis, Serializable):
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
-                    self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype)
+                    self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype, manual=False)
                     if func_graph is not None and cc.prototype.returnty is not None:
                         # patch the AIL call statement if we can find one
                         callsite_ail_block: ailment.Block | None = next(
@@ -2066,16 +2090,16 @@ class Clinic(Analysis, Serializable):
         for ail_block in ail_graph.nodes():
             if only_blocks is not None and (ail_block.addr, ail_block.idx) not in only_blocks:
                 continue
-            simplified = self._simplify_block(
+            simplified_block = self._simplify_block(
                 ail_block,
                 stack_pointer_tracker=stack_pointer_tracker,
                 cache=cache,
                 preserve_vvar_ids=preserve_vvar_ids,
                 type_hints=type_hints,
             )
-            if simplified is not None:
+            if simplified_block is not None:
                 key = ail_block.addr, ail_block.idx
-                blocks_by_addr_and_idx[key] = simplified
+                blocks_by_addr_and_idx[key] = simplified_block
 
         # update blocks_map to allow node_addr to node lookup
         def _replace_node_handler(node):
@@ -2180,6 +2204,7 @@ class Clinic(Analysis, Serializable):
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
         simplify_blocks: bool = True,
+        remove_dead_assignments=True,
     ) -> bool:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -2190,6 +2215,8 @@ class Clinic(Analysis, Serializable):
         :return:                True if a fixed point was reached, False if the iteration limit was hit first (in
                                 which case the graph may still be simplifiable).
         """
+
+        simplified = False
 
         for idx in range(max_iterations):
             simplified = self._simplify_function_once(
@@ -2206,10 +2233,13 @@ class Clinic(Analysis, Serializable):
                 arg_vvars=arg_vvars,
                 preserve_vvar_ids=preserve_vvar_ids,
                 simplify_blocks=simplify_blocks,
+                remove_dead_assignments=remove_dead_assignments,
             )
             if not simplified:
                 return True
         return False
+
+        return simplified
 
     @timethis
     def _simplify_function_once(
@@ -2227,6 +2257,7 @@ class Clinic(Analysis, Serializable):
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         preserve_vvar_ids: set[int] | None = None,
         simplify_blocks: bool = True,
+        remove_dead_assignments=True,
     ):
         """
         Simplify the entire function once.
@@ -2254,6 +2285,7 @@ class Clinic(Analysis, Serializable):
             removed_vvar_ids=removed_vvar_ids,
             arg_vvars=arg_vvars,
             avoid_vvar_ids=preserve_vvar_ids,
+            remove_dead_assignments=remove_dead_assignments,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -2559,6 +2591,17 @@ class Clinic(Analysis, Serializable):
                                 region=self.function.addr,
                                 size=arg.size or self.project.arch.bytes,
                             )
+                    elif isinstance(arg, SimComboArg):
+                        # Why does CC break Doubles on the stack into SimComboArg?
+                        assert all(isinstance(arg, SimStackArg) for arg in arg.locations)
+                        argvar = SimStackVariable(
+                            arg.locations[0].stack_offset,
+                            arg.size,
+                            base="bp",
+                            ident=f"arg_{idx}",
+                            name=arg_names[idx],
+                            region=self.function.addr,
+                        )
                     else:
                         argvar = SimVariable(
                             ident=f"arg_{idx}",
@@ -2618,7 +2661,87 @@ class Clinic(Analysis, Serializable):
         if not self._inlining_parents:
             AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
+        # fix up x87 FP call return values after every callsite processing pass
+        self._fix_fp_call_return_values(ail_graph)
+
         return ail_graph, stackarg_offset_manager, removed_vvar_ids
+
+    def _fix_fp_call_return_values(self, ail_graph: networkx.DiGraph) -> None:
+        """
+        On x87, the FP return register (ST0) uses PutI/GetI (indexed array), so
+        fp_ret_offset is None and fp_ret_expr is never set on call statements.
+        Fix this by scanning successor blocks for fpreg reads after calls whose
+        callees return float/double.
+        """
+        fpreg_info = self.project.arch.registers.get("fpreg")
+        if fpreg_info is None:
+            return
+        fpreg_offset, fpreg_size = fpreg_info
+
+        for block in list(ail_graph.nodes()):
+            if not block.statements:
+                continue
+            last_stmt = block.statements[-1]
+            if not isinstance(last_stmt, ailment.Stmt.SideEffectStatement):
+                continue
+            if last_stmt.fp_ret_expr is not None:
+                continue
+
+            # Check if the callee returns a float type
+            call_expr = last_stmt.expr
+            if not isinstance(call_expr, ailment.Expr.Call):
+                continue
+            proto = self.variable_map.prototype(call_expr)
+            if proto is None or not isinstance(proto.returnty, (SimTypeFloat, SimTypeDouble)):
+                continue
+
+            # Find the fpreg read in a successor block
+            fp_reg_offset = self._find_fp_ret_in_successors(ail_graph, block, fpreg_offset, fpreg_size)
+            if fp_reg_offset is None:
+                continue
+
+            # Create fp_ret_expr and clear ret_expr (FP return, not integer return)
+            # Use the prototype return size (32 for float, 64 for double) so the
+            # Call expression width matches the declared type.  VEX models x87 as
+            # F64 internally, but the caller narrows via fstps/fstpl.
+            ret_bits = proto.returnty.with_arch(self.project.arch).size or 64
+            ret_bytes = max(ret_bits // 8, 1)
+            fp_ret_expr = ailment.Expr.Register(
+                self._ail_manager.next_atom(),
+                fp_reg_offset,
+                ret_bits,
+                reg_name=self.project.arch.translate_register_name(fp_reg_offset, size=ret_bytes),
+                ins_addr=last_stmt.tags.get("ins_addr"),
+            )
+            last_stmt.fp_ret_expr = fp_ret_expr
+            last_stmt.ret_expr = None
+
+    @staticmethod
+    def _find_fp_ret_in_successors(
+        ail_graph: networkx.DiGraph,
+        block: ailment.Block,
+        fpreg_offset: int,
+        fpreg_size: int,
+    ) -> int | None:
+        """Find the first fpreg register read in a successor block."""
+        for succ in ail_graph.successors(block):
+            for stmt in succ.statements:
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.src, ailment.Expr.Register)
+                    and fpreg_offset <= stmt.src.reg_offset < fpreg_offset + fpreg_size
+                ):
+                    return stmt.src.reg_offset
+                # Check return statements for fpreg references
+                if isinstance(stmt, ailment.Stmt.Return) and stmt.ret_exprs:
+                    for ret_expr in stmt.ret_exprs:
+                        if (
+                            isinstance(ret_expr, ailment.Expr.Register)
+                            and fpreg_offset <= ret_expr.reg_offset < fpreg_offset + fpreg_size
+                        ):
+                            return ret_expr.reg_offset
+            break  # Only check the first successor
+        return None
 
     @timethis
     def _make_returns(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
@@ -2635,21 +2758,19 @@ class Clinic(Analysis, Serializable):
 
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
-        if self.function.prototype is not None:
-            if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
-                # do not overwrite an existing function prototype
-                # if you want to re-generate the prototype, clear the existing one first
-                return
-            if isinstance(self.function.prototype.returnty, SimTypeFloat) or any(
-                isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args
-            ):
-                # Type inference does not yet support floating point variables, but calling convention analysis does
-                # FIXME: remove this branch once type inference supports floating point variables
-                return
+        if (
+            self.function.prototype is not None
+            and self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value
+        ):
+            # do not overwrite an existing function prototype
+            # if you want to re-generate the prototype, clear the existing one first
+            return
+
+        existing_proto = self.function.prototype
 
         variables = self.kb.dec_variables[self.function.addr]
         func_args = []
-        for arg in arg_list:
+        for idx, arg in enumerate(arg_list):
             func_arg = None
             arg_ty = variables.get_variable_type(arg)
             if arg_ty is None:
@@ -2668,7 +2789,29 @@ class Clinic(Analysis, Serializable):
             else:
                 func_arg = arg_ty
 
+            # If the CC identified this argument as FP but Typehoon did not,
+            # use the CC's type.  Typehoon's constraints from FP Loads and
+            # Convs do not yet flow back to the argument variable's typevar
+            # (they attach to the Load expression's typevar instead).  This
+            # affects all stack-passed FP args (i386 double, x87 long double)
+            # and is the same root cause as the long double ground truth gap.
+            if (
+                existing_proto is not None
+                and idx < len(existing_proto.args)
+                and isinstance(existing_proto.args[idx], (SimTypeFloat, SimTypeDouble))
+                and not isinstance(func_arg, (SimTypeFloat, SimTypeDouble))
+            ):
+                func_arg = existing_proto.args[idx]
+
             func_args.append(func_arg)
+
+        # On i386 cdecl, a double parameter occupies two adjacent 4-byte stack
+        # slots.  When the compiler accesses them individually (e.g. push dword),
+        # the CC sees two separate int args instead of one double.  Merge adjacent
+        # 4-byte int stack args into doubles when they are passed together to
+        # callees expecting double parameters.
+        if self.project.arch.name == "X86":
+            func_args, arg_list = self._merge_adjacent_stack_args_to_doubles(func_args, arg_list)
 
         returnty = variables.get_variable_type(self.func_ret_var)
         if returnty is None or isinstance(returnty, SimTypeBottom):
@@ -2677,8 +2820,213 @@ class Clinic(Analysis, Serializable):
             else:
                 returnty = SimTypeInt()
 
+        # Fallback: if Typehoon produced a non-FP return type but the CC
+        # detected FP operations in the function body, use the CC's FP type.
+        # Typehoon is authoritative for FP width (float vs double vs long
+        # double) -- the return statement handler strips x87 widening Convs
+        # and propagates the actual FP type.  The CC only provides a fallback
+        # when no FP constraints reach the return variable at all (e.g. the
+        # function is a single 'ret' instruction).
+        if (
+            existing_proto is not None
+            and isinstance(existing_proto.returnty, (SimTypeFloat, SimTypeDouble, SimTypeLongDouble))
+            and not isinstance(returnty, (SimTypeFloat, SimTypeDouble, SimTypeLongDouble))
+        ):
+            returnty = existing_proto.returnty
+
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
+
+    def _merge_adjacent_stack_args_to_doubles(
+        self,
+        func_args: list[SimType],
+        arg_list: list[SimVariable],
+    ) -> tuple[list[SimType], list[SimVariable]]:
+        """Merge adjacent 4-byte integer stack args into 8-byte doubles.
+
+        On i386 cdecl, double parameters occupy two 4-byte stack slots.  When the
+        compiler copies them byte-by-byte (e.g. push dword), the CC identifies two
+        separate int args.  Detect this by scanning callsites in the AIL: if a callee
+        expects a double and the call passes an 8-byte load spanning two of our
+        parameters, merge them.
+        """
+        if len(arg_list) < 2:
+            return func_args, arg_list
+
+        # Collect parameter stack offsets -> arg_list index
+        param_offsets: dict[int, int] = {}
+        for idx, arg in enumerate(arg_list):
+            if isinstance(arg, SimStackVariable) and arg.size == 4:
+                param_offsets[arg.offset] = idx
+
+        # If any callee in this function takes a double parameter,
+        # check if we have adjacent 4-byte int pairs that could be that double.
+        merge_pairs: set[int] = set()
+        callee_uses_double = False
+        for block_node in self.function.graph.nodes():
+            try:
+                vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
+                continue
+            callee_func = self.project.kb.functions.function(addr=vex.next.con.value)
+            if callee_func is None or callee_func.prototype is None:
+                continue
+            for callee_arg_ty in callee_func.prototype.args:
+                if isinstance(callee_arg_ty, SimTypeDouble):
+                    callee_uses_double = True
+                    break
+            if callee_uses_double:
+                break
+
+        if not callee_uses_double:
+            return func_args, arg_list
+
+        # Find adjacent 4-byte int pairs that could be doubles.
+        # On cdecl, doubles are 8-byte aligned in the parameter area.
+        sorted_indices = sorted(param_offsets.keys())
+        for i in range(len(sorted_indices) - 1):
+            lo_off = sorted_indices[i]
+            hi_off = sorted_indices[i + 1]
+            if hi_off == lo_off + 4:
+                lo_idx = param_offsets[lo_off]
+                hi_idx = param_offsets[hi_off]
+                if (
+                    hi_idx == lo_idx + 1
+                    and not isinstance(func_args[lo_idx], (SimTypeFloat, SimTypeDouble))
+                    and not isinstance(func_args[hi_idx], (SimTypeFloat, SimTypeDouble))
+                ):
+                    merge_pairs.add(lo_idx)
+
+        if not merge_pairs:
+            return func_args, arg_list
+
+        # Build merged lists
+        new_func_args = []
+        new_arg_list = []
+        skip_next = False
+        for idx in range(len(arg_list)):
+            if skip_next:
+                skip_next = False
+                continue
+            if idx in merge_pairs and idx + 1 < len(arg_list):
+                new_func_args.append(SimTypeDouble())
+                lo_arg = arg_list[idx]
+                new_arg_list.append(
+                    SimStackVariable(
+                        lo_arg.offset,
+                        8,
+                        base="bp",
+                        ident=lo_arg.ident,
+                        name=lo_arg.name,
+                        region=lo_arg.region,
+                    )
+                )
+                skip_next = True
+            else:
+                new_func_args.append(func_args[idx])
+                new_arg_list.append(arg_list[idx])
+
+        return new_func_args, new_arg_list
+
+    def _early_merge_adjacent_stack_args_to_doubles(
+        self,
+        arg_list: list[SimVariable],
+    ) -> list[SimVariable]:
+        """Merge adjacent 4-byte stack args into 8-byte doubles before SSA.
+
+        This runs early (before SSA level 0) so that merged parameters get 8-byte
+        VVars, preventing the Insert-from-two-halves pattern that produces ugly
+        half-writes in the output.  The merge is only performed when a callee in
+        this function is known to accept a double parameter.
+        """
+        proto = self.function.prototype
+        if proto is None or len(arg_list) < 2:
+            return arg_list
+
+        # Collect 4-byte integer stack arg offsets -> index
+        param_offsets: dict[int, int] = {}
+        for idx, arg in enumerate(arg_list):
+            # Only merge args currently typed as integer (not already FP)
+            if (
+                isinstance(arg, SimStackVariable)
+                and arg.size == 4
+                and idx < len(proto.args)
+                and not isinstance(proto.args[idx], (SimTypeFloat, SimTypeDouble))
+            ):
+                param_offsets[arg.offset] = idx
+
+        if len(param_offsets) < 2:
+            return arg_list
+
+        # Check whether any callee expects a double parameter
+        callee_uses_double = False
+        for block_node in self.function.graph.nodes():
+            try:
+                vex = self.project.factory.block(block_node.addr, size=block_node.size).vex
+            except Exception:
+                continue
+            if vex.jumpkind != "Ijk_Call" or not isinstance(vex.next, pyvex.IRExpr.Const):
+                continue
+            callee_func = self.project.kb.functions.function(addr=vex.next.con.value)
+            if callee_func is None or callee_func.prototype is None:
+                continue
+            for callee_arg_ty in callee_func.prototype.args:
+                if isinstance(callee_arg_ty, SimTypeDouble):
+                    callee_uses_double = True
+                    break
+            if callee_uses_double:
+                break
+
+        if not callee_uses_double:
+            return arg_list
+
+        # Find adjacent 4-byte pairs
+        merge_pairs: set[int] = set()
+        sorted_offsets = sorted(param_offsets.keys())
+        for i in range(len(sorted_offsets) - 1):
+            lo_off = sorted_offsets[i]
+            hi_off = sorted_offsets[i + 1]
+            if hi_off == lo_off + 4:
+                lo_idx = param_offsets[lo_off]
+                hi_idx = param_offsets[hi_off]
+                if hi_idx == lo_idx + 1:
+                    merge_pairs.add(lo_idx)
+
+        if not merge_pairs:
+            return arg_list
+
+        # Build merged arg_list and update the function prototype
+        new_arg_list: list[SimVariable] = []
+        new_proto_args: list[SimType] = []
+        skip_next = False
+        for idx in range(len(arg_list)):
+            if skip_next:
+                skip_next = False
+                continue
+            if idx in merge_pairs and idx + 1 < len(arg_list):
+                lo_arg = arg_list[idx]
+                new_arg_list.append(
+                    SimStackVariable(
+                        lo_arg.offset,
+                        8,
+                        base="bp",
+                        ident=lo_arg.ident,
+                        name=lo_arg.name,
+                        region=lo_arg.region,
+                    )
+                )
+                new_proto_args.append(SimTypeDouble())
+                skip_next = True
+            else:
+                new_arg_list.append(arg_list[idx])
+                if idx < len(proto.args):
+                    new_proto_args.append(proto.args[idx])
+
+        self.function.prototype = SimTypeFunction(new_proto_args, proto.returnty).with_arch(self.project.arch)
+
+        return new_arg_list
 
     @timethis
     def _recover_and_link_variables(
@@ -2719,11 +3067,36 @@ class Clinic(Analysis, Serializable):
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
 
-        if self.function.prototype is not None and not self.function.is_prototype_guessed:
+        if self.function.prototype is not None:
             for arg_i, (_, variable) in arg_vvars.items():
                 if arg_i < len(self.function.prototype.args):
-                    for tv in vr.var_to_typevars[variable]:
-                        groundtruth[tv] = self.function.prototype.args[arg_i]
+                    arg_type = self.function.prototype.args[arg_i]
+                    # For non-guessed prototypes, inject all arg types as
+                    # ground truth.  For guessed prototypes, skip FP types
+                    # for register-passed FP args -- the CC normalizes all FP
+                    # reg args to arch.bytes, losing the float/double
+                    # distinction.  Typehoon's constraints from FP scalar
+                    # operations are more precise there.
+                    # For stack-based FP args, the CC determines width from
+                    # load size (4=float, 8=double) and is reliable.
+                    func_cc = self.function.calling_convention
+                    is_fp_reg_arg = (
+                        isinstance(variable, SimRegisterVariable)
+                        and func_cc is not None
+                        and func_cc.FP_ARG_REGS
+                        and any(
+                            self.project.arch.registers[r][0]
+                            <= variable.reg
+                            < self.project.arch.registers[r][0] + self.project.arch.registers[r][1]
+                            for r in func_cc.FP_ARG_REGS
+                            if r in self.project.arch.registers
+                        )
+                    )
+                    if not self.function.is_prototype_guessed or (
+                        isinstance(arg_type, (SimTypeFloat, SimTypeDouble)) and not is_fp_reg_arg
+                    ):
+                        for tv in vr.var_to_typevars[variable]:
+                            groundtruth[tv] = arg_type
 
         # get maximum sizes of each stack variable, regardless of its original type
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
@@ -2766,8 +3139,6 @@ class Clinic(Analysis, Serializable):
                     type_translator=vr.type_lifter,
                     tv_manager=vr.tv_manager,
                 )
-                # tp.pp_constraints()
-                # tp.pp_solution()
                 tp.update_variable_types(
                     self.function.addr,
                     {
@@ -3276,6 +3647,57 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    @staticmethod
+    def _resolve_tmp(expr: ailment.Expr.Expression, tmp_defs: dict, depth: int = 5) -> ailment.Expr.Expression:
+        """Recursively resolve a Tmp expression through its definitions."""
+        while depth > 0 and isinstance(expr, ailment.Expr.Tmp) and expr.tmp_idx in tmp_defs:
+            expr = tmp_defs[expr.tmp_idx]
+            depth -= 1
+        return expr
+
+    @staticmethod
+    def _expr_contains_cmpf(expr: ailment.Expr.Expression, tmp_defs: dict, depth: int = 10) -> bool:
+        """Check if an expression tree (resolving Tmps) contains a CmpF operation."""
+        if isinstance(expr, ailment.Expr.Tmp) and tmp_defs is not None:
+            expr = Clinic._resolve_tmp(expr, tmp_defs, depth=depth)
+        if isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "CmpF":
+            return True
+        if isinstance(expr, ailment.Expr.BinaryOp):
+            return any(Clinic._expr_contains_cmpf(op, tmp_defs, depth - 1) for op in expr.operands)
+        if isinstance(expr, ailment.Expr.UnaryOp):
+            return Clinic._expr_contains_cmpf(expr.operand, tmp_defs, depth - 1)
+        if isinstance(expr, ailment.Expr.Convert):
+            return Clinic._expr_contains_cmpf(expr.operand, tmp_defs, depth - 1)
+        return False
+
+    @staticmethod
+    def _is_cmpf_ite(ite: ailment.Expr.ITE, tmp_defs: dict | None = None) -> bool:
+        """Check if an ITE's condition derives from a CmpF operation.
+
+        CMOV instructions emitted by GCC for floating-point equality checks use
+        bit extractions from CmpF results as the condition.  The X87CmpF peephole
+        optimization can simplify these ITE expressions into CmpEQ, but only if
+        they remain as ITE expressions (not converted to diamond control flow).
+        """
+        if tmp_defs is None:
+            return False
+        return Clinic._expr_contains_cmpf(ite.cond, tmp_defs)
+
+    @staticmethod
+    def _is_fptag_nan_ite(ite: ailment.Expr.ITE, tmp_defs: dict | None = None) -> bool:
+        """Check if an ITE is an x87 fptag NaN check that peephole passes will simplify.
+
+        ITE branches may reference Tmp expressions (possibly chained) rather than Const values
+        directly, so we resolve temporaries through *tmp_defs* recursively.
+        """
+        for branch in (ite.iftrue, ite.iffalse):
+            expr = branch
+            if tmp_defs is not None:
+                expr = Clinic._resolve_tmp(expr, tmp_defs)
+            if isinstance(expr, ailment.Expr.Const) and isinstance(expr.value, float) and math.isnan(expr.value):
+                return True
+        return False
+
     def _rewrite_ite_expressions(self, ail_graph):
         cfg = self._cfg
         block_and_ite_ins_addrs = []
@@ -3285,7 +3707,12 @@ class Clinic(Analysis, Serializable):
 
             ite_ins_addrs = []
             cas_ins_addrs = set()
+            # Build a mapping from Tmp index to its defining expression so we can
+            # resolve temporaries when checking for fptag NaN ITE patterns.
+            tmp_defs: dict[int, ailment.Expr.Expression] = {}
             for stmt in block.statements:
+                if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp):
+                    tmp_defs[stmt.dst.tmp_idx] = stmt.src
                 if isinstance(stmt, ailment.Stmt.CAS):
                     # we do not rewrite ITE statements that are caused by CAS statements
                     cas_ins_addrs.add(stmt.tags["ins_addr"])
@@ -3294,6 +3721,8 @@ class Clinic(Analysis, Serializable):
                     and isinstance(stmt.src, ailment.Expr.ITE)
                     and stmt.tags["ins_addr"] not in ite_ins_addrs
                     and stmt.tags["ins_addr"] not in cas_ins_addrs
+                    and not self._is_fptag_nan_ite(stmt.src, tmp_defs)
+                    and not self._is_cmpf_ite(stmt.src, tmp_defs)
                 ):
                     ite_ins_addrs.append(stmt.tags["ins_addr"])
 
@@ -3948,6 +4377,16 @@ class Clinic(Analysis, Serializable):
         walker._handle_expr = handle_expr
         AILGraphWalker(ail_graph, walker.walk).walk()
         return variables
+
+    def _rewrite_indirect_register_accesses(self, ail_graph):
+        """
+        Resolve IRegister expressions (VEX GetI/PutI indexed register-array accesses, e.g. x87 fpreg[ftop]) into
+        concrete Register expressions wherever the array index is a constant. Unresolved IRegisters are left for the
+        IRegReplacer optimization pass.
+        """
+        if IRegisterResolver.has_iregisters(ail_graph):
+            IRegisterResolver(self.project, self.kb, self.function, ail_graph).resolve()
+        return ail_graph
 
     @staticmethod
     def _collect_data_refs(ail_graph) -> dict[int, list[DataRefDesc]]:
