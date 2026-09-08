@@ -70,6 +70,12 @@ class CFGBase(Analysis):
     The base class for control flow graphs.
     """
 
+    if TYPE_CHECKING:
+        # provided by ForwardAnalysis, which every concrete CFG analysis also derives from
+
+        @property
+        def should_abort(self) -> bool: ...
+
     tag: str = None  # type:ignore
     addr_type: Literal["int", "block_id", "soot"] = None  # type: ignore
     _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
@@ -3149,6 +3155,8 @@ class CFGBase(Analysis):
         idx: int
         jump: IndirectJump
         for idx, jump in enumerate(self._indirect_jumps_to_resolve):
+            if self.should_abort:
+                break
             if self._low_priority:
                 self._release_gil(idx, 50, 0.000001)
             all_targets |= self._process_one_indirect_jump(jump)
