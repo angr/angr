@@ -140,51 +140,74 @@ def dereference_simtype(
     return real_type
 
 
-def dereference_simtype_by_lib(t: SimType, libname: str) -> SimType:
-    if libname not in SIM_LIBRARIES:
-        return t
+def type_collections_for_lib(libname: str | None) -> list[SimTypeCollection]:
+    """
+    Get the type collections that types in a library's prototypes can be dereferenced against.
+
+    :param libname: Name of the library, or None.
+    :return:        The type collections, which is empty if the library is unknown, declares none, or declares only
+                    collections that have not been loaded.
+    """
+
+    if libname is None or libname not in SIM_LIBRARIES:
+        return []
 
     type_collections = []
     for prototype_lib in SIM_LIBRARIES[libname]:
-        if prototype_lib.type_collection_names:
-            for typelib_name in prototype_lib.type_collection_names:
-                type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+        for typelib_name in prototype_lib.type_collection_names:
+            type_collection = SIM_TYPE_COLLECTIONS.get(typelib_name)
+            if type_collection is not None:
+                type_collections.append(type_collection)
+    return type_collections
+
+
+def dereference_simtype_by_lib(t: SimType, libname: str) -> SimType:
+    type_collections = type_collections_for_lib(libname)
     if type_collections:
         return dereference_simtype(t, type_collections)
     return t
 
 
-def make_type_reference(t: SimType, memo: dict[str, SimTypeRef] | None = None) -> SimType:
+def make_type_reference(
+    t: SimType,
+    type_collections: list[SimTypeCollection] | None = None,
+    memo: dict[str, SimTypeRef] | None = None,
+) -> SimType:
     """
-    Take a SimType and convert all SimStruct instances to SimTypeRefs.
+    Take a SimType and convert SimStruct instances to SimTypeRefs.
 
-    :param t:   The SimType instance to convert.
-    :return:    A converted SimType instance.
+    :param t:                   The SimType instance to convert.
+    :param type_collections:    The collections the references will be dereferenced against. A struct whose name none
+                                of them holds is left as it is, because a reference to it could not be resolved again.
+                                None converts every named struct.
+    :return:                    A converted SimType instance.
     """
 
     if memo is None:
         memo = {}
 
-    if type(t) is SimStruct and t.name:
+    if type(t) is SimStruct and t.name and (type_collections is None or any(t.name in tc for tc in type_collections)):
         if t.name in memo:
             ref_t = memo[t.name]
         else:
             ref_t = SimTypeRef(t.name, SimStruct)
             memo[t.name] = ref_t
     elif isinstance(t, SimTypePointer):
-        ref_pts_to = make_type_reference(t.pts_to, memo=memo)
+        ref_pts_to = make_type_reference(t.pts_to, type_collections, memo=memo)
         ref_t = t.copy()
         ref_t.pts_to = ref_pts_to
     elif isinstance(t, SimTypeArray):
-        ref_elem_type = make_type_reference(t.elem_type, memo=memo)
+        ref_elem_type = make_type_reference(t.elem_type, type_collections, memo=memo)
         ref_t = t.copy()
         ref_t.elem_type = ref_elem_type
     elif isinstance(t, SimUnion):
-        ref_members = {k: make_type_reference(v, memo=memo) for k, v in t.members.items()}
+        ref_members = {k: make_type_reference(v, type_collections, memo=memo) for k, v in t.members.items()}
         ref_t = SimUnion(ref_members, label=t.label)
     elif isinstance(t, SimTypeFunction):
-        ref_args = [make_type_reference(arg, memo=memo) for arg in t.args]
-        ref_return_type = make_type_reference(t.returnty, memo=memo) if t.returnty is not None else None
+        ref_args = [make_type_reference(arg, type_collections, memo=memo) for arg in t.args]
+        ref_return_type = (
+            make_type_reference(t.returnty, type_collections, memo=memo) if t.returnty is not None else None
+        )
         ref_t = t.copy()
         ref_t.args = tuple(ref_args)
         ref_t.returnty = ref_return_type
