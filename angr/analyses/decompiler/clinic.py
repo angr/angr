@@ -53,7 +53,7 @@ from angr.calling_conventions import (
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
-from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
+from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, AngrTypeError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -114,7 +114,7 @@ from .optimization_passes import (
     StackCanarySimplifier,
     TagSlicer,
 )
-from .return_maker import ReturnMaker
+from .return_maker import ReturnMaker, return_value_location
 from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
@@ -415,6 +415,7 @@ class Clinic(Analysis, Serializable):
         flavor: str = "pseudocode",
         variable_map: VariableMap | None = None,
         save_unoptimized_graph: bool = False,
+        return_type: SimType | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -431,6 +432,13 @@ class Clinic(Analysis, Serializable):
         self.func_ret_var = SimVariable(0, "__retvar", "__retvar")
         # True once _recover_and_link_variables has populated kb.dec_variables for this function this run
         self._variables_recovered = False
+        # True when the recovered return type needs more registers than the return statements were given at
+        # ClinicStage.MAKE_RETURN_SITES
+        self.returns_missing_registers: bool = False
+        # A return type the caller already knows to be right (Decompiler's retry hands back the one type inference
+        # recovered on its first pass). It replaces the return type calling convention analysis recovers, so the
+        # return statements are made for it; it never overrides a ground-truth prototype.
+        self._return_type = return_type
         # VariableMap is a side container that holds variable/variable_offset/custom_string/reference_values and the
         # sibling reference_variable/reference_variable_offset for AIL atoms, keyed by their .idx. It supersedes
         # storing this information directly on AIL Statement/Expression objects.
@@ -1546,6 +1554,9 @@ class Clinic(Analysis, Serializable):
                 and (isinstance(old_proto.returnty, SimTypeBottom) or old_proto.returnty is None)
             ):
                 self.function.prototype.returnty = old_proto.returnty
+
+            if self._return_type is not None and self.function.prototype is not None:
+                self.function.prototype.returnty = self._return_type
 
     @timethis
     def _track_stack_pointers(self):
@@ -2673,6 +2684,33 @@ class Clinic(Analysis, Serializable):
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
+        self.returns_missing_registers = self._returns_missing_registers()
+
+    def _returns_missing_registers(self) -> bool:
+        """
+        Do the return statements carry fewer expressions than the return type just recovered needs?
+
+        ReturnMaker filled them in eleven stages ago, from the narrower type calling convention analysis had
+        recovered by then.
+        """
+        try:
+            ret_val = return_value_location(self.function)
+        except AngrTypeError:
+            return False
+        except AssertionError:
+            # SimCC.return_val asserts rather than raises when a type is wider than RETURN_VAL and the
+            # convention declares no OVERFLOW_RETURN_VAL. Type inference can hand us such a type on any
+            # architecture; it means the convention cannot express this return, so there is nothing to add.
+            return False
+        if not isinstance(ret_val, SimComboArg):
+            return False
+        wanted = len(ret_val.locations)
+        return any(
+            stmt.ret_exprs and len(stmt.ret_exprs) < wanted
+            for block in self._ail_graph
+            for stmt in block.statements
+            if isinstance(stmt, ailment.Stmt.Return)
+        )
 
     @timethis
     def _recover_and_link_variables(
