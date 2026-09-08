@@ -3,8 +3,6 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use clarirs_vsa::reduce::Reduce;
-use clarirs_vsa::strided_interval::ComparisonResult;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
@@ -280,15 +278,6 @@ impl Bool {
     // defines `__eq__` without its own `__hash__`, so it must be repeated here.
     pub fn __hash__(&self) -> usize {
         self.inner.hash() as usize
-    }
-
-    #[getter]
-    pub fn cardinality(&self) -> Result<usize, ClaripyError> {
-        match self.inner.reduce()?.into_bool()? {
-            ComparisonResult::True => Ok(1),
-            ComparisonResult::False => Ok(1),
-            ComparisonResult::Maybe => Ok(2),
-        }
     }
 }
 

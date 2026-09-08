@@ -104,6 +104,28 @@ class TestBoolOperations(unittest.TestCase):
         sym_or2 = claripy.Or(self.bool_sym, self.bool_sym2)
         self.assertTrue(sym_or2.op != "BoolV")
 
+    def test_cardinality(self):
+        """cardinality, singlevalued, and multivalued are defined on Base and work on Bools"""
+        for b in (self.true, self.false, self.bv1 > self.bv2, self.bv1 == self.bv2):
+            self.assertEqual(b.cardinality, 1)
+            self.assertTrue(b.singlevalued)
+            self.assertFalse(b.multivalued)
+
+        for b in (self.bool_sym, self.bv_sym == self.bv1, claripy.And(self.bool_sym, self.bool_sym2)):
+            self.assertEqual(b.cardinality, 2)
+            self.assertFalse(b.singlevalued)
+            self.assertTrue(b.multivalued)
+
+        # symbolic operands that simplify to a constant
+        for b in (
+            claripy.Or(self.bool_sym, self.true),
+            claripy.And(self.bool_sym, self.false),
+            self.bv_sym == self.bv_sym,
+        ):
+            self.assertEqual(b.cardinality, 1)
+            self.assertTrue(b.singlevalued)
+            self.assertFalse(b.multivalued)
+
     def test_not(self):
         """Test logical NOT"""
         # Test concrete values
