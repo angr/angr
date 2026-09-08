@@ -12,6 +12,7 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses.calling_convention.utils import is_sane_register_variable
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -226,6 +227,28 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
                     assert isinstance(ret_val, SimRegArg)
                     assert ret_val.reg_name == r
+
+    def test_i386_return_register_is_not_an_argument(self):
+        # eax is the X86 return register. It is not an argument register in any X86 calling
+        # convention, so it must not be a candidate argument; ecx, edx, ebx and the xmm registers
+        # must still be. amd64 already excludes rax the same way.
+        arch = archinfo.arch_from_id("x86")
+        for reg_name in ["eax", "ax", "al", "ah"]:
+            offset, size = arch.registers[reg_name]
+            assert not is_sane_register_variable(arch, offset, size), reg_name
+        for reg_name in ["ecx", "edx", "ebx", "xmm0"]:
+            offset, size = arch.registers[reg_name]
+            assert is_sane_register_variable(arch, offset, size), reg_name
+
+        # A function whose fact collection reports an undefined read of eax must still get a
+        # calling convention: eax is caller-saved in every X86 convention, so admitting it as a
+        # candidate argument made SimCC._match reject all of them and left the function with none.
+        binary_path = os.path.join(test_location, "i386", "nl")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model, analyze_callsites=True)
+        func = cfg.kb.functions["quotearg_n_options"]
+        assert isinstance(func.calling_convention, SimCCCdecl)
 
     def test_x86_saved_regs(self):
         # Calling convention analysis should be able to determine calling convention of functions with registers
