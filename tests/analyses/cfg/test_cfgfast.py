@@ -399,7 +399,9 @@ class TestCfgfast(unittest.TestCase):
 
     def test_cfg_function_stubs_with_single_jumpouts(self):
         proj = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust-stripped"), auto_load_libs=False)
-        cfg = proj.analyses.CFG()
+        # Scan only the 64KB around the two functions: the whole-binary CFG takes over a minute, and the stub/function
+        # split is decided by their immediate neighbourhood (a 4KB window is too narrow to recover 0x486500).
+        cfg = proj.analyses.CFG(regions=[(0x480000, 0x490000)], start_at_entry=False)
 
         # the function at 0x4864f0 is a function stub that jumps directly to function at 0x486500. ensure that CFGFast
         # discovers both functions correctly instead of merging them together
@@ -1053,7 +1055,13 @@ class TestCfgfast(unittest.TestCase):
         # own symbol table gives each of them a name and a size, so the premise of that pass -- that the linear
         # scan decoded data as code -- does not hold here.
         proj = angr.Project(os.path.join(test_location, "x86_64", "langdetect_gcc"), auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(normalize=True)
+        # Scan only the regions around the four functions: a whole-binary CFG of this static glibc build takes about
+        # a minute, and whether drop_bad_functions() keeps a function is decided by that function's own symbol.
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(0x424000, 0x432000), (0x45B000, 0x45C000), (0x468000, 0x469000)],
+            start_at_entry=False,
+        )
 
         for addr, name in (
             (0x424CC0, "__stpcpy_evex"),
