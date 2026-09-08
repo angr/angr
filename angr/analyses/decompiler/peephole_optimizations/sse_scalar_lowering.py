@@ -82,6 +82,17 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
             return None
 
         n_bits = expr.bits
+
+        # Lane-0 junk cleanup: an SSE scalar read of a value that was widened into a vector and OR'd with
+        # upper-lane garbage (from a masked xorps/andps, or a spilled V128) leaves
+        #   Extract(N@0, Or(Conv(k->m, x), upper_junk))
+        # where the junk's low N bits are 0. The scalar value is just the low N bits of x.
+        stripped = _strip_lane0(expr.base, n_bits)
+        if stripped is not None:
+            if stripped.bits == n_bits:
+                return stripped
+            return Extract(expr.idx, n_bits, stripped, Const(None, 0, 64, **expr.tags), "Iend_LE", **expr.tags)
+
         if n_bits not in (32, 64):
             return None
 
@@ -127,3 +138,39 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
             bits=n_bits,
             **expr.tags,
         )
+
+
+def _strip_lane0(expr, n_bits: int):
+    """Return the value producing the low *n_bits* of *expr*, stripping wrappers that do not affect those
+    bits: widening integer Converts, nested lsb Extracts, and Or with a constant whose low n_bits are 0.
+    Returns None if no simplification applies."""
+    changed = False
+    for _ in range(8):
+        if (
+            isinstance(expr, Convert)
+            and expr.from_type == expr.to_type == Convert.TYPE_INT
+            and expr.to_bits > expr.from_bits
+            and expr.from_bits >= n_bits
+        ):
+            expr = expr.operand
+            changed = True
+        elif (
+            isinstance(expr, Extract)
+            and isinstance(expr.offset, Const)
+            and expr.offset.value == 0
+            and expr.bits >= n_bits
+        ):
+            expr = expr.base
+            changed = True
+        elif (
+            isinstance(expr, BinaryOp)
+            and expr.op == "Or"
+            and isinstance(expr.operands[1], Const)
+            and isinstance(expr.operands[1].value, int)
+            and (expr.operands[1].value & ((1 << n_bits) - 1)) == 0
+        ):
+            expr = expr.operands[0]
+            changed = True
+        else:
+            break
+    return expr if changed else None
