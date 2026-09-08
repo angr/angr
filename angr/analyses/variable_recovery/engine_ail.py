@@ -661,6 +661,16 @@ class SimEngineVRAIL(
                 if result.type_constraints is None:
                     result.type_constraints = set()
                 result.type_constraints.add(constraint)
+            # a Load of a floating-point value (VEX LDle:F32/F64, tagged by the converter) constrains the loaded
+            # value -- and hence the pointed-to element -- to a float type.
+            elif expr.tags.get("data_type") in ("Ity_F32", "Ity_F64") and result.typevar is not None:
+                ft = typeconsts.float_type(size * 8)
+                if ft is not None:
+                    constraint = typevars.Subtype(ft, result.typevar)
+                    self.state.add_type_constraint(constraint)
+                    if result.type_constraints is None:
+                        result.type_constraints = set()
+                    result.type_constraints.add(constraint)
             return result
         return self._top(8)
 
