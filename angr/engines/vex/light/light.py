@@ -356,6 +356,8 @@ class VEXMixin(SimEngine):
             "ILGop_IdentV128": ("Ity_V128", None),  # 128 bit vector, no conversion */
             "ILGop_Ident64": ("Ity_I64", None),  # 64 bit, no conversion */
             "ILGop_Ident32": ("Ity_I32", None),  # 32 bit, no conversion */
+            "ILGop_Ident16": ("Ity_I16", None),  # 16 bit, no conversion (AVX-512) */
+            "ILGop_Ident8": ("Ity_I8", None),  # 8 bit, no conversion (AVX-512) */
             "ILGop_16Uto32": ("Ity_I16", "Iop_16Uto32"),  # 16 bit load, Z-widen to 32 */
             "ILGop_16Sto32": ("Ity_I16", "Iop_16Sto32"),  # 16 bit load, S-widen to 32 */
             "ILGop_8Uto32": ("Ity_I8", "Iop_8Uto32"),  # 8 bit load, Z-widen to 32 */

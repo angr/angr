@@ -1466,6 +1466,8 @@ fn loadg_sizes(cvt: &str) -> PyResult<(u32, u32, bool)> {
         "ILGop_Ident32" => (32, 32, false),
         "ILGop_Ident64" => (64, 64, false),
         "ILGop_IdentV128" => (128, 128, false),
+        "ILGop_Ident16" => (16, 16, false),
+        "ILGop_Ident8" => (8, 8, false),
         "ILGop_8Uto32" => (8, 32, false),
         "ILGop_8Sto32" => (8, 32, true),
         "ILGop_16Uto32" => (16, 32, false),
@@ -1583,6 +1585,7 @@ unsafe fn const_value(c: *const vex_ffi::IRConst) -> ConstVal {
             ICO_F64 | ICO_F64I => (ConstValue::Float(ico.f64_), 64),
             ICO_V128 => (expand_vector(ico.v128 as u64, 16), 128),
             ICO_V256 => (expand_vector(ico.v256 as u64, 32), 256),
+            ICO_V512 => (expand_vector(ico.v512, 64), 512),
             _ => (ConstValue::Int(0), 0),
         }
     };
@@ -1656,10 +1659,12 @@ fn loadg_cvt_name(cvt: u32) -> String {
         0x1D01 => "ILGop_IdentV128",
         0x1D02 => "ILGop_Ident64",
         0x1D03 => "ILGop_Ident32",
-        0x1D04 => "ILGop_16Uto32",
-        0x1D05 => "ILGop_16Sto32",
-        0x1D06 => "ILGop_8Uto32",
-        0x1D07 => "ILGop_8Sto32",
+        0x1D04 => "ILGop_Ident16",
+        0x1D05 => "ILGop_Ident8",
+        0x1D06 => "ILGop_16Uto32",
+        0x1D07 => "ILGop_16Sto32",
+        0x1D08 => "ILGop_8Uto32",
+        0x1D09 => "ILGop_8Sto32",
         _ => "ILGop_INVALID",
     }
     .to_string()
@@ -1947,6 +1952,7 @@ fn const_bits(tag: u32) -> u32 {
         ICO_U64 | ICO_F64 | ICO_F64I => 64,
         ICO_U128 | ICO_V128 => 128,
         ICO_V256 => 256,
+        ICO_V512 => 512,
         _ => 0,
     }
 }
