@@ -365,6 +365,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 False,
                 new_expr,
                 **new_expr.tags,
+                narrowing_adapter=True,
             )
         return expr
 

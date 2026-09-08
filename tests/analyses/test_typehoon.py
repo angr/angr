@@ -31,6 +31,7 @@ from angr.analyses.typehoon.typeconsts import (
     SInt32,
     SInt64,
     Struct,
+    UInt32,
 )
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import (
@@ -55,12 +56,34 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypePointer,
 )
+from angr.sim_variable import SimRegisterVariable, SimVariable
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestTypehoon(unittest.TestCase):
+    def test_generic_integer_solution_detection(self):
+        variable: SimVariable = SimRegisterVariable(0, 4)
+        first_typevar = TypeVariable()
+        second_typevar = TypeVariable()
+        typehoon = object.__new__(Typehoon)
+        var_mapping: dict[SimVariable, set[TypeVariable]] = {variable: {first_typevar, second_typevar}}
+        typehoon._var_mapping = var_mapping
+
+        for solutions, expected in (
+            (None, False),
+            ({first_typevar: Int8()}, True),
+            ({first_typevar: Int32()}, True),
+            ({first_typevar: Int32(), second_typevar: Int32()}, True),
+            ({first_typevar: Int32(), second_typevar: UInt32()}, False),
+            ({first_typevar: SInt32()}, False),
+            ({}, False),
+        ):
+            with self.subTest(solutions=solutions):
+                typehoon.solution = solutions
+                assert typehoon.variable_has_only_generic_integer_solutions(variable) is expected
+
     def test_smoketest(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "linked_list"), auto_load_libs=False)
         cfg = p.analyses.CFG(data_references=True, normalize=True)

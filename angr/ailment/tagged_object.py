@@ -29,6 +29,7 @@ class TagDict(TypedDict, total=False):
     ins_addr: int
     is_prototype_guessed: bool
     keep_in_slice: bool
+    narrowing_adapter: bool
     orig_ins_addr: int
     reg_name: str
     uninitialized: bool
