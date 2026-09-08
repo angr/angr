@@ -11,7 +11,7 @@ from collections import UserDict, defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
 from functools import wraps
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import networkx
 import pydemumble
@@ -31,6 +31,7 @@ from angr.rust.utils.demangler import demangle
 from angr.serializable import Serializable
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.utils.library import get_cpp_function_name_and_metadata
+from angr.utils.types import dereference_simtype_by_lib
 from angr.utils.vex import block_branch_ins_addr
 
 from .function_parser import FunctionParser
@@ -433,6 +434,19 @@ class Function(Serializable):
                         arg_names.append(f"a{i}")
             proto.arg_names = tuple(arg_names)
         self._prototype = proto
+
+    @property
+    def prototype_dereferenced(self) -> SimTypeFunction | None:
+        """
+        The prototype with the library type references in it resolved.
+
+        A prototype from a SimLibrary or from the function database may carry SimTypeRef placeholders instead of the
+        types they name, and a SimTypeRef has no size. Anything that computes argument locations or lifts argument
+        types has to resolve them against prototype_libname first.
+        """
+        if self._prototype is None or self._prototype_libname is None:
+            return self._prototype
+        return cast(SimTypeFunction, dereference_simtype_by_lib(self._prototype, self._prototype_libname))
 
     @property
     def prototype_libname(self):
@@ -1648,7 +1662,7 @@ class Function(Serializable):
             return self._argument_registers + self._argument_stack_variables
         if self.prototype is None:
             return []
-        return self.calling_convention.arg_locs(self.prototype)
+        return self.calling_convention.arg_locs(self.prototype_dereferenced)
 
     @property
     def has_return(self):

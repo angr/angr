@@ -192,7 +192,7 @@ class SimEngineVRVEX(
             return
 
         try:
-            arg_locs = func.calling_convention.arg_locs(func.prototype)
+            arg_locs = func.calling_convention.arg_locs(func.prototype_dereferenced)
         except (TypeError, ValueError):
             func.prototype = None
             return

@@ -9,7 +9,8 @@ import unittest
 
 import angr
 import angr.calling_conventions
-from angr.sim_type import SimTypePointer
+from angr.calling_conventions import SimRegArg
+from angr.sim_type import SimTypePointer, SimTypeRef
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -38,6 +39,25 @@ class TestPrototypes(unittest.TestCase):
         assert len(arg_locs) == 2
         assert arg_locs[0].reg_name == "rdi"
         assert arg_locs[1].reg_name == "rsi"
+
+    def test_arguments_resolve_library_type_references(self):
+        # RtlAnsiStringToUnicodeString's third argument is BOOLEAN, which ntdll.dll ships as a type reference with no
+        # size of its own. Function.arguments must resolve it before placing it, or the one-byte argument is placed as
+        # a whole machine word.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "netfilter_b64.sys"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=False, analyze_callsites=True)
+
+        func = cfg.kb.functions.function(name="RtlAnsiStringToUnicodeString")
+        assert func is not None
+        assert func.prototype is not None
+        assert func.prototype_libname == "ntdll.dll"
+        assert isinstance(func.prototype.args[2], SimTypeRef)
+        assert func.prototype.args[2].size is None
+
+        arg_locs = func.arguments
+        assert [loc.reg_name for loc in arg_locs if isinstance(loc, SimRegArg)] == ["rcx", "rdx", "r8"]
+        assert [loc.size for loc in arg_locs] == [8, 8, 1]
 
     def test_cpp_void_pointer(self):
         proj = angr.Project(os.path.join(test_location, "x86_64", "void_pointer"), auto_load_libs=False)

@@ -396,7 +396,7 @@ class FastConstantPropagation(Analysis):
         if func is not None and func.prototype is not None:
             arg_locs = None
             try:
-                arg_locs = cc.arg_locs(func.prototype)
+                arg_locs = cc.arg_locs(func.prototype_dereferenced)
             except (TypeError, ValueError):
                 arg_locs = None
 
