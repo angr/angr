@@ -103,7 +103,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         """
         # Do a simple and fast check first
         assert self._goto_manager is not None
-        is_simple_goto = self._goto_manager.is_goto_edge(src, dst)
+        is_simple_goto = self._goto_manager.is_goto_edge(src, dst, graph=graph)
         if is_simple_goto:
             return True
 
@@ -130,7 +130,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
                 if block in src_direct_parents and isinstance(block.statements[-1], ConditionalJump):
                     continue
 
-                if self._goto_manager.is_goto_edge(block, dst):
+                if self._goto_manager.is_goto_edge(block, dst, graph=graph):
                     return True
 
             # Special case 2: A "goto edge" that ReturnDuplicator wants to test might be an edge that Phoenix
@@ -153,7 +153,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
                 succ_preds = list(graph.predecessors(succ))
                 if len(succ_preds) != 1:
                     break
-                if self._goto_manager.is_goto_edge(node, succ):
+                if self._goto_manager.is_goto_edge(node, succ, graph=graph):
                     return True
                 # keep testing the next edge
                 node = succ

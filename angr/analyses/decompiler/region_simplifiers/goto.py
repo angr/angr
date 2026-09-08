@@ -19,6 +19,8 @@ from .node_address_finder import NodeAddressFinder
 
 l = logging.getLogger(name=__name__)
 
+_UNKNOWN_BLOCK_IDX = object()
+
 
 class GotoSimplifier(SequenceWalker):
     """
@@ -47,7 +49,8 @@ class GotoSimplifier(SequenceWalker):
         self.irreducible_gotos = set()
 
         super().__init__(handlers)
-        self._node_addrs: set[int] = NodeAddressFinder(node).addrs
+        node_addrs = NodeAddressFinder(node)
+        self._node_block_keys: set[tuple[int, int | None]] = node_addrs.block_keys
 
         self.walk(node)
 
@@ -127,10 +130,16 @@ class GotoSimplifier(SequenceWalker):
         if isinstance(last_stmt, ailment.Stmt.Jump):
             if isinstance(last_stmt.target, ailment.Expr.Const):
                 goto_target = last_stmt.target.value
-                if successor and goto_target == successor.addr:
+                goto_target_key = goto_target, last_stmt.target_idx
+                successor_key = self._structured_node_key(successor)
+                if (
+                    successor_key is not None
+                    and goto_target == successor_key[0]
+                    and (successor_key[1] is _UNKNOWN_BLOCK_IDX or goto_target_key == successor_key)
+                ):
                     can_remove = True
-                elif goto_target not in self._node_addrs:
-                    # the target block has been removed and is no longer exist. we assume this goto is useless
+                elif goto_target_key not in self._node_block_keys:
+                    # the target block has been removed and no longer exists. we assume this goto is useless
                     can_remove = True
                 else:
                     can_remove = False
@@ -155,6 +164,22 @@ class GotoSimplifier(SequenceWalker):
             ):
                 self._handle_irreducible_goto(block, last_stmt, branch_target=False)
 
+    @staticmethod
+    def _structured_node_key(node):
+        if node is None or not hasattr(node, "addr"):
+            return None
+        if isinstance(node, CodeNode):
+            return GotoSimplifier._structured_node_key(node.node)
+        if isinstance(node, LoopNode):
+            entry_key = GotoSimplifier._structured_node_key(node.sequence_node)
+            if entry_key is not None and entry_key[0] == node.addr:
+                return entry_key
+        elif isinstance(node, SequenceNode) and node.nodes:
+            entry_key = GotoSimplifier._structured_node_key(node.nodes[0])
+            if entry_key is not None and entry_key[0] == node.addr:
+                return entry_key
+        return node.addr, node.idx if hasattr(node, "idx") else _UNKNOWN_BLOCK_IDX
+
     def _handle_irreducible_goto(
         self, block, goto_stmt: ailment.Stmt.Jump | ailment.Stmt.ConditionalJump, branch_target=None
     ):
@@ -164,15 +189,21 @@ class GotoSimplifier(SequenceWalker):
 
         # normal Goto Label
         if branch_target is None:
+            assert isinstance(goto_stmt, ailment.Stmt.Jump)
             dst_target = goto_stmt.target
+            dst_idx = goto_stmt.target_idx
         # true branch of a conditional jump
         elif branch_target:
+            assert isinstance(goto_stmt, ailment.Stmt.ConditionalJump)
             dst_target = goto_stmt.true_target
+            dst_idx = goto_stmt.true_target_idx
         # false branch of a conditional jump
         else:
+            assert isinstance(goto_stmt, ailment.Stmt.ConditionalJump)
             dst_target = goto_stmt.false_target
+            dst_idx = goto_stmt.false_target_idx
 
         src_ins_addr = goto_stmt.tags.get("ins_addr", block.addr)
-        goto = Goto(block.addr, dst_target.value, src_idx=block.idx, dst_idx=None, src_ins_addr=src_ins_addr)
+        goto = Goto(block.addr, dst_target.value, src_idx=block.idx, dst_idx=dst_idx, src_ins_addr=src_ins_addr)
         l.debug("Storing %r goto", goto)
         self.irreducible_gotos.add(goto)

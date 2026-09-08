@@ -16,8 +16,10 @@ class NodeAddressFinder(SequenceWalker):
         }
         super().__init__(handlers=handlers)
         self.addrs: set[int] = set()
+        self.block_keys: set[tuple[int, int | None]] = set()
 
         self.walk(node)
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         self.addrs.add(node.addr)
+        self.block_keys.add((node.addr, node.idx))

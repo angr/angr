@@ -4,8 +4,12 @@ import inspect
 import logging
 from collections import defaultdict
 from itertools import count
+from typing import cast
+
+import networkx
 
 from angr.analyses.decompiler.counters import AILBlockCallCounter
+from angr.analyses.decompiler.goto_manager import GotoManager
 
 from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
 
@@ -41,6 +45,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
         self.node_idx = count(start=node_idx_start)
         self._max_call_dup = max_call_duplications
+        self._processed_targets: set[tuple[int, int | None]] = set()
         self.analyze()
 
     def _check(self):
@@ -49,7 +54,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
     def _analyze(self, cache=None):
         to_update = defaultdict(list)
         for node in self.out_graph.nodes:
-            gotos = self._goto_manager.gotos_in_block(node)
+            gotos = self._goto_manager.gotos_in_block(node, graph=self.out_graph)
             # TODO: support if-stmts
             if not gotos or len(gotos) >= 2:
                 continue
@@ -57,15 +62,15 @@ class CrossJumpReverter(StructuringOptimizationPass):
             # only blocks that have a single outgoing goto are candidates
             # for duplicates
             goto = next(iter(gotos))
-            for goto_target in self.out_graph.successors(node):
-                if goto_target.addr == goto.dst_addr:
-                    break
-            else:
-                goto_target = None
+            goto_target = cast(GotoManager, self._goto_manager).find_destination_block(
+                cast(networkx.DiGraph, self.out_graph), goto
+            )
+            if goto_target is None or (goto_target.addr, goto_target.idx) in self._processed_targets:
+                continue
 
             # the target goto block should only have a single outgoing edge
             # this prevents duplication of conditions
-            if goto_target is None or self.out_graph.out_degree(goto_target) != 1:
+            if not self.out_graph.has_edge(node, goto_target) or self.out_graph.out_degree(goto_target) != 1:
                 continue
 
             # minimize the number of calls in the target block that can be duplicated
@@ -100,6 +105,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
                 self.out_graph.remove_edge(src, goto_blk)
                 self.out_graph.add_edge(src, cp)
 
+            self._processed_targets.add((goto_target.addr, goto_target.idx))
             updates = True
             if delete_original:
                 self.out_graph.remove_node(goto_target)
