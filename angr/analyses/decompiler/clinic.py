@@ -3684,11 +3684,13 @@ class Clinic(Analysis, Serializable):
         return Clinic._expr_contains_cmpf(ite.cond, tmp_defs)
 
     @staticmethod
-    def _is_fptag_nan_ite(ite: ailment.Expr.ITE, tmp_defs: dict | None = None) -> bool:
-        """Check if an ITE is an x87 fptag NaN check that peephole passes will simplify.
+    def _is_fptag_nan_ite(ite: ailment.Expr.ITE, tmp_defs: dict | None = None, arch=None) -> bool:
+        """Check if an ITE is an x87 fptag validity check that peephole passes will simplify.
 
-        ITE branches may reference Tmp expressions (possibly chained) rather than Const values
-        directly, so we resolve temporaries through *tmp_defs* recursively.
+        Two forms are recognized: a branch that is a NaN constant (the classic empty-tag
+        placeholder), or a condition that reads the x87 fptag register (the placeholder branch
+        only becomes a NaN after later simplification, so the condition is the stable signal).
+        ITE operands may be Tmp expressions (possibly chained), resolved through *tmp_defs*.
         """
         for branch in (ite.iftrue, ite.iffalse):
             expr = branch
@@ -3696,6 +3698,20 @@ class Clinic(Analysis, Serializable):
                 expr = Clinic._resolve_tmp(expr, tmp_defs)
             if isinstance(expr, ailment.Expr.Const) and isinstance(expr.value, float) and math.isnan(expr.value):
                 return True
+        return arch is not None and Clinic._expr_reads_fptag(ite.cond, tmp_defs, arch)
+
+    @staticmethod
+    def _expr_reads_fptag(expr: ailment.Expr.Expression, tmp_defs: dict | None, arch) -> bool:
+        """True if *expr* reads a register within the x87 fptag range (directly or as a Cmp operand)."""
+        fptag = arch.registers.get("fptag")
+        if fptag is None:
+            return False
+        lo, hi = fptag[0], fptag[0] + fptag[1]
+        e = Clinic._resolve_tmp(expr, tmp_defs) if tmp_defs is not None else expr
+        if isinstance(e, ailment.Expr.Register) and lo <= e.reg_offset < hi:
+            return True
+        if isinstance(e, ailment.Expr.BinaryOp) and e.op.startswith("Cmp"):
+            return any(Clinic._expr_reads_fptag(op, tmp_defs, arch) for op in e.operands)
         return False
 
     def _rewrite_ite_expressions(self, ail_graph):
@@ -3721,7 +3737,7 @@ class Clinic(Analysis, Serializable):
                     and isinstance(stmt.src, ailment.Expr.ITE)
                     and stmt.tags["ins_addr"] not in ite_ins_addrs
                     and stmt.tags["ins_addr"] not in cas_ins_addrs
-                    and not self._is_fptag_nan_ite(stmt.src, tmp_defs)
+                    and not self._is_fptag_nan_ite(stmt.src, tmp_defs, self.project.arch)
                     and not self._is_cmpf_ite(stmt.src, tmp_defs)
                 ):
                     ite_ins_addrs.append(stmt.tags["ins_addr"])
