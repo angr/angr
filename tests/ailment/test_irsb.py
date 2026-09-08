@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import os
 import pickle
+import re
 import unittest
 
 import archinfo
 import pypcode
 import pyvex
-from pyvex.enums import irop_enums_to_ints
+from pyvex.enums import enums_to_ints, irop_enums_to_ints
 
 import angr
 from angr import ailment
@@ -309,3 +310,66 @@ class TestVexOpParity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVexEnumParity(unittest.TestCase):
+    """The Rust converter hardcodes libVEX enum values (IRConstTag, IRType,
+    IRLoadGOp, ...); libVEX inserts members mid-enum between releases
+    (Valgrind 3.27.1 added Ico_U128), so pin them to the values pyvex's cffi
+    layer reads from the real headers."""
+
+    RUST_SRC = os.path.join(os.path.dirname(__file__), "..", "..", "native", "angr", "src", "ailment")
+
+    def test_hardcoded_vex_enum_values_match_libvex(self):
+        ffi_path = os.path.join(self.RUST_SRC, "vex_ffi.rs")
+        conv_path = os.path.join(self.RUST_SRC, "convert_vex.rs")
+        if not (os.path.exists(ffi_path) and os.path.exists(conv_path)):
+            self.skipTest("Rust sources not available")
+
+        by_upper = {}
+        for name, value in enums_to_ints.items():
+            by_upper.setdefault(name.upper(), set()).add(value)
+
+        checked = {}
+        mismatches = []
+        with open(ffi_path) as f:
+            for name, value in re.findall(r"pub const ([A-Z0-9_]+): u32 = (0x[0-9A-Fa-f]+|\d+);", f.read()):
+                checked[name] = int(value, 0)
+        # inline int -> name tables (e.g. IRLoadGOp) in the converter
+        with open(conv_path) as f:
+            for value, name in re.findall(r'(0x1[0-9A-Fa-f]{3}) => "(I[A-Za-z0-9_]+)"', f.read()):
+                checked[name.upper()] = int(value, 0)
+
+        for name, value in sorted(checked.items()):
+            vex_values = by_upper.get(name)
+            if vex_values is None:
+                continue  # not a VEX enum member (e.g. angr-side constants)
+            if value not in vex_values:
+                mismatches.append(f"{name}: rust={value:#x} libvex={sorted(hex(v) for v in vex_values)}")
+
+        assert not mismatches, "hardcoded VEX enum values are stale:\n  " + "\n  ".join(mismatches)
+        # guard against the test going vacuous if the constants are renamed/moved
+        for must in ("ICO_U128", "ICO_V256", "ILGOP_16UTO32", "IJK_BORING", "ITY_V256"):
+            assert must in checked and must in by_upper, must
+
+    def test_lift_path_reads_wide_constants(self):
+        """convert_from_lift reads IRConst tags straight from the C IRSB; the
+        pyvex path resolves them by name and is the reference."""
+        arch = archinfo.arch_from_id("AMD64")
+        all_ones = lambda bits: (1 << bits) - 1
+        cases = [
+            ("c5fdefc0", 256, 0),  # vpxor ymm0, ymm0, ymm0     -> Ico_V256 0x0
+            ("c5fd76c0", 256, all_ones(256)),  # vpcmpeqd ymm0, ymm0, ymm0  -> Ico_V256 0xffffffff
+            ("660fefc0", 128, 0),  # pxor xmm0, xmm0            -> Ico_V128 0x0
+            ("660f76c0", 128, all_ones(128)),  # pcmpeqd xmm0, xmm0         -> Ico_V128 0xffff
+        ]
+        for hexbytes, bits, value in cases:
+            data = bytes.fromhex(hexbytes)
+            from_py = VEXIRSBConverter.convert(pyvex.IRSB(data, 0x400000, arch, opt_level=1), ailment.Manager())
+            from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x400000, data, ailment.Manager(), opt_level=1)
+            assert from_py == from_lift, hexbytes
+            # keep the wrappers alive while inspecting them: Rust-backed AIL
+            # objects are fresh Python wrappers on every attribute access
+            srcs = [stmt.src for stmt in from_lift.statements if isinstance(stmt, ailment.Stmt.Assignment)]
+            consts = [(src.bits, src.value) for src in srcs if isinstance(src, ailment.Expr.Const)]
+            assert (bits, value) in consts, (hexbytes, consts)
