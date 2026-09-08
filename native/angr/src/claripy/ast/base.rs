@@ -1,6 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 
 use clarirs_core::algorithms::{collect_vars::collect_vars, structurally_match};
+use clarirs_vsa::cardinality::Cardinality;
+use num_bigint::BigUint;
 use pyo3::types::{PyDict, PyFrozenSet, PyType};
 
 use crate::claripy::prelude::*;
@@ -112,6 +114,21 @@ impl Base {
     #[getter]
     pub fn concrete(&self) -> bool {
         !self.inner.symbolic()
+    }
+
+    #[getter]
+    pub fn cardinality(&self) -> Result<BigUint, ClaripyError> {
+        Ok(self.inner.cardinality()?)
+    }
+
+    #[getter]
+    pub fn singlevalued(&self) -> Result<bool, ClaripyError> {
+        Ok(self.cardinality()? == BigUint::from(1u32))
+    }
+
+    #[getter]
+    pub fn multivalued(&self) -> Result<bool, ClaripyError> {
+        Ok(self.cardinality()? > BigUint::from(1u32))
     }
 
     #[getter]

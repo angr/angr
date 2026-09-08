@@ -3,7 +3,6 @@
 use std::iter::once;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use clarirs_vsa::cardinality::Cardinality;
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::Euclid;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -1068,21 +1067,6 @@ impl BV {
                 .widen(&self.inner, &other.unpack_like(py, self)?.get().inner)?
                 .simplify_ext(true, true)?,
         )
-    }
-
-    #[getter]
-    pub fn cardinality(self_: Bound<'_, BV>) -> Result<BigUint, ClaripyError> {
-        Ok(self_.get().inner.cardinality()?)
-    }
-
-    #[getter]
-    pub fn singlevalued(self_: Bound<'_, BV>) -> Result<bool, ClaripyError> {
-        Ok(BV::cardinality(self_)? == BigUint::from(1u32))
-    }
-
-    #[getter]
-    pub fn multivalued(self_: Bound<'_, BV>) -> Result<bool, ClaripyError> {
-        Ok(BV::cardinality(self_)? > BigUint::from(1u32))
     }
 }
 
