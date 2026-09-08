@@ -12,6 +12,7 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses.calling_convention.utils import is_sane_register_variable
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -226,6 +227,16 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
                     assert isinstance(ret_val, SimRegArg)
                     assert ret_val.reg_name == r
+
+    def test_ppc64_argument_registers(self):
+        # Only r3-r10 may be candidate arguments on PPC64.
+        arch = archinfo.arch_from_id("ppc64")
+        for reg_name in ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"]:
+            offset, size = arch.registers[reg_name]
+            assert is_sane_register_variable(arch, offset, size), reg_name
+        for reg_name in ["r0", "r1", "r2", "r11", "r12", "r31", "lr", "ctr", "cr0"]:
+            offset, size = arch.registers[reg_name]
+            assert not is_sane_register_variable(arch, offset, size), reg_name
 
     def test_x86_saved_regs(self):
         # Calling convention analysis should be able to determine calling convention of functions with registers

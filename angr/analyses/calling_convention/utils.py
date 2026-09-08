@@ -58,6 +58,9 @@ def is_sane_register_variable(
     if arch_name == "PPC32":
         return 28 <= reg_offset < 60  # r3-r10
 
+    if arch_name == "PPC64":
+        return 40 <= reg_offset < 104  # r3-r10
+
     if arch_name == "X86":
         return 8 <= reg_offset < 24 or 160 <= reg_offset < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
 
