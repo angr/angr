@@ -564,6 +564,18 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 ));
             }
             // Python arg eval order: Convert(next_atom(), ..., convert(arg)).
+            // Type the conversion by the op's operand types so FP widenings like
+            // Iop_F32toF64 (a unary, rounding-free conversion) are tagged floating point.
+            let from_ct = if simop.from_type.as_deref() == Some("F") {
+                ConvertType::TypeFp
+            } else {
+                ConvertType::TypeInt
+            };
+            let to_ct = if simop.to_type.as_deref() == Some("F") {
+                ConvertType::TypeFp
+            } else {
+                ConvertType::TypeInt
+            };
             let idx = self.next_atom();
             let operand = self.convert_expr(arg)?;
             return Ok(new_convert(
@@ -572,8 +584,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 to_size,
                 signed,
                 operand,
-                ConvertType::TypeInt,
-                ConvertType::TypeInt,
+                from_ct,
+                to_ct,
                 None,
                 self.tags(),
             ));
