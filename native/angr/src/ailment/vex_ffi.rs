@@ -95,6 +95,18 @@ pub const IEND_BE: u32 = 0x1201;
 
 /// Bits for an `IRType`, mirroring `pyvex.const.get_type_size`.
 /// Returns 0 for `Ity_INVALID` (which has no defined size).
+/// The `Ity_F*` type name for a floating-point VEX type, else `None`. Used to tag AIL Loads so
+/// downstream passes (e.g. constant dereferencing) can decode FP constants read from memory.
+pub fn ity_float_name(ty: u32) -> Option<&'static str> {
+    match ty {
+        ITY_F16 => Some("Ity_F16"),
+        ITY_F32 => Some("Ity_F32"),
+        ITY_F64 => Some("Ity_F64"),
+        ITY_F128 => Some("Ity_F128"),
+        _ => None,
+    }
+}
+
 pub fn type_size_bits(ty: u32) -> u32 {
     match ty {
         ITY_I1 => 1,

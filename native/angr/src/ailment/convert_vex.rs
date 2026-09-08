@@ -112,6 +112,7 @@ enum ExprKind<E> {
         end: String,
         bits: u32,
         addr: E,
+        data_type: Option<String>,
     },
     Unop {
         op: OpRef,
@@ -342,14 +343,23 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 bias,
                 n_elems,
             } => self.make_iregister(&ix, bits, base, bias, n_elems),
-            ExprKind::Load { end, bits, addr } => {
+            ExprKind::Load {
+                end,
+                bits,
+                addr,
+                data_type,
+            } => {
                 // Python arg eval order: Load(next_atom(), convert(addr), ...).
                 let idx = self.next_atom();
                 let addr_e = self.convert_expr(&addr)?;
                 let size = (bits / 8) as i32;
                 let depth = addr_e.header.depth + 1;
+                let mut tags = self.tags();
+                if let Some(dt) = data_type {
+                    tags.extras.insert(TagKey::Custom("data_type".to_string()), TagExtra::Str(dt));
+                }
                 Ok(AilExpression {
-                    header: ExprHeader::new(idx, depth, size.wrapping_mul(8) as u32, self.tags()),
+                    header: ExprHeader::new(idx, depth, size.wrapping_mul(8) as u32, tags),
                     inner: ExprInner::Load {
                         addr: Arc::new(addr_e),
                         endness: end,
@@ -2023,6 +2033,7 @@ impl IrReader for CReader {
                     end: endness_str(iex.load.end).to_string(),
                     bits: type_size_bits(iex.load.ty),
                     addr: iex.load.addr,
+                    data_type: vex_ffi::ity_float_name(iex.load.ty).map(str::to_string),
                 },
                 IEX_UNOP => ExprKind::Unop {
                     op: OpRef::Int(iex.unop.op),
@@ -2606,11 +2617,15 @@ impl<'py> IrReader for PyReader<'py> {
                     n_elems: descr.getattr("nElems")?.extract()?,
                 }
             }
-            "Load" => ExprKind::Load {
-                end: expr.getattr("end")?.extract()?,
-                bits: self.result_size(expr),
-                addr: expr.getattr("addr")?.unbind(),
-            },
+            "Load" => {
+                let ty: Option<String> = expr.getattr("ty").ok().and_then(|t| t.extract().ok());
+                ExprKind::Load {
+                    end: expr.getattr("end")?.extract()?,
+                    bits: self.result_size(expr),
+                    addr: expr.getattr("addr")?.unbind(),
+                    data_type: ty.filter(|t| t.starts_with("Ity_F")),
+                }
+            }
             "Unop" => ExprKind::Unop {
                 op: OpRef::Named {
                     name: expr.getattr("op")?.extract::<String>()?,
