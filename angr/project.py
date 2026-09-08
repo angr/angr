@@ -305,7 +305,7 @@ class Project:
         try:
             return self._knowledge_bases[name]
         except KeyError:
-            kb = KnowledgeBase(self, name)
+            kb = KnowledgeBase(self, name=name)
             self._knowledge_bases[name] = kb
             return kb
 
