@@ -87,7 +87,7 @@ message Clinic {
     map<int32, StackItem> stack_items = 21;           // dict[int, StackItem]
     repeated AddressPair edges_to_remove = 22;
     repeated uint32 copied_var_ids = 23;
-    repeated uint32 _new_block_addrs = 24;
+    repeated uint64 _new_block_addrs = 24;
     optional AddressTuple entry_node_addr = 25;
 
     // ---- CLEAN scalars ----------------------------------------------------------------------------------------------
