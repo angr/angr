@@ -1,7 +1,7 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
-from angr.ailment.expression import Convert, Extract
+from angr.ailment.expression import Const, Convert, Extract
 from angr.ailment.utils import is_lsb_extract
 
 from .base import PeepholeOptimizationExprBase
@@ -18,6 +18,7 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
             inner = expr.operand
             signed = expr.is_signed
             ints = expr.from_type == expr.to_type == Convert.TYPE_INT
+            is_lsb = True  # Convert truncates from the high end (LSB is preserved)
         else:
             # Only an Extract of the least-significant bits is a truncation.
             # Every rule below assumes the low end of the value, so applying them
@@ -31,13 +32,16 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
             inner = expr.base
             signed = False
             ints = True
+            # Only the LSB variant (offset == 0) can be simplified away.
+            is_lsb = isinstance(expr.offset, Const) and expr.offset.value == 0
 
         if inner.bits == expr.bits and ints:
             return inner
 
         if isinstance(inner, Convert):
             if (
-                expr.bits < inner.bits
+                is_lsb
+                and expr.bits < inner.bits
                 and expr.bits == inner.operand.bits
                 and ints
                 and inner.from_type == inner.to_type == Convert.TYPE_INT

@@ -10,6 +10,7 @@ from angr.analyses.decompiler.optimization_passes import (
     EagerStdStringConcatenationPass,
     ExprOpSwapper,
     FlipBooleanCmp,
+    FpNegation,
     InlinedMemcpySimplifier,
     InlinedMemcpySimplifierLate,
     InlinedMemsetSimplifier,
@@ -20,9 +21,12 @@ from angr.analyses.decompiler.optimization_passes import (
     InlinedStrlenSimplifier,
     InlinedWcscpySimplifier,
     InlinedWcscpySimplifierLate,
+    InsertExtractReverter,
+    IRegReplacer,
     ITEExprConverter,
     ITERegionConverter,
     KnownPatternOutliner,
+    ITESimplifier,
     LoweredSwitchSimplifier,
     MipsGpSettingSimplifier,
     PatternOutliner,
@@ -45,6 +49,8 @@ from .preset import DecompilationPreset
 preset_fast = DecompilationPreset(
     "fast",
     [
+        IRegReplacer,
+        InsertExtractReverter,
         RegisterSaveAreaSimplifier,
         StackCanarySimplifier,
         WinStackCanarySimplifier,
@@ -83,6 +89,10 @@ preset_fast = DecompilationPreset(
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,
         EagerStdStringConcatenationPass,
+        IRegReplacer,
+        InsertExtractReverter,
+        ITESimplifier,
+        FpNegation,
     ],
 )
 

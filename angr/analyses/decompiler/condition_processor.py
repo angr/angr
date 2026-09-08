@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import operator
+import struct
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
@@ -1032,7 +1033,14 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.Const):
-            var = claripy.BVV(condition.value, condition.bits)
+            val = condition.value
+            if isinstance(val, float):
+                # represent FP constants by their bit pattern
+                if condition.bits == 64:
+                    val = struct.unpack("<Q", struct.pack("<d", val))[0]
+                elif condition.bits == 32:
+                    val = struct.unpack("<I", struct.pack("<f", val))[0]
+            var = claripy.BVV(val, condition.bits)
             if condition.idx is not None:
                 # we do not want to lose track of this constant when it has idx
                 var = var.annotate(AILExprIdAnnotation())
