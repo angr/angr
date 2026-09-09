@@ -1,8 +1,8 @@
-use ahash::AHasher;
+use ahash::RandomState;
 use std::{
     collections::{BTreeSet, HashMap},
     fmt::Debug,
-    hash::{Hash, Hasher},
+    hash::{BuildHasher, Hash, Hasher},
     sync::{Arc, RwLock},
 };
 
@@ -12,6 +12,16 @@ use crate::{
     prelude::*,
 };
 
+/// The hasher for AST identity. `AHasher::default()` draws its keys from the
+/// operating system on first use, so the same AST hashes to a different number
+/// in every process; these keys are fixed so that it does not.
+pub(crate) const HASHER: RandomState = RandomState::with_seeds(
+    0x9e37_79b9_7f4a_7c15,
+    0xbf58_476d_1ce4_e5b9,
+    0x94d0_49bb_1331_11eb,
+    0x2545_f491_4f6c_dd1d,
+);
+
 /// The hash a node is interned under: type, op (which folds in child hashes),
 /// then annotations. Shared so construction and algorithms that need a node's
 /// key without building it (e.g. `excavate_ite`) agree.
@@ -20,7 +30,7 @@ pub(crate) fn structural_hash(
     op: &AstOp<'_>,
     annotations: &BTreeSet<Annotation>,
 ) -> u64 {
-    let mut hasher = AHasher::default();
+    let mut hasher = HASHER.build_hasher();
     ast_type.hash(&mut hasher);
     op.hash(&mut hasher);
     for a in annotations {
