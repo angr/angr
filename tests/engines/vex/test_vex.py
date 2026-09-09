@@ -5,11 +5,10 @@ from __future__ import annotations
 import logging
 import unittest
 
-import claripy
 import pyvex
 
 import angr.engines.vex.claripy.ccall as s_ccall
-from angr import SimState, load_shellcode
+from angr import SimState, claripy, load_shellcode
 from angr.engines import HeavyVEXMixin
 from tests.common import minimal_project
 
@@ -574,10 +573,16 @@ class TestVex(unittest.TestCase):
         # Note: if such behaviors change in the future, you also need to fix the ud2 handling logic in
         # CFGFast._generate_cfgnode().
 
-        # according to VEX, ud2 on x86 is not part of the block
+        # according to VEX, ud2 under x86 *is* part of the block, just like under AMD64
         a = load_shellcode(b"\x90\x90\x0f\x0b", "x86")
         block_0 = a.factory.block(0)
-        assert block_0.size == 2
+        assert block_0.size == 4
+
+        # ud0 and ud1 remain undecodable on x86, so they are not part of the block
+        a = load_shellcode(b"\x90\x90\x0f\xff", "x86")
+        assert a.factory.block(0).size == 2
+        a = load_shellcode(b"\x90\x90\x0f\xb9", "x86")
+        assert a.factory.block(0).size == 2
 
     def test_blsr(self):
         p = load_shellcode(bytes.fromhex("c4e2f8f3cf0f95c00fb6c0c3"), arch="amd64")

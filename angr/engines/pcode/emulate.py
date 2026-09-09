@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-from claripy.ast.bv import BV
 from pypcode import OpCode, PcodeOp, Varnode
 
+from angr import claripy
+from angr.claripy.ast.bv import BV
 from angr.engines.engine import SimEngine
 from angr.errors import AngrError
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from typing import cast
 
-import claripy
 from archinfo import Endness
 
 import angr
-from angr import ailment
+from angr import ailment, claripy
 from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import claripy
+from angr import claripy
 
 
 class StringTableSpec:

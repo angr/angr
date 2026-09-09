@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-import claripy
-
-from angr import SimFile, SimState
+from angr import SimFile, SimState, claripy
 from tests.common import minimal_project
 
 

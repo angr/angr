@@ -2127,6 +2127,7 @@ class CUnaryOp(CExpression):
             "Reference": self._c_repr_chunks_reference,
             "Dereference": self._c_repr_chunks_dereference,
             "Clz": self._c_repr_chunks_clz,
+            "ClzNat": self._c_repr_chunks_clz,  # libVEX 3.27+ name for the zero-defined scalar Clz
         }
 
         handler = OP_MAP.get(self.op)

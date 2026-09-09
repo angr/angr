@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import lmdb
+
 import angr
 from tests.common import bin_location
 
@@ -68,6 +70,26 @@ class TestRuntimeDbBaseDir(unittest.TestCase):
                     )
                 finally:
                     proj.kb.rtdb.cleanup()
+
+    def test_a_directory_is_only_handed_out_once(self):
+        reserve = angr.knowledge_plugins.rtdb.rtdb.RuntimeDb._reserve_unique_db_dir  # pylint:disable=protected-access
+        with tempfile.TemporaryDirectory() as basedir:
+            paths = [reserve(basedir, "fauxware") for _ in range(3)]
+            assert len(set(paths)) == 3, f"the same directory was handed out more than once: {paths}"
+            assert sorted(os.listdir(basedir)) == sorted(os.path.basename(p) for p in paths)
+
+    def test_a_reserved_directory_is_given_back_when_the_database_cannot_be_opened(self):
+        binary = os.path.join(test_location, "x86_64", "fauxware")
+        with tempfile.TemporaryDirectory() as basedir:
+            proj = angr.Project(binary, auto_load_libs=False)
+            rtdb = proj.kb.rtdb
+            with mock.patch("lmdb.open", side_effect=lmdb.Error("no")):
+                assert rtdb._open_new_lmdb_under(basedir, "fauxware") is None  # pylint:disable=protected-access
+            assert os.listdir(basedir) == []
+            # an exception _attempt_creating_lmdb does not catch leaves by the other path
+            with mock.patch("lmdb.open", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+                rtdb._open_new_lmdb_under(basedir, "fauxware")  # pylint:disable=protected-access
+            assert os.listdir(basedir) == []
 
     def test_rtdb_defaults_to_the_directory_of_the_main_binary(self):
         with tempfile.TemporaryDirectory() as bindir, mock.patch.dict(os.environ):

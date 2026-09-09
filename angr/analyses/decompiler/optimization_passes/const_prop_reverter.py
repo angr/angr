@@ -3,8 +3,7 @@ from __future__ import annotations
 import itertools
 import logging
 
-import claripy
-
+from angr import claripy
 from angr.ailment import Block, Const
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Call, Convert, Expression, Load, Register

@@ -125,10 +125,11 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                     and isinstance(stmt.data.offset.value, int)
                     and isinstance(stmt.data.base, ailment.Expr.VirtualVariable)
                     and stmt.data.base.was_reg
-                    and stmt.data.base.bits == 256
-                    and stmt.data.bits == 128
+                    and stmt.data.base.bits in (256, 512)
+                    and stmt.data.bits in (128, 256)
+                    and stmt.data.bits < stmt.data.base.bits
                 ):
-                    # xmm registers extracted from ymm registers
+                    # xmm/ymm registers extracted from ymm/zmm registers
                     reg_offset = stmt.data.base.reg_offset + stmt.data.offset.value
 
                 if reg_offset is not None and reg_offset not in ignored_regs:

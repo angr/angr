@@ -6,11 +6,10 @@ from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
 import archinfo
-import claripy
 import networkx
 from archinfo.arch_arm import is_arm_arch
 
-from angr import sim_options
+from angr import claripy, sim_options
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.cfg import CFGEmulated
 from angr.analyses.forward_analysis import ForwardAnalysis

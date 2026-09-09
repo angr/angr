@@ -6,9 +6,7 @@ import logging
 import operator
 from collections.abc import Reversible
 
-import claripy
-
-from angr import sim_options
+from angr import claripy, sim_options
 from angr.sim_state import SimState
 from angr.state_plugins.sim_action import SimActionObject
 

@@ -520,5 +520,51 @@ class TestSpillingDecompilationDict(unittest.TestCase):
             manager.cached = old_cached
 
 
+class TestClinicSerializationAboveFourGigabytes(unittest.TestCase):
+    """Clinic._new_block_addrs holds real code addresses, which do not fit in 32 bits on a
+    64-bit PE at its usual image base."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(
+            os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe"), auto_load_libs=False
+        )
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        # a tail jump to a known function makes Clinic mint a new block address for this one
+        cls.func = cls.proj.kb.functions[0x140001068]
+        dec = cls.proj.analyses.Decompiler(cls.func, cfg=cls.cfg.model, generate_code=True)
+        assert dec.clinic is not None and dec.cache is not None and dec.cache.codegen is not None
+        cls.clinic = dec.clinic
+        cls.cache = dec.cache
+        cls.text = dec.cache.codegen.text
+
+    def test_new_block_addrs_do_not_fit_in_32_bits(self):
+        assert self.proj.loader.main_object.mapped_base == 0x140000000
+        addrs = self.clinic._new_block_addrs
+        assert addrs
+        assert all(addr > 0xFFFFFFFF for addr in addrs)
+
+    def test_clinic_roundtrip_preserves_new_block_addrs(self):
+        back = type(self.clinic).parse(
+            self.clinic.serialize(),
+            project=self.proj,
+            kb=self.proj.kb,
+            function=self.clinic.function,
+            cfg=self.clinic._cfg,
+        )
+        assert back._new_block_addrs == self.clinic._new_block_addrs
+
+    def test_eviction_spills_instead_of_parking_in_memory(self):
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=0)
+        key = (self.func.addr, "pseudocode")
+        d[key] = self.cache
+
+        assert key in d._spilled
+        assert not d._unspillable
+        back = d[key]
+        assert back.codegen is not None
+        assert back.codegen.text == self.text
+
+
 if __name__ == "__main__":
     unittest.main()

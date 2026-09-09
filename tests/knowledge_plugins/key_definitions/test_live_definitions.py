@@ -4,8 +4,8 @@ from __future__ import annotations
 from unittest import TestCase, main
 
 import archinfo
-import claripy
 
+from angr import claripy
 from angr.knowledge_plugins.key_definitions.atoms import Register, SpOffset
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues

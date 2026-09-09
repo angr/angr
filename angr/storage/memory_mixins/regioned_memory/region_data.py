@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import claripy
 from sortedcontainers import SortedDict
 
+from angr import claripy
 from angr.errors import SimRegionMapError
 from angr.state_plugins.plugin import SimStatePlugin
 

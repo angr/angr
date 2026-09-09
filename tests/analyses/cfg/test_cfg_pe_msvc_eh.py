@@ -55,6 +55,7 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
         self._test_seh_prolog4_identified()
         self._test_seh_prolog4_gs_identified()
         self._test_identified_functions_are_mutually_exclusive()
+        self._test_key_func_addrs_survive_function_reconstruction()
         self._test_funcinfo_memory_data_created()
         self._test_funcinfo_memory_data_size()
         self._test_specific_funcinfo_exists()
@@ -144,6 +145,20 @@ class TestCFGFastPEMsvcEH(unittest.TestCase):
                     assert func.info.get(label) is True, f"Function at {addr:#x} should have {label}"
                 else:
                     assert not func.info.get(label), f"Function at {addr:#x} should NOT have {label}"
+
+    def _test_key_func_addrs_survive_function_reconstruction(self):
+        """Every identified function should still be in the key-function index once CFGFast is done."""
+        known = {
+            0x50B21222: "CxxFrameHandler3",
+            0x50B215BB: "EH_prolog3",
+            0x50B215F3: "EH_prolog3_catch",
+            0x50B2162E: "EH_prolog3_GS",
+            0x50B20E9C: "SEH_prolog4",
+            0x50B22E8C: "SEH_prolog4_GS",
+        }
+        for addr, func_type in known.items():
+            addrs = self.functions.get_key_func_addrs(func_type)
+            assert addr in addrs, f"{func_type} at {addr:#x} is missing from the key-function index"
 
     #
     # FuncInfo MemoryData items

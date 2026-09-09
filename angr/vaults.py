@@ -12,9 +12,8 @@ import threading
 import uuid
 import weakref
 
-import claripy
-
 import angr
+from angr import claripy
 
 from .errors import AngrVaultError
 from .sim_state import SimState

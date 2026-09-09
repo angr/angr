@@ -4,9 +4,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from typing import TYPE_CHECKING
 
-import claripy
-
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import negate
 
 from .condition_processor import ConditionProcessor

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from enum import Enum, auto
 
-import claripy
 from archinfo import Arch, Endness, RegisterOffset
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from angr.engines.light import SpOffset
 

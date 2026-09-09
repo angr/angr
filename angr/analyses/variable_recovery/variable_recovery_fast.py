@@ -5,12 +5,11 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-import claripy
 import networkx
 import pyvex
 
 import angr.errors
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import VirtualVariable
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
@@ -27,7 +26,13 @@ from angr.analyses.typehoon.typevars import (
 from angr.block import Block
 from angr.codenode import FuncNode
 from angr.engines.vex.claripy.irop import vexop_to_simop
-from angr.errors import AngrMissingTypeError, AngrVariableRecoveryError, SimEngineError
+from angr.errors import (
+    AngrMissingTypeError,
+    AngrVariableRecoveryError,
+    SimEngineError,
+    SimOperationError,
+    UnsupportedIROpError,
+)
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.procedures import SIM_TYPE_COLLECTIONS
@@ -49,6 +54,14 @@ if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
 
 l = logging.getLogger(name=__name__)
+
+
+def _generic_name_of(op):
+    """Generic name of a VEX op, or None if angr cannot interpret the op."""
+    try:
+        return vexop_to_simop(op)._generic_name
+    except (SimOperationError, UnsupportedIROpError):
+        return None
 
 
 class VariableRecoveryFastState(VariableRecoveryStateBase):
@@ -612,6 +625,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             64: pyvex.const.U64,
             128: pyvex.const.V128,
             256: pyvex.const.V256,
+            512: pyvex.const.V512,
         }
         if size not in mapping:
             raise TypeError(f"Unsupported size {size}.")
@@ -639,7 +653,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
                             and isinstance(stmt2.data.args[0], pyvex.IRExpr.RdTmp)
                             and isinstance(stmt2.data.args[1], pyvex.IRExpr.RdTmp)
                             and {stmt2.data.args[0].tmp, stmt2.data.args[1].tmp} == {tmp0, tmp1}
-                            and vexop_to_simop(stmt2.data.op)._generic_name == "Xor"
+                            and _generic_name_of(stmt2.data.op) == "Xor"
                         ):
                             # found it!
                             # make a copy so we don't trash the cached VEX IRSB

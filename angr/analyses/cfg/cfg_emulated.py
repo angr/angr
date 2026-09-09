@@ -8,13 +8,12 @@ from collections import defaultdict
 from functools import reduce
 from typing import TYPE_CHECKING
 
-import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
 import angr
-from angr import procedures
+from angr import claripy, procedures
 from angr import sim_options as o
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.backward_slice import BackwardSlice
@@ -49,6 +48,7 @@ from angr.state_plugins.inspect import BP, BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action import SimActionData
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.graph import GraphUtils
+from angr.utils.vex import block_branch_ins_addr
 
 from .cfg_base import CFGBase
 from .cfg_job_base import CFGJobBase
@@ -1455,17 +1455,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         new_call_stack.stack_suffix(self.context_sensitivity_level), return_target, False
                     )  # You can never return to a syscall
 
-                    if not cfg_node.instruction_addrs:
-                        ret_ins_addr = None
-                    else:
-                        if self.project.arch.branch_delay_slot:
-                            if len(cfg_node.instruction_addrs) > 1:
-                                ret_ins_addr = cfg_node.instruction_addrs[-2]
-                            else:
-                                l.error("At %s: expecting more than one instruction. Only got one.", cfg_node)
-                                ret_ins_addr = None
-                        else:
-                            ret_ins_addr = cfg_node.instruction_addrs[-1]
+                    ret_ins_addr = block_branch_ins_addr(
+                        cfg_node.instruction_addrs, cfg_node.addr, cfg_node.size, self.project.arch
+                    )
 
                     # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
@@ -2164,7 +2156,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 confirmed=confirmed,
             )
 
-        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache"):
+        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Privileged"):
             src_obj = self.project.loader.find_object_containing(src_node.addr)
             dest_obj = self.project.loader.find_object_containing(dst_node.addr) if dst_node is not None else None
 

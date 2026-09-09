@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
-from angr import analyses, sim_options
+from angr import analyses, claripy, sim_options
 from angr.state_plugins.sim_event import resource_event
 
 from .base import ExplorationTechnique

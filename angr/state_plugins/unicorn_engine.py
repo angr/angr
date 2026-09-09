@@ -12,10 +12,10 @@ import time
 
 import archinfo
 import cffi  # lmao
-import claripy
 import pyvex
 
 import angr
+from angr import claripy
 from angr import sim_options as options
 from angr.engines.vex.claripy import ccall
 from angr.engines.vex.claripy.irop import operations as irop_ops
@@ -85,7 +85,8 @@ class RegisterValue(ctypes.Structure):
     struct register_value_t
     """
 
-    _MAX_REGISTER_BYTE_SIZE = 32
+    # Must match MAX_REGISTER_BYTE_SIZE in native/unicornlib/sim_unicorn.hpp
+    _MAX_REGISTER_BYTE_SIZE = 64
 
     _fields_ = [
         ("offset", ctypes.c_uint64),
@@ -383,6 +384,9 @@ class _VexCacheInfo(ctypes.Structure):
 class _VexArchInfo(ctypes.Structure):
     """
     VexArchInfo struct from vex
+
+    Field order and types must match libvex.h exactly: the struct is passed by value into unicornlib,
+    which lifts with it. _check_vex_archinfo_layout verifies that against the native library.
     """
 
     _fields_ = [
@@ -391,11 +395,39 @@ class _VexArchInfo(ctypes.Structure):
         ("hwcache_info", _VexCacheInfo),
         ("ppc_icache_line_szB", ctypes.c_int),
         ("ppc_dcbz_szB", ctypes.c_uint),
+        ("ppc_scv_supported", ctypes.c_ubyte),
         ("ppc_dcbzl_szB", ctypes.c_uint),
         ("arm64_dMinLine_lg2_szB", ctypes.c_uint),
         ("arm64_iMinLine_lg2_szB", ctypes.c_uint),
+        ("arm64_cache_block_size", ctypes.c_ubyte),
+        ("arm64_requires_fallback_LLSC", ctypes.c_ubyte),
         ("x86_cr0", ctypes.c_uint),
     ]
+
+
+def _check_vex_archinfo_layout(handle):
+    """
+    Compare the ctypes mirror of VexArchInfo against the layout unicornlib was compiled with.
+
+    A drifted mirror does not crash: it just shifts every field past the divergence, and the lifter
+    then silently decodes with the wrong settings. Padding can even keep the total size the same, so
+    compare offsets rather than sizes alone.
+    """
+
+    field_names = [field[0] for field in _VexArchInfo._fields_]
+    expected = [ctypes.sizeof(_VexArchInfo), *(getattr(_VexArchInfo, name).offset for name in field_names)]
+    buf = (ctypes.c_uint32 * len(expected))()
+    native_count = handle.vex_archinfo_layout(buf, len(expected))
+    actual = list(buf)
+    if native_count != len(expected) or actual != expected:
+        msg = (
+            "VexArchInfo layout mismatch between angr and unicornlib: angr has "
+            f"{len(expected) - 1} fields with size/offsets {expected}, unicornlib has "
+            f"{native_count - 1} fields with size/offsets {actual[:native_count]}. "
+            f"The ctypes mirror in {__name__} must be updated to match libvex.h."
+        )
+        l.error("%s", msg)
+        raise ImportError(msg)
 
 
 def _load_native():
@@ -458,6 +490,7 @@ def _load_native():
         _setup_prototype(h, "uncache_pages_touching_region", None, state_t, ctypes.c_uint64, ctypes.c_uint64)
         _setup_prototype(h, "clear_page_cache", None, state_t)
         _setup_prototype(h, "enable_symbolic_reg_tracking", None, state_t, VexArch, _VexArchInfo)
+        _setup_prototype(h, "vex_archinfo_layout", ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint32), ctypes.c_uint64)
         _setup_prototype(h, "disable_symbolic_reg_tracking", None, state_t)
         _setup_prototype(h, "symbolic_register_data", None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, "get_symbolic_registers", ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
@@ -576,6 +609,8 @@ def _load_native():
             ctypes.c_uint64,
             ctypes.c_char_p,
         )
+
+        _check_vex_archinfo_layout(h)
 
         if not h.setup_imports(unicorn.unicorn_py3.unicorn.uclib._name.encode()):
             raise ImportError("Unicorn engine has an incompatible API.")

@@ -3,8 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any, Self
 
-import claripy
-
+from angr import claripy
 from angr.errors import SimMemoryError
 from angr.state_plugins.plugin import SimStatePlugin
 

@@ -7,9 +7,8 @@ __package__ = __package__ or "tests.sim.exec_insn"  # pylint:disable=redefined-b
 import os
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

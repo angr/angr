@@ -207,13 +207,10 @@ class RuntimeDb(KnowledgeBasePlugin):
                 l.error("The directory %s is not writable. Falling back.", basedir)
                 basedir = None
             else:
-                db_filename = self._get_unique_db_filename(basedir, basename)
-                lmdb_path = os.path.join(basedir, db_filename)
-                lmdb_env = self._attempt_creating_lmdb(lmdb_path)
-                if lmdb_env is not None:
-                    return lmdb_path, lmdb_env
+                r = self._open_new_lmdb_under(basedir, basename)
+                if r is not None:
+                    return r
                 basedir = None
-                db_filename = None
 
         if basedir is None and isinstance(main_binary_path, str):
             # get the base directory of the project binary
@@ -223,26 +220,37 @@ class RuntimeDb(KnowledgeBasePlugin):
                 l.error("The directory %s is not writable. Falling back to temporary directory.", basedir)
                 basedir = None
             else:
-                db_filename = self._get_unique_db_filename(basedir, basename)
-                lmdb_path = os.path.join(basedir, db_filename)
-                lmdb_env = self._attempt_creating_lmdb(lmdb_path)
-                if lmdb_env is not None:
-                    return lmdb_path, lmdb_env
+                r = self._open_new_lmdb_under(basedir, basename)
+                if r is not None:
+                    return r
                 basedir = None
-                db_filename = None
 
         if basedir is None:
             basedir = tempfile.gettempdir()
             if not os.access(basedir, os.W_OK):
                 raise OSError("No writable directory found for RTDB storage.")
-            db_filename = self._get_unique_db_filename(basedir, basename)
-            lmdb_path = os.path.join(basedir, db_filename)
-            lmdb_env = self._attempt_creating_lmdb(lmdb_path)
-            if lmdb_env is not None:
-                return lmdb_path, lmdb_env
+            r = self._open_new_lmdb_under(basedir, basename)
+            if r is not None:
+                return r
             raise OSError("No writable directory found for RTDB storage.")
 
         return None
+
+    def _open_new_lmdb_under(self, basedir: str, basename: str) -> tuple[str, lmdb.Environment] | None:
+        """
+        Reserve a directory under basedir and open an LMDB environment in it, giving the directory back if the
+        environment cannot be opened.
+        """
+        lmdb_path = self._reserve_unique_db_dir(basedir, basename)
+        lmdb_env = None
+        try:
+            lmdb_env = self._attempt_creating_lmdb(lmdb_path)
+        finally:
+            if lmdb_env is None:
+                # rmdir refuses a directory that holds anything, so a database is never removed here
+                with contextlib.suppress(OSError):
+                    os.rmdir(lmdb_path)
+        return None if lmdb_env is None else (lmdb_path, lmdb_env)
 
     def _attempt_creating_lmdb(self, lmdb_path: str):
         """
@@ -262,15 +270,21 @@ class RuntimeDb(KnowledgeBasePlugin):
             return None
 
     @staticmethod
-    def _get_unique_db_filename(basedir: str, basename: str) -> str:
-        # find a unique rtdb name
+    def _reserve_unique_db_dir(basedir: str, basename: str) -> str:
+        """
+        Create a directory under basedir for this database and return its path. Creating it is what reserves it.
+        """
         db_filename = basename + "_angr_rtdb"
         while True:
             db_path = os.path.join(basedir, db_filename)
-            if not os.path.exists(db_path):
-                break
-            db_filename = basename + f"_angr_rtdb_{uuid.uuid4().hex}"
-        return db_filename
+            try:
+                os.mkdir(db_path, 0o755)
+                return db_path
+            except FileExistsError:
+                db_filename = basename + f"_angr_rtdb_{uuid.uuid4().hex}"
+            except OSError:
+                # basedir is unusable; the caller's lmdb.open() reports that and falls back
+                return db_path
 
     def _pin_lmdb_dir(self) -> None:
         """

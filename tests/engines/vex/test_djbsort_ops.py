@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-import claripy
-
-from angr import SimState, load_shellcode
+from angr import SimState, claripy, load_shellcode
 from angr.engines import HeavyVEXMixin
 
 

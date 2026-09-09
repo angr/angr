@@ -8,9 +8,9 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, cast, overload
 
 import archinfo
-import claripy
-from claripy.annotation import Annotation
 
+from angr import claripy
+from angr.claripy.annotation import Annotation
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SpOffset
 from angr.errors import SimMemoryError, SimMemoryMissingError
@@ -56,18 +56,13 @@ class DefinitionAnnotation(Annotation):
 
     __slots__ = ("_hash", "definition")
 
+    relocatable = True
+    eliminatable = False
+
     def __init__(self, definition):
         super().__init__()
         self.definition = definition
         self._hash = hash((DefinitionAnnotation, self.definition))
-
-    @property
-    def relocatable(self):
-        return True
-
-    @property
-    def eliminatable(self):
-        return False
 
     def __hash__(self):
         return self._hash

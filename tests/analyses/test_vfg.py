@@ -8,9 +8,8 @@ import os
 import time
 import unittest
 
-import claripy
-
 import angr
+from angr import claripy
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

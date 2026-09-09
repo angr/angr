@@ -11,7 +11,6 @@ from collections.abc import Iterable, MutableMapping
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
-import claripy
 import cxxheaderparser.errors
 import cxxheaderparser.simple
 import cxxheaderparser.types
@@ -20,6 +19,7 @@ from archinfo import Arch, Endness
 from pycparser import c_ast
 
 import angr
+from angr import claripy
 from angr.errors import AngrMissingTypeError, AngrTypeError
 from angr.sim_state import SimState
 

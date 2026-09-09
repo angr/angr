@@ -41,3 +41,4 @@ target/
 .claude
 angr/protos/*_pb2.py
 angr/protos/*_pb2.pyi
+.z3-trace

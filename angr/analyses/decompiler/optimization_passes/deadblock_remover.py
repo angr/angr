@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import logging
 
-import claripy
 import networkx
 
+from angr import claripy
 from angr.ailment.expression import Const
 from angr.ailment.statement import Jump
 from angr.analyses.decompiler.condition_processor import ConditionProcessor

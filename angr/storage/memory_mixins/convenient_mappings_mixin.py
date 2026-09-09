@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr import sim_options as options
 from angr.errors import SimMemoryError, SimMemoryMissingError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin

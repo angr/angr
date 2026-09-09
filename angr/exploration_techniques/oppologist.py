@@ -3,9 +3,7 @@ from __future__ import annotations
 import functools
 import logging
 
-import claripy
-
-from angr import sim_options
+from angr import claripy, sim_options
 from angr.engines.successors import SimSuccessors
 from angr.errors import AngrError, SimCCallError, SimError, SimUnsupportedError
 

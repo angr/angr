@@ -6,9 +6,9 @@ import string
 from typing import TYPE_CHECKING, Any
 
 import capstone
-import claripy
 import networkx
 
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.reaching_definitions import ObservationPointType
 from angr.calling_conventions import SimRegArg, default_cc

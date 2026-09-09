@@ -6,11 +6,11 @@ import logging
 import math
 from typing import TYPE_CHECKING
 
-import claripy
-from claripy.ast import BV
 from networkx import DiGraph
 
+from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.claripy.ast import BV
 from angr.errors import AngrAnalysisError, AngrDDGError, SimValueError
 from angr.state_plugins.sim_action import SimActionData
 from angr.storage import DefaultMemory
@@ -31,18 +31,13 @@ class NodalAnnotation(claripy.Annotation):
     Allows a node to be stored as an annotation to a BV in a DefaultMemory instance
     """
 
+    #: Can not be relocated in a simplification
+    relocatable = False
+    #: Can not be eliminated in a simplification
+    eliminatable = False
+
     def __init__(self, node: BaseDepNode):
         self.node = node
-
-    @property
-    def relocatable(self) -> bool:
-        """Can not be relocated in a simplification"""
-        return False
-
-    @property
-    def eliminatable(self):
-        """Can not be eliminated in a simplification"""
-        return False
 
 
 class DataDependencyGraphAnalysis(Analysis):

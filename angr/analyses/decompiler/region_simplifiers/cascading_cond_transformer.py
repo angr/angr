@@ -3,9 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import claripy
-
-from angr import ailment
+from angr import ailment, claripy
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structurer_nodes import CascadingConditionNode, ConditionNode
 from angr.errors import AngrRuntimeError

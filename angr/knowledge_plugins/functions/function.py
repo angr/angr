@@ -13,12 +13,12 @@ from enum import Enum
 from functools import wraps
 from typing import TYPE_CHECKING
 
-import claripy
 import networkx
 import pydemumble
 from archinfo.arch_arm import get_real_address_if_arm
 from cle.backends.symbol import Symbol
 
+from angr import claripy
 from angr.calling_conventions import DEFAULT_CC, SimCC, default_cc_for_project
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
@@ -31,6 +31,7 @@ from angr.rust.utils.demangler import demangle
 from angr.serializable import Serializable
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.utils.library import get_cpp_function_name_and_metadata
+from angr.utils.vex import block_branch_ins_addr
 
 from .function_parser import FunctionParser
 
@@ -473,6 +474,8 @@ class Function(Serializable):
         self._info = info
         # update the owner
         self._info._func = self
+        if self._function_manager is not None:
+            self._function_manager.index_key_func_addrs(self)
 
     @property
     def is_plt(self) -> bool:
@@ -1764,12 +1767,11 @@ class Function(Serializable):
                 new_successors = [i for i in all_nodes if i.addr == smallest_node.addr]
                 if new_successors:
                     new_successor = new_successors[0]
-                    new_ins_addrs = self.project.factory.block(new_node.addr, size=new_node.size).instruction_addrs
-                    if self.project.arch.branch_delay_slot and len(new_ins_addrs) >= 2:
-                        new_ins_addr = new_ins_addrs[-2]
-                    elif len(new_ins_addrs) >= 1:
-                        new_ins_addr = new_ins_addrs[-1]
-                    else:
+                    new_block = self.project.factory.block(new_node.addr, size=new_node.size)
+                    new_ins_addr = block_branch_ins_addr(
+                        new_block.instruction_addrs, new_block.addr, new_block.size, self.project.arch
+                    )
+                    if new_ins_addr is None:
                         # the new node is somehow not decode-able
                         new_ins_addr = new_node.addr + new_node.size - 1
                     graph.add_edge(

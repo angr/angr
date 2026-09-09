@@ -562,8 +562,10 @@ class PCodeIRSBConverter(Converter):
         ret_expr = (
             None
             if ret_reg_offset is None
-            else Register(None, ret_reg_offset, self._irsb.arch.bits, ins_addr=self._manager.ins_addr)
-        )  # ???
+            else Register(
+                self._manager.next_atom(), ret_reg_offset, self._irsb.arch.bits, ins_addr=self._manager.ins_addr
+            )
+        )
         if self._irsb.next is not None:
             dest = Const(self._manager.next_atom(), self._irsb.next.con.value, self._irsb.arch.bits)
         else:
@@ -590,7 +592,9 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code indirect call operation
         """
         ret_reg_offset = self._irsb.arch.ret_offset
-        ret_expr = Register(None, ret_reg_offset, self._irsb.arch.bits, ins_addr=self._manager.ins_addr)  # ???
+        ret_expr = Register(
+            self._manager.next_atom(), ret_reg_offset, self._irsb.arch.bits, ins_addr=self._manager.ins_addr
+        )
         dest = self._get_value(self._current_op.inputs[0])
         call_expr = Call(
             self._manager.next_atom(),

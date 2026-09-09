@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import claripy
-
+from angr import claripy
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 

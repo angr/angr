@@ -4,9 +4,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, cast
 
-import claripy
-
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, StringLiteral, Struct
 from angr.analyses.typehoon import typeconsts, typevars

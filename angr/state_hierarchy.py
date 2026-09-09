@@ -6,8 +6,9 @@ import logging
 import weakref
 from contextlib import contextmanager
 
-import claripy
 import networkx
+
+from angr import claripy
 
 from .misc.picklable_lock import PicklableRLock
 

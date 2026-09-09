@@ -6,10 +6,9 @@ import logging
 import time
 from typing import Any
 
-import claripy
 import pyvex
 
-from angr import ailment, sim_options
+from angr import ailment, claripy, sim_options
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.code_location import CodeLocation

@@ -32,12 +32,14 @@ pub const ICO_U8: u32 = 0x1301;
 pub const ICO_U16: u32 = 0x1302;
 pub const ICO_U32: u32 = 0x1303;
 pub const ICO_U64: u32 = 0x1304;
-pub const ICO_F32: u32 = 0x1305;
-pub const ICO_F32I: u32 = 0x1306;
-pub const ICO_F64: u32 = 0x1307;
-pub const ICO_F64I: u32 = 0x1308;
-pub const ICO_V128: u32 = 0x1309;
-pub const ICO_V256: u32 = 0x130A;
+pub const ICO_U128: u32 = 0x1305;
+pub const ICO_F32: u32 = 0x1306;
+pub const ICO_F32I: u32 = 0x1307;
+pub const ICO_F64: u32 = 0x1308;
+pub const ICO_F64I: u32 = 0x1309;
+pub const ICO_V128: u32 = 0x130A;
+pub const ICO_V256: u32 = 0x130B;
+pub const ICO_V512: u32 = 0x130C;
 
 // IRExprTag
 pub const IEX_BINDER: u32 = 0x1900;
@@ -88,6 +90,7 @@ pub const ITY_D128: u32 = 0x110C;
 pub const ITY_F128: u32 = 0x110D;
 pub const ITY_V128: u32 = 0x110E;
 pub const ITY_V256: u32 = 0x110F;
+pub const ITY_V512: u32 = 0x1110;
 
 // IREndness
 pub const IEND_LE: u32 = 0x1200;
@@ -104,6 +107,7 @@ pub fn type_size_bits(ty: u32) -> u32 {
         ITY_I64 | ITY_F64 | ITY_D64 => 64,
         ITY_I128 | ITY_F128 | ITY_D128 | ITY_V128 => 128,
         ITY_V256 => 256,
+        ITY_V512 => 512,
         _ => 0,
     }
 }
@@ -127,12 +131,14 @@ pub union IcoUnion {
     pub u16_: u16,
     pub u32_: u32,
     pub u64_: u64,
+    pub u128: u16,
     pub f32_: f32,
     pub f32i: u32,
     pub f64_: f64,
     pub f64i: u64,
     pub v128: u16,
     pub v256: u32,
+    pub v512: u64,
 }
 
 #[repr(C)]
@@ -470,9 +476,12 @@ pub struct VexArchInfo {
     pub hwcache_info: VexCacheInfo,
     pub ppc_icache_line_sz_b: c_int,
     pub ppc_dcbz_sz_b: u32,
+    pub ppc_scv_supported: u8,
     pub ppc_dcbzl_sz_b: u32,
     pub arm64_d_min_line_lg2_sz_b: u32,
     pub arm64_i_min_line_lg2_sz_b: u32,
+    pub arm64_cache_block_size: u8,
+    pub arm64_requires_fallback_llsc: u8,
     pub x86_cr0: u32,
 }
 

@@ -5,12 +5,11 @@ from __future__ import annotations
 import time
 import unittest
 
-import claripy
 from archinfo import ArchAMD64
-from claripy.annotation import UninitializedAnnotation
 
-from angr import SIM_PROCEDURES, SimState
+from angr import SIM_PROCEDURES, SimState, claripy
 from angr import options as o
+from angr.claripy.annotation import UninitializedAnnotation
 from angr.errors import SimMemoryError
 from angr.state_plugins import SimLightRegisters, SimSystemPosix
 from angr.storage.file import SimFile
@@ -352,7 +351,7 @@ class TestMemory(unittest.TestCase):
 
         # Load the two-byte StridedInterval object from global region
         expr = s.memory.load(to_vs("global", 5), 2)
-        assert expr.identical(si_1)
+        assert claripy.vsa.identical(expr, si_1)
 
         # Store a four-byte StridedInterval object to global region
         si_2 = s.solver.BVS("unnamed", 32, 8000, 9000, 2)
@@ -360,7 +359,7 @@ class TestMemory(unittest.TestCase):
 
         # Load the four-byte StridedInterval object from global region
         expr = s.memory.load(to_vs("global", 7), 4)
-        assert expr.identical(s.solver.BVS("unnamed", 32, 8000, 9000, 2))
+        assert claripy.vsa.identical(expr, s.solver.BVS("unnamed", 32, 8000, 9000, 2))
 
         # Test default values
         s.options.remove(o.SYMBOLIC_INITIAL_VALUES)
@@ -383,7 +382,7 @@ class TestMemory(unittest.TestCase):
 
         b = s.merge(a)[0]
         expr = b.memory.load(to_vs("function_merge", 0), 1)
-        assert expr.identical(s.solver.BVS("unnamed", 8, 0x10, 0x20, 0x10))
+        assert claripy.vsa.identical(expr, s.solver.BVS("unnamed", 8, 0x10, 0x20, 0x10))
 
         #  |  MO(value_0)  |
         #  |  MO(value_1)  |
@@ -399,7 +398,7 @@ class TestMemory(unittest.TestCase):
         )
         c = a.merge(b)[0]
         expr = c.memory.load(to_vs("function_merge", 0x20), 4)
-        assert expr.identical(claripy.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001))
+        assert claripy.vsa.identical(expr, claripy.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001))
         c_page = c.memory._regions["function_merge"]._pages[0]
         object_set = {
             c_page._get_object(0x20, 0),
@@ -420,7 +419,9 @@ class TestMemory(unittest.TestCase):
         )
         c = a.merge(b)[0]
         expr = c.memory.load(to_vs("function_merge", 0x20), 4)
-        assert expr.identical(claripy.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000))
+        assert claripy.vsa.identical(
+            expr, claripy.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)
+        )
         object_set = {
             c_page._get_object(0x20, 0),
             c_page._get_object(0x21, 0),
@@ -468,7 +469,7 @@ class TestMemory(unittest.TestCase):
             r, _, _ = s.memory.find(claripy.VS(s.arch.bits, "global", 0, offset), what, 8)
             r_annotation = r.get_annotation(claripy.annotation.RegionAnnotation)
             assert r_annotation.region_id == "global"
-            assert r.clear_annotation_type(claripy.annotation.RegionAnnotation).identical(expected)
+            assert claripy.vsa.identical(r.clear_annotation_type(claripy.annotation.RegionAnnotation), expected)
 
     def test_registers(self):
         s = SimState(project=minimal_project("AMD64"))
@@ -590,6 +591,25 @@ class TestMemory(unittest.TestCase):
         assert (s.regs.rbx == 0x5555555544444444).is_true()
 
         self._concrete_memory_tests(s)
+
+    def test_fast_memory_condition(self):
+        # conditions are Bools; singlevalued must be defined on every AST sort, not just BV
+        s = SimState(project=minimal_project("AMD64"), add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
+
+        s.registers.store("rax", claripy.BVV(0x4142434445464748, 64))
+        s.registers.store("rax", claripy.BVV(0x1111111122222222, 64), condition=claripy.false())
+        assert s.solver.eval_upto(s.registers.load("rax", size=8), 2) == [0x4142434445464748]
+        s.registers.store("rax", claripy.BVV(0x1111111122222222, 64), condition=claripy.true())
+        assert s.solver.eval_upto(s.registers.load("rax", size=8, condition=claripy.true()), 2) == [0x1111111122222222]
+
+        s.memory.store(0x1000, claripy.BVV(b"asdf"), condition=claripy.true())
+        s.memory.store(0x1000, claripy.BVV(b"fdsa"), condition=claripy.false())
+        assert s.solver.eval_upto(s.memory.load(0x1000, 4, condition=claripy.true()), 2) == [0x61736466]
+
+        with self.assertRaises(SimMemoryError):
+            s.registers.store("rax", claripy.BVV(0, 64), condition=claripy.BoolS("cond"))
+        with self.assertRaises(SimMemoryError):
+            s.memory.load(0x1000, 4, condition=claripy.BoolS("cond"))
 
     def test_light_memory(self):
         s = SimState(project=minimal_project("AMD64"), plugins={"registers": SimLightRegisters()})

@@ -1466,6 +1466,8 @@ fn loadg_sizes(cvt: &str) -> PyResult<(u32, u32, bool)> {
         "ILGop_Ident32" => (32, 32, false),
         "ILGop_Ident64" => (64, 64, false),
         "ILGop_IdentV128" => (128, 128, false),
+        "ILGop_Ident16" => (16, 16, false),
+        "ILGop_Ident8" => (8, 8, false),
         "ILGop_8Uto32" => (8, 32, false),
         "ILGop_8Sto32" => (8, 32, true),
         "ILGop_16Uto32" => (16, 32, false),
@@ -1578,10 +1580,12 @@ unsafe fn const_value(c: *const vex_ffi::IRConst) -> ConstVal {
             ICO_U16 => (ConstValue::Int(ico.u16_ as i128), 16),
             ICO_U32 => (ConstValue::Int(ico.u32_ as i128), 32),
             ICO_U64 => (ConstValue::Int(ico.u64_ as i128), 64),
+            ICO_U128 => (expand_vector(ico.u128 as u64, 16), 128),
             ICO_F32 | ICO_F32I => (ConstValue::Float(ico.f32_ as f64), 32),
             ICO_F64 | ICO_F64I => (ConstValue::Float(ico.f64_), 64),
             ICO_V128 => (expand_vector(ico.v128 as u64, 16), 128),
             ICO_V256 => (expand_vector(ico.v256 as u64, 32), 256),
+            ICO_V512 => (expand_vector(ico.v512, 64), 512),
             _ => (ConstValue::Int(0), 0),
         }
     };
@@ -1655,10 +1659,12 @@ fn loadg_cvt_name(cvt: u32) -> String {
         0x1D01 => "ILGop_IdentV128",
         0x1D02 => "ILGop_Ident64",
         0x1D03 => "ILGop_Ident32",
-        0x1D04 => "ILGop_16Uto32",
-        0x1D05 => "ILGop_16Sto32",
-        0x1D06 => "ILGop_8Uto32",
-        0x1D07 => "ILGop_8Sto32",
+        0x1D04 => "ILGop_Ident16",
+        0x1D05 => "ILGop_Ident8",
+        0x1D06 => "ILGop_16Uto32",
+        0x1D07 => "ILGop_16Sto32",
+        0x1D08 => "ILGop_8Uto32",
+        0x1D09 => "ILGop_8Sto32",
         _ => "ILGop_INVALID",
     }
     .to_string()
@@ -1944,8 +1950,9 @@ fn const_bits(tag: u32) -> u32 {
         ICO_U16 => 16,
         ICO_U32 | ICO_F32 | ICO_F32I => 32,
         ICO_U64 | ICO_F64 | ICO_F64I => 64,
-        ICO_V128 => 128,
+        ICO_U128 | ICO_V128 => 128,
         ICO_V256 => 256,
+        ICO_V512 => 512,
         _ => 0,
     }
 }
@@ -1986,10 +1993,18 @@ fn build_archinfo(arch: &Bound<'_, PyAny>) -> PyResult<vex_ffi::VexArchInfo> {
         },
         ppc_icache_line_sz_b: geti("ppc_icache_line_szB").unwrap_or(0) as std::ffi::c_int,
         ppc_dcbz_sz_b: geti("ppc_dcbz_szB").unwrap_or(0) as u32,
+        ppc_scv_supported: geti("ppc_scv_supported").unwrap_or(0) as u8,
         ppc_dcbzl_sz_b: geti("ppc_dcbzl_szB").unwrap_or(0) as u32,
         arm64_d_min_line_lg2_sz_b: geti("arm64_dMinLine_lg2_szB").unwrap_or(0) as u32,
         arm64_i_min_line_lg2_sz_b: geti("arm64_iMinLine_lg2_szB").unwrap_or(0) as u32,
-        x86_cr0: geti("x86_cr0").unwrap_or(0) as u32,
+        arm64_cache_block_size: geti("arm64_cache_block_size").unwrap_or(0) as u8,
+        arm64_requires_fallback_llsc: geti("arm64_requires_fallback_LLSC").unwrap_or(0) as u8,
+        // cr0 == 0 means real mode to the x86 lifter, so a missing key must
+        // fall back to libVEX's protected-mode default, not to zero.
+        x86_cr0: match geti("x86_cr0") {
+            Ok(0) | Err(_) => 0xFFFF_FFFF,
+            Ok(v) => v as u32,
+        },
     })
 }
 

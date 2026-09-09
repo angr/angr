@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from itertools import islice
 
-import claripy
+from angr import claripy
 
 from .base import ExplorationTechnique
 

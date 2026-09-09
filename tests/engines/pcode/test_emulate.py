@@ -5,10 +5,10 @@ import operator
 import unittest
 from dataclasses import dataclass
 
-import claripy
 from pypcode import OpCode
 
 import angr
+from angr import claripy
 from angr.engines import SimSuccessors
 from angr.engines.pcode.behavior import BehaviorFactory
 from angr.engines.pcode.emulate import PcodeEmulatorMixin

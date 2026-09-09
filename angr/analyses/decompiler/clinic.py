@@ -101,6 +101,7 @@ from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.graph import GraphUtils
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.types import dereference_simtype_by_lib
+from angr.utils.vex import block_branch_ins_addr
 
 from .ail_simplifier import AILSimplifier
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
@@ -1475,14 +1476,11 @@ class Clinic(Analysis, Serializable):
                 if callsite_ins_addr is None:
                     # parse the block...
                     callsite_block = self.project.factory.block(callsite.addr, size=callsite.size)
-                    if self.project.arch.branch_delay_slot:
-                        if callsite_block.instructions < 2:
-                            continue
-                        callsite_ins_addr = callsite_block.instruction_addrs[-2]
-                    else:
-                        if callsite_block.instructions == 0:
-                            continue
-                        callsite_ins_addr = callsite_block.instruction_addrs[-1]
+                    callsite_ins_addr = block_branch_ins_addr(
+                        callsite_block.instruction_addrs, callsite_block.addr, callsite_block.size, self.project.arch
+                    )
+                    if callsite_ins_addr is None:
+                        continue
 
                 cc = self.project.analyses.CallingConvention(
                     None,

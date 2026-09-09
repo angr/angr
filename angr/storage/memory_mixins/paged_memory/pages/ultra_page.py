@@ -5,10 +5,10 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-import claripy
 from sortedcontainers import SortedDict
 
 import angr
+from angr import claripy
 from angr.errors import SimMemoryError
 
 from .base import PageBase

@@ -49,6 +49,7 @@ from angr.procedures.procedure_dict import SIM_PROCEDURES
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.orderedset import OrderedSet
+from angr.utils.vex import block_branch_ins_addr, block_is_single_instruction
 
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
@@ -68,6 +69,12 @@ class CFGBase(Analysis):
     """
     The base class for control flow graphs.
     """
+
+    if TYPE_CHECKING:
+        # provided by ForwardAnalysis, which every concrete CFG analysis also derives from
+
+        @property
+        def should_abort(self) -> bool: ...
 
     tag: str = None  # type:ignore
     addr_type: Literal["int", "block_id", "soot"] = None  # type: ignore
@@ -173,6 +180,11 @@ class CFGBase(Analysis):
         # stores as a map between addresses and IndirectJump objects
         self.indirect_jumps: dict[int, IndirectJump] = {}
         self._indirect_jumps_to_resolve = set()
+        # indirect jumps whose resolution was postponed because the data references that bound an unbounded jump
+        # table were not collected yet. only used when _defer_unbounded_jumptables is enabled (CFGFast).
+        self._deferred_indirect_jumps: set[IndirectJump] = set()
+        self._defer_unbounded_jumptables = False
+        self._unbounded_jumptable_final_pass = False
 
         # Indirect jump resolvers
         self._indirect_jump_target_limit = indirect_jump_target_limit
@@ -2679,7 +2691,7 @@ class CFGBase(Analysis):
                     src_function.addr, src_snippet, returning_snippet, confirmed=True, to_outside=return_to_outside
                 )
 
-        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"):
+        elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Privileged", "Ijk_Exception"):
             # convert src_addr and dst_addr to CodeNodes
             src_node = src_addr if not self.model.has_node_addr(src_addr) else self._node_key_to_snippet(src_node_key)
             dst_node = dst_addr if not self.model.has_node_addr(dst_addr) else self._node_key_to_snippet(dst_node_key)
@@ -3103,15 +3115,15 @@ class CFGBase(Analysis):
         # Add it to our set. Will process it later if user allows.
         # Create an IndirectJump instance
         if addr not in self.indirect_jumps:
-            if self.project.arch.branch_delay_slot:
-                if len(cfg_node.instruction_addrs) < 2:
-                    # sanity check
-                    # decoding failed when decoding the second instruction (or even the first instruction)
-                    return False, set(), None
-                ins_addr = cfg_node.instruction_addrs[-2]
-            elif cfg_node.instruction_addrs:
-                ins_addr = cfg_node.instruction_addrs[-1]
-            else:
+            if self.project.arch.branch_delay_slot and block_is_single_instruction(
+                cfg_node.instruction_addrs, cfg_node.addr, cfg_node.size, self.project.arch
+            ):
+                # the block cannot hold both a branch and its delay slot; the indirect exit is a decode artifact
+                return False, set(), None
+            ins_addr = block_branch_ins_addr(
+                cfg_node.instruction_addrs, cfg_node.addr, cfg_node.size, self.project.arch
+            )
+            if ins_addr is None:
                 # fallback
                 ins_addr = addr
             assert jumpkind is not None
@@ -3143,6 +3155,8 @@ class CFGBase(Analysis):
         idx: int
         jump: IndirectJump
         for idx, jump in enumerate(self._indirect_jumps_to_resolve):
+            if self.should_abort:
+                break
             if self._low_priority:
                 self._release_gil(idx, 50, 0.000001)
             all_targets |= self._process_one_indirect_jump(jump)
@@ -3165,6 +3179,7 @@ class CFGBase(Analysis):
         """
 
         resolved = False
+        deferred = False
         resolved_by = None
         targets = None
 
@@ -3182,9 +3197,14 @@ class CFGBase(Analysis):
             if resolved:
                 resolved_by = resolver
                 break
+            if getattr(resolver, "deferred", False):
+                deferred = True
 
         if resolved:
             self._indirect_jump_resolved(jump, jump.addr, resolved_by, targets)
+        elif deferred:
+            # come back to it once the rest of the analysis is exhausted; do not mark it unresolvable yet
+            self._deferred_indirect_jumps.add(jump)
         else:
             self._indirect_jump_unresolved(jump)
 

@@ -5,9 +5,9 @@ from collections.abc import Iterable
 from itertools import chain
 from typing import TYPE_CHECKING
 
-import claripy
 import pyvex
 
+from angr import claripy
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.engines.light import SimEngineNostmtVEX, SpOffset
 from angr.engines.vex.claripy.datalayer import value as claripy_value

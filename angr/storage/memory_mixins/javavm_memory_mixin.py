@@ -4,10 +4,8 @@ import binascii
 import logging
 import os
 
-import claripy
-
 import angr
-from angr import concretization_strategies
+from angr import claripy, concretization_strategies
 from angr.engines.soot.values import (
     SimSootValue_ArrayBaseRef,
     SimSootValue_ArrayRef,

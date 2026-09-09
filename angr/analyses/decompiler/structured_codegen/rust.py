@@ -2088,11 +2088,18 @@ class RustUnaryOp(RustExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield f"UnaryOp {self.op}", self
+            yield from self._c_repr_chunks_opfirst(self.op)
 
     #
     # Handlers
     #
+
+    def _c_repr_chunks_opfirst(self, op):
+        yield op, self
+        paren = RustClosingObject("(")
+        yield "(", paren
+        yield from RustExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
 
     def _c_repr_chunks_not(self):
         paren = RustClosingObject("(")
@@ -2265,7 +2272,7 @@ class RustBinaryOp(RustExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield f"BinaryOp {self.op}", self
+            yield from self._c_repr_chunks_opfirst(self.op)
 
     def _has_const_null_rhs(self) -> bool:
         return isinstance(self.rhs, RustConstant) and self.rhs.value == 0
@@ -2273,6 +2280,15 @@ class RustBinaryOp(RustExpression):
     #
     # Handlers
     #
+
+    def _c_repr_chunks_opfirst(self, op):
+        yield op, self
+        paren = RustClosingObject("(")
+        yield "(", paren
+        yield from RustExpression._try_c_repr_chunks(self.lhs)
+        yield ", ", None
+        yield from RustExpression._try_c_repr_chunks(self.rhs)
+        yield ")", paren
 
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False

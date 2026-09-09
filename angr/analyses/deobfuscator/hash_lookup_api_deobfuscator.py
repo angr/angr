@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Sequence
 
-import claripy
-
 import angr
-from angr import ailment, sim_type
+from angr import ailment, claripy, sim_type
 from angr.ailment.block_walker import AILBlockViewer
 from angr.analyses.analysis import Analysis
 from angr.errors import AngrCallableError

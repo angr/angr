@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import operator
 
-import claripy
 from archinfo.arch_soot import SootNullConstant
 
+from angr import claripy
 from angr.engines.soot.values import SimSootValue_StringRef, SimSootValue_ThisRef
 
 from .base import SimSootExpr

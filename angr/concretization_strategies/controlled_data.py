@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from itertools import groupby
 
-import claripy
+from angr import claripy
 
 from .base import SimConcretizationStrategy
 

@@ -5,9 +5,9 @@ import itertools
 import logging
 import typing
 
-import claripy
 from archinfo import ArchSoot
 
+from angr import claripy
 from angr.calling_conventions import default_cc
 from angr.sim_procedure import SimProcedure
 from angr.sim_type import SimTypeFunction

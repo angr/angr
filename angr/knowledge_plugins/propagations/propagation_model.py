@@ -3,9 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-import claripy
-
-from angr import ailment
+from angr import ailment, claripy
 from angr.knowledge_plugins.functions.function import Function
 from angr.serializable import Serializable
 

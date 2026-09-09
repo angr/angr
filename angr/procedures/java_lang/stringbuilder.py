@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr.engines.soot.values import SimSootValue_StringRef
 from angr.procedures.java import JavaSimProcedure
 

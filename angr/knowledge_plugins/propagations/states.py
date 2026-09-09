@@ -7,9 +7,8 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Self
 
 import archinfo
-import claripy
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.code_location import CodeLocation
 from angr.engines.light.engine import SimEngineLight
 from angr.errors import SimMemoryMissingError
@@ -298,17 +297,12 @@ class RegisterAnnotation(claripy.Annotation):
     Annotates TOP values that are coming from registers.
     """
 
+    eliminatable = True
+    relocatable = True
+
     def __init__(self, offset, size):
         self.offset = offset
         self.size = size
-
-    @property
-    def eliminatable(self) -> bool:
-        return True
-
-    @property
-    def relocatable(self) -> bool:
-        return True
 
     def __hash__(self):
         return hash((RegisterAnnotation, self.offset, self.size))
@@ -322,19 +316,14 @@ class RegisterComparisonAnnotation(claripy.Annotation):
     Annotate TOP values that are the result of register values comparing against constant values.
     """
 
+    eliminatable = True
+    relocatable = True
+
     def __init__(self, offset: int, size: int, cmp_op: str, value: int):
         self.offset = offset
         self.size = size
         self.cmp_op = cmp_op
         self.value = value
-
-    @property
-    def eliminatable(self) -> bool:
-        return True
-
-    @property
-    def relocatable(self) -> bool:
-        return True
 
     def __hash__(self):
         return hash((RegisterComparisonAnnotation, self.offset, self.size, self.cmp_op, self.value))

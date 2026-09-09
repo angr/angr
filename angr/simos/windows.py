@@ -7,10 +7,10 @@ import os
 import random
 import struct
 
-import claripy
 import cle.backends
 from archinfo import ArchAMD64, ArchX86
 
+from angr import claripy
 from angr import sim_options as o
 from angr.calling_conventions import SYSCALL_CC
 from angr.errors import AngrSimOSError, SimSegfaultException, SimUnsupportedError, SimZeroDivisionException

@@ -3,9 +3,7 @@ from __future__ import annotations
 import itertools
 import logging
 
-import claripy
-
-from angr import sim_options
+from angr import claripy, sim_options
 from angr.errors import SimFileError, SimMergeError, SimSolverError
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action_object import SimActionObject

@@ -7,10 +7,8 @@ import os
 import pickle
 from unittest import TestCase, main
 
-import claripy
-
 import angr
-from angr import ailment
+from angr import ailment, claripy
 from angr.analyses import CFGFast, CompleteCallingConventionsAnalysis, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.analyses.reaching_definitions.function_handler_library import LibcHandlers

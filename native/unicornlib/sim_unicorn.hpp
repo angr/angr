@@ -23,7 +23,10 @@ static const uint32_t MAX_BB_SIZE = 800;
 static const uint8_t MAX_MEM_ACCESS_SIZE = 8;
 
 // The size of the longest register in archinfo's uc_regs for all architectures
-static const uint8_t MAX_REGISTER_BYTE_SIZE = 32;
+// Must match _MAX_REGISTER_BYTE_SIZE in angr/state_plugins/unicorn_engine.py:
+// the two describe the same struct passed across the FFI boundary.
+// 64 bytes covers the AVX-512 ZMM registers.
+static const uint8_t MAX_REGISTER_BYTE_SIZE = 64;
 
 static const uint16_t ANGR_PAGE_SIZE = 0x1000;
 static const uint8_t PAGE_SHIFT = 12;

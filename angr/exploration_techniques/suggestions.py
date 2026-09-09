@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr.misc.picklable_lock import PicklableLock
 from angr.misc.ux import once
 from angr.state_plugins.sim_action import SimActionConstraint

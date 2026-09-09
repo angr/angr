@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <queue>
@@ -3045,6 +3046,36 @@ extern "C"
 void simunicorn_enable_symbolic_reg_tracking(State *state, VexArch guest, VexArchInfo archinfo) {
 	state->vex_guest = guest;
 	state->vex_archinfo = archinfo;
+}
+
+// VexArchInfo is passed by value from Python through a hand-written ctypes mirror. A mirror that has
+// drifted from the libVEX headers we were built against silently feeds garbage to the lifter (e.g. a
+// zero x86_cr0 makes the x86 front end decode 16-bit real-mode code), so publish the real layout and
+// let the Python side verify it at load time. Writes sizeof(VexArchInfo) followed by the byte offset
+// of each field in declaration order; returns the number of entries the layout has, so a caller with
+// a too-small buffer detects the mismatch instead of overflowing.
+extern "C"
+uint64_t simunicorn_vex_archinfo_layout(uint32_t *out, uint64_t count) {
+	const uint32_t layout[] = {
+		(uint32_t)sizeof(VexArchInfo),
+		(uint32_t)offsetof(VexArchInfo, hwcaps),
+		(uint32_t)offsetof(VexArchInfo, endness),
+		(uint32_t)offsetof(VexArchInfo, hwcache_info),
+		(uint32_t)offsetof(VexArchInfo, ppc_icache_line_szB),
+		(uint32_t)offsetof(VexArchInfo, ppc_dcbz_szB),
+		(uint32_t)offsetof(VexArchInfo, ppc_scv_supported),
+		(uint32_t)offsetof(VexArchInfo, ppc_dcbzl_szB),
+		(uint32_t)offsetof(VexArchInfo, arm64_dMinLine_lg2_szB),
+		(uint32_t)offsetof(VexArchInfo, arm64_iMinLine_lg2_szB),
+		(uint32_t)offsetof(VexArchInfo, arm64_cache_block_size),
+		(uint32_t)offsetof(VexArchInfo, arm64_requires_fallback_LLSC),
+		(uint32_t)offsetof(VexArchInfo, x86_cr0),
+	};
+	const uint64_t num_entries = sizeof(layout) / sizeof(layout[0]);
+	for (uint64_t i = 0; (i < num_entries) && (i < count); i++) {
+		out[i] = layout[i];
+	}
+	return num_entries;
 }
 
 extern "C"

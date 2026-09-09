@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import claripy
-
+from angr import claripy
 from angr import sim_options as o
 from angr.errors import AngrError
 from angr.sim_state import SimState
@@ -77,7 +76,7 @@ class SimStatePreconstrainer(SimStatePlugin):
         self.variable_map[next(iter(variable.variables))] = constraint
         self.preconstraints.append(constraint)
         if o.REPLACEMENT_SOLVER in self.state.options:
-            self.state.solver._solver.add_replacement(variable, value, invalidate_cache=False)
+            self.state.solver._solver.add_replacement(variable, value)
         else:
             self.state.add_constraints(constraint)
         if not self.state.satisfiable():

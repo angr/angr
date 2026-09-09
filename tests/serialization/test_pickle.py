@@ -11,9 +11,10 @@ import shutil
 import tempfile
 import unittest
 
-from claripy import BVS
-
 import angr
+from angr.angrdb import AngrDB
+from angr.claripy import BVS
+from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
 from angr.knowledge_plugins.cfg.spilling_digraph import SpillingDiGraph
 from angr.knowledge_plugins.functions.function_manager import SpillingFunctionDict
@@ -254,6 +255,31 @@ class TestPickle(unittest.TestCase):
 
         p1 = pickle.loads(pickle.dumps(p, -1))
         assert p1.get_kb("other").functions["asdf"].addr == func_main.addr
+
+    def test_knowledge_base_name_survives_pickling(self):
+        # Regression test: KnowledgeBase.__getstate__ listed _project and _plugins but not name,
+        # the third and last attribute __init__ sets. Reading kb.name on a restored project fell
+        # through __getattr__ into the plugin lookup and raised AttributeError, so AngrDB.dump()
+        # on a restored project failed with AngrDBError while the same dump on the live project
+        # wrote a database.
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        p.analyses.CFGFast()
+        assert p.kb.name == "global"
+
+        p1 = pickle.loads(pickle.dumps(p, -1))
+
+        # the consequence: AngrDB stores knowledge bases under kb.name, so dumping a restored
+        # project used to fail outright
+        db_file = os.path.join(self.tmpdir, "restored.adb")
+        AngrDB(p1, nullpool=True).dump(db_file)
+        p2 = AngrDB(nullpool=True).load(db_file)
+        assert set(p2.kb.functions) == set(p1.kb.functions)
+
+        assert p1.kb.name == "global"
+
+        # a knowledge base that is not the project default keeps its own name too
+        other = KnowledgeBase(p, name="other")
+        assert pickle.loads(pickle.dumps(other, -1)).name == "other"
 
 
 if __name__ == "__main__":

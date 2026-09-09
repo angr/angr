@@ -55,6 +55,7 @@ from angr.sim_type import (
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
+from angr.utils.vex import block_branch_ins_addr
 
 from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector
 from .utils import is_sane_register_variable
@@ -974,7 +975,9 @@ class CallingConventionAnalysis(Analysis):
                             and (
                                 (block := self.project.factory.block(self._function.addr)).vex.jumpkind != "Ijk_Call"
                                 or accesses[0].location.ins_addr
-                                != block.instruction_addrs[-1 - bool(self.project.arch.branch_delay_slot)]
+                                != block_branch_ins_addr(
+                                    block.instruction_addrs, block.addr, block.size, self.project.arch
+                                )
                             )
                         ):
                             # check if there is only a store to the stack which is never used

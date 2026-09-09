@@ -4,8 +4,8 @@ from collections.abc import Iterator
 from typing import Any, TypeGuard, TypeVar, cast
 
 import archinfo
-import claripy
 
+from angr import claripy
 from angr.storage.memory_object import bv_slice
 
 MVType = TypeVar("MVType", bound=claripy.ast.BV | claripy.ast.FP)

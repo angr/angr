@@ -3,21 +3,33 @@ from __future__ import annotations
 
 import os
 import pickle
+import re
 import unittest
+from typing import cast
 
 import archinfo
 import pypcode
 import pyvex
-from pyvex.enums import irop_enums_to_ints
+from pyvex.enums import enums_to_ints, irop_enums_to_ints
+from pyvex.types import Arch as PyvexArch
 
 import angr
 from angr import ailment
 from angr.engines.pcode.lifter import IRSB as PCodeIRSB
 from angr.engines.vex.claripy import irop
-from angr.rustylib.ailment import RoundingMode, VEXIRSBConverter, _vexop_debug
+from angr.rustylib.ailment import (  # pylint:disable=import-error,no-name-in-module
+    RoundingMode,
+    VEXIRSBConverter,
+    _vexop_debug,
+)
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=line-too-long
+
+
+def _vex_arch(arch: archinfo.Arch) -> PyvexArch:
+    """archinfo's Arch does not nominally satisfy pyvex's Arch protocol (RegisterOffset/Endness vs int/str)."""
+    return cast(PyvexArch, arch)
 
 
 class TestIrsb(unittest.TestCase):
@@ -29,7 +41,7 @@ class TestIrsb(unittest.TestCase):
     def test_convert_from_vex_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
         manager = ailment.Manager()
-        irsb = pyvex.IRSB(self.block_bytes, self.block_addr, arch, opt_level=0)
+        irsb = pyvex.IRSB(self.block_bytes, self.block_addr, _vex_arch(arch), opt_level=0)
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
 
@@ -74,7 +86,7 @@ class TestIrsb(unittest.TestCase):
         """The direct libVEX-lift fast path must produce the same AIL block as
         converting a cached pyvex Python IRSB."""
         arch = archinfo.arch_from_id("AMD64")
-        irsb = pyvex.IRSB(self.block_bytes, self.block_addr, arch, opt_level=0)
+        irsb = pyvex.IRSB(self.block_bytes, self.block_addr, _vex_arch(arch), opt_level=0)
         from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
         from_lift = VEXIRSBConverter.convert_from_lift(
             arch, self.block_addr, self.block_bytes, ailment.Manager(), opt_level=0
@@ -106,7 +118,7 @@ class TestNonConstRoundingMode(unittest.TestCase):
 
     def test_tmp_rounding_mode_is_expression(self):
         arch = archinfo.arch_from_id("armel")
-        irsb = pyvex.IRSB(self.block_bytes, 0x1000, arch, opt_level=1)
+        irsb = pyvex.IRSB(self.block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
         from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
         from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, self.block_bytes, ailment.Manager(), opt_level=1)
         assert from_py == from_lift
@@ -133,12 +145,12 @@ class TestNonConstRoundingMode(unittest.TestCase):
 
     def test_const_rounding_mode_still_enum(self):
         arch = archinfo.arch_from_id("i386")
-        irsb = pyvex.IRSB(bytes.fromhex("d8c1c3"), 0x1000, arch, opt_level=1)  # fadd st0, st1 ; ret
+        irsb = pyvex.IRSB(bytes.fromhex("d8c1c3"), 0x1000, _vex_arch(arch), opt_level=1)  # fadd st0, st1 ; ret
         blk = VEXIRSBConverter.convert(irsb, ailment.Manager())
         binop = next(
-            s.src
+            src
             for s in blk.statements
-            if isinstance(getattr(s, "src", None), ailment.Expr.BinaryOp) and s.src.floating_point
+            if isinstance(src := getattr(s, "src", None), ailment.Expr.BinaryOp) and src.floating_point
         )
         assert isinstance(binop.rounding_mode, RoundingMode)
 
@@ -160,7 +172,7 @@ class TestVectorSignedness(unittest.TestCase):
             ("uadd8", bytes.fromhex("920f51e6"), False),
         ):
             with self.subTest(instruction=name):
-                irsb = pyvex.IRSB(block_bytes, 0x1000, arch, opt_level=0)
+                irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=0)
                 from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
                 from_lift = VEXIRSBConverter.convert_from_lift(
                     arch, 0x1000, block_bytes, ailment.Manager(), opt_level=0
@@ -197,6 +209,7 @@ class TestVexConverterAcrossArches(unittest.TestCase):
         for node in cfg.model.nodes():
             if not node.size:
                 continue
+            assert isinstance(node.addr, int)
             thumb = bool(getattr(node, "thumb", False))
             lift_addr = (node.addr | 1) if thumb else node.addr
             bytes_offset = 1 if thumb else 0
@@ -206,14 +219,14 @@ class TestVexConverterAcrossArches(unittest.TestCase):
             except Exception:
                 continue
             try:
-                irsb = pyvex.IRSB(data, lift_addr, arch, opt_level=1, bytes_offset=bytes_offset)
+                irsb = pyvex.IRSB(data, lift_addr, _vex_arch(arch), opt_level=1, bytes_offset=bytes_offset)
             except Exception:
                 continue
             if irsb.size == 0:
                 continue
             try:
                 from_py = VEXIRSBConverter.convert(
-                    pyvex.IRSB(data, lift_addr, arch, opt_level=1, bytes_offset=bytes_offset),
+                    pyvex.IRSB(data, lift_addr, _vex_arch(arch), opt_level=1, bytes_offset=bytes_offset),
                     ailment.Manager(),
                 )
             except Exception:
@@ -255,7 +268,9 @@ class TestLiftWindowOverread(unittest.TestCase):
 
     def test_lift_does_not_read_past_window(self):
         arch = archinfo.arch_from_id("s390x")
-        from_py = VEXIRSBConverter.convert(pyvex.IRSB(self.window, self.addr, arch, opt_level=1), ailment.Manager())
+        from_py = VEXIRSBConverter.convert(
+            pyvex.IRSB(self.window, self.addr, _vex_arch(arch), opt_level=1), ailment.Manager()
+        )
         # 0x04 completes the truncated `lg`: an unguarded overread decodes it
         # and ends the block Ijk_Boring instead of Ijk_NoDecode.
         backing = bytearray(self.window + b"\x04" * 8)
@@ -309,3 +324,67 @@ class TestVexOpParity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVexEnumParity(unittest.TestCase):
+    """The Rust converter hardcodes libVEX enum values (IRConstTag, IRType,
+    IRLoadGOp, ...); libVEX inserts members mid-enum between releases
+    (Valgrind 3.27.1 added Ico_U128), so pin them to the values pyvex's cffi
+    layer reads from the real headers."""
+
+    RUST_SRC = os.path.join(os.path.dirname(__file__), "..", "..", "native", "angr", "src", "ailment")
+
+    def test_hardcoded_vex_enum_values_match_libvex(self):
+        ffi_path = os.path.join(self.RUST_SRC, "vex_ffi.rs")
+        conv_path = os.path.join(self.RUST_SRC, "convert_vex.rs")
+        if not (os.path.exists(ffi_path) and os.path.exists(conv_path)):
+            self.skipTest("Rust sources not available")
+
+        by_upper = {}
+        for name, value in enums_to_ints.items():
+            by_upper.setdefault(name.upper(), set()).add(value)
+
+        checked = {}
+        mismatches = []
+        with open(ffi_path, encoding="utf-8") as f:
+            for name, value in re.findall(r"pub const ([A-Z0-9_]+): u32 = (0x[0-9A-Fa-f]+|\d+);", f.read()):
+                checked[name] = int(value, 0)
+        # inline int -> name tables (e.g. IRLoadGOp) in the converter
+        with open(conv_path, encoding="utf-8") as f:
+            for value, name in re.findall(r'(0x1[0-9A-Fa-f]{3}) => "(I[A-Za-z0-9_]+)"', f.read()):
+                checked[name.upper()] = int(value, 0)
+
+        for name, value in sorted(checked.items()):
+            vex_values = by_upper.get(name)
+            if vex_values is None:
+                continue  # not a VEX enum member (e.g. angr-side constants)
+            if value not in vex_values:
+                mismatches.append(f"{name}: rust={value:#x} libvex={sorted(hex(v) for v in vex_values)}")
+
+        assert not mismatches, "hardcoded VEX enum values are stale:\n  " + "\n  ".join(mismatches)
+        # guard against the test going vacuous if the constants are renamed/moved
+        for must in ("ICO_U128", "ICO_V256", "ILGOP_16UTO32", "IJK_BORING", "ITY_V256"):
+            assert must in checked and must in by_upper, must
+
+    def test_lift_path_reads_wide_constants(self):
+        """convert_from_lift reads IRConst tags straight from the C IRSB; the
+        pyvex path resolves them by name and is the reference."""
+        arch = archinfo.arch_from_id("AMD64")
+        cases = [
+            ("c5fdefc0", 256, 0),  # vpxor ymm0, ymm0, ymm0     -> Ico_V256 0x0
+            ("c5fd76c0", 256, (1 << 256) - 1),  # vpcmpeqd ymm0, ymm0, ymm0  -> Ico_V256 0xffffffff
+            ("660fefc0", 128, 0),  # pxor xmm0, xmm0            -> Ico_V128 0x0
+            ("660f76c0", 128, (1 << 128) - 1),  # pcmpeqd xmm0, xmm0         -> Ico_V128 0xffff
+        ]
+        for hexbytes, bits, value in cases:
+            data = bytes.fromhex(hexbytes)
+            from_py = VEXIRSBConverter.convert(
+                pyvex.IRSB(data, 0x400000, _vex_arch(arch), opt_level=1), ailment.Manager()
+            )
+            from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x400000, data, ailment.Manager(), opt_level=1)
+            assert from_py == from_lift, hexbytes
+            # keep the wrappers alive while inspecting them: Rust-backed AIL
+            # objects are fresh Python wrappers on every attribute access
+            srcs = [stmt.src for stmt in from_lift.statements if isinstance(stmt, ailment.Stmt.Assignment)]
+            consts = [(src.bits, src.value) for src in srcs if isinstance(src, ailment.Expr.Const)]
+            assert (bits, value) in consts, (hexbytes, consts)

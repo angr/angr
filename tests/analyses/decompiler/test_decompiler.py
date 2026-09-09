@@ -2848,7 +2848,7 @@ class TestDecompiler(unittest.TestCase):
         assert lines[-2].startswith("return ")
         assert lines[-2].endswith(";")
         # extract the variable from the return statement
-        found = re.search(r"return .*([a-zA-Z_]\w*).*;", lines[-2])
+        found = re.search(r"return \(?([a-zA-Z_]\w*)", lines[-2])
         assert found is not None, "Cannot find the variable in the return statement"
         retvar = found.group(1)
         assert retvar, "Cannot find the variable in the return statement"
@@ -4975,9 +4975,10 @@ class TestDecompiler(unittest.TestCase):
                 lines[start_idx + 1] == "{"
                 # regex should match both the case above and the case where v12 is an array pointer
                 and re.match(r"(\*\(\w+\)|\w+\[0\]) = \w+;", lines[start_idx + 2])
-                and re.match(r"\w+ \+= 1;", lines[start_idx + 3])
+                # the counter increment may come back as a widened form
+                and re.match(r"\w+ (\+= 1|= \((?:unsigned )?int\)\w+ \+ 1);", lines[start_idx + 3])
                 and re.match(r"(\w+ \+= 1|\w+ = &\w+\[1\]);", lines[start_idx + 4])
-                and re.match(r"} while \(\w+ < 0x100\);", lines[start_idx + 5])
+                and re.match(r"} while \((?:\((?:unsigned )?int\))?\w+ < 0x100\);", lines[start_idx + 5])
             ):
                 # found it!
                 break
