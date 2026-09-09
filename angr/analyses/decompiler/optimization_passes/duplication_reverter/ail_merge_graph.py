@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import networkx as nx
 
+from angr.ailment import Const
 from angr.ailment.block import Block
 from angr.ailment.statement import ConditionalJump
 
@@ -243,11 +244,22 @@ class AILMergeGraph:
                 b0, b1 = merge_end_pair
 
             if true_target == self._find_og_start_by_merge_end(b0):
-                cond_jump_stmt.true_target.value = b0.addr
-                cond_jump_stmt.false_target.value = b1.addr
+                true_successor, false_successor = b0, b1
             else:
-                cond_jump_stmt.false_target.value = b0.addr
-                cond_jump_stmt.true_target.value = b1.addr
+                true_successor, false_successor = b1, b0
+
+            true_target_expr = cond_jump_stmt.true_target
+            false_target_expr = cond_jump_stmt.false_target
+            assert isinstance(true_target_expr, Const)
+            assert isinstance(false_target_expr, Const)
+            cond_jump_stmt.true_target = Const(
+                true_target_expr.idx, true_successor.addr, true_target_expr.bits, **true_target_expr.tags
+            )
+            cond_jump_stmt.true_target_idx = true_successor.idx
+            cond_jump_stmt.false_target = Const(
+                false_target_expr.idx, false_successor.addr, false_target_expr.bits, **false_target_expr.tags
+            )
+            cond_jump_stmt.false_target_idx = false_successor.idx
 
             self.graph.add_edge(match_node, cond_copy)
             self.graph.add_edge(cond_copy, b0)
