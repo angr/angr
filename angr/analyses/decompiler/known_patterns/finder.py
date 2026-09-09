@@ -168,11 +168,17 @@ def _iter_expr_children(expr: Expression) -> Iterator[tuple[tuple[str, int | Non
                 yield ("args", i), arg
 
 
-def _iter_stmt_subexprs(stmt: Statement) -> Iterator[tuple[ExprPath, Expression]]:
-    """Enumerate all sub-expressions of a statement in pre-order, with their paths."""
+def _iter_stmt_subexprs(stmt: Statement, uses_only: bool = False) -> Iterator[tuple[ExprPath, Expression]]:
+    """Enumerate all sub-expressions of a statement in pre-order, with their paths.
+
+    With ``uses_only`` an assignment's destination is left out: it is the
+    variable being *defined*, and a matcher that reads through definitions
+    (PDefOf) would otherwise match ``v = Load(table + c*4)`` on ``v`` itself --
+    resolving v to that very load -- and rewrite the *destination* into a call.
+    """
     roots: list[tuple[tuple[str, int | None], Expression]] = []
     if isinstance(stmt, (Assignment, WeakAssignment)):
-        roots = [(("dst", None), stmt.dst), (("src", None), stmt.src)]
+        roots = [(("src", None), stmt.src)] if uses_only else [(("dst", None), stmt.dst), (("src", None), stmt.src)]
     elif isinstance(stmt, Store):
         roots = [(("addr", None), stmt.addr), (("data", None), stmt.data)]
     elif isinstance(stmt, Return):
@@ -706,7 +712,7 @@ class KnownPatternFinder(Analysis):
                     if m is not None:
                         yield m
             # expression-level patterns
-            for path, expr in _iter_stmt_subexprs(stmt):
+            for path, expr in _iter_stmt_subexprs(stmt, uses_only=True):
                 for pattern in self._expr_candidates(expr_anchor_key(expr)):
                     m = self._try_match(pattern, block, stmt_idx, expr, path, stmt)
                     if m is not None:

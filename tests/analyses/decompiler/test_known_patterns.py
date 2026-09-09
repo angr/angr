@@ -850,6 +850,23 @@ class TestPhiSourcesAfterRewrites(TestCase):
                 assert self._stale_phi_sources(STL5_BIN, func) == []
 
 
+class TestMatchingSkipsDefinitions(TestCase):
+    def test_an_assignment_destination_is_never_a_match(self):
+        # `v = Load(table + c*4)` was matched *on v*: PDefOf resolved v to the
+        # very load it defines, and the rewrite turned the destination into a
+        # call -- `tolower(c) = Load(...)`, which no walker accepts. A
+        # definition's destination is not a use.
+        # lower_twice uses tolower()'s result twice, so the table load has a
+        # definition of its own -- the shape that produced the bogus match
+        proj, _, func, dec = _decompile(CTYPE_BIN, "lower_twice", preset="fast")
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        raw = [m for block in dec.ail_graph for m in finder._match_block(block)]
+        assert raw, "the fixture stopped matching anything"
+        assert not any(m.expr_path and m.expr_path[0][0] == "dst" for m in raw)
+        _, _, _, dec = _decompile(CTYPE_BIN, "lower_twice", preset="full")
+        assert "tolower(" in dec.codegen.text, dec.codegen.text
+
+
 class TestCtypeMacros(TestCase):
     """The glibc <ctype.h> macros: a call, a table load, a mask."""
 

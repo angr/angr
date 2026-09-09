@@ -4140,7 +4140,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             codegen=self,
         )
 
-        if expr.bits and call_expr.type is not None and call_expr.type.size != expr.size * self.project.arch.byte_width:
+        # a call narrower than a byte is a predicate (a known-pattern call standing in for a 1-bit comparison);
+        # its declared return type is the right type, and a cast to a zero-byte integer is not a type at all
+        if (
+            expr.bits
+            and expr.bits >= self.project.arch.byte_width
+            and call_expr.type is not None
+            and call_expr.type.size != expr.size * self.project.arch.byte_width
+        ):
             call_expr = CTypeCast(
                 call_expr.type,
                 self.default_simtype_from_bits(

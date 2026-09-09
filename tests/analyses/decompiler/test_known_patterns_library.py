@@ -339,6 +339,26 @@ class TestPosixMacros(TestCase):
         ("chk_issock", "s_issock", "S_ISSOCK"),
     ]
 
+    def test_a_predicate_used_as_a_value_is_an_int(self):
+        # The call that replaces `(m & S_IFMT) == S_IFREG` is one bit wide, and
+        # the C emitter used to cast such a call to the byte-rounded width of
+        # its result -- `(uint0_t)S_ISREG(...)`, a type that is no type, which
+        # blew up in address arithmetic on git's check_one_conflict. A sub-byte
+        # call keeps its declared return type.
+        for func_name, macros in (
+            ("kind_count", ("S_ISREG", "S_ISDIR")),
+            ("kind_tab", ("S_ISREG",)),
+            ("kind_ptr", ("S_ISREG",)),
+            ("kind_mix", ("S_ISREG", "S_ISDIR")),
+        ):
+            with self.subTest(func=func_name):
+                proj, cfg, func, _ = _decompile(GLIBC_BIN, func_name)
+                dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+                text = dec.codegen.text
+                for macro in macros:
+                    assert f"{macro}(" in text, text
+                assert "uint0_t" not in text and "uint1_t" not in text, text
+
     def test_s_istype_predicates(self):
         for func_name, pattern_name, macro in self._S_ISTYPES:
             with self.subTest(macro=macro):
