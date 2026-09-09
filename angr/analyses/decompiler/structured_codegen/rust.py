@@ -2212,7 +2212,6 @@ class RustBinaryOp(RustExpression):
     def op_precedence(self):
         precedence_list = [
             # lowest precedence
-            ["Concat"],
             ["LogicalOr"],
             ["LogicalAnd"],
             ["Or"],
@@ -2400,7 +2399,7 @@ class RustBinaryOp(RustExpression):
         yield from self._c_repr_chunks(" != ")
 
     def _c_repr_chunks_concat(self):
-        yield from self._c_repr_chunks(" CONCAT ")
+        yield from self._c_repr_chunks_opfirst("CONCAT")
 
     def _c_repr_chunks_rol(self):
         yield "__ROL__", self

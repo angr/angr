@@ -4,7 +4,9 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import itertools
 import os
+import re
 import unittest
 from types import SimpleNamespace
 
@@ -14,22 +16,26 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CAssignment,
     CExpression,
     CGoto,
+    CReturn,
     CStructuredCodeGenerator,
     CUnaryOp,
     type_to_c_repr_chunks,
 )
+from angr.calling_conventions import SimComboArg
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
     SimTypeBottom,
+    SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
     SimTypeLongLong,
+    SimTypeNum,
     SimTypePointer,
     SimUnion,
     parse_cpp_file,
 )
-from tests.common import bin_location
+from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -243,6 +249,123 @@ class TestAnonymousAggregateRendering(unittest.TestCase):
             "    } mid;\n"
             "} outer;\n\n"
         )
+
+
+class TestMultiRegisterReturn(unittest.TestCase):
+    """A return value the calling convention splits across registers must reach the C in one piece."""
+
+    # _handle memoizes on the AIL node, so every node any test builds needs an idx of its own
+    _idx = itertools.count(1)
+
+    @classmethod
+    def setUpClass(cls):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
+
+    def setUp(self):
+        self._original_prototype = self.codegen._func.prototype
+
+    def tearDown(self):
+        self.codegen._func.prototype = self._original_prototype
+
+    def _set_returnty(self, returnty) -> None:
+        self.codegen._func.prototype = SimTypeFunction([], returnty)
+
+    def _render(self, *pieces: Expr.Expression) -> str:
+        stmt = Stmt.Return(next(self._idx), list(pieces))
+        rendered = self.codegen._handle(stmt, is_expr=False)
+        assert isinstance(rendered, CReturn)
+        return rendered.c_repr().strip()
+
+    def _const(self, value: int, bits: int) -> Expr.Const:
+        return Expr.Const(next(self._idx), value, bits, type=SimTypeNum(bits, signed=False))
+
+    def test_no_return_expression_is_a_bare_return(self):
+        assert self._render() == "return;"
+
+    def test_one_return_expression_is_unchanged(self):
+        assert self._render(self._const(1, 64)) == "return 1;"
+
+    def test_two_registers_are_concatenated_most_significant_first(self):
+        # SimComboArg lists its locations least significant first, so the second expression is the high half
+        # and Concat, which puts the high half first, takes it first.
+        self._set_returnty(SimTypeNum(128, signed=True))
+        assert self._render(self._const(1, 64), self._const(2, 64)) == "return CONCAT(2, 1);"
+
+    def test_more_than_two_pieces_are_all_placed(self):
+        self._set_returnty(SimTypeNum(96, signed=True))
+        assert (
+            self._render(self._const(1, 32), self._const(2, 32), self._const(3, 32))
+            == "return CONCAT(3, CONCAT(2, 1));"
+        )
+
+    def test_an_aggregate_return_type_keeps_the_old_conservative_behaviour(self):
+        # a homogeneous float aggregate spread over several registers is not a scalar with a high and a low
+        # half, so the pieces must not be concatenated. angr/angr#6851 tracks carrying those through as one
+        # typed value.
+        self._set_returnty(SimStruct({"a": SimTypeFloat(), "b": SimTypeFloat()}))
+        with self.assertLogs("angr.analyses.decompiler.structured_codegen.c", level="WARNING"):
+            assert self._render(self._const(1, 32), self._const(2, 32)) == "return 1;"
+
+    def test_a_return_type_that_does_not_account_for_every_piece_keeps_the_old_behaviour(self):
+        # the decompiler rewrites the prototype after ReturnMaker has filled the return expressions in, so a
+        # 64-bit return type beside two 64-bit expressions means the extra expression is not part of it.
+        self._set_returnty(SimTypeLongLong(signed=False))
+        with self.assertLogs("angr.analyses.decompiler.structured_codegen.c", level="WARNING"):
+            assert self._render(self._const(1, 64), self._const(2, 64)) == "return 1;"
+
+    def test_a_missing_prototype_keeps_the_old_behaviour(self):
+        self.codegen._func.prototype = None
+        with self.assertLogs("angr.analyses.decompiler.structured_codegen.c", level="WARNING"):
+            assert self._render(self._const(1, 64), self._const(2, 64)) == "return 1;"
+
+
+class TestMultiRegisterReturnEndToEnd(unittest.TestCase):
+    """The two-word value a Go function returns in rax:rbx must survive into the C."""
+
+    def test_a_two_word_go_return_keeps_its_high_half(self):
+        # runtime.decoderune is Go's func decoderune(s string, k int) (r rune, size int). It recovers a 128-bit
+        # return type, so SimCC.return_val answers SimComboArg([<rax>, <rbx>]) and ReturnMaker gives every return
+        # two expressions. The C used to declare int128_t and return only rax, losing every decoded size.
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "131252a8059fdbb12d77cd4711e597c45bb48e6d4bc3ddc808697a5e0488ff2c"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        # decoderune plus one of its callers: the return type comes out of call-site analysis, so a region
+        # holding the function alone recovers it as void
+        cfg = proj.analyses.CFGFast(
+            show_progressbar=not WORKER,
+            fail_fast=True,
+            normalize=True,
+            start_at_entry=False,
+            regions=[(0x45B220, 0x45B220 + 0x200), (0x4ADEE0, 0x4ADEE0 + 0x200)],
+        )
+        func = cfg.functions[0x45B220]
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None
+        print_decompilation_result(dec)
+
+        prototype = func.prototype
+        assert prototype is not None and prototype.returnty is not None
+        assert prototype.returnty.size == 128
+        cc = func.calling_convention
+        assert cc is not None
+        return_val = cc.return_val(prototype.returnty)
+        assert isinstance(return_val, SimComboArg)
+        assert len(return_val.locations) == 2
+
+        # every return carries the second location's value instead of dropping it
+        text = dec.codegen.text or ""
+        returns = [line.strip() for line in text.splitlines() if line.strip().startswith("return ")]
+        assert len(returns) == 6
+        for line in returns:
+            assert re.match(r"^return CONCAT\(.+, .+\);$", line), line
+        # decoderune's error path is Go's `return RuneError, 1`, so rax holds 0xfffd and rbx the size.
+        # rbx is the second location, which is the high half, so it is the first operand.
+        assert "return CONCAT(a2 + 1, 0xfffd);" in text, text
 
 
 if __name__ == "__main__":

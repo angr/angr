@@ -2273,7 +2273,6 @@ class CBinaryOp(CExpression):
     def op_precedence(self):
         precedence_list = [
             # lowest precedence
-            ["Concat"],
             ["LogicalOr"],
             ["LogicalXor"],
             ["LogicalAnd"],
@@ -2476,7 +2475,7 @@ class CBinaryOp(CExpression):
             yield from self._c_repr_chunks(" != ")
 
     def _c_repr_chunks_concat(self):
-        yield from self._c_repr_chunks(" CONCAT ")
+        yield from self._c_repr_chunks_opfirst("CONCAT")
 
     def _c_repr_chunks_rol(self):
         yield "__ROL__", self
@@ -4155,10 +4154,37 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if len(stmt.ret_exprs) == 1:
             ret_expr = stmt.ret_exprs[0]
             return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
-        # TODO: Multiple return expressions
-        l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
-        ret_expr = stmt.ret_exprs[0]
-        return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
+        if not self._returnty_holds_every_ret_expr(stmt.ret_exprs):
+            l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
+            return CReturn(self._handle(stmt.ret_exprs[0]), tags=stmt.tags, codegen=self)
+        # SimComboArg lists its locations least significant first, so build the Concat up from the first
+        # expression: every piece joins on the left of what is already there, as the high half.
+        retval = self._handle(stmt.ret_exprs[0])
+        for ret_expr in stmt.ret_exprs[1:]:
+            retval = CBinaryOp("Concat", self._handle(ret_expr), retval, tags=stmt.tags, codegen=self)
+        return CReturn(retval, tags=stmt.tags, codegen=self)
+
+    def _returnty_holds_every_ret_expr(self, ret_exprs: list[Expr.Expression]) -> bool:
+        """
+        Whether the recovered return type accounts for every one of a return statement's expressions.
+
+        ``SimCC.return_val()`` answers with a :class:`SimComboArg` whenever the return type is wider than one
+        register -- a ``long long`` in ``edx:eax`` on x86, an ``__int128`` in ``rax:rdx`` on amd64, the two-word
+        values Go returns in ``rax:rbx`` -- and ``ReturnMaker`` expands that into one return expression per
+        location. Two things can put the expressions and the return type out of step afterwards, and in both the
+        pieces must not be rendered as one value:
+
+        - The return type is an aggregate or a floating-point value spread over several registers, which is not a
+          scalar with a high and a low half. angr/angr#6851 tracks carrying those through as one typed value.
+        - ``Clinic._make_function_prototype`` rewrote the prototype after ``ReturnMaker`` ran, leaving a return
+          type that is not as wide as the expressions it left behind.
+        """
+        if self._func.prototype is None or self._func.prototype.returnty is None:
+            return False
+        returnty = unpack_typeref(self._func.prototype.returnty).with_arch(self.project.arch)
+        if not qualifies_for_width_cast(returnty):
+            return False
+        return returnty.size == sum(ret_expr.bits for ret_expr in ret_exprs)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
         clabel = CLabel(stmt.name, tags=stmt.tags, codegen=self)
