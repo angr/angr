@@ -823,6 +823,33 @@ class TestVectorClaims(TestCase):
         assert "std::string::length(" in dec.codegen.text, dec.codegen.text
 
 
+class TestPhiSourcesAfterRewrites(TestCase):
+    """Every phi source in the final graph names a block that still exists.
+
+    A destructor collapsed in place deletes the arm that called operator
+    delete; a region outlined into a callee deletes its interior. The join's
+    phis kept naming the deleted blocks, and de-phi -- which looks every phi
+    source up by block -- raised KeyError on 16 corpus functions.
+    """
+
+    def _stale_phi_sources(self, binary, func_name):
+        from angr.ailment.expression import Phi
+
+        _, _, _, dec = _decompile(binary, func_name, preset="full")
+        keys = {(b.addr, b.idx) for b in dec.ail_graph}
+        stale = []
+        for block in dec.ail_graph:
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
+                    stale += [src for src, _ in stmt.src.src_and_vvars if src not in keys]
+        return stale
+
+    def test_a_collapsed_destructor_arm_leaves_no_phi_source_behind(self):
+        for func in ("ptr_free", "vec_free"):
+            with self.subTest(func=func):
+                assert self._stale_phi_sources(STL5_BIN, func) == []
+
+
 class TestCtypeMacros(TestCase):
     """The glibc <ctype.h> macros: a call, a table load, a mask."""
 

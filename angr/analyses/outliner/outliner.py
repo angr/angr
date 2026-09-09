@@ -303,23 +303,25 @@ class Outliner(Analysis):
             new_addrs = set(src_addrs) - set(all_stmt_srcs)
             old_addrs = set(all_stmt_srcs) - set(src_addrs)
             new_src_and_vvars = None
-            if len(old_addrs) == 1 and len(new_addrs) == 1:
-                old_addr = next(iter(old_addrs))
-                new_addr = next(iter(new_addrs))
-                new_src_and_vvars = [((new_addr if src == old_addr else src), vvar) for src, vvar in pairs]
-            elif (
-                old_addrs
-                and collapsed_loc is not None
-                and set(src_addrs) == {collapsed_loc}
-                and set(all_stmt_srcs) <= (old_addrs | {collapsed_loc})
-            ):
-                # an outlined region collapsed into a call, and every phi source vvar arrives through that one block.
-                vvars = [vvar for _, vvar in pairs]
-                distinct = {v.varid for v in vvars if v is not None}
-                value = vvars[0] if len(distinct) == 1 else ret_vvar
-                if value is not None:
-                    new_src_and_vvars = [(collapsed_loc, value)]
-            # else:  multiple source blocks have been replaced... it's bad
+            if old_addrs and len(new_addrs) <= 1:
+                # Every source that is no longer a predecessor was a block of the outlined region, and the region now
+                # reaches this block through exactly one node: the new predecessor, or (when a predecessor of the
+                # region was retargeted here already) the collapsed node itself. All of the region's entries fold
+                # into one entry for that node. Its value is the one vvar they agreed on; when the arms disagreed
+                # (an SSO select yielding two pointers), the value now arrives as the call's result.
+                target = next(iter(new_addrs)) if new_addrs else collapsed_loc
+                if target is not None and target in src_addrs:
+                    region_vvars = [vvar for src, vvar in pairs if src in old_addrs or src == target]
+                    distinct = {v.varid for v in region_vvars if v is not None}
+                    if len(distinct) == 1:
+                        value = region_vvars[0]
+                    elif ret_vvar is not None:
+                        value = ret_vvar
+                    else:
+                        value = next((vvar for src, vvar in pairs if src == target), region_vvars[0])
+                    new_src_and_vvars = [(src, vvar) for src, vvar in pairs if src not in old_addrs and src != target]
+                    new_src_and_vvars.append((target, value))
+            # else:  several new predecessors at once -- nothing here knows which arm reaches which
             if new_src_and_vvars is not None:
                 new_phi = Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
                 block.statements[i] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)

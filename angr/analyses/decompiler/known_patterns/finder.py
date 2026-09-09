@@ -24,6 +24,7 @@ from angr.ailment.expression import (
     Extract,
     Insert,
     Load,
+    Phi,
     Reinterpret,
     StackBaseOffset,
     UnaryOp,
@@ -2265,10 +2266,36 @@ class KnownPatternFinder(Analysis):
             raise UnsupportedOutlineError(
                 f"pattern {match.pattern.name}: the collapsed entry has {g.out_degree(new_entry)} successors"
             )
+        # The exit's phis still name the deleted arm as a source. Where the entry
+        # already reaches the exit on its own, that arm's entry simply goes; where
+        # the arm was the only way in from this region, the entry inherits it.
+        # (The de-phi pass looks every phi source up by block, and a source that
+        # is no longer a block is a KeyError there -- 16 corpus functions.)
+        exit_block = next(iter(g.successors(new_entry)))
+        self._retarget_phi_sources(exit_block, set(interior_locs), entry_loc)
 
         return OutlineResult(
             graph=g, match=match, call_stmt=call_stmt, child_func=None, child_graph=None, child_funcargs=[]
         )
+
+    def _retarget_phi_sources(
+        self, block: Block, removed: set[tuple[int, int | None]], new_src: tuple[int, int | None]
+    ) -> None:
+        """Point ``block``'s phi entries sourced from any of ``removed`` at ``new_src``,
+        or drop them when ``new_src`` already has an entry of its own."""
+        for i, stmt in enumerate(block.statements):
+            if not is_phi_assignment(stmt):
+                continue
+            phi = stmt.src
+            assert isinstance(phi, Phi)
+            if not any(src in removed for src, _ in phi.src_and_vvars):
+                continue
+            kept = [(src, vvar) for src, vvar in phi.src_and_vvars if src not in removed]
+            if not any(src == new_src for src, _ in kept):
+                stale = [(src, vvar) for src, vvar in phi.src_and_vvars if src in removed]
+                kept.append((new_src, stale[0][1]))
+            new_phi = Phi(self._next_idx(), phi.bits, kept, **phi.tags)
+            block.statements[i] = Assignment(self._next_idx(), stmt.dst, new_phi, **stmt.tags)
 
     def _check_gap_statements(self, stmts: list, span: list[int], consumed) -> list[int]:
         """Whether the unmatched statements inside a matched span may be moved
