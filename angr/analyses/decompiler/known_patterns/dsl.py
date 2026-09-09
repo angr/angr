@@ -88,6 +88,9 @@ class MatchState:
 class MatchCtx:
     """Matcher-wide flags and callbacks."""
 
+    # width of an address on the target: what a stack object's base binds as. The
+    # finder sets it from the architecture; a bare MatchCtx() assumes 64.
+    ptr_bits: int | None = None
     # match structural nodes through interposed Convert wrappers
     skip_conversions: bool = True
     # when a structural node meets a VirtualVariable, chase its unique non-phi
@@ -701,7 +704,11 @@ class PStackField(PatternExpr):
         stack_off = slot.stack_offset
         if stack_off is None:
             return None
-        st = state.bind(self.base, StackBaseOffset(ctx.next_idx(), slot.bits, stack_off - self.offset))
+        # the base is an *address*, so it has pointer width -- not the slot's width, which is whatever variable
+        # recovery made of the object (an unsplit 32-byte std::string is a 256-bit slot, more than the constructor's
+        # u8 can hold) and which would also keep two fields of different widths from ever unifying on one base
+        ptr_bits = ctx.ptr_bits if ctx.ptr_bits is not None else 64
+        st = state.bind(self.base, StackBaseOffset(ctx.next_idx(), ptr_bits, stack_off - self.offset))
         if st is None:
             return None
         return self._bind_if_named(self.name, expr, st)

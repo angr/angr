@@ -767,6 +767,7 @@ class KnownPatternFinder(Analysis):
         if not stmt_pats:
             return None
         ctx = MatchCtx(
+            ptr_bits=self.project.arch.bits,
             skip_conversions=self._skip_conversions,
             next_idx=self._next_idx,
             chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
@@ -813,6 +814,7 @@ class KnownPatternFinder(Analysis):
         # An unordered bag match does not chase: the statements it consumes are
         # already the whole idiom. Peeking is read-only and stays available.
         ctx = MatchCtx(
+            ptr_bits=self.project.arch.bits,
             skip_conversions=self._skip_conversions,
             next_idx=self._next_idx,
             chase_fn=None,
@@ -875,6 +877,7 @@ class KnownPatternFinder(Analysis):
         # was computed into its own register (MSVC c_str, clang's capacity
         # triangle) match at all.
         ctx = MatchCtx(
+            ptr_bits=self.project.arch.bits,
             skip_conversions=self._skip_conversions,
             next_idx=self._next_idx,
             chase_fn=None,
@@ -997,6 +1000,7 @@ class KnownPatternFinder(Analysis):
         anchor_stmt: Statement,
     ) -> KnownPatternMatch | None:
         ctx = MatchCtx(
+            ptr_bits=self.project.arch.bits,
             skip_conversions=self._skip_conversions,
             next_idx=self._next_idx,
             chase_fn=self._make_chase_fn(block, stmt_idx) if self._chase_defs else None,

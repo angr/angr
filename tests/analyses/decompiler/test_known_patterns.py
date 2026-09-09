@@ -1767,6 +1767,27 @@ class TestStackFields(TestCase):
         reg = VirtualVariable(None, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
         assert PStackField("s", 0).match(reg, MatchState(), MatchCtx()) is None
 
+    def test_the_base_has_pointer_width_whatever_the_slot_is(self):
+        # The base is an address. Variable recovery sometimes keeps a whole
+        # std::string as one 32-byte slot -- 256 bits, which the StackBaseOffset
+        # constructor's u8 width cannot even hold (25 corpus functions died of
+        # it) -- and a byte-wide field must still unify with a word-wide one on
+        # the same object, which slot-width bases never could.
+        from angr.analyses.decompiler.known_patterns import PStackField
+
+        whole = self._slot(1, -112, bits=256)
+        st = PStackField("s", 0).match(whole, MatchState(), MatchCtx(ptr_bits=64))
+        assert st is not None and st.bindings["s"].bits == 64 and st.bindings["s"].offset == -112
+        st32 = PStackField("s", 0).match(self._slot(1, -40, bits=32), MatchState(), MatchCtx(ptr_bits=32))
+        assert st32 is not None and st32.bindings["s"].bits == 32
+        # a bare MatchCtx() assumes 64
+        assert PStackField("s", 0).match(whole, MatchState(), MatchCtx()).bindings["s"].bits == 64
+
+        # +8 as a word and +24 as a byte belong to one object at s-112
+        st = PStackField("s", 8).match(self._slot(2, -104), MatchState(), MatchCtx(ptr_bits=64))
+        assert st is not None
+        assert PStackField("s", 24).match(self._slot(3, -88, bits=8), st, MatchCtx(ptr_bits=64)) is not None
+
 
 class TestStackSlotResolution(TestCase):
     # A local container's fields are stack slots, but the compiler keeps one of
