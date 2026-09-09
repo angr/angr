@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr import ailment
-from angr.calling_conventions import SimComboArg, SimRegArg
+from angr.calling_conventions import SimComboArg, SimReferenceArgument, SimRegArg, SimStructArg
 from angr.sim_type import SimTypeBottom
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -43,7 +43,18 @@ class ReturnMaker(AILGraphWalker):
                 if self.function.prototype_libname
                 else self.function.prototype.returnty
             )
-            ret_val = self.function.calling_convention.return_val(returnty)
+            ret_val = self.function.calling_convention.return_val(returnty, perspective_returned=True)
+            deref_size = None
+            if isinstance(ret_val, SimReferenceArgument):
+                # This one comes back through memory: the callee leaves a pointer to the value in the return
+                # register and the caller reads the value through it. perspective_returned above is what makes
+                # ptr_loc that return register, rather than the register the caller passed the pointer in.
+                deref_size = (
+                    ret_val.main_loc.struct.size // self.arch.byte_width
+                    if isinstance(ret_val.main_loc, SimStructArg)
+                    else ret_val.main_loc.size
+                )
+                ret_val = ret_val.ptr_loc
             if isinstance(ret_val, SimRegArg):
                 reg = self.arch.registers[ret_val.reg_name]
                 new_ret_exprs.append(
@@ -85,6 +96,17 @@ class ReturnMaker(AILGraphWalker):
                         l.warning("Unsupported type of return expression %s.", type(ret_val_loc))
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
+            if deref_size is not None:
+                new_ret_exprs = [
+                    ailment.Expr.Load(
+                        self._next_atom(),
+                        ret_expr,
+                        deref_size,
+                        self.arch.memory_endness,
+                        ins_addr=stmt.tags.get("ins_addr"),  # pyright: ignore[reportTypedDictNotRequiredAccess]
+                    )
+                    for ret_expr in new_ret_exprs
+                ]
             new_stmt.ret_exprs = new_ret_exprs
             return new_stmt
         return stmt
