@@ -139,6 +139,15 @@ class SimEngineVRAIL(
         if stmt.expd_hi is not None:
             self._expr(stmt.expd_hi)
 
+        for old in (stmt.old_lo, stmt.old_hi):
+            if isinstance(old, ailment.Expr.VirtualVariable):
+                self._assign_to_vvar(
+                    old,
+                    RichR(self.state.top(old.bits)),
+                    dst=old,
+                    vvar_id=self._mapped_vvarid(old.varid),
+                )
+
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store):
         addr_r = self._expr_bv(stmt.addr)
         data = self._expr(stmt.data)
