@@ -3723,6 +3723,29 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("while (") == 1
 
     @structuring_algo("sailr")
+    def test_decompiling_chmod_gcc_O1_rejected_pass_leaves_no_dangling_goto(self, decompiler_options=None):
+        # ReturnDuplicatorLow rewrites Phi statements in place, and the graph it is handed for the first
+        # iteration used to share its blocks with the caller's graph. Clearing out_graph then left those
+        # rewrites behind, and the block they name never reached the output: nine gotos were emitted for
+        # LABEL_0x406f33 with no such label anywhere in the function.
+        bin_path = os.path.join(test_location, "x86_64", "chmod_gcc_-O1")
+        func_addr = 0x406875
+        p, cfg = load_project_with_scoped_cfg(
+            bin_path, func_addr, project_kwargs={"auto_load_libs": False}, include_plt=True
+        )
+
+        f = cfg.functions[func_addr]
+        d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+
+        text = d.codegen.text if d.codegen is not None else None
+        assert text is not None, f"Failed to decompile function {f!r}."
+        defined = set(re.findall(r"^(\w+):", text, re.MULTILINE))
+        targets = set(re.findall(r"goto\s+(\w+);", text))
+        assert targets, "the function should still contain gotos; the fixture no longer covers the defect"
+        assert not targets - defined, f"goto targets with no label definition: {sorted(targets - defined)}"
+
+    @structuring_algo("sailr")
     def test_decompiling_function_with_long_cascading_data_flows(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "netfilter_b64.sys")
         proj = angr.Project(bin_path, auto_load_libs=False)

@@ -598,7 +598,7 @@ class StructuringOptimizationPass(OptimizationPass):
                 return
 
         # setup for the very first analysis
-        self.out_graph = networkx.DiGraph(self._graph)
+        self.out_graph = copy_graph(self._graph)
         if self._max_opt_iters > 1:
             self._fixed_point_analyze(cache=cache)
         else:
