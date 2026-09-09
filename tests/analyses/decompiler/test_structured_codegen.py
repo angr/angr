@@ -291,13 +291,16 @@ class TestMultiRegisterReturn(unittest.TestCase):
 
     def test_two_registers_are_concatenated_most_significant_first(self):
         # SimComboArg lists its locations least significant first, so the second expression is the high half
-        # and Concat, which puts the high half on its left, takes it first.
+        # and Concat, which puts the high half first, takes it first.
         self._set_returnty(SimTypeNum(128, signed=True))
-        assert self._render(self._const(1, 64), self._const(2, 64)) == "return 2 CONCAT 1;"
+        assert self._render(self._const(1, 64), self._const(2, 64)) == "return CONCAT(2, 1);"
 
     def test_more_than_two_pieces_are_all_placed(self):
         self._set_returnty(SimTypeNum(96, signed=True))
-        assert self._render(self._const(1, 32), self._const(2, 32), self._const(3, 32)) == "return 3 CONCAT 2 CONCAT 1;"
+        assert (
+            self._render(self._const(1, 32), self._const(2, 32), self._const(3, 32))
+            == "return CONCAT(3, CONCAT(2, 1));"
+        )
 
     def test_an_aggregate_return_type_keeps_the_old_conservative_behaviour(self):
         # a homogeneous float aggregate spread over several registers is not a scalar with a high and a low
@@ -359,10 +362,10 @@ class TestMultiRegisterReturnEndToEnd(unittest.TestCase):
         returns = [line.strip() for line in text.splitlines() if line.strip().startswith("return ")]
         assert len(returns) == 6
         for line in returns:
-            assert re.match(r"^return .+ CONCAT .+;$", line), line
+            assert re.match(r"^return CONCAT\(.+, .+\);$", line), line
         # decoderune's error path is Go's `return RuneError, 1`, so rax holds 0xfffd and rbx the size.
-        # rbx is the second location, which is the high half, so it is the operand on the left.
-        assert "return a2 + 1 CONCAT 0xfffd;" in text, text
+        # rbx is the second location, which is the high half, so it is the first operand.
+        assert "return CONCAT(a2 + 1, 0xfffd);" in text, text
 
 
 if __name__ == "__main__":
