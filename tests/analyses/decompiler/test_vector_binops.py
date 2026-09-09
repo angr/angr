@@ -41,8 +41,9 @@ class TestVectorBinops(unittest.TestCase):
         cases = [
             # A Thumb NEON byte-search helper, built out of vdup, veor and vtst.
             ("armel", "libc-2.31.so", 0x463FE3, 0xD0, ("GetElemV(", "Dup(", "CmpNEZ(")),
-            # A MIPS32 rounding conversion, reached through cvt.w.d.
-            ("mipsel", "darpa_ping", 0x404208, 0xD4, ("Round(",)),
+            # An AArch64 NEON byte-search helper, whose addp lifts through CatEvenLanes and
+            # CatOddLanes.
+            ("aarch64", "langdetect_go", 0x18690, 0xDC, ("CatEvenLanesV(", "CatOddLanesV(")),
         ]
 
         for arch, name, function_addr, size, operators in cases:
