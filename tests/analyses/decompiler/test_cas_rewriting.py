@@ -49,6 +49,22 @@ class TestCASRewriting(unittest.TestCase):
         assert dec.codegen.text.count("InterlockedExchangeAdd") == 1
         assert dec.codegen.text.count("InterlockedDecrement") == 1
 
+    def test_static_io_list_lock_cas_result_gets_a_variable(self):
+        # _IO_list_lock takes the lock with a lock cmpxchg. Variable recovery skipped the CAS
+        # statement's destinations, so its result had no variable and the C backend rendered the
+        # assignment's left-hand side as "/* unsupported instruction */".
+        bin_path = os.path.join(test_location, "x86_64", "static")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4167E0, run_ccc=False)
+        func = cfg.functions[0x4167E0]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        assert "atomic_compare_exchange(" in text
+        assert "/* unsupported instruction */" not in text
+
 
 if __name__ == "__main__":
     unittest.main()
