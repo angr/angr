@@ -115,11 +115,15 @@ _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
 def qualifies_for_simple_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen precisely?
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
-    return (
-        ty1.size == ty2.size
-        and isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
-        and isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
-    )
+    if not isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer)) or not isinstance(
+        ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer)
+    ):
+        return False
+    # a SimTypeNum without a size cannot be cast precisely (its size property asserts); the register-sized types
+    # take theirs from the architecture
+    if (isinstance(ty1, SimTypeNum) and ty1._size is None) or (isinstance(ty2, SimTypeNum) and ty2._size is None):
+        return False
+    return ty1.size == ty2.size
 
 
 def qualifies_for_width_cast(ty):
@@ -4592,7 +4596,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         # do we need an intermediate cast?
         if orig_child_signed != expr.is_signed and expr.to_bits > expr.from_bits and child.type is not None:
             # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
-            child_ty = self.default_simtype_from_bits(child.type.size, expr.is_signed)
+            # a child whose type has no size (e.g., a function or a bottom type) is as wide as the conversion says
+            child_bits = child.type.size if child.type.size is not None else expr.from_bits
+            child_ty = self.default_simtype_from_bits(child_bits, expr.is_signed)
             child = CTypeCast(None, child_ty, child, codegen=self)
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
