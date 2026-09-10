@@ -5,7 +5,7 @@ from __future__ import annotations
 import pickle
 from unittest import TestCase, main
 
-from archinfo import ArchMIPS32
+from archinfo import ArchMIPS32, ArchX86
 
 from angr.calling_conventions import SimRegArg
 from angr.code_location import CodeLocation
@@ -23,6 +23,13 @@ class TestAtoms(TestCase):
         self.assertTrue(isinstance(result, Register))
         self.assertEqual(result.reg_offset, arch.registers["r0"][0])
         self.assertEqual(result.size, 4)
+
+    def test_from_argument_refuses_a_register_the_architecture_does_not_name(self):
+        # An X86 calling convention returns floats in st0, which archinfo does not name (the x87 stack is
+        # fpu_regs); this used to be a KeyError deep inside the register table. It is a ValueError like every
+        # other argument that cannot become an atom, which the callers already skip.
+        with self.assertRaises(ValueError):
+            Atom.from_argument(SimRegArg("st0", 8), ArchX86(), full_reg=True)
 
     def test_cached_hash_not_carried_across_pickling(self):
         # The cached hash folds in per-process-salted hashes (e.g. of register
