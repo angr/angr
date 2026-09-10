@@ -206,6 +206,25 @@ class TestVSABVOperations(unittest.TestCase):
         for i in range(5):
             self.assertTrue(i in self.solver.eval(result, 10))
 
+    def test_modulo_by_zero(self):
+        """Both remainders are total in SMT-LIB: bvurem x 0 and bvsrem x 0 are x."""
+        # 0 % 0 = 0
+        result = self.si_0 % self.si_0
+        self.assertEqual(self.solver.eval(result, 1)[0], 0)
+
+        # [1, 10] % 0 = [1, 10]
+        result = self.si_small % self.si_0
+        self.assertEqual(self.solver.min(result), 1)
+        self.assertEqual(self.solver.max(result), 10)
+
+        # 10 srem 0 = 10
+        result = self.bv_10.SMod(self.si_0)
+        self.assertEqual(self.solver.eval(result, 1)[0], 10)
+
+        # -1 srem 0 = -1
+        result = self.si_max.SMod(self.si_0)
+        self.assertEqual(self.solver.eval(result, 1)[0], 0xFFFFFFFF)
+
     def test_bitwise_and(self):
         """Test bitwise AND operations."""
         # Concrete AND
