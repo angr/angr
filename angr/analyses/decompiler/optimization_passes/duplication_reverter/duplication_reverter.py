@@ -978,10 +978,33 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Search Stages
     #
 
+    def _regions_by_block_loc(self) -> dict[tuple[int, int | None], set[int]]:
+        """
+        Index the region identifier's block-address regions by block location. Candidate search asks whether pairs
+        of blocks share a region for every pair around every goto; scanning every region list per pair made that
+        quadratic in the function size (putty: 626k pairs, 187M list scans, three minutes).
+        """
+        cache = getattr(self, "_regions_by_block_loc_cache", None)
+        if cache is not None and cache[0] is self._ri:
+            return cache[1]
+        index: dict[tuple[int, int | None], set[int]] = {}
+        for region_idx, region in enumerate(self._ri.regions_by_block_addrs):
+            for loc in region:
+                index.setdefault(loc, set()).add(region_idx)
+        self._regions_by_block_loc_cache = (self._ri, index)
+        return index
+
     def _share_subregion(self, blocks: list[Block]) -> bool:
-        return any(
-            all((block.addr, block.idx) in region for block in blocks) for region in self._ri.regions_by_block_addrs
-        )
+        index = self._regions_by_block_loc()
+        shared: set[int] | None = None
+        for block in blocks:
+            regions = index.get((block.addr, block.idx))
+            if not regions:
+                return False
+            shared = set(regions) if shared is None else shared & regions
+            if not shared:
+                return False
+        return shared is not None
 
     def _is_valid_candidate(self, b0, b1):
         # blocks must have statements

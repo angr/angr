@@ -131,6 +131,25 @@ class TestDuplicationReverter(TestCase):
         assert isinstance(fixed.statements[-1], Jump)
         assert fixed.statements[-1].target.value == 0x1010
 
+    def test_blocks_share_a_region_through_the_index(self):
+        # candidate search asks this for every pair of blocks around every goto; the answer must match scanning
+        # the region lists, which is what it replaced
+        a, b, c = (Block(addr, 4, statements=[]) for addr in (0x1000, 0x1010, 0x1020))
+        regions = [[(0x1000, None), (0x1010, None)], [(0x1010, None), (0x1020, None)]]
+
+        class _Pass:
+            class _ri:  # pylint:disable=invalid-name
+                regions_by_block_addrs = regions
+
+            _regions_by_block_loc = DuplicationReverter._regions_by_block_loc
+            _share_subregion = DuplicationReverter._share_subregion
+
+        pass_ = _Pass()
+        assert pass_._share_subregion([a, b])
+        assert pass_._share_subregion([b, c])
+        assert not pass_._share_subregion([a, c])
+        assert not pass_._share_subregion([a, Block(0x2000, 4, statements=[])])
+
 
 if __name__ == "__main__":
     unittest.main()
