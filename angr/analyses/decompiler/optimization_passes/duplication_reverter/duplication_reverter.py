@@ -326,7 +326,9 @@ class DuplicationReverter(StructuringOptimizationPass):
                 self.write_graph.add_edge(orig_pred, new_succ)
 
         self.write_graph = self._correct_all_broken_jumps(self.write_graph)
-        self.write_graph = self._uniquify_addrs(self.write_graph)
+        # do not change the address of the function entry block
+        entry_blocks = {node for node in self.read_graph.nodes if node.addr == self._func.addr}
+        self.write_graph = self._uniquify_addrs(self.write_graph, keep=entry_blocks)
         _l.info("Candidate merge successful on blocks: %s", candidate)
         return True
 
@@ -334,7 +336,10 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Helpers
     #
 
-    def _uniquify_addrs(self, graph):
+    def _uniquify_addrs(self, graph, keep: set[Block] | None = None):
+        """
+        Assign every block a unique address.
+        """
         new_graph = nx.DiGraph()
         new_nodes = {}
         nodes_by_addr = defaultdict(list)
@@ -347,6 +352,10 @@ class DuplicationReverter(StructuringOptimizationPass):
 
             # we have multiple nodes with the same address
             duplicate_addr_nodes = sorted(nodes, reverse=True)
+            if keep is not None:
+                kept = [node for node in duplicate_addr_nodes if node in keep]
+                if len(kept) == 1:
+                    duplicate_addr_nodes = [node for node in duplicate_addr_nodes if node is not kept[0]]
             for duplicate_node in duplicate_addr_nodes:
                 new_node = duplicate_node.copy()
                 new_node.idx = None
