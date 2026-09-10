@@ -73,7 +73,32 @@ def is_head_controlled_loop_block(block: Block) -> bool:
     last_stmt = block.statements[-1]
     if isinstance(last_stmt, ConditionalJump):
         return False
-    return any(isinstance(stmt, ConditionalJump) for stmt in block.statements[:-1])
+    return any(is_head_controlled_loop_jump(stmt) for stmt in block.statements[:-1])
+
+
+def is_head_controlled_loop_jump(stmt: Statement) -> bool:
+    """
+    Determine if a statement is the conditional jump of a head-controlled loop: a conditional jump that jumps back to
+    the instruction it belongs to, so that the statements after it are the loop body. Callers that care about
+    position, such as the two ssailification engines, check that the jump is not the block's last statement as well.
+
+    Other mid-block conditional jumps are not head-controlled loop jumps. VEX emits one for the compare-and-swap
+    effects of x86 xchg, and a branch delay slot leaves one behind on a delay-slot architecture such as MIPS, where
+    the statements after the jump belong to the delay slot instead of to a loop body.
+
+    :param stmt:    An AIL statement.
+    :return:        True if the statement is the conditional jump of a head-controlled loop, False otherwise.
+    """
+
+    if not isinstance(stmt, ConditionalJump):
+        return False
+    ins_addr = stmt.tags.get("ins_addr")
+    return (
+        ins_addr is not None
+        and isinstance(stmt.true_target, Const)
+        and isinstance(stmt.false_target, Const)
+        and ins_addr in (stmt.true_target.value, stmt.false_target.value)
+    )
 
 
 def extract_partial_expr(base_expr: Expression, off: int, size: int, ail_manager, byte_width: int = 8) -> Expression:

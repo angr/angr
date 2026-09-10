@@ -27,6 +27,7 @@ from angr.code_location import AILCodeLocation
 from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
 from angr.sim_type import PointerDisposition, SimTypePointer
+from angr.utils.ail import is_head_controlled_loop_jump
 from angr.utils.ssa import get_reg_offset_base_and_size
 
 from .consts import MAX_STACK_VAR_SIZE
@@ -505,12 +506,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if stmt.false_target is not None:
             self._expr(stmt.false_target)
 
-        if (
-            isinstance(stmt.true_target, Const)
-            and isinstance(stmt.false_target, Const)
-            and self.stmt_idx != len(self.block.statements) - 1
-            and self.ins_addr in (stmt.true_target.value, stmt.false_target.value)
-        ):
+        if self.stmt_idx != len(self.block.statements) - 1 and is_head_controlled_loop_jump(stmt):
             self.hclb_side_exit_state = self.state.copy()
 
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement):
