@@ -186,6 +186,18 @@ class AILMergeGraph:
         for block in base_to_split:
             if block not in subgraph:
                 return None
+        # maintain a split order so that we can replace split blocks in an order where a predecessor is always
+        # replaced before its successor. this avoids consulting the graph using the old node.
+        split_order = nx.DiGraph()
+        split_order.add_nodes_from(base_to_split)
+        for block in base_to_split:
+            for succ in subgraph.successors(block):
+                if succ in base_to_split and succ is not block:
+                    split_order.add_edge(block, succ)
+        if not nx.is_directed_acyclic_graph(split_order):
+            _l.debug("The blocks to split form a cycle, which is not supported; skipping this candidate")
+            return None
+        base_to_split = {block: base_to_split[block] for block in nx.topological_sort(split_order)}
         self.graph, update_blocks = self.clone_graph_replace_splits(subgraph, base_to_split)
         self._update_all_split_refs(update_blocks)
         for update_block, new_block in update_blocks.items():

@@ -16,6 +16,12 @@ from tests.common import bin_location, load_project_with_scoped_cfg
 TRUE_BIN = os.path.join(bin_location, "tests", "x86_64", "true")
 TRUE_FUNC = 0x401D30
 
+# sub_140003a50 has a duplicate candidate whose blocks to split form a two-block loop of partial matches. Replacing
+# split blocks rewires their predecessors by copying them, so with a loop one split block is always copied away before
+# its own turn, and its own turn then looked it up by an identity no longer in the graph.
+CANCEL_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "cancel.sys")
+CANCEL_FUNC = 0x140003A50
+
 
 class TestDuplicationReverter(TestCase):
     def test_a_call_that_forks_the_flow_is_an_unsupported_candidate(self):
@@ -41,6 +47,13 @@ class TestDuplicationReverter(TestCase):
         assert pass_._share_subregion([b, c])
         assert not pass_._share_subregion([a, c])
         assert not pass_._share_subregion([a, Block(0x2000, 4, statements=[])])
+
+    def test_a_loop_of_split_blocks_is_skipped_not_raised(self):
+        proj, cfg = load_project_with_scoped_cfg(CANCEL_BIN, CANCEL_FUNC)
+        func = cfg.functions[CANCEL_FUNC]
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
 
 if __name__ == "__main__":
