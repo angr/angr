@@ -10,6 +10,8 @@ import re
 import unittest
 from types import SimpleNamespace
 
+import archinfo
+
 import angr
 from angr.ailment import Expr, Stmt
 from angr.analyses.decompiler.structured_codegen.c import (
@@ -19,6 +21,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CReturn,
     CStructuredCodeGenerator,
     CUnaryOp,
+    qualifies_for_simple_cast,
     type_to_c_repr_chunks,
 )
 from angr.calling_conventions import SimComboArg
@@ -370,3 +373,18 @@ class TestMultiRegisterReturnEndToEnd(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSimpleCastQualification(unittest.TestCase):
+    def test_sizeless_types_do_not_qualify_but_pointers_still_do(self):
+        # a SimTypeNum without a size asserted when asked for one (git merge_ort_nonrecursive_internal); the
+        # register-sized types take their size from the architecture, so a stored-size rule would have rejected
+        # every pointer-integer cast
+        arch = archinfo.ArchAMD64()
+        ptr = SimTypePointer(SimTypeInt()).with_arch(arch)
+        longlong = SimTypeLongLong().with_arch(arch)
+        assert qualifies_for_simple_cast(ptr, longlong)
+        assert qualifies_for_simple_cast(SimTypeNum(64).with_arch(arch), ptr)
+        assert not qualifies_for_simple_cast(SimTypeInt().with_arch(arch), ptr)
+        assert not qualifies_for_simple_cast(SimTypeNum(None).with_arch(arch), longlong)
+        assert not qualifies_for_simple_cast(longlong, SimTypeNum(None).with_arch(arch))
