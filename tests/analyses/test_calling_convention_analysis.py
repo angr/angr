@@ -238,6 +238,16 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             offset, size = arch.registers[reg_name]
             assert not is_sane_register_variable(arch, offset, size), reg_name
 
+    def test_s390x_argument_registers(self):
+        # r2-r6 and f0, f2, f4, f6 may be candidate arguments on S390X.
+        arch = archinfo.arch_from_id("s390x")
+        for reg_name in ["r2", "r3", "r4", "r5", "r6", "f0", "f2", "f4", "f6"]:
+            offset, size = arch.registers[reg_name]
+            assert is_sane_register_variable(arch, offset, size), reg_name
+        for reg_name in ["r1", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "a0", "a1", "f1", "f8"]:
+            offset, size = arch.registers[reg_name]
+            assert not is_sane_register_variable(arch, offset, size), reg_name
+
     def test_x86_saved_regs(self):
         # Calling convention analysis should be able to determine calling convention of functions with registers
         # saved on the stack.
