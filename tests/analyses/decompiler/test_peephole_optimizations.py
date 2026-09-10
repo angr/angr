@@ -37,6 +37,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     EagerEvaluation,
     OptimizedDivisionSimplifier,
     RemoveConstInsert,
+    RemoveRedundantBitmasks,
     RemoveRedundantShifts,
     SarToSignedDiv,
     SimplifyBitwiseInserts,
@@ -574,6 +575,51 @@ class TestRemoveConstInsertEndness(unittest.TestCase):
     def test_little_endian_keeps_the_bits_below_the_field(self):
         assert self._optimized(("x86_64", "fauxware"), 0, archinfo.Endness.LE) == (0, 0x0102030400000000)
         assert self._optimized(("x86_64", "fauxware"), 4, archinfo.Endness.LE) == (32, 0x0000000005060708)
+
+
+class TestRemoveRedundantBitmasksInsert(unittest.TestCase):
+    """
+    ``Insert(v0 & mask, offset, v1)`` where the mask covers exactly the bytes the insert overwrites keeps nothing
+    of v0, so the base can be replaced with zero.
+    """
+
+    @staticmethod
+    def _insert(manager: Manager, offset: int, endness: str) -> Insert:
+        # the shape the decompiler produces for a nibble swap: the low byte is masked out and then written back
+        vvar = VirtualVariable(manager.next_atom(), 224, 64, VirtualVariableCategory.REGISTER, oident=32)
+        masked = BinaryOp(
+            manager.next_atom(),
+            "And",
+            [vvar, Const(manager.next_atom(), 0xFF, 64)],
+            False,
+        )
+        return Insert(
+            manager.next_atom(),
+            masked,
+            Const(manager.next_atom(), offset, 64),
+            Convert(manager.next_atom(), 64, 8, False, masked),
+            endness,
+        )
+
+    def _optimized(self, bin_path, offset, endness):
+        proj = angr.Project(os.path.join(test_location, *bin_path), auto_load_libs=False)
+        manager = Manager()
+        opt = RemoveRedundantBitmasks(proj, proj.kb, manager)
+        return opt.optimize(self._insert(manager, offset, endness))
+
+    def test_little_endian_base_becomes_zero(self):
+        out = self._optimized(("x86_64", "fauxware"), 0, archinfo.Endness.LE)
+        assert isinstance(out, Insert)
+        assert isinstance(out.base, Const) and out.base.value == 0 and out.base.bits == 64
+
+    def test_big_endian_base_becomes_zero(self):
+        # byte 0 of a big-endian value is the most significant one, so the low byte is at offset 7
+        out = self._optimized(("ppc64", "fauxware"), 7, archinfo.Endness.BE)
+        assert isinstance(out, Insert)
+        assert isinstance(out.base, Const) and out.base.value == 0 and out.base.bits == 64
+
+    def test_a_mask_that_does_not_cover_the_field_is_left_alone(self):
+        assert self._optimized(("x86_64", "fauxware"), 1, archinfo.Endness.LE) is None
 
 
 class TestPeepholeBlockContextFixpoint(unittest.TestCase):
