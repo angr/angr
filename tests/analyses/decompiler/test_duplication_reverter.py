@@ -105,6 +105,32 @@ class TestDuplicationReverter(TestCase):
         assert new_mid.statements[-1].target.value == 0x2000
         assert list(out.successors(new_mid)) == [moved]
 
+    def test_a_statement_less_block_gets_the_jump_it_needs(self):
+        # _correct_all_broken_jumps indexed the last statement of every block with a successor; a block left
+        # without statements has none.
+        empty = Block(0x1000, 0, statements=[])
+        target = Block(0x1010, 4, statements=[Return(0, [], ins_addr=0x1010)])
+        graph = networkx.DiGraph()
+        graph.add_edge(empty, target)
+
+        class _Pass:
+            class manager:  # pylint:disable=invalid-name
+                _n = 0
+
+                @classmethod
+                def next_atom(cls):
+                    cls._n += 1
+                    return cls._n
+
+            class project:  # pylint:disable=invalid-name
+                class arch:  # pylint:disable=invalid-name
+                    bits = 64
+
+        out = DuplicationReverter._correct_all_broken_jumps(_Pass(), graph)
+        (fixed,) = (n for n in out if n.addr == 0x1000)
+        assert isinstance(fixed.statements[-1], Jump)
+        assert fixed.statements[-1].target.value == 0x1010
+
 
 if __name__ == "__main__":
     unittest.main()

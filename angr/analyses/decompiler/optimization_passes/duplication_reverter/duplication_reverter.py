@@ -407,7 +407,8 @@ class DuplicationReverter(StructuringOptimizationPass):
             # correct the last statement of the node for single-successor nodes
             new_node = node
             if graph.out_degree(node) == 1:
-                last_stmt = node.statements[-1]
+                # a block without statements gets the jump it needs below
+                last_stmt = node.statements[-1] if node.statements else None
                 successor = next(iter(graph.successors(node)))
                 if isinstance(last_stmt, Jump):
                     if last_stmt.target.value != successor.addr:
@@ -429,7 +430,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     new_node.statements.append(new_last_stmt)
 
             elif graph.out_degree(node) == 2:
-                last_stmt = node.statements[-1]
+                last_stmt = node.statements[-1] if node.statements else None
                 if isinstance(last_stmt, ConditionalJump):
                     real_successor_addrs = [_n.addr for _n in graph.successors(node)]
                     addr_map = {}
