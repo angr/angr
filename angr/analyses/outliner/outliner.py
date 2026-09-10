@@ -11,6 +11,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
+from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
 from angr.utils.ssa import is_phi_assignment
@@ -49,8 +50,14 @@ class Outliner(Analysis):
             self.parent_entry_loc = func_entry_loc
         else:
             func_entry_locs = [(bb.addr, bb.idx) for bb in self.parent_graph if self.parent_graph.in_degree[bb] == 0]
+            if not func_entry_locs:
+                # the entry is a loop head (e.g., Go's stack-check preamble jumps back to it): fall back to the block
+                # at the function's address
+                func_entry_locs = [(bb.addr, bb.idx) for bb in self.parent_graph if bb.addr == func.addr]
             if len(func_entry_locs) != 1:
                 _l.warning("Graph has no obvious entry point")
+            if not func_entry_locs:
+                raise AngrRuntimeError("Cannot determine the entry block of the function graph")
             self.parent_entry_loc = min(func_entry_locs)
 
         self.parent_liveness = liveness or self.project.analyses[SLivenessAnalysis].prep()(
