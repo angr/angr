@@ -192,6 +192,26 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             self.check_args(func_name, self._a(funcs, func_name), args)
 
     @cca_mode("fast,variables")
+    def test_s390x_fauxware(self, *, mode):
+        binary_path = os.path.join(test_location, "s390x", "fauxware")
+        proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+
+        cfg = proj.analyses.CFG()  # fill in the default kb
+
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+
+        funcs = cfg.kb.functions
+
+        # check args
+        expected_args = {
+            "accepted": [],
+            "authenticate": ["r_r2", "r_r3"],
+        }
+
+        for func_name, args in expected_args.items():
+            self.check_args(func_name, self._a(funcs, func_name), args)
+
+    @cca_mode("fast,variables")
     def test_x8664_void(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "types", "void")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
