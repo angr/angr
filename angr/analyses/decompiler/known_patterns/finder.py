@@ -2581,10 +2581,18 @@ class KnownPatternFinder(Analysis):
         frontier_loc: tuple[int, int | None],
         ins_addr: int | None,
     ) -> OutlineResult:
+        # the Outliner otherwise takes the unique predecessor-less block as the entry, and a graph whose entry is a
+        # loop head (Go's stack-check preamble jumps back to it) has none
+        entry_blocks = [b for b in g if b.addr == self._func.addr]
+        func_entry_loc = None
+        if entry_blocks:
+            entry_block = min(entry_blocks, key=lambda b: (b.idx is not None, b.idx or 0))
+            func_entry_loc = (entry_block.addr, entry_block.idx)
         outliner = self.project.analyses[Outliner].prep(kb=self.kb)(
             self._func,
             g,
             src_loc=src_loc,
+            func_entry_loc=func_entry_loc,
             frontier={frontier_loc},
             vvar_id_start=self.vvar_id_start,
             block_addr_start=self.block_addr_start,

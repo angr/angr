@@ -38,6 +38,9 @@ CR_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_pattern
 GLIBC_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_glibc_macros")
 KERNEL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_kernel_macros")
 LIBM_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
+GO_PE_BIN = os.path.join(
+    bin_location, "tests", "x86_64", "windows", "131252a8059fdbb12d77cd4711e597c45bb48e6d4bc3ddc808697a5e0488ff2c"
+)
 KSUD_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "known_patterns_wdk_ksud.exe")
 STL2_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl2")
 KSUD_X86_BIN = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_wdk_ksud.exe")
@@ -323,6 +326,19 @@ def _assert_outlines_during(test, bin_path, targets):
             )
             assert dec.codegen is not None and dec.codegen.text is not None
             assert frag in dec.codegen.text, f"{ref!r}: {frag!r} not outlined DURING decompilation"
+
+
+class TestOutlinerEntry(TestCase):
+    def test_a_loop_head_entry_still_outlines(self):
+        # runtime.printfloat in a Windows Go binary: the stack-check preamble jumps back to the entry, so no block
+        # of the graph is predecessor-less. The Outliner used to pick the entry as the unique such block and died
+        # on an empty min(); the finder now tells it where the function starts.
+        # no call-tree expansion: the Go runtime's call tree is most of the binary and none of it matters here
+        proj, cfg = load_project_with_scoped_cfg(GO_PE_BIN, 0x436B40, expand_call_tree=False, run_ccc=False)
+        func = cfg.functions[0x436B40]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "fneg(" in dec.codegen.text, dec.codegen.text
 
 
 class TestPosixMacros(TestCase):
