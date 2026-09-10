@@ -6,7 +6,6 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import logging
 import unittest
-from types import SimpleNamespace
 
 import networkx
 
@@ -16,6 +15,7 @@ from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, Call, Const, Load, Register, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Return, Store, WeakAssignment
+from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses.decompiler.optimization_passes import DetermineLoadSizes, FlipBooleanCmp
 from angr.analyses.decompiler.optimization_passes.optimization_pass import (
     StructuringOptimizationPass,
@@ -78,7 +78,7 @@ class _FixedPointLifecyclePass(StructuringOptimizationPass):
         self.structurability_checks += 1
         structurable = next(self._structurability_results, True)
         if structurable:
-            self._goto_manager = SimpleNamespace(gotos=set())
+            self._goto_manager = GotoManager(None)
         return structurable
 
 
