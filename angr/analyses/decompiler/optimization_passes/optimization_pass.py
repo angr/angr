@@ -72,8 +72,8 @@ class OptimizationPassStage(Enum):
 class StructuringOptimizationPassResult(Enum):
     """The outcome of one structuring optimization attempt.
 
-    STOP and RETRY leave ``out_graph`` unchanged; RETRY consumes an iteration before trying another candidate.
-    UPDATED reports a graph mutation that the base class must verify.
+    STOP ends the loop and RETRY consumes an iteration before another candidate is tried; neither offers a graph for
+    the base class to verify. UPDATED reports a graph mutation that the base class must verify.
     """
 
     STOP = 0
