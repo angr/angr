@@ -33,6 +33,10 @@ class TestMasterCrashReproducers(TestCase):
         # formatted_print_percent: the break replacing the goto was inserted without the case's label
         _decompile(MORTON, 0x4055A5)
 
+    def test_a_comparison_whose_operands_have_different_widths(self):
+        # sub_140009a10: the condition processor handed claripy bit-vectors of different widths
+        _decompile(FAUXWARE_WIDE, 0x140009A10)
+
 
 if __name__ == "__main__":
     unittest.main()
