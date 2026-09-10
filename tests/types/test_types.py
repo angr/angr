@@ -12,6 +12,13 @@ from archinfo import Endness
 import angr
 from angr import AngrMissingTypeError
 from angr.sim_type import (
+    BASIC_TYPES,
+    CXX_TYPES,
+    GLIBC_EXTERNAL_BASIC_TYPES,
+    GLIBC_INTERNAL_BASIC_TYPES,
+    GLIBC_INTERNAL_TYPES,
+    GLIBC_TYPES,
+    STDINT_TYPES,
     SimStruct,
     SimType,
     SimTypeArray,
@@ -498,6 +505,26 @@ class TestTypes(unittest.TestCase):
         assert "b" in st_deref.fields
         assert "a" in st_deref.offsets
         assert "b" in st_deref.offsets  # this assertion fails because st_deref.fields["b"] is a SimTypeRef
+
+    def test_type_table_struct_names_match_their_keys(self):
+        checked = 0
+        for table in (
+            BASIC_TYPES,
+            STDINT_TYPES,
+            GLIBC_INTERNAL_BASIC_TYPES,
+            GLIBC_EXTERNAL_BASIC_TYPES,
+            CXX_TYPES,
+            GLIBC_INTERNAL_TYPES,
+            GLIBC_TYPES,
+        ):
+            for key, ty in table.items():
+                if not isinstance(ty, (SimStruct, SimUnion)):
+                    continue
+                checked += 1
+                assert key in (ty.name, f"struct {ty.name}", f"union {ty.name}"), (
+                    f"{key} is modelled by a {type(ty).__name__} named {ty.name}"
+                )
+        assert checked > 50, "the type tables moved; this test is no longer checking them"
 
 
 if __name__ == "__main__":
