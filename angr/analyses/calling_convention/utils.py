@@ -59,7 +59,9 @@ def is_sane_register_variable(
         return 28 <= reg_offset < 60  # r3-r10
 
     if arch_name == "PPC64":
-        return 40 <= reg_offset < 104  # r3-r10
+        # fpr1-fpr13 are the low halves of vsr1-vsr13, so an offset test admits a 16-byte
+        # vector access at the same offset as well.
+        return 40 <= reg_offset < 104 or 288 <= reg_offset < 488  # r3-r10  # fpr1-fpr13
 
     if arch_name == "X86":
         return 8 <= reg_offset < 24 or 160 <= reg_offset < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
