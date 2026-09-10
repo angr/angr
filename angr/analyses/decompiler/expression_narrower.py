@@ -4,6 +4,8 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+import archinfo
+
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
 from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
@@ -267,6 +269,25 @@ class ExpressionNarrower(AILBlockRewriter):
         for def_, narrow_info in narrowables:
             self.new_vvar_sizes[def_.atom.varid] = narrow_info.to_size
 
+    def _narrowed_oident(self, vvar: VirtualVariable, new_size: int):
+        """
+        Return the ``oident`` that a narrowed copy of ``vvar`` should carry.
+
+        Narrowing keeps the low-order ``new_size`` bytes of the variable: every use is rewritten to
+        ``Convert(new_bits -> old_bits, narrowed)`` and every definition to
+        ``Convert(old_bits -> new_bits, src)``. On a little-endian architecture the low-order bytes
+        start where the full register starts, so the register offset is unchanged. On a big-endian
+        architecture they sit at the *end* of the register, so the offset must move forward by the
+        number of bytes that were dropped; leaving it alone makes the narrowed variable name the
+        high-order bytes instead.
+
+        Only register variables are adjusted. A parameter variable's register placement is decided
+        by the calling convention (:meth:`angr.calling_conventions.SimRegArg.refine`), not here.
+        """
+        if not vvar.was_reg or self.project.arch.register_endness != archinfo.Endness.BE:
+            return vvar.oident
+        return vvar.reg_offset + vvar.size - new_size
+
     def walk(self, block: Block):
         self.narrowed_any = False
         return super().walk(block)
@@ -291,7 +312,7 @@ class ExpressionNarrower(AILBlockRewriter):
                         vvar.varid,
                         self.new_vvar_sizes[vvar.varid] * self.project.arch.byte_width,
                         category=vvar.category,
-                        oident=vvar.oident,
+                        oident=self._narrowed_oident(vvar, self.new_vvar_sizes[vvar.varid]),
                         **vvar.tags,
                     )
 
@@ -314,7 +335,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 dst_in.varid,
                 self.new_vvar_sizes[dst_in.varid] * self.project.arch.byte_width,
                 category=dst_in.category,
-                oident=dst_in.oident,
+                oident=self._narrowed_oident(dst_in, self.new_vvar_sizes[dst_in.varid]),
                 **dst_in.tags,
             )
 
@@ -352,7 +373,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 expr.varid,
                 self.new_vvar_sizes[expr.varid] * self.project.arch.byte_width,
                 category=expr.category,
-                oident=expr.oident,
+                oident=self._narrowed_oident(expr, self.new_vvar_sizes[expr.varid]),
                 **expr.tags,
             )
 
@@ -394,7 +415,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 stmt.ret_expr.varid,
                 self.new_vvar_sizes[stmt.ret_expr.varid] * self.project.arch.byte_width,
                 category=stmt.ret_expr.category,
-                oident=stmt.ret_expr.oident,
+                oident=self._narrowed_oident(stmt.ret_expr, self.new_vvar_sizes[stmt.ret_expr.varid]),
                 **tags,
             )
             self.replacement_core_vvars[new_ret_expr.varid].append(new_ret_expr)

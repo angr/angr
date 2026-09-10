@@ -9,9 +9,19 @@ import os
 import unittest
 
 import angr
-from angr.ailment.expression import BinaryOp, Const, Extract, Insert, VirtualVariable, VirtualVariableCategory
+from angr.ailment.block import Block
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    Convert,
+    Extract,
+    Insert,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
+from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment
-from angr.analyses.decompiler.expression_narrower import EffectiveSizeExtractor
+from angr.analyses.decompiler.expression_narrower import EffectiveSizeExtractor, ExpressionNarrower
 from tests.common import WORKER, bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -43,6 +53,56 @@ class TestNarrowingExpressions(unittest.TestCase):
         # ...while the byte-1 Extract occurrence stays narrow
         assert occurrences[ah_vvar.idx] == (8, 16)
         assert 44 in walker.vvars_used_as_insert_base
+
+    def test_narrowing_a_register_variable_moves_the_offset_on_big_endian(self):
+        # A narrowed variable keeps the low-order bytes of the original: every use is rewritten to
+        # Convert(narrow -> wide) and every definition to Convert(wide -> narrow). On a little-endian
+        # architecture those bytes start where the register starts, so its offset is unchanged. On a
+        # big-endian one they sit at the end of the register, so the offset must move forward by the
+        # number of bytes dropped -- PPC64 r3 is (offset 40, 8 bytes) and its low 4 bytes are at 44.
+        # Leaving the offset alone made the narrowed variable name the high-order bytes instead.
+        for binary, register, big_endian in (("ppc64", "r3", True), ("x86_64", "rax", False)):
+            with self.subTest(binary=binary):
+                proj = angr.Project(os.path.join(test_location, binary, "fauxware"), auto_load_libs=False)
+                arch = proj.arch
+                reg_offset, reg_size = arch.registers[register]
+                new_size = reg_size // 2
+                bits = reg_size * arch.byte_width
+
+                varid = 0x100
+                dst = VirtualVariable(1, varid, bits, VirtualVariableCategory.REGISTER, oident=reg_offset)
+                use = VirtualVariable(2, varid, bits, VirtualVariableCategory.REGISTER, oident=reg_offset)
+                sink = VirtualVariable(3, 0x101, bits, VirtualVariableCategory.REGISTER, oident=reg_offset)
+                block = Block(
+                    0x400000,
+                    0,
+                    statements=[Assignment(10, dst, Const(11, 0, bits)), Assignment(12, sink, use)],
+                )
+
+                narrower = ExpressionNarrower(proj, None, Manager(), [], {}, {})
+                narrower.new_vvar_sizes[varid] = new_size
+                new_block = narrower.walk(block)
+
+                expected = reg_offset + reg_size - new_size if big_endian else reg_offset
+                assert (arch.register_endness == "Iend_BE") is big_endian
+
+                new_def_stmt, new_use_stmt = new_block.statements
+                assert isinstance(new_def_stmt, Assignment)
+                assert isinstance(new_use_stmt, Assignment)
+
+                narrowed_def = new_def_stmt.dst
+                assert isinstance(narrowed_def, VirtualVariable)
+                assert narrowed_def.size == new_size
+                assert narrowed_def.reg_offset == expected
+
+                # the use became Convert(narrow -> wide) around the same narrowed variable
+                widened = new_use_stmt.src
+                assert isinstance(widened, Convert)
+                narrowed_use = widened.operand
+                assert isinstance(narrowed_use, VirtualVariable)
+                assert narrowed_use.varid == varid
+                assert narrowed_use.size == new_size
+                assert narrowed_use.reg_offset == expected
 
     def test_narrowing_expressions_after_making_callsite_only(self):
         # narrowing expressions before making callsites may incorrectly remove some definitions that the calls use

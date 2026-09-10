@@ -258,7 +258,23 @@ class SimRegisterVariable(SimVariable):
         return f"<{region_str}{ident_str}|Reg {self.reg}, {self.size}B>"
 
     def loc_repr(self, arch):
-        return arch.translate_register_name(self.reg, self.size)
+        name = arch.translate_register_name(self.reg, self.size)
+        if name != str(self.reg):
+            return name
+        # Nothing is declared at exactly this offset and size, so translate_register_name() handed back
+        # the offset as a string. That is the normal case for a partial access on an architecture whose
+        # sub-registers archinfo does not model -- the low-order half of a big-endian register, say.
+        # Name the smallest declared register that contains the access instead of printing a number.
+        containing = min(
+            (
+                reg
+                for reg in arch.register_list
+                if reg.vex_offset <= self.reg and self.reg + self.size <= reg.vex_offset + reg.size
+            ),
+            key=lambda reg: reg.size,
+            default=None,
+        )
+        return name if containing is None else containing.name
 
     def __hash__(self):
         if self._hash is None:
