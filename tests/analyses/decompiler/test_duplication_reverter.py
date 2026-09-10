@@ -29,6 +29,11 @@ GZIP_FUNC = 0x4111A0
 CANCEL_BIN = os.path.join(bin_location, "tests", "x86_64", "windows", "cancel.sys")
 CANCEL_FUNC = 0x140003A50
 
+# sub_401d30 has a duplicate candidate below a block that ends in a call whose callee may or may not return, so the
+# block has two successors without a conditional jump; listing the candidate's blocks read true_target off the call.
+TRUE_BIN = os.path.join(bin_location, "tests", "x86_64", "true")
+TRUE_FUNC = 0x401D30
+
 
 class TestDuplicationReverter(TestCase):
     def test_merging_a_cloned_start_block_does_not_raise(self):
@@ -49,6 +54,13 @@ class TestDuplicationReverter(TestCase):
     def test_a_loop_of_split_blocks_is_skipped_not_raised(self):
         proj, cfg = load_project_with_scoped_cfg(CANCEL_BIN, CANCEL_FUNC)
         func = cfg.functions[CANCEL_FUNC]
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+    def test_a_call_that_forks_the_flow_is_an_unsupported_candidate(self):
+        proj, cfg = load_project_with_scoped_cfg(TRUE_BIN, TRUE_FUNC)
+        func = cfg.functions[TRUE_FUNC]
 
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
         assert dec.codegen is not None and dec.codegen.text is not None
