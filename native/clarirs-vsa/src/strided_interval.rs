@@ -1876,8 +1876,10 @@ impl StridedInterval {
             ) => {
                 let bits = max(*bits1, *bits2);
 
-                // Simple case: both are constants
-                if s_lb == o_lb && s_lb == o_ub {
+                // Simple case: both are constants. The dividend has to be one
+                // too: `s_lb == o_lb` only says its lower bound happens to equal
+                // the divisor, and `[c, u] urem c` is not the constant `c % c`.
+                if self.is_integer() && other.is_integer() {
                     let result = s_lb % o_lb;
                     return Ok(StridedInterval::constant(bits, result));
                 }
@@ -3359,6 +3361,26 @@ mod si_arithmetic_op_tests {
         let result = a.sub(&b);
         assert_eq!(result, StridedInterval::range(32, 5u32, 25u32));
         assert!(!result.is_integer());
+    }
+
+    #[test]
+    fn test_urem_constant_divisor_non_constant_dividend() {
+        // [5, 9] urem 5 is {0, 1, 2, 3, 4}, not the constant 5 % 5.
+        let a = StridedInterval::range(32, 5u32, 9u32);
+        let b = StridedInterval::constant(32, 5u32);
+        let result = a.urem(&b).unwrap();
+        for x in 5u32..=9u32 {
+            assert!(
+                result.contains_value(&BigUint::from(x % 5)),
+                "urem dropped {} from [5, 9] urem 5",
+                x % 5
+            );
+        }
+
+        // Both constant still takes the exact path.
+        let a = StridedInterval::constant(32, 9u32);
+        let result = a.urem(&b).unwrap();
+        assert_eq!(result, StridedInterval::constant(32, 4u32));
     }
 }
 

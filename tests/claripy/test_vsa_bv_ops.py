@@ -206,6 +206,24 @@ class TestVSABVOperations(unittest.TestCase):
         for i in range(5):
             self.assertTrue(i in self.solver.eval(result, 10))
 
+    def test_modulo_non_constant_dividend(self):
+        """A dividend whose lower bound equals the constant divisor is not a constant."""
+        # [5, 9] % 5 covers every remainder in {0, 1, 2, 3, 4}; the old fast path
+        # answered the singleton 5 % 5 == 0.
+        dividend = claripy.SI(bits=32, stride=1, lower_bound=5, upper_bound=9)
+        result = dividend % self.bv_5
+        values = self.solver.eval(result, 10)
+        for x in range(5, 10):
+            self.assertIn(x % 5, values)
+
+        # A genuinely single-valued dividend still gets the exact answer, and
+        # gets it even when it differs from the divisor. `claripy.BVV(9) % BVV(5)`
+        # would not reach the VSA backend at all, so use strided intervals.
+        nine = claripy.SI(bits=32, stride=0, lower_bound=9, upper_bound=9)
+        five = claripy.SI(bits=32, stride=0, lower_bound=5, upper_bound=5)
+        self.assertEqual(list(self.solver.eval(nine % five, 4)), [4])
+        self.assertEqual(list(self.solver.eval(five % five, 4)), [0])
+
     def test_bitwise_and(self):
         """Test bitwise AND operations."""
         # Concrete AND
