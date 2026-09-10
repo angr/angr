@@ -322,7 +322,9 @@ class DuplicationReverter(StructuringOptimizationPass):
                 self.write_graph.add_edge(orig_pred, new_succ)
 
         self.write_graph = self._correct_all_broken_jumps(self.write_graph)
-        self.write_graph = self._uniquify_addrs(self.write_graph)
+        # the region identifier finds the start of the function by the entry block's address; it must survive
+        entry_blocks = {node for node in self.read_graph.nodes if node.addr == self._func.addr}
+        self.write_graph = self._uniquify_addrs(self.write_graph, keep=entry_blocks)
         _l.info("Candidate merge successful on blocks: %s", candidate)
         return True
 
@@ -330,7 +332,16 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Helpers
     #
 
-    def _uniquify_addrs(self, graph):
+    def _uniquify_addrs(self, graph, keep: set[Block] | None = None):
+        """
+        Give every block a unique address. New blocks (the merged conditional block, split blocks) are minted with the
+        address of a block they derive from, so they may collide with it; the colliding blocks move to fresh addresses.
+
+        :param keep:    Blocks that must keep their address. When exactly one of the blocks sharing an address is such
+                        a block, only the others move. The merged conditional block takes the address of the
+                        candidates' shared conditional dominator; when that is the function entry, renaming both left
+                        the graph without an entry block.
+        """
         new_graph = nx.DiGraph()
         new_nodes = {}
         nodes_by_addr = defaultdict(list)
@@ -343,6 +354,10 @@ class DuplicationReverter(StructuringOptimizationPass):
 
             # we have multiple nodes with the same address
             duplicate_addr_nodes = sorted(nodes, reverse=True)
+            if keep is not None:
+                kept = [node for node in duplicate_addr_nodes if node in keep]
+                if len(kept) == 1:
+                    duplicate_addr_nodes = [node for node in duplicate_addr_nodes if node is not kept[0]]
             for duplicate_node in duplicate_addr_nodes:
                 new_node = duplicate_node.copy()
                 new_node.idx = None
