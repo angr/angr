@@ -223,7 +223,7 @@ class StructurerBase(Analysis):
                         # add a new a break statement to its parent
                         break_node = BreakNode(stmt.tags["ins_addr"], switch_end_addr)
                         # insert node
-                        insert_node(parent, "after", break_node, index)
+                        insert_node(parent, "after", break_node, index, label=label)
                         # remove the last statement
                         block.statements = block.statements[:-1]
 

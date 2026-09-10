@@ -394,6 +394,15 @@ class TestStructurer(unittest.TestCase):
         # piggybacking this testcase to assert we don't see _INSERT(_INSERT(
         assert "_INSERT(INSERT(" not in dec.codegen.text
 
+    def test_phoenix_goto_inside_switch_case_becomes_break(self):
+        # formatted_print_percent in morton: the break replacing a goto inside a case body must be inserted with the
+        # case's label, otherwise insert_node fails with "Unsupported label value None"
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4055A5)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x4055A5, cfg=cfg.model, preset="full")
+        # it should not raise any exceptions
+        assert dec.codegen is not None and dec.codegen.text is not None
+
 
 if __name__ == "__main__":
     unittest.main()
