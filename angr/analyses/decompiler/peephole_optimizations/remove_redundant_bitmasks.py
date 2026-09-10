@@ -46,7 +46,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             and isinstance(expr.offset.value, int)
             and _MASKS.get(expr.value.bits, 0)
             << lsb_bit_offset(expr.bits, expr.value.bits, expr.offset.value, expr.endness, self.project.arch.byte_width)
-            == mask
+            == mask.value
         ):
             # Insert(v0 & mask, offset, v1) where mask/offset guarantee
             # that the only bits we get from v0 will just be replaced with v1
