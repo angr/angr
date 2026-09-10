@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import angr
 from angr import ailment, claripy, errors
+from angr.ailment.utils import lsb_bit_offset
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
 from angr.engines.successors import SimSuccessors
@@ -576,8 +577,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         child = self._expr_bv(expr.base)
         offset = self._expr_bv(expr.offset)
         assert offset.concrete
-        # does this need adjustment for big endian?
-        offset_bits = offset.concrete_value * self.arch.byte_width
+        offset_bits = lsb_bit_offset(len(child), expr.bits, offset.concrete_value, expr.endness, self.arch.byte_width)
         return child[expr.bits + offset_bits - 1 : offset_bits]
 
     def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType:
@@ -586,8 +586,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         base = self._expr_bv(expr.base)
         assert offset.concrete
 
-        # as above
-        offset_bits = offset.concrete_value * self.arch.byte_width
+        offset_bits = lsb_bit_offset(len(base), len(value), offset.concrete_value, expr.endness, self.arch.byte_width)
         return claripy.Concat(
             (
                 base[len(base) - 1 : offset_bits + len(value)]
