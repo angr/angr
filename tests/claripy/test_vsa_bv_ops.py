@@ -964,3 +964,21 @@ class TestVSAPrecisionLoss(unittest.TestCase):
                 break
 
         self.assertTrue(found, "Result should contain some expected values after operations")
+
+
+class TestVSAWrappingIntervalDivision(unittest.TestCase):
+    """Dividing by a wrapping strided interval used to panic the Rust VSA backend."""
+
+    def setUp(self):
+        self.solver = claripy.SolverVSA()
+        # 8-bit 1[0xF0, 0x10]: 0xF0..0xFF followed by 0x00..0x10, so it contains zero.
+        self.wrapping = claripy.SI(bits=8, stride=1, lower_bound=0xF0, upper_bound=0x10)
+        self.dividend = claripy.SI(bits=8, stride=1, lower_bound=1, upper_bound=10)
+
+    def test_udiv_by_wrapping_interval(self):
+        """contains_value underflowed a BigUint on the wrapped-round half of the divisor."""
+        self.assertEqual(len(self.solver.eval(self.dividend // self.wrapping, 1)), 1)
+
+    def test_sdiv_by_wrapping_interval(self):
+        """sdiv asks contains_zero() of the divisor too, and reached the same subtraction."""
+        self.assertEqual(len(self.solver.eval(self.dividend.SDiv(self.wrapping), 1)), 1)
