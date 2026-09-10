@@ -25,6 +25,10 @@ def _decompile(bin_path: str, addr: int) -> str:
 
 
 class TestMasterCrashReproducers(TestCase):
+    def test_a_vector_operation_the_light_engine_has_no_handler_for(self):
+        # sub_4068c0 uses PermOrZeroV (pshufb); the AIL light engine raised KeyError on it
+        _decompile(LIBLZMA, 0x4068C0)
+
     def test_a_goto_inside_a_switch_case_becomes_a_break(self):
         # formatted_print_percent: the break replacing the goto was inserted without the case's label
         _decompile(MORTON, 0x4055A5)
