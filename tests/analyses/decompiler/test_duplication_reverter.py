@@ -6,7 +6,11 @@ import os.path
 import unittest
 from unittest import TestCase
 
+import networkx
+
 from angr.ailment import Block
+from angr.ailment.expression import Const
+from angr.ailment.statement import ConditionalJump, Jump, Label, Return
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.optimization_passes.duplication_reverter.duplication_reverter import DuplicationReverter
 from tests.common import bin_location, load_project_with_scoped_cfg
@@ -54,6 +58,46 @@ class TestDuplicationReverter(TestCase):
 
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
         assert dec.codegen is not None and dec.codegen.text is not None
+
+    def test_the_entry_block_keeps_its_address_when_a_merged_block_borrows_it(self):
+        # The merged conditional block is minted with the address of the candidates' shared conditional dominator.
+        # When that dominator is the function entry, two blocks carry the entry's address; renaming both left the
+        # graph without an entry block, and region identification then failed to find a start node
+        # (busybox setinputfile). The entry stays; the new block moves, and the jump into it follows.
+
+        def _label(addr):
+            return Label(0, f"LABEL_{addr:x}", ins_addr=addr, block_idx=None)
+
+        entry = Block(0x1000, 8, statements=[_label(0x1000), Jump(0, Const(0, 0x1010, 64), ins_addr=0x1000)])
+        mid = Block(0x1010, 8, statements=[_label(0x1010), Jump(0, Const(0, 0x1000, 64), ins_addr=0x1010)])
+        merged = Block(
+            0x1000,
+            0,
+            statements=[
+                ConditionalJump(0, Const(0, 1, 1), Const(0, 0x1020, 64), Const(0, 0x1030, 64), ins_addr=0x1000),
+            ],
+            idx=2,
+        )
+        left = Block(0x1020, 4, statements=[_label(0x1020), Return(0, [], ins_addr=0x1020)])
+        right = Block(0x1030, 4, statements=[_label(0x1030), Return(0, [], ins_addr=0x1030)])
+        graph = networkx.DiGraph()
+        for a, b in ((entry, mid), (mid, merged), (merged, left), (merged, right)):
+            graph.add_edge(a, b)
+
+        class _Minter:
+            def new_block_addr(self):
+                return 0x2000
+
+        out = DuplicationReverter._uniquify_addrs(_Minter(), graph, keep={entry})
+
+        at_entry = [n for n in out if n.addr == 0x1000]
+        assert len(at_entry) == 1
+        assert isinstance(at_entry[0].statements[-1], Jump)
+        (moved,) = (n for n in out if n.addr == 0x2000)
+        assert isinstance(moved.statements[-1], ConditionalJump)
+        (new_mid,) = (n for n in out if n.addr == 0x1010)
+        assert new_mid.statements[-1].target.value == 0x2000
+        assert list(out.successors(new_mid)) == [moved]
 
 
 if __name__ == "__main__":
