@@ -4,6 +4,7 @@ from angr.analyses.decompiler.optimization_passes import (
     BasePointerSaveSimplifier,
     CallStatementRewriter,
     ConstantDereferencesSimplifier,
+    FpNegation,
     InlinedMemcpySimplifier,
     InlinedMemcpySimplifierLate,
     InlinedMemsetSimplifier,
@@ -12,6 +13,8 @@ from angr.analyses.decompiler.optimization_passes import (
     InlinedStrcpySimplifierLate,
     InlinedWcscpySimplifier,
     InlinedWcscpySimplifierLate,
+    InsertExtractReverter,
+    IRegReplacer,
     MipsGpSettingSimplifier,
     PostStructuringPeepholeOptimizationPass,
     RegisterSaveAreaSimplifier,
@@ -48,6 +51,9 @@ preset_basic = DecompilationPreset(
         CallStatementRewriter,
         SwitchReusedEntryRewriter,
         PostStructuringPeepholeOptimizationPass,
+        IRegReplacer,
+        InsertExtractReverter,
+        FpNegation,
     ],
 )
 

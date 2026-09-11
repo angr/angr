@@ -943,11 +943,12 @@ class _PeepholeExprsWalker(ailment.AILBlockRewriter):
                 r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                 self._stmt_fixpoint &= expr_opt.fixpoint_reached
                 if r is not None and r is not expr:
-                    if expr.bits != r.bits:
-                        # A few optimizers don't preserve bits;
-                        # log + skip until the optimizers are audited.
+                    if r.bits > expr.bits:
+                        # Widening a result is unsafe (a few optimizers don't preserve bits);
+                        # log + skip until the optimizers are audited. Narrowing is allowed:
+                        # e.g. X87CmpF lowers a 32-bit status word to a 1-bit comparison.
                         _l.warning(
-                            "Peephole %s changed bits %s -> %s on %s; skipping",
+                            "Peephole %s widened bits %s -> %s on %s; skipping",
                             type(expr_opt).__name__,
                             expr.bits,
                             r.bits,

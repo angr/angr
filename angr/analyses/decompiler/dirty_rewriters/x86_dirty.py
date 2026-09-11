@@ -3,79 +3,72 @@ from __future__ import annotations
 from angr import sim_type
 from angr.ailment.expression import Call, Const, DirtyExpression, Expression, Load, Reinterpret
 from angr.ailment.statement import DirtyStatement, SideEffectStatement, Statement, Store
-from angr.analyses.decompiler.variable_map import variable_map_of
 
 from .rewriter_base import DirtyRewriterBase
 
 
-class AMD64DirtyRewriter(DirtyRewriterBase):
+class X86DirtyRewriter(DirtyRewriterBase):
     """
-    Rewrites AMD64 DirtyStatement and DirtyExpression.
+    Rewrites X86 DirtyStatement and DirtyExpression.
     """
 
     __slots__ = ()
 
     def _rewrite_stmt(self, dirty: DirtyStatement) -> Statement | None:
         match dirty.dirty.callee:
-            case "amd64g_dirtyhelper_storeF80le":
+            case "x86g_dirtyhelper_storeF80le":
                 return self._rewrite_storeF80le(dirty)
 
         call_expr = self._rewrite_expr_to_call(dirty.dirty)
         if call_expr is None:
             return None
-        return SideEffectStatement(self.manager.next_atom(), call_expr, **dirty.tags)
+        return SideEffectStatement(dirty.idx, call_expr, **dirty.tags)
 
     def _rewrite_expr(self, dirty: DirtyExpression) -> Expression | None:
         match dirty.callee:
-            case "amd64g_dirtyhelper_loadF80le":
+            case "x86g_dirtyhelper_loadF80le":
                 return self._rewrite_loadF80le(dirty)
 
         return self._rewrite_expr_to_call(dirty)
 
     def _rewrite_expr_to_call(self, dirty: DirtyExpression) -> Call | None:
         match dirty.callee:
-            case "amd64g_dirtyhelper_IN":
+            case "x86g_dirtyhelper_IN":
                 if len(dirty.operands) != 2:
                     return None
                 portno, size = dirty.operands
                 if not isinstance(size, Const):
                     return None
                 bits = size.value_int * self.arch.byte_width
-                call = Call(
-                    self.manager.next_atom(),
+                return Call(
+                    idx=dirty.idx,
                     target=f"__in{self._inout_intrinsic_suffix(bits)}",
+                    calling_convention=None,
+                    prototype=sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16)], self._inout_intrinsic_type(bits)
+                    ).with_arch(self.arch),
                     args=(portno,),
                     bits=dirty.bits,
                     **dirty.tags,
                 )
-                variable_map_of(self.manager).set_prototype(
-                    call,
-                    sim_type.SimTypeFunction(
-                        [self._inout_intrinsic_type(16)], self._inout_intrinsic_type(bits)
-                    ).with_arch(self.arch),
-                )
-                return call
-            case "amd64g_dirtyhelper_OUT":
+            case "x86g_dirtyhelper_OUT":
                 if len(dirty.operands) != 3:
                     return None
                 portno, data, size = dirty.operands
                 if not isinstance(size, Const):
                     return None
                 bits = size.value_int * self.arch.byte_width
-                call = Call(
-                    self.manager.next_atom(),
+                return Call(
+                    dirty.idx,
                     target=f"__out{self._inout_intrinsic_suffix(bits)}",
+                    calling_convention=None,
+                    prototype=sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16), self._inout_intrinsic_type(bits)], sim_type.SimTypeBottom()
+                    ).with_arch(self.arch),
                     args=(portno, data),
                     bits=None,
                     **dirty.tags,
                 )
-                variable_map_of(self.manager).set_prototype(
-                    call,
-                    sim_type.SimTypeFunction(
-                        [self._inout_intrinsic_type(16), self._inout_intrinsic_type(bits)], sim_type.SimTypeBottom()
-                    ).with_arch(self.arch),
-                )
-                return call
         return None
 
     #

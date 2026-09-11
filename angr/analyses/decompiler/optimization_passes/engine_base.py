@@ -205,6 +205,16 @@ class SimplifierAILEngine(
         # optimization engine.
         return expr
 
+    def _handle_expr_IRegister(self, expr):
+        # Pass unresolved IRegisters through, rewriting only the index expression. IRegReplacer overrides this to
+        # resolve constant indices to concrete Registers.
+        reg_offset = self._expr(expr.reg_offset)
+        if reg_offset is not expr.reg_offset:
+            new_expr = expr.copy()
+            new_expr.reg_offset = reg_offset
+            return new_expr
+        return expr
+
     def _handle_binop_Mul(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
@@ -225,16 +235,34 @@ class SimplifierAILEngine(
         operand_expr = self._expr(expr.operand)
 
         if isinstance(operand_expr, ailment.expression.Convert):
-            if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
-                # eliminate the redundant Convert
+            if (
+                expr.from_bits == operand_expr.to_bits
+                and expr.to_bits == operand_expr.from_bits
+                and expr.from_type == operand_expr.to_type
+            ):
+                # eliminate the redundant Convert (same-type round-trip, e.g. 32I->64I->32I)
                 return operand_expr.operand
+            if expr.from_type == operand_expr.to_type:
+                # safe to merge: the intermediate type matches, e.g. 32I->64I->32I or 32F->64F->32F
+                return ailment.expression.Convert(
+                    expr.idx,
+                    operand_expr.from_bits,
+                    expr.to_bits,
+                    expr.is_signed,
+                    operand_expr.operand,
+                    from_type=operand_expr.from_type,
+                    to_type=expr.to_type,
+                    rounding_mode=expr.rounding_mode,
+                    **expr.tags,
+                )
+            # type mismatch in the middle (e.g. 32I->64I then 64F->32I) -- keep both
             return ailment.expression.Convert(
                 expr.idx,
-                operand_expr.from_bits,
+                expr.from_bits,
                 expr.to_bits,
                 expr.is_signed,
-                operand_expr.operand,
-                from_type=operand_expr.from_type,
+                operand_expr,
+                from_type=expr.from_type,
                 to_type=expr.to_type,
                 rounding_mode=expr.rounding_mode,
                 **expr.tags,

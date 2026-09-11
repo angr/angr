@@ -4901,8 +4901,8 @@ class TestDecompiler(unittest.TestCase):
         assert '"current_angle_int: %d\\n"' in d.codegen.text
         assert "10.0" in d.codegen.text
         assert re.search(r"int_to_float\(\w+\)", d.codegen.text) is not None
-        assert re.search(r"increment_float\(current_angle, 10.0\)", d.codegen.text) is not None
-        assert re.search(r"increment_float\(prev_angle, 8.0\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(current_angle, 10.0f?\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(prev_angle, 8.0f?\)", d.codegen.text) is not None
         assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text or re.search(
             r"(\w+) = compare_floats\(30, current_angle, prev_angle\);\s*if \(!\1\)", d.codegen.text
         )
