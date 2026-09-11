@@ -100,9 +100,11 @@ impl Base {
 
     #[getter]
     pub fn args<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyTuple>, ClaripyError> {
-        let args = self.args.get_or_try_init(py, || -> Result<Py<PyTuple>, ClaripyError> {
-            Ok(PyTuple::new(py, self.inner.extract_py_args(py)?)?.unbind())
-        })?;
+        let args = self
+            .args
+            .get_or_try_init(py, || -> Result<Py<PyTuple>, ClaripyError> {
+                Ok(PyTuple::new(py, self.inner.extract_py_args(py)?)?.unbind())
+            })?;
         Ok(args.bind(py).clone())
     }
 
