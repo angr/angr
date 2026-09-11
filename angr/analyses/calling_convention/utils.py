@@ -58,11 +58,27 @@ def is_sane_register_variable(
     if arch_name == "PPC32":
         return 28 <= reg_offset < 60  # r3-r10
 
+    if arch_name == "PPC64":
+        # fpr1-fpr13 are the low halves of vsr1-vsr13, so an offset test admits a 16-byte
+        # vector access at the same offset as well.
+        return 40 <= reg_offset < 104 or 288 <= reg_offset < 488  # r3-r10  # fpr1-fpr13
+
     if arch_name == "X86":
         return 8 <= reg_offset < 24 or 160 <= reg_offset < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
 
     if arch_name == "RISCV64":
         return 96 <= reg_offset < 160  # a0-a7
+
+    if arch_name == "S390X":
+        # f0, f2, f4 and f6 are the low halves of v0, v2, v4 and v6, so an offset test admits
+        # a 16-byte vector read at the same offset as well.
+        return (
+            592 <= reg_offset < 632  # r2-r6
+            or 64 <= reg_offset < 72  # f0
+            or 96 <= reg_offset < 104  # f2
+            or 128 <= reg_offset < 136  # f4
+            or 160 <= reg_offset < 168  # f6
+        )
 
     l.critical("Unsupported architecture %s.", arch.name)
     return True

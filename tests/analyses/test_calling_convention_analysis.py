@@ -12,6 +12,7 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses.calling_convention.utils import is_sane_register_variable
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -226,6 +227,28 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
                     assert isinstance(ret_val, SimRegArg)
                     assert ret_val.reg_name == r
+
+    def test_ppc64_argument_registers(self):
+        # r3-r10 and fpr1-fpr13 may be candidate arguments on PPC64.
+        arch = archinfo.arch_from_id("ppc64")
+        accepted = ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"]
+        accepted += [f"fpr{i}" for i in range(1, 14)]
+        for reg_name in accepted:
+            offset, size = arch.registers[reg_name]
+            assert is_sane_register_variable(arch, offset, size), reg_name
+        for reg_name in ["r0", "r1", "r2", "r11", "r12", "r31", "lr", "ctr", "cr0", "fpr0", "fpr14", "fpr31"]:
+            offset, size = arch.registers[reg_name]
+            assert not is_sane_register_variable(arch, offset, size), reg_name
+
+    def test_s390x_argument_registers(self):
+        # r2-r6 and f0, f2, f4, f6 may be candidate arguments on S390X.
+        arch = archinfo.arch_from_id("s390x")
+        for reg_name in ["r2", "r3", "r4", "r5", "r6", "f0", "f2", "f4", "f6"]:
+            offset, size = arch.registers[reg_name]
+            assert is_sane_register_variable(arch, offset, size), reg_name
+        for reg_name in ["r1", "r7", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "a0", "a1", "f1", "f8"]:
+            offset, size = arch.registers[reg_name]
+            assert not is_sane_register_variable(arch, offset, size), reg_name
 
     def test_x86_saved_regs(self):
         # Calling convention analysis should be able to determine calling convention of functions with registers
