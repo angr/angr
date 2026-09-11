@@ -257,7 +257,13 @@ class SimEngineVRAIL(
                 isinstance(expr.target, (ailment.Expr.Const, str))
                 or expr.tags.get("is_prototype_guessed", True) is False
             ) and expr.args is not None:
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, list(expr.args))
+                self._call_add_arg_based_type_constraints(
+                    prototype,
+                    prototype_libname,
+                    args,
+                    list(expr.args),
+                    func.addr if func is not None and func.prototype_refinable else None,
+                )
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
@@ -330,7 +336,13 @@ class SimEngineVRAIL(
                 isinstance(stmt.expr.target, (ailment.Expr.Const, str))
                 or stmt.tags.get("is_prototype_guessed", True) is False
             ):
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, stmt.expr.args)
+                self._call_add_arg_based_type_constraints(
+                    prototype,
+                    prototype_libname,
+                    args,
+                    stmt.expr.args,
+                    func.addr if func is not None and func.prototype_refinable else None,
+                )
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
             ret_ty = self.tv_manager.new_tv()
@@ -370,16 +382,36 @@ class SimEngineVRAIL(
             )
 
     def _call_add_arg_based_type_constraints(
-        self, prototype: SimTypeFunction, prototype_libname: str | None, args: list, arg_atoms: list
+        self,
+        prototype: SimTypeFunction,
+        prototype_libname: str | None,
+        args: list,
+        arg_atoms: list,
+        callee_addr: int | None = None,
     ) -> None:
         # add type constraints
         if not args:
             return
 
-        for arg, _arg_atom, arg_type in zip(args, arg_atoms, prototype.args):
+        for arg_idx, (arg, _arg_atom, arg_type) in enumerate(zip(args, arg_atoms, prototype.args)):
             if arg.typevar is None:
                 continue
             arg_type = dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
+            # record pointer arguments so the decompiler can later union partial struct layouts recovered for the same
+            # caller value across multiple callees. Only callees whose prototypes the decompiler owns are recorded: a
+            # library function's ``char *`` view carries no layout evidence and must never be rewritten.
+            if (
+                callee_addr is not None
+                and isinstance(arg.typevar, typevars.TypeVariable)
+                and isinstance(arg_type, SimTypePointer)
+            ):
+                # the SSA id of the argument value, taken before vvar_to_vvar collapses phi-related values into one
+                # variable: a register that carries different objects at different call sites must not have their
+                # layouts unioned just because variable recovery gave both the same variable
+                value_id = _arg_atom.varid if isinstance(_arg_atom, ailment.Expr.VirtualVariable) else None
+                self.state._analysis.arg_struct_observations[arg.typevar].append(
+                    (callee_addr, arg_idx, arg_type, value_id)
+                )
             arg_ty = self.type_lifter.lift(arg_type)
             if arg.typevar is not None and isinstance(
                 arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
