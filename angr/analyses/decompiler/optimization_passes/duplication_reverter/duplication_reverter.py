@@ -299,7 +299,13 @@ class DuplicationReverter(StructuringOptimizationPass):
                 # we are at a block that has no ending, if this block does not end in one successor, then
                 # it is just an incorrect graph
                 orig_pred_succs = list(self.read_graph.successors(orig_pred))
-                assert len(orig_pred_succs) == 1
+                if len(orig_pred_succs) != 1:
+                    _l.debug(
+                        "Unable to correct a predecessor with no terminal jump and %d successors",
+                        len(orig_pred_succs),
+                    )
+                    self.write_graph = self.read_graph.copy()
+                    return False
 
                 orig_pred_succ = orig_pred_succs[0]
                 new_succ = None
