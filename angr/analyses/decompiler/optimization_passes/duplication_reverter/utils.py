@@ -64,7 +64,10 @@ def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):
         if len(children) == 1:
             blocks += children
         elif len(children) == 2:
-            if_stmt: ConditionalJump = source.statements[-1]
+            if_stmt = source.statements[-1]
+            if not isinstance(if_stmt, ConditionalJump):
+                # a call-terminated block whose callee may or may not return has two successors as well
+                raise UnsupportedAILNodeError(f"Stmt {if_stmt} forks the control flow without a condition")
             if children[0].addr == if_stmt.true_target.value:
                 blocks += [children[0], children[1]]
             else:
