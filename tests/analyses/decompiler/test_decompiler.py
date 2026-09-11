@@ -1240,6 +1240,46 @@ class TestDecompiler(unittest.TestCase):
         assert '"Username: "' in code
         assert '"Password: "' in code
 
+    def test_arm_thumb_stack_pointer_saved_in_r7(self):
+        bin_path = os.path.join(test_location, "armhf", "fauxware")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = p.analyses[CFGFast].prep()(normalize=True)
+        r7_offset = p.arch.registers["r7"][0]
+        sp_offset = p.arch.sp_offset
+        assert r7_offset == 36
+
+        authenticate = cfg.functions[0x104C9]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(authenticate, cfg=cfg.model)
+        assert dec.clinic is not None
+        spt = dec.clinic._spt  # pylint: disable=protected-access
+        assert spt is not None
+        assert r7_offset in spt.reg_offsets
+        assert not spt.inconsistent_for(sp_offset)
+        assert authenticate.endpoints
+        assert all(spt.offset_after_block(endpoint.addr, sp_offset) == 0 for endpoint in authenticate.endpoints)
+        assert dec.clinic.graph is not None
+        self.assertFalse(
+            any(
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_stack
+                and isinstance(stmt.src, ailment.Expr.VirtualVariable)
+                and stmt.src.was_reg
+                and stmt.src.reg_offset == r7_offset
+                for block in dec.clinic.graph
+                for stmt in block.statements
+            ),
+            "saved r7 leaked into final AIL as a register-save spill",
+        )
+
+        accepted = cfg.functions[0x1052D]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(accepted, cfg=cfg.model)
+        assert dec.clinic is not None
+        spt = dec.clinic._spt  # pylint: disable=protected-access
+        assert spt is not None
+        assert r7_offset not in spt.reg_offsets
+
     @for_all_structuring_algos
     def test_stack_canary_removal_x8664_extra_exits(self, decompiler_options=None):
         # Test stack canary removal on functions with extra exit
