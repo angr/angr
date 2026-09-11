@@ -4,11 +4,10 @@ from __future__ import annotations
 import os
 from collections import defaultdict
 
-import networkx
-
 from angr.codenode import BlockNode
 
-from .function import Function, FunctionInfo
+from .function import Function, FunctionInfo, graph_dirty_func
+from .observable_graph import ObservableDiGraph
 
 
 class SootFunction(Function):
@@ -26,7 +25,7 @@ class SootFunction(Function):
         :param name:            (Optional) The name of the function.
         :param syscall:         (Optional) Whether this function is a syscall or not.
         """
-        self.transition_graph = networkx.DiGraph()
+        self.transition_graph = ObservableDiGraph()
         self._local_transition_graph = None
         # The Shimple CFG is already normalized.
         self.normalized = True
@@ -47,6 +46,7 @@ class SootFunction(Function):
         self._call_sites = {}
         self.addr = addr
         self._function_manager = function_manager
+        self._bind_transition_graph()
         self._is_syscall = syscall
         self._from_signature = None
 
@@ -98,7 +98,7 @@ class SootFunction(Function):
             self.returning = not hooker.NO_RET
 
         # startpoint can always be None if this CFGNode is a syscall node
-        self.startpoint = None
+        self._startpoint = None
 
         self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
@@ -113,13 +113,17 @@ class SootFunction(Function):
         # The Shimple CFG is already normalized.
         pass
 
+    @graph_dirty_func
     def _register_node(self, is_local: bool, node, update_func_block_count: bool = True):  # pylint:disable=unused-argument
         if is_local and self._local_blocks.get(node.addr) == node:
             return self._local_blocks[node.addr]
 
-        if node not in self.transition_graph:
+        self._validate_transition_graph_node(node)
+        canonical_node = self._canonical_transition_graph_node(node)
+        if canonical_node is None:
             self.transition_graph.add_node(node)
-        node._graph = self.transition_graph
+        else:
+            node = canonical_node
         if node.addr not in self or self._block_sizes[node.addr] == 0:
             self._block_sizes[node.addr] = node.size
         if node.addr == self.addr.addr and (self.startpoint is None or not self.startpoint.is_hook):

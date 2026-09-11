@@ -23,17 +23,74 @@ def repr_addr[K: (int, SootMethodDescriptor)](addr: K) -> str:
 class CodeNode[K: (int, SootMethodDescriptor)]:
     """
     The base class of nodes in a function graph.
+
+    Graphless nodes are editable, but callers must not mutate their identity fields while keeping them in unrelated
+    hash-based containers. Function graph ownership seals those fields permanently.
     """
 
-    __slots__ = ["_graph", "_hash", "addr", "size", "thumb"]
+    __slots__ = ["_graph", "_graph_ref", "_hash", "_semantic_identity_sealed", "addr", "size", "thumb"]
+
+    _BASE_SEMANTIC_IDENTITY_FIELDS = frozenset(("addr", "size", "thumb"))
+    _SUBCLASS_SEMANTIC_IDENTITY_FIELDS = frozenset(("func_name", "sim_procedure"))
 
     def __init__(self, addr: K, size: int, graph=None, thumb=False):
+        if getattr(self, "_semantic_identity_sealed", False):
+            raise ValueError("A graph-owned CodeNode cannot be reinitialized; copy and replace it instead")
+
+        self._semantic_identity_sealed = False
         self.addr = addr
         self.size: int = size
         self.thumb = thumb
-        self._graph = weakref.proxy(graph) if graph is not None else None
-
+        self._graph = None
+        self._graph_ref = None
         self._hash = None
+        if graph is not None:
+            self.set_graph(graph)
+
+    @staticmethod
+    def _is_safe_sealed_noop(old_value, new_value) -> bool:
+        if old_value is new_value:
+            return True
+        return type(old_value) in (int, bool) and type(new_value) is type(old_value) and old_value == new_value
+
+    def _is_sealed_semantic_identity_field(self, name: str) -> bool:
+        if name in self._BASE_SEMANTIC_IDENTITY_FIELDS or name == "sim_procedure":
+            return True
+        if name == "func_name":
+            try:
+                return not self.is_addr_known
+            except (AttributeError, TypeError):
+                return True
+        return False
+
+    def __setattr__(self, name: str, value) -> None:
+        if (
+            getattr(self, "_semantic_identity_sealed", False)
+            and self._is_sealed_semantic_identity_field(name)
+            and hasattr(self, name)
+        ):
+            old_value = object.__getattribute__(self, name)
+            if self._is_safe_sealed_noop(old_value, value):
+                return
+            raise ValueError(
+                f"Cannot change CodeNode.{name} after graph ownership is established; copy and replace the node instead"
+            )
+        object.__setattr__(self, name, value)
+        if (
+            name in ("addr", "size")
+            and not getattr(self, "_semantic_identity_sealed", False)
+            and hasattr(self, "_hash")
+        ):
+            object.__setattr__(self, "_hash", None)
+
+    def __delattr__(self, name: str) -> None:
+        if name in self._BASE_SEMANTIC_IDENTITY_FIELDS | self._SUBCLASS_SEMANTIC_IDENTITY_FIELDS and hasattr(
+            self, name
+        ):
+            raise ValueError(
+                f"Cannot delete required CodeNode.{name}; assign a replacement value or copy and replace the node instead"
+            )
+        object.__delattr__(self, name)
 
     def __len__(self):
         return self.size
@@ -60,8 +117,33 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
             self._hash = hash((self.addr, self.size))
         return self._hash
 
+    def _capture_graph_binding_state(self) -> tuple:
+        return self._graph, self._graph_ref, self._semantic_identity_sealed
+
+    def _restore_graph_binding_state(self, state: tuple) -> None:
+        graph, graph_ref, semantic_identity_sealed = state
+        object.__setattr__(self, "_graph", graph)
+        object.__setattr__(self, "_graph_ref", graph_ref)
+        object.__setattr__(self, "_semantic_identity_sealed", semantic_identity_sealed)
+
+    def _graph_owner(self):
+        return self._graph_ref() if self._graph_ref is not None else None
+
     def set_graph(self, graph):
-        self._graph = weakref.proxy(graph)
+        if self._semantic_identity_sealed:
+            owner = self._graph_owner()
+            if owner is graph:
+                return
+            owner_description = "a collected graph" if owner is None else "another live graph"
+            raise ValueError(
+                f"A CodeNode owned by {owner_description} must be copied before insertion into a new graph"
+            )
+
+        graph_ref = weakref.ref(graph)
+        graph_proxy = weakref.proxy(graph)
+        object.__setattr__(self, "_graph", graph_proxy)
+        object.__setattr__(self, "_graph_ref", graph_ref)
+        object.__setattr__(self, "_semantic_identity_sealed", True)
 
     def successors(self) -> list[CodeNode]:
         if self._graph is None:
@@ -149,7 +231,10 @@ class FuncNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         return f"<FuncNode {self.addr:#x}>"
 
     def __hash__(self):
-        return hash((FuncNode, self.addr, self.func_name))
+        identity = (type(self), self.addr, self.size, self.is_hook, self.thumb)
+        if not self.is_addr_known:
+            identity += (self.func_name,)
+        return hash(identity)
 
     def __eq__(self, other):
         return (
@@ -159,10 +244,20 @@ class FuncNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         )
 
     def __getstate__(self) -> tuple:
-        return self.addr, self.func_name
+        return self.addr, self.func_name, self.size, self.thumb
 
     def __setstate__(self, state: tuple):
-        self.__init__(*state)
+        if not isinstance(state, tuple):
+            raise TypeError(f"Invalid FuncNode pickle state type: {type(state).__name__}")
+        if len(state) == 2:
+            addr, func_name = state
+            size, thumb = 0, False
+        elif len(state) == 4:
+            addr, func_name, size, thumb = state
+        else:
+            raise ValueError(f"Invalid FuncNode pickle state length: {len(state)}")
+        self.__init__(addr, func_name, thumb=thumb)
+        self.size = size
 
 
 class HookNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
