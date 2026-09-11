@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections.abc import Container, Iterator
 from typing import TYPE_CHECKING
 
+import pypcode
 import pyvex
 
 from angr.analyses.analysis import AnalysesHub, Analysis
@@ -12,6 +13,8 @@ from angr.block import Block
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc_for_project
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
+from angr.engines.pcode import HeavyPcodeMixin
+from angr.engines.pcode.lifter import IRSB as PcodeIRSB
 from angr.knowledge_plugins.functions import Function
 from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.bits import u2s
@@ -62,7 +65,7 @@ class FactCollectorState:
     )
 
     def __init__(self):
-        self.tmps: dict[int, FactData] = {}
+        self.tmps: dict[int | tuple[int, int], FactData] = {}
         self.simple_stack: dict[int, FactData] = {}
         self.simple_regs: dict[int, FactData] = {}
         self.ins_addr = 0
@@ -300,6 +303,260 @@ class SimEngineFactCollectorVEX(
         return None
 
 
+class SimEngineFactCollectorPcode:
+    """Collect the value-flow facts needed for ABI recovery from raw p-code.
+
+    P-code IRSBs intentionally expose no VEX-compatible ``statements``, so the
+    VEX light engine iterates nothing on them and returns an empty fact set.
+    This engine reads the operations directly instead, interpreting only
+    FactCollector's small value domain and leaving everything else at top.
+    """
+
+    _CONTROL_FLOW_OPS = {
+        pypcode.OpCode.BRANCH,
+        pypcode.OpCode.CBRANCH,
+        pypcode.OpCode.BRANCHIND,
+        pypcode.OpCode.CALL,
+        pypcode.OpCode.CALLIND,
+        pypcode.OpCode.RETURN,
+    }
+    _COPY_OPS = {
+        pypcode.OpCode.COPY,
+        pypcode.OpCode.INT_ZEXT,
+        pypcode.OpCode.INT_SEXT,
+        pypcode.OpCode.CAST,
+    }
+
+    def __init__(
+        self,
+        project,
+        bp_as_gpr: bool,
+        track_arg_uses: bool,
+        seen_reg_uses: defaultdict[int, int],
+    ):
+        self.project = project
+        self.arch = project.arch
+        self.bp_as_gpr = bp_as_gpr
+        self.track_arg_uses = track_arg_uses
+        self.seen_reg_uses = seen_reg_uses
+        self.state: FactCollectorState | None = None
+
+    @staticmethod
+    def _tmp_key(varnode) -> tuple[int, int]:
+        return int(varnode.offset), int(varnode.size)
+
+    def _value(self, varnode, *, count_register_use: bool = True) -> FactData:
+        assert self.state is not None
+        space_name = varnode.space.name
+        if space_name == "const":
+            return KIND_CONST, 0, int(varnode.offset)
+        if space_name == "unique":
+            return self.state.tmps.get(self._tmp_key(varnode))
+        if space_name != "register":
+            return None
+
+        offset = int(varnode.offset)
+        size = int(varnode.size)
+        if offset == self.arch.sp_offset:
+            return KIND_SP, SUBKIND_SP, self.state.sp_value
+        if offset == self.arch.bp_offset and not self.bp_as_gpr:
+            return KIND_SP, SUBKIND_BP, self.state.bp_value
+
+        if count_register_use:
+            self.state.register_read(offset, size)
+            self.seen_reg_uses[offset] += 1
+        return self.state.simple_regs.get(offset, (KIND_REG, offset, 0))
+
+    @staticmethod
+    def _varnode_identity(varnode) -> tuple[str, int, int]:
+        return varnode.space.name, int(varnode.offset), int(varnode.size)
+
+    @classmethod
+    def _zero_idiom_input_registers(cls, operations) -> set[tuple[str, int, int]]:
+        """Find register inputs canceled by an x-x zeroing instruction."""
+
+        canceled = set()
+        written = {
+            cls._varnode_identity(op.output)
+            for op in operations
+            if op.output is not None and op.output.space.name == "register"
+        }
+        for op in operations:
+            if op.opcode not in {pypcode.OpCode.INT_XOR, pypcode.OpCode.INT_SUB} or len(op.inputs) != 2:
+                continue
+            left = cls._varnode_identity(op.inputs[0])
+            right = cls._varnode_identity(op.inputs[1])
+            if left == right and left[0] == "register" and left in written:
+                canceled.add(left)
+        return canceled
+
+    def _set_value(self, varnode, value: FactData) -> None:
+        assert self.state is not None
+        space_name = varnode.space.name
+        if space_name == "unique":
+            self.state.tmps[self._tmp_key(varnode)] = value
+            return
+        if space_name != "register":
+            return
+
+        offset = int(varnode.offset)
+        size = int(varnode.size)
+        if offset == self.arch.sp_offset and value is not None and value[0] == KIND_SP:
+            self.state.sp_value = value[2]
+        elif offset == self.arch.bp_offset and not self.bp_as_gpr and value is not None and value[0] == KIND_SP:
+            self.state.bp_value = value[2]
+        else:
+            self.state.register_written(offset, size)
+            self.state.simple_regs[offset] = value
+
+    @staticmethod
+    def _add(left: FactData, right: FactData) -> FactData:
+        if left is None or right is None or left[2] is None or right[2] is None:
+            return None
+        if left[0] == KIND_CONST and right[0] == KIND_CONST:
+            return KIND_CONST, 0, left[2] + right[2]
+        if left[0] == KIND_CONST:
+            return right[0], right[1], right[2] + left[2]
+        if right[0] == KIND_CONST:
+            return left[0], left[1], left[2] + right[2]
+        return None
+
+    @staticmethod
+    def _sub(left: FactData, right: FactData) -> FactData:
+        if left is None or right is None or left[2] is None or right[2] is None:
+            return None
+        if left[0] == KIND_CONST and right[0] == KIND_CONST:
+            return KIND_CONST, 0, left[2] - right[2]
+        if right[0] == KIND_CONST:
+            return left[0], left[1], left[2] - right[2]
+        return None
+
+    @staticmethod
+    def _and(left: FactData, right: FactData) -> FactData:
+        if left is None or right is None or left[2] is None or right[2] is None:
+            return None
+        if left[0] == KIND_CONST and right[0] == KIND_CONST:
+            return KIND_CONST, 0, left[2] & right[2]
+        if left[0] == KIND_SP:
+            return left
+        if right[0] == KIND_SP:
+            return right
+        return None
+
+    def _load(self, op) -> None:
+        assert self.state is not None and op.output is not None
+        address = self._value(op.inputs[1])
+        value: FactData = None
+        if address is not None and address[0] == KIND_SP:
+            size = int(op.output.size)
+            self.state.stack_read(address[2], size)
+            value = self.state.simple_stack.get(address[2], (KIND_STACKVAL, address[2], 0))
+        elif address is not None and address[0] in {KIND_REG, KIND_STACKVAL} and self.track_arg_uses:
+            self.state.pointer_arg_derefs[address] |= 1
+        self._set_value(op.output, value)
+
+    def _store(self, op) -> None:
+        assert self.state is not None
+        address = self._value(op.inputs[1])
+        value = self._value(op.inputs[2])
+        if address is None:
+            return
+        if address[0] == KIND_SP:
+            size = int(op.inputs[2].size)
+            self.state.stack_written(address[2], size)
+            if value is not None and value[0] == KIND_REG and value[2] == 0:
+                self.state.callee_stored_regs[value[1]] = u2s(address[2], self.arch.bits)
+            self.state.simple_stack[address[2]] = value
+        elif address[0] in {KIND_REG, KIND_STACKVAL} and self.track_arg_uses:
+            self.state.pointer_arg_derefs[address] |= 2
+
+    def process(self, state: FactCollectorState, *, block: Block) -> None:
+        self.state = state
+        # Unique-space offsets are reusable scratch locations, not values that
+        # survive a basic-block boundary.
+        state.tmps.clear()
+        irsb = block.vex
+        assert isinstance(irsb, PcodeIRSB)
+        # FIXME: Shouldn't use protected members of IRSB; see the same access in engines/pcode/emulate.py
+        operations = list(irsb._ops)  # pylint:disable=protected-access
+        ignored_input_registers: set[tuple[str, int, int]] = set()
+        for op_index, op in enumerate(operations):
+            opcode = op.opcode
+            if opcode == pypcode.OpCode.IMARK:
+                if op.inputs:
+                    state.ins_addr = int(op.inputs[0].offset)
+                instruction_end = next(
+                    (
+                        index
+                        for index in range(op_index + 1, len(operations))
+                        if operations[index].opcode == pypcode.OpCode.IMARK
+                    ),
+                    len(operations),
+                )
+                ignored_input_registers = self._zero_idiom_input_registers(operations[op_index + 1 : instruction_end])
+                continue
+            if opcode in self._CONTROL_FLOW_OPS:
+                continue
+            if opcode == pypcode.OpCode.LOAD:
+                self._load(op)
+                continue
+            if opcode == pypcode.OpCode.STORE:
+                self._store(op)
+                continue
+            if opcode == pypcode.OpCode.CALLOTHER:
+                if op.output is not None:
+                    self._set_value(op.output, None)
+                continue
+
+            values = [
+                self._value(
+                    varnode,
+                    count_register_use=(self._varnode_identity(varnode) not in ignored_input_registers),
+                )
+                for varnode in op.inputs
+            ]
+            value: FactData = None
+            same_inputs = len(op.inputs) == 2 and self._varnode_identity(op.inputs[0]) == self._varnode_identity(
+                op.inputs[1]
+            )
+            if same_inputs and opcode in {
+                pypcode.OpCode.INT_XOR,
+                pypcode.OpCode.INT_SUB,
+                pypcode.OpCode.INT_LESS,
+                pypcode.OpCode.INT_SLESS,
+                pypcode.OpCode.INT_NOTEQUAL,
+                pypcode.OpCode.INT_SBORROW,
+            }:
+                value = KIND_CONST, 0, 0
+            elif same_inputs and opcode in {
+                pypcode.OpCode.INT_EQUAL,
+                pypcode.OpCode.INT_LESSEQUAL,
+                pypcode.OpCode.INT_SLESSEQUAL,
+            }:
+                value = KIND_CONST, 0, 1
+            elif opcode in self._COPY_OPS and values:
+                value = values[0]
+            elif opcode == pypcode.OpCode.SUBPIECE and values:
+                zero_offset = len(values) == 1 or (
+                    values[1] is not None and values[1][0] == KIND_CONST and values[1][2] == 0
+                )
+                if zero_offset:
+                    value = values[0]
+            elif opcode == pypcode.OpCode.INT_ADD and len(values) == 2:
+                value = self._add(values[0], values[1])
+            elif opcode == pypcode.OpCode.INT_SUB and len(values) == 2:
+                value = self._sub(values[0], values[1])
+            elif opcode == pypcode.OpCode.INT_AND and len(values) == 2:
+                value = self._and(values[0], values[1])
+            if op.output is not None:
+                self._set_value(op.output, value)
+
+        # Mirror SimEngineFactCollectorVEX._process_block_end: after a call the return
+        # register holds the callee's result, so it must not read as an incoming argument.
+        if irsb.jumpkind == "Ijk_Call" and self.arch.ret_offset is not None:
+            state.register_written(self.arch.ret_offset, self.arch.bytes)
+
+
 class FactCollector(Analysis):
     """
     An extremely fast analysis that extracts necessary facts of a function for CallingConventionAnalysis to make
@@ -321,6 +578,7 @@ class FactCollector(Analysis):
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
         self.extra_pop: int | None = None
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
+        self._is_pcode = self._function_uses_pcode()
 
         self._analyze()
 
@@ -341,7 +599,11 @@ class FactCollector(Analysis):
             return []
 
         bp_as_gpr = self.function.info.get("bp_as_gpr", False)
-        engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr, self._track_arg_uses, self._seen_reg_uses)
+        engine = (
+            SimEngineFactCollectorPcode(self.project, bp_as_gpr, self._track_arg_uses, self._seen_reg_uses)
+            if self._is_pcode
+            else SimEngineFactCollectorVEX(self.project, bp_as_gpr, self._track_arg_uses, self._seen_reg_uses)
+        )
         init_state = FactCollectorState()
         if self.project.arch.call_pushes_ret:
             init_state.sp_value = self.project.arch.bytes
@@ -467,6 +729,9 @@ class FactCollector(Analysis):
             offset = self.project.arch.registers[reg_name][0]
             state.register_written(offset, self.project.arch.registers[reg_name][1])
             state.simple_regs[offset] = None
+
+    def _function_uses_pcode(self) -> bool:
+        return isinstance(self.project.factory.default_engine, HeavyPcodeMixin)
 
     @staticmethod
     def _resolve_vex_tmp(
