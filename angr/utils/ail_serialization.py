@@ -17,8 +17,9 @@ import networkx
 
 from angr import sim_variable
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.protos import ail_types_pb2
-from angr.rustylib.ailment import Block, Expression
+from angr.rustylib.ailment import Block, Expression, Statement
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
@@ -98,21 +99,103 @@ def _parse_edge_data(msg: ail_types_pb2.AilEdgeData) -> dict[str, Any]:
     return data
 
 
-class BlockPool:
-    """A shared pool of ``Block.to_bytes()`` payloads for deduplicating byte-identical blocks across graphs."""
+def _pack_switch_head(stmt: IncompleteSwitchCaseHeadStatement, msg: ail_types_pb2.IncompleteSwitchCaseHead) -> None:
+    if stmt.idx is not None:
+        msg.idx = stmt.idx
+    msg.switch_variable = stmt.switch_variable.to_bytes()
+    msg.peephole_optimized = bool(stmt.peephole_optimized)
+    ins_addr = (stmt.tags or {}).get("ins_addr")
+    if ins_addr is not None:
+        msg.ins_addr = ins_addr
+    for cmp_block, case_value, target_addr, target_idx, next_addr in stmt.case_addrs:
+        entry = msg.entries.add()
+        if cmp_block is not None:
+            entry.cmp_block = cmp_block.to_bytes()
+        if isinstance(case_value, str):
+            entry.label = case_value
+        else:
+            entry.value = case_value
+        entry.target_addr = target_addr
+        if target_idx is not None:
+            entry.target_idx = target_idx
+        if next_addr is not None:
+            entry.next_addr = next_addr
 
-    __slots__ = ("_index_by_payload", "payloads")
+
+def _parse_switch_head(msg: ail_types_pb2.IncompleteSwitchCaseHead) -> IncompleteSwitchCaseHeadStatement:
+    case_addrs = []
+    for entry in msg.entries:
+        cmp_block = Block.from_bytes(entry.cmp_block) if entry.HasField("cmp_block") else None
+        case_value = entry.label if entry.WhichOneof("case") == "label" else entry.value
+        case_addrs.append(
+            (
+                cmp_block,
+                case_value,
+                entry.target_addr,
+                entry.target_idx if entry.HasField("target_idx") else None,
+                entry.next_addr if entry.HasField("next_addr") else None,
+            )
+        )
+    tags = {"ins_addr": msg.ins_addr} if msg.HasField("ins_addr") else {}
+    return IncompleteSwitchCaseHeadStatement(
+        msg.idx if msg.HasField("idx") else None,
+        Expression.from_bytes(msg.switch_variable),
+        case_addrs,
+        peephole_optimized=msg.peephole_optimized,
+        **tags,
+    )
+
+
+def _encode_block(block) -> tuple[bytes, list[ail_types_pb2.AilPyStatement]]:
+    """Split a block into a Rust-serializable payload plus the Python statements removed from it.
+
+    ``Block.to_bytes()`` accepts only Rust statements. The decompiler's graphs also carry
+    ``IncompleteSwitchCaseHeadStatement``, which is still written in Python; it is encoded separately and put back
+    at the same index by :func:`_decode_block_extras`.
+    """
+    statements = block.statements
+    py_indices = {i for i, stmt in enumerate(statements) if not isinstance(stmt, Statement)}
+    if not py_indices:
+        return block.to_bytes(), []
+
+    extras = []
+    for i in sorted(py_indices):
+        stmt = statements[i]
+        if not isinstance(stmt, IncompleteSwitchCaseHeadStatement):
+            raise TypeError(f"Unsupported non-AIL statement {type(stmt).__name__} in block {block.addr:#x}")
+        entry = ail_types_pb2.AilPyStatement()
+        entry.stmt_index = i
+        _pack_switch_head(stmt, entry.switch_head)
+        extras.append(entry)
+    rust_only = block.copy(statements=[s for i, s in enumerate(statements) if i not in py_indices])
+    return rust_only.to_bytes(), extras
+
+
+def _decode_block_extras(block, entries) -> None:
+    """Inverse of the split in :func:`_encode_block`; ``entries`` are in ascending ``stmt_index`` order."""
+    for entry in entries:
+        block.statements.insert(entry.stmt_index, _parse_switch_head(entry.switch_head))
+
+
+class BlockPool:
+    """A shared pool of ``Block.to_bytes()`` payloads for deduplicating identical blocks across graphs."""
+
+    __slots__ = ("_index_by_key", "payloads")
 
     def __init__(self) -> None:
         self.payloads: list[bytes] = []
-        self._index_by_payload: dict[bytes, int] = {}
+        self._index_by_key: dict[bytes, int] = {}
 
-    def add(self, block) -> int:
-        payload = block.to_bytes()
-        idx = self._index_by_payload.get(payload)
+    def add(self, payload: bytes, extras: list[ail_types_pb2.AilPyStatement] | None = None) -> int:
+        # Two blocks whose Rust statements are identical can still differ in the Python statements taken out of the
+        # payload, so those are part of the identity the pool deduplicates on.
+        key = payload
+        if extras:
+            key = b"\0".join([payload, *(e.SerializeToString(deterministic=True) for e in extras)])
+        idx = self._index_by_key.get(key)
         if idx is None:
             idx = len(self.payloads)
-            self._index_by_payload[payload] = idx
+            self._index_by_key[key] = idx
             self.payloads.append(payload)
         return idx
 
@@ -132,10 +215,15 @@ def pack_graph(graph: networkx.DiGraph, pool: BlockPool | None = None) -> ail_ty
         if not isinstance(node, Block):
             raise TypeError(f"Unsupported AIL graph node type {type(node).__name__}; only ailment.Block is allowed")
         node_to_idx[node] = i
+        payload, extras = _encode_block(node)
         if pool is None:
-            msg.blocks.append(node.to_bytes())
+            msg.blocks.append(payload)
         else:
-            msg.block_refs.append(pool.add(node))
+            msg.block_refs.append(pool.add(payload, extras))
+        if extras:
+            node_extras = msg.node_extras.add()
+            node_extras.node_index = i
+            node_extras.statements.extend(extras)
 
     # Pick the modal non-ins_addr edge-data value as the default so common edge attributes are stored once.
     edge_list = list(graph.edges(data=True))
@@ -170,6 +258,8 @@ def parse_graph(msg: ail_types_pb2.AilGraph, pool_payloads=None) -> networkx.DiG
         blocks = [Block.from_bytes(pool_payloads[i]) for i in msg.block_refs]
     else:
         blocks = [Block.from_bytes(b) for b in msg.blocks]
+    for node_extras in msg.node_extras:
+        _decode_block_extras(blocks[node_extras.node_index], node_extras.statements)
     graph.add_nodes_from(blocks)
     default_data = _parse_edge_data(msg.default_edge_data) if msg.HasField("default_edge_data") else {}
     for edge in msg.edges:
