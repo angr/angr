@@ -113,6 +113,27 @@ class TestFactCollector(unittest.TestCase):
 
         self.assertEqual(facts.retval_size, 8)
 
+    def test_s390x_float_constant_write_does_not_break_retval_size(self):
+        # atan2 compares its argument against zero loaded by lzdr, which lifts to an 8-byte Put of an
+        # Ity_F64 constant. The return-value size check masked such a constant against
+        # 0xFFFF_FFFF_0000_0000, and a float constant carries a Python float.
+        binary_path = os.path.join(test_location, "s390x", "libm.so.6")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        atan2 = proj.loader.find_symbol("atan2")
+        assert atan2 is not None
+
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(atan2.rebased_addr, atan2.rebased_addr + atan2.size)],
+            function_starts=[atan2.rebased_addr],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        facts = proj.analyses.FunctionFactCollector(cfg.kb.functions[atan2.rebased_addr])
+
+        self.assertEqual(facts.retval_size, 8)
+
     def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, arch, "fauxware")
         fauxware = angr.Project(binary_path, auto_load_libs=False)
