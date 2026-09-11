@@ -37,7 +37,7 @@ class CascadingIfsRemover(SequenceWalker):
             CodeNode: self._handle_Code,
             MultiNode: self._handle_MultiNode,
             LoopNode: self._handle_Loop,
-            ConditionNode: self._handle_Condition,
+            ConditionNode: self._walk_Condition,
             CascadingConditionNode: self._handle_CascadingCondition,
         }
 
@@ -45,7 +45,7 @@ class CascadingIfsRemover(SequenceWalker):
         self.manager = manager
         self.walk(node)
 
-    def _handle_Condition(self, node, parent=None, index=None, **kwargs):
+    def _walk_Condition(self, node, parent=None, index=None, **kwargs):
         """
 
         :param ConditionNode node:
@@ -54,9 +54,9 @@ class CascadingIfsRemover(SequenceWalker):
         """
 
         if node.true_node is not None:
-            self._handle(node.true_node, parent=node, index=0)
+            yield node.true_node, {"parent": node, "index": 0}
         if node.false_node is not None:
-            self._handle(node.false_node, parent=node, index=1)
+            yield node.false_node, {"parent": node, "index": 1}
 
         if node.true_node is not None and node.false_node is None:
             if isinstance(node.true_node, SequenceNode):

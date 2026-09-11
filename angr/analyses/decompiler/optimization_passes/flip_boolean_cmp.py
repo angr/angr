@@ -33,7 +33,7 @@ class FlipBooleanWalker(SequenceWalker):
         self._last_node = last_node
         self._flip_size = flip_size
 
-    def _handle_Sequence(self, seq_node, **kwargs):
+    def _walk_Sequence(self, seq_node, **kwargs):
         # Type 1:
         # if (cond) { ... }  else  { return; }   -->   if (!cond) { return; } else { ... }
         #
@@ -87,7 +87,7 @@ class FlipBooleanWalker(SequenceWalker):
                 cond_node.true_node = successor
                 seq_node.nodes.insert(idx + 2, successor)
 
-        return super()._handle_Sequence(seq_node, **kwargs)
+        return (yield from super()._walk_Sequence(seq_node, **kwargs))
 
 
 class FlipBooleanCmp(SequenceOptimizationPass):
