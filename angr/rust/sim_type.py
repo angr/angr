@@ -15,6 +15,8 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypeNumOffset,
     SimTypePointer,
+    SimTypeRef,
+    type_memo_key,
 )
 
 
@@ -445,8 +447,10 @@ class RustSimStruct(RustSimType, SimStruct):
     def to_json(self, fields=None, memo=None):
         if memo is None:
             memo = {}
-        if self.name and self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
+        key = type_memo_key(self)
+        if key in memo:
+            return memo[key].to_json(fields=fields, memo=memo)
+        memo[key] = SimTypeRef(self.name, self.__class__)
         d = SimType.to_json(self, fields=fields, memo=memo)
         if "pack" in d and d["pack"] is False:
             d.pop("pack")

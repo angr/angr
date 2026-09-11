@@ -15,6 +15,7 @@ from angr.sim_type import (
     SimTypeRef,
     SimUnion,
     TypeRef,
+    type_memo_key,
 )
 
 if TYPE_CHECKING:
@@ -78,7 +79,7 @@ def squash_array_reference(ty):
 
 
 def dereference_simtype(
-    t: SimType, type_collections: list[SimTypeCollection], memo: dict[str | int, SimType] | None = None
+    t: SimType, type_collections: list[SimTypeCollection], memo: dict[str, SimType] | None = None
 ) -> SimType:
     if memo is None:
         memo = {}
@@ -104,11 +105,12 @@ def dereference_simtype(
 
     # the following code prepares a real_type SimType object that will be returned at the end of this method
     if isinstance(t, SimStruct):
-        if t.name in memo or (t.anonymous and id(t) in memo):
-            return memo[t.name if not t.anonymous else id(t)]
+        key = type_memo_key(t)
+        if key in memo:
+            return memo[key]
 
         real_type = t.copy()
-        memo[t.name if not t.anonymous else id(t)] = real_type
+        memo[key] = real_type
         fields = OrderedDict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.fields.items())
         real_type.fields = fields
     elif isinstance(t, SimTypePointer):
@@ -120,10 +122,13 @@ def dereference_simtype(
         real_type = t.copy()
         real_type.elem_type = real_elem_type
     elif isinstance(t, SimUnion):
-        memo[t.name] = t
-        real_members = {k: dereference_simtype(v, type_collections, memo=memo) for k, v in t.members.items()}
+        key = type_memo_key(t)
+        if key in memo:
+            return memo[key]
+
         real_type = t.copy()
-        real_type.members = real_members
+        memo[key] = real_type
+        real_type.members = {k: dereference_simtype(v, type_collections, memo=memo) for k, v in t.members.items()}
     elif isinstance(t, SimTypeFunction):
         real_args = [dereference_simtype(arg, type_collections, memo=memo) for arg in t.args]
         real_return_type = (
