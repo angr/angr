@@ -1307,7 +1307,10 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         };
 
         let fp_ret_offset: Option<i64> = self.arch.arch.getattr("fp_ret_offset")?.extract()?;
-        let fp_ret_expr: Option<AilExpression> = if let Some(fp_ret_offset) = fp_ret_offset {
+        // A syscall's provisional return is owned by its own semantics, so only a real call gets one.
+        let fp_ret_expr: Option<AilExpression> = if jk != "Ijk_Call" {
+            None
+        } else if let Some(fp_ret_offset) = fp_ret_offset {
             if fp_ret_offset == ret_offset {
                 None
             } else {

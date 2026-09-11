@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import MutableMapping
+from collections.abc import Collection, MutableMapping
 from typing import TYPE_CHECKING
 
 import archinfo
@@ -45,7 +45,7 @@ from angr.ailment.statement import (
 )
 from angr.ailment.tagged_object import TaggedObject
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.calling_conventions import call_clobbered_regs
+from angr.calling_conventions import call_clobbered_regs, default_cc, is_stack_probe
 from angr.engines.light.engine import SimEngineNostmtAIL
 
 from .consts import MAX_STACK_VAR_SIZE
@@ -73,6 +73,8 @@ class SimEngineSSARewriting(
         ail_manager: Manager,
         def_to_udef: MutableMapping[Def, UDef],
         incomplete_defs: set[Def],
+        provisional_call_return_defs: Collection[Def] = (),
+        used_provisional_call_return_defs: Collection[Def] = (),
         vvar_id_start: int = 0,
         rewrite_tmps: bool = False,
         stackvars: bool = False,
@@ -87,6 +89,8 @@ class SimEngineSSARewriting(
         self.hclb_side_exit_state: RewritingState | None = None
         self.out_block: Block | None = None
         self.def_to_udef = def_to_udef
+        self.provisional_call_return_defs = provisional_call_return_defs
+        self.used_provisional_call_return_defs = used_provisional_call_return_defs
         self.stackvars = stackvars
         self.incomplete_defs = incomplete_defs
         self._fail_fast = fail_fast
@@ -293,14 +297,26 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement | None:
+        assert isinstance(stmt.expr, Call)
         new_expr = self._expr(stmt.expr)
         vm = variable_map_of(self.ail_manager)
         cc = vm.calling_convention(stmt.expr)
 
         # resolve the callee so that we honor its own calling convention (matching the traversal engine)
         target = self._resolve_call_target(stmt.expr)
+        is_syscall = (isinstance(stmt.expr.target, DirtyExpression) and stmt.expr.target.callee == "syscall") or (
+            target is not None and target.is_syscall
+        )
 
-        if cc is None and target is not None and target.calling_convention is not None:
+        if is_syscall:
+            cc_cls = default_cc(
+                self.arch.name,
+                platform=self.project.simos.name if self.project.simos is not None else None,
+                syscall=True,
+            )
+            assert cc_cls is not None
+            cc = cc_cls(self.arch)
+        elif cc is None and target is not None and target.calling_convention is not None:
             # honor the callee's own calling convention before falling back to the platform default
             cc = target.calling_convention
         if cc is None:
@@ -314,19 +330,47 @@ class SimEngineSSARewriting(
                 for suboff in range(base_off, base_off + base_size):
                     self.state.registers.pop(suboff, None)
 
+        original_ret_expr = stmt.ret_expr
+        original_fp_ret_expr = stmt.fp_ret_expr
+        ret_expr = original_ret_expr
+        fp_ret_expr = original_fp_ret_expr
+        if is_syscall or (target is not None and is_stack_probe(target)):
+            fp_ret_expr = None
+        if (
+            original_ret_expr in self.provisional_call_return_defs
+            and original_fp_ret_expr in self.provisional_call_return_defs
+        ):
+            ret_used = original_ret_expr in self.used_provisional_call_return_defs
+            fp_ret_used = original_fp_ret_expr in self.used_provisional_call_return_defs
+            if ret_used != fp_ret_used:
+                if ret_used:
+                    fp_ret_expr = None
+                else:
+                    ret_expr = None
+        if ret_expr is not None and ret_expr not in self.def_to_udef:
+            ret_expr = None
+        if fp_ret_expr is not None and fp_ret_expr not in self.def_to_udef:
+            fp_ret_expr = None
+        outputs_changed = ret_expr != original_ret_expr or fp_ret_expr != original_fp_ret_expr
+
         new_stmt = None
-        if stmt.ret_expr is not None:
-            assert isinstance(stmt.ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+        if ret_expr is not None:
+            assert isinstance(ret_expr, Atom)
+            new_stmt = self._replace_def_expr(ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
             # becomes an Assignment
-        elif stmt.fp_ret_expr is not None:
-            assert isinstance(stmt.fp_ret_expr, Atom)
-            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
+        elif fp_ret_expr is not None:
+            assert isinstance(fp_ret_expr, Atom)
+            new_stmt = self._replace_def_expr(fp_ret_expr, new_expr if new_expr is not None else stmt.expr, stmt)
             # becomes an Assignment
 
-        if new_stmt is None and new_expr is not None:
-            # only create a new SideEffectStatement if we get a new inner expr
-            new_stmt = SideEffectStatement(self.ail_manager.next_atom(), new_expr, **stmt.tags)
+        if new_stmt is None and (new_expr is not None or outputs_changed):
+            new_stmt = SideEffectStatement(
+                self.ail_manager.next_atom(),
+                stmt.expr if new_expr is None else new_expr,
+                ret_expr=ret_expr,
+                fp_ret_expr=fp_ret_expr,
+                **stmt.tags,
+            )
 
         return new_stmt
 
