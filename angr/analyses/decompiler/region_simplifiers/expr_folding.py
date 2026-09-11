@@ -323,8 +323,16 @@ class ExpressionCounter(SequenceWalker):
     def _collect_assignments(self, expr: Expression, node) -> None:
         if not self._outer_scope:
             return
-        finder = MultiStatementExpressionAssignmentFinder(self._handle_Statement)
+        finder = MultiStatementExpressionAssignmentFinder(self._handle_mse_statement)
         finder.walk_expression(expr, None, None, node)
+
+    def _handle_mse_statement(self, idx: int, stmt: Statement, node) -> None:
+        # a call inside a multi-statement expression stays there: folding its result into a use elsewhere would move
+        # the call out of the condition that evaluates it, and ExpressionReplacer cannot place a statement in an
+        # expression slot anyway
+        if isinstance(stmt, ailment.Stmt.SideEffectStatement):
+            return
+        self._handle_Statement(idx, stmt, node)
 
     def _collect_uses(self, thing: Expression | Statement | ailment.Block, loc: LocationBase | None):
         use_finder = ExpressionUseFinder()
@@ -652,6 +660,9 @@ class ExpressionReplacer(AILBlockRewriter):
     ) -> Expression:
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.varid in self._uses:
             replace_with, _ = self._assignments[expr.varid]
+            if isinstance(replace_with, ailment.Stmt.SideEffectStatement):
+                # the value of a call definition is its call expression; a statement cannot fill an expression slot
+                return replace_with.expr
             return replace_with
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 

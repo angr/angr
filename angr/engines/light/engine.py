@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from angr.project import Project
 
 
+l = logging.getLogger(__name__)
+
+
 class BlockProtocol(Protocol):
     """
     The minimum protocol that a block an engine can process should adhere to.
@@ -775,10 +778,21 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
         raise TypeError("We should never see raw Ops")
 
     def _handle_expr_UnaryOp(self, expr: ailment.expression.UnaryOp) -> DataType_co:
-        return self._unop_handlers[expr.op](expr)
+        handler = self._unop_handlers.get(expr.op)
+        if handler is None:
+            return self._handle_unsupported_op(expr)
+        return handler(expr)
 
     def _handle_expr_BinaryOp(self, expr: ailment.expression.BinaryOp) -> DataType_co:
-        return self._binop_handlers[expr.op](expr)
+        handler = self._binop_handlers.get(expr.op)
+        if handler is None:
+            return self._handle_unsupported_op(expr)
+        return handler(expr)
+
+    def _handle_unsupported_op(self, expr) -> DataType_co:
+        """An operator without a handler (e.g. the float Round of arm64 frint): its value is unknown."""
+        l.debug("Unsupported AIL operator %s", expr.op)
+        return None  # type: ignore[return-value]
 
     @abstractmethod
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType_co: ...

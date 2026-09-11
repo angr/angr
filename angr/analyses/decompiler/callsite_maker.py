@@ -10,6 +10,7 @@ from angr.ailment import Const, Expr, Stmt
 from angr.ailment.manager import Manager
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.calling_conventions import (
+    SimArrayArg,
     SimCC,
     SimComboArg,
     SimFunctionArgument,
@@ -18,6 +19,7 @@ from angr.calling_conventions import (
     SimStackArg,
     SimStructArg,
 )
+from angr.errors import AngrTypeError
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
@@ -398,10 +400,23 @@ class CallSiteMaker:
         vm = variable_map_of(self._ail_manager)
         vm.set_calling_convention(new_call, cc)
         vm.set_prototype(new_call, prototype)
+        stack_result = self._stack_result_slot(cc, prototype, call_expr)
         if isinstance(last_stmt, Stmt.Assignment):
             if not new_call.bits:
                 new_call.bits = last_stmt.src.bits
             new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_call, **last_stmt.tags)
+        elif stack_result is not None:
+            # the callee leaves its result in the caller's frame (Go's ABI0): the call defines that slot
+            sp_offset, size = stack_result
+            new_call.bits = size * self.project.arch.byte_width
+            new_stmt = Stmt.Store(
+                call_expr.idx,
+                Expr.StackBaseOffset(self._atom_idx(), self.project.arch.bits, sp_offset),
+                new_call,
+                size,
+                self.project.arch.memory_endness,
+                **tags,
+            )
         else:
             if not new_call.bits:
                 if ret_expr is not None:
@@ -421,6 +436,34 @@ class CallSiteMaker:
         new_block = self.block.copy(statements=new_stmts)
 
         self.result_block = new_block
+
+    def _stack_result_slot(self, cc, prototype, call_expr: Expr.Call) -> tuple[int, int] | None:
+        """(stack offset, size) of a result returned on the stack, relative to this function's stack base."""
+        if (
+            cc is None
+            or prototype is None
+            or prototype.returnty is None
+            or isinstance(prototype.returnty, SimTypeBottom)
+        ):
+            return None
+        if self._stack_pointer_tracker is None or call_expr.tags.get("ins_addr") is None:
+            return None
+        try:
+            ret_loc = cc.return_val(prototype.returnty)
+        except (AngrTypeError, ValueError, KeyError, NotImplementedError):
+            return None
+        locs = self._expand_arglocs([ret_loc]) if ret_loc is not None else []
+        if not locs or not all(isinstance(loc, SimStackArg) for loc in locs):
+            return None
+        sp_base = self._stack_pointer_tracker.offset_before(call_expr.tags["ins_addr"], self.project.arch.sp_offset)
+        if sp_base is None:
+            return None
+        if sp_base >= (1 << (self.project.arch.bits - 1)):
+            sp_base -= 1 << self.project.arch.bits
+        start = min(loc.stack_offset for loc in locs)
+        end = max(loc.stack_offset + loc.size for loc in locs)
+        adjust = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
+        return sp_base + start - adjust, end - start
 
     def _find_variable_from_definition(self, def_: Definition):
         """
@@ -651,6 +694,9 @@ class CallSiteMaker:
                     if field_name not in arg_loc.locs:
                         continue
                     expanded_arg_locs += self._expand_arglocs([arg_loc.locs[field_name]])
+            elif isinstance(arg_loc, SimArrayArg):
+                # a fixed-size array field: one location per element
+                expanded_arg_locs += self._expand_arglocs(list(arg_loc.locs))
             elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
                 expanded_arg_locs.append(arg_loc)
             else:

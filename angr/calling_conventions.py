@@ -131,6 +131,10 @@ class AllocHelper:
         raise TypeError(type(val))
 
 
+class _LayoutOverflow(Exception):
+    """The type's layout runs past the locations reserved for it."""
+
+
 def refine_locs_with_struct_type(
     arch: archinfo.Arch,
     locs: list,
@@ -142,7 +146,22 @@ def refine_locs_with_struct_type(
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
+    try:
+        return _refine_locs_with_struct_type(arch, locs, arg_type, offset, treat_bot_as_int, treat_unsupported_as_int)
+    except _LayoutOverflow:
+        # the fields of arg_type (a struct whose declared size disagrees with its field layout, or a type wider
+        # than the words the convention reserved) run past locs; the unrefined locations are still right
+        return locs[0] if len(locs) == 1 else SimComboArg(list(locs))
 
+
+def _refine_locs_with_struct_type(
+    arch: archinfo.Arch,
+    locs: list,
+    arg_type: SimType,
+    offset: int,
+    treat_bot_as_int: bool,
+    treat_unsupported_as_int: bool,
+):
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
 
@@ -157,6 +176,8 @@ def refine_locs_with_struct_type(
             chunk_remaining = arch.bytes - chunk_offset
             type_remaining = arg_type.size // arch.byte_width - seen_bytes
             use_bytes = min(chunk_remaining, type_remaining)
+            if chunk >= len(locs):
+                raise _LayoutOverflow
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
 
@@ -168,15 +189,22 @@ def refine_locs_with_struct_type(
         assert arg_type.elem_type.size is not None and arg_type.length is not None
         # TODO explicit stride
         locs_list = [
-            refine_locs_with_struct_type(
-                arch, locs, arg_type.elem_type, offset=offset + i * arg_type.elem_type.size // arch.byte_width
+            _refine_locs_with_struct_type(
+                arch,
+                locs,
+                arg_type.elem_type,
+                offset + i * arg_type.elem_type.size // arch.byte_width,
+                treat_bot_as_int,
+                treat_unsupported_as_int,
             )
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs_list)
     if isinstance(arg_type, SimStruct):
         locs_dict = {
-            field: refine_locs_with_struct_type(arch, locs, field_ty, offset=offset + arg_type.offsets[field])
+            field: _refine_locs_with_struct_type(
+                arch, locs, field_ty, offset + arg_type.offsets[field], treat_bot_as_int, treat_unsupported_as_int
+            )
             for field, field_ty in arg_type.fields.items()
         }
         return SimStructArg(arg_type, locs_dict)
@@ -184,19 +212,14 @@ def refine_locs_with_struct_type(
         # Treat a SimUnion as functionality equivalent to its longest member
         for member in arg_type.members.values():
             if member.size == arg_type.size:
-                return refine_locs_with_struct_type(arch, locs, member, offset)
+                return _refine_locs_with_struct_type(
+                    arch, locs, member, offset, treat_bot_as_int, treat_unsupported_as_int
+                )
 
     # for all other types, we basically treat them as integers until someone implements proper layouting logic
     if treat_unsupported_as_int:
         arg_type = SimTypeInt().with_arch(arch)
-        return refine_locs_with_struct_type(
-            arch,
-            locs,
-            arg_type,
-            offset=offset,
-            treat_bot_as_int=treat_bot_as_int,
-            treat_unsupported_as_int=treat_unsupported_as_int,
-        )
+        return _refine_locs_with_struct_type(arch, locs, arg_type, offset, treat_bot_as_int, treat_unsupported_as_int)
 
     raise TypeError(f"I don't know how to lay out a {arg_type}")
 
@@ -2052,6 +2075,99 @@ class SimCCGoAMD64ABI0(SimCCGoAMD64):
     OVERFLOW_FP_RETURN_VAL = None
 
 
+class SimCCGoAArch64(SimCCGoAMD64):
+    """
+    Go's register-based internal ABI on arm64 (go1.17+): integer arguments and results in R0-R15,
+    floating-point ones in F0-F15, results restarting at the first register. R26 carries the closure
+    context, R27 is the assembler temporary, R28 pins the current goroutine (g), R29 is the frame
+    pointer and R30 the link register; none of them are arguments. Stack-assigned values start at
+    8(RSP) of the caller's frame.
+    """
+
+    ARG_REGS = [f"x{i}" for i in range(16)]
+    FP_ARG_REGS = [f"d{i}" for i in range(16)]
+    STACKARG_SP_DIFF = 8
+    CALLER_SAVED_REGS = [f"x{i}" for i in range(28)] + ["x30"] + [f"d{i}" for i in range(32)]
+    RETURN_ADDR = SimRegArg("lr", 8)
+    RETURN_VAL = SimRegArg("x0", 8)
+    OVERFLOW_RETURN_VAL = SimRegArg("x1", 8)
+    FP_RETURN_VAL = SimRegArg("d0", 8)
+    OVERFLOW_FP_RETURN_VAL = SimRegArg("d1", 8)
+    ARCH = archinfo.ArchAArch64
+    STACK_ALIGNMENT = 16
+    ARG_REG_SANITY_FILTER = True
+    STRICT_CALLER_SAVED_MATCH = False
+
+
+class SimCCGoAArch64ABI0(SimCCGoAArch64):
+    """
+    Go's all-stack ABI0 on arm64, used by the runtime's assembly (symbols suffixed with ".abi0").
+    """
+
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    CALLER_SAVED_REGS = SimCCGoAArch64.CALLER_SAVED_REGS
+    RETURN_VAL = None
+    OVERFLOW_RETURN_VAL = None
+    FP_RETURN_VAL = None
+    OVERFLOW_FP_RETURN_VAL = None
+
+
+class SimCCGoX86(SimCCGoAMD64):
+    """
+    Go on 386 only ever had the all-stack ABI0: arguments start at 4(SP) in declaration order, results follow them
+    at the next word boundary. Where the results start depends on the argument sizes, which ``return_val`` does not
+    see: :meth:`for_prototype` builds an instance that knows them; a bare instance assumes no arguments.
+    """
+
+    ARG_REGS = []
+    FP_ARG_REGS = []
+    STACKARG_SP_DIFF = 4
+    CALLER_SAVED_REGS = ["eax", "ebx", "ecx", "edx", "esi", "edi", *[f"xmm{i}" for i in range(8)]]
+    RETURN_ADDR = SimStackArg(0, 4)
+    RETURN_VAL = None
+    OVERFLOW_RETURN_VAL = None
+    FP_RETURN_VAL = None
+    OVERFLOW_FP_RETURN_VAL = None
+    ARCH = archinfo.ArchX86
+    STACK_ALIGNMENT = 4
+
+    def __init__(self, arch: archinfo.Arch, args_size: int | None = None):
+        super().__init__(arch)
+        self.args_size = args_size
+
+    @classmethod
+    def for_prototype(cls, arch: archinfo.Arch, prototype: SimTypeFunction) -> SimCCGoX86:
+        cc = cls(arch)
+        end = cc.STACKARG_SP_DIFF
+        for loc in cc.arg_locs(prototype):
+            for piece in loc.get_footprint():
+                if isinstance(piece, SimStackArg):
+                    end = max(end, piece.stack_offset + piece.size)
+        args_size = -(-(end - cc.STACKARG_SP_DIFF) // arch.bytes) * arch.bytes
+        return cls(arch, args_size)
+
+    def return_val(self, ty: SimType | None, perspective_returned=False):
+        if ty is None or isinstance(ty, SimTypeBottom):
+            return None
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
+        size = self.arch.bytes if ty.size is None else ty.size // self.arch.byte_width
+        base = self.STACKARG_SP_DIFF + (self.args_size or 0)
+        locs = [
+            SimStackArg(base + i * self.arch.bytes, self.arch.bytes) for i in range(max(1, -(-size // self.arch.bytes)))
+        ]
+        return refine_locs_with_struct_type(self.arch, locs, ty)
+
+
+# Go's legacy all-stack ABI0 per architecture, for symbols the gc linker suffixes with ".abi0"
+GO_ABI0_CC: dict[str, type[SimCC]] = {
+    "AMD64": SimCCGoAMD64ABI0,
+    "AARCH64": SimCCGoAArch64ABI0,
+    "X86": SimCCGoX86,
+}
+
+
 class SimCCAMD64LinuxSyscall(SimCCSyscall):
     ARG_REGS = ["rdi", "rsi", "rdx", "r10", "r8", "r9"]
     RETURN_VAL = SimRegArg("rax", 8)
@@ -2981,6 +3097,16 @@ CC_BY_LANGUAGE: dict[str, dict[str, dict[str, list[type[SimCC]]]]] = {
             "Linux": [SimCCGoAMD64],
             "Win32": [SimCCGoAMD64],
         },
+        "AARCH64": {
+            "default": [SimCCGoAArch64],
+            "Linux": [SimCCGoAArch64],
+            "Win32": [SimCCGoAArch64],
+        },
+        "X86": {
+            "default": [SimCCGoX86],
+            "Linux": [SimCCGoX86],
+            "Win32": [SimCCGoX86],
+        },
     },
 }
 
@@ -2990,6 +3116,16 @@ DEFAULT_CC_BY_LANGUAGE: dict[str, dict[str, dict[str, type[SimCC]]]] = {
             "default": SimCCGoAMD64,
             "Linux": SimCCGoAMD64,
             "Win32": SimCCGoAMD64,
+        },
+        "AARCH64": {
+            "default": SimCCGoAArch64,
+            "Linux": SimCCGoAArch64,
+            "Win32": SimCCGoAArch64,
+        },
+        "X86": {
+            "default": SimCCGoX86,
+            "Linux": SimCCGoX86,
+            "Win32": SimCCGoX86,
         },
     },
 }

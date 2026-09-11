@@ -72,6 +72,7 @@ class SimEngineSSARewriting(
         *,
         ail_manager: Manager,
         def_to_udef: MutableMapping[Def, UDef],
+        extern_defs: set[UDef] | None = None,
         incomplete_defs: set[Def],
         vvar_id_start: int = 0,
         rewrite_tmps: bool = False,
@@ -87,6 +88,7 @@ class SimEngineSSARewriting(
         self.hclb_side_exit_state: RewritingState | None = None
         self.out_block: Block | None = None
         self.def_to_udef = def_to_udef
+        self.extern_defs: set[UDef] = extern_defs if extern_defs is not None else set()
         self.stackvars = stackvars
         self.incomplete_defs = incomplete_defs
         self._fail_fast = fail_fast
@@ -376,7 +378,7 @@ class SimEngineSSARewriting(
     def _handle_expr_Load(self, expr: Load) -> Expression | None:
         if self.stackvars and isinstance(expr.addr, StackBaseOffset):
             # vvar assignment
-            vvar = self._expr_to_vvar(expr.addr, True)
+            vvar = self._expr_to_vvar(expr.addr, True, size_hint=expr.size)
             assert isinstance(expr.addr.offset, int)
             if vvar.stack_offset + vvar.size >= expr.addr.offset + expr.size:
                 return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
@@ -684,33 +686,34 @@ class SimEngineSSARewriting(
     # Utils
     #
 
-    def _expr_to_vvar(self, expr: Def, def_is_implicit: bool) -> VirtualVariable:
+    def _extern_def_covers(self, kind: str, offset: int) -> bool:
+        return any(k == kind and off <= offset < off + size for k, off, size in self.extern_defs)
+
+    def _expr_to_vvar(self, expr: Def, def_is_implicit: bool, size_hint: int | None = None) -> VirtualVariable:
         # is this a use, not a def?
         if (udef := self.def_to_udef.get(expr, None)) is None:
-            # in case of emergency, raise keyerror
             if isinstance(expr, StackBaseOffset):
                 assert isinstance(expr.offset, int)
-                if self._fail_fast or expr.offset in self.state.stackvars:
-                    return self.state.stackvars[expr.offset]
+                kind, offset, live = "stack", expr.offset, self.state.stackvars
             elif isinstance(expr, Register):
-                if self._fail_fast or expr.reg_offset in self.state.registers:
-                    return self.state.registers[expr.reg_offset]
+                kind, offset, live = "reg", expr.reg_offset, self.state.registers
+                size_hint = expr.size if size_hint is None else size_hint
             else:
                 raise TypeError(expr)
+            if offset in live:
+                return live[offset]
 
-            # we got here because expr refers to a non-existent stack offset or register offset.
-            # raise a KeyError if fail_fast is specified because something else has gone wrong at this point.
-            if self._fail_fast:
+            # no definition reaches this use on this path: a read of memory (or a register) the function never wrote
+            # before reading, which is legitimate. the entry state seeds every extern def, so an offset an extern def
+            # covers can only be missing when the analysis lost track of it.
+            if self._fail_fast and self._extern_def_covers(kind, offset):
                 raise KeyError(expr)
-            # otherwise, we try our best to guesstimate the udef here
-            kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
-            offset = expr.offset if isinstance(expr, StackBaseOffset) else expr.reg_offset
-            if kind == "stack":
-                next_off = min((o for o in self.state.stackvars if o >= offset), default=offset + 4)
+            # guesstimate the udef: the size of the access when known, bounded by the next live offset
+            next_off = min((o for o in live if o > offset), default=None)
+            if size_hint is not None:
+                size = size_hint if next_off is None else min(size_hint, next_off - offset)
             else:
-                # kind == "reg"
-                next_off = min((o for o in self.state.registers if o >= offset), default=offset + 4)
-            size = next_off - offset
+                size = 4 if next_off is None else next_off - offset
         else:
             # unpack udef
             kind, offset, size = udef

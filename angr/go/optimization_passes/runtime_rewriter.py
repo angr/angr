@@ -1,0 +1,1701 @@
+"""
+Turn calls into the Go runtime for maps, channels, goroutines, defer and panic/recover back into the Go statements
+they were compiled from. See :mod:`angr.go.codegen_builtins` for the ``go_render`` tag protocol the results use.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import logging
+from collections import Counter, defaultdict
+
+import networkx
+
+from angr.ailment import AILBlockRewriter, AILBlockViewer, Block
+from angr.ailment.expression import (
+    BinaryOp,
+    Call,
+    Const,
+    Expression,
+    Load,
+    StringLiteral,
+    Struct,
+    UnaryOp,
+    VirtualVariable,
+)
+from angr.ailment.expression import VirtualVariableCategory as VVC
+from angr.ailment.statement import Assignment, Return, SideEffectStatement, Statement, Store
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.go.analyses.block_scan import (
+    CTX,
+    RegisterEnv,
+    callee_name,
+    function_blocks,
+    is_function_addr,
+    lift_ail,
+    loads_in,
+)
+from angr.go.analyses.runtime_globals import is_readonly_data
+from angr.go.runtime_types import CONTEXT_REGISTERS
+from angr.go.sim_type import (
+    GoSimStruct,
+    GoSimType,
+    GoSimTypeChan,
+    GoSimTypeFunc,
+    GoSimTypeFunction,
+    GoSimTypeMap,
+    GoSimTypeTuple,
+)
+from angr.go.utils.names import call_target_name
+from angr.go.utils.types import go_type_at, go_type_name_at
+from angr.sim_type import SimType
+from angr.utils.go_runtime import normalize_go_func_name
+
+l = logging.getLogger(__name__)
+
+_MAKEMAP = frozenset({"runtime.makemap", "runtime.makemap64", "runtime.makemap_small"})
+_MAKECHAN = frozenset({"runtime.makechan", "runtime.makechan64"})
+_DEFERPROC = frozenset({"runtime.deferproc", "runtime.deferprocat"})
+_EXACT = {
+    "runtime.mapclear": "mapclear",
+    "runtime.chansend1": "chansend",
+    "runtime.chanrecv1": "chanrecv1",
+    "runtime.chanrecv2": "chanrecv2",
+    "runtime.closechan": "closechan",
+    "runtime.newproc": "newproc",
+    "runtime.deferprocStack": "deferprocstack",
+    "runtime.deferreturn": "deferreturn",
+    "runtime.gopanic": "gopanic",
+    "runtime.gorecover": "gorecover",
+}
+_PREFIXES = (
+    ("runtime.mapaccess1", "mapaccess1"),
+    ("runtime.mapaccess2", "mapaccess2"),
+    ("runtime.mapassign", "mapassign"),
+    ("runtime.mapdelete", "mapdelete"),
+)
+_CLOSURE_STRUCT = "struct { F uintptr"
+_ALLOCATORS = {"runtime.newobject": 0, "runtime.mallocgc": 1}
+_INT_KINDS = frozenset(
+    {"int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "uintptr", "bool"}
+)
+
+
+def classify_runtime_call(name: str | None) -> str | None:
+    if name is None:
+        return None
+    name = normalize_go_func_name(name)
+    if name in _MAKEMAP:
+        return "makemap"
+    if name in _MAKECHAN:
+        return "makechan"
+    if name in _DEFERPROC:
+        return "deferproc"
+    kind = _EXACT.get(name)
+    if kind is not None:
+        return kind
+    for prefix, kind in _PREFIXES:
+        if name.startswith(prefix):
+            return kind
+    return None
+
+
+def _addr_and_offset(expr) -> tuple[Expression, int]:
+    if isinstance(expr, BinaryOp) and expr.op == "Add":
+        a, b = expr.operands
+        if isinstance(b, Const):
+            return a, b.value_int
+        if isinstance(a, Const):
+            return b, a.value_int
+    return expr, 0
+
+
+def _ref_vvar(expr) -> VirtualVariable | None:
+    if isinstance(expr, UnaryOp) and expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+        return expr.operand
+    return None
+
+
+def _call_def(stmt) -> tuple[VirtualVariable, Call] | None:
+    """(vvar, call) when the statement defines a vvar with the result of a call."""
+    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Call):
+        return stmt.dst, stmt.src
+    if (
+        isinstance(stmt, SideEffectStatement)
+        and isinstance(stmt.ret_expr, VirtualVariable)
+        and isinstance(stmt.expr, Call)
+    ):
+        return stmt.ret_expr, stmt.expr
+    return None
+
+
+class _UseIndex(AILBlockViewer):
+    """Per-vvar definition sites and use shapes (loads through it, stores through it, references to it)."""
+
+    def __init__(self):
+        super().__init__()
+        self.defs: dict[int, tuple[Block, int]] = {}
+        self.total: Counter = Counter()
+        self.loads: dict[int, Counter] = defaultdict(Counter)
+        self.stores: Counter = Counter()
+        self.refs: Counter = Counter()
+        self.sites: dict[int, list[tuple[Block, int]]] = defaultdict(list)
+
+    def _handle_Assignment(self, stmt_idx, stmt, block):
+        if isinstance(stmt.dst, VirtualVariable):
+            self.defs[stmt.dst.varid] = (block, stmt_idx)
+        else:
+            self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
+        self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+
+    def _handle_SideEffectStatement(self, stmt_idx, stmt, block):
+        if isinstance(stmt.ret_expr, VirtualVariable):
+            self.defs[stmt.ret_expr.varid] = (block, stmt_idx)
+        self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        if isinstance(stmt.addr, VirtualVariable):
+            self.stores[stmt.addr.varid] += 1
+        super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr.addr, VirtualVariable):
+            self.loads[expr.addr.varid][expr.size] += 1
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+            self.refs[expr.operand.varid] += 1
+        super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.total[expr.varid] += 1
+        self.sites[expr.varid].append((block, stmt_idx))
+
+
+class _CallFinder(AILBlockViewer):
+    """All Call expressions inside a statement, outermost first."""
+
+    def __init__(self):
+        super().__init__()
+        self.calls: list[Call] = []
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.calls.append(expr)
+        super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class GoRuntimeRewriter(OptimizationPass):
+    """
+    Rewrite Go runtime calls into map, channel, goroutine, defer and panic/recover statements.
+
+    Map slot pointers returned by ``mapaccess1``/``mapassign`` are folded into the loads and the store that go through
+    them (``m[k]``, ``m[k] = v``); results the runtime writes through a stack pointer (``chanrecv``) become the value
+    of the rewritten call; open-coded defers (a deferBits byte plus an inline call at every exit) become ``defer``.
+    """
+
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
+    NAME = "Rewrite Go runtime calls into Go statements"
+
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
+        self._index: _UseIndex | None = None
+        self._idoms: dict | None = None
+        self._changed = False
+        # map slot pointer vvar -> (map, key)
+        self._slots: dict[int, tuple[Expression, Expression]] = {}
+        # pointer vvar whose loads become the vvar itself
+        self._deref: set[int] = set()
+        # vvar -> replacement expression
+        self._replace: dict[int, Expression] = {}
+        self._map_vvars: dict[int, str | None] = {}
+        self._chan_vvars: dict[int, str | None] = {}
+        self._dropped_defs: set[int] = set()
+        # stack slots that only park the frame pointer around duffzero/duffcopy calls
+        self._restore_loads: set[int] = set()
+        # vvar -> the func value type it holds
+        self._func_types: dict[int, GoSimTypeFunc] = {}
+        # stack funcval slot vvar -> the closure expression that replaces references to it
+        self._replace_refs: dict[int, Expression] = {}
+        self._static_funcvals: dict[int, int | None] = {}
+        self._context_offsets_cache: dict[int, dict[int, int]] = {}
+        # statements that only fill stack closure records; dropped once the defer rewrite has seen them
+        self._closure_slot_stmts: set[int] = set()
+        self.analyze()
+
+    def _check(self):
+        return self.project.is_go_binary, None
+
+    #
+    # Driver
+    #
+
+    def _analyze(self, cache=None):
+        if self._graph is None or not self._graph.nodes:
+            return
+        self._reindex()
+        self._collect_reference_types()
+        self._collect_func_values()
+        self._collect_slots()
+        self._rewrite_closures()
+        for block in list(self._graph.nodes):
+            self._rewrite_statements(block)
+        self._rewrite_open_coded_defers()
+        self._drop_closure_slots()
+        rewriter = _ExprRewriter(self)
+        for block in list(self._graph.nodes):
+            rewriter.walk(block)
+        if self._changed or rewriter.changed:
+            self.out_graph = self._graph
+
+    #
+    # Helpers
+    #
+
+    def _new_idx(self) -> int:
+        return self.manager.next_atom()
+
+    def _reindex(self) -> None:
+        self._index = _UseIndex()
+        for block in self._graph.nodes:
+            self._index.walk(block)
+
+    def _new_varid(self) -> int:
+        varid = self.vvar_id_start
+        self.vvar_id_start += 1
+        return varid
+
+    def _kind(self, call: Call) -> str | None:
+        kind = classify_runtime_call(call_target_name(self.project, call))
+        if kind is None:
+            return self._duff_kind(call)
+        return kind
+
+    _DUFF = {"runtime.duffzero": "duffzero", "runtime.duffcopy": "duffcopy"}
+
+    def _duff_kind(self, call: Call) -> str | None:
+        """The compiler calls into the middle of duffzero/duffcopy; the target is inside the symbol, not at it."""
+        if not isinstance(call.target, Const) or not isinstance(call.target.value, int):
+            return None
+        sym = self.project.loader.find_symbol(call.target.value, fuzzy=True)
+        if sym is None or sym.rebased_addr == call.target.value:
+            return None
+        return self._DUFF.get(normalize_go_func_name(sym.name))
+
+    def _const_bits(self, value: int, bits: int | None = None) -> Const:
+        return Const(self._new_idx(), value, bits or self.project.arch.bits)
+
+    def _type_name(self, expr) -> str | None:
+        if isinstance(expr, Const):
+            return go_type_name_at(self.project, expr.value_int)
+        return None
+
+    def _go_type(self, name: str | None) -> SimType | None:
+        if name is None:
+            return None
+        try:
+            return self.kb.go_signatures.type(name).with_arch(self.project.arch)
+        except Exception:  # pylint:disable=broad-exception-caught
+            return None
+
+    def _type_size(self, ty: SimType | None, default: int) -> int:
+        if ty is None or not ty.size:
+            return default
+        return ty.size // self.project.arch.byte_width
+
+    def _is_readonly(self, addr: int) -> bool:
+        section = self.project.loader.find_section_containing(addr)
+        return section is not None and section.is_readable and not section.is_writable
+
+    def _dominates(self, a: Block, b: Block) -> bool:
+        if self._idoms is None:
+            entry = next((n for n in self._graph.nodes if (n.addr, n.idx) == self.entry_node_addr), None)
+            if entry is None:
+                entry = next(iter(self._graph.nodes))
+            self._idoms = networkx.immediate_dominators(self._graph, entry)
+        node = b
+        while True:
+            if node is a:
+                return True
+            parent = self._idoms.get(node)
+            if parent is None or parent is node:
+                return False
+            node = parent
+
+    def _uses_dominated_by(self, varid: int, block: Block, stmt_idx: int) -> bool:
+        """Every use of the vvar is reached only after the statement at (block, stmt_idx)."""
+        assert self._index is not None
+        for use_block, use_idx in self._index.sites.get(varid, []):
+            if use_block is block:
+                if use_idx <= stmt_idx:
+                    return False
+            elif not self._dominates(block, use_block):
+                return False
+        return True
+
+    def _set_prototype(self, call: Call, args: list[SimType | None], returnty: SimType | None) -> None:
+        if any(a is None for a in args):
+            return
+        proto = GoSimTypeFunction(list(args), returnty).with_arch(self.project.arch)
+        variable_map_of(self.manager).set_prototype(call, proto)
+
+    def _builtin(self, name: str, args: list, bits: int | None, tags: dict, **extra) -> Call:
+        tags = {k: v for k, v in tags.items() if k not in ("go_render", "go_type_args")}
+        tags.update(extra)
+        return Call(self._new_idx(), name, args=list(args), bits=bits, **tags)
+
+    def _stmt(self, call: Call, idx: int | None = None, ret_expr=None) -> SideEffectStatement:
+        # the code generator reads the render tags off the statement, not the call; variable recovery types the
+        # result of a SideEffectStatement from the call-site prototype, which an Assignment does not
+        return SideEffectStatement(
+            idx if idx is not None else self._new_idx(), call, ret_expr=ret_expr, **dict(call.tags)
+        )
+
+    #
+    # Type bookkeeping for map and channel values
+    #
+
+    def _collect_reference_types(self) -> None:
+        """Vvars known to hold a map or a channel, with the Go type spelling when a descriptor names it."""
+        proto = self._func.prototype
+        if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
+            for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
+                if not isinstance(vvar, VirtualVariable):
+                    continue
+                if isinstance(ty, GoSimTypeMap):
+                    self._map_vvars[vvar.varid] = ty.go_repr()
+                elif isinstance(ty, GoSimTypeChan):
+                    self._chan_vvars[vvar.varid] = ty.go_repr()
+        copies: list[tuple[int, list[int]]] = []
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Return) and stmt.ret_exprs:
+                    for expr, ty in zip(stmt.ret_exprs, self._result_types(proto)):
+                        self._note_typed(expr, ty)
+                calls = self._calls_in(stmt)
+                for call in calls:
+                    kind = self._kind(call)
+                    if kind is None:
+                        self._note_from_callee(stmt, call)
+                        continue
+                    args = list(call.args or [])
+                    typ = self._type_name(args[0]) if args else None
+                    call_def = _call_def(stmt)
+                    if kind in ("makemap", "makechan") and call_def is not None:
+                        self._note(self._map_vvars if kind == "makemap" else self._chan_vvars, call_def[0], typ)
+                    elif kind in ("mapaccess1", "mapaccess2", "mapassign", "mapdelete", "mapclear") and len(args) > 1:
+                        self._note(self._map_vvars, args[1], typ)
+                    elif kind in ("chansend", "chanrecv1", "chanrecv2", "closechan") and args:
+                        self._note(self._chan_vvars, args[0], None)
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    src = stmt.src
+                    if isinstance(src, VirtualVariable):
+                        copies.append((stmt.dst.varid, [src.varid]))
+                    elif hasattr(src, "src_and_vvars"):
+                        copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
+        for table in (self._map_vvars, self._chan_vvars):
+            changed = True
+            while changed:
+                changed = False
+                for dst, srcs in copies:
+                    group = [dst, *srcs]
+                    if not any(v in table for v in group):
+                        continue
+                    name = next((table[v] for v in group if table.get(v) is not None), None)
+                    for v in group:
+                        if v not in table or (table[v] is None and name is not None):
+                            table[v] = name
+                            changed = True
+
+    @staticmethod
+    def _note(table: dict[int, str | None], expr, name: str | None) -> None:
+        if isinstance(expr, VirtualVariable) and (expr.varid not in table or table[expr.varid] is None):
+            table[expr.varid] = name
+
+    def _note_typed(self, expr, ty) -> None:
+        if isinstance(ty, GoSimTypeMap):
+            self._note(self._map_vvars, expr, ty.go_repr())
+        elif isinstance(ty, GoSimTypeChan):
+            self._note(self._chan_vvars, expr, ty.go_repr())
+
+    @staticmethod
+    def _result_types(proto) -> list:
+        if not isinstance(proto, GoSimTypeFunction) or proto.returnty is None:
+            return []
+        if isinstance(proto.returnty, GoSimTypeTuple):
+            return list(proto.returnty.elems)
+        return [proto.returnty]
+
+    def _callee_prototype(self, call: Call) -> GoSimTypeFunction | None:
+        name = call_target_name(self.project, call)
+        if name is None:
+            return None
+        if isinstance(call.target, Const) and self.kb.functions.contains_addr(call.target.value_int):
+            proto = self.kb.functions.get_by_addr(call.target.value_int).prototype
+            if isinstance(proto, GoSimTypeFunction):
+                return proto
+        return self.kb.go_signatures.prototype(name)
+
+    def _note_from_callee(self, stmt: Statement, call: Call) -> None:
+        """Map/channel arguments and results of calls to functions with known Go prototypes."""
+        proto = self._callee_prototype(call)
+        if proto is None:
+            return
+        if call.args and len(call.args) == len(proto.args):
+            for arg, ty in zip(call.args, proto.args):
+                self._note_typed(arg, ty)
+        results = self._result_types(proto)
+        if len(results) != 1:
+            return
+        dst = None
+        if isinstance(stmt, Assignment) and stmt.src.idx == call.idx:
+            dst = stmt.dst
+        elif isinstance(stmt, SideEffectStatement) and stmt.expr.idx == call.idx:
+            dst = stmt.ret_expr
+        self._note_typed(dst, results[0])
+
+    @staticmethod
+    def _calls_in(stmt: Statement) -> list[Call]:
+        finder = _CallFinder()
+        finder.walk_statement(stmt)
+        return finder.calls
+
+    def _map_type_of(self, expr) -> GoSimTypeMap | None:
+        name = self._map_vvars.get(expr.varid) if isinstance(expr, VirtualVariable) else None
+        ty = self._go_type(name)
+        return ty if isinstance(ty, GoSimTypeMap) else None
+
+    def _chan_type_of(self, expr) -> GoSimTypeChan | None:
+        name = self._chan_vvars.get(expr.varid) if isinstance(expr, VirtualVariable) else None
+        ty = self._go_type(name)
+        return ty if isinstance(ty, GoSimTypeChan) else None
+
+    #
+    # Map slot pointers
+    #
+
+    def _collect_slots(self) -> None:
+        """mapaccess1/mapassign results that are only ever dereferenced can be folded into their loads and store."""
+        assert self._index is not None
+        idx = self._index
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                call_def = _call_def(stmt)
+                if call_def is None:
+                    continue
+                dst, call = call_def
+                kind = self._kind(call)
+                if kind not in ("mapaccess1", "mapassign") or len(call.args) < 3:
+                    continue
+                varid = dst.varid
+                loads = idx.loads.get(varid, Counter())
+                n_loads = sum(loads.values())
+                n_stores = idx.stores.get(varid, 0)
+                if idx.total.get(varid, 0) != n_loads + n_stores or len(loads) > 1:
+                    continue
+                if kind == "mapaccess1" and n_stores:
+                    continue
+                if kind == "mapassign" and n_stores != 1:
+                    continue
+                self._slots[varid] = (call.args[1], call.args[2])
+
+    def _elem_type(self, typ_expr) -> SimType | None:
+        ty = go_type_at(self.project, typ_expr.value_int) if isinstance(typ_expr, Const) else None
+        if isinstance(ty, GoSimTypeMap):
+            return ty.elem_type.with_arch(self.project.arch)
+        return None
+
+    def index_call(self, m: Expression, k: Expression, bits: int, tags: dict) -> Call:
+        return self._builtin("mapindex", [m, k], bits, tags, go_render="index")
+
+    def assign_call(self, m: Expression, k: Expression, v: Expression, tags: dict) -> Call:
+        return self._builtin("mapassign", [m, k, v], None, tags, go_render="assign")
+
+    #
+    # Statement-level rewrites
+    #
+
+    def _rewrite_statements(self, block: Block) -> None:
+        new_stmts: list[Statement] = []
+        changed = False
+        for stmt_idx, stmt in enumerate(block.statements):
+            result = self._rewrite_statement(block, stmt_idx, stmt, new_stmts)
+            if result is stmt:
+                new_stmts.append(stmt)
+                continue
+            changed = True
+            if result is None:
+                continue
+            if isinstance(result, list):
+                new_stmts.extend(result)
+            else:
+                new_stmts.append(result)
+        if changed:
+            block.statements = new_stmts
+            self._changed = True
+
+    def _rewrite_statement(self, block: Block, stmt_idx: int, stmt: Statement, emitted: list[Statement]):
+        if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call) and stmt.ret_expr is None:
+            call = stmt.expr
+            result = self._rewrite_call_statement(block, stmt_idx, call, emitted)
+            if result is not call:
+                if isinstance(result, Call):
+                    return self._stmt(result, stmt.idx)
+                return result
+        call_def = _call_def(stmt)
+        if call_def is not None:
+            return self._rewrite_call_result(block, stmt_idx, stmt, *call_def, emitted=emitted)
+        if (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.varid in self._dropped_defs
+        ):
+            return None
+        if (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.src, Load)
+            and isinstance(stmt.src.addr, UnaryOp)
+            and stmt.src.addr.op == "Reference"
+            and isinstance(stmt.src.addr.operand, VirtualVariable)
+            and stmt.src.addr.operand.varid in self._restore_loads
+        ):
+            # the frame-pointer restore after a duff call
+            return None
+        # chanrecv2 nested in a condition or return: hoist it into a tuple-valued receive
+        for call in self._calls_in(stmt):
+            kind = self._kind(call)
+            if kind == "chanrecv2" and len(call.args) == 2:
+                hoisted = self._hoist_chanrecv2(block, stmt_idx, stmt, call)
+                if hoisted is not None:
+                    return hoisted
+            if kind in ("duffzero", "duffcopy"):
+                # duffzero/duffcopy leave RAX alone, so a nested "result" is just the first argument
+                hoisted = self._hoist_duff(block, stmt_idx, stmt, call, kind, emitted)
+                if hoisted is not None:
+                    return hoisted
+        return stmt
+
+    def _hoist_duff(self, block: Block, stmt_idx: int, stmt: Statement, call: Call, kind: str, emitted: list):
+        args = list(call.args or [])
+        if not args:
+            return None
+        duff = self._rewrite_duff(block, stmt_idx, call, kind, dict(call.tags), emitted)
+        if duff is call:
+            return None
+        replacer = _CallReplacer(call, args[0], self)
+        new_stmt = replacer.walk_statement(stmt, block, stmt_idx)
+        return [self._stmt(duff), new_stmt]
+
+    def _rewrite_call_statement(self, block: Block, stmt_idx: int, call: Call, emitted: list[Statement]):
+        kind = self._kind(call)
+        args = list(call.args or [])
+        tags = dict(call.tags)
+        if kind == "mapdelete" and len(args) >= 3:
+            return self._builtin("delete", args[1:3], None, tags)
+        if kind == "mapclear" and len(args) >= 2:
+            return self._builtin("clear", args[1:2], None, tags)
+        if kind == "closechan" and len(args) >= 1:
+            return self._builtin("close", args[:1], None, tags)
+        if kind == "deferreturn":
+            return None
+        if kind in ("duffzero", "duffcopy"):
+            return self._rewrite_duff(block, stmt_idx, call, kind, tags, emitted)
+        if kind == "gopanic" and len(args) >= 1:
+            return self._builtin("panic", [self._panic_value(args[0])], None, tags)
+        if kind == "chansend" and len(args) == 2:
+            value = self._value_behind_pointer(args[1], self._chan_elem_size(args[0]), emitted)
+            if value is not None:
+                return self._builtin("chansend", [args[0], value], None, tags, go_render="send")
+            return call
+        if kind in ("chanrecv1", "chanrecv2") and len(args) == 2:
+            return self._rewrite_chanrecv_statement(block, stmt_idx, call, tags)
+        if kind == "newproc" and len(args) >= 1:
+            return self._builtin("go", self._closure_call(args[0]), None, tags, go_render="go")
+        if kind == "deferproc" and len(args) >= 1:
+            return self._builtin("defer", self._closure_call(args[0]), None, tags, go_render="defer")
+        if kind == "deferprocstack" and len(args) >= 1:
+            fn = self._defer_record_fn(args[0], emitted)
+            if fn is not None:
+                return self._builtin("defer", self._closure_call(fn), None, tags, go_render="defer")
+            return call
+        return call
+
+    def _rewrite_duff(self, block: Block, stmt_idx: int, call: Call, kind: str, tags: dict, emitted: list):
+        """
+        ``duffzero(dst)`` / ``duffcopy(dst, src)``: the pointer arguments are the ``Reference`` arguments (RDI, then
+        RSI). The frame pointer the compiler parks below the stack pointer around the call is an artifact and goes.
+        """
+        args = list(call.args or [])
+        pointers = [a for a in args if isinstance(a, UnaryOp) and a.op == "Reference"]
+        if kind == "duffzero" and len(pointers) >= 1:
+            new_call = self._builtin("runtime.duffzero", pointers[:1], None, tags)
+        elif kind == "duffcopy" and len(pointers) >= 2:
+            new_call = self._builtin("runtime.duffcopy", pointers[:2], None, tags)
+        else:
+            return call
+        # drop the frame-pointer save (a stack store of the register's "address") already emitted in this block
+        saved = None
+        for i in range(len(emitted) - 1, -1, -1):
+            st = emitted[i]
+            if (
+                isinstance(st, Assignment)
+                and isinstance(st.dst, VirtualVariable)
+                and st.dst.was_stack
+                and isinstance(st.src, UnaryOp)
+                and st.src.op == "Reference"
+                and isinstance(st.src.operand, VirtualVariable)
+                and st.src.operand.was_reg
+            ):
+                saved = st.dst.varid
+                del emitted[i]
+                break
+        if saved is not None:
+            self._dropped_defs.add(saved)
+            self._restore_loads.add(saved)
+        return new_call
+
+    def _rewrite_call_result(
+        self,
+        block: Block,
+        stmt_idx: int,
+        stmt: Statement,
+        dst: VirtualVariable,
+        call: Call,
+        emitted: list | None = None,
+    ):
+        kind = self._kind(call)
+        args = list(call.args or [])
+        tags = dict(call.tags)
+        if kind in ("duffzero", "duffcopy") and args:
+            # RAX survives the call: the "result" is the first argument
+            duff = self._rewrite_duff(block, stmt_idx, call, kind, tags, emitted if emitted is not None else [])
+            if duff is not call:
+                return [self._stmt(duff), Assignment(self._new_idx(), dst, args[0], **stmt.tags)]
+            return stmt
+        if kind in ("mapaccess1", "mapassign"):
+            if dst.varid in self._slots:
+                self._dropped_defs.add(dst.varid)
+                return None
+            return stmt
+        if kind == "mapaccess2" and len(args) >= 3 and dst.was_combo_reg and dst.reg_vvars:
+            return self._rewrite_tuple_access(stmt, dst, args[1], args[2], self._elem_type(args[0]), tags)
+        if kind == "makemap":
+            type_name = self._type_name(args[0]) if args else self._map_vvars.get(dst.varid)
+            if type_name is None:
+                return stmt
+            hint = [args[1]] if len(args) > 1 and not (isinstance(args[1], Const) and args[1].value_int == 0) else []
+            new_call = self._builtin(
+                "make", hint, call.bits, tags, go_type_args=[type_name], is_prototype_guessed=False
+            )
+            self._set_prototype(new_call, [self._go_type("int")] * len(hint), self._go_type(type_name))
+            return self._stmt(new_call, stmt.idx, ret_expr=dst)
+        if kind == "makechan" and args:
+            type_name = self._type_name(args[0])
+            if type_name is None:
+                # a channel typed by its consumers carries their direction; make needs the bidirectional type
+                derived = self._chan_vvars.get(dst.varid)
+                type_name = "chan " + derived.split("chan ", 1)[1] if derived and "chan " in derived else derived
+            if type_name is None:
+                return stmt
+            size = [args[1]] if len(args) > 1 and not (isinstance(args[1], Const) and args[1].value_int == 0) else []
+            new_call = self._builtin(
+                "make", size, call.bits, tags, go_type_args=[type_name], is_prototype_guessed=False
+            )
+            self._set_prototype(new_call, [self._go_type("int")] * len(size), self._go_type(type_name))
+            return self._stmt(new_call, stmt.idx, ret_expr=dst)
+        if kind == "gorecover":
+            new_call = self._builtin("recover", [], call.bits, tags, is_prototype_guessed=False)
+            self._set_prototype(new_call, [], self._go_type("any"))
+            return self._stmt(new_call, stmt.idx, ret_expr=dst)
+        if kind in ("chanrecv1", "chanrecv2") and len(args) == 2:
+            # the value is written through the pointer, only the ok flag is assigned
+            result = self._rewrite_chanrecv_statement(block, stmt_idx, call, tags, ok_dst=dst)
+            return stmt if result is call else result
+        return stmt
+
+    def _rewrite_tuple_access(self, stmt: Statement, dst: VirtualVariable, m, k, elem: SimType | None, tags: dict):
+        """``ptr, ok = mapaccess2(...)`` where ``ptr`` is only dereferenced becomes ``t = m[k]`` with ``t.~r0`` the value."""
+        assert self._index is not None
+        ptr = dst.reg_vvars[0]
+        loads = self._index.loads.get(ptr.varid, Counter())
+        n_loads = sum(loads.values())
+        if n_loads != self._index.total.get(ptr.varid, 0) or (loads and set(loads) != {ptr.size}):
+            return stmt
+        self._deref.add(ptr.varid)
+        new_call = self._builtin("mapindex", [m, k], dst.bits, tags, go_render="index", is_prototype_guessed=False)
+        value_ty = elem if elem is not None and self._type_size(elem, 8) == ptr.size else self._go_type("int")
+        self._set_prototype(
+            new_call, [self._map_type_of(m), self._key_type(m)], GoSimTypeTuple([value_ty, self._go_type("bool")])
+        )
+        return self._stmt(new_call, stmt.idx, ret_expr=dst)
+
+    def _key_type(self, m) -> SimType | None:
+        ty = self._map_type_of(m)
+        return ty.key_type.with_arch(self.project.arch) if ty is not None else None
+
+    #
+    # Values passed by pointer
+    #
+
+    def _chan_elem_size(self, chan_expr) -> int:
+        ty = self._chan_type_of(chan_expr)
+        return self._type_size(ty.elem_type if ty is not None else None, self.project.arch.bytes)
+
+    def _chan_elem_type(self, chan_expr) -> SimType | None:
+        ty = self._chan_type_of(chan_expr)
+        return ty.elem_type.with_arch(self.project.arch) if ty is not None else None
+
+    def _value_behind_pointer(self, ptr, size: int, emitted: list[Statement]) -> Expression | None:
+        """The value a callee reads through ``ptr``: a stack slot assigned just before the call or a read-only constant."""
+        assert self._index is not None
+        slot = _ref_vvar(ptr)
+        if slot is not None and slot.was_stack:
+            for i in range(len(emitted) - 1, -1, -1):
+                prev = emitted[i]
+                if (
+                    isinstance(prev, Assignment)
+                    and isinstance(prev.dst, VirtualVariable)
+                    and prev.dst.varid == slot.varid
+                ):
+                    if self._index.total.get(slot.varid, 0) == 1 and self._index.refs.get(slot.varid, 0) == 1:
+                        del emitted[i]
+                    return prev.src
+                if isinstance(prev, (SideEffectStatement, Store)):
+                    break
+            return None
+        if isinstance(ptr, Const) and self._is_readonly(ptr.value_int):
+            return self._read_constant(ptr.value_int, size)
+        return Load(self._new_idx(), ptr, size, self.project.arch.memory_endness)
+
+    def _read_constant(self, addr: int, size: int) -> Const | None:
+        if size not in (1, 2, 4, 8):
+            return None
+        with contextlib.suppress(KeyError):
+            value = self.project.loader.memory.unpack_word(addr, size=size)
+            return Const(self._new_idx(), value, size * self.project.arch.byte_width)
+        return None
+
+    def _read_string(self, addr: int, printable_only: bool = False) -> StringLiteral | None:
+        with contextlib.suppress(KeyError, UnicodeDecodeError):
+            ptr = self.project.loader.memory.unpack_word(addr, size=self.project.arch.bytes)
+            length = self.project.loader.memory.unpack_word(
+                addr + self.project.arch.bytes, size=self.project.arch.bytes
+            )
+            if 0 <= length <= 0x10000 and (length == 0 or self._is_readonly(ptr)):
+                data = self.project.loader.memory.load(ptr, length).decode("utf-8") if length else ""
+                if printable_only and not (data and data.isprintable()):
+                    return None
+                return StringLiteral(self._new_idx(), data, 128)
+        return None
+
+    def _panic_value(self, value) -> Expression:
+        """A constant interface ``any{type, &data}`` becomes the literal it boxes."""
+        if not isinstance(value, Struct):
+            return value
+        fields = list(value.fields.values()) if hasattr(value.fields, "values") else list(value.fields)
+        if len(fields) != 2 or not all(isinstance(f, Const) for f in fields):
+            return value
+        type_name = go_type_name_at(self.project, fields[0].value_int)
+        data = fields[1].value_int
+        if type_name == "string" or (type_name is None and self._is_readonly(data)):
+            # without a descriptor name, a read-only (pointer, length) header holding text is taken as a string
+            lit = self._read_string(data, printable_only=type_name is None)
+            return lit if lit is not None else value
+        if type_name in _INT_KINDS and self._is_readonly(data):
+            ty = self._go_type(type_name)
+            const = self._read_constant(data, self._type_size(ty, 8))
+            return const if const is not None else value
+        return value
+
+    #
+    # Channel receives: the runtime writes the element through a stack pointer
+    #
+
+    def _rewrite_chanrecv_statement(self, block: Block, stmt_idx: int, call: Call, tags: dict, ok_dst=None):
+        chan, ptr = call.args
+        if isinstance(ptr, Const) and ptr.value_int == 0:
+            recv = self._builtin("chanrecv", [chan], call.bits, tags, go_render="recv")
+            return self._stmt(recv, ret_expr=ok_dst)
+        slot = _ref_vvar(ptr)
+        if slot is None or not slot.was_stack or not self._uses_dominated_by(slot.varid, block, stmt_idx):
+            return call
+        if ok_dst is None:
+            value = VirtualVariable(self._new_idx(), self._new_varid(), slot.bits, VVC.REGISTER, oident=16)
+            recv = self._builtin("chanrecv", [chan], slot.bits, tags, go_render="recv", is_prototype_guessed=False)
+            self._set_prototype(recv, [self._chan_type_of(chan)], self._chan_elem_type(chan))
+            self._replace[slot.varid] = value
+            return self._stmt(recv, ret_expr=value)
+        combo, value, ok = self._tuple_vvars(slot.bits)
+        recv = self._builtin("chanrecv", [chan], combo.bits, tags, go_render="recv", is_prototype_guessed=False)
+        self._set_prototype(
+            recv,
+            [self._chan_type_of(chan)],
+            GoSimTypeTuple([self._chan_elem_type(chan) or self._go_type("int"), self._go_type("bool")]),
+        )
+        self._replace[slot.varid] = value
+        ok_use = self._narrow(ok, ok_dst.bits)
+        return [self._stmt(recv, ret_expr=combo), Assignment(self._new_idx(), ok_dst, ok_use, **tags)]
+
+    def _hoist_chanrecv2(self, block: Block, stmt_idx: int, stmt: Statement, call: Call):
+        chan, ptr = call.args
+        slot = _ref_vvar(ptr)
+        if slot is None or not slot.was_stack:
+            return None
+        if not self._uses_dominated_by(slot.varid, block, stmt_idx - 1):
+            return None
+        combo, value, ok = self._tuple_vvars(slot.bits)
+        recv = self._builtin(
+            "chanrecv", [chan], combo.bits, dict(call.tags), go_render="recv", is_prototype_guessed=False
+        )
+        self._set_prototype(
+            recv,
+            [self._chan_type_of(chan)],
+            GoSimTypeTuple([self._chan_elem_type(chan) or self._go_type("int"), self._go_type("bool")]),
+        )
+        self._replace[slot.varid] = value
+        replacer = _CallReplacer(call, self._narrow(ok, call.bits), self)
+        new_stmt = replacer.walk_statement(stmt, block, stmt_idx)
+        return [self._stmt(recv, ret_expr=combo), new_stmt]
+
+    def _narrow(self, vvar: VirtualVariable, bits: int) -> VirtualVariable:
+        if bits == vvar.bits:
+            return vvar
+        return VirtualVariable(self._new_idx(), vvar.varid, bits, vvar.category, oident=vvar.oident)
+
+    def _result_registers(self) -> tuple[int, int]:
+        """Offsets of the first two ABIInternal result registers (rax/rbx on amd64, x0/x1 on arm64)."""
+        regs = self.project.arch.registers
+        names = ("rax", "rbx") if "rax" in regs else ("x0", "x1") if "x0" in regs else ("eax", "ebx")
+        return regs[names[0]][0], regs[names[1]][0]
+
+    def _tuple_vvars(self, value_bits: int) -> tuple[VirtualVariable, VirtualVariable, VirtualVariable]:
+        bits = self.project.arch.bits
+        rax, rbx = self._result_registers()
+        value = VirtualVariable(self._new_idx(), self._new_varid(), max(value_bits, bits), VVC.REGISTER, oident=rax)
+        ok = VirtualVariable(self._new_idx(), self._new_varid(), bits, VVC.REGISTER, oident=rbx)
+        combo = VirtualVariable(
+            self._new_idx(),
+            self._new_varid(),
+            value.bits + ok.bits,
+            VVC.COMBO_REGISTER,
+            oident=(rax, rbx),
+            reg_vvars=[value, ok],
+        )
+        return combo, value, ok
+
+    #
+    # Closures
+    #
+
+    def _context_register(self) -> int | None:
+        name = CONTEXT_REGISTERS.get(self.project.arch.name)
+        return self.project.arch.registers[name][0] if name in self.project.arch.registers else None
+
+    def _func_type_at(self, code: int) -> tuple[GoSimTypeFunc | None, bool]:
+        """
+        ``(func value type, exact)`` of the function at ``code``: exact when a signature names it; a function the
+        pclntab says takes nothing is spelled ``func()``.
+        """
+        proto = None
+        name = callee_name(self.project, code)
+        if self.kb.functions.contains_addr(code):
+            func = self.kb.functions.get_by_addr(code)
+            if isinstance(func.prototype, GoSimTypeFunction) and not func.is_prototype_guessed:
+                proto = func.prototype
+        if proto is None and name is not None:
+            proto = self.kb.go_signatures.prototype(name)
+        if proto is None:
+            proto = self.kb.go_signatures.prototype_at(code)
+        if isinstance(proto, GoSimTypeFunction):
+            return GoSimTypeFunc(proto).with_arch(self.project.arch), True
+        if self.kb.go_signatures.arg_size_at(code) == 0:
+            return GoSimTypeFunc(GoSimTypeFunction([], None)).with_arch(self.project.arch), False
+        return None, False
+
+    def _collect_func_values(self) -> None:
+        """Vvars holding func values: parameters, results of calls with Go prototypes, closure-record fields."""
+        proto = self._func.prototype
+        if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
+            for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable) and isinstance(ty, GoSimTypeFunc):
+                    self._func_types[vvar.varid] = ty
+        record = self._go_type(self.kb.go_signatures.closure_context(self._func.addr))
+        fields = {}
+        if isinstance(record, GoSimStruct):
+            fields = {record.offsets[name]: ty for name, ty in record.fields.items() if name in record.offsets}
+        ctx_reg = self._context_register()
+        copies: list[tuple[int, list[int]]] = []
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                call_def = _call_def(stmt)
+                if call_def is not None:
+                    dst, call = call_def
+                    results = self._result_types(self._callee_prototype(call))
+                    if len(results) == 1 and isinstance(results[0], GoSimTypeFunc):
+                        self._func_types[dst.varid] = results[0]
+                    elif len(results) > 1 and dst.was_combo_reg and dst.reg_vvars:
+                        # one register per word of the result list
+                        regs = list(dst.reg_vvars)
+                        for ty in results:
+                            words = max(1, (ty.size or self.project.arch.bits) // self.project.arch.bits)
+                            if isinstance(ty, GoSimTypeFunc) and regs:
+                                self._func_types[regs[0].varid] = ty
+                            regs = regs[words:]
+                    continue
+                if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)):
+                    continue
+                src = stmt.src
+                if isinstance(src, VirtualVariable):
+                    copies.append((stmt.dst.varid, [src.varid]))
+                elif stmt.is_phi_assignment and hasattr(src, "src_and_vvars"):
+                    copies.append((stmt.dst.varid, [v.varid for _, v in src.src_and_vvars if v is not None]))
+                elif isinstance(src, Load) and fields:
+                    base, off = _addr_and_offset(src.addr)
+                    if (
+                        isinstance(base, VirtualVariable)
+                        and base.was_reg
+                        and base.oident == ctx_reg
+                        and base.varid not in self._index.defs
+                        and isinstance(fields.get(off), GoSimTypeFunc)
+                    ):
+                        self._func_types[stmt.dst.varid] = fields[off]
+        for _ in range(3):
+            for dst, srcs in copies:
+                known = [self._func_types[v] for v in srcs if v in self._func_types]
+                if known and dst not in self._func_types:
+                    self._func_types[dst] = known[0]
+
+    def _allocation_descriptor(self, call: Call) -> int | None:
+        name = call_target_name(self.project, call)
+        if name is None:
+            return None
+        name = normalize_go_func_name(name)
+        idx = _ALLOCATORS.get("runtime.mallocgc" if name.startswith("runtime.mallocgc") else name)
+        args = list(call.args or [])
+        if idx is None or idx >= len(args) or not isinstance(args[idx], Const):
+            return None
+        return args[idx].value_int
+
+    def _closure_expr(self, code: int, captures: list, names: list[str], func_ty: GoSimTypeFunc | None) -> Call:
+        """``closure(f, captures...)``: the func value of ``f`` bound to its captured variables."""
+        result_type = func_ty.go_repr() if func_ty is not None else "*runtime.funcval"
+        call = Call(
+            self._new_idx(),
+            "closure",
+            args=[self._const_bits(code), *[c.copy() for c in captures]],
+            bits=self.project.arch.bits,
+            go_render="closure",
+            go_capture_names=list(names),
+            go_result_type=result_type,
+            is_prototype_guessed=False,
+        )
+        returnty = func_ty if func_ty is not None else self._go_type("*runtime.funcval")
+        if returnty is not None:
+            variable_map_of(self.manager).set_prototype(
+                call, GoSimTypeFunction([], returnty).with_arch(self.project.arch)
+            )
+        return call
+
+    def _rewrite_closures(self) -> None:
+        for block in list(self._graph.nodes):
+            for stmt in list(block.statements):
+                call_def = _call_def(stmt)
+                if call_def is None:
+                    continue
+                desc = self._allocation_descriptor(call_def[1])
+                type_name = go_type_name_at(self.project, desc) if desc is not None else None
+                if (
+                    type_name is not None
+                    and type_name.startswith(_CLOSURE_STRUCT)
+                    and self._fold_heap_closure(call_def[0], stmt, type_name)
+                ):
+                    self._reindex()
+        for block in list(self._graph.nodes):
+            for stmt in list(block.statements):
+                self._fold_stack_closure(block, stmt)
+        self._reindex()
+
+    def _fold_heap_closure(self, rec: VirtualVariable, def_stmt: Statement, type_name: str) -> bool:
+        """
+        ``rec = newobject(&type:struct { F uintptr; X0 T; ... })`` followed by one store per field becomes
+        ``closure(F, X0, ...)``; the record type is remembered for the closure body.
+        """
+        assert self._index is not None
+        record = self._go_type(type_name)
+        if not isinstance(record, GoSimStruct) or not record.offsets:
+            return False
+        stores: dict[int, tuple[Block, int, Store]] = {}
+        for block in self._graph.nodes:
+            for i, stmt in enumerate(block.statements):
+                if not isinstance(stmt, Store):
+                    continue
+                base, off = _addr_and_offset(stmt.addr)
+                if isinstance(base, VirtualVariable) and base.varid == rec.varid:
+                    if off in stores:
+                        return False
+                    stores[off] = (block, i, stmt)
+        if set(stores) != set(record.offsets.values()) or 0 not in stores:
+            return False
+        code_expr = stores[0][2].data
+        if not isinstance(code_expr, Const) or not is_function_addr(self.project, code_expr.value_int):
+            return False
+        code = code_expr.value_int
+        self.kb.go_signatures.set_closure_context(code, type_name)
+        # the fold sits at the store every other store dominates; every remaining use must come after it
+        store_blocks = {block for block, _, _ in stores.values()}
+        last_block = next((b for b in store_blocks if all(self._dominates(o, b) for o in store_blocks)), None)
+        if last_block is None:
+            return False
+        last_idx = max(i for block, i, _ in stores.values() if block is last_block)
+        dropped = {stmt.idx for _, _, stmt in stores.values()} | {def_stmt.idx}
+        # a spill of the record pointer before the fold point is an alias of the record; it is re-issued after it
+        aliases: list[Assignment] = []
+        uses = []
+        for block, i in self._index.sites.get(rec.varid, []):
+            stmt = block.statements[i]
+            if stmt.idx in dropped:
+                continue
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and isinstance(stmt.src, VirtualVariable)
+                and stmt.src.varid == rec.varid
+            ):
+                aliases.append(stmt)
+                dropped.add(stmt.idx)
+                uses.extend(self._index.sites.get(stmt.dst.varid, []))
+                continue
+            uses.append((block, i))
+        for block, i in uses:
+            stmt = block.statements[i]
+            if isinstance(stmt, Assignment) and stmt.is_phi_assignment:
+                return False
+            if block is last_block:
+                if i <= last_idx:
+                    return False
+            elif not self._dominates(last_block, block):
+                return False
+        names = [name for name, off in sorted(record.offsets.items(), key=lambda kv: kv[1]) if off != 0]
+        captures = [stores[record.offsets[name]][2].data for name in names]
+        func_ty, _ = self._func_type_at(code)
+        closure = self._closure_expr(code, captures, names, func_ty)
+        if len(uses) == 1 and uses[0][0] is last_block and not aliases:
+            value: Expression = closure
+            replacement: list[Statement] = []
+        else:
+            value = VirtualVariable(self._new_idx(), self._new_varid(), rec.bits, VVC.REGISTER, oident=rec.oident)
+            replacement = [Assignment(self._new_idx(), value, closure, **stores[0][2].tags)]
+            replacement += [Assignment(self._new_idx(), a.dst, value.copy(), **a.tags) for a in aliases]
+        self._replace[rec.varid] = value
+        last_stmt_idx = last_block.statements[last_idx].idx
+        alias_blocks = {self._index.defs[a.dst.varid][0] for a in aliases if a.dst.varid in self._index.defs}
+        for block in store_blocks | {self._index.defs[rec.varid][0]} | alias_blocks:
+            new_stmts = []
+            for stmt in block.statements:
+                if stmt.idx == last_stmt_idx:
+                    new_stmts.extend(replacement)
+                elif stmt.idx not in dropped:
+                    new_stmts.append(stmt)
+            block.statements = new_stmts
+        self._changed = True
+        return True
+
+    def _fold_stack_closure(self, block: Block, stmt: Statement) -> None:
+        """
+        A stack funcval: a slot holding a code pointer whose address is taken, with the captures the body reads at
+        ``ctx+8, ctx+16, ...`` in the slots that follow it. References to the slot become ``closure(F, captures...)``
+        and the record type (``struct { F uintptr; cap_0 T0; ... }``, unknown words as uintptr) is kept for the body.
+        """
+        assert self._index is not None
+        if not (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and stmt.dst.size == self.project.arch.bytes
+            and isinstance(stmt.src, Const)
+            and isinstance(stmt.src.value, int)
+            and is_function_addr(self.project, stmt.src.value)
+        ):
+            return
+        slot = stmt.dst
+        code = stmt.src.value
+        refs = self._index.refs.get(slot.varid, 0)
+        if refs == 0 or self._index.total.get(slot.varid, 0) != refs or slot.varid in self._replace_refs:
+            return
+        offsets = self._context_offsets(code)
+        ptr = self.project.arch.bytes
+        words = self._word_sources() if offsets else {}
+        end = max((off + size for off, size in offsets.items()), default=ptr)
+        fields: list[tuple[str, Expression | None]] = []  # (type spelling, captured value; None for padding)
+        capture_stmts: list[Assignment] = []
+        off = ptr
+        while off < end:
+            cap = self._stack_slot_assignment(block, slot.stack_offset + off, stmt.idx)
+            if cap is None:
+                if any(o <= off < o + n for o, n in offsets.items()):
+                    return  # the body reads a word the parent never fills: not a closure record after all
+                fields.append((f"[{ptr}]uint8", None))
+                off += ptr
+                continue
+            src = cap.src
+            size = cap.dst.size
+            info = words.get(src.varid) if isinstance(src, VirtualVariable) else None
+            if size == ptr and info is not None and info[1] == 0:
+                # word 0 of a multi-word parameter or result: the following slots hold its other words
+                ty, _, n, whole = info
+                parts = [cap]
+                for k in range(1, n):
+                    c2 = self._stack_slot_assignment(block, slot.stack_offset + off + k * ptr, stmt.idx)
+                    i2 = words.get(c2.src.varid) if c2 is not None and isinstance(c2.src, VirtualVariable) else None
+                    if i2 is None or i2[1] != k or i2[3] is not whole:
+                        parts = []
+                        break
+                    parts.append(c2)
+                if parts:
+                    fields.append((ty, whole))
+                    capture_stmts.extend(parts)
+                    off += n * ptr
+                    continue
+            ty = self._capture_type(src)
+            if ty is None:
+                ref = _ref_vvar(src)
+                pointee = self._stack_var_type(ref) if ref is not None and ref.was_stack else None
+                ty = f"*{pointee}" if pointee is not None else None
+            if ty is None:
+                ty = "uintptr" if size == ptr else f"uint{size * 8}" if size < ptr else f"[{size}]uint8"
+            fields.append((ty, src))
+            capture_stmts.append(cap)
+            off += max(size, ptr)
+        captures = [expr for _, expr in fields if expr is not None]
+        names = [f"cap_{k}" for k in range(len(captures))]
+        func_ty, _ = self._func_type_at(code)
+        self._replace_refs[slot.varid] = self._closure_expr(code, captures, names, func_ty)
+        self._closure_slot_stmts.add(stmt.idx)
+        self._closure_slot_stmts.update(
+            cap.idx for cap in capture_stmts if self._index.total.get(cap.dst.varid, 0) == 0
+        )
+        if captures:
+            spelled = []
+            k = 0
+            for i, (ty, expr) in enumerate(fields):
+                if expr is None:
+                    spelled.append(f"pad_{i} {ty}")
+                else:
+                    spelled.append(f"cap_{k} {ty}")
+                    k += 1
+            self.kb.go_signatures.set_closure_context(code, "struct { F uintptr; " + "; ".join(spelled) + " }")
+
+    def _word_sources(self) -> dict[int, tuple[str, int, int, VirtualVariable]]:
+        """vvar -> (Go type, word index, word count, whole value) for the words of multi-word parameters/results."""
+        out: dict[int, tuple[str, int, int, VirtualVariable]] = {}
+        bits = self.project.arch.bits
+
+        def note(whole, ty) -> None:
+            regs = getattr(whole, "reg_vvars", None)
+            if not regs or not isinstance(ty, GoSimType) or not ty.size or ty.size // bits != len(regs):
+                return
+            for k, v in enumerate(regs):
+                out[v.varid] = (ty.go_repr(), k, len(regs), whole)
+
+        proto = self._func.prototype
+        if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
+            for (vvar, _), ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable):
+                    note(vvar, ty)
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                call_def = _call_def(stmt)
+                if call_def is None:
+                    continue
+                results = self._result_types(self._callee_prototype(call_def[1]))
+                if len(results) == 1 and call_def[0].was_combo_reg:
+                    note(call_def[0], results[0])
+        return out
+
+    def _stack_var_type(self, ref: VirtualVariable) -> str | None:
+        """The Go type of the stack variable at ``ref``'s offset: what is assigned to it, or the result it is returned as."""
+        assert self._index is not None
+        offset = ref.stack_offset
+        results = self._result_types(self._func.prototype)
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_stack
+                    and stmt.dst.stack_offset == offset
+                ):
+                    ty = self._capture_type(stmt.src)
+                    if ty is not None:
+                        return ty
+                elif isinstance(stmt, Return) and stmt.ret_exprs and len(stmt.ret_exprs) == len(results):
+                    for expr, ty in zip(stmt.ret_exprs, results):
+                        if isinstance(ty, GoSimType) and _reads_stack_slot(expr, offset):
+                            return ty.go_repr()
+        return None
+
+    def _drop_closure_slots(self) -> None:
+        if not self._closure_slot_stmts:
+            return
+        for block in self._graph.nodes:
+            block.statements = [stmt for stmt in block.statements if stmt.idx not in self._closure_slot_stmts]
+        self._changed = True
+
+    @staticmethod
+    def _stack_slot_assignment(block: Block, stack_offset: int, after_idx: int | None) -> Assignment | None:
+        """The single word-sized assignment to the stack slot at ``stack_offset`` in ``block``."""
+        found = None
+        for stmt in block.statements:
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_stack
+                and stmt.dst.stack_offset == stack_offset
+                and stmt.idx != after_idx
+            ):
+                if found is not None:
+                    return None
+                found = stmt
+        return found
+
+    def _context_offsets(self, code: int) -> dict[int, int]:
+        """``{offset: size}`` of the loads the closure body at ``code`` makes through its context register."""
+        cached = self._context_offsets_cache.get(code)
+        if cached is not None:
+            return cached
+        out: dict[int, int] = {}
+        ctx_reg = self._context_register()
+        if ctx_reg is not None:
+            order, _ = function_blocks(self.project, code, limit=64)
+            for addr in order[:64]:
+                env = RegisterEnv(self.project.arch)
+                env.values[("r", ctx_reg)] = (CTX, 0)
+                for stmt in lift_ail(self.project, addr):
+                    if not isinstance(stmt, Assignment):
+                        continue
+                    loads: list = []
+                    loads_in(stmt.src, loads)
+                    for load in loads:
+                        target = env.eval(load.addr)
+                        if target is not None and target[0] == CTX and target[1] > 0:
+                            out[target[1]] = max(out.get(target[1], 0), load.size)
+                    env.assign(stmt)
+        self._context_offsets_cache[code] = out
+        return out
+
+    def _capture_type(self, expr) -> str | None:
+        """The Go spelling of a captured value's type when the parent knows it."""
+        assert self._index is not None
+        if not isinstance(expr, VirtualVariable):
+            return None
+        ty = self._func_types.get(expr.varid)
+        if ty is not None:
+            return ty.go_repr()
+        name = self._map_vvars.get(expr.varid) or self._chan_vvars.get(expr.varid)
+        if name is not None:
+            return name
+        proto = self._func.prototype
+        if isinstance(proto, GoSimTypeFunction) and self._arg_vvars:
+            for (vvar, _), arg_ty in zip(self._arg_vvars.values(), proto.args):
+                if isinstance(vvar, VirtualVariable) and vvar.varid == expr.varid and isinstance(arg_ty, GoSimType):
+                    return arg_ty.go_repr()
+        loc = self._index.defs.get(expr.varid)
+        if loc is not None:
+            call_def = _call_def(loc[0].statements[loc[1]])
+            if call_def is not None:
+                results = self._result_types(self._callee_prototype(call_def[1]))
+                if len(results) == 1 and isinstance(results[0], GoSimType):
+                    return results[0].go_repr()
+        return None
+
+    def _static_funcval(self, expr: Const) -> int | None:
+        """The code address behind a static funcval (a read-only word holding a function entry), else None."""
+        if not isinstance(expr.value, int) or expr.bits != self.project.arch.bits:
+            return None
+        addr = expr.value
+        if addr in self._static_funcvals:
+            return self._static_funcvals[addr]
+        code = None
+        if addr % self.project.arch.bytes == 0 and is_readonly_data(self.project, addr):
+            with contextlib.suppress(KeyError):
+                word = self.project.loader.memory.unpack_word(addr, size=self.project.arch.bytes)
+                if is_function_addr(self.project, word):
+                    code = word
+        self._static_funcvals[addr] = code
+        return code
+
+    def _func_type_of(self, expr) -> GoSimTypeFunc | None:
+        """The func value type of ``expr``: a typed vvar, a load of one from its stack slot, or a closure field."""
+        if isinstance(expr, VirtualVariable):
+            return self._func_types.get(expr.varid)
+        if not (isinstance(expr, Load) and expr.size == self.project.arch.bytes):
+            return None
+        slot = _ref_vvar(expr.addr)
+        if slot is not None:
+            return self._func_types.get(slot.varid)
+        base, off = _addr_and_offset(expr.addr)
+        if not (isinstance(base, VirtualVariable) and base.was_reg and base.oident == self._context_register()):
+            return None
+        record = self._go_type(self.kb.go_signatures.closure_context(self._func.addr))
+        if not isinstance(record, GoSimStruct):
+            return None
+        for name, ty in record.fields.items():
+            if record.offsets.get(name) == off and isinstance(ty, GoSimTypeFunc):
+                return ty
+        return None
+
+    def func_value_call(self, call: Call) -> Call | None:
+        """``(*f)(args...)`` through a func value becomes ``f(args...)`` with the signature's arity."""
+        target = call.target
+        if not isinstance(target, Load):
+            return None
+        fv = target.addr
+        func_ty = self._func_type_of(fv)
+        if func_ty is None:
+            return None
+        sig = func_ty.signature
+        args = list(call.args or [])
+        if call.tags.get("is_prototype_guessed", True) and len(args) > len(sig.args):
+            args = args[: len(sig.args)]
+        tags = dict(call.tags)
+        tags["is_prototype_guessed"] = False
+        new_call = Call(call.idx, fv.copy(), args=args, bits=call.bits, **tags)
+        variable_map_of(self.manager).set_prototype(new_call, sig.with_arch(self.project.arch))
+        return new_call
+
+    #
+    # Goroutines and defer
+    #
+
+    def _closure_call(self, fn) -> list[Expression]:
+        """``[callee, args...]`` for a ``*funcval``: a static funcval names its function, a heap closure is called as is."""
+        if isinstance(fn, Const):
+            with contextlib.suppress(KeyError):
+                code = self.project.loader.memory.unpack_word(fn.value_int, size=self.project.arch.bytes)
+                if self.kb.functions.contains_addr(code):
+                    return [self._const_bits(code)]
+            return [fn]
+        if isinstance(fn, VirtualVariable):
+            code = self._closure_code_pointer(fn)
+            if code is not None and not self._closure_has_captures(fn):
+                return [code]
+        if isinstance(fn, Call) and fn.tags.get("go_render") == "closure" and len(fn.args or ()) == 1:
+            return [fn.args[0]]
+        return [fn]
+
+    def _closure_code_pointer(self, closure: VirtualVariable) -> Const | None:
+        assert self._index is not None
+        loc = self._index.defs.get(closure.varid)
+        if loc is None:
+            return None
+        block, _ = loc
+        for stmt in block.statements:
+            if (
+                isinstance(stmt, Store)
+                and isinstance(stmt.addr, VirtualVariable)
+                and stmt.addr.varid == closure.varid
+                and isinstance(stmt.data, Const)
+                and self.kb.functions.contains_addr(stmt.data.value_int)
+            ):
+                return stmt.data
+        return None
+
+    def _closure_has_captures(self, closure: VirtualVariable) -> bool:
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Store):
+                    base, off = _addr_and_offset(stmt.addr)
+                    if isinstance(base, VirtualVariable) and base.varid == closure.varid and off:
+                        return True
+        return False
+
+    def _defer_record_fn(self, record, emitted: list[Statement]):
+        """The ``fn`` field stored into a stack ``_defer`` record before deferprocStack."""
+        slot = _ref_vvar(record)
+        if slot is None:
+            return None
+        for prev in reversed(emitted):
+            if not (isinstance(prev, Assignment) and isinstance(prev.dst, VirtualVariable) and prev.dst.was_stack):
+                continue
+            if slot.stack_offset < prev.dst.stack_offset < slot.stack_offset + 0x40 and isinstance(
+                prev.src, (Const, VirtualVariable)
+            ):
+                if isinstance(prev.src, Const) and not self.kb.functions.contains_addr(prev.src.value_int):
+                    continue
+                return prev.src
+        return None
+
+    def _rewrite_open_coded_defers(self) -> None:
+        """
+        An open-coded defer keeps a deferBits byte on the stack: set to a bit after the closure is materialized, cleared
+        right before the closure is called inline at each exit. Replace the bit set by ``defer`` and drop the exit calls.
+        """
+        self._reindex()
+        exits: list[tuple[Statement, Statement, int]] = []  # (bits clear, inline call, closure slot varid)
+        for block in self._graph.nodes:
+            stmts = block.statements
+            for i in range(len(stmts) - 1):
+                bits_stmt, call = stmts[i], stmts[i + 1]
+                if not (self._is_bits_assign(bits_stmt) and isinstance(call, SideEffectStatement)):
+                    continue
+                slot = self._deferred_closure_slot(call.expr)
+                if slot is not None:
+                    exits.append((bits_stmt, call, slot.varid))
+        if not exits:
+            return
+        drop: set[int] = set()
+        replace: dict[int, Statement] = {}
+        for bits_stmt, call_stmt, slot_varid in exits:
+            bits_offset = bits_stmt.dst.stack_offset
+            setup = self._find_defer_setup(slot_varid, bits_offset)
+            if setup is None:
+                continue
+            setup_stmt, fn = setup
+            defer_call = self._builtin("defer", self._closure_call(fn), None, dict(setup_stmt.tags), go_render="defer")
+            replace[setup_stmt.idx] = self._stmt(defer_call)
+            drop.update({bits_stmt.idx, call_stmt.idx})
+            drop |= self._defer_scaffolding(slot_varid, bits_offset)
+        if not replace:
+            return
+        drop -= set(replace)
+        for block in self._graph.nodes:
+            block.statements = [replace.get(stmt.idx, stmt) for stmt in block.statements if stmt.idx not in drop]
+        self._changed = True
+
+    @staticmethod
+    def _deferred_closure_slot(call) -> VirtualVariable | None:
+        """
+        The stack vvar an inline deferred call goes through: go1.22 loads the code pointer through a slot holding
+        &funcval, go1.27 reads the funcval's code word (a stack vvar) directly.
+        """
+        if not isinstance(call, Call):
+            return None
+        target = call.target
+        if isinstance(target, Load):
+            target = target.addr
+            slot = target if isinstance(target, VirtualVariable) else _ref_vvar(target)
+        else:
+            slot = target if isinstance(target, VirtualVariable) else None
+        return slot if slot is not None and slot.was_stack else None
+
+    @staticmethod
+    def _is_bits_assign(stmt) -> bool:
+        return (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and stmt.dst.was_stack
+            and stmt.dst.size == 1
+            and isinstance(stmt.src, Const)
+        )
+
+    def _find_defer_setup(self, slot_varid: int, bits_offset: int):
+        assert self._index is not None
+        loc = self._index.defs.get(slot_varid)
+        if loc is None:
+            return None
+        block, idx = loc
+        slot_def = block.statements[idx]
+        fn = slot_def.src
+        funcval = _ref_vvar(fn)
+        if funcval is not None:
+            fn_loc = self._index.defs.get(funcval.varid)
+            if fn_loc is not None:
+                fn_src = fn_loc[0].statements[fn_loc[1]].src
+                fn = fn_src if isinstance(fn_src, Const) else fn
+        # a stack closure record with captures stands in for its code pointer
+        for varid in (slot_varid, funcval.varid if funcval is not None else None):
+            if varid in self._replace_refs:
+                fn = self._replace_refs[varid]
+                break
+        for j in range(idx + 1, len(block.statements)):
+            stmt = block.statements[j]
+            if self._is_bits_assign(stmt) and stmt.dst.stack_offset == bits_offset and stmt.src.value_int != 0:
+                return stmt, fn
+            if isinstance(stmt, (SideEffectStatement, Store, Return)):
+                break
+        return None
+
+    def _defer_scaffolding(self, slot_varid: int, bits_offset: int) -> set[int]:
+        """Statements to drop: the closure slot, the funcval code pointer and every other constant write of deferBits."""
+        assert self._index is not None
+        loc = self._index.defs.get(slot_varid)
+        if loc is None:
+            return set()
+        slot_def = loc[0].statements[loc[1]]
+        dropped: list[VirtualVariable] = [slot_def.dst]
+        funcval = _ref_vvar(slot_def.src)
+        if funcval is not None and self._index.total.get(funcval.varid, 0) == 1:
+            fv_loc = self._index.defs.get(funcval.varid)
+            if fv_loc is not None:
+                dropped.append(fv_loc[0].statements[fv_loc[1]].dst)
+        drop_ids = {v.varid for v in dropped}
+        assigns = [
+            stmt
+            for block in self._graph.nodes
+            for stmt in block.statements
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+        ]
+        out: set[int] = set()
+        for stmt in assigns:
+            dst = stmt.dst
+            ref = _ref_vvar(stmt.src)
+            if dst.varid in drop_ids or (self._is_bits_assign(stmt) and dst.stack_offset == bits_offset):
+                out.add(stmt.idx)
+            elif ref is not None and ref.varid in drop_ids and self._index.total.get(dst.varid, 0) == 0:
+                out.add(stmt.idx)
+                dropped.append(dst)
+        # the compiler zeroes the funcval and closure slot before filling them
+        for stmt in assigns:
+            dst = stmt.dst
+            if (
+                stmt.idx not in out
+                and dst.was_stack
+                and isinstance(stmt.src, Const)
+                and stmt.src.value_int == 0
+                and self._index.total.get(dst.varid, 0) == 0
+                and any(_stack_overlap(dst, v) for v in dropped)
+            ):
+                out.add(stmt.idx)
+        return out
+
+
+def _reads_stack_slot(expr, offset: int) -> bool:
+    """``expr`` is the stack vvar at ``offset`` or a struct/extract built from it."""
+    if isinstance(expr, VirtualVariable):
+        return expr.was_stack and expr.stack_offset == offset
+    if isinstance(expr, Struct):
+        values = expr.fields.values() if hasattr(expr.fields, "values") else expr.fields
+        return any(_reads_stack_slot(v, offset) for v in values)
+    base = getattr(expr, "base", None)
+    return base is not None and _reads_stack_slot(base, offset)
+
+
+def _stack_overlap(a: VirtualVariable, b: VirtualVariable) -> bool:
+    return a.stack_offset <= b.stack_offset < a.stack_offset + a.size or (
+        b.stack_offset <= a.stack_offset < b.stack_offset + b.size
+    )
+
+
+class _CallReplacer(AILBlockRewriter):
+    """Replace one call by a vvar and fold the byte extraction the compiler applies to its bool result."""
+
+    def __init__(self, call: Call, replacement: VirtualVariable, owner: GoRuntimeRewriter):
+        super().__init__(update_block=False)
+        self._call = call
+        self._replacement = replacement
+        self._o = owner
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.idx == self._call.idx:
+            return self._replacement
+        return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
+        new_expr = super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
+        base = new_expr.base
+        if isinstance(base, BinaryOp) and base.op == "And" and isinstance(base.operands[1], Const):
+            base = base.operands[0]
+        if (
+            isinstance(base, VirtualVariable)
+            and base.varid == self._replacement.varid
+            and isinstance(new_expr.offset, Const)
+            and new_expr.offset.value_int == 0
+        ):
+            return self._o._narrow(self._replacement, new_expr.bits)
+        return new_expr
+
+
+class _ExprRewriter(AILBlockRewriter):
+    """Loads and stores through map slot pointers, map lengths and vvars the runtime used to write through pointers."""
+
+    def __init__(self, owner: GoRuntimeRewriter):
+        super().__init__()
+        self._o = owner
+        self.changed = False
+        # inside a load/store address: a constant there is an address, never a func value
+        self._addr_depth = 0
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        rep = self._o._replace.get(expr.varid)
+        if rep is not None:
+            self.changed = True
+            return rep.copy()
+        return expr
+
+    def _handle_Const(self, expr_idx, expr, stmt_idx, stmt, block):
+        # expr_idx -1 is a call target
+        if expr_idx == -1 or self._addr_depth:
+            return expr
+        code = self._o._static_funcval(expr)
+        if code is None:
+            return expr
+        self.changed = True
+        func_ty, _ = self._o._func_type_at(code)
+        return self._o._closure_expr(code, [], [], func_ty)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+            rep = self._o._replace_refs.get(expr.operand.varid)
+            if rep is not None:
+                self.changed = True
+                return rep.copy()
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
+        new_expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
+        call = new_expr if new_expr is not None else expr
+        rewritten = self._o.func_value_call(call)
+        if rewritten is not None:
+            self.changed = True
+            return rewritten
+        return new_expr
+
+    def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._addr_depth += 1
+        try:
+            new_expr = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+        finally:
+            self._addr_depth -= 1
+        expr = new_expr if new_expr is not None else expr
+        addr = expr.addr
+        if isinstance(addr, Call) and self._o._kind(addr) == "mapaccess1" and len(addr.args) >= 3:
+            self.changed = True
+            return self._o.index_call(addr.args[1], addr.args[2], expr.bits, dict(expr.tags))
+        if isinstance(addr, VirtualVariable):
+            slot = self._o._slots.get(addr.varid)
+            if slot is not None:
+                self.changed = True
+                return self._o.index_call(*slot, expr.bits, dict(expr.tags))
+            if addr.varid in self._o._deref and expr.size == addr.size:
+                self.changed = True
+                return addr
+            if addr.varid in self._o._map_vvars and expr.size == self._o.project.arch.bytes:
+                self.changed = True
+                return self._o._builtin("len", [addr], expr.bits, dict(expr.tags))
+        return new_expr
+
+    def _handle_Store(self, stmt_idx, stmt, block):
+        self._addr_depth += 1
+        try:
+            addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
+        finally:
+            self._addr_depth -= 1
+        data = self._handle_expr(1, stmt.data, stmt_idx, stmt, block)
+        guard = None if stmt.guard is None else self._handle_expr(2, stmt.guard, stmt_idx, stmt, block)
+        new_stmt = None
+        if addr != stmt.addr or data != stmt.data or guard != stmt.guard:
+            new_stmt = Store(stmt.idx, addr, data, stmt.size, stmt.endness, guard=guard, **stmt.tags)
+        stmt = new_stmt if new_stmt is not None else stmt
+        addr = stmt.addr
+        call = None
+        if isinstance(addr, Call) and self._o._kind(addr) == "mapassign" and len(addr.args) >= 3:
+            call = self._o.assign_call(addr.args[1], addr.args[2], stmt.data, dict(stmt.tags))
+        elif isinstance(addr, VirtualVariable) and addr.varid in self._o._slots:
+            call = self._o.assign_call(*self._o._slots[addr.varid], stmt.data, dict(stmt.tags))
+        if call is not None:
+            self.changed = True
+            return self._o._stmt(call, stmt.idx)
+        return new_stmt

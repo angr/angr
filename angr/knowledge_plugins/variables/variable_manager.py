@@ -774,6 +774,10 @@ class VariableManagerInternal(Serializable):
             return variables[0]
         return None
 
+    def variable_by_vvar_id(self, varid: int) -> SimVariable | None:
+        """The variable that was assigned to the virtual variable with the given id, if any."""
+        return self._vvarid_to_variable.get(varid)
+
     def find_variables_by_atom(
         self, block_addr, stmt_idx, atom: ailment.expression.Expression, block_idx: int | None = None
     ) -> set[tuple[SimVariable, int | None]]:
@@ -1228,6 +1232,12 @@ class VariableManagerInternal(Serializable):
                     for v2 in sorted(
                         vs - cast(set[SimStackVariable], congruence_classes[v1]), key=lambda v: v.ident or ""
                     ):
+                        if v1.size != v2.size and (
+                            v1 in self.variables_with_manual_types or v2 in self.variables_with_manual_types
+                        ):
+                            # a variable an analysis sized and typed (a multi-word value spilled to the stack) keeps
+                            # its shape; a narrower use of the same slot is another variable
+                            continue
                         if not self._variables_interfere(interference, v1, v2):
                             unify(v1, v2)
 

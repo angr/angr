@@ -72,6 +72,7 @@ class RewritingAnalysis:
             ail_manager=ail_manager,
             vvar_id_start=vvar_id_start,
             def_to_udef=def_to_udef,
+            extern_defs=extern_defs,
             stackvars=stackvars,
             fail_fast=self._fail_fast,
         )

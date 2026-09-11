@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr import ailment
-from angr.calling_conventions import SimComboArg, SimRegArg
+from angr.calling_conventions import SimArrayArg, SimComboArg, SimRegArg, SimStackArg, SimStructArg
 from angr.sim_type import SimTypeBottom
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -44,6 +44,9 @@ class ReturnMaker(AILGraphWalker):
                 else self.function.prototype.returnty
             )
             ret_val = self.function.calling_convention.return_val(returnty)
+            if isinstance(ret_val, (SimStructArg, SimArrayArg)):
+                # struct-shaped results (e.g. Go's multiple results) span several registers
+                ret_val = SimComboArg(self._flatten_locs(ret_val))
             if isinstance(ret_val, SimRegArg):
                 reg = self.arch.registers[ret_val.reg_name]
                 new_ret_exprs.append(
@@ -81,13 +84,34 @@ class ReturnMaker(AILGraphWalker):
                                 ins_addr=stmt.tags.get("ins_addr"),  # pyright: ignore[reportTypedDictNotRequiredAccess]
                             )
                         )
+                    elif isinstance(ret_val_loc, SimStackArg):
+                        new_ret_exprs.append(self._stack_load(ret_val_loc, stmt))
                     else:
                         l.warning("Unsupported type of return expression %s.", type(ret_val_loc))
+            elif isinstance(ret_val, SimStackArg):
+                new_ret_exprs.append(self._stack_load(ret_val, stmt))
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
             new_stmt.ret_exprs = new_ret_exprs
             return new_stmt
         return stmt
+
+    def _stack_load(self, loc: SimStackArg, stmt) -> ailment.Expr.Load:
+        """A result the callee leaves in the caller's frame (Go's ABI0): read it back from the stack slot."""
+        addr = ailment.Expr.StackBaseOffset(self._next_atom(), self.arch.bits, loc.stack_offset)
+        return ailment.Expr.Load(
+            self._next_atom(), addr, loc.size, self.arch.memory_endness, ins_addr=stmt.tags.get("ins_addr")
+        )
+
+    @classmethod
+    def _flatten_locs(cls, loc) -> list:
+        if isinstance(loc, SimStructArg):
+            return [x for sub in loc.locs.values() for x in cls._flatten_locs(sub)]
+        if isinstance(loc, SimArrayArg):
+            return [x for sub in loc.locs for x in cls._flatten_locs(sub)]
+        if isinstance(loc, SimComboArg):
+            return [x for sub in loc.locations for x in cls._flatten_locs(sub)]
+        return [loc]
 
     def _handler(self, block):
         # we don't need to handle any statement besides Returns

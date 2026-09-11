@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 from angr.ailment.expression import (
     ITE,
+    ComboRegister,
     Const,
     Convert,
     DirtyExpression,
@@ -47,6 +48,13 @@ def offset_sort_key(v: tuple[int | None, int]) -> tuple[int, int, int, int]:
     # - it produces a total ordering, i.e. f(a) == f(b) iff a == b
     # - it never returns None values, as these cannot be sorted
     return (v[1], 0 if v[0] is not None else 1, abs(v[0] or 0), 0 if v[0] is None or v[0] < 0 else 1)
+
+
+def _has_explicit_variadic_args(proto) -> bool:
+    """Go spells its variadic parameter as a slice, so the prototype already lists every argument."""
+    from angr.go.sim_type import GoSimTypeFunction  # pylint:disable=import-outside-toplevel
+
+    return isinstance(proto, GoSimTypeFunction)
 
 
 @dataclass
@@ -467,6 +475,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if isinstance(stmt.dst, Register):
             self.register_set(stmt.dst.reg_offset, stmt.dst.size, src, stmt.dst)
+        elif isinstance(stmt.dst, ComboRegister):
+            # a multi-register value defines every constituent register
+            for reg in stmt.dst.registers:
+                self.register_set(reg.reg_offset, reg.size, src, reg)
         elif isinstance(stmt.dst, VirtualVariable):
             self.state.live_vvars = self.state.live_vvars.clean()
             self.state.live_vvars[stmt.dst.varid] = src
@@ -518,6 +530,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             self.register_set(stmt.ret_expr.reg_offset, stmt.ret_expr.size, result, stmt.ret_expr)
+        elif stmt.ret_expr is not None and isinstance(stmt.ret_expr, ComboRegister):
+            # a multi-register result defines every constituent register
+            for reg in stmt.ret_expr.registers:
+                self.register_set(reg.reg_offset, reg.size, result, reg)
         if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
             self.register_set(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size, result, stmt.fp_ret_expr)
 
@@ -610,7 +626,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # is potentially used by the call.
         if not isinstance(expr.target, str) and (
             (proto is None and expr.args is None)
-            or (proto is not None and proto.variadic and (expr.args is None or len(expr.args) <= len(proto.args)))
+            or (
+                proto is not None
+                and proto.variadic
+                and not _has_explicit_variadic_args(proto)
+                and (expr.args is None or len(expr.args) <= len(proto.args))
+            )
         ):
             self._use_potential_arg_regs(cc)
 

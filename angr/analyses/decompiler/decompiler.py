@@ -16,6 +16,8 @@ from angr.analyses.s_propagator import sprop_cache_scope
 from angr.analyses.typehoon.typehoon import Typehoon
 from angr.analyses.typehoon.typevars import TypeVariableManager
 from angr.errors import AngrAIError, AngrDecompilationComplexityError
+from angr.go.optimization_passes import get_go_optimization_passes
+from angr.go.typehoon.typehoon import GoTypehoon
 from angr.knowledge_plugins.functions.function import Function
 from angr.rust.optimization_passes import get_rust_optimization_passes
 from angr.rust.typehoon.typehoon import RustTypehoon
@@ -44,6 +46,7 @@ from .region_identifier import RegionIdentifier
 from .sequence_walker import SequenceWalker
 from .structured_codegen import DummyStructuredCodeGenerator
 from .structured_codegen.c import CStructuredCodeGenerator
+from .structured_codegen.go import GoStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from .structurer_nodes import SequenceNode
 from .structuring import DEFAULT_STRUCTURER, PhoenixStructurer, RecursiveStructurer
@@ -213,6 +216,8 @@ class Decompiler(Analysis):
 
         if self._flavor == "rust":
             self._optimization_passes.extend(get_rust_optimization_passes())
+        elif self._flavor == "go":
+            self._optimization_passes.extend(get_go_optimization_passes())
 
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
@@ -296,6 +301,9 @@ class Decompiler(Analysis):
         if self._flavor == "rust":
             self._codegen_cls = RustStructuredCodeGenerator
             self._typehoon_cls = RustTypehoon
+        elif self._flavor == "go":
+            self._codegen_cls = GoStructuredCodeGenerator
+            self._typehoon_cls = GoTypehoon
 
         if decompile:
             with self._resilience():
@@ -462,8 +470,8 @@ class Decompiler(Analysis):
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
             self._recursive_structurer_params["structurer_cls"] = DEFAULT_STRUCTURER
-        # The Rust flavor disables multi-statement-expression generation regardless of user options.
-        if self._flavor == "rust":
+        # The Rust and Go flavors disable multi-statement-expression generation regardless of user options.
+        if self._flavor in ("rust", "go"):
             self._recursive_structurer_params["use_multistmtexprs"] = MultiStmtExprMode.NEVER
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):

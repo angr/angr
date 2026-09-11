@@ -196,6 +196,8 @@ from .errors import (
     UnsupportedSyscallError,
 )
 from .exploration_techniques import ExplorationTechnique
+from .go import analyses as go_analyses
+from .go import knowledge_plugins as go_knowledge_plugins
 from .knowledge_base import KnowledgeBase
 from .llm_client import LLMClient
 from .procedures import SIM_LIBRARIES, SIM_PROCEDURES, SIM_TYPE_COLLECTIONS, SimProcedures
@@ -385,6 +387,8 @@ __all__ = (
     "default_cc",
     "engines",
     "exploration_techniques",
+    "go_analyses",
+    "go_knowledge_plugins",
     "knowledge_plugins",
     "load_shellcode",
     "manager",
