@@ -227,6 +227,7 @@ class RegionOverlay[T: RegionBound]:
     __slots__ = (
         "_cache_succs",
         "_extra_full_edges",
+        "_hash",
         "_hidden",
         "_hidden_full",
         "_members",
@@ -269,9 +270,17 @@ class RegionOverlay[T: RegionBound]:
         # the node this overlay was finalized into, if any
         self.replacement = None
 
+        self._hash: int | None = None
         self._cache_succs: tuple[int, set] | None = None
         # cached RegionOverlayGraph view objects, keyed by (full, include_marked)
         self._rog_cache: dict[tuple[bool, bool], RegionOverlayGraph] = {}
+
+    def __hash__(self):
+        # cached on first use: head is reassigned by replace_nodes/finalize/dissolve, and an overlay that
+        # changed hash while sitting in its parent's member set would become unreachable in it
+        if self._hash is None:
+            self._hash = hash((RegionOverlay, self.head))
+        return self._hash
 
     def __repr__(self):
         if not self._members:
