@@ -23,7 +23,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 from angr.protos import cfg_pb2
 
 from .block_id import BlockID
-from .cfg_node import CFGENode, CFGNode
+from .cfg_node import AddressType, CFGENode, CFGNode
 from .spilling_digraph import SpillingDiGraph
 from .types import CFG_ADDR_TYPES, CFGENODE_K, CFGNODE_K, SOOTNODE_K, K
 
@@ -802,7 +802,7 @@ class SpillingCFG:
             cache_limit=effective_cache_limit,
             db_batch_size=db_batch_size,
         )
-        self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
+        self._keys_by_addr: dict[AddressType, set[K]] = defaultdict(set)
         self._call_dst_keys: set[K] = set()
         self._out_degree_cache: dict[K, int] = {}
         self._spilling_enabled = cache_limit is not None
@@ -990,10 +990,12 @@ class SpillingCFG:
         src_block_key = get_block_key(src)
         dst_block_key = get_block_key(dst)
 
-        # Always update _nodes with the passed nodes
-        # This is needed for node replacement during _shrink_node
+        # Always register the passed nodes: an edge replaces a node during _shrink_node, is the only insertion path
+        # for the successor node _shrink_node creates, and can reinsert a node that remove_node() has dropped
         self._nodes[src_block_key] = src
         self._nodes[dst_block_key] = dst
+        self._keys_by_addr[src.addr].add(src_block_key)
+        self._keys_by_addr[dst.addr].add(dst_block_key)
 
         self.add_edge_by_key(src_block_key, dst_block_key, **attr)
 
