@@ -20,7 +20,7 @@ from archinfo import Endness
 from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
 from archinfo.arch_soot import SootAddressDescriptor
 from cle.address_translator import AT
-from sortedcontainers import SortedDict
+from sortedcontainers import SortedDict, SortedSet
 
 import angr
 from angr import claripy
@@ -6680,9 +6680,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     del self.functions[existing_node.addr]
 
                 # update indirect_jumps_to_resolve
-                self._indirect_jumps_to_resolve = {
+                self._indirect_jumps_to_resolve = SortedSet(
                     ij for ij in self._indirect_jumps_to_resolve if ij.addr != existing_node.addr
-                }
+                )
 
                 self._remove_jobs_by_source_node_addr(existing_node.addr)
 
