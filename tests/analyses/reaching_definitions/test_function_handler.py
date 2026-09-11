@@ -17,7 +17,7 @@ from angr.analyses.reaching_definitions import FunctionHandler
 from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftAMD64, SimCCSystemVAMD64
 from angr.errors import SimMemoryMissingError
 from angr.knowledge_plugins.key_definitions.atoms import Register
-from angr.sim_type import SimStruct, SimTypeFunction, SimTypeLongLong
+from angr.sim_type import SimStruct, SimTypeDouble, SimTypeFunction, SimTypeLongLong
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
@@ -158,6 +158,30 @@ class TestFunctionHandler(TestCase):
         proto_x86 = SimTypeFunction([], retty_x86).with_arch(arch_x86)
         atoms = FunctionHandler.c_return_as_atoms(state_x86, SimCCCdecl(arch_x86), proto_x86)
         assert atoms == {Register(*arch_x86.registers["eax"], arch=arch_x86)}
+
+    def test_reaching_definitions_across_a_call_returning_a_float(self):
+        # _M_need_rehash calls floor@plt. The function handler resolves that PLT name to libc's
+        # `double floor(double)` and builds the callee's return atoms; on x86 that return location
+        # is "st0", which ArchX86 has no register entry for.
+        proj = angr.Project(os.path.join(TESTS_LOCATION, "i386", "libstdc++.so.6"), auto_load_libs=False)
+        floor = proj.symbol_hooked_by("floor")
+        assert floor is not None
+        assert isinstance(floor.prototype, SimTypeFunction)
+        assert isinstance(floor.prototype.returnty, SimTypeDouble)
+
+        caller_addr, callsite_block_addr, callsite_insn_addr = 0x49B9E0, 0x49BA36, 0x49BA48
+        cfg = proj.analyses.CFGFast(regions=[(caller_addr, 0x49BB0A)], normalize=True, force_complete_scan=False)
+
+        cca = proj.analyses.CallingConvention(
+            None,
+            cfg=cfg.model,
+            analyze_callsites=True,
+            caller_func_addr=caller_addr,
+            callsite_block_addr=callsite_block_addr,
+            callsite_insn_addr=callsite_insn_addr,
+        )
+        assert cca.cc is not None
+        assert cca.prototype is not None
 
 
 if __name__ == "__main__":
