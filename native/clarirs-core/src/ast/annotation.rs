@@ -1,6 +1,3 @@
-use std::hash::{Hash, Hasher};
-
-use ahash::AHasher;
 use num_bigint::BigUint;
 
 /// A wrapper excluded from identity: all `Ignored<T>` compare equal and hash to
@@ -100,8 +97,6 @@ impl Annotation {
     }
 
     pub fn identity_hash(&self) -> u64 {
-        let mut hasher = AHasher::default();
-        self.hash(&mut hasher);
-        hasher.finish()
+        crate::context::HASHER.hash_one(self)
     }
 }
