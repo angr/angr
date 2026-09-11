@@ -12,6 +12,7 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses.calling_convention import CallingConventionAnalysis
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -24,7 +25,17 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.sim_type import (
+    SimTypeBottom,
+    SimTypeChar,
+    SimTypeFloat,
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypePointer,
+    parse_signature,
+)
 from tests.common import bin_location, requires_binaries_private
 
 test_location = os.path.join(bin_location, "tests")
@@ -46,6 +57,101 @@ def cca_mode(modes: str):
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
+    def test_main_prototype_hint(self):
+        binary = os.path.join(test_location, "x86_64", "argv_test")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        main = project.kb.functions["main"]
+
+        assert main.prototype is None
+        assert main.info["prototype_hint"] == "int main(int argc, char **argv, char **envp)"
+        hinted_functions = [func for func in project.kb.functions.values() if "prototype_hint" in func.info]
+        assert hinted_functions == [main]
+
+        decompiler = project.analyses.Decompiler(main, cfg=cfg.model)
+        assert main.prototype is not None
+        assert len(main.prototype.args) == 2
+        assert main.prototype.arg_names == ("argc", "argv")
+        assert main.prototype.variadic is False
+        assert isinstance(main.prototype.args[0], SimTypeInt)
+        assert isinstance(main.prototype.args[1], SimTypePointer)
+        assert isinstance(main.prototype.args[1].pts_to, SimTypePointer)
+        assert isinstance(main.prototype.args[1].pts_to.pts_to, SimTypeChar)
+        assert main.prototype_source == PrototypeSource.SIMPROC
+        assert decompiler.codegen is not None
+        decompiled_text = decompiler.codegen.text
+        assert decompiled_text is not None
+        assert "int main(int argc, char **argv)" in decompiled_text
+        assert 'strcmp(argv[1], "Yan is a noob")' in decompiled_text
+        assert "struct_0 *" not in decompiled_text
+
+    def test_main_prototype_hint_refinement_arities(self):
+        arch = archinfo.arch_from_id("amd64")
+        semantic = parse_signature("int main(int argc, char **argv, char **envp)").with_arch(arch)
+        assert isinstance(semantic, SimTypeFunction)
+
+        for arity in (0, 1, 2, 3, 5):
+            with self.subTest(arity=arity):
+                machine = SimTypeFunction(
+                    tuple(SimTypeLongLong().with_arch(arch) for _ in range(arity)),
+                    SimTypeBottom().with_arch(arch),
+                    variadic=arity == 5,
+                )
+                refined = CallingConventionAnalysis._refine_prototype_hint(  # pylint:disable=protected-access
+                    machine, semantic
+                )
+
+                assert len(refined.args) == arity
+                assert refined.args[: min(arity, 3)] == semantic.args[: min(arity, 3)]
+                assert refined.args[3:] == machine.args[3:]
+                assert refined.arg_names == tuple(
+                    ("argc", "argv", "envp")[i] if i < 3 else f"a{i}" for i in range(arity)
+                )
+                assert refined.variadic == machine.variadic
+                assert isinstance(refined.returnty, SimTypeInt)
+
+    def test_main_prototype_hint_malformed_or_absent(self):
+        binary = os.path.join(test_location, "x86_64", "argv_test")
+        for prototype_hint in (None, 42, "not a C prototype"):
+            with self.subTest(prototype_hint=prototype_hint):
+                project = angr.Project(binary, auto_load_libs=False)
+                cfg = project.analyses.CFGFast(normalize=True)
+                main = project.kb.functions["main"]
+                if prototype_hint is None:
+                    del main.info["prototype_hint"]
+                else:
+                    main.info["prototype_hint"] = prototype_hint
+
+                project.analyses.Decompiler(main, cfg=cfg.model)
+                assert main.prototype is not None
+                assert main.prototype_source != PrototypeSource.SIMPROC
+
+    def test_main_prototype_hint_requires_startup_simprocedure(self):
+        binary = os.path.join(test_location, "x86_64", "argv_test")
+        project = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False)
+        project.analyses.CFGFast(normalize=True)
+        assert all("prototype_hint" not in func.info for func in project.kb.functions.values())
+
+    def test_main_prototype_hint_preserves_authoritative_prototypes(self):
+        binary = os.path.join(test_location, "x86_64", "argv_test")
+        for source in (PrototypeSource.CCA_DECOMPILER, PrototypeSource.SIGNATURES, PrototypeSource.USER):
+            with self.subTest(source=source):
+                project = angr.Project(binary, auto_load_libs=False)
+                cfg = project.analyses.CFGFast(normalize=True)
+                main = project.kb.functions["main"]
+                authoritative = parse_signature("long main(short count, char *value)").with_arch(project.arch)
+                assert isinstance(authoritative, SimTypeFunction)
+                main.prototype = authoritative
+                main.prototype_source = source
+                main.prototype_libname = "authoritative-test-library"
+                main.calling_convention = None
+
+                project.analyses.Decompiler(main, cfg=cfg.model)
+                assert main.prototype == authoritative
+                assert main.prototype_source == source
+                assert main.prototype_libname == "authoritative-test-library"
+                assert main.calling_convention is not None
+
     def test_itanium_qualified_free_function_does_not_gain_this(self):
         """Machine facts must disambiguate namespace functions from members."""
         binary = os.path.join(test_location, "x86_64", "cpp_qualified_symbols.so")
