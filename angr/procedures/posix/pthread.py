@@ -29,13 +29,13 @@ class pthread_create(angr.SimProcedure):
         # Execute each block
         state = blank_state
         for b in blocks:
-            irsb = self.project.factory.default_engine.process(state, b, force_addr=b.addr)
+            irsb = self.project.factory.default_engine.process(state, irsb=b, force_addr=b.addr)
             if irsb.successors:
                 state = irsb.successors[0]
             else:
                 break
 
-        callfunc = self.cc.get_args(state, self.prototype)[2]
+        callfunc = self._resolve_cc().get_args(state, self.prototype)[2]
         retaddr = state.memory.load(state.regs.sp, size=self.arch.bytes)
 
         return [
