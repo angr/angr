@@ -7,13 +7,17 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
+import archinfo
 import networkx
 
 import angr
 import angr.analyses.decompiler
-from angr.ailment import Manager
+from angr import claripy
+from angr.ailment import Block, Manager
 from angr.analyses import Decompiler
+from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.decompilation_options import get_structurer_option
+from angr.analyses.decompiler.structurer_nodes import CodeNode, SequenceNode
 from angr.analyses.decompiler.structuring import DreamStructurer
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
@@ -47,6 +51,48 @@ def D(*edge):
 
 
 class TestStructurer(unittest.TestCase):
+    def test_dream_does_not_replace_reaching_condition_with_concrete_guard(self):
+        arch = archinfo.ArchAMD64()
+        condition_processor = ConditionProcessor(arch, Manager())
+        structurer = object.__new__(DreamStructurer)
+        structurer.cond_proc = condition_processor
+
+        block = Block(0x1000, 1)
+        reaching_condition = claripy.Or(claripy.BoolS("first"), claripy.BoolS("second"))
+        for guarding_condition in (claripy.true(), claripy.false()):
+            with self.subTest(guarding_condition=guarding_condition):
+                condition_processor.guarding_conditions = {block: guarding_condition}
+                code_node = CodeNode(block, reaching_condition)
+                sequence = SequenceNode(block.addr, nodes=[code_node])
+
+                structurer._replace_complex_reaching_conditions(sequence)
+
+                self.assertIs(code_node.reaching_condition, reaching_condition)
+
+    def test_dream_replaces_reaching_condition_with_simpler_symbolic_guard(self):
+        arch = archinfo.ArchAMD64()
+        condition_processor = ConditionProcessor(arch, Manager())
+        structurer = object.__new__(DreamStructurer)
+        structurer.cond_proc = condition_processor
+
+        first = claripy.BoolS("first")
+        second = claripy.BoolS("second")
+        third = claripy.BoolS("third")
+        reaching_condition = claripy.Or(
+            claripy.And(first, second), claripy.And(first, claripy.Not(second)), claripy.And(first, third)
+        )
+        guarding_condition = first
+        self.assertFalse(claripy.Solver().satisfiable(extra_constraints=(reaching_condition != guarding_condition,)))
+
+        block = Block(0x1000, 1)
+        condition_processor.guarding_conditions = {block: guarding_condition}
+        code_node = CodeNode(block, reaching_condition)
+        sequence = SequenceNode(block.addr, nodes=[code_node])
+
+        structurer._replace_complex_reaching_conditions(sequence)
+
+        self.assertIs(code_node.reaching_condition, guarding_condition)
+
     def test_region_identifier_0(self):
         g = networkx.DiGraph()
 
