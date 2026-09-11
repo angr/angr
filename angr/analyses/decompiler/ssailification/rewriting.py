@@ -214,6 +214,16 @@ class RewritingAnalysis:
 
         return False, None
 
+    @staticmethod
+    def _is_perfect_match(vvar: VirtualVariable, dst: VirtualVariable) -> bool:
+        """
+        Whether vvar defines exactly the storage that dst denotes. Definitions are recorded under every byte they
+        cover, so a lookup by dst's offset can return a definition that merely overlaps it.
+        """
+        if dst.was_reg:
+            return vvar.reg_offset == dst.reg_offset and vvar.size == dst.size
+        return vvar.stack_offset == dst.stack_offset and vvar.size == dst.size
+
     def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, Any]:
         out_state: RewritingState = (
             self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
@@ -252,6 +262,7 @@ class RewritingAnalysis:
                 # a combo-register argument spans multiple (usually non-contiguous) registers; the function body
                 # reads the constituent registers individually, so we expose each constituent register vvar in the
                 # initial state and keep the link back to the combo argument
+                assert arg_vvar.reg_vvars is not None
                 for reg_vvar in arg_vvar.reg_vvars:
                     combo_reg_vvar_to_arg[reg_vvar.varid] = arg_vvar
                     for suboffset in range(reg_vvar.reg_offset, reg_vvar.reg_offset + reg_vvar.size):
@@ -361,6 +372,7 @@ class RewritingAnalysis:
                 for suboff in range(stack_offset, stack_offset + func_arg.size):
                     state.stackvars[suboff] = func_arg
             elif func_arg.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
+                assert func_arg.reg_vvars is not None
                 for reg_vvar in func_arg.reg_vvars:
                     for suboff in range(reg_vvar.reg_offset, reg_vvar.reg_offset + reg_vvar.size):
                         state.registers[suboff] = reg_vvar
@@ -426,46 +438,27 @@ class RewritingAnalysis:
                     assert isinstance(stmt.dst, VirtualVariable)
                     assert isinstance(stmt.src, Phi)
 
-                    src_and_vvars = []
                     if stmt.dst.was_reg:
-                        perfect_matches = []
-                        for pred in self._graph.predecessors(original_node):
-                            vvar = self._follow_one_path_backward(
-                                self._graph,
-                                pred,
-                                partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset),
-                            )
-                            src_and_vvars.append(((pred.addr, pred.idx), vvar))
-                            perfect_matches.append(
-                                (vvar.reg_offset == stmt.dst.reg_offset and vvar.size == stmt.dst.size)
-                                if vvar is not None
-                                else True
-                            )
-                        if all(perfect_matches):
-                            phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
-                            phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
-                            phi_stmts.append(phi_stmt)
-                        else:
-                            # different sizes of vvars found; this means the variable is unused from this point on
-                            continue
-
+                        predicate = partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset)
                     elif stmt.dst.was_stack:
-                        for pred in self._graph.predecessors(original_node):
-                            vvar = self._follow_one_path_backward(
-                                self._graph,
-                                pred,
-                                partial(
-                                    self._stack_predicate,
-                                    stack_offset=stmt.dst.stack_offset,
-                                ),
-                            )
-                            src_and_vvars.append(((pred.addr, pred.idx), vvar))
-
-                        phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
-                        phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
-                        phi_stmts.append(phi_stmt)
+                        predicate = partial(self._stack_predicate, stack_offset=stmt.dst.stack_offset)
                     else:
                         raise NotImplementedError
+
+                    src_and_vvars = []
+                    perfect_matches = []
+                    for pred in self._graph.predecessors(original_node):
+                        vvar = self._follow_one_path_backward(self._graph, pred, predicate)
+                        src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                        perfect_matches.append(vvar is None or self._is_perfect_match(vvar, stmt.dst))
+
+                    if not all(perfect_matches):
+                        # different sizes of vvars found; this means the variable is unused from this point on
+                        continue
+
+                    phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
+                    phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
+                    phi_stmts.append(phi_stmt)
 
                 node = node.copy(statements=phi_stmts + phi_extraction_stmts + other_stmts)
                 self.out_blocks[node_key] = node
