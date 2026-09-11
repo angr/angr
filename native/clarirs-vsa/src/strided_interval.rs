@@ -3360,6 +3360,20 @@ mod si_arithmetic_op_tests {
         assert_eq!(result, StridedInterval::range(32, 5u32, 25u32));
         assert!(!result.is_integer());
     }
+
+    #[test]
+    fn test_mul_product_beyond_the_width() {
+        // psplit leaves 127[0xff, 0xfd] with the piece 127[0x7e, 0x01], which
+        // still wraps, so wrapped_signed_mul reads its signed bounds as
+        // (126, 1) and picks the corner (1 * -128, 126 * -127). The overflow
+        // check above the conversion assumes the bounds are ordered, so -16002
+        // reached to_unsigned and panicked.
+        let a = StridedInterval::new(8, 127u32, 0xffu32, 0xfdu32);
+        let b = StridedInterval::new(8, 1u32, 0x80u32, 0x81u32);
+        let result = a.mul(&b);
+        assert_eq!(result.bits(), 8);
+        assert!(!result.is_empty());
+    }
 }
 
 #[cfg(test)]

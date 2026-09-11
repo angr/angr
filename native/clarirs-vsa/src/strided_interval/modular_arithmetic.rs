@@ -1,5 +1,5 @@
 use num_bigint::{BigInt, BigUint, ToBigInt};
-use num_traits::{One, Zero};
+use num_traits::{One, Signed, Zero};
 
 /// Returns the maximum unsigned integer representable with the given bits
 pub(crate) fn max_int(bits: u32) -> BigUint {
@@ -186,11 +186,50 @@ pub(crate) fn to_signed(v: &BigUint, bits: u32) -> BigInt {
 
 /// Helper to convert signed BigInt to unsigned BigUint
 pub(crate) fn to_unsigned(v: &BigInt, bits: u32) -> BigUint {
-    if v < &BigInt::zero() {
-        let modulus = BigInt::one() << bits;
-        let result = (modulus + v) % (BigInt::one() << bits);
-        result.to_biguint().unwrap()
+    let modulus = BigUint::one() << bits;
+    let magnitude = v.magnitude() % &modulus;
+    if v.is_negative() && !magnitude.is_zero() {
+        modulus - magnitude
     } else {
-        v.to_biguint().unwrap() & max_int(bits)
+        magnitude
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_to_unsigned_beyond_the_width() {
+        // wrapped_signed_mul multiplies two signed bounds, so it can reach here
+        // with a product whose magnitude exceeds 2**bits. Adding the modulus
+        // once only reaches down to -2**bits. Below that the sum stayed
+        // negative unless 2**bits divided the value exactly, % truncates toward
+        // zero rather than flooring, and to_biguint answers None on a negative
+        // value: the first and third of these panicked, the other two did not.
+        assert_eq!(to_unsigned(&BigInt::from(-16002), 8), BigUint::from(126u32));
+        assert_eq!(to_unsigned(&BigInt::from(-256), 8), BigUint::zero());
+        assert_eq!(to_unsigned(&BigInt::from(-257), 8), BigUint::from(255u32));
+        assert_eq!(to_unsigned(&BigInt::from(-16384), 8), BigUint::zero());
+    }
+
+    #[test]
+    fn test_to_unsigned_within_the_width() {
+        assert_eq!(to_unsigned(&BigInt::from(0), 8), BigUint::zero());
+        assert_eq!(to_unsigned(&BigInt::from(127), 8), BigUint::from(127u32));
+        assert_eq!(to_unsigned(&BigInt::from(-1), 8), BigUint::from(255u32));
+        assert_eq!(to_unsigned(&BigInt::from(-128), 8), BigUint::from(128u32));
+
+        // sdiv passes -2**(bits-1) / -1 here, which is out of signed range, and
+        // relies on the reduction to give the two's-complement answer.
+        assert_eq!(to_unsigned(&BigInt::from(128), 8), BigUint::from(128u32));
+    }
+
+    #[test]
+    fn test_to_unsigned_inverts_to_signed() {
+        for value in 0u32..256 {
+            let unsigned = BigUint::from(value);
+            assert_eq!(to_unsigned(&to_signed(&unsigned, 8), 8), unsigned);
+        }
     }
 }
