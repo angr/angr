@@ -1011,11 +1011,13 @@ def peephole_optimize_expr(expr: ailment.Expression, expr_opts: list[PeepholeOpt
 
 def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
     """
-    Copy AIL Graph.
+    Copy an AIL graph, including its graph, node, and edge attributes. Blocks and their statement lists are copied;
+    attribute values retain NetworkX's shallow-copy semantics.
 
-    :return: A copy of the AIl graph.
+    :return: A copy of the AIL graph.
     """
     graph_copy = networkx.DiGraph()
+    graph_copy.graph.update(graph.graph)
     block_mapping = {}
     # copy all blocks
     for block in graph.nodes():
@@ -1023,7 +1025,7 @@ def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
         new_stmts = copy.copy(block.statements)
         new_block.statements = new_stmts
         block_mapping[block] = new_block
-        graph_copy.add_node(new_block)
+        graph_copy.add_node(new_block, **graph.nodes[block])
 
     # copy all edges
     for src, dst, data in graph.edges(data=True):
