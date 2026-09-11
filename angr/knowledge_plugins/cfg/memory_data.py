@@ -65,6 +65,7 @@ class MemoryData(Serializable):
     """
 
     __slots__ = (
+        "__weakref__",
         "addr",
         "content",
         "max_size",
