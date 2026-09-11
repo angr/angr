@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import archinfo
 import pypcode
 from pypcode import OpCode, PcodeOp, Varnode
 
@@ -314,10 +315,18 @@ class PCodeIRSBConverter(Converter):
                         break
                 assert unique_offset is not None, "Cannot find the source unique variable"
                 # TODO: Check size
-                _, ori_tmp_size = self._unique_tracker[unique_offset]
-                t = Tmp(self._manager.next_atom(), unique_offset, ori_tmp_size * 8)
-                # FIXME: Asserting BE
-                right_shift_amount = varnode.offset + varnode.size - (unique_offset + ori_tmp_size)
+                ori_tmp_idx, ori_tmp_size = self._unique_tracker[unique_offset]
+                # Index the parent by its remapped index, not by its unique-space address: the defining
+                # write went through _remap_temp, so a Tmp built from the raw offset names nothing.
+                t = Tmp(self._manager.next_atom(), ori_tmp_idx, ori_tmp_size * 8)
+                # Which end of the parent the sub-range names depends on the byte order: on a
+                # little-endian machine the high half sits at the higher address, on a big-endian one at
+                # the lower. Computing this the big-endian way on a little-endian target silently
+                # returns the low half for both halves of a widening multiply.
+                if self._irsb.arch.memory_endness == archinfo.Endness.LE:
+                    right_shift_amount = varnode.offset - unique_offset
+                else:
+                    right_shift_amount = (unique_offset + ori_tmp_size) - (varnode.offset + varnode.size)
                 if right_shift_amount != 0:
                     t = BinaryOp(
                         self._manager.next_atom(),
