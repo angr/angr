@@ -791,11 +791,11 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
     def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> DataType_co:
         # an operation this engine has no handler for (e.g., a vector op): its value is unknown
         _l.debug("Unsupported unary operation %s", expr.op)
-        return None  # type: ignore
+        return cast(DataType_co, None)
 
     def _handle_binop_Default(self, expr: ailment.expression.BinaryOp) -> DataType_co:
         _l.debug("Unsupported binary operation %s", expr.op)
-        return None  # type: ignore
+        return cast(DataType_co, None)
 
     @abstractmethod
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType_co: ...
