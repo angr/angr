@@ -36,6 +36,18 @@ class TestCfgNoExeutableRegions(unittest.TestCase):
         assert cfg.regions == []
         assert any("nothing to scan" in record for record in logs.output)
 
+    def test_cfg_scoped_to_an_object_that_holds_no_code(self):
+        # The extern object CLE builds holds no code, so scoping CFGFast to it gives an empty map rather
+        # than every backer in the loader.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        p = angr.Project(bin_path, auto_load_libs=False)
+        main_object = p.loader.main_object
+        with self.assertLogs("angr.analyses.cfg.cfg_base", level=logging.WARNING) as logs:
+            cfg = p.analyses.CFGFast(binary=p.loader.extern_object)
+            assert cfg.regions == []
+            assert not [f for f in cfg.kb.functions.values() if main_object.min_addr <= f.addr <= main_object.max_addr]
+        assert any("nothing to scan" in record for record in logs.output)
+
     def test_cfg_elf_no_section_headers(self):
         # Regression test for #6409: stripped ELFs with no section headers fall back to segments.
         bin_path = os.path.join(test_location, "armel", "dbus-cleanup-sockets_stripped")
