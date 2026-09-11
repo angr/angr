@@ -4,7 +4,7 @@ import logging
 import weakref
 from typing import TYPE_CHECKING
 
-from archinfo.arch_soot import SootMethodDescriptor
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 
 import angr
 
@@ -14,13 +14,17 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
-def repr_addr[K: (int, SootMethodDescriptor)](addr: K) -> str:
+# A code node's address: a native address, or a Soot method or statement address.
+type NodeAddress = int | SootAddressDescriptor | SootMethodDescriptor
+
+
+def repr_addr(addr: NodeAddress) -> str:
     if isinstance(addr, int):
         return hex(addr)
     return repr(addr)
 
 
-class CodeNode[K: (int, SootMethodDescriptor)]:
+class CodeNode[K: NodeAddress]:
     """
     The base class of nodes in a function graph.
     """
@@ -82,7 +86,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     is_hook = None
 
 
-class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
+class BlockNode[K: NodeAddress](CodeNode[K]):
     """
     Represents a block of code in a function graph.
     """
@@ -91,7 +95,7 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
 
     is_hook = False
 
-    def __init__(self, addr: int, size, bytestr=None, **kwargs):
+    def __init__(self, addr: K, size, bytestr=None, **kwargs):
         super().__init__(addr, size, **kwargs)
         self.bytestr = bytestr
 
@@ -105,14 +109,14 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         self.__init__(*dat[:-1], thumb=dat[-1])
 
 
-class SootBlockNode(BlockNode[SootMethodDescriptor]):
+class SootBlockNode(BlockNode[SootAddressDescriptor]):
     """
     Represents a Soot block of code in a function graph.
     """
 
     __slots__ = ["stmts"]
 
-    def __init__(self, addr: SootMethodDescriptor, size, stmts, **kwargs):
+    def __init__(self, addr: SootAddressDescriptor, size, stmts, **kwargs):
         super().__init__(addr, size, **kwargs)
         self.stmts = stmts
 
@@ -128,7 +132,7 @@ class SootBlockNode(BlockNode[SootMethodDescriptor]):
         self.__init__(*data)
 
 
-class FuncNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
+class FuncNode[K: NodeAddress](CodeNode[K]):
     """
     Represents a function callee in a function graph.
     """
@@ -165,7 +169,7 @@ class FuncNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         self.__init__(*state)
 
 
-class HookNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
+class HookNode[K: NodeAddress](CodeNode[K]):
     """
     Represents a hook in a function graph.
     """
@@ -209,7 +213,7 @@ class HookNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         self.__init__(*dat)
 
 
-class SyscallNode[K: (int, SootMethodDescriptor)](HookNode[K]):
+class SyscallNode[K: NodeAddress](HookNode[K]):
     """
     Represents a syscall in a function graph.
     """

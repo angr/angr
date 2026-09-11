@@ -38,6 +38,8 @@ message CFGNode {
     bool            is_syscall = 12; // Whether this is a syscall node
     uint64          ins_base_addr = 13; // Base address for compact instruction address storage
     bytes           ins_sizes = 14; // Instruction sizes as bytestring (one byte per instruction)
+    optional SootAddress soot_ea = 15; // Address of the node when it is a Java address; ea is unset
+    optional SootAddress soot_function_address = 16; // Function of the node when it is a Java method
 }
 
 message CFGENode {
