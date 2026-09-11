@@ -130,7 +130,6 @@ class MemoryObjectMixin(CooperationBase[SimMemoryObject]):
 
         next_elem_size_left = 0
         next_elem_index = 0
-        # args is materialized on every access; fetch it once instead of per byte
         concat_args = data.args if data.symbolic and data.op == "Concat" else None
         if concat_args is not None:
             next_elem_size_left = concat_args[0].size() // 8
