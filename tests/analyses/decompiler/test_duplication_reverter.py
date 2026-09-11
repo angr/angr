@@ -6,7 +6,9 @@ import os.path
 import unittest
 from unittest import TestCase
 
+from angr.ailment import Block
 from angr.analyses.decompiler.decompiler import Decompiler
+from angr.analyses.decompiler.optimization_passes.duplication_reverter.duplication_reverter import DuplicationReverter
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 # sub_401d30 has a duplicate candidate below a block that ends in a call whose callee may or may not return, so the
@@ -21,6 +23,24 @@ class TestDuplicationReverter(TestCase):
         func = cfg.functions[TRUE_FUNC]
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
         assert dec.codegen is not None and dec.codegen.text is not None
+
+    def test_blocks_share_a_region_through_the_index(self):
+        a, b, c = (Block(addr, 4, statements=[]) for addr in (0x1000, 0x1010, 0x1020))
+        regions = [[(0x1000, None), (0x1010, None)], [(0x1010, None), (0x1020, None)]]
+
+        class _Pass:
+            class _ri:  # pylint:disable=invalid-name
+                regions_by_block_addrs = regions
+
+            _regions_by_block_loc_cache = None
+            _regions_by_block_loc = DuplicationReverter._regions_by_block_loc
+            _share_subregion = DuplicationReverter._share_subregion
+
+        pass_ = _Pass()
+        assert pass_._share_subregion([a, b])
+        assert pass_._share_subregion([b, c])
+        assert not pass_._share_subregion([a, c])
+        assert not pass_._share_subregion([a, Block(0x2000, 4, statements=[])])
 
 
 if __name__ == "__main__":
