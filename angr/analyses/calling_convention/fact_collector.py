@@ -733,7 +733,11 @@ class FactCollector(Analysis):
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
 
                         # check if this 64-bit write is actually a sign/zero-extended 32-bit value.
-                        if size == 8 and self.project.arch.bits == 64:
+                        if (
+                            size == 8
+                            and self.project.arch.bits == 64
+                            and stmt.data.result_type(block.vex.tyenv) == "Ity_I64"
+                        ):
                             expr = stmt.data
 
                             if isinstance(expr, pyvex.IRExpr.RdTmp):
