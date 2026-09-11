@@ -122,14 +122,18 @@ class RegionSimplifier(Analysis):
         for sub_region in [*loop_nodes, region]:
             # fold one-use expressions in each sub-region
             if isinstance(sub_region, LoopNode):
-                self._fold_oneuse_expressions_in_region(sub_region.sequence_node)
+                loop_header_counter = ExpressionCounter(sub_region)
+                self._fold_oneuse_expressions_in_region(
+                    sub_region.sequence_node, excluded_varids=set(loop_header_counter.outerscope_uses)
+                )
             else:
                 self._fold_oneuse_expressions_in_region(sub_region)
         return region
 
-    def _fold_oneuse_expressions_in_region(self, region):
+    def _fold_oneuse_expressions_in_region(self, region, excluded_varids: set[int] | None = None):
         # pylint:disable=unreachable
         expr_counter = ExpressionCounter(region)
+        excluded_varids = excluded_varids or set()
 
         variable_assignments = {}
         variable_uses = {}
@@ -143,7 +147,8 @@ class RegionSimplifier(Analysis):
         for var, outerscope_uses in expr_counter.outerscope_uses.items():
             all_uses = expr_counter.all_uses[var]
             if (
-                len(outerscope_uses) == 1
+                var not in excluded_varids
+                and len(outerscope_uses) == 1
                 and len(all_uses) == 1
                 and var in expr_counter.assignments
                 and len(expr_counter.assignments[var]) == 1
