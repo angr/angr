@@ -97,8 +97,7 @@ def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int,
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1.value)
     if operand1.bits == operand0.bits:
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, ins_addr=ins_addr))
-    # extension is required
-    assert operand1.bits < operand0.bits
+    # extension (or, for a shift amount wider than the value, truncation) is required
     operand1 = ailment.Expr.Convert(ail_manager.next_atom(), operand1.bits, operand0.bits, False, operand1)
     return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
 
@@ -118,6 +117,27 @@ def _dummy_bools(condition, condition_mapping, name_suffix=""):
     return var
 
 
+def _cmp_with_unified_size(op: Callable) -> Callable:
+    """
+    Build a comparison lambda whose operands are brought to the same width first. An AIL comparison can end up with
+    operands that convert to bit-vectors of different widths (an ill-formed expression from an earlier pass); claripy
+    refuses to compare those, and a decompilation should not die on a condition.
+    """
+
+    def _cmp(expr, conv: Callable, _, ins_addr: int, *args):  # pylint:disable=unused-argument
+        operand0 = conv(expr.operands[0], nobool=True, ins_addr=ins_addr)
+        operand1 = conv(expr.operands[1], nobool=True, ins_addr=ins_addr)
+        if isinstance(operand0, claripy.ast.BV) and isinstance(operand1, claripy.ast.BV):
+            size0, size1 = operand0.size(), operand1.size()
+            if size1 < size0:
+                operand1 = claripy.ZeroExt(size0 - size1, operand1)
+            elif size1 > size0:
+                operand1 = operand1[size0 - 1 : 0]
+        return op(operand0, operand1)
+
+    return _cmp
+
+
 _ail2claripy_op_mapping = {
     "LogicalAnd": lambda expr, conv, _, ia, *args: claripy.And(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
@@ -125,74 +145,34 @@ _ail2claripy_op_mapping = {
     "LogicalOr": lambda expr, conv, _, ia, *args: claripy.Or(
         conv(expr.operands[0], ins_addr=ia), conv(expr.operands[1], ins_addr=ia)
     ),
-    "CmpEQ": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) == conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "CmpEQ": _cmp_with_unified_size(operator.eq),
+    "CmpNE": _cmp_with_unified_size(operator.ne),
+    "CmpLE": _cmp_with_unified_size(operator.le),
+    "CmpLEs": _cmp_with_unified_size(claripy.SLE),
+    "CmpLT": _cmp_with_unified_size(operator.lt),
+    "CmpLTs": _cmp_with_unified_size(claripy.SLT),
+    "CmpGE": _cmp_with_unified_size(operator.ge),
+    "CmpGEs": _cmp_with_unified_size(claripy.SGE),
+    "CmpGT": _cmp_with_unified_size(operator.gt),
+    "CmpGTs": _cmp_with_unified_size(claripy.SGT),
+    "CasCmpEQ": _cmp_with_unified_size(operator.eq),
+    "CasCmpNE": _cmp_with_unified_size(operator.ne),
+    "CasCmpLE": _cmp_with_unified_size(operator.le),
+    "CasCmpLEs": _cmp_with_unified_size(claripy.SLE),
+    "CasCmpLT": _cmp_with_unified_size(operator.lt),
+    "CasCmpLTs": _cmp_with_unified_size(claripy.SLT),
+    "CasCmpGE": _cmp_with_unified_size(operator.ge),
+    "CasCmpGEs": _cmp_with_unified_size(claripy.SGE),
+    "CasCmpGT": _cmp_with_unified_size(operator.gt),
+    "CasCmpGTs": _cmp_with_unified_size(claripy.SGT),
+    "Add": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.add, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "CmpNE": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) != conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "Sub": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.sub, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "CmpLE": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) <= conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpLE (signed)": lambda expr, conv, _, ia, *args: claripy.SLE(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpLT": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) < conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpLT (signed)": lambda expr, conv, _, ia, *args: claripy.SLT(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpGE": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) >= conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpGE (signed)": lambda expr, conv, _, ia, *args: claripy.SGE(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpGT": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) > conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CmpGT (signed)": lambda expr, conv, _, ia, *args: claripy.SGT(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpEQ": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) == conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpNE": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) != conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpLE": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) <= conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpLE (signed)": lambda expr, conv, _, ia, *args: claripy.SLE(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpLT": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) < conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpLT (signed)": lambda expr, conv, _, ia, *args: claripy.SLT(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpGE": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) >= conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpGE (signed)": lambda expr, conv, _, ia, *args: claripy.SGE(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpGT": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) > conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "CasCmpGT (signed)": lambda expr, conv, _, ia, *args: claripy.SGT(
-        conv(expr.operands[0], nobool=True, ins_addr=ia), conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "Add": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) + conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "Sub": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) - conv(expr.operands[1], nobool=True, ins_addr=ia)
-    ),
-    "Mul": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) * conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "Mul": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.mul, conv, expr.operands[0], expr.operands[1], ia, am
     ),
     "Div": lambda expr, conv, _, ia, *args: (
         conv(expr.operands[0], nobool=True, ins_addr=ia) / conv(expr.operands[1], nobool=True, ins_addr=ia)
@@ -227,7 +207,7 @@ _ail2claripy_op_mapping = {
     # There are no corresponding claripy operations for the following operations
     "CmpF": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Mull": lambda expr, _, m, *args: _dummy_bvs(expr, m),
-    "Mull (signed)": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "Mulls": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Reinterpret": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Rol": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "Ror": lambda expr, _, m, *args: _dummy_bvs(expr, m),

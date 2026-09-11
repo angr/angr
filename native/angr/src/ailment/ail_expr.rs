@@ -3665,8 +3665,8 @@ impl Expression {
     /// variants (UnaryOp / BinaryOp / Convert / Reinterpret) so
     /// callers that look up an op-handler via
     /// ``mapping[expr.verbose_op]`` find a match regardless of variant.
-    /// The legacy per-class pyclasses exposed it on every op-shaped
-    /// expression with the same content as ``op``.
+    /// A signed (non-floating-point) BinaryOp carries an ``s`` suffix
+    /// (``CmpLEs``), as the Python classes did before the port.
     #[getter]
     fn verbose_op(&self) -> PyResult<String> {
         match &self.expr.inner {
@@ -3677,7 +3677,19 @@ impl Expression {
             ExprInner::DirtyExpression { callee, .. }
             | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
             ExprInner::Let { .. } => Ok("let".to_string()),
-            ExprInner::UnaryOp { op, .. } | ExprInner::BinaryOp { op, .. } => Ok(op.clone()),
+            ExprInner::UnaryOp { op, .. } => Ok(op.clone()),
+            ExprInner::BinaryOp {
+                op,
+                signed,
+                floating_point,
+                ..
+            } => {
+                if *signed && !*floating_point {
+                    Ok(format!("{op}s"))
+                } else {
+                    Ok(op.clone())
+                }
+            }
             ExprInner::Convert { .. } => Ok("Convert".to_string()),
             ExprInner::Reinterpret { .. } => Ok("Reinterpret".to_string()),
             _ => Err(PyAttributeError::new_err(
