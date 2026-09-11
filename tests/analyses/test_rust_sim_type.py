@@ -80,6 +80,24 @@ class TestRustSimType(unittest.TestCase):
         assert normalized.is_arg0_retbuf is False
         assert prototype.normalize() is not prototype
 
+    def test_narrow_type_constants_reach_rust_types(self):
+        # RustTypeConstHandlers dispatches on the exact type-constant class, so every class the type solver can
+        # produce needs an entry; a missing one silently degrades to a bottom type in the generated Rust
+        arch = archinfo.ArchPcode("z80:LE:16:default")
+        tx = RustTypeTranslator(arch)
+
+        for tc in (typeconsts.Pointer16(typeconsts.Int8()), typeconsts.Pointer24(typeconsts.Int8())):
+            restored, _ = tx.tc2simtype(tc)
+            assert isinstance(restored, RustSimTypeReference)
+            assert isinstance(restored.pts_to, RustSimTypeInt)
+
+        # int_type/signed_int_type/unsigned_int_type all answer 24-bit accesses now, on every architecture
+        for tc, signed in ((typeconsts.Int24(), False), (typeconsts.SInt24(), True), (typeconsts.UInt24(), False)):
+            restored, _ = tx.tc2simtype(tc)
+            assert isinstance(restored, RustSimTypeInt)
+            assert restored.size == 24
+            assert restored.signed is signed
+
     def test_rust_scalar_reference_and_array_repr_json_roundtrip(self):
         arch = archinfo.ArchAMD64()
         u32 = RustSimTypeInt(32, signed=False, label="len").with_arch(arch)

@@ -137,15 +137,9 @@ class TypeTranslator:
     # Typehoon type handlers
     #
 
-    def _translate_Pointer64(self, tc):
-        if isinstance(tc.basetype, typeconsts.BottomType):
-            # void *
-            internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
-        else:
-            internal = self._tc2simtype(tc.basetype)
-        return sim_type.SimTypePointer(internal, label=tc.name).with_arch(self.arch)
-
-    def _translate_Pointer32(self, tc):
+    def _translate_Pointer(self, tc):
+        # every pointer width translates the same way: SimTypePointer takes its width from the arch, not from the
+        # type constant
         if isinstance(tc.basetype, typeconsts.BottomType):
             # void *
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
@@ -223,6 +217,9 @@ class TypeTranslator:
             return sim_type.SimTypeWideChar(label=tc.name).with_arch(self.arch)
         return sim_type.SimTypeShort(signed=False, label=tc.name).with_arch(self.arch)
 
+    def _translate_Int24(self, tc):
+        return sim_type.SimTypeNum(24, signed=False, label=tc.name).with_arch(self.arch)
+
     def _translate_Int32(self, tc):
         return sim_type.SimTypeInt(signed=False, label=tc.name).with_arch(self.arch)
 
@@ -277,6 +274,12 @@ class TypeTranslator:
     def _translate_UInt16(self, tc):
         return sim_type.SimTypeShort(signed=False, label=tc.name).with_arch(self.arch)
 
+    def _translate_SInt24(self, tc):
+        return sim_type.SimTypeNum(24, signed=True, label=tc.name).with_arch(self.arch)
+
+    def _translate_UInt24(self, tc):
+        return sim_type.SimTypeNum(24, signed=False, label=tc.name).with_arch(self.arch)
+
     def _translate_SInt32(self, tc):
         return sim_type.SimTypeInt(signed=True, label=tc.name).with_arch(self.arch)
 
@@ -316,7 +319,7 @@ class TypeTranslator:
     #
 
     def _translate_SimTypeNum(self, st: sim_type.SimTypeNum) -> typeconsts.TypeConstant:
-        if st.size not in {8, 16, 32, 64}:
+        if st.size not in {8, 16, 24, 32, 64}:
             return typeconsts.BottomType()
 
         tc = typeconsts.signed_int_type(st.size) if st.signed else typeconsts.unsigned_int_type(st.size)
@@ -457,13 +460,11 @@ class TypeTranslator:
         elem_type = self._simtype2tc(st.elem_type)
         return typeconsts.Array(elem_type, count=st.length, name=st.label)
 
-    def _translate_SimTypePointer(self, st: sim_type.SimTypePointer) -> typeconsts.Pointer32 | typeconsts.Pointer64:
+    def _translate_SimTypePointer(
+        self, st: sim_type.SimTypePointer
+    ) -> typeconsts.Pointer16 | typeconsts.Pointer24 | typeconsts.Pointer32 | typeconsts.Pointer64:
         base = self._simtype2tc(st.pts_to)
-        if self.arch.bits == 32:
-            return typeconsts.Pointer32(base, name=st.label)
-        if self.arch.bits == 64:
-            return typeconsts.Pointer64(base, name=st.label)
-        raise TypeError(f"Unsupported pointer size {self.arch.bits}")
+        return typeconsts.pointer_type(self.arch.bits)(base, name=st.label)
 
     def _translate_SimTypeFloat(self, st: sim_type.SimTypeFloat) -> typeconsts.Float32:
         return typeconsts.Float32(name=st.label)
@@ -486,14 +487,18 @@ class TypeTranslator:
         return typeconsts.Fd(name=st.label)
 
 
+# pylint:disable=protected-access
 TypeConstHandlers = {
-    typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
-    typeconsts.Pointer32: TypeTranslator._translate_Pointer32,
+    typeconsts.Pointer64: TypeTranslator._translate_Pointer,
+    typeconsts.Pointer32: TypeTranslator._translate_Pointer,
+    typeconsts.Pointer24: TypeTranslator._translate_Pointer,
+    typeconsts.Pointer16: TypeTranslator._translate_Pointer,
     typeconsts.Array: TypeTranslator._translate_Array,
     typeconsts.Struct: TypeTranslator._translate_Struct,
     typeconsts.Enum: TypeTranslator._translate_Enum,
     typeconsts.Int8: TypeTranslator._translate_Int8,
     typeconsts.Int16: TypeTranslator._translate_Int16,
+    typeconsts.Int24: TypeTranslator._translate_Int24,
     typeconsts.Int32: TypeTranslator._translate_Int32,
     typeconsts.Int64: TypeTranslator._translate_Int64,
     typeconsts.Int128: TypeTranslator._translate_Int128,
@@ -503,6 +508,8 @@ TypeConstHandlers = {
     typeconsts.UInt8: TypeTranslator._translate_UInt8,
     typeconsts.SInt16: TypeTranslator._translate_SInt16,
     typeconsts.UInt16: TypeTranslator._translate_UInt16,
+    typeconsts.SInt24: TypeTranslator._translate_SInt24,
+    typeconsts.UInt24: TypeTranslator._translate_UInt24,
     typeconsts.SInt32: TypeTranslator._translate_SInt32,
     typeconsts.UInt32: TypeTranslator._translate_UInt32,
     typeconsts.SInt64: TypeTranslator._translate_SInt64,
@@ -512,6 +519,7 @@ TypeConstHandlers = {
     typeconsts.Float64: TypeTranslator._translate_Float64,
     typeconsts.Fd: TypeTranslator._translate_Fd,
 }
+# pylint:enable=protected-access
 
 
 SimTypeHandlers = {
