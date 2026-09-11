@@ -9,7 +9,7 @@ from typing import Any, Literal, cast, overload
 import networkx
 
 from angr import ailment
-from angr.ailment import Block, Manager
+from angr.ailment import INVALID_ADDR, Block, Manager
 from angr.ailment.expression import Const
 from angr.ailment.statement import ConditionalJump, Jump
 from angr.analyses.analysis import Analysis, register_analysis
@@ -788,7 +788,7 @@ class RegionIdentifier(Analysis):
         if add_dummy_endnode:
             # we need a copy of the graph!
             graph_copy = networkx.DiGraph(graph_copy)
-            dummy_endnode = Block(-1, -1)
+            dummy_endnode = Block(INVALID_ADDR, -1)
             for endnode in endnodes:
                 graph_copy.add_edge(endnode, dummy_endnode)
             endnodes = [dummy_endnode]
