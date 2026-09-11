@@ -293,6 +293,20 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca.prototype is not None
         assert cca.prototype.returnty is not None
 
+    def test_i386_rejected_partial_register_is_not_an_argument(self):
+        # sub_fe744 reads bx before writing it, so bx is a candidate argument. It consolidates to ebx, and
+        # cdecl passes no argument in a register, so _match drops it: the function has no arguments.
+        binary_path = os.path.join(test_location, "i386", "bios.bin.elf")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        _ = proj.analyses.CFGFast(normalize=True, regions=[(0xFE700, 0xFE800)], start_at_entry=False)
+        func = proj.kb.functions[0xFE744]
+        proj.analyses.VariableRecoveryFast(func)
+        cca = proj.analyses.CallingConvention(func, collect_facts=True)
+
+        assert isinstance(cca.cc, SimCCCdecl)
+        assert cca.prototype is not None
+        assert len(cca.prototype.args) == 0, f"sub_fe744 takes no arguments, got {cca.prototype}"
+
     def test_armhf_thumb_movcc(self):
         binary_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc")
         proj = angr.Project(binary_path, auto_load_libs=False)

@@ -541,9 +541,9 @@ class CallingConventionAnalysis(Analysis):
             )
 
         # update input_args according to the difference between full_input_args and full_input_args_copy
-        for a in full_input_args:
-            if a not in full_input_args_copy and a in input_args:
-                input_args.remove(a)
+        for a, original_args in full_input_args.items():
+            if a not in full_input_args_copy:
+                input_args.difference_update(original_args)
 
         if cc is None:
             l.warning(
@@ -993,16 +993,18 @@ class CallingConventionAnalysis(Analysis):
 
         return args.difference(restored_reg_vars)
 
-    def _consolidate_input_args(self, input_args: set[SimRegArg | SimStackArg]) -> set[SimRegArg | SimStackArg]:
+    def _consolidate_input_args(
+        self, input_args: set[SimRegArg | SimStackArg]
+    ) -> dict[SimRegArg | SimStackArg, list[SimRegArg | SimStackArg]]:
         """
         Consolidate register arguments by converting partial registers to full registers on certain architectures.
 
         :param input_args:  A set of input arguments.
-        :return:            A set of consolidated input args.
+        :return:            A map from each consolidated argument to the input arguments it stands for.
         """
 
         if self.project.arch.name in {"AMD64", "X86"}:
-            new_input_args = set()
+            new_input_args: defaultdict[SimRegArg | SimStackArg, list[SimRegArg | SimStackArg]] = defaultdict(list)
             for a in input_args:
                 if isinstance(a, SimRegArg) and a.size < self.project.arch.bytes:
                     # use complete registers on AMD64 and X86
@@ -1011,14 +1013,12 @@ class CallingConventionAnalysis(Analysis):
                         reg_offset, self.project.arch, size=reg_size
                     )
                     full_reg_name = self.project.arch.translate_register_name(full_reg_offset, size=full_reg_size)
-                    arg = SimRegArg(full_reg_name, full_reg_size)
-                    if arg not in new_input_args:
-                        new_input_args.add(arg)
+                    new_input_args[SimRegArg(full_reg_name, full_reg_size)].append(a)
                 else:
-                    new_input_args.add(a)
+                    new_input_args[a].append(a)
             return new_input_args
 
-        return set(input_args)
+        return {a: [a] for a in input_args}
 
     def _reorder_args(self, args: set[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
