@@ -519,14 +519,24 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             // Python arg eval order: Convert(next_atom(), ..., convert(arg)).
             let idx = self.next_atom();
             let operand = self.convert_expr(arg)?;
+            let from_type = if simop.from_type.as_deref() == Some("F") {
+                ConvertType::TypeFp
+            } else {
+                ConvertType::TypeInt
+            };
+            let to_type = if simop.to_type.as_deref() == Some("F") {
+                ConvertType::TypeFp
+            } else {
+                ConvertType::TypeInt
+            };
             return Ok(new_convert(
                 idx,
                 from_size,
                 to_size,
                 signed,
                 operand,
-                ConvertType::TypeInt,
-                ConvertType::TypeInt,
+                from_type,
+                to_type,
                 None,
                 self.tags(),
             ));
