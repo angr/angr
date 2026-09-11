@@ -488,14 +488,8 @@ class Decompiler(Analysis):
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
-        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
-        if (
-            self._regen_clinic
-            or old_clinic is None
-            or self.func.prototype is None
-            or self.func.addr not in self.kb.dec_variables
-        ):
-            clinic = self.project.analyses.Clinic(
+        def run_clinic(variable_map: VariableMap):
+            return self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,
                 fail_fast=self._fail_fast,
@@ -528,6 +522,22 @@ class Decompiler(Analysis):
                 variable_map=variable_map,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
+
+        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
+        if (
+            self._regen_clinic
+            or old_clinic is None
+            or self.func.prototype is None
+            or self.func.addr not in self.kb.dec_variables
+        ):
+            clinic = run_clinic(variable_map)
+            # func.prototype now carries the widened return type, so a second Clinic gets it to ReturnMaker.
+            # A caller-supplied graph or argument-vvar map rules the retry out: the first Clinic edited both in
+            # place. Discard the first pass's variables so the second one numbers its locals from scratch.
+            if clinic.returns_missing_registers and self._clinic_graph is None and self._clinic_arg_vvars is None:
+                if self.func.addr in self.kb.dec_variables:
+                    del self.kb.dec_variables[self.func.addr]
+                clinic = run_clinic(VariableMap())
         else:
             clinic = old_clinic
             # the deserialized clinic may carry peephole-optimization names that were unresolvable at parse time
