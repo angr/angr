@@ -5,6 +5,7 @@ import os
 import struct
 from unittest import TestCase
 
+import pyvex
 from archinfo import ArchAArch64
 
 import angr
@@ -45,6 +46,41 @@ class TestRDARegressions(TestCase):
 
         # Used to raise RuntimeError("dictionary changed size during iteration").
         proj.analyses[ReachingDefinitionsAnalysis].prep()(subject=cfg.functions[func_addr], observe_all=False)
+
+    def test_vector_comparison_keeps_the_vex_result_width(self):
+        """
+        A NEON comparison such as Iop_CmpGT8Sx8 has no handler of its own, so the
+        longest-prefix dispatch in _handle_expr_Binop sends it to the scalar CmpGT
+        handler. Its result is a per-lane mask as wide as the operands, not a condition
+        bit, so a one-bit answer contradicts the tmp's declared I64 type and the next
+        statement that combines that tmp with anything of the declared width raises
+        ClaripyOperationError inside claripy.
+        """
+        # The two ARM entries raise before the fix. The x86 ones do not -- nothing in
+        # their blocks consumes the mask at its declared width -- but they pin the same
+        # contract on the CmpEQ and CmpLE handlers, which NEON does not reach here.
+        for arch, filename, block_addr, op in [
+            ("armhf", "float_int_conversion.elf", 0xC83B, "Iop_CmpGT8Sx8"),
+            ("armel", "i2c_master_read-nucleol152re.elf", 0x800254F, "Iop_CmpGT8Ux8"),
+            ("i386", "test_arrays.exe", 0x40C489, "Iop_CmpEQ8x16"),
+            ("i386", "test_arrays.exe", 0x409FE2, "Iop_CmpLE64Fx2"),
+        ]:
+            with self.subTest(filename=filename, op=op):
+                path = os.path.join(bin_location, "tests", arch, filename)
+                proj = angr.Project(path, auto_load_libs=False)
+                block = proj.factory.block(block_addr)
+
+                binops = {
+                    stmt.data.op
+                    for stmt in block.vex.statements
+                    if isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.Binop)
+                }
+                assert op in binops, f"{filename} no longer carries {op} at {block_addr:#x}"
+
+                # Raised ClaripyOperationError("args' length must all be equal") before the
+                # scalar comparison handlers started respecting expr.result_size().
+                rda = proj.analyses[ReachingDefinitionsAnalysis].prep()(subject=block)
+                assert rda.model is not None
 
     def test_load_multiple_concrete_addresses(self):
         """

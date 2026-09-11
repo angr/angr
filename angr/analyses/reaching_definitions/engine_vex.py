@@ -975,11 +975,33 @@ class SimEngineRDVEX(
 
         return r
 
+    def _cmp_lane_mask_top(self, expr: pyvex.expr.Binop) -> MultiValues | None:
+        """The TOP of the right width for a comparison that is not a scalar one.
+
+        ``_handle_expr_Binop`` dispatches on the longest matching handler-name prefix, and
+        no vector comparison has a handler of its own, so ``Iop_CmpGT8Sx8``,
+        ``Iop_CmpEQ32Fx4`` and ``Iop_CmpEQ64F0x2`` all arrive at the scalar handlers below.
+        Their result is a per-lane mask as wide as the operands rather than a condition
+        bit. Answering those with one bit is not merely imprecise: it stores a value whose
+        width contradicts the tmp's VEX type, and the first consumer that combines it with
+        anything of the declared width raises ClaripyOperationError.
+
+        Returns None when the comparison really is scalar and the caller should go on.
+        """
+        bits = expr.result_size(self.tyenv)
+        if bits == 1:
+            return None
+        return self._top(bits)
+
     @binop_handler
     def _handle_binop_CmpEQ(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
+
+        lane_mask = self._cmp_lane_mask_top(expr)
+        if lane_mask is not None:
+            return lane_mask
 
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
@@ -999,6 +1021,10 @@ class SimEngineRDVEX(
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
 
+        lane_mask = self._cmp_lane_mask_top(expr)
+        if lane_mask is not None:
+            return lane_mask
+
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
@@ -1012,6 +1038,10 @@ class SimEngineRDVEX(
     def _handle_binop_CmpLT(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
+
+        lane_mask = self._cmp_lane_mask_top(expr)
+        if lane_mask is not None:
+            return lane_mask
 
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
@@ -1028,6 +1058,10 @@ class SimEngineRDVEX(
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
 
+        lane_mask = self._cmp_lane_mask_top(expr)
+        if lane_mask is not None:
+            return lane_mask
+
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
@@ -1043,6 +1077,10 @@ class SimEngineRDVEX(
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
 
+        lane_mask = self._cmp_lane_mask_top(expr)
+        if lane_mask is not None:
+            return lane_mask
+
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
         if e0 is not None and e1 is not None:
@@ -1057,6 +1095,10 @@ class SimEngineRDVEX(
     def _handle_binop_CmpGE(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
+
+        lane_mask = self._cmp_lane_mask_top(expr)
+        if lane_mask is not None:
+            return lane_mask
 
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
