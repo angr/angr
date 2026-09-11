@@ -83,7 +83,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                     )
 
     def _find_registers_stored_on_stack(self) -> list[tuple[int, int, CodeLocation]]:
-        first_block = self._get_block(self._func.addr)
+        first_block = self._get_block(self.entry_node_addr[0], idx=self.entry_node_addr[1])
         if first_block is None:
             return []
 
