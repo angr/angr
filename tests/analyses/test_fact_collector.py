@@ -179,6 +179,26 @@ class TestFactCollector(unittest.TestCase):
         """ARM: caller-saved regs (r0-r3, r12) must not appear in callee_restored_regs."""
         self._check_caller_saved_excluded("armel")
 
+    def test_pcode_function_facts_are_collected(self):
+        """A P-code IRSB exposes no VEX statements, so the VEX engine collected nothing at all."""
+        binary_path = os.path.join(test_location, "sh4", "test-instr_sh4")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        assert isinstance(project.arch, archinfo.ArchPcode)
+
+        symbol = project.loader.find_symbol("strcpy")
+        assert symbol is not None
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(symbol.rebased_addr, symbol.rebased_addr + symbol.size)],
+            function_starts=[symbol.rebased_addr],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        facts = project.analyses.FunctionFactCollector(cfg.kb.functions[symbol.rebased_addr])
+
+        assert [arg.reg_name for arg in facts.input_args] == ["r5"]
+
 
 if __name__ == "__main__":
     unittest.main()
