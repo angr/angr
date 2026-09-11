@@ -174,7 +174,9 @@ def refine_locs_with_struct_type(
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs_list)
-    if isinstance(arg_type, SimStruct):
+    # An opaque class has a size and no members: nothing to lay out field by field, so leave it to the
+    # integer case below, which is how SimCCSystemVAMD64._classify already classifies it.
+    if isinstance(arg_type, SimStruct) and (arg_type.fields or not arg_type.size):
         locs_dict = {
             field: refine_locs_with_struct_type(arch, locs, field_ty, offset=offset + arg_type.offsets[field])
             for field, field_ty in arg_type.fields.items()
