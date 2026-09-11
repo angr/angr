@@ -4,6 +4,7 @@ import itertools
 import logging
 from typing import TYPE_CHECKING
 
+from angr import ailment
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
@@ -11,7 +12,17 @@ from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
 from angr.analyses.decompiler.region_overlay import RegionOverlay
-from angr.analyses.decompiler.structurer_nodes import BaseNode
+from angr.analyses.decompiler.structurer_nodes import (
+    BaseNode,
+    BreakNode,
+    CascadingConditionNode,
+    CodeNode,
+    ConditionNode,
+    ContinueNode,
+    IncompleteSwitchCaseHeadStatement,
+    MultiNode,
+    SequenceNode,
+)
 from angr.utils.graph import GraphUtils
 
 from .dream import DreamStructurer
@@ -47,7 +58,7 @@ class RecursiveStructurer(Analysis):
         self.ail_manager = ail_manager
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch, self.ail_manager)
 
-        self.result: BaseNode | None = None
+        self.result: BaseNode | ailment.Block | MultiNode | None = None
         self.result_incomplete: bool = False
 
         self._analyze()
@@ -182,22 +193,108 @@ class RecursiveStructurer(Analysis):
 
         return entries
 
+    @staticmethod
+    def _exits_explicitly(node) -> bool:
+        """
+        Return True when control cannot fall out of the bottom of ``node``, i.e. every path through it ends in a
+        jump or a return. Anything this does not understand counts as falling through.
+        """
+        if isinstance(node, ailment.Block):
+            if not node.statements:
+                return False
+            last_stmt = node.statements[-1]
+            if isinstance(last_stmt, (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump, ailment.Stmt.Return)):
+                return True
+            if isinstance(last_stmt, IncompleteSwitchCaseHeadStatement):
+                # the code generator renders this as an if-goto cascade, which only covers every path when the
+                # statement carries a default case
+                return any(case_value == "default" for _, case_value, _, _, _ in last_stmt.case_addrs)
+            return False
+        if isinstance(node, (SequenceNode, MultiNode)):
+            return bool(node.nodes) and RecursiveStructurer._exits_explicitly(node.nodes[-1])
+        if isinstance(node, CodeNode):
+            return RecursiveStructurer._exits_explicitly(node.node)
+        if isinstance(node, ConditionNode):
+            return (
+                node.true_node is not None
+                and node.false_node is not None
+                and RecursiveStructurer._exits_explicitly(node.true_node)
+                and RecursiveStructurer._exits_explicitly(node.false_node)
+            )
+        if isinstance(node, CascadingConditionNode):
+            return node.else_node is not None and all(
+                RecursiveStructurer._exits_explicitly(child)
+                for child in [n for _, n in node.condition_and_nodes] + [node.else_node]
+            )
+        return isinstance(node, (BreakNode, ContinueNode))
+
     def _pick_incomplete_result_from_region(self, region):
         """
-        Parse the region graph and get (a) the node with address equal to the function address, or (b) the node with
-        the lowest address.
+        Structuring did not complete for this region, so no single node covers it. Emit every leftover node instead
+        of one of them.
+
+        Keeping one node silently truncates the function: the transfers into the discarded nodes survive as jump
+        statements that name addresses no emitted block carries, GotoSimplifier then drops those jumps because
+        their targets are missing, and the remaining code falls through edges the binary does not have. Emitting
+        the whole leftover graph keeps every one of those transfers addressable.
+
+        Edges between leftover nodes are already explicit jump statements -- the structurer only strips a
+        terminator when it absorbs the edge into a matched schema -- so the order the nodes are emitted in is a
+        layout choice and not a semantic one. Where a node can still fall out of its bottom, an explicit jump to
+        its sole successor is appended so that the order stays inert there too.
         """
+        nodes = [node for node in region.graph.nodes if not isinstance(node, RegionOverlay)]
+        if not nodes:
+            return None
 
-        min_node = None
-        for node in region.graph.nodes:
-            if not isinstance(node, BaseNode):
-                continue
-            if self.function is not None and node.addr == self.function.addr:
-                return node
-            if min_node is None or (min_node.addr is not None and node.addr is not None and min_node.addr < node.addr):
-                min_node = node
+        entry_addr = self.function.addr if self.function is not None else region.head.addr
+        nodes.sort(key=lambda node: self._incomplete_result_sort_key(node, entry_addr))
+        if len(nodes) == 1:
+            return nodes[0]
 
-        return min_node
+        emitted = []
+        for idx, node in enumerate(nodes):
+            successors = list(region.graph.successors(node))
+            following = nodes[idx + 1] if idx + 1 < len(nodes) else None
+            if (
+                len(successors) == 1
+                and successors[0] is not following
+                and successors[0].addr is not None
+                and not self._exits_explicitly(node)
+            ):
+                goto_block = ailment.Block(
+                    node.addr,
+                    0,
+                    statements=[
+                        ailment.Stmt.Jump(
+                            self.ail_manager.next_atom(),
+                            ailment.Expr.Const(
+                                self.ail_manager.next_atom(), successors[0].addr, self.project.arch.bits
+                            ),
+                            ins_addr=node.addr,
+                            stmt_idx=0,
+                        )
+                    ],
+                )
+                node = SequenceNode(node.addr, nodes=[node, goto_block])
+            emitted.append(node)
+
+        return SequenceNode(emitted[0].addr, nodes=emitted)
+
+    @staticmethod
+    def _incomplete_result_sort_key(node, entry_addr: int | None):
+        """
+        Order the leftover nodes: the function entry first, then by address. Graph iteration order is not stable
+        across processes, so every component of this key must be derived from the node itself.
+        """
+        addr = node.addr
+        return (
+            0 if (entry_addr is not None and addr == entry_addr) else 1,
+            addr is None,
+            addr if addr is not None else 0,
+            type(node).__name__,
+            getattr(node, "idx", None) or 0,
+        )
 
 
 register_analysis(RecursiveStructurer, "RecursiveStructurer")
