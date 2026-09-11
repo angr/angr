@@ -9,15 +9,19 @@ import os
 import re
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import angr
 from angr.ailment import Expr, Stmt
 from angr.analyses.decompiler.structured_codegen.c import (
     CAssignment,
+    CBinaryOp,
+    CConstant,
     CExpression,
     CGoto,
     CReturn,
     CStructuredCodeGenerator,
+    CTypeCast,
     CUnaryOp,
     type_to_c_repr_chunks,
 )
@@ -35,7 +39,7 @@ from angr.sim_type import (
     SimUnion,
     parse_cpp_file,
 )
-from tests.common import WORKER, bin_location, print_decompilation_result
+from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -57,11 +61,15 @@ class _RenderedExpression(CExpression):
 class TestConvertRendering(unittest.TestCase):
     """How CStructuredCodeGenerator renders Convert expressions of assorted widths."""
 
+    codegen: CStructuredCodeGenerator
+
     @classmethod
     def setUpClass(cls):
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
-        cls.codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
 
     def _render(self, from_bits: int, to_bits: int, value: int = 0x1234) -> str:
         conv = Expr.Convert(0, from_bits, to_bits, False, Expr.Const(0, value, from_bits))
@@ -84,6 +92,39 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(1, 5, value=1) == "(char)1"
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
+
+    def test_widening_sizeless_child_uses_ail_source_width(self):
+        unknown_type = SimTypeBottom().with_arch(self.codegen.project.arch)
+        child = CBinaryOp(
+            "Shr",
+            CConstant(1, unknown_type, codegen=self.codegen),
+            CConstant(2, unknown_type, codegen=self.codegen),
+            codegen=self.codegen,
+        )
+        assert child.type.size is None
+
+        conv = Expr.Convert(0, 1, 64, True, Expr.Const(0, 1, 1))
+        with patch.object(self.codegen, "_handle", return_value=child):
+            rendered = self.codegen._handle_Expr_Convert(conv)
+
+        assert isinstance(rendered, CTypeCast)
+        assert isinstance(rendered.expr, CTypeCast)
+        assert rendered.expr.dst_type.size == conv.from_bits
+        assert getattr(rendered.expr.dst_type, "signed", None) is True
+        assert rendered.c_repr() == "(long long)(int1_t)(1 >> 2)"
+
+    def test_widening_known_child_keeps_inferred_width(self):
+        known_type = self.codegen.default_simtype_from_bits(16, signed=False)
+        child = CConstant(1, known_type, codegen=self.codegen)
+        conv = Expr.Convert(0, 32, 64, True, Expr.Const(0, 1, 32))
+        with patch.object(self.codegen, "_handle", return_value=child):
+            rendered = self.codegen._handle_Expr_Convert(conv)
+
+        assert isinstance(rendered, CTypeCast)
+        assert isinstance(rendered.expr, CTypeCast)
+        assert rendered.expr.dst_type.size == known_type.size
+        assert getattr(rendered.expr.dst_type, "signed", None) is True
+        assert rendered.c_repr() == "(long long)(short)1"
 
 
 class TestGotoRendering(unittest.TestCase):
@@ -366,6 +407,28 @@ class TestMultiRegisterReturnEndToEnd(unittest.TestCase):
         # decoderune's error path is Go's `return RuneError, 1`, so rax holds 0xfffd and rbx the size.
         # rbx is the second location, which is the high half, so it is the first operand.
         assert "return CONCAT(a2 + 1, 0xfffd);" in text, text
+
+
+class TestConvertOfZeroWidthChild(unittest.TestCase):
+    """A widening cast whose child is rendered with a type that has no width."""
+
+    def test_widening_a_child_typed_as_a_fieldless_struct(self):
+        # Go's runtime.setThreadCPUProfiler calls timer_create, and the kernel prototype spells that
+        # syscall's second argument as SimStruct({}, name="sigevent"). A struct with no fields has
+        # size 0, so a stack variable reaches the code generator with a type whose size is 0 rather
+        # than None. The intermediate sign-extension cast then asked for an integer of that width and
+        # got int0_t, and MakeTypecastsImplicit.collapse asserted on its size, so the whole function
+        # produced no C at all.
+        bin_path = os.path.join(test_location, "x86_64", "langdetect_go")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x430CA0, project_kwargs={"auto_load_libs": False})
+
+        dec = proj.analyses.Decompiler(cfg.functions[0x430CA0], cfg=cfg, fail_fast=True)
+        assert dec.codegen is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text or ""
+        assert text.strip()
+        assert "int0_t" not in text, text
 
 
 if __name__ == "__main__":
