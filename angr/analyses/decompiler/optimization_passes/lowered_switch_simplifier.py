@@ -390,6 +390,13 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         node = worklist.popleft()
                         if node not in graph_copy:
                             continue
+                        if node is new_head:
+                            # the walk reached the switch head this iteration just built: a redundant
+                            # comparison upstream of it was removed and left it with no in-edges. taking it
+                            # would delete the switch and every case body hanging off it, so give up on the
+                            # rewrite instead and leave the graph to the rest of the preset.
+                            self.out_graph = None
+                            return False
                         successors = list(graph_copy.successors(node))
                         graph_copy.remove_node(node)
                         for succ in successors:
