@@ -42,6 +42,7 @@ class RewritingAnalysis:
         project: Project,
         func: Function,
         ail_graph: networkx.DiGraph[Block],
+        entry: Block,
         phiid_to_udef: dict[int, UDef],
         block_to_phiids: dict[Block, list[int]],
         rewrite_tmps: bool,
@@ -59,6 +60,7 @@ class RewritingAnalysis:
         self._function = func
 
         self._graph = ail_graph
+        self._entry = entry
         self._phiid_to_udef = phiid_to_udef
         self._block_to_phiids = block_to_phiids
         self._rewrite_tmps = rewrite_tmps
@@ -95,10 +97,8 @@ class RewritingAnalysis:
 
     def _analyze(self):
         self._pre_analysis()
-        entry_block = next((n for n in self._graph if n.addr == self._function.addr), None)
         entry_blocks = {n for n in self._graph if not self._graph.pred[n]}
-        if entry_block is not None:
-            entry_blocks.add(entry_block)
+        entry_blocks.add(self._entry)
         traverse_in_order(self._graph, sorted(entry_blocks), self._run_on_node)
         self._post_analysis()
 
