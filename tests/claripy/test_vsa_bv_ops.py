@@ -154,6 +154,24 @@ class TestVSABVOperations(unittest.TestCase):
         # Check that we have both large (potentially negative) and small values
         self.assertTrue(len(values) > 0)
 
+    def test_multiplication_beyond_the_signed_range(self):
+        """Multiplying a wrapping interval used to panic the Rust VSA backend."""
+        # psplit leaves 127[0xFF, 0xFD] with the piece 127[0x7E, 0x01], which
+        # still wraps, so wrapped_signed_mul reads its signed bounds as (126, 1)
+        # and takes the corner 126 * -127 = -16002. That is below -2**8, where
+        # to_unsigned added the modulus once, was left with a negative value,
+        # and got None back from to_biguint.
+        result = claripy.SI(bits=8, stride=127, lower_bound=0xFF, upper_bound=0xFD) * claripy.SI(
+            bits=8, stride=1, lower_bound=0x80, upper_bound=0x81
+        )
+        self.assertEqual(len(self.solver.eval(result, 1)), 1)
+
+        # The same shape at another width.
+        result = claripy.SI(bits=4, stride=7, lower_bound=0xF, upper_bound=0xD) * claripy.SI(
+            bits=4, stride=1, lower_bound=0x8, upper_bound=0x9
+        )
+        self.assertEqual(len(self.solver.eval(result, 1)), 1)
+
     def test_basic_division(self):
         """Test basic division operations."""
         # Concrete division
