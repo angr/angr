@@ -74,7 +74,11 @@ class SimStateHistory(SimStatePlugin):
             self.strongref_state = state
 
     def init_state(self):
-        self.successor_ip = self.state._ip
+        try:
+            self.successor_ip = self.state._ip
+        except TypeError:
+            # the architecture has no program counter register
+            self.successor_ip = None
         self.arch = self.state.arch
 
     def __getstate__(self):
