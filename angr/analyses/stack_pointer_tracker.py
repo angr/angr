@@ -971,7 +971,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 except CouldNotResolveException:
                     pass
             # who are we calling?
-            callees = self._find_callees(node)
+            callees = [] if self._func is None else self._find_callees(node)
             if callees:
                 callee_cleanups = [
                     callee
