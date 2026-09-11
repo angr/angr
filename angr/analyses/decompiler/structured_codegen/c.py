@@ -74,7 +74,7 @@ from angr.utils.constants import should_use_hex
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from angr.utils.strings import decode_utf16_string
-from angr.utils.types import dereference_simtype_by_lib, unpack_pointer_and_array, unpack_typeref
+from angr.utils.types import dereference_simtype_by_lib, type_layout_key, unpack_pointer_and_array, unpack_typeref
 
 from .base import (
     BaseStructuredCodeGenerator,
@@ -210,33 +210,6 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
         }:
             return True
     return t0 == t1
-
-
-def _safe_type_size(ty) -> int:
-    sz = getattr(ty, "size", -1)
-    return sz if isinstance(sz, int) else -1
-
-
-def type_layout_key(ty, _seen: frozenset = frozenset()) -> str:
-    """
-    A structural sort key for a type, derived purely from its memory layout (sizes, field offsets, and the
-    layouts of field/element/pointee types) and not from any user-renamable struct or field name. This lets
-    the code generator order type definitions stably without their order changing when the user renames a struct
-    or a field. Cycles through recursive struct/pointer references are broken with a marker.
-    """
-    ty = unpack_typeref(ty)
-    if isinstance(ty, SimStruct):
-        if id(ty) in _seen:
-            return "@"  # a reference back to an enclosing struct (recursive type)
-        _seen = _seen | {id(ty)}
-        offsets = ty.offsets
-        fields = sorted(f"{offsets.get(fname, -1)}:{type_layout_key(fty, _seen)}" for fname, fty in ty.fields.items())
-        return f"S[{_safe_type_size(ty)};{int(bool(getattr(ty, 'packed', False)))};{';'.join(fields)}]"
-    if isinstance(ty, SimTypePointer):
-        return f"P({type_layout_key(ty.pts_to, _seen)})"
-    if isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
-        return f"A{getattr(ty, 'length', None)}({type_layout_key(ty.elem_type, _seen)})"
-    return f"T:{type(ty).__name__}:{_safe_type_size(ty)}:{getattr(ty, 'signed', None)}"
 
 
 def cextern_sort_key(cextern) -> tuple:

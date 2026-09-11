@@ -4859,6 +4859,36 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen.text.count("switch") == 2
 
+    def test_generated_struct_names_do_not_collide_between_functions(self):
+        # Decompiling a function stores the structs its type inference generated in that function's
+        # prototype. Decompiling one of its callers lifts that prototype at the call site, so both
+        # functions' structs land in the caller's own type namespace -- and both are called struct_0,
+        # because the name comes from a counter held on the TypeTranslator and there is one translator
+        # per function. The C backend then emits one definition and the body reads members of the other.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "lighttpd")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x412743,
+            extra_func_addrs=[0x412726],
+            project_kwargs={"auto_load_libs": False},
+            cfg_kwargs={"data_references": True},
+            ccc_kwargs={"recover_variables": True},
+        )
+        for addr in (0x412726, 0x412743):
+            d = proj.analyses[Decompiler].prep(fail_fast=True)(proj.kb.functions[addr], cfg=cfg.model)
+        print_decompilation_result(d)
+
+        assert d.codegen is not None
+        text = d.codegen.text
+        assert text is not None
+        assert "a3->field_8" in text
+        m = re.search(r"network_host_parse_addr\(.*?\b(\w+) \*a3\b", text)
+        assert m is not None, text
+        struct_name = m.group(1)
+        definition = re.search(rf"typedef struct {struct_name} \{{(.*?)\n\}} {struct_name};", text, re.DOTALL)
+        assert definition is not None, text
+        assert "field_8" in definition.group(1), definition.group(1)
+
     def test_decompiling_lighttpd_expression_over_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "lighttpd")
         proj, cfg = load_project_with_scoped_cfg(
