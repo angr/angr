@@ -1876,6 +1876,11 @@ impl StridedInterval {
             ) => {
                 let bits = max(*bits1, *bits2);
 
+                // bvurem x 0 = x in SMT-LIB, which is what BitVec::urem answers.
+                if o_lb == o_ub && o_lb.is_zero() {
+                    return Ok(self.clone());
+                }
+
                 // Simple case: both are constants
                 if s_lb == o_lb && s_lb == o_ub {
                     let result = s_lb % o_lb;
@@ -1905,17 +1910,17 @@ impl StridedInterval {
             return Ok(Self::empty(max(self.bits(), other.bits())));
         }
 
-        // // Check for division by zero
-        // if other.contains_zero() {
-        //     return Err(ClarirsError::DivideByZero);
-        // }
-
         let bits = max(self.bits(), other.bits());
 
         // Simple case: both are constants
         if self.is_integer() && other.is_integer() {
             let (self_signed, _) = self.get_signed_bounds();
             let (other_signed, _) = other.get_signed_bounds();
+
+            // bvsrem x 0 = x in SMT-LIB, which is what BitVec::srem answers.
+            if other_signed.is_zero() {
+                return Ok(self.clone());
+            }
 
             // Perform signed remainder
             let result = self_signed % other_signed;
@@ -3359,6 +3364,37 @@ mod si_arithmetic_op_tests {
         let result = a.sub(&b);
         assert_eq!(result, StridedInterval::range(32, 5u32, 25u32));
         assert!(!result.is_integer());
+    }
+
+    #[test]
+    fn test_urem_zero_by_zero() {
+        let zero = StridedInterval::constant(32, 0u32);
+        assert_eq!(zero.urem(&zero).unwrap(), zero);
+    }
+
+    #[test]
+    fn test_urem_by_zero() {
+        let zero = StridedInterval::constant(32, 0u32);
+
+        let a = StridedInterval::constant(32, 42u32);
+        assert_eq!(a.urem(&zero).unwrap(), a);
+
+        let a = StridedInterval::range(32, 1u32, 10u32);
+        assert_eq!(a.urem(&zero).unwrap(), a);
+    }
+
+    #[test]
+    fn test_srem_by_zero() {
+        let zero = StridedInterval::constant(32, 0u32);
+
+        let a = StridedInterval::constant(32, 42u32);
+        assert_eq!(a.srem(&zero).unwrap(), a);
+
+        // -42 in two's complement.
+        let a = StridedInterval::constant(32, 0xffff_ffd6u32);
+        assert_eq!(a.srem(&zero).unwrap(), a);
+
+        assert_eq!(zero.srem(&zero).unwrap(), zero);
     }
 }
 
