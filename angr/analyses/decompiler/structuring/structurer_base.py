@@ -489,8 +489,11 @@ class StructurerBase(Analysis):
                         new_nodes.append(break_node)
 
             if new_nodes:
-                if len(node.statements) - 1 > last_nonjump_stmt_idx:
-                    # insert the last node
+                if len(node.statements) - 1 >= last_nonjump_stmt_idx:
+                    # insert the last node. The slice below starts AT last_nonjump_stmt_idx, so the tail is
+                    # non-empty whenever that index is still within the block. A strict > skipped the tail
+                    # when exactly one statement followed the loop-exit jump, and the original block is
+                    # emptied below, so that statement was dropped without an error or a log message.
                     sub_block_statements = node.statements[last_nonjump_stmt_idx:]
                     new_sub_block = ailment.Block(
                         sub_block_statements[0].tags["ins_addr"],
