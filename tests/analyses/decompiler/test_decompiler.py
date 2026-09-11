@@ -800,7 +800,18 @@ class TestDecompiler(unittest.TestCase):
         assert code.count(decls) == 1  # it should only appear once
 
     def test_decompiling_strings_c_representation(self):
-        input_expected = [("""Foo"bar""", '"Foo\\"bar"'), ("""Foo'bar""", '"Foo\'bar"')]
+        input_expected = [
+            ("""Foo"bar""", '"Foo\\"bar"'),
+            ("""Foo'bar""", '"Foo\'bar"'),
+            # bytes from the binary are rendered as text when they decode as UTF-8...
+            (b"hello", '"hello"'),
+            (b"caf\xc3\xa9", '"caf\u00e9"'),
+            (b'Foo"bar', '"Foo\\"bar"'),
+            # ...and as \xNN escapes when they do not, instead of raising UnicodeDecodeError
+            (b"unable to open file for read\xcc", '"unable to open file for read\\xcc"'),
+            (b"\xff\xfe\x80", '"\\xff\\xfe\\x80"'),
+            (b'Foo"bar\xcc', '"Foo\\"bar\\xcc"'),
+        ]
 
         for _input, expected in input_expected:
             result = angr.analyses.decompiler.structured_codegen.c.CConstant.str_to_c_str(_input)
