@@ -12,6 +12,7 @@ from functools import wraps
 import archinfo
 
 import angr
+from angr.analyses.calling_convention.fact_collector import FactCollector
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -639,6 +640,22 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert isinstance(func_main.calling_convention, SimCCCdecl)
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 1
+
+    @cca_mode("fast,fastish")
+    def test_cdecl_function_with_a_non_returning_endpoint(self, *, mode):
+        binary_path = os.path.join(test_location, "i386", "nl")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, cfg=cfg.model)
+
+        # this function returns from one endpoint and leaves the function from two others, one of which ends in a push
+        func = cfg.kb.functions["version_etc_arn"]
+        facts = proj.analyses[FactCollector].prep(kb=proj.kb)(func)
+        assert facts.extra_pop == 0
+        assert isinstance(func.calling_convention, SimCCCdecl)
+        assert func.prototype is not None
+        assert len(func.prototype.args) == 6
 
     def _check_return_type_comprehensive(self, funcs, func_name, expected_type_cls):
         func = funcs[func_name]
