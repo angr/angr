@@ -1004,6 +1004,22 @@ class TestCfgfast(unittest.TestCase):
         for addr in not_separate_functions:
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
 
+    def test_an_undefined_instruction_that_is_the_whole_block_makes_no_node(self):
+        # The Thumb UND at 0x7ea lifts to an empty IRSB, so there is no block to turn into a node.
+        # _generate_cfgnode recognized it and recorded its two bytes, then built a CFGNode of size
+        # zero with no instructions anyway, and the scan seeded a function on the instruction after it.
+        path = os.path.join(test_location, "armel", "lwip_tcpecho_bm.elf")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert proj.loader.memory.load(0x7EA, 2) == b"\xff\xde"  # UND, inside __udivmoddi4
+        nodes = [n for n in cfg.model.nodes() if not n.is_simprocedure]
+        assert nodes
+        extentless = [n for n in nodes if not n.size]
+        assert not extentless, f"extentless nodes recorded: {extentless}"
+        # the instruction after the UND belongs to the function around it, not to one of its own
+        assert 0x7ED not in cfg.kb.functions
+
     @staticmethod
     def _blob_project(data: bytes, arch: str | archinfo.Arch = "AMD64") -> angr.Project:
         return angr.Project(
