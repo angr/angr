@@ -207,23 +207,61 @@ class SimType:
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None):
+    def from_json(
+        d: dict[str, Any],
+        type_collection: SimTypeCollection | None = None,
+        memo: set[str] | None = None,
+        decoded: dict[str, SimType] | None = None,
+    ):
         """
         Deserialize a type class from a JSON-compatible dictionary.
+
+        :param type_collection: Resolve type references against this collection.
+        :param memo:            Names of types that are being loaded from the type collection (recursion guard).
+        :param decoded:         Named structs decoded so far in this document. to_json() emits a reference for every
+                                repeated occurrence of a named struct, which is resolved here.
         """
         if memo is None:
             memo = set()
+        if decoded is None:
+            decoded = {}
 
         assert "_t" in d
         cls = IDENT_TO_CLS.get(d["_t"])  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             t = cls.from_json(d)
-            if isinstance(t, SimTypeRef) and type_collection is not None and t.name is not None and t.name not in memo:
-                # attempt to resolve the type ref
-                with contextlib.suppress(AngrMissingTypeError):
-                    return type_collection.get(t.name, memo=memo)
+            if isinstance(t, SimTypeRef) and t.name is not None:
+                if t.name in decoded:
+                    return decoded[t.name]
+                if type_collection is not None and t.name not in memo:
+                    # attempt to resolve the type ref
+                    with contextlib.suppress(AngrMissingTypeError):
+                        return type_collection.get(t.name, memo=memo)
             return t
+
+        def _decode(value):
+            if isinstance(value, dict):
+                if "_t" in value:
+                    return SimType.from_json(value, type_collection=type_collection, memo=memo, decoded=decoded)
+                return {
+                    k: (
+                        SimType.from_json(v, type_collection=type_collection, memo=memo, decoded=decoded)
+                        if isinstance(v, dict) and "_t" in v
+                        else v
+                    )
+                    for k, v in value.items()
+                }
+            if isinstance(value, list):
+                return [
+                    (
+                        SimType.from_json(v, type_collection=type_collection, memo=memo, decoded=decoded)
+                        if isinstance(v, dict) and "_t" in v
+                        else v
+                    )
+                    for v in value
+                ]
+            return value
 
         kwargs = {}
         if "name" in d:
@@ -233,28 +271,22 @@ class SimType:
             field_key = "disp" if field == "disposition" else field
             if field_key not in d:
                 continue
-            value = d[field_key]
-            if isinstance(value, dict):
-                if "_t" in value:
-                    value = SimType.from_json(value, type_collection=type_collection, memo=memo)
-                else:
-                    new_value = {}
-                    for k, v in value.items():
-                        if isinstance(v, dict) and "_t" in v:
-                            new_value[k] = SimType.from_json(v, type_collection=type_collection, memo=memo)
-                        else:
-                            new_value[k] = v
-                    value = new_value
-            elif isinstance(value, list):
-                new_value = []
-                for v in value:
-                    if isinstance(v, dict) and "_t" in v:
-                        new_value.append(SimType.from_json(v, type_collection=type_collection, memo=memo))
-                    else:
-                        new_value.append(v)
-                value = new_value
-            kwargs[field] = value
-        return cls(**kwargs)
+            kwargs[field] = d[field_key]
+
+        if cls is SimStruct and kwargs.get("name"):
+            # construct the struct before decoding its fields so that references back to it resolve to this object
+            fields_json = kwargs.pop("fields", {})
+            obj = SimStruct(OrderedDict(), **kwargs)
+            decoded[obj.name] = obj
+            obj.fields = OrderedDict(_decode(fields_json))
+            return obj
+
+        for field, value in kwargs.items():
+            kwargs[field] = _decode(value)
+        obj = cls(**kwargs)
+        if isinstance(obj, SimStruct) and obj.name:
+            decoded[obj.name] = obj
+        return obj
 
 
 class TypeRef(SimType):

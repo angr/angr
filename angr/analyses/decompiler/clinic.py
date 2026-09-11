@@ -2493,12 +2493,7 @@ class Clinic(Analysis, Serializable):
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
         if self.function.calling_convention is not None and self.function.prototype is not None:
-            proto = (
-                dereference_simtype_by_lib(self.function.prototype, self.function.prototype_libname)
-                if self.function.prototype_libname
-                else self.function.prototype
-            )
-            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(proto)
+            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
             if self._flatten_args:
                 new_args = []
                 for arg in args:
@@ -2719,7 +2714,8 @@ class Clinic(Analysis, Serializable):
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
 
-        if self.function.prototype is not None and not self.function.is_prototype_guessed:
+        if self.function.is_prototype_groundtruth:
+            assert self.function.prototype is not None
             for arg_i, (_, variable) in arg_vvars.items():
                 if arg_i < len(self.function.prototype.args):
                     for tv in vr.var_to_typevars[variable]:

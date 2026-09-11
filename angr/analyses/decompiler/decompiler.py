@@ -924,7 +924,8 @@ class Decompiler(Analysis):
                     for typevar in var_to_typevar[variable]:
                         groundtruth[typevar] = vartype
 
-        if self.func.prototype is not None and not self.func.is_prototype_guessed:
+        if self.func.is_prototype_groundtruth:
+            assert self.func.prototype is not None
             for arg_i, (_, variable) in arg_vvars.items():
                 if arg_i < len(self.func.prototype.args):
                     for tv in var_to_typevar[variable]:

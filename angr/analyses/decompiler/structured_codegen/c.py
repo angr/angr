@@ -6,7 +6,7 @@ import re
 import struct
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.block_walker import _dispatch_key
@@ -74,7 +74,7 @@ from angr.utils.constants import should_use_hex
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from angr.utils.strings import decode_utf16_string
-from angr.utils.types import dereference_simtype_by_lib, unpack_pointer_and_array, unpack_typeref
+from angr.utils.types import unpack_pointer_and_array, unpack_typeref
 
 from .base import (
     BaseStructuredCodeGenerator,
@@ -1679,11 +1679,7 @@ class CFunctionCall(CExpression):
     @property
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
-            proto = self.callee_func.prototype
-            if self.callee_func.prototype_libname is not None:
-                # we need to deref the prototype in case it uses SimTypeRef internally
-                proto = cast(SimTypeFunction, dereference_simtype_by_lib(proto, self.callee_func.prototype_libname))
-            return proto
+            return self.callee_func.prototype
         returnty = SimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
 
@@ -3985,8 +3981,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     and i < len(target_func.prototype.args)
                 ):
                     type_ = target_func.prototype.args[i].with_arch(self.project.arch)
-                    if target_func.prototype_libname is not None:
-                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
 
                 if isinstance(arg, Expr.Const):
                     if isinstance(arg.value, int) and (
@@ -4064,8 +4058,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     and i < len(target_func.prototype.args)
                 ):
                     type_ = target_func.prototype.args[i].with_arch(self.project.arch)
-                    if target_func.prototype_libname is not None:
-                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
 
                 if isinstance(arg, Expr.Const):
                     if isinstance(arg.value, int) and (

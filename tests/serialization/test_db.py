@@ -21,6 +21,9 @@ from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGener
 from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
 from angr.knowledge_plugins.structured_code import SpillingDecompilationDict
+from angr.procedures.definitions import SIM_TYPE_COLLECTIONS, SimTypeCollection
+from angr.sim_type import SimStruct, SimTypePointer
+from angr.utils.types import find_type_refs
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -981,6 +984,66 @@ class TestDb(unittest.TestCase):
 
         assert set(restored_kbs) == {"other"}
         assert set(restored_kbs["other"].functions) == set(other.functions)
+
+    def test_angrdb_decompiled_prototypes_roundtrip(self):
+        # Regression test for GitHub issue #7156: named structs in function prototypes are stored as SimTypeRefs, and
+        # after loading they were never dereferenced, so re-decompiling on the reloaded project lost struct field
+        # accesses (e.g., idx->DriverStartIo degraded to idx->MajorFunction[0]).
+        bin_path = os.path.join(test_location, "x86_64", "windows", "cancel.sys")
+        func_addr = 0x140001020
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(func_addr, cfg=cfg.model, use_cache=False)
+        assert dec.codegen is not None
+        text = dec.codegen.text
+        assert "DriverStartIo" in text
+        assert "->MajorFunction[" not in text
+
+        with tempfile.TemporaryDirectory() as td:
+            new_proj = self._roundtrip_angrdb(proj, os.path.join(td, "cancel.adb"))
+
+        # every prototype is dereferenced lazily on first read
+        for func in new_proj.kb.functions.values():
+            if func.prototype is not None:
+                assert not find_type_refs(func.prototype), f"{func.name}: {func.prototype!r}"
+        callee = new_proj.kb.functions["IoAcquireRemoveLockEx"]
+        assert callee.prototype_libname is not None
+        assert callee.prototype is not None
+        arg0 = callee.prototype.args[0]
+        assert isinstance(arg0, SimTypePointer)
+        assert isinstance(arg0.pts_to, SimStruct)
+        assert arg0.pts_to.name == "IO_REMOVE_LOCK"
+
+        # the cached decompilation and a fresh decompilation on the reloaded project both match the original
+        cached = new_proj.kb.decompilations[(func_addr, "pseudocode")]
+        assert cached.codegen is not None
+        assert cached.codegen.text == text
+
+        with self.assertNoLogs("angr.analyses.typehoon.translator", level="ERROR"):
+            new_dec = new_proj.analyses.Decompiler(func_addr, cfg=new_proj.kb.cfgs.get_most_accurate(), use_cache=False)
+        assert new_dec.codegen is not None
+        assert new_dec.codegen.text == text
+
+    def test_angrdb_type_collections_roundtrip(self):
+        # the names of loaded type collections are stored in the database; a missing collection is reported on load
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast()
+
+        dummy = SimTypeCollection()
+        dummy.set_names("angrdb_test_dummy_typelib")
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                db_file = os.path.join(td, "fauxware.adb")
+                AngrDB(proj, nullpool=True).dump(db_file)
+                del SIM_TYPE_COLLECTIONS["angrdb_test_dummy_typelib"]
+                with self.assertLogs("angr.angrdb.db", level="WARNING") as cm:
+                    new_proj = AngrDB(nullpool=True).load(db_file)
+            assert any("angrdb_test_dummy_typelib" in msg for msg in cm.output)
+            assert len(new_proj.kb.functions) == len(proj.kb.functions)
+        finally:
+            SIM_TYPE_COLLECTIONS.pop("angrdb_test_dummy_typelib", None)
 
 
 if __name__ == "__main__":

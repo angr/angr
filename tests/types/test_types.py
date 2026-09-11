@@ -2,6 +2,7 @@
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
 from __future__ import annotations
 
+import json
 import unittest
 from typing import cast
 
@@ -468,6 +469,26 @@ class TestTypes(unittest.TestCase):
         new_t = SimType.from_json(d)
         deref_new_t = dereference_simtype(new_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
         assert deref_t == deref_new_t
+
+    def test_from_json_resolves_repeated_and_recursive_structs(self):
+        # to_json() emits a reference for every repeated occurrence of a named struct; from_json() must resolve those
+        # references (including references back to a struct that is still being decoded) to the same object
+        s0 = SimStruct({"a": SimTypeInt()}, name="struct_0")
+        s0.fields["self"] = SimTypePointer(s0)
+        s1 = SimStruct({"p": SimTypePointer(s0)}, name="struct_1")
+        s0.fields["other"] = SimTypePointer(s1)
+        proto = SimTypeFunction([SimTypePointer(s0), SimTypePointer(s1)], SimTypePointer(s0))
+
+        back = SimType.from_json(json.loads(json.dumps(proto.to_json())))
+        assert isinstance(back, SimTypeFunction)
+        b0 = cast(SimTypePointer, back.args[0]).pts_to
+        b1 = cast(SimTypePointer, back.args[1]).pts_to
+        assert isinstance(b0, SimStruct) and isinstance(b1, SimStruct)
+        assert cast(SimTypePointer, b0.fields["self"]).pts_to is b0
+        assert cast(SimTypePointer, b0.fields["other"]).pts_to is b1
+        assert cast(SimTypePointer, b1.fields["p"]).pts_to is b0
+        assert cast(SimTypePointer, back.returnty).pts_to is b0
+        assert back == proto
 
     def test_simstruct_cmp_recursion_error(self):
         t0 = SimStruct(fields={"a": SimTypeBottom()})
