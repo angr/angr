@@ -34,6 +34,21 @@ class TestCfgfastSoot(unittest.TestCase):
         cfg = p.analyses.CFGFastSoot()
         assert cfg.graph.nodes()
 
+    def test_jni_library_of_another_architecture_is_not_scanned(self):
+        # A JNI project's architecture is Soot and its native library's is not, so CFGFast cannot decode that
+        # library and does not scan it. Skipping it must not drop the region collector into its raw-memory last
+        # resort, which has nothing left to describe the program and would hand back the extern and kernel
+        # objects instead.
+        binary_path = os.path.join(test_location, "java", "fauxware_java_jni", "fauxware.jar")
+        p = angr.Project(binary_path, main_opts={"jni_libs": ["libfauxware.so"]}, auto_load_libs=True)
+
+        assert p.arch.name == "Soot"
+        assert [obj for obj in p.loader.all_objects if obj.has_memory and obj.arch != p.arch] != []
+
+        cfg = p.analyses.CFGFast()
+
+        assert cfg.regions == []
+
     def test_simple2_without_entry_point(self):
         # simple2.jar has no Main-Class manifest attribute, so without an explicit entry_point the loader leaves
         # Project.entry at 0. CFGFastSoot must still analyze every method of every class.
