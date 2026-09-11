@@ -17,10 +17,11 @@ import lmdb
 import networkx
 from archinfo.arch_soot import SootMethodDescriptor
 from cachetools import LRUCache
+from google.protobuf.message import DecodeError
 from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
 from angr.codenode import FuncNode, HookNode
-from angr.errors import SimEngineError
+from angr.errors import AngrRuntimeDbError, SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
 from angr.utils.smart_cache import SmartLRUCache
@@ -310,6 +311,12 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         }
 
     def copy(self) -> SpillingFunctionDict[K]:
+        """
+        Copy this function store, including whatever it has spilled to LMDB.
+
+        The cached functions are copied in memory. The spilled ones are copied as raw records into a fresh
+        sub-database of the same environment, without being deserialized.
+        """
         new_dict = SpillingFunctionDict(
             self._backref,
             self.rtdb,
@@ -323,20 +330,19 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             function = super().__getitem__(address)
             super(SpillingFunctionDict, new_dict).__setitem__(address, function.copy())
             new_dict._lru_order[address] = None
+            new_dict._list.add(address)
 
-        # Copy any remaining spilled addresses and their LMDB data
+        # Copy any remaining spilled addresses and their LMDB data, a batch at a time. Each batch is read, the read
+        # transaction is closed, and only then is the batch written back out: the write may have to grow the map,
+        # which remaps the whole environment.
         if self._spilled_keys and self._funcsdb is not None:
-            new_dict._init_lmdb()
-            with (
-                self.rtdb.begin_txn(self._funcsdb) as src_txn,
-                self.rtdb.begin_txn(new_dict._funcsdb, write=True) as dst_txn,
-            ):
-                for addr in self._spilled_keys:
-                    key = str(addr).encode("utf-8")
-                    value = src_txn.get(key)
-                    if value is not None:
-                        dst_txn.put(key, value)
-                        new_dict._spilled_keys.add(addr)
+            spilled = list(self._spilled_keys)
+            batch_size = max(self._db_batch_size, 1)
+            for start in range(0, len(spilled), batch_size):
+                batch = spilled[start : start + batch_size]
+                with self._db_load_lock, self.rtdb.begin_txn(self._funcsdb) as src_txn:
+                    records = [(addr, src_txn.get(str(addr).encode("utf-8"))) for addr in batch]
+                new_dict.bulk_import_serialized([(addr, value) for addr, value in records if value is not None])
 
         new_dict._eviction_enabled = True
         return new_dict
@@ -413,7 +419,11 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
     @property
     def cached_keys(self) -> Generator[K]:
-        yield from self._list
+        """
+        The addresses of the functions that are currently in memory. This is not the same as iterating the dict,
+        which also yields the addresses that have been spilled to LMDB.
+        """
+        yield from list(self.data)
 
     @property
     def cache_limit(self) -> int:
@@ -615,7 +625,16 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                     return None
 
                 cmsg = function_pb2.Function()  # type: ignore  # pylint:disable=no-member
-                cmsg.ParseFromString(value)
+                try:
+                    cmsg.ParseFromString(value)
+                except DecodeError as ex:
+                    # Everything this sub-database is ever given is a serialized Function, so a record that does not
+                    # parse is not the record that was stored.
+                    addr_str = hex(addr) if isinstance(addr, int) else str(addr)
+                    raise AngrRuntimeDbError(
+                        f"Function {addr_str} came back from the {self._funcsdb} spilling store as {len(value)} "
+                        f"bytes that are not a serialized Function."
+                    ) from ex
 
                 # Reconstruct function
                 func = Function.parse_from_cmessage(

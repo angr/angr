@@ -386,6 +386,33 @@ class SpillingAdjDict(MutableMapping):
             except lmdb.MapFullError:
                 self.rtdb.increase_lmdb_map_size()
 
+    def _bulk_import_serialized(self, items: list[tuple[K, bytes]]) -> None:
+        """
+        Write already-serialized inner dicts straight into the LMDB backing store and register them as spilled,
+        without deserializing them. The bytes must be in the format that _save_to_lmdb() writes.
+        """
+        if not items or self.rtdb is None:
+            return
+
+        self._init_lmdb()
+        assert self._edgesdb is not None
+
+        with self._db_store_lock:
+            while True:
+                try:
+                    with self.rtdb.begin_txn(self._edgesdb, write=True) as txn:
+                        for key, value in items:
+                            txn.put(repr(key).encode("utf-8"), value)
+                    break
+                except lmdb.MapFullError:
+                    self.rtdb.increase_lmdb_map_size()
+
+            for key, _ in items:
+                # LMDB now holds the authoritative copy of these entries
+                self._data.pop(key, None)
+                self._lru_order.pop(key, None)
+                self._spilled_keys.add(key)
+
     def _load_from_lmdb(self, key: K) -> DirtyDict[K, dict] | None:
         if self._edgesdb is None or self.rtdb is None:
             return None
@@ -485,6 +512,12 @@ class SpillingAdjDict(MutableMapping):
     #
 
     def copy(self) -> SpillingAdjDict:
+        """
+        Copy this adjacency store, including whatever it has spilled to LMDB.
+
+        The cached entries are copied in memory. The spilled ones are copied as raw records into a fresh
+        sub-database of the same environment, without being deserialized.
+        """
         new_dict = SpillingAdjDict(
             self.addr_type,
             rtdb=self.rtdb,
@@ -498,20 +531,17 @@ class SpillingAdjDict(MutableMapping):
             new_dict._data[key] = DirtyDict({k: dict(v) for k, v in inner_dict.items()}, dirty=True)
             new_dict._lru_order[key] = None
 
-        # Copy spilled data from LMDB
+        # Copy spilled data from LMDB, a batch at a time. Each batch is read, the read transaction is closed, and
+        # only then is the batch written back out: the write may have to grow the map, which remaps the whole
+        # environment.
         if self._spilled_keys and self._edgesdb is not None and self.rtdb is not None:
-            new_dict._init_lmdb()
-            assert new_dict._edgesdb is not None
-            with (
-                self.rtdb.begin_txn(self._edgesdb) as src_txn,
-                self.rtdb.begin_txn(new_dict._edgesdb, write=True) as dst_txn,
-            ):
-                for key in self._spilled_keys:
-                    lmdb_key = repr(key).encode("utf-8")
-                    value = src_txn.get(lmdb_key)
-                    if value is not None:
-                        dst_txn.put(lmdb_key, value)
-                        new_dict._spilled_keys.add(key)
+            spilled = list(self._spilled_keys)
+            batch_size = max(self._db_batch_size, 1)
+            for start in range(0, len(spilled), batch_size):
+                batch = spilled[start : start + batch_size]
+                with self._db_load_lock, self.rtdb.begin_txn(self._edgesdb) as src_txn:
+                    records = [(key, src_txn.get(repr(key).encode("utf-8"))) for key in batch]
+                new_dict._bulk_import_serialized([(key, value) for key, value in records if value is not None])
 
         new_dict._eviction_enabled = True
         return new_dict
