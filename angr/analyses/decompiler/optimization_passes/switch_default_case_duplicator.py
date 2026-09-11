@@ -62,7 +62,12 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                     default_case_node = next(
                         iter(nn for nn in self._func.graph.successors(pred) if nn.addr != node_addr)
                     )
-                    if self._func.graph.out_degree[default_case_node] == 1:
+                    # clinic drops CFG nodes on the way to the AIL graph: unreachable blocks are never converted,
+                    # and a default case that is a bare jump is removed with its predecessor rewired past it. Such a
+                    # default case has no block for _analyze() to rewrite.
+                    if self._func.graph.out_degree[default_case_node] == 1 and self._blocks_by_addr.get(
+                        default_case_node.addr
+                    ):
                         default_case_node_addrs.add((pred.addr, node_addr, default_case_node.addr))
 
         if not default_case_node_addrs:
