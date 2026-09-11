@@ -5,12 +5,16 @@ import os
 import pickle
 import threading
 from unittest import TestCase, main
+from unittest.mock import patch
 
 import archinfo
+import pypcode
 import pyvex
 
 import angr
 from angr.block import Block
+from angr.engines.pcode.lifter import PcodeLifterEngineMixin
+from angr.engines.vex.lifter import VEXLifter
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
@@ -254,6 +258,72 @@ class TestPcodeEngine(TestCase):
         other_engine, other_lifter = seen[0]
         assert other_engine is not proj.factory.default_engine  # the factory really did hand out a second engine
         assert other_lifter is main_lifter
+
+    def test_disassembly_is_lazy(self):
+        """
+        Lifting a block must not disassemble it. CFG recovery never reads IRSB.disassembly, so decoding it eagerly
+        costs a second Sleigh pass and an object per instruction on every lift, all of it retained by the block cache.
+        """
+        proj = angr.Project(os.path.join(test_location, "sh4", "test-instr_sh4"), auto_load_libs=False)
+        assert isinstance(proj.arch, archinfo.ArchPcode)
+
+        real_disassemble = pypcode.Context.disassemble
+        calls = []
+
+        def counting_disassemble(self, *args, **kwargs):
+            calls.append(args)
+            return real_disassemble(self, *args, **kwargs)
+
+        with patch.object(pypcode.Context, "disassemble", counting_disassemble):
+            irsb = proj.factory.block(proj.entry).vex
+            assert irsb.size > 0
+            assert not calls
+
+            disasm = irsb.disassembly
+            assert len(calls) == 1
+            assert [insn.address for insn in disasm.insns] == list(irsb.instruction_addresses)
+            assert sum(insn.size for insn in disasm.insns) == irsb.size
+
+            # The disassembly is decoded once and kept
+            assert irsb.disassembly is disasm
+            assert len(calls) == 1
+
+        # A block that stopped early disassembles to what it lifted, not to whatever follows it
+        short = proj.factory.block(proj.entry, num_inst=1).vex
+        assert len(short.disassembly.insns) == 1
+        assert short.disassembly.insns[0].size == short.size
+
+    def test_disassembly_failure_is_not_raised(self):
+        """
+        IRSB.disassembly does not propagate a Sleigh decode error. A block that will not decode simply has no
+        disassembly, which is all its callers have ever had to handle.
+        """
+        proj = angr.Project(os.path.join(test_location, "sh4", "test-instr_sh4"), auto_load_libs=False)
+        irsb = proj.factory.block(proj.entry).vex
+
+        def failing_disassemble(self, *args, **kwargs):
+            raise pypcode.BadDataError("Unable to resolve constructor")
+
+        with patch.object(pypcode.Context, "disassemble", failing_disassemble):
+            assert irsb.disassembly is None
+
+        # Sleigh is not asked again; a second attempt here would succeed and return a block
+        assert irsb.disassembly is None
+
+    def test_block_cache_no_larger_than_vex(self):
+        """
+        A p-code block retains several times what the equivalent VEX block does, so the p-code engine must not cache
+        more blocks than the VEX engine.
+        """
+        binary_path = os.path.join(test_location, "x86_64", "fauxware")
+        vex_proj = angr.Project(binary_path, auto_load_libs=False)
+        pcode_proj = angr.Project(binary_path, auto_load_libs=False, engine=angr.engines.UberEnginePcode)
+
+        vex_engine = vex_proj.factory.default_engine
+        pcode_engine = pcode_proj.factory.default_engine
+        assert isinstance(vex_engine, VEXLifter)
+        assert isinstance(pcode_engine, PcodeLifterEngineMixin)
+        assert pcode_engine._cache_size <= vex_engine._cache_size  # pylint: disable=protected-access
 
 
 if __name__ == "__main__":
