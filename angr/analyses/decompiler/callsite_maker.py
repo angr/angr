@@ -270,7 +270,9 @@ class CallSiteMaker:
         new_stmts = self.block.statements[:-1]
 
         # remove the statement that stores the return address
-        if self.project.arch.call_pushes_ret:
+        # The marker keeps a later CallSiteMaker pass from mistaking an earlier live write for the removed assignment.
+        return_addr_assignment_removed = call_expr.tags.get("return_addr_assignment_removed", False)
+        if not return_addr_assignment_removed and self.project.arch.call_pushes_ret:
             # check if the last statement is storing the return address onto the top of the stack
             for stmt_idx_r, the_stmt in enumerate(reversed(new_stmts)):
                 stmt_idx = len(new_stmts) - 1 - stmt_idx_r
@@ -291,16 +293,16 @@ class CallSiteMaker:
                     if varid is not None:
                         self.removed_vvar_ids.add(varid)
                     new_stmts = new_stmts[:stmt_idx] + new_stmts[stmt_idx + 1 :]
+                    return_addr_assignment_removed = True
                     break
-        else:
+        elif not return_addr_assignment_removed:
             # if there is an lr register...
-            lr_offset = None
-            if archinfo.arch_arm.is_arm_arch(self.project.arch) or self.project.arch.name in {"PPC32", "PPC64"}:
-                lr_offset = self.project.arch.registers["lr"][0]
-            elif self.project.arch.name in {"MIPS32", "MIPS64"}:
+            lr_offset = self.project.arch.lr_offset
+            if lr_offset is None and self.project.arch.name in {"MIPS32", "MIPS64"}:
                 lr_offset = self.project.arch.registers["ra"][0]
             # remove the assignment to the lr register
-            if lr_offset is not None:
+            if lr_offset is not None and self.block.original_size is not None:
+                expected_return_addr = self.block.addr + self.block.original_size
                 for stmt_idx_r, the_stmt in enumerate(reversed(new_stmts)):
                     stmt_idx = len(new_stmts) - 1 - stmt_idx_r
                     if isinstance(the_stmt, Stmt.SideEffectStatement):
@@ -317,10 +319,13 @@ class CallSiteMaker:
                         varid = the_stmt.dst.varid
                     else:
                         continue
+                    if not isinstance(the_stmt.src, Expr.Const) or the_stmt.src.value != expected_return_addr:
+                        continue
                     # found it
                     new_stmts = new_stmts[:stmt_idx] + new_stmts[stmt_idx + 1 :]
                     if varid is not None:
                         self.removed_vvar_ids.add(varid)
+                    return_addr_assignment_removed = True
                     break
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
@@ -386,6 +391,8 @@ class CallSiteMaker:
 
         tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
+        if return_addr_assignment_removed:
+            tags["return_addr_assignment_removed"] = True
         if func is not None:
             tags["is_prototype_guessed"] = func.is_prototype_guessed
         new_call = Expr.Call(

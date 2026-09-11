@@ -31,6 +31,7 @@ class TagDict(TypedDict, total=False):
     keep_in_slice: bool
     orig_ins_addr: int
     reg_name: str
+    return_addr_assignment_removed: bool
     uninitialized: bool
     vex_block_addr: int
     vex_stmt_idx: int
