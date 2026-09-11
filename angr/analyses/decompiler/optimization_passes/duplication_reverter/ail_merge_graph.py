@@ -16,6 +16,7 @@ from .utils import (
     correct_jump_targets,
     deepcopy_ail_anyjump,
     replace_node_in_graph,
+    set_conditional_jump_target_addrs,
 )
 
 _l = logging.getLogger(name=__name__)
@@ -243,11 +244,15 @@ class AILMergeGraph:
                 b0, b1 = merge_end_pair
 
             if true_target == self._find_og_start_by_merge_end(b0):
-                cond_jump_stmt.true_target.value = b0.addr
-                cond_jump_stmt.false_target.value = b1.addr
+                true_block, false_block = b0, b1
             else:
-                cond_jump_stmt.false_target.value = b0.addr
-                cond_jump_stmt.true_target.value = b1.addr
+                true_block, false_block = b1, b0
+
+            cond_copy.statements[-1] = set_conditional_jump_target_addrs(
+                cond_jump_stmt,
+                true_block.addr,
+                false_block.addr,
+            )
 
             self.graph.add_edge(match_node, cond_copy)
             self.graph.add_edge(cond_copy, b0)
