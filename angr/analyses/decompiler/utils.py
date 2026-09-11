@@ -534,8 +534,13 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
 
     a_ogs = graph.nodes[node_a].get("original_nodes", [])
     b_ogs = graph.nodes[node_b].get("original_nodes", [])
-    new_node = node_a.copy() if node_a.addr <= node_b.addr else node_b.copy()
-    old_node = node_b if new_node == node_a else node_a
+    # node_a is the predecessor: its statements come first and the merged node keeps its identity (its address is
+    # where control enters). Picking the lower address instead is only equivalent for fall-through pairs; a pair
+    # joined backwards -- a successor at a lower address, which the KnownPatternOutliner produces routinely because it
+    # numbers the blocks it splits off in the order it creates them -- would have its statements reversed, leaving a
+    # conditional jump in the middle of the block.
+    new_node = node_a.copy()
+    old_node = node_b
     # remove jumps in the middle of nodes when merging
     if new_node.statements and isinstance(new_node.statements[-1], ailment.Stmt.Jump):
         new_node.statements = new_node.statements[:-1]

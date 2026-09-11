@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Container, Iterator
 from typing import TYPE_CHECKING
@@ -38,6 +39,9 @@ SUBKIND_BP = 1
 # offset is const offset from original value, or value for KIND_CONST
 
 type FactData = tuple[int, int, int] | None
+
+
+l = logging.getLogger(__name__)
 
 
 class FactCollectorState:
@@ -318,6 +322,12 @@ class FactCollector(Analysis):
         self.input_args: list[SimRegArg | SimStackArg] | None = None
         self.unused_args: list[SimRegArg] = []
         self.retval_size: int | None = None
+        #: True when every endpoint's write to the return register looks like a leftover rather than a return value:
+        #: the value written is consumed again in the same block (stored, tested, passed on) after the write. A void
+        #: function whose last instruction happens to load into rax looks exactly like a getter from the outside;
+        #: this is the one local hint that it is not, and CallingConventionAnalysis only lets call-site evidence
+        #: demote a prototype to void when it is set.
+        self.retval_incidental: bool = False
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
         self.extra_pop: int | None = None
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
@@ -617,6 +627,9 @@ class FactCollector(Analysis):
             retreg_offset = cc.RETURN_VAL.check_offset(self.project.arch)
         else:
             return
+        fp_retreg_offset = None
+        if isinstance(cc.FP_RETURN_VAL, SimRegArg) and cc.FP_RETURN_VAL.reg_name in self.project.arch.registers:
+            fp_retreg_offset = cc.FP_RETURN_VAL.check_offset(self.project.arch)
 
         # Get the overflow return register offset (rdx on x64 System V, rbx under Go's ABIInternal).
         # This is only used to detect 128-bit return values on Rust and Go binaries, whose ABIs really
@@ -632,6 +645,7 @@ class FactCollector(Analysis):
         retval_sizes = []
         propagated_retval_sizes = []
         overflow_retval_sizes = []
+        incidental_flags: list[bool] = []
         for endpoint in self.function.endpoints:
             assert isinstance(endpoint, (BlockNode, HookNode))
             traversed = set()
@@ -667,6 +681,10 @@ class FactCollector(Analysis):
                         assert returnty_size is not None
                         retval_size = returnty_size // self.project.arch.byte_width
                         propagated_retval_sizes.append(retval_size)
+                        # a callee's result is the return value when the endpoint itself hands off to the callee (a
+                        # tail call). Reached through a predecessor, it is `call f; ret` -- `return f()` or `f(); return;` --
+                        # and the callers settle which
+                        incidental_flags.append(depth > 0)
                     continue
 
                 # if this block ends with a call to a function, we process the function first
@@ -703,6 +721,10 @@ class FactCollector(Analysis):
                             else:
                                 retval_size = returnty_size // self.project.arch.byte_width
                             propagated_retval_sizes.append(retval_size)
+                            # a callee's result is the return value when the endpoint itself hands off to the callee (a
+                            # tail call). Reached through a predecessor, it is `call f; ret` -- `return f()` or `f(); return;` --
+                            # and the callers settle which
+                            incidental_flags.append(depth > 0)
                             continue
                         if (
                             func_succ.prototype is not None
@@ -726,8 +748,9 @@ class FactCollector(Analysis):
                 # to account for the common case where the shorter register (e.g., al) is extended to the full register
                 # (e.g., rax) before returning.
                 block_retval_size = None
+                retval_stmt_idx = None
                 stack_canary_barrier = False
-                for stmt in reversed(block.vex.statements):
+                for stmt_idx, stmt in reversed(list(enumerate(block.vex.statements))):
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         assert block.vex.tyenv is not None
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
@@ -752,11 +775,28 @@ class FactCollector(Analysis):
                                 stack_canary_barrier = True
                                 break
                             block_retval_size = max(size, 1)
+                            retval_stmt_idx = stmt_idx
                         if stmt.offset == overflow_retreg_offset:
                             overflow_retval_sizes.append(max(size, 1))
 
                 if block_retval_size is not None:
                     retval_sizes.append(block_retval_size)
+                    assert retval_stmt_idx is not None
+                    # a block that ends in a call cannot vouch for a return value: whatever it put in the return
+                    # register is an argument or scratch that the callee clobbers before the function returns
+                    incidental_flags.append(
+                        bool(func_succs)
+                        or self._retval_write_is_incidental(
+                            block.vex, retval_stmt_idx, retreg_offset, block_retval_size, fp_retreg_offset
+                        )
+                    )
+                    l.debug(
+                        "retval: endpoint %#x, block %#x writes the return register (%d bytes), incidental=%s",
+                        endpoint.addr,
+                        node.addr,
+                        block_retval_size,
+                        incidental_flags[-1],
+                    )
                     continue
                 if stack_canary_barrier:
                     continue
@@ -788,9 +828,54 @@ class FactCollector(Analysis):
                     retval_sizes.append(self.project.arch.bytes)
 
         overflow_retval_size = max(overflow_retval_sizes) if overflow_retval_sizes else 0
+        self.retval_incidental = bool(incidental_flags) and all(incidental_flags)
         retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
+
+    def _retval_write_is_incidental(
+        self, irsb, put_idx: int, retreg_offset: int, retreg_size: int, fp_retreg_offset: int | None
+    ) -> bool:
+        """Is the write to the return register at ``put_idx`` a leftover rather than a return value?
+
+        It is when the value written is used again after the write, in the same block: stored to memory, put in
+        another register, tested by a conditional exit. ``mov eax, [rdi]; ...; mov [rsi], eax; ret`` writes rax
+        first and returns it last, but the value's job was the store. VEX folds the later register read into a
+        reuse of the very tmp that was put into the register, so this follows tmps and what derives from them,
+        and treats an explicit re-read of the register the same way.
+
+        One consumer is exempt: the floating-point return register. ``fabs`` masks the sign bit in rax and moves
+        the result back to xmm0; that value is the return value, it just travelled through rax.
+        """
+        put = irsb.statements[put_idx]
+        derived: set[int] = set()
+        if isinstance(put.data, pyvex.IRExpr.RdTmp):
+            derived.add(put.data.tmp)
+
+        def reads_retval(stmt) -> bool:
+            for expr in stmt.expressions:
+                if isinstance(expr, pyvex.IRExpr.RdTmp) and expr.tmp in derived:
+                    return True
+                if (
+                    isinstance(expr, pyvex.IRExpr.Get)
+                    and expr.offset < retreg_offset + retreg_size
+                    and expr.offset + expr.result_size(irsb.tyenv) // self.project.arch.byte_width > retreg_offset
+                ):
+                    return True
+            return False
+
+        for stmt in irsb.statements[put_idx + 1 :]:
+            if isinstance(stmt, (pyvex.IRStmt.IMark, pyvex.IRStmt.AbiHint, pyvex.IRStmt.NoOp)):
+                continue
+            if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                if reads_retval(stmt):
+                    derived.add(stmt.tmp)
+                continue
+            # a Put of the next instruction address is a constant and reads nothing; a Put of a derived tmp into the
+            # instruction pointer is `jmp rax`, and consumes the value like any other use
+            if reads_retval(stmt):
+                return not (isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == fp_retreg_offset)
+        return False
 
     def _analyze_endpoints_for_restored_regs(self):
         """

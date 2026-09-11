@@ -10,10 +10,38 @@ from .utils import get_expr_shift_left_amount
 class Bswap(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    NAME = "Simplifying bswap_16() and bswap_32()"
+    NAME = "Simplifying bswap_16(), bswap_32(), and bswap_64()"
     expr_classes = (BinaryOp, Convert)
 
     def optimize(self, expr: BinaryOp, **kwargs):
+        # bswap_16, as x86 actually lifts it: a 16-bit value byte-swapped with
+        # `rol $8, %r16` becomes a plain Rol, and the Or spelling is 16 bits wide
+        # so the truncating mask the branch below looks for never exists. Measured
+        # on a corpus of network code, these two shapes are 266 of the residual
+        # byte swaps while the masked form below is 0 -- without them the 16-bit
+        # rewrite never fires on real code, and the value renders as __ROL__().
+        if expr.bits == 16 and isinstance(expr, BinaryOp):
+            core = None
+            if expr.op == "Rol" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 8:
+                core = expr.operands[0]
+            elif expr.op == "Or":
+                a, b = expr.operands
+                for lhs, rhs in ((a, b), (b, a)):
+                    if (
+                        isinstance(lhs, BinaryOp)
+                        and lhs.op in {"Shl", "Mul"}
+                        and get_expr_shift_left_amount(lhs) == 8
+                        and isinstance(rhs, BinaryOp)
+                        and rhs.op == "Shr"
+                        and isinstance(rhs.operands[1], Const)
+                        and rhs.operands[1].value == 8
+                        and lhs.operands[0].likes(rhs.operands[0])
+                    ):
+                        core = lhs.operands[0]
+                        break
+            if core is not None:
+                return Call(expr.idx, "__builtin_bswap16", args=[core], bits=expr.bits, **expr.tags)
+
         # bswap_16
         #   And(
         #     (
@@ -68,11 +96,18 @@ class Bswap(PeepholeOptimizationExprBase):
             if len(or_pieces) == 4:
                 # parse pieces
                 shifts = set()
-                cores = set()
+                # NOTE: collected as a list and compared with .likes(), not as a set.
+                # AIL __eq__ is idx-sensitive, so the four textually identical cores of
+                # a real byte swap -- each a separate occurrence with its own index --
+                # land as four distinct set members and the match is abandoned. The
+                # hand-written fixture happens to reuse one object four times, which is
+                # why this went unnoticed; on real code it made the 32-bit rewrite fire
+                # on 12 of 511 byte-swap instructions.
+                cores = []
                 for piece in or_pieces:
                     if isinstance(piece, BinaryOp):
                         if piece.op in {"Shl", "Mul"} and isinstance(piece.operands[1], Const):
-                            cores.add(piece.operands[0])
+                            cores.append(piece.operands[0])
                             shift_amount = get_expr_shift_left_amount(piece)
                             shifts.add(("<<", shift_amount, 0xFFFFFFFF))
                         elif piece.op == "And" and isinstance(piece.operands[1], Const):
@@ -83,7 +118,7 @@ class Bswap(PeepholeOptimizationExprBase):
                                 and and_core.op in {"Shl", "Mul"}
                                 and isinstance(and_core.operands[1], Const)
                             ):
-                                cores.add(and_core.operands[0])
+                                cores.append(and_core.operands[0])
                                 shift_amount = get_expr_shift_left_amount(and_core)
                                 shifts.add(("<<", shift_amount, and_amount))
                             elif (
@@ -91,18 +126,127 @@ class Bswap(PeepholeOptimizationExprBase):
                                 and and_core.op == "Shr"
                                 and isinstance(and_core.operands[1], Const)
                             ):
-                                cores.add(and_core.operands[0])
+                                cores.append(and_core.operands[0])
                                 shifts.add((">>", and_core.operands[1].value, and_amount))
-                if len(cores) == 1 and shifts == {
-                    ("<<", 0x18, 0xFFFFFFFF),
-                    ("<<", 8, 0xFF0000),
-                    (">>", 0x18, 0xFF),
-                    (">>", 8, 0xFF00),
-                }:
-                    core_expr = next(iter(cores))
-                    return Call(expr.idx, "__builtin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
+                if (
+                    cores
+                    and all(c.likes(cores[0]) for c in cores)
+                    and shifts
+                    == {
+                        ("<<", 0x18, 0xFFFFFFFF),
+                        ("<<", 8, 0xFF0000),
+                        (">>", 0x18, 0xFF),
+                        (">>", 8, 0xFF00),
+                    }
+                ):
+                    return Call(expr.idx, "__builtin_bswap32", args=[cores[0]], bits=expr.bits, **expr.tags)
+
+            # bswap_64 (and the SWAR spelling of bswap_32): a recursive
+            # divide-and-conquer tree rather than a flat 4-way Or, so the
+            # flattening above never reaches 4 pieces.
+            core_expr = self._match_swar_bswap(expr, expr.bits)
+            if core_expr is not None:
+                return Call(expr.idx, f"__builtin_bswap{expr.bits}", args=[core_expr], bits=expr.bits, **expr.tags)
 
         return None
+
+    @staticmethod
+    def _swar_mask(k: int, bits: int) -> int:
+        """The mask selecting the high ``k`` bits of every ``2 * k``-bit group."""
+        unit = ((1 << k) - 1) << k  # k=8 -> 0xff00
+        mask = 0
+        for i in range(0, bits, 2 * k):
+            mask |= unit << i
+        return mask
+
+    @classmethod
+    def _match_swap(cls, expr: Expression, k: int, bits: int) -> Expression | None:
+        """One SWAR level: ``Or(Shr(And(e, M), k), And(Shl/Mul(e, k), M))`` -> ``e``.
+        Both Or operand orders and both mask-then-shift / shift-then-mask
+        spellings of each half are accepted."""
+        if not isinstance(expr, BinaryOp) or expr.op != "Or" or expr.bits != bits:
+            return None
+        mask = cls._swar_mask(k, bits)
+
+        def down(e):
+            # the ">> k" half: Shr(And(e, M), k) or And(Shr(e, k), M)
+            if not isinstance(e, BinaryOp):
+                return None
+            if e.op == "Shr" and isinstance(e.operands[1], Const) and e.operands[1].value == k:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op == "And"
+                    and isinstance(inner.operands[1], Const)
+                    and inner.operands[1].value == mask
+                ):
+                    return inner.operands[0]
+            if e.op == "And" and isinstance(e.operands[1], Const) and e.operands[1].value == mask:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op == "Shr"
+                    and isinstance(inner.operands[1], Const)
+                    and inner.operands[1].value == k
+                ):
+                    return inner.operands[0]
+            return None
+
+        def up(e):
+            # the "<< k" half: And(Shl/Mul(e, k), M) or Shl/Mul(And(e, M >> k), k)
+            if not isinstance(e, BinaryOp):
+                return None
+            if e.op == "And" and isinstance(e.operands[1], Const) and e.operands[1].value == mask:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op in {"Shl", "Mul"}
+                    and (get_expr_shift_left_amount(inner) == k)
+                ):
+                    return inner.operands[0]
+            if e.op in {"Shl", "Mul"} and get_expr_shift_left_amount(e) == k:
+                inner = e.operands[0]
+                if (
+                    isinstance(inner, BinaryOp)
+                    and inner.op == "And"
+                    and isinstance(inner.operands[1], Const)
+                    and inner.operands[1].value == (mask >> k)
+                ):
+                    return inner.operands[0]
+            return None
+
+        a, b = expr.operands
+        for lo, hi in ((a, b), (b, a)):
+            e1, e2 = down(lo), up(hi)
+            if e1 is not None and e2 is not None and e1.likes(e2):
+                return e1
+        return None
+
+    @classmethod
+    def _match_swar_bswap(cls, expr: Expression, bits: int) -> Expression | None:
+        """``bswap(x) = SWAP(bits/2, ... SWAP(8, x))``; returns ``x`` or None.
+
+        gcc lowers ``bswap rax`` into three nested byte/word/dword exchanges::
+
+            SWAP(k, e) := Or(Shr(And(e, M_k), k), And(Shl(e, k), M_k))
+            bswap64(x)  = SWAP(32, SWAP(16, SWAP(8, x)))
+
+        with M_8 = 0xff00ff00ff00ff00, M_16 = 0xffff0000ffff0000 and
+        M_32 = 0xffffffff00000000 (and the 32-bit analogues).
+        """
+        # only whole-register byte swaps exist; without this guard a narrow Or
+        # (e.g. a 1-bit boolean) would skip the loop entirely and the expression
+        # would be returned as its own "core", producing a self-referential call
+        if bits not in (16, 32, 64):
+            return None
+        k = bits // 2
+        cur = expr
+        while k >= 8:
+            cur = cls._match_swap(cur, k, bits)
+            if cur is None:
+                return None
+            k //= 2
+        return cur
 
     def _match_inner(self, or_first: BinaryOp, or_second: BinaryOp) -> tuple[bool, Expression | None]:
         if (

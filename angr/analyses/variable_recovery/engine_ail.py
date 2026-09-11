@@ -425,7 +425,17 @@ class SimEngineVRAIL(
                         if self.state.typevars.has_type_variable_for(stack_var):
                             tv = self.state.typevars.get_type_variable(stack_var)
                             self.state.add_type_constraint(typevars.Subtype(tv, arg_ty.basetype))
-                self.state.add_type_constraint(typevars.Subtype(arg.typevar, arg_ty))
+                if (
+                    isinstance(arg_ty, typeconsts.Pointer)
+                    and isinstance(arg_ty.basetype, typeconsts.Struct)
+                    and arg_ty.basetype.is_cppclass
+                ):
+                    # a pointer to a known C++ class: the class layout is ground truth, not an upper
+                    # bound; a Subtype constraint would let the solver rebuild an anonymous struct
+                    # from field accesses and lose the class identity
+                    self.state.add_type_constraint(typevars.Equivalence(arg.typevar, arg_ty))
+                else:
+                    self.state.add_type_constraint(typevars.Subtype(arg.typevar, arg_ty))
 
     def _get_format_string_arg_types(self, func_name: str, call_args) -> list | None:
         """
@@ -816,7 +826,7 @@ class SimEngineVRAIL(
     def _handle_binop_Sub(self, expr):
         arg0, arg1 = expr.operands
         r0, r1 = self._expr_pair(arg0, arg1)
-        compute = r0.data - r1.data  # type: ignore
+        compute = r0.data - r1.data if r0.data.size() == r1.data.size() else self.state.top(expr.bits)  # type: ignore
 
         type_constraints = set()
         typevar = None
@@ -840,7 +850,7 @@ class SimEngineVRAIL(
         r0, r1 = self._expr_pair(arg0, arg1)
 
         result_size = arg0.bits
-        if r0.data.concrete or r1.data.concrete:
+        if (r0.data.concrete or r1.data.concrete) and r0.data.size() == r1.data.size():
             # constants
             result_size = arg0.bits
             compute = r0.data * r1.data  # type: ignore
@@ -908,7 +918,7 @@ class SimEngineVRAIL(
                 tc = typevars.Subtype(r1.typevar, int_type_func(arg1.bits))
                 self.state.add_type_constraint(tc)
 
-        if expr.floating_point:
+        if expr.floating_point or to_size > from_size:
             quotient = self.state.top(to_size)
         else:
             if (r1.data == 0).is_true():

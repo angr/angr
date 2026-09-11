@@ -134,5 +134,28 @@ class TestLightEngine(TestCase):
         assert result is provenance
 
 
+class TestUnknownAILOperations(TestCase):
+    def test_an_operation_without_a_handler_is_unknown_not_a_crash(self):
+        # The AIL side looked operations up in its handler table and raised KeyError on one it had no handler for
+        # (vector ops such as PermOrZeroV). It now goes to the Default handlers like the VEX side does.
+        # pylint:disable=import-outside-toplevel
+        import os
+
+        import angr
+        from angr.ailment.expression import BinaryOp, UnaryOp, VirtualVariable, VirtualVariableCategory
+        from angr.analyses.decompiler.optimization_passes.engine_base import SimplifierAILEngine, SimplifierAILState
+        from tests.common import bin_location
+
+        proj = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)
+        engine = SimplifierAILEngine(proj)
+        engine.state = SimplifierAILState(proj.arch)
+        vvar = VirtualVariable(0, 1, 128, VirtualVariableCategory.REGISTER, oident=16)
+        binop = BinaryOp(1, "PermOrZeroV", [vvar, vvar], False, bits=128)
+        unop = UnaryOp(2, "SomethingNew", vvar, bits=128)
+        # the simplifier's own Default handlers hand the expression back; the base's yield an unknown value
+        assert engine._handle_expr_BinaryOp(binop) in (None, binop)
+        assert engine._handle_expr_UnaryOp(unop) in (None, unop)
+
+
 if __name__ == "__main__":
     main()

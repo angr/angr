@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Convert, Extract
+from angr.ailment.utils import is_lsb_extract
 
 from .base import PeepholeOptimizationExprBase
 
@@ -18,6 +19,15 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
             signed = expr.is_signed
             ints = expr.from_type == expr.to_type == Convert.TYPE_INT
         else:
+            # Only an Extract of the *least-significant* bits is a truncation.
+            # Every rule below assumes the low end of the value, so applying them
+            # to an Extract at a higher offset silently drops that offset: on
+            # x86 `test $0x20,%ah` lifts to Extract(8 bits @ byte 1) and came out
+            # as a test of %al, which is how every glibc ctype macro compiled by
+            # gcc -- isspace, isdigit, isalpha, ... -- decompiled to the wrong
+            # bit without any diagnostic.
+            if not is_lsb_extract(expr):
+                return None
             inner = expr.base
             signed = False
             ints = True

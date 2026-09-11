@@ -8,7 +8,7 @@ import networkx
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Phi, VirtualVariable
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return, SideEffectStatement
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Return
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from angr.analyses.decompiler.region_identifier import RegionIdentifier
 from angr.analyses.decompiler.region_overlay import RegionOverlay
@@ -421,8 +421,10 @@ class ReturnDuplicatorBase:
             # only statement. Such a graph carries no return statement, so it is not a simple return graph.
             return False
 
-        # all statements must be either a return, a jump, an assignment, or a side-effect statement (e.g. a call)
-        type_white_list = (Return, Jump, Assignment, SideEffectStatement)
+        # all statements must be either a return, a jump, or an assignment. A call is work, not a return: copying
+        # `f(); g(); return;` into every predecessor shows the reader the same two calls twice, and a void
+        # function's tail is exactly where such calls sit
+        type_white_list = (Return, Jump, Assignment)
         for stmt in stmts:
             if not isinstance(stmt, type_white_list):
                 return False

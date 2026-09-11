@@ -11,6 +11,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
+from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
 from angr.utils.ssa import is_phi_assignment
@@ -49,8 +50,14 @@ class Outliner(Analysis):
             self.parent_entry_loc = func_entry_loc
         else:
             func_entry_locs = [(bb.addr, bb.idx) for bb in self.parent_graph if self.parent_graph.in_degree[bb] == 0]
+            if not func_entry_locs:
+                # the entry is a loop head (e.g., Go's stack-check preamble jumps back to it): fall back to the block
+                # at the function's address
+                func_entry_locs = [(bb.addr, bb.idx) for bb in self.parent_graph if bb.addr == func.addr]
             if len(func_entry_locs) != 1:
                 _l.warning("Graph has no obvious entry point")
+            if not func_entry_locs:
+                raise AngrRuntimeError("Cannot determine the entry block of the function graph")
             self.parent_entry_loc = min(func_entry_locs)
 
         self.parent_liveness = liveness or self.project.analyses[SLivenessAnalysis].prep()(
@@ -303,23 +310,25 @@ class Outliner(Analysis):
             new_addrs = set(src_addrs) - set(all_stmt_srcs)
             old_addrs = set(all_stmt_srcs) - set(src_addrs)
             new_src_and_vvars = None
-            if len(old_addrs) == 1 and len(new_addrs) == 1:
-                old_addr = next(iter(old_addrs))
-                new_addr = next(iter(new_addrs))
-                new_src_and_vvars = [((new_addr if src == old_addr else src), vvar) for src, vvar in pairs]
-            elif (
-                old_addrs
-                and collapsed_loc is not None
-                and set(src_addrs) == {collapsed_loc}
-                and set(all_stmt_srcs) <= (old_addrs | {collapsed_loc})
-            ):
-                # an outlined region collapsed into a call, and every phi source vvar arrives through that one block.
-                vvars = [vvar for _, vvar in pairs]
-                distinct = {v.varid for v in vvars if v is not None}
-                value = vvars[0] if len(distinct) == 1 else ret_vvar
-                if value is not None:
-                    new_src_and_vvars = [(collapsed_loc, value)]
-            # else:  multiple source blocks have been replaced... it's bad
+            if old_addrs and len(new_addrs) <= 1:
+                # Every source that is no longer a predecessor was a block of the outlined region, and the region now
+                # reaches this block through exactly one node: the new predecessor, or (when a predecessor of the
+                # region was retargeted here already) the collapsed node itself. All of the region's entries fold
+                # into one entry for that node. Its value is the one vvar they agreed on; when the arms disagreed
+                # (an SSO select yielding two pointers), the value now arrives as the call's result.
+                target = next(iter(new_addrs)) if new_addrs else collapsed_loc
+                if target is not None and target in src_addrs:
+                    region_vvars = [vvar for src, vvar in pairs if src in old_addrs or src == target]
+                    distinct = {v.varid for v in region_vvars if v is not None}
+                    if len(distinct) == 1:
+                        value = region_vvars[0]
+                    elif ret_vvar is not None:
+                        value = ret_vvar
+                    else:
+                        value = next((vvar for src, vvar in pairs if src == target), region_vvars[0])
+                    new_src_and_vvars = [(src, vvar) for src, vvar in pairs if src not in old_addrs and src != target]
+                    new_src_and_vvars.append((target, value))
+            # else:  several new predecessors at once -- nothing here knows which arm reaches which
             if new_src_and_vvars is not None:
                 new_phi = Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
                 block.statements[i] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)

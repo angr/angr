@@ -2289,11 +2289,13 @@ class AILSimplifier(Analysis):
                                 if isinstance(stmt.src, (Call, FunctionLikeMacro)):
                                     # replace this assignment statement with a call statement
                                     stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
+                                    simplified = True
                                 elif isinstance(stmt.src, Convert) and isinstance(
                                     stmt.src.operand, (Call, FunctionLikeMacro)
                                 ):
                                     # the convert is useless now
                                     stmt = SideEffectStatement(stmt.idx, stmt.src.operand, **stmt.tags)
+                                    simplified = True
                                 else:
                                     # we can't change this stmt at all because it has an expression with Calls inside
                                     pass

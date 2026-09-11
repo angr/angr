@@ -16,6 +16,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
 from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.stl_field_accessors import stl_accessor_name
 from angr.analyses.decompiler.structurer_nodes import (
     BreakNode,
     CascadingConditionNode,
@@ -114,11 +115,15 @@ _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
 def qualifies_for_simple_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen precisely?
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
-    return (
-        ty1.size == ty2.size
-        and isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
-        and isinstance(ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer))
-    )
+    if not isinstance(ty1, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer)) or not isinstance(
+        ty2, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer)
+    ):
+        return False
+    # a SimTypeNum without a size cannot be cast precisely (its size property asserts); the register-sized types
+    # take theirs from the architecture
+    if (isinstance(ty1, SimTypeNum) and ty1._size is None) or (isinstance(ty2, SimTypeNum) and ty2._size is None):
+        return False
+    return ty1.size == ty2.size
 
 
 def qualifies_for_width_cast(ty):
@@ -2061,6 +2066,14 @@ class CVariableField(CExpression):
     Represent a field of a variable.
     """
 
+    # When this field read is a recognized accessor of a C++ STL container whose type was recovered by type
+    # inference (e.g. "m_data" of a std::string), the fully qualified accessor name to display it under, e.g.
+    # "std::string::c_str". Set by CStructuredCodeGenerator._access_constant_offset, and only for reads: writing to
+    # (or taking the address of) the field must keep rendering as a field. Declared at class level so that instances
+    # built without __init__ (deserialization) always have the attribute. See
+    # angr.analyses.decompiler.stl_field_accessors.
+    stl_accessor: str | None = None
+
     def __init__(self, variable: CExpression, field: CStructField, var_is_ptr: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.variable = variable
@@ -2075,12 +2088,26 @@ class CVariableField(CExpression):
         if self.collapsed:
             yield "...", self
             return
+        if self.stl_accessor is not None and self.codegen.stl_accessor_calls:
+            yield from self._c_repr_chunks_accessor()
+            return
         yield from self.variable.c_repr_chunks()
         if self.var_is_ptr:
             yield "->", self
         else:
             yield ".", self
         yield from self.field.c_repr_chunks()
+
+    def _c_repr_chunks_accessor(self):
+        """Render the field read as ``std::string::c_str(s)`` rather than ``s->m_data``."""
+        yield self.stl_accessor, self
+        paren = CClosingObject("(")
+        yield "(", paren
+        if not self.var_is_ptr:
+            # ``self.variable`` is the container object itself; the accessor takes a pointer to it
+            yield "&", self
+        yield from CExpression._try_c_repr_chunks(self.variable)
+        yield ")", paren
 
 
 class CUnaryOp(CExpression):
@@ -2987,6 +3014,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         cstyle_void_param: bool = True,
         indent_size: int = 4,
         variable_map: VariableMap | None = None,
+        stl_accessor_calls: bool = False,
     ):
         super().__init__(
             flavor=flavor,
@@ -3065,6 +3093,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
         self.ail_graph = ail_graph
+        self._errno_vvars: frozenset[int] | None = None
         self.simplify_else_scope = simplify_else_scope
         self.cstyle_ifs = cstyle_ifs
         self.omit_func_header = omit_func_header
@@ -3084,6 +3113,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
         self.cstyle_void_param = cstyle_void_param
+        self.stl_accessor_calls = stl_accessor_calls
         # Number of space characters per indentation level in the emitted pseudocode.
         self.indent_delta = indent_size
 
@@ -3113,6 +3143,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 self.cstyle_ifs = value
             elif option.param == "cstyle_void_param":
                 self.cstyle_void_param = value
+            elif option.param == "stl_accessor_calls":
+                self.stl_accessor_calls = value
             elif option.param == "indent_size":
                 self.indent_delta = value
 
@@ -3442,7 +3474,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 result = CUnaryOp("Reference", CVariableField(base_expr, field, False, codegen=self), codegen=self)
             else:
                 result = CUnaryOp("Reference", CVariableField(expr, field, True, codegen=self), codegen=self)
-            return self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
+            result = self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
+            if not lvalue:
+                self._tag_stl_accessor(result, base_type, field_name)
+            return result
 
         if isinstance(base_type, (SimTypeFixedSizeArray, SimTypeArray)):
             result = base_expr or expr  # death to C
@@ -3498,6 +3533,25 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             )
         # otherwise, normal cast
         return CTypeCast(base_type, data_type, base_expr, codegen=self)
+
+    def _tag_stl_accessor(self, result: CExpression, base_type: SimStruct, field_name: str) -> None:
+        """
+        Name a read of a field of a recognized ``cpp::std`` class after the accessor it implements, so that it is
+        displayed as e.g. ``std::string::c_str(s)`` instead of ``s->m_data``.
+
+        Unlike the structural KnownPattern matchers, which have to recognize the *code shape* of an inlined accessor
+        before variable recovery, this naming is driven purely by the recovered type: it applies only where type
+        inference already proved the base is an STL container, so it cannot mislabel an unrelated pointer
+        dereference. See :mod:`angr.analyses.decompiler.stl_field_accessors`.
+
+        ``result`` is whatever the field access resolved to; the accessor name is attached only when that is exactly
+        the field access itself (optionally wrapped in a cast), not when the access continued into a sub-field of it.
+        """
+
+        field_access = result.expr if isinstance(result, CTypeCast) else result
+        if not isinstance(field_access, CVariableField) or field_access.field.field != field_name:
+            return
+        field_access.stl_accessor = stl_accessor_name(base_type, field_name)
 
     def _access(
         self,
@@ -3888,6 +3942,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 return proposed_ty
             return old_ty
 
+        if self._is_errno_location(stmt.addr):
+            return CAssignment(self._errno_variable(), cdata, tags=stmt.tags, codegen=self)
+
         stmt_var = self._variable_map.variable(stmt)
         if stmt_var is not None and cdata.type is not None:
             cvar = self._variable(stmt_var, stmt.size)
@@ -4087,7 +4144,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             codegen=self,
         )
 
-        if expr.bits and call_expr.type is not None and call_expr.type.size != expr.size * self.project.arch.byte_width:
+        # a call narrower than a byte is a predicate (a known-pattern call standing in for a 1-bit comparison);
+        # its declared return type is the right type, and a cast to a zero-byte integer is not a type at all
+        if (
+            expr.bits
+            and expr.bits >= self.project.arch.byte_width
+            and call_expr.type is not None
+            and call_expr.type.size != expr.size * self.project.arch.byte_width
+        ):
             call_expr = CTypeCast(
                 call_expr.type,
                 self.default_simtype_from_bits(
@@ -4238,6 +4302,71 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
         return CRegister(expr, tags=expr.tags, codegen=self)
 
+    #: The libc functions that return ``&errno``. ``errno`` is a macro that
+    #: dereferences one of them, so it never survives into a binary as a symbol;
+    #: what reaches decompilation is ``*(__errno_location())``, which is both
+    #: correct and unreadable.
+    ERRNO_LOCATION_FUNCS = frozenset(
+        {
+            "__errno_location",  # glibc
+            "__error",  # BSD, macOS
+            "__errno",  # musl, bionic
+            "_errno",  # MSVC
+        }
+    )
+
+    def _is_errno_call(self, expr) -> bool:
+        """Whether ``expr`` is a call to one of :attr:`ERRNO_LOCATION_FUNCS`."""
+        if not isinstance(expr, Expr.Call):
+            return False
+        target = expr.target
+        if isinstance(target, str):
+            return target in self.ERRNO_LOCATION_FUNCS
+        if not isinstance(target, Expr.Const) or not isinstance(target.value, int):
+            return False
+        func = self.kb.functions.function(addr=target.value)
+        return func is not None and func.name in self.ERRNO_LOCATION_FUNCS
+
+    def _errno_vvar_ids(self) -> frozenset[int]:
+        """Virtual variables that hold ``&errno``.
+
+        ``errno`` expands per use, but the compiler calls the location function
+        once and keeps the pointer in a register, so most uses reach codegen as
+        a read through a variable rather than as the call itself. Copies of that
+        variable count too, hence the fixpoint.
+        """
+        if self._errno_vvars is not None:
+            return self._errno_vvars
+        found: set[int] = set()
+        if self.ail_graph is not None:
+            changed = True
+            while changed:
+                changed = False
+                for block in self.ail_graph.nodes():
+                    for stmt in block.statements:
+                        if not isinstance(stmt, Stmt.Assignment) or not isinstance(stmt.dst, Expr.VirtualVariable):
+                            continue
+                        if stmt.dst.varid in found:
+                            continue
+                        src = stmt.src
+                        if self._is_errno_call(src) or (isinstance(src, Expr.VirtualVariable) and src.varid in found):
+                            found.add(stmt.dst.varid)
+                            changed = True
+        self._errno_vvars = frozenset(found)
+        return self._errno_vvars
+
+    def _is_errno_location(self, expr) -> bool:
+        """Whether ``expr`` evaluates to ``&errno``."""
+        if self._is_errno_call(expr):
+            return True
+        return isinstance(expr, Expr.VirtualVariable) and expr.varid in self._errno_vvar_ids()
+
+    def _errno_variable(self):
+        """``errno`` as a plain name. A CFakeVariable rather than a CVariable
+        because there is no address to point at: the thread-local slot is
+        wherever the libc function said it was."""
+        return CFakeVariable("errno", SimTypeInt().with_arch(self.project.arch), codegen=self)
+
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
         if expr.size == UNDETERMINED_SIZE:
             # the size is undetermined; we force it to 1
@@ -4261,6 +4390,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             ):
                 return proposed_ty
             return old_ty
+
+        if self._is_errno_location(expr.addr):
+            return self._errno_variable()
 
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
@@ -4464,7 +4596,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         # do we need an intermediate cast?
         if orig_child_signed != expr.is_signed and expr.to_bits > expr.from_bits and child.type is not None:
             # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
-            child_ty = self.default_simtype_from_bits(child.type.size, expr.is_signed)
+            # a child whose type has no size (e.g., a function or a bottom type) is as wide as the conversion says
+            child_bits = child.type.size if child.type.size is not None else expr.from_bits
+            child_ty = self.default_simtype_from_bits(child_bits, expr.is_signed)
             child = CTypeCast(None, child_ty, child, codegen=self)
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
