@@ -50,6 +50,18 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     return arg1 == arg2
 
 
+def lsb_bit_offset(base_bits: int, field_bits: int, byte_offset: int, endness: str, byte_width: int = 8) -> int:
+    """
+    Return where the low end of a field sits inside its base, counted in bits up from the low end of the base.
+
+    ``Extract`` and ``Insert`` count ``offset`` in bytes from the start of the base in memory order, so on a
+    big-endian value byte 0 holds the most significant bits and the field's low end is at the far side of the base.
+    """
+    if endness == archinfo.Endness.LE:
+        return byte_offset * byte_width
+    return base_bits - byte_offset * byte_width - field_bits
+
+
 def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
     """
     Return ``True`` if ``expr`` is an ``Extract`` that takes the least-significant ``expr.bits`` bits of its base,
@@ -59,9 +71,7 @@ def is_lsb_extract(expr: ailment.expression.Expression) -> bool:
         return False
     if not isinstance(expr.offset, ailment.expression.Const):
         return False
-    if expr.endness == archinfo.Endness.LE:
-        return expr.offset.value == 0
-    return expr.offset.value * 8 + expr.bits == expr.base.bits
+    return lsb_bit_offset(expr.base.bits, expr.bits, expr.offset.value, expr.endness) == 0
 
 
 def is_lsb_overwrite(expr: ailment.expression.Expression) -> bool:
@@ -75,6 +85,4 @@ def is_lsb_overwrite(expr: ailment.expression.Expression) -> bool:
         return False
     if not (isinstance(expr.offset, ailment.expression.Const) and isinstance(expr.offset.value, int)):
         return False
-    if expr.endness == archinfo.Endness.LE:
-        return expr.offset.value == 0
-    return expr.offset.value * 8 + expr.value.bits == expr.bits
+    return lsb_bit_offset(expr.bits, expr.value.bits, expr.offset.value, expr.endness) == 0

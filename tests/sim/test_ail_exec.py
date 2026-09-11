@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import angr
 from angr import ailment, claripy
+from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
 from angr.analyses.decompiler.clinic import Clinic
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
@@ -437,3 +438,55 @@ class TestAILExec(unittest.TestCase):
         assert state.callstack.vars[v0.varid].concrete_value == 1
         assert state.callstack.vars[v1.varid].concrete_value == 2
         assert state.callstack.vars[v2.varid].concrete_value == 3
+
+
+class TestAILExecEndness(unittest.TestCase):
+    """
+    Extract and Insert count their offset in bytes from the start of the base in memory order, so on a big-endian
+    value byte 0 is the most significant one.
+    """
+
+    BASE = 0x0102030405060708
+
+    @staticmethod
+    def _engine(bin_path):
+        p = angr.Project(os.path.join(test_location, *bin_path), auto_load_libs=False)
+        state = p.factory.blank_state()
+        engine = SimEngineAILSimState(p, SimSuccessors(state.addr, state))
+        engine.state = state
+        return p, engine
+
+    def _check(self, bin_path, lsb_offset, msb_offset):
+        p, engine = self._engine(bin_path)
+        endness = p.arch.memory_endness
+        for offset, expected in ((lsb_offset, 0x05060708), (msb_offset, 0x01020304)):
+            extract = ailment.expression.Extract(
+                None,
+                32,
+                ailment.expression.Const(None, self.BASE, 64),
+                ailment.expression.Const(None, offset, 64),
+                endness,
+            )
+            assert is_lsb_extract(extract) is (offset == lsb_offset)
+            result = engine._handle_expr_Extract(extract)  # pylint: disable=protected-access
+            assert isinstance(result, claripy.ast.BV)
+            assert result.concrete and result.concrete_value == expected
+
+            insert = ailment.expression.Insert(
+                None,
+                ailment.expression.Const(None, self.BASE, 64),
+                ailment.expression.Const(None, offset, 64),
+                ailment.expression.Const(None, 0xAABBCCDD, 32),
+                endness,
+            )
+            assert is_lsb_overwrite(insert) is (offset == lsb_offset)
+            result = engine._handle_expr_Insert(insert)  # pylint: disable=protected-access
+            assert isinstance(result, claripy.ast.BV)
+            assert result.concrete
+            assert result.concrete_value == (0x01020304AABBCCDD if offset == lsb_offset else 0xAABBCCDD05060708)
+
+    def test_big_endian(self):
+        self._check(("ppc64", "fauxware"), lsb_offset=4, msb_offset=0)
+
+    def test_little_endian(self):
+        self._check(("x86_64", "fauxware"), lsb_offset=0, msb_offset=4)
