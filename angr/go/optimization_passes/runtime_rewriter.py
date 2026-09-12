@@ -1593,6 +1593,18 @@ class _CallReplacer(AILBlockRewriter):
             return self._replacement
         return super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_Convert(self, expr_idx, expr, stmt_idx, stmt, block):
+        # `test al, al` on the bool result lifts as Conv(64->8, rax): narrow the vvar rather than convert it
+        new_expr = super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
+        conv = new_expr if new_expr is not None else expr
+        if (
+            isinstance(conv.operand, VirtualVariable)
+            and conv.operand.varid == self._replacement.varid
+            and conv.to_bits < conv.from_bits
+        ):
+            return self._o._narrow(self._replacement, conv.to_bits)
+        return new_expr
+
     def _handle_Extract(self, expr_idx, expr, stmt_idx, stmt, block):
         new_expr = super()._handle_Extract(expr_idx, expr, stmt_idx, stmt, block)
         base = new_expr.base
