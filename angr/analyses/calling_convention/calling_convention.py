@@ -58,7 +58,7 @@ from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
 from angr.utils.vex import block_branch_ins_addr
 
 from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector
-from .utils import is_sane_register_variable
+from .utils import is_sane_register_variable, merge_overlapping_register_spans
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -1045,19 +1045,38 @@ class CallingConventionAnalysis(Analysis):
             full_off1 = get_reg_offset_base(off1, self.project.arch, sz1)
             return full_off0 == full_off1
 
+        arch = self.project.arch
         reg_args = []
+
+        # reads of overlapping sub-registers (e.g., ch and cx) describe one argument
+        regarg_by_span: dict[tuple[int, int], SimRegArg] = {}
+        for arg in args:
+            if isinstance(arg, SimRegArg):
+                regarg_by_span[(arch.registers[arg.reg_name][0] + arg.reg_offset, arg.size)] = arg
+        merged_reg_args: list[SimRegArg] = []
+        for span in merge_overlapping_register_spans(arch, regarg_by_span):
+            arg = regarg_by_span.get(span)
+            if arg is None:
+                arg = SimRegArg(arch.translate_register_name(span[0], size=span[1]), span[1])
+            merged_reg_args.append(arg)
 
         # split args into two lists
         int_args = []
         fp_args = []
-        for arg in args:
-            if isinstance(arg, SimRegArg):
-                if cc.FP_ARG_REGS and arg.reg_name in cc.FP_ARG_REGS:
-                    fp_args.append(arg)
-                else:
-                    int_args.append(arg)
+        for arg in merged_reg_args:
+            if cc.FP_ARG_REGS and arg.reg_name in cc.FP_ARG_REGS:
+                fp_args.append(arg)
+            else:
+                int_args.append(arg)
 
-        initial_stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
+        # stack args at the same offset describe one argument; keep the widest access
+        stackarg_by_offset: dict[int, SimStackArg] = {}
+        for arg in args:
+            if isinstance(arg, SimStackArg):
+                existing = stackarg_by_offset.get(arg.stack_offset)
+                if existing is None or arg.size > existing.size:
+                    stackarg_by_offset[arg.stack_offset] = arg
+        initial_stack_args = [stackarg_by_offset[offset] for offset in sorted(stackarg_by_offset)]
         # ensure stack args are consecutive if necessary
         if cc.STACKARG_SP_DIFF is not None and initial_stack_args:
             arg_by_offset = {a.stack_offset: a for a in initial_stack_args}

@@ -640,6 +640,53 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 1
 
+    def test_overlapping_subregister_reads_make_one_argument(self):
+        """Reads of ch and cx describe one rcx argument; a leaked sub-register used to become a phantom stack argument
+        whose size depended on set iteration order."""
+        binary = os.path.join(
+            test_location, "x86_64", "windows", "b97fee512e8f5611aa23a86bbbad3844556ddfe191c331e93cccef2603825d5e"
+        )
+        project = angr.Project(binary, auto_load_libs=False)
+        project.analyses.CFGFast(normalize=True, force_smart_scan=False)
+        func = project.kb.functions["sub_25659"]
+
+        facts = project.analyses.FunctionFactCollector(func)
+        assert [arg.reg_name for arg in facts.input_args] == ["rcx", "dl", "rsi"]
+
+        dec = project.analyses.Decompiler(func)
+        assert func.prototype is not None
+        assert len(func.prototype.args) == 2
+        assert dec.codegen is not None
+        assert "sub_25659(unsigned short a0, unsigned long a1)" in dec.codegen.text
+
+    def test_reorder_args_merges_overlapping_register_args(self):
+        binary = os.path.join(test_location, "x86_64", "fauxware")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        func = cfg.kb.functions["authenticate"]
+
+        cca = project.analyses.CallingConvention(
+            func, input_args=[SimRegArg("dil", 1), SimRegArg("di", 2), SimRegArg("sil", 1)], retval_size=8
+        )
+        assert isinstance(cca.cc, SimCCSystemVAMD64)
+        assert cca.prototype is not None
+        assert [arg.size for arg in cca.prototype.args] == [16, 8]
+
+    def test_reorder_args_merges_same_offset_stack_args(self):
+        binary = os.path.join(test_location, "x86_64", "fauxware")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        func = cfg.kb.functions["authenticate"]
+
+        cca = project.analyses.CallingConvention(
+            func, input_args=[SimRegArg("rdi", 8), SimStackArg(8, 1), SimStackArg(8, 8)], retval_size=8
+        )
+        assert isinstance(cca.cc, SimCCSystemVAMD64)
+        assert cca.prototype is not None
+        # rdi, five filler register arguments, and one 8-byte stack argument
+        assert len(cca.prototype.args) == 7
+        assert cca.prototype.args[-1].size == 64
+
     def _check_return_type_comprehensive(self, funcs, func_name, expected_type_cls):
         func = funcs[func_name]
         ret_type = func.prototype.returnty

@@ -12,6 +12,7 @@ import angr
 from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
+    SimRegArg,
     default_cc,
 )
 from tests.common import bin_location
@@ -133,6 +134,11 @@ class TestFactCollector(unittest.TestCase):
         facts = proj.analyses.FunctionFactCollector(cfg.kb.functions[atan2.rebased_addr])
 
         self.assertEqual(facts.retval_size, 8)
+
+    def test_overlapping_subregister_reads_are_one_input_arg(self):
+        # mov al, ch; mov bx, cx; ret
+        facts = self._collect_shellcode_facts(bytes.fromhex("88e86689cbc3"))
+        assert facts.input_args == [SimRegArg("cx", 2)]
 
     def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, arch, "fauxware")

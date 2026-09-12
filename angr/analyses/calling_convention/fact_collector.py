@@ -17,7 +17,7 @@ from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
 
-from .utils import is_sane_register_variable
+from .utils import is_sane_register_variable, merge_overlapping_register_spans
 
 if TYPE_CHECKING:
     from angr.codenode import CodeNode
@@ -947,7 +947,6 @@ class FactCollector(Analysis):
 
     def _determine_input_args(self, end_states: list[FactCollectorState], callee_restored_regs: set[int]) -> None:
         self.input_args = []
-        reg_offset_created = set()
         callee_saved_regs = set()
         callee_saved_reg_stack_offsets = set()
 
@@ -967,21 +966,23 @@ class FactCollector(Analysis):
                     unused_hint_offsets.add(reg_offset)
 
         arg_reg_cc = default_cc_for_project(self.project)
+        reg_reads: dict[int, int] = {}
         for state in end_states:
             for offset, size in state.reg_reads.items():
                 if (
-                    offset in reg_offset_created
-                    or offset == self.project.arch.bp_offset
+                    offset == self.project.arch.bp_offset
                     or not is_sane_register_variable(self.project.arch, offset, size, def_cc=arg_reg_cc)
                     or offset in callee_saved_regs
                 ):
                     continue
-                reg_offset_created.add(offset)
-                reg_name = self.project.arch.translate_register_name(offset, size=size)
-                arg = SimRegArg(reg_name, size)
-                self.input_args.append(arg)
-                if offset in unused_hint_offsets:
-                    self.unused_args.append(arg)
+                reg_reads[offset] = max(reg_reads.get(offset, 0), size)
+        # reads of overlapping sub-registers (e.g., ch and cx) describe one argument
+        for offset, size in merge_overlapping_register_spans(self.project.arch, reg_reads.items()):
+            reg_name = self.project.arch.translate_register_name(offset, size=size)
+            arg = SimRegArg(reg_name, size)
+            self.input_args.append(arg)
+            if offset in unused_hint_offsets:
+                self.unused_args.append(arg)
 
         stack_offset_created = set()
         ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
