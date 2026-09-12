@@ -23,4 +23,6 @@ class RustCallingConvention(OptimizationPass):
         rcc = self.project.analyses.RustCallingConvention(self._func, ail_manager=self.manager)
         self._func.prototype = rcc.prototype
         self._func.calling_convention = rcc.calling_convention
-        self._func.prototype_source = PrototypeSource.CCA_DECOMPILER
+        # derived from the Rust ABI and type database, not from our own inference: Clinic must not
+        # re-derive it later in the same run
+        self._func.prototype_source = PrototypeSource.SIGNATURES

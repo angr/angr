@@ -511,6 +511,7 @@ class VariableManagerInternal(Serializable):
                 if existing_var.name is not None and not variable.renamed:
                     variable.name = existing_var.name
                     variable.renamed = existing_var.renamed
+                    variable.auto_renamed = existing_var.auto_renamed
             self._ident_to_variable[variable.ident] = variable
 
         if region is not None:
@@ -533,6 +534,7 @@ class VariableManagerInternal(Serializable):
             if existing_var.name is not None and not variable.renamed:
                 variable.name = existing_var.name
                 variable.renamed = existing_var.renamed
+                variable.auto_renamed = existing_var.auto_renamed
         region.set_variable(start, variable)
         self._variables.add(variable)
         self._variables_without_writes.add(variable)
@@ -1058,7 +1060,9 @@ class VariableManagerInternal(Serializable):
                     sorted_combo_reg_variables.append(var)
 
             elif isinstance(var, SimMemoryVariable):
-                if not reset and var.name is not None:
+                if var.auto_renamed and not var.renamed:
+                    var.auto_renamed = False
+                elif not reset and var.name is not None:
                     continue
                 # assign names directly
                 if labels is not None and var.addr in labels:
@@ -1091,7 +1095,10 @@ class VariableManagerInternal(Serializable):
 
         for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_combo_reg_variables, phi_only_vars):
             idx = next(var_ctr)
-            if var.name is not None and var.name != var.ident and not reset:
+            if var.auto_renamed and not var.renamed:
+                # a semantic name from an earlier run: drop it so this run can name the variable afresh
+                var.auto_renamed = False
+            elif var.name is not None and var.name != var.ident and not reset:
                 continue
             if isinstance(var, (SimStackVariable, SimRegisterVariable, SimComboRegisterVariable)):
                 var.name = f"v{idx}"
@@ -1103,7 +1110,9 @@ class VariableManagerInternal(Serializable):
         arg_vars = sorted(arg_vars, key=lambda v: _id_from_varident(v.ident))
         for var in arg_vars:
             idx = next(arg_ctr)
-            if var.name is not None and var.name != var.ident and not reset:
+            if var.auto_renamed and not var.renamed:
+                var.auto_renamed = False
+            elif var.name is not None and var.name != var.ident and not reset:
                 continue
             var.name = arg_names[idx] if arg_names else f"a{idx}"
             var._hash = None
@@ -1255,6 +1264,7 @@ class VariableManagerInternal(Serializable):
             if old_unified.name is not None and not unified.renamed:
                 unified.name = old_unified.name
                 unified.renamed = old_unified.renamed
+                unified.auto_renamed = old_unified.auto_renamed
 
         self._unified_variables.add(unified)
         self._variables_to_unified_variables[variable] = unified
