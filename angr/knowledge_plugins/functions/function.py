@@ -31,6 +31,7 @@ from angr.rust.utils.demangler import demangle
 from angr.serializable import Serializable
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.utils.library import get_cpp_function_name_and_metadata
+from angr.utils.types import dereference_simtype, find_type_refs, type_collections_for_lib
 from angr.utils.vex import block_branch_ins_addr
 
 from .function_parser import FunctionParser
@@ -144,6 +145,8 @@ class Function(Serializable):
         "_project",
         "_prototype",
         "_prototype_libname",
+        "_prototype_ref_warned",
+        "_prototype_resolved",
         "_prototype_source",
         "_ret_sites",
         "_retout_sites",
@@ -228,8 +231,11 @@ class Function(Serializable):
         self.sp_delta = 0
         # Calling convention
         self._calling_convention = calling_convention
-        # Function prototype
+        # Function prototype. Prototypes may contain SimTypeRefs (e.g., when loaded from a library definition or an
+        # angrdb); they are dereferenced lazily on the first read of .prototype.
         self._prototype = prototype
+        self._prototype_resolved = False
+        self._prototype_ref_warned = False
         self._prototype_libname = prototype_libname
         if prototype_source is None:
             self._prototype_source = (
@@ -406,7 +412,35 @@ class Function(Serializable):
 
     @property
     def prototype(self) -> SimTypeFunction | None:
+        if self._prototype is None or self._prototype_resolved:
+            return self._prototype
+        self._resolve_prototype()
         return self._prototype
+
+    def _resolve_prototype(self) -> None:
+        """
+        Dereference SimTypeRefs in the prototype using the loaded type collections. Unresolvable references are kept
+        and retried on the next read.
+        """
+        assert self._prototype is not None
+        refs = find_type_refs(self._prototype)
+        if refs:
+            proto = dereference_simtype(
+                self._prototype, type_collections_for_lib(self._prototype_libname), keep_missing=True
+            )
+            assert isinstance(proto, SimTypeFunction)
+            self._prototype = proto
+            refs = find_type_refs(proto)
+        if refs:
+            if not self._prototype_ref_warned:
+                self._prototype_ref_warned = True
+                l.warning(
+                    "Prototype of function %s references unknown types %s; load the type library that defines them.",
+                    self.name,
+                    sorted(refs),
+                )
+        else:
+            self._prototype_resolved = True
 
     @prototype.setter
     @dirty_func
@@ -433,6 +467,8 @@ class Function(Serializable):
                         arg_names.append(f"a{i}")
             proto.arg_names = tuple(arg_names)
         self._prototype = proto
+        self._prototype_resolved = False
+        self._prototype_ref_warned = False
 
     @property
     def prototype_libname(self):
@@ -443,11 +479,22 @@ class Function(Serializable):
         if self._prototype_libname == libname:
             return
         self._prototype_libname = libname
+        self._prototype_resolved = False
+        self._prototype_ref_warned = False
         self.mark_dirty()
 
     @property
     def is_prototype_guessed(self) -> bool:
         return self._prototype_source in {PrototypeSource.NONE, PrototypeSource.GUESSED, PrototypeSource.CCA_LOW}
+
+    @property
+    def is_prototype_groundtruth(self) -> bool:
+        """
+        True if the prototype comes from outside of the decompiler (SimProcedures, signatures, or the user) and may be
+        fed back into type inference as ground truth. Prototypes inferred by the decompiler itself are excluded so that
+        re-decompiling a function does not freeze its own earlier guess.
+        """
+        return self._prototype is not None and self._prototype_source > PrototypeSource.CCA_DECOMPILER
 
     @property
     def prototype_source(self) -> PrototypeSource:

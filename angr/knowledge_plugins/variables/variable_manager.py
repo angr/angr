@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections import defaultdict
 from collections.abc import Iterator
 from itertools import chain, count
@@ -39,7 +40,7 @@ from angr.sim_variable import (
 )
 from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
-from angr.utils.types import replace_pointer_pts_to, unpack_pointer
+from angr.utils.types import relink_typerefs, replace_pointer_pts_to, unpack_pointer
 
 from .spilling_vardict import USE_SPILLING_DVARS, SpillingVariableInternalDict
 from .variable_access import VariableAccess, VariableAccessSort
@@ -313,6 +314,21 @@ class VariableManagerInternal(Serializable):
             entry.manual = var in self.variables_with_manual_types
             type_entries.append(entry)
         cmsg.types.extend(type_entries)
+
+        # Named local types (self.types): the TypeRef targets, interned into the same pool
+        local_type_entries = []
+        for name in self.types.iter_own_keys():
+            type_json = json.dumps(self.types.get_own(name).type.to_json())
+            ref = type_ref_by_json.get(type_json)
+            if ref is None:
+                type_pool.append(type_json)
+                ref = len(type_pool)
+                type_ref_by_json[type_json] = ref
+            entry = variables_pb2.LocalType()  # type: ignore[reportAttributeAccessIssue]
+            entry.name = name
+            entry.type_ref = ref
+            local_type_entries.append(entry)
+        cmsg.local_types.extend(local_type_entries)
         cmsg.type_pool.extend(type_pool)
 
         # TODO: vvarid_to_varialbes & variable_to_vvarids
@@ -437,6 +453,24 @@ class VariableManagerInternal(Serializable):
         for ref, type_json in enumerate(cmsg.type_pool, start=1):
             var_type = SimType.from_json(json.loads(type_json))
             type_by_ref[ref] = var_type.with_arch(arch) if arch is not None else var_type
+
+        # Named local types come back as fresh TypeRefs owned by model.types; TypeRefs of the same name inside the
+        # decoded types are relinked to them so that the store stays the single owner of each named type.
+        typerefs: dict[str, TypeRef] = {}
+        if model.manager is not None:
+            for local_type_pb2 in cmsg.local_types:
+                ty = type_by_ref.get(local_type_pb2.type_ref)
+                if ty is None:
+                    continue
+                if isinstance(ty, TypeRef):
+                    ty = ty.type
+                typerefs[local_type_pb2.name] = TypeRef(local_type_pb2.name, ty)
+            for name, typeref in typerefs.items():
+                relink_typerefs(typeref.type, typerefs)
+                model.types[name] = typeref
+            for ref, ty in type_by_ref.items():
+                type_by_ref[ref] = relink_typerefs(ty, typerefs)
+
         for type_pb2 in cmsg.types:
             var = variable_by_ident.get(type_pb2.ident) or unified_variable_by_ident.get(type_pb2.ident)
             var_type = type_by_ref.get(type_pb2.type_ref)
@@ -464,6 +498,17 @@ class VariableManagerInternal(Serializable):
             region.add_variable(offset, var)
 
         model._variables_without_writes = set(model.get_variables_without_writes())
+
+        # restore the ident counters so that new variables never reuse the ident of a loaded one
+        prefix_to_sort = {"r": "register", "s": "stack", "arg": "argument", "g": "global", "c": "constant", "m": "phi"}
+        for var in chain(model._variables, model._phi_variables, model._unified_variables):
+            if var.ident is None:
+                continue
+            m = re.fullmatch(r"i([a-z]+)_(\d+)", var.ident)
+            if m is None or m.group(1) not in prefix_to_sort:
+                continue
+            sort = prefix_to_sort[m.group(1)]
+            model._variable_counters[sort] = max(model._variable_counters[sort], int(m.group(2)) + 1)
 
         return model
 

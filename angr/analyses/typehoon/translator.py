@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from angr import sim_type
 from angr.sim_type import SimType, TypeRef
+from angr.utils.types import type_collections_for_lib
 
 from . import typeconsts
 from .typeconsts import TypeConstant
@@ -361,16 +362,25 @@ class TypeTranslator:
         return typeconsts.Int16(name=st.label)
 
     def _translate_SimTypeRef(self, st: sim_type.SimTypeRef) -> typeconsts.TypeConstant | typeconsts.BottomType:
-        # we really should not get SimTypeRef here, but if we do, we conduct a best-effort translation of SimTypeRef to
-        # a type constant.
-        l.error(
-            "TypeTranslator encountered an unexpected SimTypeRef. You probably forgot to call "
-            "dereference_simtype() to translate a SimTypeRef to a SimType!"
-        )
         type_key = self._simstruct_cppclass_to_memo_key(st)
         if type_key is not None and type_key in self.memo:
+            # a reference to a struct that is being translated (e.g., a self-referential field)
             return self.memo[type_key]
 
+        # resolve the reference against the loaded type collections
+        if st.name is not None:
+            for tc in type_collections_for_lib(None):
+                if st.name in tc:
+                    real_type = tc.get(st.name)
+                    if self.arch is not None:
+                        real_type = real_type.with_arch(self.arch)
+                    return self._simtype2tc(real_type)
+
+        l.error(
+            "TypeTranslator encountered an unresolvable SimTypeRef %s. Make sure the type library that defines it is "
+            "loaded.",
+            st.name,
+        )
         if st.original_type is sim_type.SimStruct:
             obj = typeconsts.Struct(fields={}, name=st.name)
             if type_key is not None:

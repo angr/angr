@@ -85,6 +85,11 @@ message Phi2Var {
     string          var_ident = 2;
 }
 
+message LocalType {
+    string          name = 1;
+    uint32          type_ref = 2;  // index+1 into VariableManagerInternal.type_pool
+}
+
 
 message VariableManagerInternal {
     // Variables of each type
@@ -107,4 +112,6 @@ message VariableManagerInternal {
     repeated string type_pool = 14;
     // Phi variables
     repeated Phi2Var phi2var = 12;
+    // Named local types (VariableManagerInternal.types), e.g., structs recovered by type inference
+    repeated LocalType local_types = 15;
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
@@ -11,7 +12,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 from angr.errors import AngrCorruptDBError, AngrDBError, AngrIncompatibleDBError
-from angr.procedures import SIM_PROCEDURES
+from angr.procedures import SIM_PROCEDURES, SIM_TYPE_COLLECTIONS
+from angr.procedures.definitions import load_type_collections
 from angr.project import Project
 
 from .models import Base, DbInformation
@@ -19,6 +21,9 @@ from .serializers import KnowledgeBaseSerializer, LoaderSerializer
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
+
+
+l = logging.getLogger(__name__)
 
 
 class AngrDB:
@@ -84,6 +89,36 @@ class AngrDB:
         else:
             db_info = DbInformation(key=key, value=value)
             session.add(db_info)
+
+    @staticmethod
+    def loaded_type_collection_names() -> list[str]:
+        """
+        Primary names of all loaded type collections.
+        """
+        names: list[str] = []
+        seen: set[int] = set()
+        for tc in SIM_TYPE_COLLECTIONS.values():
+            if id(tc) in seen or not tc.names:
+                continue
+            seen.add(id(tc))
+            names.append(tc.names[0])
+        return sorted(names)
+
+    @staticmethod
+    def load_type_collections(names: list[str]) -> None:
+        """
+        Make sure the type collections `names` are loaded; warn about the ones that cannot be found.
+        """
+        missing = [name for name in names if name not in SIM_TYPE_COLLECTIONS]
+        if missing:
+            load_type_collections(only=set(missing))
+            missing = [name for name in missing if name not in SIM_TYPE_COLLECTIONS]
+        if missing:
+            l.warning(
+                "Type collections %s were loaded when this database was created but are not available now. Struct "
+                "references to types they define cannot be resolved.",
+                missing,
+            )
 
     @staticmethod
     def get_info(session, key):
@@ -198,6 +233,10 @@ class AngrDB:
             if jump_target_addrs:
                 self.save_info(session, "unresolvable_jump_target_addrs", json.dumps(jump_target_addrs))
 
+            # Save the names of loaded type collections. Named structs in prototypes are stored as references, which
+            # can only be resolved after loading if the same type collections are available.
+            self.save_info(session, "type_collections", json.dumps(self.loaded_type_collection_names()))
+
             # Update the information
             self.update_dbinfo(session, extra_info=extra_info)
 
@@ -217,6 +256,11 @@ class AngrDB:
                 raise AngrIncompatibleDBError(
                     "Version {} is incompatible with the current version of angr.".format(dbinfo.get("version", None))
                 )
+
+            # Load type collections that were available when the database was created
+            type_collections_str = self.get_info(session, "type_collections")
+            if type_collections_str:
+                self.load_type_collections(json.loads(type_collections_str))
 
             # Load the loader
             loader = LoaderSerializer.load(session)
