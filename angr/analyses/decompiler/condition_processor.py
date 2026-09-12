@@ -1000,7 +1000,7 @@ class ConditionProcessor:
                 else condition.offset.value
             )
             var = claripy.BVS(
-                f"ailexpr_Extract({condition.bits}, {condition.endness}, {offset_expr}, {hash(var_)})",
+                f"ailexpr_Extract({condition.bits}, {condition.endness}, {offset_expr}, {var_.hash()})",
                 condition.bits,
                 explicit_name=True,
             )
@@ -1015,7 +1015,7 @@ class ConditionProcessor:
                 else condition.offset.value
             )
             var = claripy.BVS(
-                f"ailexpr_Insert({offset_expr}, {hash(value)}, {hash(var_)})", condition.bits, explicit_name=True
+                f"ailexpr_Insert({offset_expr}, {value.hash()}, {var_.hash()})", condition.bits, explicit_name=True
             )
             self._condition_mapping[var.args[0]] = condition
             return var
@@ -1023,11 +1023,11 @@ class ConditionProcessor:
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
             if condition.to_bits == 1 and not nobool:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
+                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {var_.hash()})"
                 var = claripy.BoolS(name, explicit_name=True)
             else:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
+                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {var_.hash()})"
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
@@ -1117,11 +1117,16 @@ class ConditionProcessor:
             inverse_op = getattr(ast.args[0], _INVERSE_OPERATIONS[ast.op])
             return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(inverse_op(ast.args[1]), memo=memo))
 
-        if memo is not None and ast in memo:
-            return memo[ast]
-        symbol = sympy.Symbol(str(hash(ast)))
-        if memo is not None:
-            memo[symbol] = ast
+        if memo is None:
+            memo = {}
+        key = ast.hash()
+        if key in memo:
+            return memo[key]
+        # sympy orders And/Or operands by symbol name, so name leaves in encounter order to keep the input order.
+        # every leaf adds two entries (hash -> symbol, symbol -> ast), hence the halving.
+        symbol = sympy.Symbol(f"t{len(memo) // 2:04d}")
+        memo[key] = symbol
+        memo[symbol] = ast
         return symbol
 
     @staticmethod
@@ -1232,7 +1237,7 @@ class ConditionProcessor:
 
     @staticmethod
     def _extract_terms(ast: claripy.ast.Bool) -> Generator[claripy.ast.Bool]:
-        if ast.op == "And" or ast.op == "Or":
+        if ast.op in ("And", "Or"):
             for arg in ast.args:
                 yield from ConditionProcessor._extract_terms(arg)
         elif ast.op == "Not":

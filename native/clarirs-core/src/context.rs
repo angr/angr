@@ -1,8 +1,8 @@
-use ahash::AHasher;
+use ahash::{AHasher, RandomState};
 use std::{
     collections::{BTreeSet, HashMap},
     fmt::Debug,
-    hash::{Hash, Hasher},
+    hash::{BuildHasher, Hash, Hasher},
     sync::{Arc, RwLock},
 };
 
@@ -12,6 +12,18 @@ use crate::{
     prelude::*,
 };
 
+/// Hashes must be identical across processes: they are exposed to Python and end up in variable names and
+/// caches, so the per-process random keys ahash picks by default are not acceptable.
+pub(crate) fn deterministic_hasher() -> AHasher {
+    RandomState::with_seeds(
+        0x243f_6a88_85a3_08d3,
+        0x1319_8a2e_0370_7344,
+        0xa409_3822_299f_31d0,
+        0x082e_fa98_ec4e_6c89,
+    )
+    .build_hasher()
+}
+
 /// The hash a node is interned under: type, op (which folds in child hashes),
 /// then annotations. Shared so construction and algorithms that need a node's
 /// key without building it (e.g. `excavate_ite`) agree.
@@ -20,7 +32,7 @@ pub(crate) fn structural_hash(
     op: &AstOp<'_>,
     annotations: &BTreeSet<Annotation>,
 ) -> u64 {
-    let mut hasher = AHasher::default();
+    let mut hasher = deterministic_hasher();
     ast_type.hash(&mut hasher);
     op.hash(&mut hasher);
     for a in annotations {
