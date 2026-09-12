@@ -1238,6 +1238,7 @@ class Function(Serializable):
             return self._local_blocks[node.addr]
 
         self.mark_dirty()
+        self._local_transition_graph = None
         if node.addr not in self and node not in self.transition_graph:
             # only add each node to the graph once
             self.transition_graph.add_node(node)
