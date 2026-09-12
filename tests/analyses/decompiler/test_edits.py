@@ -260,6 +260,13 @@ class TestTypes(unittest.TestCase):
         assert "char *user" in code
         assert "char *pw" in code
 
+        # a user-provided prototype is ground truth: re-decompilation must not re-derive it
+        assert func.prototype is not None
+        assert func.prototype.c_repr() == "int ()(char *, char *)"
+        proj.analyses.Decompiler(func, regen_clinic=True)
+        assert func.prototype.c_repr() == "int ()(char *, char *)"
+        assert "int authenticate(char *user, char *pw)" in text_of(proj, func)
+
     def test_set_function_prototype_preserves_user_edits(self):
         """Dropping dec_variables discards renames and manual types; they must be restored."""
         proj, func = load()
