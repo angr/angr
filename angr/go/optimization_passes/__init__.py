@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .arg_spill_remover import GoArgSpillRemover
+from .atomic_rewriter import GoAtomicCasFolder, GoAtomicRewriter
 from .boxing_rewriter import GoBoxingRewriter
 from .builtin_rewriter import GoBuiltinRewriter
 from .check_remover import GoCheckRemover
@@ -28,6 +29,7 @@ def get_go_optimization_passes():
         # BEFORE_SSA_LEVEL0_TRANSFORMATION
         GoStackCheckRemover,
         GoCheckRemover,
+        GoAtomicRewriter,
         GoPinnedRegisterRewriter,
         GoRetExprRewriter,
         GoResultWidener,
@@ -38,6 +40,7 @@ def get_go_optimization_passes():
         GoArgSpillRemover,
         GoTypeSwitchSimplifier,
         GoValueFuser,
+        GoAtomicCasFolder,
         GoRuntimeRewriter,
         GoBuiltinRewriter,
         GoBoxingRewriter,
