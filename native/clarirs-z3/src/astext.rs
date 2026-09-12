@@ -729,19 +729,22 @@ impl<'c> AstExtZ3<'c> for AstRef<'c> {
                             AstRef::from_z3(ctx, arg(0)?)?,
                             AstRef::from_z3(ctx, arg(1)?)?,
                         ),
-                        DeclKind::Budiv => ctx.udiv(
+                        // z3's rewriter replaces these four with its internal
+                        // total forms, so anything read back out of a solver
+                        // carries the _i spelling rather than the base one.
+                        DeclKind::Budiv | DeclKind::BudivI => ctx.udiv(
                             AstRef::from_z3(ctx, arg(0)?)?,
                             AstRef::from_z3(ctx, arg(1)?)?,
                         ),
-                        DeclKind::Bsdiv => ctx.sdiv(
+                        DeclKind::Bsdiv | DeclKind::BsdivI => ctx.sdiv(
                             AstRef::from_z3(ctx, arg(0)?)?,
                             AstRef::from_z3(ctx, arg(1)?)?,
                         ),
-                        DeclKind::Burem => ctx.urem(
+                        DeclKind::Burem | DeclKind::BuremI => ctx.urem(
                             AstRef::from_z3(ctx, arg(0)?)?,
                             AstRef::from_z3(ctx, arg(1)?)?,
                         ),
-                        DeclKind::Bsrem => ctx.srem(
+                        DeclKind::Bsrem | DeclKind::BsremI => ctx.srem(
                             AstRef::from_z3(ctx, arg(0)?)?,
                             AstRef::from_z3(ctx, arg(1)?)?,
                         ),
