@@ -1,6 +1,5 @@
 use std::hash::{Hash, Hasher};
 
-use ahash::AHasher;
 use num_bigint::BigUint;
 
 /// A wrapper excluded from identity: all `Ignored<T>` compare equal and hash to
@@ -100,7 +99,7 @@ impl Annotation {
     }
 
     pub fn identity_hash(&self) -> u64 {
-        let mut hasher = AHasher::default();
+        let mut hasher = crate::context::deterministic_hasher();
         self.hash(&mut hasher);
         hasher.finish()
     }
