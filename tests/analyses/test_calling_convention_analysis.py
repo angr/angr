@@ -5,6 +5,7 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 
 import logging
 import os
+import re
 import time
 import unittest
 from functools import wraps
@@ -25,6 +26,7 @@ from angr.calling_conventions import (
 )
 from angr.errors import AngrRuntimeError
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, requires_binaries_private
 
 test_location = os.path.join(bin_location, "tests")
@@ -639,6 +641,56 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert isinstance(func_main.calling_convention, SimCCCdecl)
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 1
+
+    def test_overlapping_subregister_reads_make_one_argument(self):
+        """Reads of ch and cx describe one rcx argument; a leaked sub-register used to become a phantom stack argument
+        whose size depended on set iteration order."""
+        binary = os.path.join(
+            test_location, "x86_64", "windows", "b97fee512e8f5611aa23a86bbbad3844556ddfe191c331e93cccef2603825d5e"
+        )
+        project = angr.Project(binary, auto_load_libs=False)
+        project.analyses.CFGFast(normalize=True, force_smart_scan=False)
+        func = project.kb.functions["sub_25659"]
+
+        # the lifter may model the reads as ch/cx or as narrowed rcx reads; either way, one argument per register
+        arch = project.arch
+        facts = project.analyses.FunctionFactCollector(func)
+        base_regs = [get_reg_offset_base(arch.registers[arg.reg_name][0], arch) for arg in facts.input_args]
+        assert base_regs == [arch.registers["rcx"][0], arch.registers["rdx"][0], arch.registers["rsi"][0]]
+
+        dec = project.analyses.Decompiler(func)
+        assert func.prototype is not None
+        assert len(func.prototype.args) == 2
+        assert dec.codegen is not None
+        assert re.search(r"sub_25659\([^,()]+, [^,()]+\)", dec.codegen.text) is not None
+
+    def test_reorder_args_merges_overlapping_register_args(self):
+        binary = os.path.join(test_location, "x86_64", "fauxware")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        func = cfg.kb.functions["authenticate"]
+
+        cca = project.analyses.CallingConvention(
+            func, input_args=[SimRegArg("dil", 1), SimRegArg("di", 2), SimRegArg("sil", 1)], retval_size=8
+        )
+        assert isinstance(cca.cc, SimCCSystemVAMD64)
+        assert cca.prototype is not None
+        assert [arg.size for arg in cca.prototype.args] == [16, 8]
+
+    def test_reorder_args_merges_same_offset_stack_args(self):
+        binary = os.path.join(test_location, "x86_64", "fauxware")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        func = cfg.kb.functions["authenticate"]
+
+        cca = project.analyses.CallingConvention(
+            func, input_args=[SimRegArg("rdi", 8), SimStackArg(8, 1), SimStackArg(8, 8)], retval_size=8
+        )
+        assert isinstance(cca.cc, SimCCSystemVAMD64)
+        assert cca.prototype is not None
+        # rdi, five filler register arguments, and one 8-byte stack argument
+        assert len(cca.prototype.args) == 7
+        assert cca.prototype.args[-1].size == 64
 
     def _check_return_type_comprehensive(self, funcs, func_name, expected_type_cls):
         func = funcs[func_name]
