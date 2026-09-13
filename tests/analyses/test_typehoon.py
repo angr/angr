@@ -787,6 +787,65 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(struct_ty, SimStruct)
         assert len(struct_ty.fields) >= 3
 
+    # unzip 6.0 keeps its I/O callbacks in the Uz_Globs structure (globals.h): `MsgFn *message`
+    # (4 parameters), `PauseFn *mpause` (3 parameters, void) and `PasswdFn *decr_passwd`
+    # (6 parameters). In the stripped gcc-17 -O0 build they sit at these addresses and are
+    # called as `mov rbx, [rip+g]; call rbx`.
+    _UNZIP_MESSAGE = 0x5450C0
+    _UNZIP_MPAUSE = 0x5450D0
+    _UNZIP_DECR_PASSWD = 0x5450D8
+
+    def _unzip_decompile(self, func_addr: int, func_size: int):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "unzip_gcc17_O0.stripped")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        return self._decompile_function_scoped(proj, func_addr, func_size)
+
+    @staticmethod
+    def _extern_type_at(dec, global_addr: int):
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        assert global_addr in cexterns, f"global 0x{global_addr:x} not referenced: {sorted(hex(a) for a in cexterns)}"
+        return cexterns[global_addr]
+
+    @staticmethod
+    def _returns_void(fn: SimTypeFunction) -> bool:
+        # the translator marks a missing output slot with SimTypeBottom(label="void"); an output
+        # slot that exists but has no type evidence is a bare (unlabeled) bottom, rendered as int
+        return isinstance(fn.returnty, SimTypeBottom) and fn.returnty.label == "void"
+
+    def _assert_unzip_fnptr_global(self, func_addr: int, func_size: int, global_addr: int, nargs: int):
+        dec = self._unzip_decompile(func_addr, func_size)
+        ty = self._extern_type_at(dec, global_addr)
+        assert self._is_fnptr(ty), f"0x{global_addr:x} in sub_{func_addr:x}: expected a function pointer, got {ty!r}"
+        assert isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimTypeFunction)
+        assert len(ty.pts_to.args) == nargs, f"sub_{func_addr:x}: expected {nargs} parameters, got {ty.pts_to}"
+        return dec, ty.pts_to
+
+    def test_fnptr_unzip_password_callback_six_params(self):
+        # sub_40911d: `decr_passwd(&G, &rcnt, pwbuf, size, zfn, efn)` with the result compared
+        # afterwards -- a 6-parameter callback whose return value is used.
+        _, fn = self._assert_unzip_fnptr_global(0x40911D, 597, self._UNZIP_DECR_PASSWD, 6)
+        assert not self._returns_void(fn), f"expected a non-void return, got {fn}"
+
+    def test_fnptr_unzip_message_and_pause_globals(self):
+        # sub_41faba calls two different callback globals: message (4 parameters) and mpause
+        # (3 parameters, result unused -> void). Each cell must get its own function type.
+        dec, message = self._assert_unzip_fnptr_global(0x41FABA, 1785, self._UNZIP_MESSAGE, 4)
+        mpause = self._extern_type_at(dec, self._UNZIP_MPAUSE)
+        assert self._is_fnptr(mpause), f"mpause: expected a function pointer, got {mpause!r}"
+        assert isinstance(mpause, SimTypePointer) and isinstance(mpause.pts_to, SimTypeFunction)
+        assert len(mpause.pts_to.args) == 3
+        assert self._returns_void(mpause.pts_to), f"expected mpause to return void, got {mpause.pts_to}"
+        assert message is not mpause.pts_to
+
+    def test_fnptr_unzip_callback_parameter_guarded(self):
+        # sub_413fc0: the fourth parameter is a callback that is null-checked and then called
+        # (`if (!rc && cb) rc = cb(...)`); it must be recovered as a function-pointer parameter.
+        dec = self._unzip_decompile(0x413FC0, 222)
+        assert dec.clinic is not None
+        proto = dec.clinic.function.prototype
+        assert proto is not None and len(proto.args) >= 4
+        assert self._is_fnptr(proto.args[3]), f"expected a function-pointer parameter at index 3, got {proto}"
+
     def test_type_inference_with_custom_label(self):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
         proj = angr.Project(bin_path, auto_load_libs=False)
