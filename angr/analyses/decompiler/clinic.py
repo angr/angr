@@ -2721,6 +2721,15 @@ class Clinic(Analysis, Serializable):
                 if arg_i < len(self.function.prototype.args):
                     for tv in vr.var_to_typevars[variable]:
                         groundtruth[tv] = self.function.prototype.args[arg_i]
+        else:
+            # a union struct that callers pushed into this function is not this function's own earlier guess: pin it,
+            # provided it still covers the layout this function's own accesses established, so that the fields other
+            # functions saw reach every value derived from the argument
+            for arg_i, (_, variable) in arg_vvars.items():
+                pushed = self._pushed_union_for_argument(arg_i)
+                if pushed is not None:
+                    for tv in vr.var_to_typevars[variable]:
+                        groundtruth[tv] = pushed
 
         # get maximum sizes of each stack variable, regardless of its original type
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
@@ -2900,6 +2909,46 @@ class Clinic(Analysis, Serializable):
             self.kb.types._own_arg_layouts = table  # pylint:disable=protected-access
         return table
 
+    @property
+    def _own_local_layouts(self) -> dict[tuple[int, int], list[SimType]]:
+        """
+        Session-lifetime table of the layouts a caller's own accesses give each local value it passes to callees,
+        keyed by (function address, SSA value id). Recorded the first time the value is unioned; later decompilations
+        of the same function see the local typed by the unions its callees carry and could no longer tell the
+        caller's own fields apart, so they reuse the record.
+        """
+        table = getattr(self.kb.types, "_own_local_layouts", None)
+        if table is None:
+            table = {}
+            self.kb.types._own_local_layouts = table  # pylint:disable=protected-access
+        return table
+
+    @property
+    def _pushed_arg_unions(self) -> dict[tuple[int, int], SimTypePointer]:
+        """
+        Session-lifetime table of the union structs back-propagated into functions' arguments, keyed by (function
+        address, argument index). The prototype itself is recomputed at the start of every decompilation, so this is
+        what lets a pushed union survive until the function is decompiled again.
+        """
+        table = getattr(self.kb.types, "_pushed_arg_unions", None)
+        if table is None:
+            table = {}
+            self.kb.types._pushed_arg_unions = table  # pylint:disable=protected-access
+        return table
+
+    def _pushed_union_for_argument(self, arg_idx: int) -> SimTypePointer | None:
+        """The union callers pushed into this function's argument, if it still covers the function's own layout."""
+        pushed = self._pushed_arg_unions.get((self.function.addr, arg_idx))
+        if pushed is None:
+            return None
+        union_struct = self._pointee_struct(pushed)
+        if union_struct is None or not self._is_minted_union_type(pushed):
+            return None
+        own_struct = self._pointee_struct(self._own_arg_layouts.get((self.function.addr, arg_idx)))
+        if own_struct is not None and not self._layout_covers(union_struct, own_struct):
+            return None
+        return pushed
+
     def _minted_union_struct_names(self) -> set[str]:
         registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
         return set(registry.values())
@@ -2945,9 +2994,11 @@ class Clinic(Analysis, Serializable):
         if not arg_vvars:
             return
         proto = self.function.prototype
-        pinned = proto is not None and not self.function.is_prototype_guessed
+        pinned = proto is not None and self.function.is_prototype_groundtruth
         for arg_idx, (_, variable) in arg_vvars.items():
             if pinned and arg_idx < len(proto.args) and self._pointee_struct(proto.args[arg_idx]) is not None:
+                continue
+            if self._pushed_union_for_argument(arg_idx) is not None:
                 continue
             ty = var_manager.get_variable_type(variable)
             if ty is None or self._is_minted_union_type(ty):
@@ -3185,10 +3236,19 @@ class Clinic(Analysis, Serializable):
 
             current = var_manager.get_variable_type(variable)
             unions: list[tuple[TypeRef, SimStruct, list[tuple[int, int]]]] = []
-            for group in groups.values():
+            for key, group in groups.items():
                 candidates = list(group["observed"])
                 # include the layout the caller's own accesses imply so caller-side fields are preserved in the union
-                candidates.extend(self._caller_evidence(variable, current, arg_vvars, group["contaminated"]))
+                caller_evidence = self._caller_evidence(variable, current, arg_vvars, group["contaminated"])
+                if isinstance(key, int):
+                    # keep the layouts seen for this value on earlier decompilations: once the local is typed by the
+                    # unions its callees carry, the caller's own fields can no longer be told apart from them
+                    record_key = (self.function.addr, key)
+                    recorded = self._own_local_layouts.setdefault(record_key, [])
+                    known = {id(x) for x in recorded}
+                    recorded.extend(x for x in caller_evidence if id(x) not in known)
+                    caller_evidence = list(recorded)
+                candidates.extend(caller_evidence)
                 if not candidates:
                     continue
                 result = self._union_of_evidence(candidates)
@@ -3285,6 +3345,7 @@ class Clinic(Analysis, Serializable):
                 )
             ):
                 continue
+            self._pushed_arg_unions[(callee_addr, arg_idx)] = union_ptr
             new_args = list(proto.args)
             new_args[arg_idx] = union_ptr
             callee.prototype = SimTypeFunction(
