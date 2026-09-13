@@ -12,14 +12,12 @@ from ._typehash import type_tag
 
 
 def _typeconsts_equal(a, b, visited: set[tuple[int, int]]) -> bool:
-    # Structural equality that threads a per-call `visited` set of compared id-pairs, the same
-    # cycle-breaking technique `_hash`/`__repr__`/`replace` use, so self-referential function types
-    # don't recurse forever. Dispatches to each type's `_eq`.
+    # Structural equality with a per-call visited set, so self-referential function types terminate.
     if a is b:
         return True
     if a is None or b is None:
         return False
-    # pylint: disable-next=protected-access  # _eq(other, visited) is the peer TypeConstant equality protocol
+    # pylint: disable-next=protected-access
     return a._eq(b, visited)
 
 
@@ -59,7 +57,7 @@ class TypeConstant:
         return type(self) is type(other)
 
     def _eq(self, other, visited: set[tuple[int, int]]) -> bool:  # pylint:disable=unused-argument
-        # default for leaf types and hash-based Struct equality, which are already cycle-safe
+        # leaf types and Struct compare directly
         return self == other
 
     def __hash__(self):
@@ -374,7 +372,7 @@ class Struct(TypeConstant):
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
-        # pylint: disable-next=protected-access  # _hash(visited) is the peer TypeConstant hashing protocol
+        # pylint: disable-next=protected-access
         tpl = tuple((k, self.fields[k]._hash(visited) if self.fields[k] is not None else None) for k in keys)
         return hash(tpl)
 
@@ -550,8 +548,7 @@ class Function(TypeConstant):
 
     @memoize
     def __repr__(self, memo=None):
-        # thread memo through params/outputs so self-referential function types don't recurse
-        # forever (params/outputs may contain None for missing slots)
+        # pass memo through params/outputs (None marks a missing slot) so cycles terminate
         param_str = ", ".join(p.__repr__(memo=memo) if p is not None else "None" for p in self.params)
         outputs_str = ", ".join(o.__repr__(memo=memo) if o is not None else "None" for o in self.outputs)
         return f"func({param_str}) -> {outputs_str}"
@@ -564,9 +561,8 @@ class Function(TypeConstant):
             return True
         if not isinstance(other, Function):
             return False
-        # self-referential function types (a param/output pointing back at the function) would
-        # recurse forever; thread a per-call `visited` set of (self, other) id pairs -- the same
-        # cycle-breaking technique _hash uses -- and assume equal on re-entry (coinductive equality).
+        # a self-referential function type would recurse forever; track the pairs being compared and
+        # treat a pair seen again as equal, as _hash does
         key = (id(self), id(other))
         if key in visited:
             return True
@@ -586,10 +582,10 @@ class Function(TypeConstant):
             return 0
         visited.add(id(self))
 
-        # params/outputs may contain None for missing argument/return slots
-        # pylint: disable-next=protected-access  # _hash(visited) is the peer TypeConstant hashing protocol
+        # None marks a missing slot
+        # pylint: disable-next=protected-access
         params_hash = tuple(None if param is None else param._hash(visited) for param in self.params)
-        # pylint: disable-next=protected-access  # _hash(visited) is the peer TypeConstant hashing protocol
+        # pylint: disable-next=protected-access
         outputs_hash = tuple(None if out is None else out._hash(visited) for out in self.outputs)
         return hash((self.TYPE_HASH, params_hash, outputs_hash))
 

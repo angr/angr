@@ -106,9 +106,8 @@ class Typehoon(Analysis):
                 type_ = self.simtypes_solution.get(typevar, None)
                 # print("{} -> {}: {}".format(var, typevar, type_))
                 # Hack: if a global address is of a pointer type and it is not an array, we unpack the type
-                # (the global variable IS the pointed-to memory). Exception: a global holding a function
-                # pointer stores the pointer value itself, so keep Pointer(Function) intact -- otherwise it
-                # would render as a bare function declaration instead of a function pointer.
+                # (the global variable is the pointed-to memory). A function pointer is kept as is, or the
+                # global would render as a function declaration.
                 if (
                     func_addr == "global"
                     and isinstance(type_, SimTypePointer)

@@ -2107,10 +2107,8 @@ class SimpleSolver:
         result = None
 
         def _is_whole_cell_access(labels: tuple[BaseLabel, ...]) -> bool:
-            # a pointer-sized Load/Store at offset 0 reads or writes the cell's entire value
-            # (e.g. a null check of a function-pointer global, or storing a new target into it).
-            # such an access is consistent with the cell holding a function pointer, so it must
-            # not veto function-type formation.
+            # a pointer-sized load or store at offset 0 touches the whole cell (a null check, or a new
+            # target being stored); that fits a function pointer, so it must not block the function type
             last = labels[-1]
             return (
                 isinstance(last, HasField)
@@ -2148,15 +2146,13 @@ class SimpleSolver:
                 elif isinstance(last_label, FuncOut):
                     func_outputs[last_label.loc].add(succ)
                 else:
-                    # whole-cell accesses (and label-less paths) carry no parameter or
-                    # return-value information
+                    # whole-cell accesses carry no parameter or return information
                     continue
 
             input_args = []
             output_values = []
             for vals, out in [(func_inputs, input_args), (func_outputs, output_values)]:
-                # a function-typed cell may have only FuncIn labels (no FuncOut) or vice versa;
-                # max() on the empty slot dict would raise, so treat it as zero params/outputs.
+                # inputs or outputs may be empty; max() on an empty dict would raise
                 for idx in range(max(vals) + 1 if vals else 0):
                     if idx in vals:
                         sol = self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=vals[idx])

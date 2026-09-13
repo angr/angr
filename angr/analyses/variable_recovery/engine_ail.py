@@ -280,30 +280,14 @@ class SimEngineVRAIL(
 
     def _add_computed_call_target_constraints(self, funcaddr_typevar, args, ret_ty, target=None) -> None:
         """
-        For a computed (indirect) call target, link the call target's type variable to the function's
-        arguments and return value via FuncIn/FuncOut labels. The simple solver turns a type variable
-        whose successor labels are all FuncIn/FuncOut into a Pointer(Function(...)), so the call target
-        renders as a function pointer (e.g. an ``extern`` global function pointer) instead of a generic
-        pointer-to-struct.
-
-        The call target is typically loaded from a global cell, i.e. ``funcaddr_typevar`` is
-        ``<cell>.[Load, HasField@0]``. The global's rendered type derives from the base cell type
-        variable, so we attach the FuncIn/FuncOut labels to the *base* (the cell) rather than to the
-        loaded-value derived type variable. That way the cell itself becomes a Pointer(Function(...)) and
-        the global renders as a function pointer (e.g. ``ret (*g)(...)``), instead of the loaded field
-        merely being a function pointer (a struct-with-fnptr-field).
+        Add FuncIn/FuncOut constraints for an indirect call, so the solver types the call target as a
+        function pointer rather than a pointer to a one-field struct. For a call through a global, the
+        constraints go on the global's own type variable, so the global itself becomes the function pointer.
         """
-        # The call target is a pointer-sized value that is loaded and then called. Two different
-        # sources produce the same shape here and must be told apart:
-        #   * a global function pointer -- the target is Load(<constant address>): the loaded-from
-        #     location is the function pointer itself, so we retype that location as the function.
-        #     The global then renders as `ret (*)(...)` instead of a pointer to a one-field struct.
-        #   * a struct-pointer parameter whose field 0 is called (`p->fn()`) -- the target is
-        #     Load(<pointer value>): here the base is the address of the struct, not the function
-        #     pointer. Retyping it would make the parameter one pointer level too shallow (emitting
-        #     the non-compilable `(*(long long *)p)(...)`), and dropping the field access would delete
-        #     the called field from the struct.
-        # Only the global case has a constant load address, so gate the retype on that.
+        # A global function pointer and a call through a struct field (`p->fn()`) both look like a
+        # pointer-sized load that is then called. Only the global has a constant load address, so only
+        # then is the loaded-from cell retyped; retyping a struct pointer would drop a level of
+        # indirection and lose the called field.
         base_tv = funcaddr_typevar
         target_is_global = isinstance(target, ailment.Expr.Load) and isinstance(target.addr, ailment.Expr.Const)
         if (
@@ -315,9 +299,7 @@ class SimEngineVRAIL(
             and funcaddr_typevar.labels[1].offset == 0
         ):
             base_tv = funcaddr_typevar.type_var
-            # the generic load access (added when reading the call target out of the cell) would leave a
-            # leftover Load/HasField label on the cell and defeat the solver's all-FuncIn/FuncOut check.
-            # remove it so the cell carries only FuncIn/FuncOut labels and becomes Pointer(Function).
+            # drop the plain load access on the cell, or the solver will not form a function type
             self.state.type_constraints[self.state.func_typevar].discard(
                 typevars.Subtype(funcaddr_typevar, typeconsts.TopType())
             )
@@ -331,8 +313,7 @@ class SimEngineVRAIL(
         for i, arg in enumerate(args):
             if arg is None or arg.typevar is None:
                 continue
-            # Strip trailing ConvertTo labels: _filter_constraints discards ConvertTo-headed subtype
-            # constraints, which would otherwise drop this FuncIn edge and shrink the prototype.
+            # drop trailing ConvertTo labels; the constraint filter would discard the edge otherwise
             arg_tv = arg.typevar
             while (
                 isinstance(arg_tv, typevars.DerivedTypeVariable)
@@ -419,12 +400,8 @@ class SimEngineVRAIL(
             ret_ty = self.tv_manager.new_tv()
 
         if computed_funcaddr_typevar is not None:
-            # If the call's return value is unused, record no return type for the recovered function
-            # so it renders as returning void instead of a phantom int. The result counts as used if
-            # it lands in either the integer return register (ret_expr) or the floating-point return
-            # register (fp_ret_expr). Only drop the return when the call has at least one argument:
-            # with no arguments, the return is the only evidence that the callee is a function
-            # pointer at all, so it must be kept.
+            # An unused result gets no return type, so the function renders as void instead of int.
+            # With no arguments the return is the only evidence of a call, so keep it then.
             has_arg_evidence = any(arg is not None and arg.typevar is not None for arg in args)
             result_used = ret_expr is not None or stmt.fp_ret_expr is not None
             self._add_computed_call_target_constraints(

@@ -244,20 +244,15 @@ class TypeTranslator:
         return sim_type.SimTypeInt512(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_Function(self, tc: typeconsts.Function) -> sim_type.SimType:
-        # Function-pointer types recovered from indirect calls can be self-referential
-        # (a function whose parameter is a pointer back to the same function). Such a type
-        # cannot be built as an acyclic SimType, and an anonymous self-referential function
-        # pointer is not expressible in C anyway. So break the cycle: if we re-enter while
-        # already translating this tc, return `void` (the enclosing pointer becomes `void *`).
+        # A recovered function type can refer to itself (a parameter pointing back at the function).
+        # Neither SimType nor C can express that, so on re-entry return void.
         if tc in self.functions:
             return self.functions[tc]
         if tc in self._fn_inprogress:
             return sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         self._fn_inprogress.add(tc)
 
-        # Clear the in-progress mark in `finally`: if translating a param/return raises, a leftover
-        # mark would make a later, structurally-equal function type be misread as a self-reference
-        # and wrongly translated to `void`.
+        # clear the mark even if a sub-translation raises, or a later equal type is misread as a cycle
         try:
             arg_types = []
             for param in tc.params:

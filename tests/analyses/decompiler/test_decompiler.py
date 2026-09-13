@@ -6074,9 +6074,8 @@ class TestDecompiler(unittest.TestCase):
         struct_defs = re.findall(r"typedef struct (struct_\w+) \{(.*?)\}\s*\1;", text, re.DOTALL)
         struct_names = [name for name, _ in struct_defs]
 
-        # Exactly 2 struct typedefs survive: the two genuine, distinct, dereferenced structs. The 8 extern
-        # function-pointer globals are now typed as function pointers (previously they were mistyped as one
-        # shared anonymous struct, which used to add a third typedef).
+        # 2 struct typedefs survive; the 8 extern function-pointer globals used to add a third,
+        # shared one-field struct
         assert len(struct_names) == 2, f"expected 2 struct typedefs, got {len(struct_names)}: {struct_names}"
 
         # No two structurally-identical struct definitions may be emitted (robust to struct renumbering).
@@ -6085,16 +6084,14 @@ class TestDecompiler(unittest.TestCase):
             f"found structurally-identical struct definitions: {normalized_bodies}"
         )
 
-        # The 8 extern globals that are called indirectly must now be recovered as function pointers of the
-        # form `extern ret (*g_hhhh)(...)`, not as pointers to a shared anonymous struct. Previously they all
-        # collapsed into one single-u64-field struct, which is exactly the mistyping this regression guards.
+        # the 8 indirectly called extern globals must be typed as function pointers, not as
+        # pointers to a shared struct
         fnptr_globals = re.findall(r"extern [^\n;]*\(\*(g_[0-9a-f]+)\)\(", text)
         assert len(fnptr_globals) == 8, (
             f"expected 8 extern globals typed as function pointers, got {len(fnptr_globals)}: {fnptr_globals}"
         )
 
-        # None of those globals may survive as an `extern <struct> *g_...` struct pointer, the old mistyping:
-        # if any recovered struct type is still used to type an extern global, the fix has regressed.
+        # no recovered struct may still type an extern global
         struct_ptr_globals = [name for name in struct_names if re.search(rf"extern {name} \*g_", text)]
         assert not struct_ptr_globals, (
             f"extern globals still typed as struct pointers instead of function pointers: {struct_ptr_globals}"
