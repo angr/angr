@@ -4,12 +4,15 @@ from __future__ import annotations
 import logging
 import string
 from enum import IntEnum
+from functools import partial
 from typing import Any
 
 import networkx
 
 from angr import claripy
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.clinic import Clinic
+from angr.analyses.decompiler.decompilation_options import DecompilationOption
 from angr.analyses.decompiler.structured_codegen.c import (
     CAssignment,
     CConstant,
@@ -19,6 +22,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
 )
 from angr.calling_conventions import SimRegArg
 from angr.errors import SimMemoryMissingError
+from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimSyscallLibrary
@@ -97,8 +101,12 @@ class APIObfuscationFinder(Analysis):
     - Type 2: GetProcAddress(_, "api_name").
     """
 
-    def __init__(self):
+    def __init__(self, decompiler_options: list[tuple[DecompilationOption | str, Any]] | None = None):
+        """
+        :param decompiler_options:  Options for the decompilations that the hash-lookup API deobfuscator runs.
+        """
         self.type1_candidates = []
+        self._decompiler_options = decompiler_options
 
         self.analyze()
 
@@ -112,12 +120,16 @@ class APIObfuscationFinder(Analysis):
 
         APIObfuscationType2Finder(self.project, self.kb).analyze()
         self.project.analyses[HashLookupAPIDeobfuscator].prep(fail_fast=self._fail_fast)(
-            self._hash_lookup_api_deobfuscator_lifter
+            partial(self._hash_lookup_api_deobfuscator_lifter, decompiler_options=self._decompiler_options)
         )
 
-    def _hash_lookup_api_deobfuscator_lifter(self, func):
-        d = self.project.analyses.Decompiler(func, fail_fast=self._fail_fast)
-        assert d.clinic is not None
+    def _hash_lookup_api_deobfuscator_lifter(
+        self, func: Function, decompiler_options: list[tuple[DecompilationOption | str, Any]] | None = None
+    ) -> Clinic | None:
+        d = self.project.analyses.Decompiler(func, options=decompiler_options, fail_fast=self._fail_fast)
+        if d.clinic is None:
+            # decompilation failed (or the function is a SimProcedure); the caller skips this function
+            _l.debug("Cannot lift %r to AIL; skipping it.", func)
         return d.clinic
 
     def _find_type1(self):
