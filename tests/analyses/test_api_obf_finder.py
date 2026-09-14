@@ -1,4 +1,4 @@
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import os
 from unittest import TestCase, main
 
 import angr
+from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
 
 binaries_base = os.path.join(
     os.path.dirname(os.path.realpath(str(__file__))),
@@ -70,6 +71,25 @@ class TestAPIObfFinder(TestCase):
         assert proj.kb.obfuscations.type2_deobfuscated_apis == {func_ptr_addr: func_name}
         (var,) = proj.kb.variables["global"].get_global_variables(func_ptr_addr)
         assert var.name == f"p_{func_name}"
+
+    def test_undecompilable_functions_are_skipped(self):
+        # issue #7134: the hash-lookup lifter asserted on Decompiler.clinic being None
+        bin_path = os.path.join(binaries_base, "x86_64", "windows", "GetProcAddress.exe")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # make every decompilation abort on the complexity limit, so no function yields a clinic
+        options = [(PARAM_TO_OPTION["max_function_blocks"], 1)]
+        assert proj.analyses.Decompiler(proj.kb.functions[proj.entry], options=options, fail_fast=False).clinic is None
+        finder = proj.analyses.APIObfuscationFinder(decompiler_options=options, fail_fast=False)
+
+        assert (
+            finder._hash_lookup_api_deobfuscator_lifter(proj.kb.functions["GetProcAddress"], decompiler_options=options)
+            is None
+        )
+        assert not proj.kb.obfuscations.type3_deobfuscated_apis
 
 
 if __name__ == "__main__":
