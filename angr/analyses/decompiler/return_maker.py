@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from angr import ailment
 from angr.calling_conventions import SimComboArg, SimRegArg
@@ -9,7 +10,27 @@ from angr.utils.types import dereference_simtype_by_lib
 
 from .ailgraph_walker import AILGraphWalker
 
+if TYPE_CHECKING:
+    from angr.calling_conventions import SimFunctionArgument
+    from angr.knowledge_plugins.functions import Function
+
 l = logging.getLogger(__name__)
+
+
+def return_value_location(function: Function) -> SimFunctionArgument | None:
+    """
+    Where the function leaves its return value, for the return type its prototype currently carries.
+
+    Returns None when the function has no prototype, no calling convention, or returns nothing.
+    """
+    if function.prototype is None or function.calling_convention is None:
+        return None
+    returnty = function.prototype.returnty
+    if returnty is None or type(returnty) is SimTypeBottom:
+        return None
+    if function.prototype_libname:
+        returnty = dereference_simtype_by_lib(returnty, function.prototype_libname)
+    return function.calling_convention.return_val(returnty)
 
 
 class ReturnMaker(AILGraphWalker):
@@ -29,21 +50,10 @@ class ReturnMaker(AILGraphWalker):
         return self.ail_manager.next_atom()
 
     def _handle_Return(self, stmt_idx: int, stmt: ailment.Stmt.Return, block: ailment.Block | None):  # pylint:disable=unused-argument
-        if (
-            block is not None
-            and not stmt.ret_exprs
-            and self.function.prototype is not None
-            and self.function.prototype.returnty is not None
-            and type(self.function.prototype.returnty) is not SimTypeBottom
-        ):
+        ret_val = return_value_location(self.function) if block is not None and not stmt.ret_exprs else None
+        if ret_val is not None:
             new_stmt = stmt.copy()
             new_ret_exprs = list(new_stmt.ret_exprs)
-            returnty = (
-                dereference_simtype_by_lib(self.function.prototype.returnty, self.function.prototype_libname)
-                if self.function.prototype_libname
-                else self.function.prototype.returnty
-            )
-            ret_val = self.function.calling_convention.return_val(returnty)
             if isinstance(ret_val, SimRegArg):
                 reg = self.arch.registers[ret_val.reg_name]
                 new_ret_exprs.append(
