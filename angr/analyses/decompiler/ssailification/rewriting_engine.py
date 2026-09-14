@@ -583,7 +583,7 @@ class SimEngineSSARewriting(
         return BinaryOp(
             expr.idx,
             "Add",
-            [refers, Const(self.ail_manager.next_atom(), vvar.stack_offset - expr.offset, refers.bits)],
+            [refers, Const(self.ail_manager.next_atom(), expr.offset - vvar.stack_offset, refers.bits)],
         )
 
     def _handle_expr_Extract(self, expr: Extract):

@@ -2179,24 +2179,33 @@ class SimpleSolver:
             fields = {}
 
             candidate_bases = SortedDict()
+            off_has_max_pointsto_bits: set[int] = set()
+            off_has_non_max_pointsto_bits: set[int] = set()
             ptr_offs: set[int] = set()
 
             for labels, _succ in path_and_successors:
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
                     # TODO: Really determine the maximum possible size of the field when MAX_POINTSTO_BITS is in use
-                    if last_label.offset not in candidate_bases:
-                        candidate_bases[last_label.offset] = set()
-                    candidate_bases[last_label.offset].add(
-                        1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
-                    )
+                    if last_label.bits == MAX_POINTSTO_BITS:
+                        off_has_max_pointsto_bits.add(last_label.offset)
+                    else:
+                        if last_label.offset not in candidate_bases:
+                            candidate_bases[last_label.offset] = set()
+                        candidate_bases[last_label.offset].add(last_label.bits // 8)
+                        off_has_non_max_pointsto_bits.add(last_label.offset)
                 elif isinstance(last_label, AddN):
                     ptr_offs.add(last_label.n)
                 elif isinstance(last_label, SubN):
                     ptr_offs.add(-last_label.n)
 
+            for off in off_has_max_pointsto_bits:
+                if off not in candidate_bases:
+                    candidate_bases[off] = {1}
+
             # determine possible bases and map each offset to its base
             offset_to_base = map_offsets_to_bases(candidate_bases)
+            bases = sorted(set(offset_to_base.values()))
 
             # determine again the maximum size of each field (at each offset)
             offset_to_maxsize = defaultdict(int)
@@ -2205,9 +2214,17 @@ class SimpleSolver:
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
                     base = offset_to_base[last_label.offset]
-                    access_size = 1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
-                    offset_to_maxsize[base] = max(offset_to_maxsize[base], (last_label.offset - base) + access_size)
-                    offset_to_sizes[base].add(access_size)
+                    if last_label.bits == MAX_POINTSTO_BITS and last_label.offset in off_has_non_max_pointsto_bits:
+                        # there are non-MAX_POINTSTO_BITS accesses to this field, which will provide a more accurate
+                        # access size
+                        next_base_idx = bisect_right(bases, last_label.offset)
+                        if next_base_idx < len(bases):
+                            next_base = bases[next_base_idx]
+                            offset_to_maxsize[base] = max(offset_to_maxsize[base], next_base - base)
+                    else:
+                        access_size = 1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
+                        offset_to_maxsize[base] = max(offset_to_maxsize[base], (last_label.offset - base) + access_size)
+                        offset_to_sizes[base].add(access_size)
 
             array_idx_to_base = {}
 
