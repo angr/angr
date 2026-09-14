@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from bisect import bisect_left
 from collections import defaultdict
 from collections.abc import Iterator
 from itertools import chain, count
@@ -1351,11 +1352,13 @@ class VariableManagerInternal(Serializable):
         max_sizes = {}
         offsets = sorted(list(stackvars_by_offset) + list(stack_items))
         for i, offset in enumerate(offsets):
-            if i + 1 < len(offsets):
-                next_off = offsets[i + 1]
-                sz = next_off - offset
-                if offset in stackvars_by_offset:
-                    for v in stackvars_by_offset[offset]:
+            if i + 1 < len(offsets) and offset in stackvars_by_offset:
+                for v in stackvars_by_offset[offset]:
+                    # find the next offset after the end of this variable
+                    next_off_idx_after_variable_end = bisect_left(offsets, offset + v.size)
+                    if next_off_idx_after_variable_end < len(offsets):
+                        next_off = offsets[next_off_idx_after_variable_end]
+                        sz = next_off - offset
                         max_sizes[v] = max(v.size, sz)
 
         return max_sizes
