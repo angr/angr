@@ -6,6 +6,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import logging
 import os
+import re
 import unittest
 
 import angr
@@ -17,14 +18,17 @@ test_location = os.path.join(bin_location, "tests")
 class TestPhoenixGotoSuccessors(unittest.TestCase):
     """
     bzip2's BZ2_decompress is a resumable state machine: a switch whose cases jump into loops that other cases
-    share, and loops that leave through gotos to a shared error block. Two things used to break it: a region's
-    finalize() re-established the edge for a loop exit that cyclic refinement had already turned into a goto, and
-    the root region ended with a switch whose cases continued into several distinct terminal nodes, which no
-    schema covers. The output then kept a single node of the function.
+    share, and loops that leave through gotos to a shared error block. Things that used to break it: a region's
+    finalize() re-established the edge for a loop exit that cyclic refinement had already turned into a goto; the
+    jump-table dispatch kept structural edges to case labels buried inside loops (goto-only cases), which misled
+    last-resort refinement and left the switch with one successor per such label; cyclic refinement picked the
+    shared error block as a loop successor by address and cut off the loop nest that followed; and a while loop
+    whose successor RegionIdentifier had absorbed into the loop region was not recognized as a while loop. The
+    output then kept a fraction of the function.
     """
 
-    def test_bzip2_o2_decompress_structures_completely(self):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "decbench_bzip2_O2_noinline")
+    def _decompile_bzip2_decompress(self, binary_name: str):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", binary_name)
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
         func = proj.kb.functions.function(name="BZ2_decompress")
@@ -57,12 +61,22 @@ class TestPhoenixGotoSuccessors(unittest.TestCase):
                 covered.add(tags["ins_addr"])
         blocks = list(func.blocks)
         missing = [b for b in blocks if not (set(b.instruction_addrs) & covered)]
-        assert len(blocks) > 450
-        assert len(missing) <= 30, [hex(b.addr) for b in missing]
+        return dec.codegen.text, len(blocks), missing
 
-        text = dec.codegen.text
+    def test_bzip2_o2_decompress_structures_completely(self):
+        text, nblocks, missing = self._decompile_bzip2_decompress("decbench_bzip2_O2_noinline")
+        assert nblocks > 450
+        assert len(missing) <= 30, [hex(b.addr) for b in missing]
         assert text.count("case ") >= 40
-        assert text.count("while") >= 40
+        # the GET_BITS loops are emitted as while or for loops
+        assert len(re.findall(r"\b(while|for) \(", text)) >= 60
+
+    def test_bzip2_o0_decompress_structures_completely(self):
+        text, nblocks, missing = self._decompile_bzip2_decompress("decbench_bzip2_O0")
+        assert nblocks > 500
+        assert len(missing) <= 35, [hex(b.addr) for b in missing]
+        assert text.count("case ") >= 40
+        assert len(re.findall(r"\b(while|for) \(", text)) >= 60
 
 
 if __name__ == "__main__":
