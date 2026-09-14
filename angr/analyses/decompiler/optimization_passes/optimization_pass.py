@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 _l = logging.getLogger(__name__)
 
 
-BlockCache = namedtuple("BlockCache", ("rd", "prop"))
+BlockCache = namedtuple("BlockCache", ("prop",))
 
 
 class MultipleBlocksException(Exception):
@@ -404,14 +404,13 @@ class OptimizationPass(BaseOptimizationPass):
         :return:                        A simplified AIL block.
         """
 
-        cached_rd, cached_prop = None, None
+        cached_prop = None
         cache_item = None
         cache_key = ail_block.addr, ail_block.idx
         if cache:
             cache_item = cache.get(cache_key, None)
             if cache_item:
                 # cache hit
-                cached_rd = cache_item.rd
                 cached_prop = cache_item.prop
 
         simp = BlockSimplifier(
@@ -419,7 +418,6 @@ class OptimizationPass(BaseOptimizationPass):
             ail_block,
             self.manager,
             self._func.addr,
-            cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
             peephole_bundle=self._get_peephole_bundle(),
         )
@@ -427,7 +425,7 @@ class OptimizationPass(BaseOptimizationPass):
         if cache is not None:
             if cache_item:
                 del cache[cache_key]
-            cache[cache_key] = BlockCache(simp._reaching_definitions, simp._propagator)
+            cache[cache_key] = BlockCache(simp._propagator)
         return simp.result_block
 
     def _simplify_graph(self, graph):

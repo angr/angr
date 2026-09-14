@@ -10,10 +10,9 @@ from angr.ailment.expression import Call, Const, Convert, Expression, Load, Regi
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
 from angr.analyses.s_propagator import SPropagator
-from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.utils.ssa import has_reference_to_vvar
+from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, has_reference_to_vvar
 
 from .block_walkers import HasCallExprWalker, HasCallNotification
 from .peephole_optimizations import (
@@ -145,7 +144,6 @@ class BlockSimplifier:
         | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
-        cached_reaching_definitions=None,
         cached_propagator=None,
         peephole_bundle: PeepholeOptimizationBundle | None = None,
     ):
@@ -187,9 +185,8 @@ class BlockSimplifier:
         # cached peephole expression walker
         self._expr_peephole_walker = peephole_bundle.expr_walker
 
-        # cached Propagator and ReachingDefinitions results. Clear them if the block is updated
+        # cached Propagator result. Clear it if the block is updated
         self._propagator = cached_propagator
-        self._reaching_definitions = cached_reaching_definitions
 
         if self.block is not None:
             self._analyze()
@@ -249,18 +246,7 @@ class BlockSimplifier:
             )
         return self._propagator
 
-    def _compute_reaching_definitions(self, block) -> SRDAModel:
-        if self._reaching_definitions is None:
-            self._reaching_definitions = SReachingDefinitions(
-                self.project,
-                subject=block,
-                track_tmps=True,
-                func_addr=self.func_addr,
-            ).model
-        return self._reaching_definitions
-
     def _clear_cache(self):
-        self._reaching_definitions = None
         self._propagator = None
 
     @staticmethod
@@ -501,23 +487,19 @@ class BlockSimplifier:
         if not block.statements:
             return block, False
 
-        rd = self._compute_reaching_definitions(block)
         block_loc = (block.addr, block.idx)
+        # tmps are block-local, so their definition and use sites are all this pass needs
+        tmp_deflocs = get_tmp_deflocs([block]).get(block_loc, {})
+        tmp_uselocs = get_tmp_uselocs([block]).get(block_loc, {}) if tmp_deflocs else {}
 
         # Find dead assignments
-        dead_defs_stmt_idx = set()
-        all_defs = rd.get_all_tmp_definitions(block_loc)
-        for d in all_defs:
-            assert not d.codeloc.is_extern
-            assert not d.dummy
-
-            uses = rd.get_tmp_uses(d.atom, block_loc)
-            if not uses:
-                dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+        dead_defs_stmt_idx = {stmt_idx for tmp, stmt_idx in tmp_deflocs.items() if not tmp_uselocs.get(tmp)}
 
         used_tmps: set[int] = set()
         # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
-        for tmp, used_locs in rd.all_tmp_uses[block_loc].items():
+        for tmp, used_locs in tmp_uselocs.items():
+            if tmp not in tmp_deflocs:
+                continue
             used_at = {stmt_idx for _, stmt_idx in used_locs}
             if used_at.issubset(dead_defs_stmt_idx):  # noqa:SIM102
                 # cannot remove this tmp if any use sites involve call expressions; this is basically a duplicate of
