@@ -36,11 +36,18 @@ pub struct SimOpInfo {
     /// Cached `vector_signed == "S"` (the `vector_signed` string itself is
     /// not otherwise needed by the converter).
     pub vector_signed_is_s: bool,
+    /// Cached `to_signed == "S"` (e.g. the `S` of `Iop_F64toI32S`).
+    pub to_signed_is_s: bool,
 }
 
 impl SimOpInfo {
     pub fn is_signed(&self) -> bool {
         self.from_signed.as_deref() == Some("S") || self.vector_signed_is_s
+    }
+    /// Signedness of a float-to-int conversion: the sign marker follows the *target* size
+    /// (`F64toI32S`), or the lane size for vector forms (`F32toI32Sx4`).
+    pub fn fp_to_int_signed(&self) -> bool {
+        self.to_signed_is_s || self.vector_signed_is_s
     }
     pub fn is_conversion(&self) -> bool {
         self.conversion.is_some()
@@ -233,6 +240,7 @@ struct Attrs {
     to_size: Option<u32>,
     vector_size: Option<u32>,
     vector_signed: Option<String>,
+    to_signed: Option<String>,
     vector_type: Option<String>,
     vector_zero: Option<String>,
     vector_count: Option<u32>,
@@ -260,7 +268,7 @@ fn op_attrs_re() -> &'static Regex {
             r"(?P<set_size>\d+)",
             r")??",
             r"(?P<vector_info>\d+U?S?F?0?x\d+)??",
-            r"(?P<rounding_mode>_R[ZPNM])?$",
+            r"(?P<rounding_mode>_R[ZPNM]|_DEP)?$",
         ))
         .expect("OP_ATTRS_PATTERN must compile")
     })
@@ -295,6 +303,7 @@ fn op_attrs(name: &str) -> Option<Attrs> {
         conversion: get("conversion"),
         to_type: get("to_type"),
         to_size: get("to_size").and_then(|s| s.parse().ok()),
+        to_signed: get("to_signed"),
         ..Attrs::default()
     };
 
@@ -355,6 +364,7 @@ fn build(name: &str, output_size_bits: u32, a: &Attrs) -> Result<SimOpInfo, ()> 
         .any(|t| matches!(*t, Some("F") | Some("D")));
 
     let vector_signed_is_s = a.vector_signed.as_deref() == Some("S");
+    let to_signed_is_s = a.to_signed.as_deref() == Some("S");
 
     let info = SimOpInfo {
         name: name.to_string(),
@@ -371,6 +381,7 @@ fn build(name: &str, output_size_bits: u32, a: &Attrs) -> Result<SimOpInfo, ()> 
         float,
         output_size_bits,
         vector_signed_is_s,
+        to_signed_is_s,
     };
 
     if has_calculate(name, a, float, &info) {

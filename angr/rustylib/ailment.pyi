@@ -770,6 +770,9 @@ class Convert(Op):
     @property
     def rounding_mode(self) -> RoundingMode | Expression | None:
         """Convert.rounding_mode"""
+    @property
+    def vector_count(self) -> int | None:
+        """Convert.vector_count: lane count of a lane-wise (vector) conversion; from_bits/to_bits are total widths"""
     def __init__(
         self,
         idx: int | None,
@@ -780,6 +783,7 @@ class Convert(Op):
         from_type: ConvertType | None = ...,
         to_type: ConvertType | None = ...,
         rounding_mode: RoundingMode | Expression | None = ...,
+        vector_count: int | None = ...,
         **tags: Any,
     ) -> None: ...
 

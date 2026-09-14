@@ -388,3 +388,101 @@ class TestVexEnumParity(unittest.TestCase):
             srcs = [stmt.src for stmt in from_lift.statements if isinstance(stmt, ailment.Stmt.Assignment)]
             consts = [(src.bits, src.value) for src in srcs if isinstance(src, ailment.Expr.Const)]
             assert (bits, value) in consts, (hexbytes, consts)
+
+
+class TestVectorConversions(unittest.TestCase):
+    """
+    Lane-wise conversions (Iop_F32toI32Sx4 & co.) become Convert expressions with a vector_count; they used to become
+    a BinaryOp named "V" (issue #7134).
+    """
+
+    @staticmethod
+    def _converts(arch, block_bytes):
+        irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, block_bytes, ailment.Manager(), opt_level=1)
+        assert [str(s) for s in from_lift.statements] == [str(s) for s in from_py.statements]
+        assert all(
+            src.op != "V"
+            for stmt in from_py.statements
+            if isinstance(src := getattr(stmt, "src", None), ailment.Expr.BinaryOp)
+        )
+        return [
+            stmt.src
+            for stmt in from_py.statements
+            if isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.src, ailment.Expr.Convert)
+            and stmt.src.vector_count is not None
+        ]
+
+    def test_sse_float_int_conversions(self):
+        # cvttps2dq xmm0, xmm0 ; cvtdq2ps xmm0, xmm0 ; ret
+        arch = archinfo.arch_from_id("AMD64")
+        f2i, i2f = self._converts(arch, bytes.fromhex("f30f5bc00f5bc0c3"))
+
+        # Iop_F32toI32Sx4 with a constant rounding mode (truncation)
+        assert (f2i.from_bits, f2i.to_bits, f2i.vector_count) == (128, 128, 4)
+        assert f2i.from_type == ailment.Expr.Convert.TYPE_FP and f2i.to_type == ailment.Expr.Convert.TYPE_INT
+        assert f2i.is_signed
+        assert f2i.rounding_mode == RoundingMode.RM_TowardsZero
+        assert str(f2i).startswith("ConvV(32F->s32x4, ")
+
+        # Iop_I32StoF32x4; cvtdq2ps takes its rounding mode from MXCSR, so it stays an expression
+        assert (i2f.from_bits, i2f.to_bits, i2f.vector_count) == (128, 128, 4)
+        assert i2f.from_type == ailment.Expr.Convert.TYPE_INT and i2f.to_type == ailment.Expr.Convert.TYPE_FP
+        assert i2f.is_signed
+        assert isinstance(i2f.rounding_mode, ailment.Expr.Expression)
+
+        # the field survives a rebuild, equality, hashing, and pickling
+        rebuilt = ailment.Expr.Convert(
+            f2i.idx,
+            f2i.from_bits,
+            f2i.to_bits,
+            f2i.is_signed,
+            f2i.operand,
+            from_type=f2i.from_type,
+            to_type=f2i.to_type,
+            rounding_mode=f2i.rounding_mode,
+            vector_count=f2i.vector_count,
+            **f2i.tags,
+        )
+        assert rebuilt == f2i and hash(rebuilt) == hash(f2i)
+        scalar = ailment.Expr.Convert(
+            f2i.idx, f2i.from_bits, f2i.to_bits, f2i.is_signed, f2i.operand, f2i.from_type, f2i.to_type, **f2i.tags
+        )
+        assert scalar != f2i
+        assert pickle.loads(pickle.dumps(f2i)) == f2i
+
+    def test_neon_conversions_with_suffix_rounding(self):
+        # vcvt.s32.f32 q0, q0 ; vcvt.f32.s32 q0, q0 ; vcvt.s32.f32 d0, d0 ; bx lr
+        arch = archinfo.arch_from_id("ARMEL")
+        rz4, dep4, rz2 = self._converts(arch, bytes.fromhex("4007bbf3" + "4006bbf3" + "0007bbf3" + "1eff2fe1"))
+
+        # Iop_F32toI32Sx4_RZ: the rounding mode is baked into the op name
+        assert (rz4.from_bits, rz4.to_bits, rz4.vector_count) == (128, 128, 4)
+        assert rz4.from_type == ailment.Expr.Convert.TYPE_FP and rz4.to_type == ailment.Expr.Convert.TYPE_INT
+        assert rz4.is_signed and rz4.rounding_mode == RoundingMode.RM_TowardsZero
+
+        # Iop_I32StoF32x4_DEP: no rounding mode at all
+        assert (dep4.from_bits, dep4.to_bits, dep4.vector_count) == (128, 128, 4)
+        assert dep4.from_type == ailment.Expr.Convert.TYPE_INT and dep4.to_type == ailment.Expr.Convert.TYPE_FP
+        assert dep4.is_signed and dep4.rounding_mode is None
+
+        # Iop_F32toI32Sx2_RZ on a D register
+        assert (rz2.from_bits, rz2.to_bits, rz2.vector_count) == (64, 64, 2)
+
+    def test_scalar_fp_to_int_signedness(self):
+        # cvttsd2si eax, xmm0 ; ret -> Iop_F64toI32S: the S belongs to the target
+        arch = archinfo.arch_from_id("AMD64")
+        irsb = pyvex.IRSB(bytes.fromhex("f20f2cc0c3"), 0x1000, _vex_arch(arch), opt_level=1)
+        blk = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        conv = next(
+            stmt.src
+            for stmt in blk.statements
+            if isinstance(stmt, ailment.Stmt.Assignment)
+            and isinstance(stmt.src, ailment.Expr.Convert)
+            and stmt.src.from_type == ailment.Expr.Convert.TYPE_FP
+        )
+        assert conv.vector_count is None
+        assert conv.is_signed
+        assert (conv.from_bits, conv.to_bits) == (64, 32)
