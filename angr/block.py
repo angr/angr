@@ -316,6 +316,8 @@ class Block(Serializable):
             self._instructions = vex_block.instructions
             self._instruction_addrs = InsAddrList.from_addr_list(vex_block.instruction_addresses)
             self.size = vex_block.size
+            if self._bytes is not None:
+                self._bytes = self._bytes[: self.size]
 
     def __repr__(self):
         return f"<Block for {self.addr:#x}, {self.size} bytes>"
