@@ -6,6 +6,7 @@ from itertools import count
 
 from sortedcontainers import SortedDict
 
+from angr.ailment.expression import Convert
 from angr.sim_variable import SimVariable
 
 IdentType = tuple[int, int, str]
@@ -211,12 +212,10 @@ class BaseStructuredCodeGenerator:
         return v
 
 
-def vector_convert_name(expr) -> str:
+def vector_convert_name(expr: Convert) -> str:
     """
     Intrinsic-style name for a lane-wise conversion, e.g. ``ConvF32toI32Sx4`` for ``Iop_F32toI32Sx4``.
     """
-    from angr.ailment.expression import Convert  # pylint:disable=import-outside-toplevel
-
     from_lane = expr.from_bits // expr.vector_count
     to_lane = expr.to_bits // expr.vector_count
     sign = "S" if expr.is_signed else "U"
