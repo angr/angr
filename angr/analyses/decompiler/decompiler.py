@@ -268,6 +268,8 @@ class Decompiler(Analysis):
         self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
         self.seq_node: SequenceNode | None = None
+        # addresses of the regions whose final structuring failed (see RecursiveStructurer.structuring_failures)
+        self.structuring_failures: list[int] = []
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
         self.vvar_id_start = None
@@ -613,6 +615,7 @@ class Decompiler(Analysis):
                 ail_manager=clinic._ail_manager,
                 **self._recursive_structurer_params,
             )
+            self.structuring_failures = rs.structuring_failures
             self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it

@@ -140,7 +140,7 @@ class TestRegionOverlayMutation(unittest.TestCase):
         sub.replace_nodes(n[2], seq, old_node_1=n[3])
         assert sub.head is seq
         assert set(sub.members) == {seq, n[4], n[5]}
-        # the external in-edge 1 -> 2 has been rewired to the new node in the shared graph
+        # the external in-edge 1 -> 2 has been rewired to the new node in the complete graph
         assert g.has_edge(n[1], seq)
         assert n[2] not in g and n[3] not in g
         assert mgr.owner_of(seq) is sub
@@ -360,7 +360,7 @@ class TestRegionOverlayViewEdgeCases(unittest.TestCase):
 
         checkpoint = mgr.checkpoint()
 
-        # detaching the edge must remove both the shared-graph edge and the view-only extra edge; if the extra
+        # detaching the edge must remove both the complete-graph edge and the view-only extra edge; if the extra
         # edge survived, virtualizing this edge would pick it again forever in last-resort refinement
         loop.detach_edge(nodes[3], nodes[5])
         assert not g.has_edge(nodes[3], nodes[5])
@@ -550,7 +550,7 @@ class TestRegionOverlayGraph(unittest.TestCase):
         assert rog.has_edge(n[3], n[5], all_edges=True)
         assert rog.with_all_edges().has_edge(n[3], n[5])
         assert set(rog.with_all_edges().successors(n[3])) == {n[5]}
-        # the underlying shared graph data is untouched
+        # the underlying complete graph data is untouched
         assert g.has_edge(n[3], n[5])
 
     def test_to_acyclic(self):

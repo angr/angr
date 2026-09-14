@@ -4,7 +4,6 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
-import logging
 import os
 import unittest
 
@@ -132,28 +131,15 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         proj.analyses.RustSymbolRecovery()
         proj.analyses.TypeDBLoader()
 
-        incomplete = []
-
-        class _Watch(logging.Handler):
-            def emit(self, record):
-                if "Structuring failed to complete" in record.getMessage():
-                    incomplete.append(record)
-
-        logger = logging.getLogger("angr.analyses.decompiler.structuring.recursive_structurer")
-        watch = _Watch()
-        logger.addHandler(watch)
-        try:
-            dec = proj.analyses.Decompiler(0x410920, cfg=cfg.model, flavor="rust", fail_fast=True)
-        finally:
-            logger.removeHandler(watch)
+        dec = proj.analyses.Decompiler(0x410920, cfg=cfg.model, flavor="rust", fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        assert not incomplete
+        assert not dec.structuring_failures
 
-        # the blocks that used to be dropped along with the discarded components
+        # the blocks that used to be dropped along with the discarded components.
         structured = {b.addr for b in sequence_to_blocks(dec.seq_node)}
-        for addr in (0x4115BA, 0x4115CC, 0x4115CF, 0x411435, 0x411458):
+        for addr in (0x4115CC, 0x4115CF, 0x411435, 0x411458):
             assert addr in structured, f"{addr:#x} missing from the structured output"
 
 

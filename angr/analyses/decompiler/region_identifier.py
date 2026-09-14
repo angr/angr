@@ -121,7 +121,7 @@ class RegionIdentifier(Analysis):
         # preprocess: make it a super graph
         self._make_supergraph(shared_graph)
 
-        # the shared graph stays intact from here on (except for in-place block-statement rewrites); regions are
+        # the complete graph stays intact from here on (except for in-place block-statement rewrites); regions are
         # overlays on it. region identification collapses a separate working graph.
         self.overlay_manager = OverlayManager(shared_graph, expose_loop_head_backedges=self._expose_loop_head_backedges)
         graph = cast(TGraph, networkx.DiGraph(shared_graph))
@@ -662,7 +662,7 @@ class RegionIdentifier(Analysis):
         parent = region.parent
         assert parent is not None
 
-        # add the condition node to the shared graph as a member of the enclosing region
+        # add the condition node to the complete graph as a member of the enclosing region
         parent.add_node(cond)
 
         for succ in successors:
@@ -724,7 +724,7 @@ class RegionIdentifier(Analysis):
                         mgr.graph_remove_edge(u, v)
                         mgr.graph_add_edge(u, cond, **data)
 
-        # connect the condition node to the (former) successors in the shared graph
+        # connect the condition node to the (former) successors in the complete graph
         for succ in successors:
             entry = succ
             while isinstance(entry, RegionOverlay):
@@ -838,7 +838,7 @@ class RegionIdentifier(Analysis):
                             node, region_nodes, cyclic=False, cyclic_ancestor=cyclic
                         )
                         # note that successors of the new region (the frontier, plus loop exits when this region
-                        # nests inside a cyclic region) are derived from the shared graph on demand; no successor
+                        # nests inside a cyclic region) are derived from the complete graph on demand; no successor
                         # graph bookkeeping is needed here
 
                         # l.debug("Walked back %d levels in postdom tree.", levels)
@@ -999,6 +999,7 @@ class RegionIdentifier(Analysis):
     ) -> TOverlay:
         loop_nodes = set(loop_nodes)
         region = self._parent_overlay_of(head).create_subregion(head, loop_nodes, cyclic=True)
+        self._tag_abnormal_entry_edges(region)
 
         delayed_edges = []
 
@@ -1035,6 +1036,54 @@ class RegionIdentifier(Analysis):
         node_order[region] = node_order[head]
 
         return region
+
+    def _tag_abnormal_entry_edges(self, region: TOverlay) -> None:
+        """
+        Tag all abnormal entry edges of the given region with abnormal_entry=<target address>.
+
+        This is critical for correctness.
+        Example: bzip2 BZ2_decompress has code that looks like the following::
+
+            for (i = 0; i < 16; i++) {
+                if (inUse16[i]) {
+                    for (j = 0; j < 16; j++) {
+                        case BZ_X_MAPPING_2:
+                        GET_BIT(...)
+                    }
+                }
+            }
+
+        The dispatch edge into the case label BZ_X_MAPPING_2 is an abnormal entry of the loop. With the abnormal entry
+        tag, we will render it as ``case BZ_X_MAPPING_2: goto LABEL_<label>;`` with the labeled block staying as a
+        member node of the loop. For obivous reasons, it is incorrect to either create an edge that goes to the loop's
+        entry or simply drop the edge.
+        """
+
+        assert self.overlay_manager is not None
+        complete_graph = self.overlay_manager.graph
+        under = region.underlying_nodes()
+        entry: Any = region.head
+        while isinstance(entry, RegionOverlay):
+            entry = entry.head
+        for v in under:
+            if v is entry or v not in complete_graph or self._jump_only_chain_reaches(complete_graph, v, entry, under):
+                continue
+            for u in complete_graph.predecessors(v):
+                if u not in under:
+                    complete_graph[u][v]["abnormal_entry"] = v.addr
+
+    @staticmethod
+    def _jump_only_chain_reaches(graph: networkx.DiGraph, node: Any, target: Any, within: set) -> bool:
+        seen = set()
+        while node is not target:
+            if node in seen or node not in within or not isinstance(node, Block):
+                return False
+            seen.add(node)
+            stmts = [stmt for stmt in node.statements if not isinstance(stmt, ailment.Stmt.Label)]
+            if len(stmts) != 1 or not isinstance(stmts[0], Jump) or graph.out_degree(node) != 1:
+                return False
+            node = next(iter(graph.successors(node)))
+        return True
 
     def _parent_overlay_of(self, node: TNode) -> TOverlay:
         """Find the overlay that the given working-graph node is currently a direct member of."""
