@@ -50,7 +50,7 @@ class TestStackFrameCollapse(unittest.TestCase):
         dec = self._decompile("decbench_gzip_O0", "fprint_off")
         text = dec.codegen.text
 
-        assert re.search(r"= &v\d+;", text) is not None
+        assert re.search(r"= &v\d+ \+ \d+;", text) is not None
         assert re.search(r"&v\d+ - \d+", text) is None
 
 
