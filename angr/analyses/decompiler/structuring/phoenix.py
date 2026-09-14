@@ -51,6 +51,7 @@ from angr.utils.graph import (
     GraphUtils,
     compute_dominance_intervals,
     dfs_back_edges,
+    dominates,
     dominates_by_intervals,
 )
 
@@ -778,7 +779,7 @@ class PhoenixStructurer(StructurerBase):
         if loop_type is None:
             # natural loop. select *any* exit edge to determine the successor
             is_natural, result_natural = self._refine_cyclic_make_natural_loop(
-                graph, fullgraph, loop_head, loop_heads, self._region.head
+                graph, fullgraph, loop_head, loop_heads, self._region.head, nested=self._parent_region is None
             )
             if not is_natural:
                 # cannot refine this loop
@@ -1066,7 +1067,9 @@ class PhoenixStructurer(StructurerBase):
         return bool(outgoing_edges or len(continue_edges) > 1)
 
     @staticmethod
-    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, loop_heads, successor=None) -> set[BaseNode]:
+    def _refine_cyclic_determine_loop_body(
+        graph, fullgraph, loop_head, loop_heads, region_head, successor=None, nested: bool = False
+    ) -> set[BaseNode]:
         # determine the loop body: all nodes that have paths going to loop_head
         # networkx.has_path(graph, node, loop_head) is too expensive though.
         loop_body = {loop_head}
@@ -1076,9 +1079,34 @@ class PhoenixStructurer(StructurerBase):
             if node in graph and node in inverted_loophead_descendants:
                 loop_body.add(node)
 
-        if any(other_loop_head in loop_body for other_loop_head in loop_heads if other_loop_head is not loop_head):
-            # the loop body cannot contain other loop heads
-            return set()
+        # the loop body cannot contain other loop heads (the loops are not nested then). compare by address: loop_heads
+        # may hold nodes that structuring has since replaced. the region head counts as a loop head.
+        other_head_addrs = {other.addr for other in loop_heads if other.addr != loop_head.addr}
+        if region_head.addr != loop_head.addr:
+            other_head_addrs.add(region_head.addr)
+        if any(node.addr in other_head_addrs for node in loop_body):
+            if not nested:
+                return set()
+            # the strongly connected component holds a loop nest (the regions of the nested loops dissolved into this
+            # one). restrict the body to the natural loop of loop_head: the nodes that reach a back edge of loop_head
+            # (an edge from a node that loop_head dominates) without passing through loop_head. the innermost loop is
+            # then refined first, and the loops around it once it has been structured into a single node.
+            idoms = networkx.immediate_dominators(fullgraph, region_head)
+            natural_loop = {loop_head}
+            stack = [
+                pred
+                for pred in fullgraph.predecessors(loop_head)
+                if pred in loop_body and dominates(idoms, loop_head, pred)
+            ]
+            while stack:
+                node = stack.pop()
+                if node in natural_loop:
+                    continue
+                natural_loop.add(node)
+                stack.extend(pred for pred in fullgraph.predecessors(node) if pred in loop_body)
+            if any(node.addr in other_head_addrs for node in natural_loop):
+                return set()
+            loop_body = natural_loop
 
         # extend the loop body if possible
         while True:
@@ -1088,6 +1116,9 @@ class PhoenixStructurer(StructurerBase):
                 succ_not_in_loop_body = False
                 for succ in fullgraph.successors(node):
                     if successor is not None and succ is successor:
+                        continue
+                    if succ.addr == region_head.addr:
+                        # the region head is entered from outside the region, which the view does not show
                         continue
                     if succ not in loop_body and succ in graph and fullgraph.out_degree[succ] <= 1:
                         if all(pred in loop_body for pred in fullgraph.predecessors(succ)):
@@ -1162,7 +1193,13 @@ class PhoenixStructurer(StructurerBase):
                     # virtualize all other edges
                     continue_node = head_pred
                     loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(
-                        graph, fullgraph, loop_head, loop_heads, successor=successor
+                        graph,
+                        fullgraph,
+                        loop_head,
+                        loop_heads,
+                        self._region.head,
+                        successor=successor,
+                        nested=self._parent_region is None,
                     )
                     for node in loop_body:
                         if node is head_pred:
@@ -1185,12 +1222,19 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _refine_cyclic_make_natural_loop(
-        graph, fullgraph, loop_head, loop_heads, region_head
+        graph, fullgraph, loop_head, loop_heads, region_head, nested: bool = False
     ) -> tuple[bool, tuple[list, list, Any] | None]:
+        """
+        ``nested``: allow loop_head to be the head of a loop nest whose other loops share its strongly connected
+        component; the body is then the natural loop of loop_head. Only the root region does this: an inner region
+        dissolves into its parent instead, which gets the chance to structure the nest from its own regions.
+        """
         continue_edges = []
         outgoing_edges = []
 
-        loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, loop_heads)
+        loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(
+            graph, fullgraph, loop_head, loop_heads, region_head, nested=nested
+        )
         if not loop_body:
             return False, None
 
