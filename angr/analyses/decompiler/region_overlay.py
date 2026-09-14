@@ -27,6 +27,25 @@ class RegionBound(Protocol):
 type Tx[U: RegionBound] = "U | RegionOverlay[U]"
 
 
+def merge_edge_data(acc: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Merge the data of two shared-graph edges that become one (two nodes with the same neighbor collapsing, or a jump to
+    a loop's entry next to a jump into its body). ``abnormal_entry`` (an edge into a loop body, tagged by
+    RegionIdentifier._tag_abnormal_entry_edges) merged with an untagged edge keeps the tag and gains ``normal_entry``:
+    the jump into the body still becomes a goto, but the edge must stay.
+    """
+    merged = dict(acc)
+    merged.update(data)
+    acc_abnormal = acc.get("abnormal_entry") is not None
+    data_abnormal = data.get("abnormal_entry") is not None
+    if acc_abnormal != data_abnormal:
+        merged["abnormal_entry"] = acc["abnormal_entry"] if acc_abnormal else data["abnormal_entry"]
+        merged["normal_entry"] = True
+    elif acc.get("normal_entry") or data.get("normal_entry"):
+        merged["normal_entry"] = True
+    return merged
+
+
 class OverlayManager[T: RegionBound]:
     """
     OverlayManager owns the single shared control-flow graph that all RegionOverlay objects are views of, plus the
@@ -162,6 +181,8 @@ class OverlayManager[T: RegionBound]:
     def graph_add_edge(self, src, dst, **data) -> None:
         existed = self.graph.has_edge(src, dst)
         old_data = dict(self.graph[src][dst]) if existed else None
+        if old_data is not None and data:
+            data = merge_edge_data(old_data, data)
         self.graph.add_edge(src, dst, **data)
 
         if existed:
@@ -179,6 +200,13 @@ class OverlayManager[T: RegionBound]:
         self._touch(src)
         self._touch(dst)
         self._bump()
+
+    def graph_strip_entry_tags(self, src, dst) -> None:
+        """Drop the abnormal_entry / normal_entry tags of an edge (see merge_edge_data)."""
+        attrs = self.graph[src][dst]
+        removed = {k: attrs.pop(k) for k in ("abnormal_entry", "normal_entry") if k in attrs}
+        if removed:
+            self._record(lambda: attrs.update(removed))
 
     def graph_remove_edge(self, src, dst) -> None:
         old_data = dict(self.graph[src][dst])
@@ -398,6 +426,11 @@ class RegionOverlay[T: RegionBound]:
         while cur.parent is not None and cur.parent is not self:
             cur = cur.parent
         return cur if cur.parent is self else None
+
+    def representative(self, node: T) -> Tx[T] | None:
+        """The node standing for a shared-graph node in this overlay's with-successors view."""
+        rep = self._representative_in(node)
+        return rep if rep is not None else self._representative_outside(node)
 
     def _representative_outside(self, node):
         """
@@ -875,18 +908,27 @@ class RegionOverlay[T: RegionBound]:
             self._mgr._record(lambda: self._hidden.add((src, dst_)))
         self._invalidate()
 
+    def _detach_underlying(self, u: T, v: T) -> None:
+        self._mgr.graph_remove_edge(u, v)
+        if v not in self._under:
+            self._detached_succ_counts[v] = self._detached_succ_counts.get(v, 0) + 1
+            self._mgr._record(lambda: self._detached_succ_counts.__setitem__(v, self._detached_succ_counts[v] - 1))
+
+    def detach_raw_edge(self, u: T, v: T) -> None:
+        """
+        Remove exactly one shared-graph edge. Unlike detach_edge, other edges between the view nodes representing
+        u and v are kept (e.g. a block that jumps both to a loop's entry and into its body).
+        """
+        self._detach_underlying(u, v)
+        self._invalidate()
+
     def detach_edge(self, src: Tx[T], dst: Tx[T]) -> None:
         """
         Remove an edge from the shared graph for real (e.g., when the edge has been virtualized into a goto).
         Overlay endpoints remove all underlying edges between the two node sets.
         """
         for u, v in self.underlying_edge_pairs(src, dst):
-            self._mgr.graph_remove_edge(u, v)
-            if v not in self._under:
-                self._detached_succ_counts[v] = self._detached_succ_counts.get(v, 0) + 1
-                self._mgr._record(
-                    lambda v=v: self._detached_succ_counts.__setitem__(v, self._detached_succ_counts[v] - 1)
-                )
+            self._detach_underlying(u, v)
         # the edge may (also) exist as a view-only extra edge introduced by absorb_successor_into(); such edges
         # have no shared-graph counterpart, so drop them here or the edge would survive its own virtualization
         # (last-resort refinement would then pick it again forever)
