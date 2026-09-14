@@ -1009,8 +1009,9 @@ class SimEngineVRAIL(
         r1 = self._expr_bv(arg1)
         result_size = arg0.bits
 
-        # logical right shift implies unsigned operand
-        if isinstance(r0.typevar, typevars.TypeVariable):
+        # logical right shift implies unsigned operand, unless it extracts the sign bit (x >> (bits - 1))
+        is_sign_bit_extraction = r1.data.concrete and r1.data.concrete_value == result_size - 1
+        if isinstance(r0.typevar, typevars.TypeVariable) and not is_sign_bit_extraction:
             tc = typevars.Subtype(r0.typevar, typeconsts.unsigned_int_type(result_size))
             self.state.add_type_constraint(tc)
 
