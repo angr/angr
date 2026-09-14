@@ -45,6 +45,7 @@ class TestAILExec(unittest.TestCase):
             vector_count=4,
         )
         r = engine._handle_expr_Convert(f2i)  # pylint: disable=protected-access
+        assert isinstance(r, claripy.ast.BV)
         assert r.concrete and r.concrete_value == 0x00000001_00000002_00000003_FFFFFFFC
 
         engine.value = claripy.BVV(0x00000001_00000002_00000003_FFFFFFFC, 128)
@@ -59,6 +60,7 @@ class TestAILExec(unittest.TestCase):
             vector_count=4,
         )
         r = engine._handle_expr_Convert(i2f)  # pylint: disable=protected-access
+        assert isinstance(r, claripy.ast.BV)
         assert r.concrete and r.concrete_value == 0x3F800000_40000000_40400000_C0800000
 
     def test_abs_expression_preserves_fp_sort(self):

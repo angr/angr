@@ -566,6 +566,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             # claripy has no half-precision floats
             return self._top(expr.to_bits)
         rm = _claripy_rm(expr.rounding_mode)
+        assert isinstance(rm, claripy.fp.RM)
         lanes = []
         for lane in self._expr_bv(expr.operand).chop(from_lane):
             if expr.from_type == ailment.expression.Convert.TYPE_INT:

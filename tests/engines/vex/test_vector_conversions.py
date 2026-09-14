@@ -63,6 +63,7 @@ class TestVectorConversionBinaries(TestCase):
         state.memory.store(TestVectorConversionBinaries.OUT_ADDR, b"\0" * 16)
         func = proj.factory.callable(proj.kb.functions[name].addr, base_state=state, prototype=prototype)
         func(TestVectorConversionBinaries.IN_ADDR, TestVectorConversionBinaries.OUT_ADDR)
+        assert func.result_state is not None
         out = func.result_state.memory.load(TestVectorConversionBinaries.OUT_ADDR, 16)
         assert out.concrete, f"{name} produced a symbolic result: {out}"
         return out.concrete_value.to_bytes(16, "big")

@@ -25,6 +25,7 @@ class TestVectorConversions(TestCase):
                 dec = proj.analyses.Decompiler(proj.kb.functions[name], cfg=cfg.model, flavor=flavor)
                 assert dec.codegen is not None, f"{name} ({flavor}) failed to decompile"
                 text = dec.codegen.text
+                assert text is not None
                 assert intrinsic in text, f"{name} ({flavor}):\n{text}"
                 assert "unsupported_" not in text and "UnaryOp V" not in text, text
 

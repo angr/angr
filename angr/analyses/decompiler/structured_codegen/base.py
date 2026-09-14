@@ -216,10 +216,13 @@ def vector_convert_name(expr: Convert) -> str:
     """
     Intrinsic-style name for a lane-wise conversion, e.g. ``ConvF32toI32Sx4`` for ``Iop_F32toI32Sx4``.
     """
-    from_lane = expr.from_bits // expr.vector_count
-    to_lane = expr.to_bits // expr.vector_count
+    count = expr.vector_count
+    if count is None:
+        raise ValueError("not a lane-wise conversion")
+    from_lane = expr.from_bits // count
+    to_lane = expr.to_bits // count
     sign = "S" if expr.is_signed else "U"
     # VEX spelling: the integer side carries the sign marker (I32StoF32x4, F32toI32Ux4)
     src = f"F{from_lane}" if expr.from_type == Convert.TYPE_FP else f"I{from_lane}{sign}"
     dst = f"F{to_lane}" if expr.to_type == Convert.TYPE_FP else f"I{to_lane}{sign}"
-    return f"Conv{src}to{dst}x{expr.vector_count}"
+    return f"Conv{src}to{dst}x{count}"
