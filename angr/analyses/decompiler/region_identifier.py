@@ -999,6 +999,7 @@ class RegionIdentifier(Analysis):
     ) -> TOverlay:
         loop_nodes = set(loop_nodes)
         region = self._parent_overlay_of(head).create_subregion(head, loop_nodes, cyclic=True)
+        self._tag_abnormal_entry_edges(region)
 
         delayed_edges = []
 
@@ -1035,6 +1036,59 @@ class RegionIdentifier(Analysis):
         node_order[region] = node_order[head]
 
         return region
+
+    def _tag_abnormal_entry_edges(self, region: TOverlay) -> None:
+        """
+        Mark every shared-graph edge that enters the loop somewhere other than its entry with
+        ``abnormal_entry=<target address>``.
+
+        The loop's own views never show such an edge, and in enclosing views it points at whichever node ends up
+        holding the target; the structurer that owns the source turns it into a goto to the tagged address before
+        structuring (PhoenixStructurer._virtualize_abnormal_entries). Example: bzip2's BZ2_decompress is a resumable
+        state machine whose switch dispatches into case labels inside loops::
+
+            for (i = 0; i < 16; i++) {
+                if (inUse16[i]) {
+                    for (j = 0; j < 16; j++) {
+                        case BZ_X_MAPPING_2:
+                        GET_BIT(...)
+                    }
+                }
+            }
+
+        The dispatch edge into the case label is an abnormal entry of the loop; once tagged, it renders as
+        ``case BZ_X_MAPPING_2: goto LABEL_<label>;`` and the label block stays an ordinary loop member. Without the
+        tag the edge would be carried onto every node that absorbs the label, e.g. the sequence node of the inner
+        loop's initialization and the label block.
+
+        An edge into a jump-only block that leads to the entry (a ``continue`` compiled as a jump to the loop's
+        closing ``jmp head``) enters the loop at its entry and is not tagged.
+        """
+        assert self.overlay_manager is not None
+        shared = self.overlay_manager.graph
+        under = region.underlying_nodes()
+        entry: Any = region.head
+        while isinstance(entry, RegionOverlay):
+            entry = entry.head
+        for v in under:
+            if v is entry or v not in shared or self._jump_only_chain_reaches(shared, v, entry, under):
+                continue
+            for u in shared.predecessors(v):
+                if u not in under:
+                    shared[u][v]["abnormal_entry"] = v.addr
+
+    @staticmethod
+    def _jump_only_chain_reaches(graph: networkx.DiGraph, node: Any, target: Any, within: set) -> bool:
+        seen = set()
+        while node is not target:
+            if node in seen or node not in within or not isinstance(node, Block):
+                return False
+            seen.add(node)
+            stmts = [stmt for stmt in node.statements if not isinstance(stmt, ailment.Stmt.Label)]
+            if len(stmts) != 1 or not isinstance(stmts[0], Jump) or graph.out_degree(node) != 1:
+                return False
+            node = next(iter(graph.successors(node)))
+        return True
 
     def _parent_overlay_of(self, node: TNode) -> TOverlay:
         """Find the overlay that the given working-graph node is currently a direct member of."""

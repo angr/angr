@@ -168,6 +168,8 @@ class PhoenixStructurer(StructurerBase):
     def _analyze(self):
         # iterate until there is only one node in the region
 
+        self._virtualize_abnormal_entries()
+
         # the region's identified successors (its loop-exit / break targets). these must be captured before
         # structuring begins: structuring removes the live exit edges as it forms breaks/gotos, which would empty
         # the region's derived successor set, but the break-rewrite logic still needs the original exit targets.
@@ -246,6 +248,74 @@ class PhoenixStructurer(StructurerBase):
                 self._region.manager.rollback(pre_refinement_checkpoint)
 
             self.result = None  # the actual result is in self._region.graph and self._region.graph_with_successors
+
+    def _virtualize_abnormal_entries(self) -> None:
+        """
+        Turn every edge that enters a loop somewhere other than its entry (tagged ``abnormal_entry`` by
+        RegionIdentifier) into a goto before structuring. The loop's own views never showed the edge, and here it
+        points at whatever node holds the target, so it can only ever be a goto and must not take part in any
+        schema. A jump-table dispatch source keeps its indirect jump: the switch builder emits the goto case for the
+        entry that is no longer among its successors.
+
+        Three shapes keep their edge: one that by now lands at the start of its target node (the loop dissolved or was
+        rotated), which is an ordinary edge here; one that also carries a normal entry from the same source
+        (``normal_entry``), where only the jump is rewritten into a goto; and one that is the target's only way in
+        from the region head (a loop nest entered nowhere but through a jump into its body), where detaching would
+        orphan the target and no schema could place it.
+        """
+        mgr = self._region.manager
+        shared = mgr.graph
+        while True:
+            found = None
+            for src in self._region.members:
+                if isinstance(src, RegionOverlay) or src not in shared:
+                    continue
+                for _, v, data in shared.out_edges(src, data=True):
+                    target_addr = data.get("abnormal_entry")
+                    if target_addr is not None:
+                        found = (src, v, target_addr, bool(data.get("normal_entry")))
+                        break
+                if found is not None:
+                    break
+            if found is None:
+                return
+            src, v, target_addr, mixed = found
+            dst = self._region.representative(v)
+            assert dst is not None
+            mgr.graph_strip_entry_tags(src, v)
+            if dst.addr == target_addr:
+                continue
+            if (
+                not mixed
+                and dst in self._region.graph
+                and not self._reachable_without_edges(
+                    self._region.graph_with_successors, self._region.head, dst, {(src, dst)}
+                )
+            ):
+                l.debug("Keeping the abnormal entry %r -> %r: it is the only way to reach the target.", src, dst)
+                continue
+            l.debug("Virtualizing the abnormal entry %r -> %r (jumps to %#x).", src, dst, target_addr)
+            self._virtualize_edge(src, dst, target_addr=target_addr, raw_edge=(src, v), detach=not mixed)
+
+    @staticmethod
+    def _reachable_without_edges(graph: networkx.DiGraph, src, dst, removed_edges: set[tuple[Any, Any]]) -> bool:
+        """
+        Whether dst stays reachable from src in graph once removed_edges are taken out.
+        """
+        if src is dst:
+            return True
+        seen = {src}
+        stack = [src]
+        while stack:
+            node = stack.pop()
+            for succ in graph.successors(node):
+                if succ in seen or (node, succ) in removed_edges:
+                    continue
+                if succ is dst:
+                    return True
+                seen.add(succ)
+                stack.append(succ)
+        return False
 
     def _analyze_cyclic(self) -> bool:
         any_matches = False
@@ -686,26 +756,6 @@ class PhoenixStructurer(StructurerBase):
             self._region.add_edge(loop_node, successor)
 
         return True, loop_node, successor
-
-    @staticmethod
-    def _reachable_without_edges(graph: networkx.DiGraph, src, dst, removed_edges: set[tuple[Any, Any]]) -> bool:
-        """
-        Whether dst stays reachable from src in graph once removed_edges are taken out.
-        """
-        if src is dst:
-            return True
-        seen = {src}
-        stack = [src]
-        while stack:
-            node = stack.pop()
-            for succ in graph.successors(node):
-                if succ in seen or (node, succ) in removed_edges:
-                    continue
-                if succ is dst:
-                    return True
-                seen.add(succ)
-                stack.append(succ)
-        return False
 
     def _refine_cyclic(self) -> bool:
         graph = self._region.graph
@@ -3267,13 +3317,26 @@ class PhoenixStructurer(StructurerBase):
         )
         return False
 
-    def _virtualize_edge(self, src, dst) -> bool:
+    def _virtualize_edge(
+        self,
+        src,
+        dst,
+        target_addr: int | None = None,
+        raw_edge: tuple[Any, Any] | None = None,
+        detach: bool = True,
+    ) -> bool:
         """
         Virtualize the edge src -> dst: rewrite the jump into a goto and remove the edge from the region.
         Returns True when the edge is actually gone from the with-successors view afterwards; a False return
         means removal failed (a bug in graph bookkeeping) and the caller must not treat it as progress, or
         refinement would pick the same edge again forever.
+
+        :param target_addr: Where the jump goes when that is not the start of dst (dst absorbed the target).
+        :param raw_edge:    Remove only this shared-graph edge instead of every edge between src and dst.
+        :param detach:      Rewrite the jump but keep the edge (it also carries a normal entry into dst).
         """
+        if target_addr is None:
+            target_addr = dst.addr
         # if the last statement of src is a conditional jump, we rewrite it into a Condition(Jump) and a direct jump
         try:
             last_stmt = self.cond_proc.get_last_statement(src)
@@ -3282,11 +3345,11 @@ class PhoenixStructurer(StructurerBase):
         new_src = None
         remove_src_last_stmt = False
         if isinstance(last_stmt, ConditionalJump):
-            if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == dst.addr:
+            if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == target_addr:
                 goto0_condition = last_stmt.condition
                 goto0_target = last_stmt.true_target
                 goto1_target = last_stmt.false_target
-            elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == dst.addr:
+            elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == target_addr:
                 goto0_condition = UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition)
                 goto0_target = last_stmt.false_target
                 goto1_target = last_stmt.true_target
@@ -3331,7 +3394,7 @@ class PhoenixStructurer(StructurerBase):
                 statements=[
                     Jump(
                         self.ail_manager.next_atom(),
-                        Const(self.ail_manager.next_atom(), dst.addr, self.project.arch.bits),
+                        Const(self.ail_manager.next_atom(), target_addr, self.project.arch.bits),
                         ins_addr=stmt_addr,
                         stmt_idx=0,
                     )
@@ -3339,8 +3402,12 @@ class PhoenixStructurer(StructurerBase):
             )
             new_src = SequenceNode(src.addr, nodes=[src, goto_node])
 
-        self.virtualized_edges.add((src, dst))
-        self._region.detach_edge(src, dst)
+        if detach:
+            self.virtualized_edges.add((src, dst))
+            if raw_edge is not None:
+                self._region.detach_raw_edge(*raw_edge)
+            else:
+                self._region.detach_edge(src, dst)
         if new_src is not None:
             self.replace_nodes_both(src, new_src)
         if remove_src_last_stmt:
@@ -3704,6 +3771,9 @@ class PhoenixStructurer(StructurerBase):
         if drop_refinement_marks:
             region.drop_edge_marks_from(new_node, "cyclic_refinement_outgoing")
 
+        if self._graph_helper is None:  # type: ignore[comparison-overlap]
+            # abnormal entries are virtualized before the helper exists
+            return
         if old_node_1 is not None:
             self._graph_helper.replace_nodes(old_node_0, old_node_1, new_node)
         else:

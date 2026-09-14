@@ -70,6 +70,10 @@ class TestPhoenixGotoSuccessors(unittest.TestCase):
         assert text.count("case ") >= 40
         # the GET_BITS loops are emitted as while or for loops
         assert len(re.findall(r"\b(while|for) \(", text)) >= 60
+        # a case label inside a loop body (BZ_X_MAPPING_2) is an abnormal entry of that loop: the case is a goto to
+        # the label, and the label block stays in the loop
+        assert re.search(r"case \d+:\s*goto LABEL_40b920;", text)
+        assert re.search(r"v\d+ = 0;\s*LABEL_40b920:", text)
 
     def test_bzip2_o0_decompress_structures_completely(self):
         text, nblocks, missing = self._decompile_bzip2_decompress("decbench_bzip2_O0")
