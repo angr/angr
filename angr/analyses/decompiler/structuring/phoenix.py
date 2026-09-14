@@ -798,7 +798,7 @@ class PhoenixStructurer(StructurerBase):
                 outgoing_edges_by_dst[dst].append(src)
             for dst, srcs in outgoing_edges_by_dst.items():
                 if dst in graph and graph.in_degree[dst] == len(srcs):
-                    if dst is successor and self._region.parent is None:
+                    if dst is successor and self._parent_region is None:
                         # all edges to the successor are rewritten into breaks during refinement, and the loop node
                         # is reconnected to the successor when the loop is structured later, so the successor will
                         # not dangle. only exempt the successor at the root region: bailing there fails structuring
@@ -806,7 +806,7 @@ class PhoenixStructurer(StructurerBase):
                         # a cyclic ancestor.
                         continue
                     if (
-                        self._region.parent is None
+                        self._parent_region is None
                         and successor is not None
                         and successor in graph
                         and fullgraph.out_degree[successor] == 0
@@ -3123,7 +3123,7 @@ class PhoenixStructurer(StructurerBase):
             l.debug("last_resort: Removed edge %r -> %r (type 2)", src, dst)
             return True
 
-        if self._region.parent is None and not self._region.cyclic and not graph_is_dag:
+        if self._parent_region is None and not self._region.cyclic and not graph_is_dag:
             # an acyclic region must not contain cycles; one can appear as debris when an inner cyclic region
             # fails to structure and dissolves its partially-refined body into this region. the cycle-closing
             # edges are excluded from the candidate lists above (they are back edges, dropped from
