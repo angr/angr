@@ -244,6 +244,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
+        if extra_offset < 0:
+            # a negative offset never indexes an object that starts at the base (e.g., rbp-relative locals when rbp
+            # holds sp-8); treat it as a plain access at the concrete address
+            return self.stackvar_get(base_offset + extra_offset, 0, base_size)
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size
@@ -323,6 +327,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
+        if extra_offset < 0:
+            # see stackvar_get
+            self.stackvar_set(base_offset + extra_offset, 0, base_size, value)
+            return
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size
