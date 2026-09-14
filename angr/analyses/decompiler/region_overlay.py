@@ -791,6 +791,19 @@ class RegionOverlay[T: RegionBound]:
             return sum(1 for pred in self._mgr.graph.predecessors(entry) if pred not in node._under)
         return self._mgr.graph.in_degree[node]
 
+    def external_entry_count(self, node: Tx[T]) -> int:
+        """
+        The number of edges entering a node (a successor of this region) from nodes that are not under this region:
+        the entries it keeps once every edge from this region to it has been virtualized.
+        """
+        entry = self._resolve_entry(node)
+        if entry is None or entry not in self._mgr.graph:
+            return 0
+        under_node = self._underlying(node)
+        return sum(
+            1 for pred in self._mgr.graph.predecessors(entry) if pred not in self._under and pred not in under_node
+        )
+
     def add_node(self, node) -> None:
         """Insert a new node into the complete graph as a direct member of this region."""
         assert node not in self._mgr.graph

@@ -857,11 +857,40 @@ class PhoenixStructurer(StructurerBase):
 
             # an exit to a region successor whose only entry in the complete graph is this edge must not be virtualized:
             # the target would be left without any predecessor in the enclosing region, where no schema can place it.
-            # bail so that this region dissolves into its parent, where the target is a member and the acyclic schemas
-            # structure it together with the loop (e.g. a shared error block whose other entries, from loops that
-            # were structured earlier, have already become gotos).
-            for _, dst in outgoing_edges:
-                if dst is not successor and dst not in graph and self._region.complete_graph_entry_count(dst) == 1:
+            # such a target must be the loop successor instead (the loop is the only way into it, so it follows the
+            # loop), provided that the current successor keeps an entry from elsewhere once its exits become gotos.
+            # otherwise bail so that this region dissolves into its parent, where the target is a member and the
+            # acyclic schemas structure it together with the loop (e.g. a shared error block whose other entries,
+            # from loops that were structured earlier, have already become gotos).
+            sole_entry_dsts = sorted(
+                {
+                    dst
+                    for _, dst in outgoing_edges
+                    if dst is not successor and dst not in graph and self._region.complete_graph_entry_count(dst) == 1
+                },
+                key=lambda n: n.addr,
+            )
+            if sole_entry_dsts:
+                if (
+                    len(sole_entry_dsts) == 1
+                    and successor is not None
+                    and successor not in graph
+                    and loop_type != "do-while"
+                    and self._region.external_entry_count(successor) > 0
+                ):
+                    if loop_type == "while":
+                        # the head's exit is not among the outgoing edges (it is the while condition); it becomes a
+                        # goto now
+                        outgoing_edges.append((loop_head, successor))
+                        outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
+                    l.debug(
+                        "_refine_cyclic_core: %r is the only way into %r; it becomes the loop successor instead of %r",
+                        loop_head,
+                        sole_entry_dsts[0],
+                        successor,
+                    )
+                    successor = sole_entry_dsts[0]
+                else:
                     return False
 
             # sanity check: if removing outgoing edges would create dangling nodes, then it means we are not ready for
