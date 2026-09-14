@@ -35,6 +35,7 @@ from angr.sim_type import (
     SimTypeDouble,
     SimTypeLongLong,
     SimTypeRef,
+    TypeRef,
     parse_file,
 )
 
@@ -258,6 +259,15 @@ class TestCallingConvention(TestCase):
             # It should not raise any exception!
             arg_locs = list(cc.arg_locs(proto))
             assert arg_locs is not None
+
+    def test_simcc_arg_locs_returnty_typeref_without_size(self):
+        # a TypeRef around an unresolvable SimTypeRef (angr/angr#7135) or an empty class has no usable size
+        arch = archinfo.ArchAMD64()
+        cc = SimCCMicrosoftAMD64(arch)
+        for inner in (SimTypeRef("class Base::Type", SimCppClass), SimCppClass(name="class Base::Type")):
+            proto = SimTypeFunction([SimTypeInt()], TypeRef("class Base::Type", inner)).with_arch(arch)
+            assert not cc.return_in_implicit_outparam(proto.returnty)
+            assert len(cc.arg_locs(proto)) == 1
 
     def _mips_int_arg_locs(self, cc_cls, arch, arg_types):
         proto = SimTypeFunction(arg_types, SimTypeInt()).with_arch(arch)
