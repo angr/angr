@@ -221,10 +221,23 @@ class SimplifierAILEngine(
             return ailment.expression.BinaryOp(expr.idx, "Mull", [operand_0, operand_1], expr.signed, **expr.tags)
         return expr
 
+    @staticmethod
+    def _is_scalar_int_convert(expr: ailment.expression.Convert) -> bool:
+        return (
+            expr.vector_count is None
+            and expr.from_type == ailment.expression.Convert.TYPE_INT
+            and expr.to_type == ailment.expression.Convert.TYPE_INT
+        )
+
     def _handle_expr_Convert(self, expr):
         operand_expr = self._expr(expr.operand)
 
-        if isinstance(operand_expr, ailment.expression.Convert):
+        # the rewrites below only hold for scalar integer conversions
+        if (
+            self._is_scalar_int_convert(expr)
+            and isinstance(operand_expr, ailment.expression.Convert)
+            and self._is_scalar_int_convert(operand_expr)
+        ):
             if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
                 # eliminate the redundant Convert
                 return operand_expr.operand
@@ -249,14 +262,19 @@ class SimplifierAILEngine(
             mask = (2**expr.to_bits) - 1
             value &= mask
             return ailment.expression.Const(expr.idx, value, expr.to_bits, **expr.tags)
-        if isinstance(operand_expr, ailment.expression.BinaryOp) and operand_expr.op in {
-            "Mul",
-            "Shl",
-            "Div",
-            "Mod",
-            "Add",
-            "Sub",
-        }:
+        if (
+            self._is_scalar_int_convert(expr)
+            and isinstance(operand_expr, ailment.expression.BinaryOp)
+            and operand_expr.op
+            in {
+                "Mul",
+                "Shl",
+                "Div",
+                "Mod",
+                "Add",
+                "Sub",
+            }
+        ):
             if isinstance(operand_expr.operands[1], ailment.expression.Const):
                 if (
                     isinstance(operand_expr.operands[0], ailment.expression.Register)
@@ -315,6 +333,7 @@ class SimplifierAILEngine(
             from_type=expr.from_type,
             to_type=expr.to_type,
             rounding_mode=expr.rounding_mode,
+            vector_count=expr.vector_count,
             **expr.tags,
         )
 

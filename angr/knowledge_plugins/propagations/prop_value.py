@@ -190,6 +190,11 @@ class PropValue:
             return None
         if isinstance(expr, ailment.Expr.Const):
             return ailment.Expr.Const(expr.idx, expr.value, bits + expr.bits, **expr.tags)
-        if isinstance(expr, ailment.Expr.Convert):
+        if (
+            isinstance(expr, ailment.Expr.Convert)
+            and expr.vector_count is None
+            and expr.from_type == ailment.Expr.Convert.TYPE_INT
+            and expr.to_type == ailment.Expr.Convert.TYPE_INT
+        ):
             return ailment.Expr.Convert(None, expr.from_bits, bits + expr.to_bits, False, expr.operand, **expr.tags)
         return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr, **expr.tags)

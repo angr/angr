@@ -519,6 +519,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return self._top(expr.bits)
 
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType:
+        if expr.vector_count is not None:
+            return self._handle_expr_ConvertV(expr)
         child = self._expr(expr.operand)
         assert len(child) == expr.from_bits
         if expr.from_type == ailment.expression.Convert.TYPE_INT:
@@ -547,6 +549,45 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             assert False
         else:
             assert False
+
+    def _handle_expr_ConvertV(self, expr: ailment.expression.Convert) -> DataType:
+        """
+        Lane-wise conversion (e.g. Iop_F32toI32Sx4): the scalar conversion applied to every lane.
+        """
+        assert expr.vector_count is not None
+        from_lane = expr.from_bits // expr.vector_count
+        to_lane = expr.to_bits // expr.vector_count
+        fp_lanes = [
+            lane
+            for lane, ty in ((from_lane, expr.from_type), (to_lane, expr.to_type))
+            if ty == ailment.expression.Convert.TYPE_FP
+        ]
+        if any(lane not in (32, 64) for lane in fp_lanes):
+            # claripy has no half-precision floats
+            return self._top(expr.to_bits)
+        rm = _claripy_rm(expr.rounding_mode)
+        lanes = []
+        for lane in self._expr_bv(expr.operand).chop(from_lane):
+            if expr.from_type == ailment.expression.Convert.TYPE_INT:
+                if expr.to_type == ailment.expression.Convert.TYPE_INT:
+                    if to_lane > from_lane:
+                        r = (
+                            lane.sign_extend(to_lane - from_lane)
+                            if expr.is_signed
+                            else lane.zero_extend(to_lane - from_lane)
+                        )
+                    else:
+                        r = lane[to_lane - 1 : 0]
+                else:
+                    r = lane.val_to_fp(claripy.fp.FSort.from_size(to_lane), expr.is_signed, rm).raw_to_bv()
+            else:
+                fp_lane = lane.raw_to_fp()
+                if expr.to_type == ailment.expression.Convert.TYPE_INT:
+                    r = fp_lane.val_to_bv(to_lane, expr.is_signed, rm)
+                else:
+                    r = fp_lane.to_fp(claripy.fp.FSort.from_size(to_lane), rm).raw_to_bv()
+            lanes.append(r)
+        return claripy.Concat(*lanes)
 
     def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType:
         child = self._expr_bits(expr.operand)

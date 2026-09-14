@@ -13,6 +13,7 @@ from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
 from angr.engines.successors import SimSuccessors
 from angr.procedures.libc.snprintf import snprintf
+from angr.rustylib.ailment import RoundingMode  # pylint:disable=import-error,no-name-in-module
 from angr.state_plugins.history import SimStateHistory
 from angr.storage import DefaultMemory
 from tests.common import bin_location
@@ -21,6 +22,45 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestAILExec(unittest.TestCase):
+    def test_vector_convert_is_lane_wise(self):
+        class _Engine(SimEngineAILSimState):
+            value: claripy.ast.Bits
+
+            def _expr(self, expr):  # pylint: disable=unused-argument
+                return self.value
+
+        engine = object.__new__(_Engine)
+        operand = ailment.Expr.Const(None, 0, 128)
+        # lanes: 1.0, 2.0, 3.0, -4.0 -> truncating float-to-int keeps the sign of the last lane
+        engine.value = claripy.BVV(0x3F800000_40000000_40400000_C0800000, 128)
+        f2i = ailment.Expr.Convert(
+            None,
+            128,
+            128,
+            True,
+            operand,
+            from_type=ailment.Expr.Convert.TYPE_FP,
+            to_type=ailment.Expr.Convert.TYPE_INT,
+            rounding_mode=RoundingMode.RM_TowardsZero,
+            vector_count=4,
+        )
+        r = engine._handle_expr_Convert(f2i)  # pylint: disable=protected-access
+        assert r.concrete and r.concrete_value == 0x00000001_00000002_00000003_FFFFFFFC
+
+        engine.value = claripy.BVV(0x00000001_00000002_00000003_FFFFFFFC, 128)
+        i2f = ailment.Expr.Convert(
+            None,
+            128,
+            128,
+            True,
+            operand,
+            from_type=ailment.Expr.Convert.TYPE_INT,
+            to_type=ailment.Expr.Convert.TYPE_FP,
+            vector_count=4,
+        )
+        r = engine._handle_expr_Convert(i2f)  # pylint: disable=protected-access
+        assert r.concrete and r.concrete_value == 0x3F800000_40000000_40400000_C0800000
+
     def test_abs_expression_preserves_fp_sort(self):
         class _Engine(SimEngineAILSimState):
             value: claripy.ast.Bits

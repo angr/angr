@@ -83,6 +83,7 @@ from .base import (
     InstructionMapping,
     PositionMapping,
     PositionMappingElement,
+    vector_convert_name,
 )
 
 if TYPE_CHECKING:
@@ -2868,6 +2869,34 @@ class CVEXCCallExpression(CExpression):
         yield ")", paren
 
 
+class CVectorConvert(CExpression):
+    """
+    A lane-wise conversion (an AIL Convert with vector_count), rendered as an intrinsic-style call because C has no
+    vector cast syntax.
+    """
+
+    __slots__ = ("expr", "operand")
+
+    def __init__(self, expr: Expr.Convert, operand: CExpression, **kwargs):
+        super().__init__(**kwargs)
+        self.expr = expr
+        self.operand = operand
+
+    @property
+    def type(self):
+        return self.codegen.default_simtype_from_bits(self.expr.to_bits, self.expr.is_signed)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield "...", self
+            return
+        yield vector_convert_name(self.expr), self
+        paren = CClosingObject("(")
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
+
+
 class CDirtyExpression(CExpression):
     """
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
@@ -4430,6 +4459,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         child = self._handle(expr.operand)
+
+        if expr.vector_count is not None:
+            return CVectorConvert(expr, child, tags=expr.tags, codegen=self)
 
         # Use a mask to represent non-standard size conversions
         if expr.to_bits < expr.from_bits and expr.to_bits not in _CAST_TYPES_BY_BITS:

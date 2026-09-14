@@ -209,3 +209,17 @@ class BaseStructuredCodeGenerator:
         v = self._next_node_idx
         self._next_node_idx += 1
         return v
+
+
+def vector_convert_name(expr) -> str:
+    """
+    Intrinsic-style name for a lane-wise conversion, e.g. ``ConvF32toI32Sx4`` for ``Iop_F32toI32Sx4``.
+    """
+    from angr.ailment.expression import Convert  # pylint:disable=import-outside-toplevel
+
+    from_lane = expr.from_bits // expr.vector_count
+    to_lane = expr.to_bits // expr.vector_count
+    from_fp = expr.from_type == Convert.TYPE_FP
+    to_fp = expr.to_type == Convert.TYPE_FP
+    sign = "" if to_fp else ("S" if expr.is_signed else "U")
+    return f"Conv{'F' if from_fp else 'I'}{from_lane}to{'F' if to_fp else 'I'}{to_lane}{sign}x{expr.vector_count}"

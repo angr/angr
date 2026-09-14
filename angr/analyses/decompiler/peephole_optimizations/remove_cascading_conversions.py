@@ -12,10 +12,13 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)
 
     def optimize(self, expr: Convert, **kwargs):
+        if expr.vector_count is not None:
+            return None
         if (
             expr.from_type == Convert.TYPE_INT
             and expr.to_type == Convert.TYPE_INT
             and isinstance(expr.operand, Convert)
+            and expr.operand.vector_count is None
             and expr.operand.from_type == Convert.TYPE_INT
             and expr.operand.to_type == Convert.TYPE_INT
         ):
