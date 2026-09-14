@@ -49,12 +49,15 @@ class RecursiveStructurer(Analysis):
 
         self.result: BaseNode | None = None
         self.result_incomplete: bool = False
+        # addresses of the top-level regions whose structuring failed; their output misses code blocks
+        self.structuring_failures: list[int] = []
 
         self._analyze()
 
     def _analyze(self):
         self._case_entry_to_switch_head: dict[int, int] = self._get_switch_case_entries()
         self.result_incomplete = False
+        self.structuring_failures = []
 
         assert isinstance(self._region, RegionOverlay), "RecursiveStructurer requires a RegionOverlay region"
         self._structure_overlay_tree()
@@ -120,6 +123,7 @@ class RecursiveStructurer(Analysis):
                             )
                             self.result = self._pick_incomplete_result_from_region(current_region)
                             self.result_incomplete = True
+                            self.structuring_failures.append(current_region.addr)
                         else:
                             self.result = st.result
                         break

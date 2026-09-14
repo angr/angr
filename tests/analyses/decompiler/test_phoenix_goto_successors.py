@@ -4,7 +4,6 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
-import logging
 import os
 import re
 import unittest
@@ -34,23 +33,10 @@ class TestPhoenixGotoSuccessors(unittest.TestCase):
         func = proj.kb.functions.function(name="BZ2_decompress")
         assert func is not None
 
-        incomplete = []
-
-        class _Watch(logging.Handler):
-            def emit(self, record):
-                if "Structuring failed to complete" in record.getMessage():
-                    incomplete.append(record)
-
-        logger = logging.getLogger("angr.analyses.decompiler.structuring.recursive_structurer")
-        watch = _Watch()
-        logger.addHandler(watch)
-        try:
-            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
-        finally:
-            logger.removeHandler(watch)
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert not incomplete
+        assert not dec.structuring_failures
 
         # every block with real instructions must be reachable from the output. the blocks left out are jump-only
         # and nop blocks plus the stack-protector check, which the decompiler removes.
