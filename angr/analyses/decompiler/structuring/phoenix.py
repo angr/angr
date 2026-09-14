@@ -57,6 +57,7 @@ from angr.utils.graph import (
 from .structurer_base import StructurerBase
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.region_overlay import RegionOverlayGraph
     from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(__name__)
@@ -151,10 +152,11 @@ class PhoenixStructurer(StructurerBase):
         self._analyze()
 
     @staticmethod
-    def _assert_graph_ok(g, msg: str) -> None:
+    def _assert_graph_ok(g: RegionOverlayGraph, msg: str) -> None:
         if _DEBUG:
             if g is None:
                 return
+            g = g.with_all_edges()
             assert len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, (
                 f"{msg}: More than one connected component. Please report this."
             )
@@ -1178,7 +1180,7 @@ class PhoenixStructurer(StructurerBase):
             # mark all edges as outgoing edges so they will be virtualized if they don't lead to the successor
             for node in successor_candidates:
                 for pred in fullgraph.predecessors(node):
-                    if pred in graph:
+                    if pred in graph and pred in loop_body:
                         outgoing_edges.append((pred, node))
 
         continue_edges = sorted(continue_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
