@@ -214,7 +214,10 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
         effective_bits = self._node_effective_bits.get(expr.idx)
-        if effective_bits is None or effective_bits[1] > expr.to_bits:
+        if expr.vector_count is not None:
+            # every lane of the operand feeds the result
+            effective_bits = 0, expr.from_bits
+        elif effective_bits is None or effective_bits[1] > expr.to_bits:
             effective_bits = 0, expr.to_bits
         self._update_effective_bits(expr.operand, effective_bits[0], effective_bits[1])
         self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)

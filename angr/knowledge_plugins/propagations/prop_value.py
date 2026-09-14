@@ -4,6 +4,7 @@ from collections.abc import Generator, Iterable
 from typing import TYPE_CHECKING, Any
 
 from angr import ailment, claripy
+from angr.utils.ail import is_scalar_int_convert
 
 if TYPE_CHECKING:
     from angr.code_location import CodeLocation
@@ -190,6 +191,6 @@ class PropValue:
             return None
         if isinstance(expr, ailment.Expr.Const):
             return ailment.Expr.Const(expr.idx, expr.value, bits + expr.bits, **expr.tags)
-        if isinstance(expr, ailment.Expr.Convert):
+        if isinstance(expr, ailment.Expr.Convert) and is_scalar_int_convert(expr):
             return ailment.Expr.Convert(None, expr.from_bits, bits + expr.to_bits, False, expr.operand, **expr.tags)
         return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr, **expr.tags)

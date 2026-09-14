@@ -79,7 +79,13 @@ from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimTemporaryV
 from angr.utils.constants import should_use_hex
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 
-from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
+from .base import (
+    BaseStructuredCodeGenerator,
+    InstructionMapping,
+    PositionMapping,
+    PositionMappingElement,
+    vector_convert_name,
+)
 
 if TYPE_CHECKING:
     import angr
@@ -2751,6 +2757,33 @@ class RustVEXCCallExpression(RustExpression):
         yield ")", paren
 
 
+class RustVectorConvert(RustExpression):
+    """
+    A lane-wise conversion (an AIL Convert with vector_count), rendered as an intrinsic-style call.
+    """
+
+    __slots__ = ("expr", "operand")
+
+    def __init__(self, expr: Expr.Convert, operand: RustExpression, **kwargs):
+        super().__init__(**kwargs)
+        self.expr = expr
+        self.operand = operand
+
+    @property
+    def type(self):
+        return RustSimTypeInt(self.expr.to_bits, signed=self.expr.is_signed).with_arch(self.codegen.project.arch)
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield "...", self
+            return
+        yield vector_convert_name(self.expr), self
+        paren = RustClosingObject("(")
+        yield "(", paren
+        yield from RustExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
+
+
 class RustDirtyExpression(RustExpression):
     """
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
@@ -4312,6 +4345,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
+        if expr.vector_count is not None:
+            return RustVectorConvert(expr, self._handle(expr.operand), codegen=self)
+
         # width of converted type is easy
         if 64 >= expr.to_bits > 32:
             dst_type: RustSimTypeInt | SimTypeChar = RustSimTypeInt(64)

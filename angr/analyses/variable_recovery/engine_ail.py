@@ -642,6 +642,8 @@ class SimEngineVRAIL(
 
     def _handle_expr_Convert(self, expr: ailment.Expr.Convert):
         r = self._expr(expr.operand)
+        if expr.vector_count is not None:
+            return RichR(self.state.top(expr.to_bits))
         typevar = None
         if r.typevar is not None:
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(

@@ -5,6 +5,7 @@ import logging
 
 from angr import ailment
 from angr.engines.light import SimEngineLightAIL
+from angr.utils.ail import is_scalar_int_convert
 
 _l = logging.getLogger(name=__name__)
 
@@ -224,7 +225,12 @@ class SimplifierAILEngine(
     def _handle_expr_Convert(self, expr):
         operand_expr = self._expr(expr.operand)
 
-        if isinstance(operand_expr, ailment.expression.Convert):
+        # the rewrites below only hold for scalar integer conversions
+        if (
+            is_scalar_int_convert(expr)
+            and isinstance(operand_expr, ailment.expression.Convert)
+            and is_scalar_int_convert(operand_expr)
+        ):
             if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
                 # eliminate the redundant Convert
                 return operand_expr.operand
@@ -249,14 +255,19 @@ class SimplifierAILEngine(
             mask = (2**expr.to_bits) - 1
             value &= mask
             return ailment.expression.Const(expr.idx, value, expr.to_bits, **expr.tags)
-        if isinstance(operand_expr, ailment.expression.BinaryOp) and operand_expr.op in {
-            "Mul",
-            "Shl",
-            "Div",
-            "Mod",
-            "Add",
-            "Sub",
-        }:
+        if (
+            is_scalar_int_convert(expr)
+            and isinstance(operand_expr, ailment.expression.BinaryOp)
+            and operand_expr.op
+            in {
+                "Mul",
+                "Shl",
+                "Div",
+                "Mod",
+                "Add",
+                "Sub",
+            }
+        ):
             if isinstance(operand_expr.operands[1], ailment.expression.Const):
                 if (
                     isinstance(operand_expr.operands[0], ailment.expression.Register)
@@ -315,6 +326,7 @@ class SimplifierAILEngine(
             from_type=expr.from_type,
             to_type=expr.to_type,
             rounding_mode=expr.rounding_mode,
+            vector_count=expr.vector_count,
             **expr.tags,
         )
 

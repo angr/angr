@@ -47,7 +47,7 @@ OP_ATTRS_PATTERN = re.compile(
     r"(?P<set_size>\d+)"
     r")??"
     r"(?P<vector_info>\d+U?S?F?0?x\d+)??"
-    r"(?P<rounding_mode>_R([ZPNM]))?$"
+    r"(?P<rounding_mode>_R([ZPNM])|_DEP)?$"
 )
 
 
@@ -994,11 +994,18 @@ class SimIROp:
 
     # FP!
     def _op_int_to_fp(self, args):
-        rm_exists = self._from_size != 32 or self._to_size != 64
+        # I32StoF64 and the deprecated vector forms (I32StoF32x4_DEP) carry no rounding-mode operand
+        rm_exists = (self._from_size != 32 or self._to_size != 64) and not self.name.endswith("_DEP")
         rm = self._translate_rm(args[0] if rm_exists else claripy.BVV(0, 32))
         arg = args[1 if rm_exists else 0]
+        signed = self._from_signed != "U"
 
-        return arg.val_to_fp(claripy.fp.FSort.from_size(self._output_size_bits), signed=self._from_signed != "U", rm=rm)
+        if not self._vector_size:
+            return arg.val_to_fp(claripy.fp.FSort.from_size(self._output_size_bits), signed=signed, rm=rm)
+        lane_sort = claripy.fp.FSort.from_size(self._vector_size)
+        return claripy.Concat(
+            *[lane.val_to_fp(lane_sort, signed=signed, rm=rm).raw_to_bv() for lane in arg.chop(self._vector_size)]
+        )
 
     def _op_fp_to_fp(self, args):
         rm_exists = self._from_size != 32 or self._to_size != 64
@@ -1032,7 +1039,8 @@ class SimIROp:
         )
 
     def _compute_fp_to_int(self, rm, arg, to_size):
-        if self._to_signed == "S":
+        # the sign marker follows the target size (F64toI32S) or the lane size (F32toI32Sx4)
+        if self._to_signed == "S" or self._vector_signed == "S":
             return claripy.fpToSBV(rm, arg, to_size)
         return claripy.fpToUBV(rm, arg, to_size)
 
