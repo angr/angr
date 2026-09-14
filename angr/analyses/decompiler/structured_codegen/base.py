@@ -219,7 +219,8 @@ def vector_convert_name(expr) -> str:
 
     from_lane = expr.from_bits // expr.vector_count
     to_lane = expr.to_bits // expr.vector_count
-    from_fp = expr.from_type == Convert.TYPE_FP
-    to_fp = expr.to_type == Convert.TYPE_FP
-    sign = "" if to_fp else ("S" if expr.is_signed else "U")
-    return f"Conv{'F' if from_fp else 'I'}{from_lane}to{'F' if to_fp else 'I'}{to_lane}{sign}x{expr.vector_count}"
+    sign = "S" if expr.is_signed else "U"
+    # VEX spelling: the integer side carries the sign marker (I32StoF32x4, F32toI32Ux4)
+    src = f"F{from_lane}" if expr.from_type == Convert.TYPE_FP else f"I{from_lane}{sign}"
+    dst = f"F{to_lane}" if expr.to_type == Convert.TYPE_FP else f"I{to_lane}{sign}"
+    return f"Conv{src}to{dst}x{expr.vector_count}"
