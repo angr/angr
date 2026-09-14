@@ -195,7 +195,8 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
             self._update_effective_bits(expr.operands[0], lo_bits, hi_bits)
 
-        elif expr.op in {"Add", "Sub", "Mul", "Mod", "Xor", "Or", "And"}:
+        elif expr.op in {"Add", "Sub", "Mul", "Xor", "Or", "And"}:
+            # Mod is excluded: truncating the operands does not preserve the result
             self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
             self._update_effective_bits(expr.operands[1], effective_bits[0], effective_bits[1])
         elif expr.op == "Shl":
