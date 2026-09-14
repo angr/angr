@@ -747,6 +747,18 @@ class RegionOverlay[T: RegionBound]:
 
         self._mgr._record(inverse)
 
+    def shared_entry_count(self, node: Tx[T]) -> int:
+        """
+        The number of edges entering a node in the shared graph, counted over every region. For a region object,
+        the entries of its head from outside the region (its own back edges do not count).
+        """
+        if isinstance(node, RegionOverlay):
+            entry = self._resolve_entry(node)
+            if entry is None or entry not in self._mgr.graph:
+                return 0
+            return sum(1 for pred in self._mgr.graph.predecessors(entry) if pred not in node._under)
+        return self._mgr.graph.in_degree[node]
+
     def add_node(self, node) -> None:
         """Insert a new node into the shared graph as a direct member of this region."""
         assert node not in self._mgr.graph
@@ -1097,8 +1109,9 @@ class RegionOverlay[T: RegionBound]:
         give the loop node two successors in the parent region, one real and one fictitious: the ITE schema finds no
         conditions on them, the sequence schema needs a single successor, and last-resort refinement keeps both edges
         because each target would be orphaned, so the parent region can never be structured. With only A reconnected,
-        the loop node is sequenced with A as usual; err stays reachable through its gotos, and once every edge into it
-        has been virtualized, Phoenix places it behind the enclosing region's result as a goto target.
+        the loop node is sequenced with A as usual and err stays reachable through its gotos. Cyclic refinement never
+        virtualizes an exit that is its target's only entry in the shared graph: the region bails and dissolves into
+        its parent, where the target is a member and the acyclic schemas structure it with the loop.
         """
         parent = self.parent
         assert parent is not None, "cannot finalize the root overlay"

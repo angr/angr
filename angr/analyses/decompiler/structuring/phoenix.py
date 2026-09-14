@@ -792,6 +792,15 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     successor = next(iter(successor_and_edgecounts.keys()))
 
+            # an exit to a region successor whose only entry in the shared graph is this edge must not be virtualized:
+            # the target would be left without any predecessor in the enclosing region, where no schema can place it.
+            # bail so that this region dissolves into its parent, where the target is a member and the acyclic schemas
+            # structure it together with the loop (e.g. a shared error block whose other entries, from loops that
+            # were structured earlier, have already become gotos).
+            for _, dst in outgoing_edges:
+                if dst is not successor and dst not in graph and self._region.shared_entry_count(dst) == 1:
+                    return False
+
             # sanity check: if removing outgoing edges would create dangling nodes, then it means we are not ready for
             # cyclic refinement yet.
             reattach_dangling_dsts: set = set()
@@ -3072,6 +3081,10 @@ class PhoenixStructurer(StructurerBase):
             if dst in graph and graph.in_degree[dst] == 1 and dst is not head:
                 # dst would be left with no way in, and no schema can reattach an isolated node
                 other_edges.append((src, dst))
+                continue
+            if dst not in graph and self._region.shared_entry_count(dst) == 1:
+                # a region successor whose only entry is this edge: virtualizing it would orphan the successor in
+                # the enclosing region (see _refine_cyclic_core)
                 continue
             src_dominates_dst = dominates_by_intervals(dominance_intervals, src, dst)
             if not src_dominates_dst and not dominates_by_intervals(dominance_intervals, dst, src):
