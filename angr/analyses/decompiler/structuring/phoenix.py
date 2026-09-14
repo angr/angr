@@ -686,6 +686,26 @@ class PhoenixStructurer(StructurerBase):
 
         return True, loop_node, successor
 
+    @staticmethod
+    def _reachable_without_edges(graph: networkx.DiGraph, src, dst, removed_edges: set[tuple[Any, Any]]) -> bool:
+        """
+        Whether dst stays reachable from src in graph once removed_edges are taken out.
+        """
+        if src is dst:
+            return True
+        seen = {src}
+        stack = [src]
+        while stack:
+            node = stack.pop()
+            for succ in graph.successors(node):
+                if succ in seen or (node, succ) in removed_edges:
+                    continue
+                if succ is dst:
+                    return True
+                seen.add(succ)
+                stack.append(succ)
+        return False
+
     def _refine_cyclic(self) -> bool:
         graph = self._region.graph
         loop_heads = {t for _, t in dfs_back_edges(graph, self._region.head, visit_all_nodes=True)}
@@ -757,7 +777,9 @@ class PhoenixStructurer(StructurerBase):
 
         if loop_type is None:
             # natural loop. select *any* exit edge to determine the successor
-            is_natural, result_natural = self._refine_cyclic_make_natural_loop(graph, fullgraph, loop_head, loop_heads)
+            is_natural, result_natural = self._refine_cyclic_make_natural_loop(
+                graph, fullgraph, loop_head, loop_heads, self._region.head
+            )
             if not is_natural:
                 # cannot refine this loop
                 return False
@@ -808,27 +830,35 @@ class PhoenixStructurer(StructurerBase):
             for src, dst in outgoing_edges:
                 outgoing_edges_by_dst[dst].append(src)
             for dst, srcs in outgoing_edges_by_dst.items():
-                if dst in graph and graph.in_degree[dst] == len(srcs):
-                    if dst is successor and self._parent_region is None:
-                        # all edges to the successor are rewritten into breaks during refinement, and the loop node
-                        # is reconnected to the successor when the loop is structured later, so the successor will
-                        # not dangle. only exempt the successor at the root region: bailing there fails structuring
-                        # altogether, while an inner region can still dissolve into its parent and be structured by
-                        # a cyclic ancestor.
-                        continue
-                    if (
-                        self._parent_region is None
-                        and successor is not None
-                        and successor in graph
-                        and fullgraph.out_degree[successor] == 0
-                    ):
-                        # at the root region there is no parent to dissolve into, so bailing here would fail
-                        # structuring altogether. a dangling exit node can instead be re-attached behind the loop
-                        # successor: it stays reachable via the goto that its virtualized edge becomes, so no code
-                        # is lost.
-                        reattach_dangling_dsts.add(dst)
+                if dst not in graph:
+                    continue
+                if dst is successor:
+                    # all edges to the successor are rewritten into breaks during refinement, and the loop node is
+                    # reconnected to the successor when the loop is structured later, so the successor will not
+                    # dangle. only exempt the successor at the root region: bailing there fails structuring
+                    # altogether, while an inner region can still dissolve into its parent and be structured by a
+                    # cyclic ancestor.
+                    if self._parent_region is None or graph.in_degree[dst] != len(srcs):
                         continue
                     return False
+                # the edges to dst become gotos; dst dangles if no other path from the region head reaches it. an
+                # in-degree test is not enough: dst may head a loop nest whose only entry is this loop, so that all
+                # of its other predecessors are reachable only through dst itself.
+                if self._reachable_without_edges(fullgraph, self._region.head, dst, {(src, dst) for src in srcs}):
+                    continue
+                if (
+                    self._parent_region is None
+                    and successor is not None
+                    and successor in graph
+                    and fullgraph.out_degree[successor] == 0
+                ):
+                    # at the root region there is no parent to dissolve into, so bailing here would fail
+                    # structuring altogether. a dangling exit node can instead be re-attached behind the loop
+                    # successor: it stays reachable via the goto that its virtualized edge becomes, so no code
+                    # is lost.
+                    reattach_dangling_dsts.add(dst)
+                    continue
+                return False
 
             for src, dst in outgoing_edges:
                 if dst is successor:
@@ -945,7 +975,8 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     self.virtualized_edges.add((src, dst))
                     self._region.detach_edge(src, dst)
-                    if dst in fullgraph and fullgraph.in_degree[dst] == 0:
+                    if dst in fullgraph and fullgraph.in_degree[dst] == 0 and dst.addr != self._region.head.addr:
+                        # the region head keeps its entry from outside the region, which the view does not show
                         if dst in reattach_dangling_dsts:
                             # keep this node in the graph: re-attach it behind the loop successor so that its code
                             # is emitted after the loop (it is reached through the goto that this virtualized edge
@@ -1154,7 +1185,7 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _refine_cyclic_make_natural_loop(
-        graph, fullgraph, loop_head, loop_heads
+        graph, fullgraph, loop_head, loop_heads, region_head
     ) -> tuple[bool, tuple[list, list, Any] | None]:
         continue_edges = []
         outgoing_edges = []
@@ -1179,11 +1210,20 @@ class PhoenixStructurer(StructurerBase):
             successor = None
         else:
             # one or multiple successors; try to pick a successor in graph, and prioritize the one with the lowest
-            # address
+            # address. exits that do not lead to the successor become gotos, so a candidate that is reachable only
+            # through this loop must be the successor: it would be orphaned otherwise, while a candidate with other
+            # entries (typically a shared error or return block) is fine as a goto target.
             successor_candidates_in_graph = {nn for nn in successor_candidates if nn in graph}
             if successor_candidates_in_graph:
+                orphaned = {
+                    nn
+                    for nn in successor_candidates_in_graph
+                    if not PhoenixStructurer._reachable_without_edges(
+                        fullgraph, region_head, nn, {(pred, nn) for pred in loop_body}
+                    )
+                }
                 # pick the one with the lowest address
-                successor = next(iter(sorted(successor_candidates_in_graph, key=lambda x: x.addr)))
+                successor = next(iter(sorted(orphaned or successor_candidates_in_graph, key=lambda x: x.addr)))
             else:
                 successor = next(iter(sorted(successor_candidates, key=lambda x: x.addr)))
             # mark all edges as outgoing edges so they will be virtualized if they don't lead to the successor
