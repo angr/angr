@@ -1170,8 +1170,11 @@ class AILSimplifier(Analysis):
         # gather constant assignments
 
         vvar_values: dict[int, tuple[int, int]] = {}
+        has_phi = False
         for block in self.func_graph:
             for stmt in block.statements:
+                if not has_phi and is_phi_assignment(stmt):
+                    has_phi = True
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
@@ -1180,6 +1183,10 @@ class AILSimplifier(Analysis):
                     and isinstance(stmt.src.value, int)
                 ):
                     vvar_values[stmt.dst.varid] = stmt.src.value, stmt.src.bits
+
+        if not has_phi or not vvar_values:
+            # nothing to rewrite; do not pay for a reaching-definitions model
+            return False
 
         srda = self._compute_reaching_definitions()
         # compute vvar reachability for phi variables
