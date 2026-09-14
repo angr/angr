@@ -229,6 +229,7 @@ class RegionOverlay[T: RegionBound]:
 
     __slots__ = (
         "_cache_succs",
+        "_detached_succ_entries",
         "_extra_full_edges",
         "_hash",
         "_hidden",
@@ -262,6 +263,9 @@ class RegionOverlay[T: RegionBound]:
         self.children: list[RegionOverlay] = []
         self._members: set[Tx[T]] = set()
         self._under: set[T] = set()
+        # successor entry nodes whose member edges were virtualized into gotos (detach_edge); finalize() does not
+        # reconnect them
+        self._detached_succ_entries: set[T] = set()
         # edges (pairs of shared-graph nodes) hidden from this overlay's views only
         self._hidden: set[tuple[Tx[T], Tx[T]]] = set()
         # view-level edge pairs hidden from the with-successors view only
@@ -866,6 +870,9 @@ class RegionOverlay[T: RegionBound]:
         """
         for u, v in self.underlying_edge_pairs(src, dst):
             self._mgr.graph_remove_edge(u, v)
+            if v not in self._under and v not in self._detached_succ_entries:
+                self._detached_succ_entries.add(v)
+                self._mgr._record(lambda v=v: self._detached_succ_entries.discard(v))
         # the edge may (also) exist as a view-only extra edge introduced by absorb_successor_into(); such edges
         # have no shared-graph counterpart, so drop them here or the edge would survive its own virtualization
         # (last-resort refinement would then pick it again forever)
@@ -1069,8 +1076,29 @@ class RegionOverlay[T: RegionBound]:
 
         ``succ_snapshot`` (from snapshot_successors() before structuring) is used to re-establish the edges from
         result_node to the region's successors: structuring may have removed the live control-flow edges (refining them
-        into breaks/gotos), but the structured region still flows to those successors and enclosing regions must see
-        that. A successor whose every member edge was virtualized is a pure goto target and is not reconnected.
+        into breaks), but the structured region still flows to those successors and enclosing regions must see that.
+
+        A successor whose every member edge was virtualized into a goto (detach_edge()) is a pure goto target and must
+        NOT be reconnected. Consider a loop with two exits, where ``err`` is shared with other loops of the function:
+
+            while (1) {
+                if (s->bsLive >= 8) break;             // exit A: the loop successor
+                if (s->strm->avail_in == 0) goto err;  // exit B: virtualized into a goto by cyclic refinement
+                refill();
+            }
+            uc = take_bits();                          // A
+            ...
+        err:
+            retVal = BZ_DATA_ERROR;
+            goto save_state_and_return;
+
+        The loop region has successors A and err. Cyclic refinement keeps A as the loop successor (a break) and turns
+        the exit to err into a goto statement, removing that edge from the shared graph. Reconnecting err here would
+        give the loop node two successors in the parent region, one real and one fictitious: the ITE schema finds no
+        conditions on them, the sequence schema needs a single successor, and last-resort refinement keeps both edges
+        because each target would be orphaned, so the parent region can never be structured. With only A reconnected,
+        the loop node is sequenced with A as usual; err stays reachable through its gotos, and once every edge into it
+        has been virtualized, Phoenix places it behind the enclosing region's result as a goto target.
         """
         parent = self.parent
         assert parent is not None, "cannot finalize the root overlay"
@@ -1101,6 +1129,7 @@ class RegionOverlay[T: RegionBound]:
                     s_entry is not result_node
                     and s_entry is not None
                     and s_entry is not parent_loop_head
+                    and s_entry not in self._detached_succ_entries
                     and s_entry in graph
                     and not graph.has_edge(result_node, s_entry)
                 ):
