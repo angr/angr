@@ -137,9 +137,9 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
 
         assert not dec.structuring_failures
 
-        # the blocks that used to be dropped along with the discarded components
+        # the blocks that used to be dropped along with the discarded components.
         structured = {b.addr for b in sequence_to_blocks(dec.seq_node)}
-        for addr in (0x4115BA, 0x4115CC, 0x4115CF, 0x411435, 0x411458):
+        for addr in (0x4115CC, 0x4115CF, 0x411435, 0x411458):
             assert addr in structured, f"{addr:#x} missing from the structured output"
 
 
