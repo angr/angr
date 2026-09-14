@@ -38,6 +38,8 @@ class TestStackFrameCollapse(unittest.TestCase):
         # two statements in this function are 14 levels deep, so the block simplifier used to refuse to replace
         # the rbp register with sp-8 in them
         dec = self._decompile("decbench_bzip2_O0", "BZ2_decompress")
+        assert dec.codegen is not None and dec.codegen.text is not None and dec.codegen.cfunc is not None
+        print_decompilation_result(dec)
         text = dec.codegen.text
 
         assert "&(&v" not in text
@@ -48,6 +50,8 @@ class TestStackFrameCollapse(unittest.TestCase):
     def test_gzip_o0_fprint_off_reference_offset(self):
         # p = buf + sizeof buf: the reference must point past the end of the buffer, not before its start
         dec = self._decompile("decbench_gzip_O0", "fprint_off")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
         text = dec.codegen.text
 
         assert re.search(r"= &v\d+ \+ \d+;", text) is not None
