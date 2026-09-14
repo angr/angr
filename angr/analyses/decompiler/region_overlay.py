@@ -229,7 +229,7 @@ class RegionOverlay[T: RegionBound]:
 
     __slots__ = (
         "_cache_succs",
-        "_detached_succ_entries",
+        "_detached_succ_counts",
         "_extra_full_edges",
         "_hash",
         "_hidden",
@@ -263,9 +263,9 @@ class RegionOverlay[T: RegionBound]:
         self.children: list[RegionOverlay] = []
         self._members: set[Tx[T]] = set()
         self._under: set[T] = set()
-        # successor entry nodes whose member edges were virtualized into gotos (detach_edge); finalize() does not
-        # reconnect them
-        self._detached_succ_entries: set[T] = set()
+        # successor entry node -> number of member edges to it that were virtualized into gotos (detach_edge);
+        # finalize() does not reconnect a successor whose every member edge was virtualized
+        self._detached_succ_counts: dict[T, int] = {}
         # edges (pairs of shared-graph nodes) hidden from this overlay's views only
         self._hidden: set[tuple[Tx[T], Tx[T]]] = set()
         # view-level edge pairs hidden from the with-successors view only
@@ -882,9 +882,11 @@ class RegionOverlay[T: RegionBound]:
         """
         for u, v in self.underlying_edge_pairs(src, dst):
             self._mgr.graph_remove_edge(u, v)
-            if v not in self._under and v not in self._detached_succ_entries:
-                self._detached_succ_entries.add(v)
-                self._mgr._record(lambda v=v: self._detached_succ_entries.discard(v))
+            if v not in self._under:
+                self._detached_succ_counts[v] = self._detached_succ_counts.get(v, 0) + 1
+                self._mgr._record(
+                    lambda v=v: self._detached_succ_counts.__setitem__(v, self._detached_succ_counts[v] - 1)
+                )
         # the edge may (also) exist as a view-only extra edge introduced by absorb_successor_into(); such edges
         # have no shared-graph counterpart, so drop them here or the edge would survive its own virtualization
         # (last-resort refinement would then pick it again forever)
@@ -1067,13 +1069,19 @@ class RegionOverlay[T: RegionBound]:
     # Region lifecycle
     #
 
-    def snapshot_successors(self) -> set[Tx[T]]:
+    def snapshot_successors(self) -> dict[Tx[T], int]:
         """
         Capture this region's structural successors and how many member edges reach each, taken before the region
         is structured. finalize() uses it to re-establish the region-to-successor edges that structuring removes
-        when it virtualizes/refines the corresponding control-flow edges into gotos or breaks.
+        when it refines the corresponding control-flow edges into breaks, and to tell successors whose every member
+        edge was virtualized into a goto (see detach_edge()).
         """
-        return set(self.successor_nodes())
+        counts: dict[Tx[T], int] = {}
+        for _, v, _ in self._crossing_out_edges():
+            rep = self._representative_outside(v)
+            if rep is not None:
+                counts[rep] = counts.get(rep, 0) + 1
+        return counts
 
     @staticmethod
     def _resolve_entry(node) -> T | None:
@@ -1138,14 +1146,13 @@ class RegionOverlay[T: RegionBound]:
                 parent_loop_head = self._resolve_entry(self.parent.head)
             for s in sorted(succ_snapshot, key=GraphUtils.sort_node):
                 s_entry = self._resolve_entry(s)
-                if (
-                    s_entry is not result_node
-                    and s_entry is not None
-                    and s_entry is not parent_loop_head
-                    and s_entry not in self._detached_succ_entries
-                    and s_entry in graph
-                    and not graph.has_edge(result_node, s_entry)
-                ):
+                if s_entry is None or s_entry is result_node or s_entry is parent_loop_head:
+                    continue
+                member_edges = succ_snapshot[s] if isinstance(succ_snapshot, dict) else 1
+                if self._detached_succ_counts.get(s_entry, 0) >= member_edges:
+                    # every member edge to this successor became a goto: a pure goto target, not reconnected
+                    continue
+                if s_entry in graph and not graph.has_edge(result_node, s_entry):
                     self._mgr.graph_add_edge(result_node, s_entry)
 
         self._members.discard(result_node)
