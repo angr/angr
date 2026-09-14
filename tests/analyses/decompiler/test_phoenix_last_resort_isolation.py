@@ -33,9 +33,8 @@ class _Overlay:
 
 
 class _Region:
-    """Only the type-4 cycle fallback reads these, and that branch needs a cyclic graph."""
+    """Only the type-4 cycle fallback reads this, and that branch needs a cyclic graph."""
 
-    parent = None
     cyclic = False
 
 
@@ -59,6 +58,7 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         structurer._edge_virtualization_hints = []
         structurer.whitelist_edges = set()
         structurer._region = _Region()
+        structurer._parent_region = None  # the root region
         chosen = []
 
         def _virtualize_edge(src, dst):
