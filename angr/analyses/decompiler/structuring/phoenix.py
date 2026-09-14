@@ -251,17 +251,7 @@ class PhoenixStructurer(StructurerBase):
 
     def _virtualize_abnormal_entries(self) -> None:
         """
-        Turn every edge that enters a loop somewhere other than its entry (tagged ``abnormal_entry`` by
-        RegionIdentifier) into a goto before structuring. The loop's own views never showed the edge, and here it
-        points at whatever node holds the target, so it can only ever be a goto and must not take part in any
-        schema. A jump-table dispatch source keeps its indirect jump: the switch builder emits the goto case for the
-        entry that is no longer among its successors.
-
-        Three shapes keep their edge: one that by now lands at the start of its target node (the loop dissolved or was
-        rotated), which is an ordinary edge here; one that also carries a normal entry from the same source
-        (``normal_entry``), where only the jump is rewritten into a goto; and one that is the target's only way in
-        from the region head (a loop nest entered nowhere but through a jump into its body), where detaching would
-        orphan the target and no schema could place it.
+        Turn every abnormal entry edge that enters the current region into a goto before structuring.
         """
         mgr = self._region.manager
         shared = mgr.graph
@@ -865,13 +855,13 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     successor = next(iter(successor_and_edgecounts.keys()))
 
-            # an exit to a region successor whose only entry in the shared graph is this edge must not be virtualized:
+            # an exit to a region successor whose only entry in the complete graph is this edge must not be virtualized:
             # the target would be left without any predecessor in the enclosing region, where no schema can place it.
             # bail so that this region dissolves into its parent, where the target is a member and the acyclic schemas
             # structure it together with the loop (e.g. a shared error block whose other entries, from loops that
             # were structured earlier, have already become gotos).
             for _, dst in outgoing_edges:
-                if dst is not successor and dst not in graph and self._region.shared_entry_count(dst) == 1:
+                if dst is not successor and dst not in graph and self._region.complete_graph_entry_count(dst) == 1:
                     return False
 
             # sanity check: if removing outgoing edges would create dangling nodes, then it means we are not ready for
@@ -3216,7 +3206,7 @@ class PhoenixStructurer(StructurerBase):
                 # dst would be left with no way in, and no schema can reattach an isolated node
                 other_edges.append((src, dst))
                 continue
-            if dst not in graph and self._region.shared_entry_count(dst) == 1:
+            if dst not in graph and self._region.complete_graph_entry_count(dst) == 1:
                 # a region successor whose only entry is this edge: virtualizing it would orphan the successor in
                 # the enclosing region (see _refine_cyclic_core)
                 continue
@@ -3332,7 +3322,7 @@ class PhoenixStructurer(StructurerBase):
         refinement would pick the same edge again forever.
 
         :param target_addr: Where the jump goes when that is not the start of dst (dst absorbed the target).
-        :param raw_edge:    Remove only this shared-graph edge instead of every edge between src and dst.
+        :param raw_edge:    Remove only this complete-graph edge instead of every edge between src and dst.
         :param detach:      Rewrite the jump but keep the edge (it also carries a normal entry into dst).
         """
         if target_addr is None:
@@ -3759,7 +3749,7 @@ class PhoenixStructurer(StructurerBase):
     ):
         """
         Replace one or two nodes with a new node in the region: the member view, the with-successors view, and
-        the shared graph are all updated by the single overlay operation. If ``old_node_1`` is a successor of the
+        the complete graph are all updated by the single overlay operation. If ``old_node_1`` is a successor of the
         region rather than a member, it is absorbed into the new node in this region's views only.
         """
         region: RegionOverlay = self._region

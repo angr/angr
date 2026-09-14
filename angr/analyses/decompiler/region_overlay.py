@@ -29,10 +29,9 @@ type Tx[U: RegionBound] = "U | RegionOverlay[U]"
 
 def merge_edge_data(acc: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     """
-    Merge the data of two shared-graph edges that become one (two nodes with the same neighbor collapsing, or a jump to
-    a loop's entry next to a jump into its body). ``abnormal_entry`` (an edge into a loop body, tagged by
-    RegionIdentifier._tag_abnormal_entry_edges) merged with an untagged edge keeps the tag and gains ``normal_entry``:
-    the jump into the body still becomes a goto, but the edge must stay.
+    Merge the data of two complete-graph edges that are about to be merged.
+    ``abnormal_entry`` merged with an untagged edge keeps the tag and gains ``normal_entry``: The jump into the body
+    still becomes a goto later, but the edge must be kept.
     """
     merged = dict(acc)
     merged.update(data)
@@ -48,10 +47,10 @@ def merge_edge_data(acc: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]
 
 class OverlayManager[T: RegionBound]:
     """
-    OverlayManager owns the single shared control-flow graph that all RegionOverlay objects are views of, plus the
+    OverlayManager owns the single (complete) control-flow graph that all RegionOverlay objects are views of, plus the
     node-to-innermost-overlay ownership map.
 
-    All structural mutations of the shared graph must go through this class (usually via RegionOverlay methods) so
+    All structural mutations of the complete graph must go through this class (usually via RegionOverlay methods) so
     that ownership, caches, and the undo log stay consistent.
     """
 
@@ -70,7 +69,7 @@ class OverlayManager[T: RegionBound]:
         self.graph = cast("networkx.DiGraph[Tx[T]]", graph)
         self.expose_loop_head_backedges = expose_loop_head_backedges
         self._version: int = 0
-        # per-node topology version: bumped when an edge incident to a node changes (in the shared graph or in the
+        # per-node topology version: bumped when an edge incident to a node changes (in the complete graph or in the
         # overlay-visibility state). RegionOverlayGraph's adjacency cache keys on this so an unrelated mutation no
         # longer evicts a node's cached adjacency. _adj_epoch is a coarse counter bumped by the lifecycle ops that
         # flip node ownership/representatives broadly (create_subregion/dissolve/finalize) and by rollback (whose
@@ -115,7 +114,7 @@ class OverlayManager[T: RegionBound]:
     # Undo log
     #
     # Every mutation primitive appends an inverse closure when a transaction is active. rollback() replays the
-    # inverses in reverse order, restoring both the shared graph and all overlay bookkeeping.
+    # inverses in reverse order, restoring both the complete graph and all overlay bookkeeping.
     #
 
     def checkpoint(self) -> int:
@@ -146,7 +145,7 @@ class OverlayManager[T: RegionBound]:
             self._undo_log = None
 
     #
-    # Shared-graph mutation primitives. These do not touch overlay membership; RegionOverlay methods compose them
+    # Complete-graph mutation primitives. These do not touch overlay membership; RegionOverlay methods compose them
     # with membership updates.
     #
 
@@ -202,7 +201,7 @@ class OverlayManager[T: RegionBound]:
         self._bump()
 
     def graph_strip_entry_tags(self, src, dst) -> None:
-        """Drop the abnormal_entry / normal_entry tags of an edge (see merge_edge_data)."""
+        """Drop the abnormal_entry / normal_entry tags of an edge."""
         attrs = self.graph[src][dst]
         removed = {k: attrs.pop(k) for k in ("abnormal_entry", "normal_entry") if k in attrs}
         if removed:
@@ -234,12 +233,12 @@ class OverlayManager[T: RegionBound]:
 
 class RegionOverlay[T: RegionBound]:
     """
-    A single-entry region marked over the shared graph held by an OverlayManager. The region tree is built out of
+    A single-entry region marked over the complete graph held by an OverlayManager. The region tree is built out of
     RegionOverlay objects (RegionIdentifier emits them) and they are the only region type the decompiler uses.
 
-    Overlays form a tree (nested, never overlapping). An overlay's *members* are either shared-graph nodes it owns
+    Overlays form a tree (nested, never overlapping). An overlay's members are either complete-graph nodes it owns
     directly or child overlays. The region graph and the region graph-with-successors are derived on demand from the
-    shared graph by quotienting child overlays into single nodes; *successors* are likewise derived from edges that
+    complete graph by quotienting child overlays into single nodes; *successors* are likewise derived from edges that
     cross the region boundary, so they can never go stale.
 
     Read-only API (``head``, ``graph``, ``graph_with_successors``, ``successors``, ``cyclic``, ``addr``) mirrors the
@@ -248,7 +247,7 @@ class RegionOverlay[T: RegionBound]:
     Mutation verbs:
 
     - true structural changes (``add_node``, ``remove_node``, ``add_edge``, ``detach_edge``, ``replace_nodes``)
-      pass through to the shared graph, so the effects are immediately visible to all enclosing regions;
+      pass through to the complete graph, so the effects are immediately visible to all enclosing regions;
     - ``hide_edge`` removes an edge from this overlay's views only (the old "remove it from region graphs but keep
       the parent edge" pattern);
     - ``finalize(result_node)`` collapses a fully-structured region into a single node of its parent;
@@ -294,7 +293,7 @@ class RegionOverlay[T: RegionBound]:
         # successor entry node -> number of member edges to it that were virtualized into gotos (detach_edge);
         # finalize() does not reconnect a successor whose every member edge was virtualized
         self._detached_succ_counts: dict[T, int] = {}
-        # edges (pairs of shared-graph nodes) hidden from this overlay's views only
+        # edges (pairs of complete-graph nodes) hidden from this overlay's views only
         self._hidden: set[tuple[Tx[T], Tx[T]]] = set()
         # view-level edge pairs hidden from the with-successors view only
         self._hidden_full: set[tuple[Tx[T], Tx[T]]] = set()
@@ -361,7 +360,7 @@ class RegionOverlay[T: RegionBound]:
         return result
 
     def underlying_nodes(self) -> set[T]:
-        """All shared-graph nodes inside this region (including nodes of nested regions)."""
+        """All complete-graph nodes inside this region (including nodes of nested regions)."""
         return self._under
 
     @staticmethod
@@ -373,7 +372,7 @@ class RegionOverlay[T: RegionBound]:
     ) -> RegionOverlay[T]:
         """
         Carve a new child overlay out of this overlay. ``members`` must be a subset of this overlay's members
-        (shared-graph nodes owned by this overlay and/or existing child overlays); ``head`` must be one of them.
+        (complete-graph nodes owned by this overlay and/or existing child overlays); ``head`` must be one of them.
         """
         members = set(members)
         assert members
@@ -414,7 +413,7 @@ class RegionOverlay[T: RegionBound]:
 
     def _representative_in(self, node):
         """
-        Map a shared-graph node to the member of this overlay that represents it (the node itself, or the child
+        Map a complete-graph node to the member of this overlay that represents it (the node itself, or the child
         overlay containing it). Returns None if the node is not inside this overlay.
         """
         o = self._mgr.owner_of(node)
@@ -428,13 +427,13 @@ class RegionOverlay[T: RegionBound]:
         return cur if cur.parent is self else None
 
     def representative(self, node: T) -> Tx[T] | None:
-        """The node standing for a shared-graph node in this overlay's with-successors view."""
+        """The node standing for a complete-graph node in this overlay's with-successors view."""
         rep = self._representative_in(node)
         return rep if rep is not None else self._representative_outside(node)
 
     def _representative_outside(self, node):
         """
-        Map a shared-graph node outside this overlay to its representative at the closest enclosing level: the node
+        Map a complete-graph node outside this overlay to its representative at the closest enclosing level: the node
         itself if it is directly owned by an ancestor, otherwise the topmost overlay around it that does not
         enclose this overlay.
         """
@@ -475,7 +474,7 @@ class RegionOverlay[T: RegionBound]:
         return self._underlying(anc.head)
 
     def _crossing_out_edges(self) -> Iterator[tuple[Tx[T], Tx[T], dict[str, Any]]]:
-        """All shared-graph edges leaving this region, except hidden ones."""
+        """All complete-graph edges leaving this region, except hidden ones."""
         graph = self._mgr.graph
         under = self._under
         hidden_head = self._hidden_context_head_under()
@@ -492,7 +491,7 @@ class RegionOverlay[T: RegionBound]:
 
     def successor_nodes(self) -> set[Tx[T]]:
         """
-        The derived successor set of this region: representatives of all shared-graph nodes targeted by edges
+        The derived successor set of this region: representatives of all complete-graph nodes targeted by edges
         leaving the region.
         """
         cached = self._cache_succs
@@ -509,7 +508,7 @@ class RegionOverlay[T: RegionBound]:
     def _quotient_edges(self, with_successors: bool) -> Iterator[tuple[Tx[T], Tx[T], dict[str, Any]]]:
         """
         Derive the edges of the region view (member -> member, and if requested member -> successor and
-        successor -> successor) from the shared graph.
+        successor -> successor) from the complete graph.
         """
         graph = self._mgr.graph
         under = self._under
@@ -780,9 +779,9 @@ class RegionOverlay[T: RegionBound]:
 
         self._mgr._record(inverse)
 
-    def shared_entry_count(self, node: Tx[T]) -> int:
+    def complete_graph_entry_count(self, node: Tx[T]) -> int:
         """
-        The number of edges entering a node in the shared graph, counted over every region. For a region object,
+        The number of edges entering a node in the complete graph, counted over every region. For a region object,
         the entries of its head from outside the region (its own back edges do not count).
         """
         if isinstance(node, RegionOverlay):
@@ -793,7 +792,7 @@ class RegionOverlay[T: RegionBound]:
         return self._mgr.graph.in_degree[node]
 
     def add_node(self, node) -> None:
-        """Insert a new node into the shared graph as a direct member of this region."""
+        """Insert a new node into the complete graph as a direct member of this region."""
         assert node not in self._mgr.graph
         self._mgr._graph_add_node(node)
         self._on_node_added(node)
@@ -801,7 +800,7 @@ class RegionOverlay[T: RegionBound]:
 
     def remove_node(self, node: Tx[T], absorbed_into: Tx[T] | None = None, absorb_out_edges: bool = True) -> None:
         """
-        Remove a node. If ``node`` is a member (or a member overlay's node), it is removed from the shared graph
+        Remove a node. If ``node`` is a member (or a member overlay's node), it is removed from the complete graph
         for real. If it is a successor of this region, the removal is interpreted as hiding all edges from this
         region to it (the successor belongs to an enclosing region and must survive).
 
@@ -809,7 +808,7 @@ class RegionOverlay[T: RegionBound]:
         ``absorbed_into``: in-edges from outside this region (e.g. abnormal loop entries) are then rewired to it
         instead of being dropped, so enclosing regions keep their entry edges. With ``absorb_out_edges`` (the
         default), out-edges crossing the region boundary (e.g. loop exits) are rewired to it as well, so the
-        shared graph never loses the region's exit flow; pass False only when the caller re-establishes every
+        complete graph never loses the region's exit flow; pass False only when the caller re-establishes every
         successor edge explicitly.
         """
         if isinstance(node, RegionOverlay) or node not in self._under:
@@ -819,7 +818,7 @@ class RegionOverlay[T: RegionBound]:
         external_in_edges = []
         rewire_out_edges: list[
             tuple[Tx[T], dict[str, Any], bool]
-        ] = []  # (dst, data, hide): edges to rewire onto absorbed_into in the shared graph
+        ] = []  # (dst, data, hide): edges to rewire onto absorbed_into in the complete graph
         if absorbed_into is not None:
             external_in_edges = [
                 (src, data)
@@ -831,11 +830,7 @@ class RegionOverlay[T: RegionBound]:
                 for _, dst, data in self._mgr.graph.out_edges(node, data=True):
                     if dst is absorbed_into or (node, dst) in self._hidden:
                         continue
-                    # rewire every out-edge onto the absorbing node so the shared graph keeps the loop's exit;
-                    # hide from this region's own views the ones that were not visible there to begin with — edges
-                    # leaving the region (external exits, kept by enclosing regions) and edges to the region's
-                    # processing-context head (stripped during region identification). edges to fellow members
-                    # stay visible (the loop's exit to its in-region successor).
+                    # rewire every out-edge onto the absorbing node so the complete graph keeps the loop's exit;
                     rewire_out_edges.append(
                         (dst, data, dst not in self._members and (dst not in self._under or dst in hidden_head))
                     )
@@ -889,9 +884,9 @@ class RegionOverlay[T: RegionBound]:
 
     def add_edge(self, src: Tx[T], dst: Tx[T], **data) -> None:
         """
-        Add a real edge to the shared graph. Overlay endpoints are resolved to underlying nodes: the destination
+        Add a real edge to the complete graph. Overlay endpoints are resolved to underlying nodes: the destination
         resolves to its entry (head chain); overlay sources are not supported. Endpoints that are not in the
-        shared graph yet become members of this region (mirroring networkx's implicit node creation).
+        complete graph yet become members of this region (mirroring networkx's implicit node creation).
         """
         assert not isinstance(src, RegionOverlay), "edges from a region object are ambiguous; use a concrete node"
         dst_ = dst
@@ -916,7 +911,7 @@ class RegionOverlay[T: RegionBound]:
 
     def detach_raw_edge(self, u: T, v: T) -> None:
         """
-        Remove exactly one shared-graph edge. Unlike detach_edge, other edges between the view nodes representing
+        Remove exactly one complete-graph edge. Unlike detach_edge, other edges between the view nodes representing
         u and v are kept (e.g. a block that jumps both to a loop's entry and into its body).
         """
         self._detach_underlying(u, v)
@@ -924,13 +919,13 @@ class RegionOverlay[T: RegionBound]:
 
     def detach_edge(self, src: Tx[T], dst: Tx[T]) -> None:
         """
-        Remove an edge from the shared graph for real (e.g., when the edge has been virtualized into a goto).
+        Remove an edge from the complete graph for real (e.g., when the edge has been virtualized into a goto).
         Overlay endpoints remove all underlying edges between the two node sets.
         """
         for u, v in self.underlying_edge_pairs(src, dst):
             self._detach_underlying(u, v)
         # the edge may (also) exist as a view-only extra edge introduced by absorb_successor_into(); such edges
-        # have no shared-graph counterpart, so drop them here or the edge would survive its own virtualization
+        # have no complete-graph counterpart, so drop them here or the edge would survive its own virtualization
         # (last-resort refinement would then pick it again forever)
         extra = [(u, v) for u, v in self._extra_full_edges if u is src and v is dst]
         if extra:
@@ -943,7 +938,7 @@ class RegionOverlay[T: RegionBound]:
     def mark_edge(self, src: Tx[T], dst: Tx[T], **attrs) -> None:
         """
         Mark a view-level edge (e.g. cyclic_refinement_outgoing) so RegionOverlayGraph hides it by default.
-        Marks live in overlay state, never reach the shared graph, and are remapped/cleared with the region.
+        Marks live in overlay state, never reach the complete graph, and are remapped/cleared with the region.
         """
         for attr, value in attrs.items():
             assert value is True, "only boolean marks are supported"
@@ -985,7 +980,7 @@ class RegionOverlay[T: RegionBound]:
 
     def remove_edge_with_successors_only(self, src: Tx[T], dst: Tx[T]) -> None:
         """
-        Hide an edge from the with-successors view only, leaving the member view and the shared graph alone (a
+        Hide an edge from the with-successors view only, leaving the member view and the complete graph alone (a
         rare asymmetric bookkeeping pattern in Phoenix's switch-case structuring).
         """
         if (src, dst) not in self._hidden_full:
@@ -1155,12 +1150,12 @@ class RegionOverlay[T: RegionBound]:
             goto save_state_and_return;
 
         The loop region has successors A and err. Cyclic refinement keeps A as the loop successor (a break) and turns
-        the exit to err into a goto statement, removing that edge from the shared graph. Reconnecting err here would
+        the exit to err into a goto statement, removing that edge from the complete graph. Reconnecting err here would
         give the loop node two successors in the parent region, one real and one fictitious: the ITE schema finds no
         conditions on them, the sequence schema needs a single successor, and last-resort refinement keeps both edges
         because each target would be orphaned, so the parent region can never be structured. With only A reconnected,
         the loop node is sequenced with A as usual and err stays reachable through its gotos. Cyclic refinement never
-        virtualizes an exit that is its target's only entry in the shared graph: the region bails and dissolves into
+        virtualizes an exit that is its target's only entry in the complete graph: the region bails and dissolves into
         its parent, where the target is a member and the acyclic schemas structure it with the loop.
         """
         parent = self.parent
@@ -1240,7 +1235,7 @@ class RegionOverlay[T: RegionBound]:
         """
         Collapse this region into its parent by replacing all of its member nodes with a single external result
         node (the structuring result). Used by structurers that compute their result without destructively
-        reducing the shared graph (e.g. DreamStructurer): the region's members are still present, so their
+        reducing the complete graph (e.g. DreamStructurer): the region's members are still present, so their
         crossing in/out edges are rewired onto ``result_node`` and the members are removed. Returns result_node.
 
         This is the non-self-collapsing counterpart of finalize(); the legacy GraphRegion path called
@@ -1249,7 +1244,7 @@ class RegionOverlay[T: RegionBound]:
         parent = self.parent
         assert parent is not None, "cannot collapse the root overlay"
         graph = self._mgr.graph
-        assert result_node not in graph, "collapse result node must not already be in the shared graph"
+        assert result_node not in graph, "collapse result node must not already be in the complete graph"
 
         under = sorted(self._under, key=GraphUtils.sort_node)
         underset = self._under
@@ -1271,7 +1266,7 @@ class RegionOverlay[T: RegionBound]:
                     seen_out.add(dst)
                     out_edges.append((dst, data))
 
-        # remove every member node from the shared graph (region-internal edges vanish with them)
+        # remove every member node from the complete graph (region-internal edges vanish with them)
         for u in under:
             if u in graph:
                 self._mgr._graph_remove_node(u)
@@ -1371,7 +1366,7 @@ _PARANOID_ADJ_CHECK = bool(os.environ.get("ANGR_PARANOID_ADJ"))
 
 
 class _OverlayNodeAtlas[T: RegionBound](Mapping[Tx[T], dict[str, Any]]):
-    """Lazy node mapping of a RegionOverlayGraph: the overlay's view nodes, attributes from the shared graph."""
+    """Lazy node mapping of a RegionOverlayGraph: the overlay's view nodes, attributes from the complete graph."""
 
     __slots__ = ("_rog",)
 
@@ -1505,7 +1500,7 @@ class _OverlayAdjAtlas[T: RegionBound](Mapping[Tx[T], _OverlayAdjInner[T]]):
 class RegionOverlayGraph[T: RegionBound](networkx.DiGraph[Tx[T]] if TYPE_CHECKING else networkx.DiGraph):
     """
     A read-only, networkx-compatible view of a RegionOverlay that stores no copy of the region's subgraph: all
-    queries traverse the original shared graph through the overlay's membership. Compatible with every networkx
+    queries traverse the original complete graph through the overlay's membership. Compatible with every networkx
     algorithm and DiGraph read method because the graph's storage mappings are replaced with lazy atlases.
 
     - ``full`` selects the with-successors view (the old graph_with_successors) over the member view.
