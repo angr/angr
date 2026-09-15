@@ -6074,9 +6074,9 @@ class TestDecompiler(unittest.TestCase):
         struct_defs = re.findall(r"typedef struct (struct_\w+) \{(.*?)\}\s*\1;", text, re.DOTALL)
         struct_names = [name for name, _ in struct_defs]
 
-        # Exactly 3 struct typedefs survive: the two genuine, distinct, dereferenced structs plus one shared
-        # anonymous struct for all 8 extern function-pointer globals.
-        assert len(struct_names) == 3, f"expected 3 struct typedefs, got {len(struct_names)}: {struct_names}"
+        # 2 struct typedefs survive; the 8 extern function-pointer globals used to add a third,
+        # shared one-field struct
+        assert len(struct_names) == 2, f"expected 2 struct typedefs, got {len(struct_names)}: {struct_names}"
 
         # No two structurally-identical struct definitions may be emitted (robust to struct renumbering).
         normalized_bodies = [re.sub(r"\s+", " ", body).strip() for _, body in struct_defs]
@@ -6084,18 +6084,18 @@ class TestDecompiler(unittest.TestCase):
             f"found structurally-identical struct definitions: {normalized_bodies}"
         )
 
-        # The specific single-u64-field layout must be emitted exactly once (the 8 duplicates collapse to 1).
-        u64_layout_count = sum(1 for body in normalized_bodies if body == "unsigned long long field_0;")
-        assert u64_layout_count == 1, (
-            f"the `{{ unsigned long long field_0; }}` layout must appear exactly once, got {u64_layout_count}"
+        # the 8 indirectly called extern globals must be typed as function pointers, not as
+        # pointers to a shared struct
+        fnptr_globals = re.findall(r"extern [^\n;]*\(\*(g_[0-9a-f]+)\)\(", text)
+        assert len(fnptr_globals) == 8, (
+            f"expected 8 extern globals typed as function pointers, got {len(fnptr_globals)}: {fnptr_globals}"
         )
 
-        # All 8 extern function-pointer globals must share the one canonical struct type.
-        u64_struct_name = next(
-            name for name, body in zip(struct_names, normalized_bodies) if body == "unsigned long long field_0;"
+        # no recovered struct may still type an extern global
+        struct_ptr_globals = [name for name in struct_names if re.search(rf"extern {name} \*g_", text)]
+        assert not struct_ptr_globals, (
+            f"extern globals still typed as struct pointers instead of function pointers: {struct_ptr_globals}"
         )
-        extern_ptr_count = len(re.findall(rf"extern {u64_struct_name} \*g_", text))
-        assert extern_ptr_count == 8, f"expected 8 extern globals typed as {u64_struct_name} *, got {extern_ptr_count}"
 
     def test_x86_ccall_rewriter_condbe_sub_width(self, decompiler_options=None):
         # sub_74d6a1 uses unsigned byte comparisons (cmp cl, ...; jbe/jb ...) whose flags are recovered through

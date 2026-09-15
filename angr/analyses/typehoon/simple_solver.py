@@ -2106,7 +2106,27 @@ class SimpleSolver:
         # now, what is this variable?
         result = None
 
-        if last_labels and all(isinstance(label, (FuncIn, FuncOut)) for label in last_labels):
+        def _is_whole_cell_access(labels: tuple[BaseLabel, ...]) -> bool:
+            # a pointer-sized load or store at offset 0 touches the whole cell (a null check, or a new
+            # target being stored); that fits a function pointer, so it must not block the function type
+            last = labels[-1]
+            return (
+                isinstance(last, HasField)
+                and last.offset == 0
+                and last.bits == self.bits
+                and len(labels) >= 2
+                and isinstance(labels[-2], (Load, Store))
+            )
+
+        if (
+            last_labels
+            and any(isinstance(label, (FuncIn, FuncOut)) for label in last_labels)
+            and all(
+                isinstance(labels[-1], (FuncIn, FuncOut)) or _is_whole_cell_access(labels)
+                for labels, _ in path_and_successors
+                if labels
+            )
+        ):
             # create a dummy result and dump it to the cache
             func_type = Function([], [])
             result = self._pointer_class()(basetype=func_type)
@@ -2126,12 +2146,14 @@ class SimpleSolver:
                 elif isinstance(last_label, FuncOut):
                     func_outputs[last_label.loc].add(succ)
                 else:
-                    raise TypeError("Unreachable")
+                    # whole-cell accesses carry no parameter or return information
+                    continue
 
             input_args = []
             output_values = []
             for vals, out in [(func_inputs, input_args), (func_outputs, output_values)]:
-                for idx in range(max(vals) + 1):
+                # inputs or outputs may be empty; max() on an empty dict would raise
+                for idx in range(max(vals) + 1 if vals else 0):
                     if idx in vals:
                         sol = self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=vals[idx])
                         out.append(sol)
