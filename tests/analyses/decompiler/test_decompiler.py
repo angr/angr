@@ -273,6 +273,48 @@ class TestDecompiler(unittest.TestCase):
                 f"(too short) result."
             )
 
+    @structuring_algo("sailr")
+    def test_decompiling_dir_gcc_O0_mbsnwidth_single_loop(self, decompiler_options=None):
+        # mbsnwidth has a loop whose latching nodes are only reachable through other latching nodes. The loop body
+        # must contain all of them; otherwise the loop is structured as nested while (1) loops with breaks.
+        bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        p, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x41002C,  # mbsnwidth
+            project_kwargs={"load_debug_info": True},
+            run_ccc=False,
+        )
+
+        f = cfg.functions["mbsnwidth"]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        # used to be two nested "while (1)" loops with breaks; now a single loop with a real condition
+        assert "while (1)" not in code
+        assert "while (true)" not in code
+
+    @structuring_algo("sailr")
+    def test_decompiling_dir_gcc_O0_extract_dirs_from_files_single_loop(self, decompiler_options=None):
+        # same loop-body recovery issue as mbsnwidth: an if-chain of latching nodes at the end of the loop body used
+        # to be split into three nested do-while loops.
+        bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        p, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x4070EE,  # extract_dirs_from_files
+            project_kwargs={"load_debug_info": True},
+            run_ccc=False,
+        )
+
+        f = cfg.functions["extract_dirs_from_files"]
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+        code = dec.codegen.text
+        assert not re.search(r"\bdo\b", code)
+        assert len(re.findall(r"\b(while|for) \(", code)) == 2  # the main loop and the trailing compaction loop
+        assert "goto " not in code
+
     @for_all_structuring_algos
     def test_decompiling_dir_gcc_O0_main(self, decompiler_options=None):
         # tests loop structuring
@@ -2838,22 +2880,20 @@ class TestDecompiler(unittest.TestCase):
         assert "default:" in d.codegen.text
 
         # we test a few other things
-        # 1. after proper structuring, the function should end with a return statement; the return statement uses a
-        #    variable (e.g., "return v55 ^ 1;"), and this variable must be defined above it like the following:
+        # 1. after proper structuring, the function returns a variable (e.g., "return v55 ^ 1;"), and this variable
+        #    must be defined above it like the following:
         #        v55 &= do_move(v1, v58, v5, *((long long *)&v6), v3);
         #    The assignment of v55 could have been removed due to the incorrect logic in
         #    _find_cyclic_dependent_phis_and_dirty_vvars()
         lines = [line.strip() for line in d.codegen.text.split("\n") if line.strip()]
         assert lines[-1] == "}"
-        assert lines[-2].startswith("return ")
-        assert lines[-2].endswith(";")
-        # extract the variable from the return statement
-        found = re.search(r"return \(?([a-zA-Z_]\w*)", lines[-2])
-        assert found is not None, "Cannot find the variable in the return statement"
+        ret_idx, found = next(
+            (i, m) for i, m in ((i, re.match(r"return \(?([a-zA-Z_]\w*)", line)) for i, line in enumerate(lines)) if m
+        )
         retvar = found.group(1)
         assert retvar, "Cannot find the variable in the return statement"
         # somewhere above the return statement, there should be a line defining the variable
-        assert any(f"{retvar} &= " in line and r"do_move(" in line for line in lines[:-2])
+        assert any(f"{retvar} &= " in line and r"do_move(" in line for line in lines[:ret_idx])
 
         # 2. the last do-while loop ends with a call to rpl_free(), and there is no goto statement after
         #    we were adding an extra goto statement after the do-while loop due to assignment re-use in
