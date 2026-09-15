@@ -405,7 +405,8 @@ class ARMCCallRewriter(CCallRewriterBase):
     ) -> Expr.BinaryOp:
         return Expr.BinaryOp(self.ail_manager.next_atom(), op, (a, b), False, bits=1, **ccall.tags)
 
-    def _wrap(self, ccall: Expr.VEXCCallExpression, r: Expr.Expression) -> Expr.Expression:
+    @staticmethod
+    def _wrap(ccall: Expr.VEXCCallExpression, r: Expr.Expression) -> Expr.Expression:
         if r.bits == ccall.bits:
             return r
         return Expr.Convert(ccall.idx, r.bits, ccall.bits, False, r, **ccall.tags)
