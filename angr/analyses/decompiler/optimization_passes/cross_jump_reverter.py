@@ -7,7 +7,11 @@ from itertools import count
 
 from angr.analyses.decompiler.counters import AILBlockCallCounter
 
-from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
+from .optimization_pass import (
+    OptimizationPassStage,
+    StructuringOptimizationPass,
+    StructuringOptimizationPassResult,
+)
 
 l = logging.getLogger(__name__)
 
@@ -79,7 +83,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
             to_update[goto_target].append(node)
 
         if not to_update:
-            return False
+            return StructuringOptimizationPassResult.STOP
 
         updates = False
         sorted_targets = sorted(to_update.items(), key=lambda x: x[0].addr)
@@ -104,4 +108,4 @@ class CrossJumpReverter(StructuringOptimizationPass):
             if delete_original:
                 self.out_graph.remove_node(goto_target)
 
-        return updates
+        return StructuringOptimizationPassResult.UPDATED if updates else StructuringOptimizationPassResult.STOP

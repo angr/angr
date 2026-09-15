@@ -3711,12 +3711,39 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg)
 
         f = proj.kb.functions["main"]
-        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f,
+            cfg=cfg.model,
+            options=decompiler_options,
+            preset=DECOMPILATION_PRESETS["full"],
+        )
         print_decompilation_result(d)
 
-        # incorrect region replacement was causing the while loop be duplicated, so we would end up with four while
-        # loops. In the original source, there is only a single while loop.
+        # Incorrect fixed-point output could lose or duplicate this loop. In the original source, there is one loop.
         assert d.codegen.text.count("while (") == 1
+
+    @structuring_algo("sailr")
+    def test_decompiling_chmod_gcc_O1_rejected_pass_leaves_no_dangling_goto(self, decompiler_options=None):
+        # ReturnDuplicatorLow rewrites Phi statements in place, and the graph it is handed for the first
+        # iteration used to share its blocks with the caller's graph. Clearing out_graph then left those
+        # rewrites behind, and the block they name never reached the output: nine gotos were emitted for
+        # LABEL_0x406f33 with no such label anywhere in the function.
+        bin_path = os.path.join(test_location, "x86_64", "chmod_gcc_-O1")
+        func_addr = 0x406875
+        p, cfg = load_project_with_scoped_cfg(
+            bin_path, func_addr, project_kwargs={"auto_load_libs": False}, include_plt=True
+        )
+
+        f = cfg.functions[func_addr]
+        d = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+
+        text = d.codegen.text if d.codegen is not None else None
+        assert text is not None, f"Failed to decompile function {f!r}."
+        defined = set(re.findall(r"^(\w+):", text, re.MULTILINE))
+        targets = set(re.findall(r"goto\s+(\w+);", text))
+        assert targets, "the function should still contain gotos; the fixture no longer covers the defect"
+        assert not targets - defined, f"goto targets with no label definition: {sorted(targets - defined)}"
 
     @structuring_algo("sailr")
     def test_decompiling_function_with_long_cascading_data_flows(self, decompiler_options=None):
@@ -6128,6 +6155,37 @@ class TestDecompiler(unittest.TestCase):
         text = dec.codegen.text
         assert re.search(r"\bv\d+ < 8\b", text), "the CondB SUBB ccall was not rewritten into a byte comparison"
         assert re.search(r"> \(char\)", text), "the CondBE SUBB ccall operands were not narrowed to byte width"
+
+    def test_reverted_structuring_pass_keeps_the_flag_definitions_it_reverted(self, decompiler_options=None):
+        # ReturnDuplicatorLow runs its optimization in a fixed-point loop and rolls the graph back after any
+        # iteration whose output does not structure. On sub_41f6ce all four iterations are rolled back, so the pass
+        # ends holding the graph it started from -- yet it still reported a change, and the decompiler adopted the
+        # AIL-simplified copy it handed back. That copy is missing the flag definitions for the jb at 0x41f736.
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "a71a3c3b922705cb5e2d8aa9c74f5c73c47fb27f10b1327eb2bb054d99a14397"
+        )
+        func_addr = 0x41F6CE
+        proj, _ = load_project_with_scoped_cfg(
+            bin_path,
+            func_addr,
+            window=0x1000,
+            expand_call_tree=False,
+            cfg_kwargs={"force_complete_scan": True},
+        )
+
+        f = proj.kb.functions[func_addr]
+        # guard against the scoped CFG window silently truncating the function under test
+        assert f.size >= 0x82, f"sub_41f6ce was truncated by the scoped CFG: size {f.size:#x}."
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None, f"Failed to decompile function {f!r}."
+        print_decompilation_result(dec)
+
+        # "sub al, 0x87" at 0x41f72d and "stc" at 0x41f733 set the flags that "jb 0x41f765" at 0x41f736 reads, and
+        # the jb's CondB ccall is emitted either way. The SUBB ccall that defines those flags must be there too.
+        text = dec.codegen.text
+        assert re.search(r"_ccall\(4, [^;]*135, 0\)", text), (
+            "the SUBB flag definition for the jb at 0x41f736 was dropped"
+        )
 
     def test_widening_conversion_signedness(self, decompiler_options=None):
         # A widening integer conversion carries the signedness of its source operand: a sign-extending Convert
