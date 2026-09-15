@@ -45,7 +45,7 @@ class TestGlobalTypeInference(unittest.TestCase):
     def _global_type(self, proj, name):
         sym = proj.loader.find_symbol(name)
         assert sym is not None, f"symbol {name} not found"
-        gm = proj.kb.variables["global"]
+        gm = proj.kb.dec_variables["global"]
         variables = gm.get_global_variables(sym.rebased_addr)
         assert variables, f"no global variable recovered at {name} ({sym.rebased_addr:#x})"
         var = next(iter(variables))

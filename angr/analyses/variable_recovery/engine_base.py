@@ -932,12 +932,19 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             # Loading data from memory
             v = self._load_from_global(addr.concrete_value, size, expr=expr)
             typevar = v.typevar
+            if isinstance(typevar, typevars.DerivedTypeVariable):
+                # a load from a member inside a wider global object already carries the member's access type
+                # variable (with its offset); the constant address below carries the object's base type variable,
+                # and typing the load through it as an access at offset 0 would fold every member onto the first one
+                return v
 
         elif self._addr_has_concrete_base(addr) and (parsed := self._parse_offsetted_addr(addr)) is not None:
             # Loading data from a memory address with an offset
             base_addr, offset, elem_size = parsed
             v = self._load_from_global(base_addr.concrete_value, size, expr=expr, offset=offset, elem_size=elem_size)
             typevar = v.typevar
+            if isinstance(typevar, typevars.DerivedTypeVariable):
+                return v
 
         if v is None and expr is not None:
             # failed to map the address to a known variable
