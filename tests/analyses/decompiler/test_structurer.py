@@ -403,6 +403,29 @@ class TestStructurer(unittest.TestCase):
         # it should not raise any exceptions
         assert dec.codegen is not None and dec.codegen.text is not None
 
+    def test_phoenix_nested_switch_exit_breaks_from_outer_switch(self):
+        # print_info in GnuTLS certtool: case 1 of the outer switch ends with a nested switch whose every arm exits to
+        # the end of the outer switch. the breaks that replace those gotos leave only the nested switch, so an outer
+        # break must follow it; without one, case 1 falls through into case 2
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "gnutls_certtool_O0")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x41D658, include_plt=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x41D658, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        expected = "        default:\n            break;\n        }\n        break;\n    case 2:\n"
+        assert expected in dec.codegen.text
+
+    def test_phoenix_nested_switch_exit_breaks_from_outer_switch_in_else_branch(self):
+        # formatted_print_percent in morton: the nested switch sits in the else branch of case 74, and every arm of it
+        # exits to the end of the outer switch, so an outer break follows the nested switch inside that branch
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4055A5)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x4055A5, cfg=cfg.model, preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        expected = (
+            "            default:\n                break;\n            }\n            break;\n        }\n    case 80:\n"
+        )
+        assert expected in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
