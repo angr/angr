@@ -14,5 +14,5 @@ Advanced Topics
    claripy
    concretization_strategies
    java_support
+   webassembly
    debug_var
-

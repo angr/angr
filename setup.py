@@ -23,6 +23,8 @@ elif sys.platform in ("win32", "cygwin"):
 else:
     library_file = "unicornlib.so"
 
+is_wasm_build = sys.platform == "emscripten" or os.environ.get("_PYTHON_HOST_PLATFORM", "").startswith("emscripten")
+
 
 def build_unicornlib():
     try:
@@ -79,14 +81,20 @@ def configure_z3():
     machine with a system-wide Z3 of another version would link that instead -- the bindings are
     tied to one Z3 release. Windows takes its import library from Z3's own release (see
     native/angr/Cargo.toml) and ignores both of these.
+
+    A caller that already set Z3_LIBRARY_PATH_OVERRIDE has told us which libz3 to link, so do
+    not consult the build interpreter: when cross-compiling, the z3-solver installed here is
+    the host's and its libz3 is the wrong architecture entirely.
     """
-    try:
-        library_dir = z3_loader().library_dir()
-    except ImportError as err:
-        raise LibError("You must install z3-solver before building angr") from err
+    if "Z3_LIBRARY_PATH_OVERRIDE" not in os.environ:
+        try:
+            library_dir = z3_loader().library_dir()
+        except ImportError as err:
+            raise LibError("You must install z3-solver before building angr") from err
+
+        os.environ["Z3_LIBRARY_PATH_OVERRIDE"] = str(library_dir)
 
     os.environ.setdefault("Z3_NO_PKG_CONFIG", "1")
-    os.environ.setdefault("Z3_LIBRARY_PATH_OVERRIDE", str(library_dir))
 
 
 def build_protos():
@@ -117,7 +125,8 @@ class build_rust(setuptools_rust.build_rust):
 class build(st_build):
     def run(self, *args):
         self.execute(build_protos, (), msg="Generating protobuf modules")
-        self.execute(build_unicornlib, (), msg="Building unicornlib")
+        if not is_wasm_build:
+            self.execute(build_unicornlib, (), msg="Building unicornlib")
         super().run(*args)
 
 
