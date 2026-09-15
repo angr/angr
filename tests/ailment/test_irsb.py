@@ -95,6 +95,24 @@ class TestIrsb(unittest.TestCase):
         assert from_py.statements  # non-empty
 
 
+class TestGetITmpWidth(unittest.TestCase):
+    """A tmp defined by ``GetI`` (x87 stack access) must carry the element width on the fast path."""
+
+    # fadd word ptr [edi-0x5915e261] ; ...  -- WrTmp(GetI(F64x8)) and WrTmp(GetI(I8x8))
+    block_bytes = bytes.fromhex("de879f9de1a6")
+    block_addr = 0x4097B5
+
+    def test_geti_tmps_keep_width(self):
+        arch = archinfo.arch_from_id("X86")
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, self.block_addr, self.block_bytes, ailment.Manager())
+        seen = 0
+        for stmt in from_lift.statements:
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.dst, ailment.Expr.Tmp):
+                assert stmt.dst.bits == stmt.src.bits, stmt
+                seen += isinstance(stmt.src, ailment.Expr.IRegister)
+        assert seen == 2
+
+
 class TestNonConstRoundingMode(unittest.TestCase):
     """VEX sometimes carries the rounding mode in a tmp (e.g. ARM ``vcvtr``
     reads it from FPSCR); the converter must pass it through as an AIL

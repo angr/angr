@@ -2230,6 +2230,7 @@ unsafe fn result_bits_c(irsb: *mut IRSB, e: *mut IRExpr) -> u32 {
             IEX_RDTMP => type_size_bits((*(*irsb).tyenv).lookup(iex.rdtmp.tmp)),
             IEX_GET => type_size_bits(iex.get.ty),
             IEX_LOAD => type_size_bits(iex.load.ty),
+            IEX_GETI => type_size_bits((*iex.geti.descr).elem_ty),
             IEX_CONST => const_bits((*iex.con.con).tag),
             IEX_CCALL => type_size_bits(iex.ccall.retty),
             IEX_UNOP => type_size_bits(vex_ffi::op_result_type(iex.unop.op)),
