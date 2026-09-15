@@ -125,10 +125,10 @@ class TrackedTransaction:
         self._db_name = db_name
         self._env: lmdb.Environment | None = None
         self._rtdb = rtdb
-        self._txn: lmdb.Transaction[bytes] | None = None
+        self._txn = None
         self._write = write
 
-    def __enter__(self) -> lmdb.Transaction[bytes]:
+    def __enter__(self):
         self._rtdb._transaction_opened()
         try:
             self._env = self._rtdb._lmdb_env
