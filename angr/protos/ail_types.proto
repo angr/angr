@@ -41,6 +41,46 @@ message AilGraph {
     repeated uint32 block_refs = 3;  // indices into the shared pool, in node-insertion order
     // The modal edge-data value (excluding the per-edge ins_addr); edges with has_default_data reference it.
     optional AilEdgeData default_edge_data = 4;
+    // Statements that ailment.Block.to_bytes() cannot carry, removed from their block's payload and stored here.
+    repeated AilNodeExtras node_extras = 5;
+}
+
+//
+// Python-side AIL statements
+//
+// The AIL statement hierarchy is implemented in Rust and ailment.Block.to_bytes() accepts only Rust statements.
+// IncompleteSwitchCaseHeadStatement (angr.analyses.decompiler.structurer_nodes) is the one statement still written
+// in Python. LoweredSwitchSimplifier writes it into a block and RegionIdentifier, the structurers and both code
+// generators all read it back from there, so it is a normal inhabitant of Clinic's graphs and is encoded here.
+//
+
+message IncompleteSwitchCaseEntry {
+    optional bytes cmp_block = 1;  // ailment.Block.to_bytes() of the comparison node; unset when there is none
+    oneof case {
+        int64 value = 2;
+        string label = 3;  // "default"
+    }
+    int64 target_addr = 4;
+    optional int64 target_idx = 5;
+    optional int64 next_addr = 6;
+}
+
+message IncompleteSwitchCaseHead {
+    optional int64 idx = 1;
+    bytes switch_variable = 2;  // Expression.to_bytes()
+    repeated IncompleteSwitchCaseEntry entries = 3;
+    bool peephole_optimized = 4;
+    optional uint64 ins_addr = 5;
+}
+
+message AilPyStatement {
+    uint32 stmt_index = 1;  // position within the block's statement list
+    IncompleteSwitchCaseHead switch_head = 2;
+}
+
+message AilNodeExtras {
+    uint32 node_index = 1;  // index into AilGraph.blocks / AilGraph.block_refs
+    repeated AilPyStatement statements = 2;
 }
 
 //
