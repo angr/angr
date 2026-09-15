@@ -2512,14 +2512,37 @@ class TestDecompiler(unittest.TestCase):
     def test_decompiling_printenv_main(self, decompiler_options=None):
         # when a subgraph inside a loop cannot be structured, instead of entering last-resort refinement, we should
         # return the subgraph and let structuring resume with the knowledge of the loop.
-        # otherwise, in this function, we will see a goto while in reality we do not need any gotos.
+        # the only gotos this function needs are the three that leave the switch at 0x400962: that switch is the
+        # entire body of the loop at 0x400947, so a break there binds to the loop instead and the loop re-tests its
+        # condition with the cursor unadvanced, which never terminates.
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "printenv.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
-        assert "goto " not in d.codegen.text
+        assert d.codegen is not None and d.codegen.text is not None
+        assert d.codegen.text.count("goto ") == 3
+
+    @structuring_algo("sailr")
+    def test_decompiling_printenv_main_switch_break_inside_a_loop(self, decompiler_options=None):
+        # structuring mints the breaks that leave the switch at 0x400962 before wrapping that switch in the loop at
+        # 0x400947, and never revisits them. Each one must reach the end of the switch at 0x40098f.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "printenv.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+        assert d.codegen is not None and d.codegen.text is not None
+        text = d.codegen.text
+
+        assert text.count("goto LABEL_40098f;") == 3
+        assert set(re.findall(r"goto (\w+);", text)) <= set(re.findall(r"^(\w+):$", text, re.MULTILINE))
+        # the two breaks and the continue that do bind to their own construct are left alone, as is the break that
+        # leaves the switch at 0x40082d for the loop head at 0x400810
+        assert text.count("break;") == 3
+        assert text.count("continue;") == 1
 
     @structuring_algo("sailr")
     def test_decompiling_ls_ubuntu2204_sub_414cb0(self, decompiler_options=None):
