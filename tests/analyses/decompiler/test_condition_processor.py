@@ -319,7 +319,7 @@ class TestConditionProcessor(TestCase):
             assert cp.claripy_ast_from_ail_condition(cmp).op == claripy_op
 
 
-# Exact _crt0_entry bodies from the public DecBench ChibiOS binaries. Only PC-relative call offsets differ.
+# _crt0_entry prefixes from the public DecBench ChibiOS binaries. Only PC-relative call offsets differ.
 @pytest.mark.parametrize("structurer", ["sailr", "phoenix"])
 @pytest.mark.parametrize("optimization", ["O0", "O2", "O2-noinline"])
 def test_chibios_crt0_entry_convergent_side_exits(structurer, optimization):
