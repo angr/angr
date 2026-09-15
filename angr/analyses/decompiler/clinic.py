@@ -1529,7 +1529,7 @@ class Clinic(Analysis, Serializable):
             old_proto = self.function.prototype
             old_source = self.function.prototype_source
             old_proto_libname = self.function.prototype_libname
-            preserve_existing_prototype = old_proto is not None and old_source >= PrototypeSource.CCA_DECOMPILER
+            preserve_existing_prototype = self.function.is_prototype_groundtruth
 
             if not preserve_existing_prototype:
                 self.function.prototype = None  # clear it

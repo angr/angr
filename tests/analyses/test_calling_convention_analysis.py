@@ -136,7 +136,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def test_main_prototype_hint_preserves_authoritative_prototypes(self):
         binary = os.path.join(test_location, "x86_64", "argv_test")
-        for source in (PrototypeSource.CCA_DECOMPILER, PrototypeSource.SIGNATURES, PrototypeSource.USER):
+        for source in (PrototypeSource.SIMPROC, PrototypeSource.SIGNATURES, PrototypeSource.USER):
             with self.subTest(source=source):
                 project = angr.Project(binary, auto_load_libs=False)
                 cfg = project.analyses.CFGFast(normalize=True)
@@ -153,6 +153,30 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                 assert main.prototype_source == source
                 assert main.prototype_libname == "authoritative-test-library"
                 assert main.calling_convention is not None
+
+    def test_main_prototype_hint_replaces_decompiler_inference(self):
+        binary = os.path.join(test_location, "x86_64", "argv_test")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        main = project.kb.functions["main"]
+        prototype_hint = main.info.pop("prototype_hint")
+        project.analyses.Decompiler(main, cfg=cfg.model, use_cache=False, update_cache=False)
+        assert main.prototype_source == PrototypeSource.CCA_DECOMPILER
+        main.info["prototype_hint"] = prototype_hint
+
+        for _ in range(2):
+            decompiler = project.analyses.Decompiler(main, cfg=cfg.model, use_cache=False, update_cache=False)
+            assert main.prototype_source == PrototypeSource.SIMPROC
+            assert main.prototype is not None
+            assert main.prototype.arg_names == ("argc", "argv")
+            assert isinstance(main.prototype.returnty, SimTypeInt)
+            assert isinstance(main.prototype.args[0], SimTypeInt)
+            assert isinstance(main.prototype.args[1], SimTypePointer)
+            assert isinstance(main.prototype.args[1].pts_to, SimTypePointer)
+            assert isinstance(main.prototype.args[1].pts_to.pts_to, SimTypeChar)
+            assert decompiler.codegen is not None
+            assert decompiler.codegen.text is not None
+            assert "struct_0 *" not in decompiler.codegen.text
 
     def test_itanium_qualified_free_function_does_not_gain_this(self):
         """Machine facts must disambiguate namespace functions from members."""
