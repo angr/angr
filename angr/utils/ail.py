@@ -81,7 +81,20 @@ def is_head_controlled_loop_block(block: Block) -> bool:
     last_stmt = block.statements[-1]
     if isinstance(last_stmt, ConditionalJump):
         return False
-    return any(isinstance(stmt, ConditionalJump) for stmt in block.statements[:-1])
+    return any(
+        isinstance(stmt, ConditionalJump) and is_head_controlled_loop_jump(block, stmt)
+        for stmt in block.statements[:-1]
+    )
+
+
+def is_head_controlled_loop_jump(block: Block, stmt: ConditionalJump) -> bool:
+    """
+    Determine if a conditional jump in the middle of a block controls a head-controlled loop, i.e., it can leave the
+    block. Jumps whose concrete targets all lie inside the block (e.g., libVEX alignment-check exits emitted for
+    AArch64 ldar/stlr) cannot, and the SSA rewriting engine does not record a side-exit state for them.
+    """
+    targets = [t.value for t in (stmt.true_target, stmt.false_target) if isinstance(t, Const)]
+    return not all(block.addr <= t < block.addr + block.original_size for t in targets)
 
 
 def extract_partial_expr(base_expr: Expression, off: int, size: int, ail_manager, byte_width: int = 8) -> Expression:
