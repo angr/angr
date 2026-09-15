@@ -497,9 +497,10 @@ impl StridedInterval {
         match self {
             StridedInterval::Empty { .. } => false,
             StridedInterval::Normal {
+                bits,
                 stride,
                 lower_bound,
-                ..
+                upper_bound,
             } => {
                 let (min, max) = self.get_unsigned_bounds();
                 if value < &min || value > &max {
@@ -507,6 +508,21 @@ impl StridedInterval {
                 }
                 if stride.is_zero() {
                     return lower_bound == value;
+                }
+                if value < lower_bound {
+                    // Only a wrapping interval gets here: a non-wrapping one has
+                    // `min == lower_bound`, so the range test above has already
+                    // rejected anything smaller. `get_unsigned_bounds` answers
+                    // `(0, MAX)` for a wrapping interval, so that test admits every
+                    // value and the second half has to be handled by hand. The gap
+                    // between `upper_bound` and `lower_bound` is not in the
+                    // interval, and the offset from `lower_bound` wraps, so it is a
+                    // subtraction modulo `2**bits`; a plain one underflows the
+                    // `BigUint`.
+                    if value > upper_bound {
+                        return false;
+                    }
+                    return (modular_sub(value, lower_bound, *bits) % stride).is_zero();
                 }
                 (&(value - lower_bound) % stride).is_zero()
             }
@@ -3267,6 +3283,69 @@ mod si_properties_tests {
             BigUint::from(10u32),
         );
         assert!(si.contains_zero());
+    }
+
+    #[test]
+    fn test_contains_value_wrapping() {
+        // 8-bit 1[0xf0, 0x10] covers 0xf0..=0xff and 0x00..=0x10. Every value below
+        // the lower bound panicked with "Cannot subtract b from a because b is
+        // larger than a" before this was fixed: `get_unsigned_bounds` answers
+        // `(0, 0xff)` for a wrapping interval, so the range test admits the value
+        // and `value - lower_bound` underflows the `BigUint`.
+        let si = StridedInterval::new(
+            8,
+            BigUint::from(1u32),
+            BigUint::from(0xf0u32),
+            BigUint::from(0x10u32),
+        );
+
+        // The second half of the interval, reached by wrapping past the maximum.
+        assert!(si.contains_zero());
+        assert!(si.contains_value(&BigUint::from(0x01u32)));
+        assert!(si.contains_value(&BigUint::from(0x10u32)));
+
+        // The first half, which never underflowed and is unchanged.
+        assert!(si.contains_value(&BigUint::from(0xf0u32)));
+        assert!(si.contains_value(&BigUint::from(0xffu32)));
+
+        // The gap between the two halves is not in the interval.
+        assert!(!si.contains_value(&BigUint::from(0x11u32)));
+        assert!(!si.contains_value(&BigUint::from(0x80u32)));
+        assert!(!si.contains_value(&BigUint::from(0xefu32)));
+    }
+
+    #[test]
+    fn test_contains_value_wrapping_stride() {
+        // 8-bit 3[0xf0, 0x0b] is 0xf0, 0xf3, 0xf6, 0xf9, 0xfc, 0xff, 0x02, 0x05,
+        // 0x08, 0x0b. The offset from the lower bound wraps, so it has to be taken
+        // modulo 2**bits before the stride divides it: 0x02 is at offset 18 and is a
+        // member, 0x03 is at offset 19 and is not, and zero is at offset 16 and is
+        // not.
+        let si = StridedInterval::new(
+            8,
+            BigUint::from(3u32),
+            BigUint::from(0xf0u32),
+            BigUint::from(0x0bu32),
+        );
+        assert!(si.contains_value(&BigUint::from(0x02u32)));
+        assert!(si.contains_value(&BigUint::from(0x0bu32)));
+        assert!(!si.contains_value(&BigUint::from(0x03u32)));
+        assert!(!si.contains_zero());
+    }
+
+    #[test]
+    fn test_division_by_wrapping_divisor() {
+        // Both division paths ask `contains_zero()` of the divisor, which is how a
+        // CFG run reaches the underflow above.
+        let dividend = StridedInterval::range(8, 1u32, 10u32);
+        let divisor = StridedInterval::new(
+            8,
+            BigUint::from(1u32),
+            BigUint::from(0xf0u32),
+            BigUint::from(0x10u32),
+        );
+        assert!(dividend.udiv(&divisor).is_ok());
+        assert!(dividend.sdiv(&divisor).is_ok());
     }
 
     #[test]
