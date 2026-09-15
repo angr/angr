@@ -217,7 +217,7 @@ class RewritingAnalysis:
     def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, Any]:
         out_state: RewritingState = (
             self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
-            if is_head_controlled_loop_block(node_)
+            if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
             else self.out_states[(node_.addr, node_.idx)]
         )
         if stack_offset in out_state.stackvars:
