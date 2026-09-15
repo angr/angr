@@ -801,14 +801,14 @@ class CFGBase(Analysis):
         binaries = self.project.loader.all_objects if objects is None else objects
 
         memory_regions = []
-        has_executable = False
+        examined_any_object = False
 
         for b in binaries:
             if not b.has_memory:
                 continue
+            examined_any_object = True
 
             if isinstance(b, ELF):
-                has_executable = True
                 # If we have sections, we get result from sections
                 sections = []
                 if not force_segment and b.sections:
@@ -841,7 +841,6 @@ class CFGBase(Analysis):
                             memory_regions.append(segment)
 
             elif isinstance(b, (Coff, PE)):
-                has_executable = True
                 for section in b.sections:
                     if section.is_executable:
                         max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
@@ -849,7 +848,6 @@ class CFGBase(Analysis):
                         memory_regions.append(tpl)
 
             elif isinstance(b, XBE):
-                has_executable = True
                 # some XBE files will mark the data sections as executable
                 for section in b.sections:
                     if (
@@ -861,7 +859,6 @@ class CFGBase(Analysis):
                         memory_regions.append(tpl)
 
             elif isinstance(b, MachO):
-                has_executable = True
                 if b.segments:
                     # Get all executable segments
                     for seg in b.segments:
@@ -920,7 +917,7 @@ class CFGBase(Analysis):
                 tpl = (b.min_addr, b.max_addr + 1)
                 memory_regions.append(tpl)
 
-        if not memory_regions and not has_executable:
+        if not memory_regions and not examined_any_object:
             memory_regions = [(start, start + len(backer)) for start, backer in self.project.loader.memory.backers()]
 
         # A section or segment that maps no bytes, such as the empty .text of a data-only relocatable, is not a region.
