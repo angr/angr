@@ -328,7 +328,10 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         # iterate over in-memory functions and copy them
         for address in self.cached_keys:
             function = super().__getitem__(address)
-            super(SpillingFunctionDict, new_dict).__setitem__(address, function.copy())
+            copied_function = function.copy()
+            # The new store has no backing record for a cached function, even if the source was clean.
+            copied_function.mark_dirty()
+            super(SpillingFunctionDict, new_dict).__setitem__(address, copied_function)
             new_dict._lru_order[address] = None
             new_dict._list.add(address)
 

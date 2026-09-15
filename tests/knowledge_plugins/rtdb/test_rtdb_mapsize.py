@@ -108,6 +108,18 @@ class TestRuntimeDbMapSize(unittest.TestCase):
         with self.rtdb.begin_txn(self.db_name, write=True) as txn:
             txn.put(b"1", b"a")
 
+    def test_unentered_transaction_uses_current_database(self):
+        """Growing or reopening the environment before entry must not leave a stale database handle."""
+        for operation in (self.rtdb.increase_lmdb_map_size, self.rtdb.reopen_lmdb):
+            with self.subTest(operation=operation.__name__):
+                pending = self.rtdb.begin_txn(self.db_name, write=True)
+                operation()
+                with pending as txn:
+                    txn.put(b"1", b"a")
+                with self.rtdb.begin_txn(self.db_name) as txn:
+                    assert txn.get(b"1") == b"a"
+                assert self.rtdb._open_txns == 0
+
 
 if __name__ == "__main__":
     unittest.main()
