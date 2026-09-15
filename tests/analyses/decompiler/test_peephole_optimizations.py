@@ -36,6 +36,7 @@ from angr.analyses.decompiler.peephole_optimizations import (
     ConstantDereferences,
     EagerEvaluation,
     OptimizedDivisionSimplifier,
+    RemoveConstInsert,
     RemoveRedundantShifts,
     SarToSignedDiv,
     SimplifyBitwiseInserts,
@@ -536,6 +537,43 @@ class TestPeepholeOptimizations(unittest.TestCase):
             Register(manager.next_atom(), 0, 8)
         )
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 44570 and out.operands[1].bits == 64
+
+
+class TestRemoveConstInsertEndness(unittest.TestCase):
+    """
+    RemoveConstInsert turns ``Insert(const_base, offset, value)`` into ``(base & ~mask) | (value << shift)``. The
+    offset is a byte position in memory order, so the shift depends on the expression's endness -- and the mask has
+    to be shifted before it is inverted, or every bit below the inserted field is cleared too.
+    """
+
+    BASE = 0x0102030405060708
+
+    def _optimized(self, bin_path, offset, endness):
+        proj = angr.Project(os.path.join(test_location, *bin_path), auto_load_libs=False)
+        manager = Manager()
+        opt = RemoveConstInsert(proj, proj.kb, manager)
+        out = opt.optimize(
+            Insert(
+                manager.next_atom(),
+                Const(manager.next_atom(), self.BASE, 64),
+                Const(manager.next_atom(), offset, 64),
+                Const(manager.next_atom(), 0xAABBCCDD, 32),
+                endness,
+            )
+        )
+        assert isinstance(out, BinaryOp) and out.op == "Or"
+        shifted, masked = out.operands
+        shift = shifted.operands[1].value if isinstance(shifted, BinaryOp) and shifted.op == "Shl" else 0
+        return shift, masked.value
+
+    def test_big_endian_offset_is_counted_from_the_high_end(self):
+        # byte 0 of a big-endian value is the most significant one, so offset 0 lands in the high word.
+        assert self._optimized(("ppc64", "fauxware"), 0, archinfo.Endness.BE) == (32, 0x0000000005060708)
+        assert self._optimized(("ppc64", "fauxware"), 4, archinfo.Endness.BE) == (0, 0x0102030400000000)
+
+    def test_little_endian_keeps_the_bits_below_the_field(self):
+        assert self._optimized(("x86_64", "fauxware"), 0, archinfo.Endness.LE) == (0, 0x0102030400000000)
+        assert self._optimized(("x86_64", "fauxware"), 4, archinfo.Endness.LE) == (32, 0x0000000005060708)
 
 
 class TestPeepholeBlockContextFixpoint(unittest.TestCase):

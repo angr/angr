@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import BinaryOp, Const, Convert, Insert
+from angr.ailment.utils import lsb_bit_offset
 
 from .base import PeepholeOptimizationExprBase
 
@@ -22,9 +23,11 @@ class RemoveConstInsert(PeepholeOptimizationExprBase):
         ):
             return None
 
-        # TODO fix big-endian?
         assert self.project is not None
-        base = expr.base.value & ~((1 << expr.value.bits) - 1) << (expr.offset.value * self.project.arch.byte_width)
+        shift = lsb_bit_offset(
+            expr.bits, expr.value.bits, expr.offset.value, expr.endness, self.project.arch.byte_width
+        )
+        base = expr.base.value & ~(((1 << expr.value.bits) - 1) << shift)
         value = Convert(self.manager.next_atom(), expr.value.bits, expr.bits, False, expr.value)
         shifted = (
             BinaryOp(
@@ -32,11 +35,11 @@ class RemoveConstInsert(PeepholeOptimizationExprBase):
                 "Shl",
                 [
                     value,
-                    Const(self.manager.next_atom(), expr.offset.value * self.project.arch.byte_width, expr.bits),
+                    Const(self.manager.next_atom(), shift, expr.bits),
                 ],
                 signed=False,
             )
-            if expr.offset.value != 0
+            if shift != 0
             else value
         )
         return BinaryOp(expr.idx, "Or", [shifted, Const(self.manager.next_atom(), base, shifted.bits)], signed=False)

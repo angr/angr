@@ -380,8 +380,14 @@ class CallSiteMaker:
             # try to narrow the non-float return expression if needed
             ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
             if ret_type_bits is not None and ret_expr.bits > ret_type_bits:
-                ret_expr = ret_expr.copy()
-                ret_expr.bits = ret_type_bits
+                if isinstance(ret_expr, Expr.Register):
+                    offset = ret_expr.reg_offset
+                    if self.project.arch.register_endness == archinfo.Endness.BE:
+                        offset += (ret_expr.bits - ret_type_bits) // self.project.arch.byte_width
+                    ret_expr = Expr.Register(ret_expr.idx, offset, ret_type_bits, **ret_expr.tags)
+                else:
+                    ret_expr = ret_expr.copy()
+                    ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
 
         tags = call_expr.tags.copy()

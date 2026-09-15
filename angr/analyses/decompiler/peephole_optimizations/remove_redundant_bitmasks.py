@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Insert
-from angr.ailment.utils import is_lsb_extract
+from angr.ailment.utils import is_lsb_extract, lsb_bit_offset
 
 from .base import PeepholeOptimizationExprBase
 
@@ -44,8 +44,9 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             and isinstance(mask.value, int)
             and isinstance(expr.offset, Const)
             and isinstance(expr.offset.value, int)
-            # is this correct for big-endian??
-            and _MASKS.get(expr.value.bits, 0) << (expr.offset.value * self.project.arch.byte_width) == mask
+            and _MASKS.get(expr.value.bits, 0)
+            << lsb_bit_offset(expr.bits, expr.value.bits, expr.offset.value, expr.endness, self.project.arch.byte_width)
+            == mask
         ):
             # Insert(v0 & mask, offset, v1) where mask/offset guarantee
             # that the only bits we get from v0 will just be replaced with v1
