@@ -95,6 +95,20 @@ class TestIrsb(unittest.TestCase):
         assert from_py.statements  # non-empty
 
 
+class TestSkippedExits(unittest.TestCase):
+    def test_sigbus_alignment_exit_is_dropped(self):
+        # ldar x1, [x1] ; str x1, [sp, #0x28]
+        # libVEX guards ldar with an Ijk_SigBUS alignment-check exit to the instruction itself. Converting it would
+        # leave a mid-block ConditionalJump that later passes mistake for a head-controlled loop.
+        arch = archinfo.arch_from_id("AARCH64")
+        irsb = pyvex.IRSB(bytes.fromhex("21fcdfc8e11700f9"), 0x1000, _vex_arch(arch), opt_level=1)
+        assert any(isinstance(stmt, pyvex.IRStmt.Exit) and stmt.jumpkind == "Ijk_SigBUS" for stmt in irsb.statements)
+        block = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        assert not any(isinstance(stmt, ailment.Stmt.ConditionalJump) for stmt in block.statements)
+        assert isinstance(block.statements[-1], ailment.Stmt.Jump)
+        assert block.statements[-1].target.value == 0x1008
+
+
 class TestGetITmpWidth(unittest.TestCase):
     """A tmp defined by ``GetI`` (x87 stack access) must carry the element width on the fast path."""
 

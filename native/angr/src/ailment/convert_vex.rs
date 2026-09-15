@@ -1733,6 +1733,8 @@ const EXIT_SKIP_JK: &[&str] = &[
     "Ijk_NoRedir",
     "Ijk_SigTRAP",
     "Ijk_SigSEGV",
+    // alignment-check exits (AArch64 ldar/stlr, PPC lwarx); amd64 emits the same checks as Ijk_SigSEGV
+    "Ijk_SigBUS",
     "Ijk_ClientReq",
     "Ijk_SigFPE_IntDiv",
 ];
