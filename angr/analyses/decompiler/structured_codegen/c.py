@@ -4590,6 +4590,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if type_ is None and reference_values is not None and len(reference_values) == 1:  # type: ignore
             type_ = next(iter(reference_values))  # type: ignore
 
+        if isinstance(expr.value, float) and not isinstance(unpack_typeref(type_), SimTypeFloat):
+            # a float-valued constant cannot be rendered through an integer type; use the FP type of its width
+            type_ = (SimTypeFloat() if expr.bits == 32 else SimTypeDouble()).with_arch(self.project.arch)
+
         if reference_values is None:
             reference_values = {}
             type_ = unpack_typeref(type_)
