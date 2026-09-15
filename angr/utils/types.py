@@ -276,6 +276,67 @@ def find_type_refs(t: SimType, _seen: set[int] | None = None) -> set[str]:
     return refs
 
 
+def _defined_in_collections(name: str, type_collections: list[SimTypeCollection]) -> SimType | None:
+    """
+    The type that dereference_simtype resolves `name` to: its definition in the first collection that has it.
+    """
+    for tc in type_collections:
+        try:
+            return tc.get(name)
+        except AngrMissingTypeError:
+            continue
+    return None
+
+
+def _field_type_shape(t: SimType, type_collections: list[SimTypeCollection]) -> tuple:
+    """
+    Describe the type of a struct field: a nested struct or union by the names of its own members, a SimTypeRef by
+    what the reader would resolve it to, and everything else by what it is. Nested aggregates are described one level
+    deep and their members' types are not entered, which keeps the description finite on a recursive type.
+    """
+    if isinstance(t, SimTypeRef):
+        defined = _defined_in_collections(t.name, type_collections) if t.name is not None else None
+        if defined is None or isinstance(defined, SimTypeRef):
+            return "named", t.name
+        return _field_type_shape(defined, type_collections)
+    if isinstance(t, SimStruct):
+        return "struct", tuple(t.fields)
+    if isinstance(t, SimUnion):
+        return "union", tuple(t.members)
+    if isinstance(t, SimTypePointer):
+        return "pointer", t.label, _field_type_shape(t.pts_to, type_collections)
+    if isinstance(t, SimTypeArray):
+        return "array", t.label, t.length, _field_type_shape(t.elem_type, type_collections)
+    if isinstance(t, SimTypeFunction):
+        args = tuple(_field_type_shape(arg, type_collections) for arg in t.args)
+        returnty = _field_type_shape(t.returnty, type_collections) if t.returnty is not None else None
+        return "function", t.variadic, args, returnty
+    return type(t).__name__, t.label, getattr(t, "_name", None), getattr(t, "signed", None), getattr(t, "_size", None)
+
+
+def _struct_shape(t: SimStruct, type_collections: list[SimTypeCollection]) -> tuple:
+    return t.pack, t.align, tuple((k, _field_type_shape(v, type_collections)) for k, v in t.fields.items())
+
+
+def same_struct_in_collections(t: SimStruct, type_collections: list[SimTypeCollection]) -> bool:
+    """
+    Whether a SimTypeRef to `t.name` dereferenced against `type_collections` restores `t`: the first collection that
+    defines the name, which is the one dereference_simtype consults, defines a struct whose fields match, with a
+    nested struct or union matched on its own members' names.
+
+    A struct that only shares its name with a definition must be kept as it is, or the reader would restore the
+    definition's body in its place. The win32 generator names every inline anonymous struct `_Anonymous_e__Struct`,
+    and libc's `netent` and winsock's differ in a field width.
+    """
+    if t.anonymous:
+        # its name is not an identity, whatever it happens to be
+        return False
+    defined = _defined_in_collections(t.name, type_collections)
+    return isinstance(defined, SimStruct) and _struct_shape(defined, type_collections) == _struct_shape(
+        t, type_collections
+    )
+
+
 def make_type_reference(
     t: SimType,
     memo: dict[str, SimTypeRef] | None = None,
@@ -285,15 +346,21 @@ def make_type_reference(
     Take a SimType and convert named SimStruct instances to SimTypeRefs.
 
     :param t:                   The SimType instance to convert.
-    :param type_collections:    Only structs defined in one of these collections are converted, so that the references
-                                can be resolved later. None converts every named struct.
+    :param type_collections:    Only a struct that one of these collections defines the same way is converted, so that
+                                dereferencing the reference gives back the struct that was there. A struct that only
+                                shares its name with a collection's definition is kept. None converts every named
+                                struct.
     :return:                    A converted SimType instance.
     """
 
     if memo is None:
         memo = {}
 
-    if type(t) is SimStruct and t.name and (type_collections is None or any(t.name in tc for tc in type_collections)):
+    if (
+        type(t) is SimStruct
+        and t.name
+        and (type_collections is None or same_struct_in_collections(t, type_collections))
+    ):
         if t.name in memo:
             ref_t = memo[t.name]
         else:
