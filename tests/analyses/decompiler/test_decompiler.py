@@ -2498,7 +2498,12 @@ class TestDecompiler(unittest.TestCase):
         )
         print_decompilation_result(d)
 
-        assert d.codegen.text.count("goto") == 0
+        # Without the CrossJumpReverter this function structures with four gotos. The pass used to bring that to
+        # zero only because the copies it made of the goto target had no outgoing edge: the two duplicated
+        # find_bracketed_repeat() calls fell out of their branches and skipped the `if (!err)` handling that follows
+        # the call. With the copies wired to the target's successor the join stays, and three gotos remain.
+        assert d.codegen.text.count("goto") < 4
+        assert d.codegen.text.count("find_bracketed_repeat(") == 3
 
     @structuring_algo("sailr")
     def test_decompiling_sha384sum_digest_bsd_split_3(self, decompiler_options=None):

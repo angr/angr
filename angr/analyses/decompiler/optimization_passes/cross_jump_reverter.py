@@ -93,12 +93,16 @@ class CrossJumpReverter(StructuringOptimizationPass):
             current_preds = list(self.out_graph.predecessors(goto_target))
             delete_original = len(current_preds) == len(pred_to_update)
 
-            # update the edges
+            # update the edges: the copy takes the target's place after its predecessor, so it must also carry the
+            # target's outgoing edge; without it the copy is a dead end and everything past it is lost
+            succs = list(self.out_graph.successors(goto_target))
             for src, goto_blk in update_edges:
                 cp = goto_blk.deep_copy(self.manager)
                 cp.idx = next(self.node_idx)
                 self.out_graph.remove_edge(src, goto_blk)
                 self.out_graph.add_edge(src, cp)
+                for succ in succs:
+                    self.out_graph.add_edge(cp, succ)
 
             updates = True
             if delete_original:
