@@ -1,6 +1,7 @@
 # pylint:disable=superfluous-parens,too-many-boolean-expressions,line-too-long
 from __future__ import annotations
 
+import bisect
 import itertools
 import logging
 import math
@@ -694,6 +695,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         model=None,
         resume_state: CFGResumeState | None = None,
         eh_frame=True,
+        eh_frame_boundaries=True,
         exceptions=True,
         skip_unmapped_addrs=True,
         nodecode_window_size=2048,
@@ -752,6 +754,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :param bool detect_tail_calls:  Enable aggressive tail-call optimization detection.
         :param bool eh_frame:           Retrieve function starts (and maybe sizes later) from the .eh_frame of ELF
                                         binaries or exception records of PE binaries.
+        :param bool eh_frame_boundaries: Treat function starts recorded in the .eh_frame of ELF binaries as hard
+                                        function boundaries while tracing, the same way symbol addresses are treated.
+                                        Without it, a tail-called function that is reached through a jump before it
+                                        is reached through a call is absorbed into the caller. Only used if eh_frame
+                                        is enabled.
         :param skip_unmapped_addrs:     Ignore all branches into unmapped regions. True by default. You may want to set
                                         it to False if you are analyzing manually patched binaries or malware samples.
         :param indirect_calls_always_return:    Should CFG assume indirect calls must return or not. Assuming indirect
@@ -925,7 +932,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._force_smart_scan = force_smart_scan
         self._force_complete_scan = force_complete_scan
         self._use_eh_frame = eh_frame
+        self._eh_frame_boundaries = eh_frame_boundaries
         self._use_exceptions = exceptions
+        # the instruction that CET-enabled compilers place at every indirect branch target, i.e., function entries
+        self._ibt_marker: bytes | None = {"AMD64": b"\xf3\x0f\x1e\xfa", "X86": b"\xf3\x0f\x1e\xfb"}.get(
+            self.project.arch.name
+        )
         self._check_funcret_max_job = check_funcret_max_job
         self._retedges = retedges
 
@@ -1006,6 +1018,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._input_resume_state = resume_state
 
         self._remaining_eh_frame_addrs: list[int] | None = None
+        # function starts from .eh_frame that act as hard function boundaries during tracing
+        self._eh_frame_boundary_addrs: set[int] = set()
+        self._eh_frame_boundary_addrs_sorted: list[int] = []
         self._remaining_function_prologue_addrs: list[int] | None = None
         self._used_function_prologue_addrs: set[int] = set()
         self._ptr_hints: SortedDict | None = None
@@ -2032,7 +2047,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._updated_nonreturning_functions = set()
 
         if self._use_eh_frame:
-            self._remaining_eh_frame_addrs = sorted(self._function_addresses_from_eh_frame, reverse=True)
+            eh_frame_addrs = {a for a in self._function_addresses_from_eh_frame if self._inside_regions(a)}
+            self._remaining_eh_frame_addrs = sorted(eh_frame_addrs, reverse=True)
+            if self._eh_frame_boundaries and isinstance(self._binary, cle.ELF):
+                # PE exception records describe function chunks as well as functions, so only ELF FDEs are trusted
+                self._eh_frame_boundary_addrs = eh_frame_addrs
+                self._eh_frame_boundary_addrs_sorted = sorted(eh_frame_addrs)
 
         if self._use_function_prologues:
             func_addrs_from_prologs = self._func_addrs_from_prologues()
@@ -2877,6 +2897,54 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             return next_expr.con.value
         return None
 
+    def _absorb_eh_frame_chunks(self) -> None:
+        """
+        Cold parts (.text.unlikely) get their own FDEs but are chunks of the function that jumps into them, not
+        functions. Such an FDE start is only reached by jumps from one function, and it either jumps back into that
+        function, is only reached by conditional jumps, or never returns. Drop these functions before
+        make_functions() so that the traversal absorbs their blocks into the owner.
+        """
+        for addr in self._eh_frame_boundary_addrs_sorted:
+            if addr in self._function_addresses_from_symbols or not self.kb.functions.contains_addr(addr):
+                continue
+            entry = self.model.get_any_node(addr)
+            if entry is None:
+                continue
+            preds = [
+                (src, jumpkind)
+                for src, jumpkind in self.model.get_predecessors_and_jumpkinds(entry)
+                if jumpkind != "Ijk_FakeRet"
+            ]
+            if not preds or any(jumpkind != "Ijk_Boring" for _, jumpkind in preds):
+                continue
+            # falling through from the preceding block (usually alignment padding) is not a jump into a chunk
+            preds = [(src, jumpkind) for src, jumpkind in preds if src.addr + src.size != addr]
+            if not preds:
+                continue
+            owners = {src.function_address for src, _ in preds}
+            if len(owners) != 1:
+                continue
+            owner = next(iter(owners))
+            if owner == addr or not self.kb.functions.contains_addr(owner):
+                continue
+
+            func = self.kb.functions.get_by_addr(addr)
+            jumps_back = any(
+                jumpkind == "Ijk_Boring" and succ.function_address == owner and succ.addr != owner
+                for block_addr in func.block_addrs_set
+                for node in self.model.nodes_by_addr(block_addr)
+                for succ, jumpkind in self.model.get_successors_and_jumpkinds(node)
+            )
+            conditional_only = all(
+                sum(1 for _, jumpkind in self.model.get_successors_and_jumpkinds(src) if jumpkind != "Ijk_FakeRet") > 1
+                for src, _ in preds
+            )
+            if jumps_back or conditional_only or func.returning is False:
+                l.debug("FDE start %#x is a chunk of function %#x; absorbing it.", addr, owner)
+                del self.kb.functions[addr]
+                self._eh_frame_boundary_addrs.discard(addr)
+        self._eh_frame_boundary_addrs_sorted = sorted(self._eh_frame_boundary_addrs)
+
     def _propagate_key_func_info_to_jump_thunks(self) -> None:
         """
         Copy the ``info`` metadata of every key function onto any function that is a trivial jump thunk to it.
@@ -2976,6 +3044,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # Propagate special metadata from key functions to trivial jump thunks that target them.
         self._propagate_key_func_info_to_jump_thunks()
+        self._absorb_eh_frame_chunks()
 
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
         self.make_functions()
@@ -3372,7 +3441,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # This is for rare cases where we cannot successfully determine the end boundary of a previous function, and
         # as a consequence, our analysis mistakenly thinks the previous function goes all the way across the boundary,
         # resulting the missing of the second function in function manager.
-        if addr in self._function_addresses_from_symbols:
+        if addr in self._function_addresses_from_symbols or addr in self._eh_frame_boundary_addrs:
             current_func_addr = addr
 
         if self._addr_hooked_or_syscall(addr):
@@ -4181,6 +4250,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # if the target address is at another section, it has to be jumping to a new function
             target_func_addr = target_addr
             to_outside = True
+        elif target_addr in self._eh_frame_boundary_addrs:
+            # .eh_frame records a function starting at the target
+            target_func_addr = target_addr
+            to_outside = target_addr != current_function_addr
         else:
             # it might be a jumpout
             target_func_addr = None
@@ -4215,6 +4288,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 )
                 if not target_is_inside_current_symbol:
                     target_func_addr = target_addr
+            # case 3: an unconditional jump to an untraced indirect-branch landing pad (endbr64/endbr32). compilers
+            # only emit these at function entries (jump table cases are reached with notrack jumps), so this is a
+            # tail call.
+            if (
+                target_func_addr is None
+                and self._ibt_marker is not None
+                and jumpkind == "Ijk_Boring"
+                and all_successors is not None
+                and len(all_successors) == 1
+                and target_addr != src_addr + src_node.size
+                and real_target_addr not in self._traced_addresses
+                and self._fast_memory_load_bytes(target_addr, len(self._ibt_marker)) == self._ibt_marker
+            ):
+                target_func_addr = target_addr
             # last resort: the block probably belongs to the current function
             if target_func_addr is None:
                 target_func_addr = current_function_addr
@@ -6026,6 +6113,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if distance_to_func != 0:
                     distance = distance_to_func if distance is None else min(distance, distance_to_func)
 
+            # also stop at the next function start recorded in .eh_frame
+            if self._eh_frame_boundary_addrs_sorted:
+                idx = bisect.bisect_right(self._eh_frame_boundary_addrs_sorted, real_addr)
+                if idx < len(self._eh_frame_boundary_addrs_sorted):
+                    distance_to_boundary = self._eh_frame_boundary_addrs_sorted[idx] - real_addr
+                    distance = distance_to_boundary if distance is None else min(distance, distance_to_boundary)
+
             # in the end, check the distance between `addr` and the closest occupied region in segment list
             next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, {"code"}, max_distance=distance)
             if next_noncode_addr is not None:
@@ -6317,7 +6411,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 irsb._instruction_addresses = tuple(
                     ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
                 )
-                irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
+                if irsb.data_refs is not None:
+                    irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
                 irsb._exit_statements = tuple(x for x in irsb.exit_statements if x[0] < next_func_addr)
                 irsb.next = pyvex.expr.Const(
                     pyvex.const.U32(next_func_addr) if self.project.arch.bits == 32 else pyvex.const.U64(next_func_addr)
@@ -6915,6 +7010,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         n._exec_mem_regions = self._exec_mem_regions[::]
         n._seg_list = self._seg_list.copy()
         n._function_addresses_from_symbols = self._function_addresses_from_symbols.copy()
+        n._eh_frame_boundary_addrs = self._eh_frame_boundary_addrs.copy()
+        n._eh_frame_boundary_addrs_sorted = self._eh_frame_boundary_addrs_sorted[::]
 
         n._model = self._model.copy()
 
