@@ -61,7 +61,7 @@ from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
 from angr.utils.vex import block_branch_ins_addr
 
 from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector
-from .utils import is_sane_register_variable, merge_overlapping_register_spans
+from .utils import is_sane_register_variable, merge_overlapping_register_spans, reg_arg_from_span
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -1000,8 +1000,7 @@ class CallingConventionAnalysis(Analysis):
                 # a register variable, convert it to a register argument
                 if not is_sane_register_variable(self.project.arch, variable.reg, variable.size, def_cc=def_cc):
                     continue
-                reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
-                arg = SimRegArg(reg_name, variable.size)
+                arg = reg_arg_from_span(self.project.arch, variable.reg, variable.size)
                 args.add(arg)
 
                 accesses = var_manager.get_variable_accesses(variable)
@@ -1021,8 +1020,7 @@ class CallingConventionAnalysis(Analysis):
             if self._function.returning is False:
                 # no restoring is required if this function does not return
                 for var_ in reg_vars_with_single_access:
-                    reg_name = self.project.arch.translate_register_name(var_.reg, size=var_.size)
-                    restored_reg_vars.add(SimRegArg(reg_name, var_.size))
+                    restored_reg_vars.add(reg_arg_from_span(self.project.arch, var_.reg, var_.size))
 
             else:
                 reg_offsets: set[int] = {r.reg for r in reg_vars_with_single_access}
@@ -1038,8 +1036,7 @@ class CallingConventionAnalysis(Analysis):
                                     break
 
                             if found:
-                                reg_name = self.project.arch.translate_register_name(var_.reg, size=var_.size)
-                                restored_reg_vars.add(SimRegArg(reg_name, var_.size))
+                                restored_reg_vars.add(reg_arg_from_span(self.project.arch, var_.reg, var_.size))
                         if (
                             len(accesses) == 1
                             and accesses[0].access_type == VariableAccessSort.READ
@@ -1059,8 +1056,7 @@ class CallingConventionAnalysis(Analysis):
                             if dests is not None and len(dests) == 1 and isinstance(dests[0][0], SimStackVariable):
                                 accesses2 = var_manager.get_variable_accesses(dests[0][0])
                                 if len(accesses2) == 1:
-                                    reg_name = self.project.arch.translate_register_name(var_.reg, size=var_.size)
-                                    restored_reg_vars.add(SimRegArg(reg_name, var_.size))
+                                    restored_reg_vars.add(reg_arg_from_span(self.project.arch, var_.reg, var_.size))
                                     break
 
         return args.difference(restored_reg_vars)
@@ -1460,7 +1456,7 @@ class CallingConventionAnalysis(Analysis):
         for span in merge_overlapping_register_spans(arch, regarg_by_span):
             arg = regarg_by_span.get(span)
             if arg is None:
-                arg = SimRegArg(arch.translate_register_name(span[0], size=span[1]), span[1])
+                arg = reg_arg_from_span(arch, span[0], span[1])
             merged_reg_args.append(arg)
 
         # split args into two lists

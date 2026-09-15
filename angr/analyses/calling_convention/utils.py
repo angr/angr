@@ -6,7 +6,7 @@ from collections.abc import Iterable
 import archinfo
 from archinfo.arch_arm import ArchARMCortexM, ArchARMHF, is_arm_arch
 
-from angr.calling_conventions import SimCC
+from angr.calling_conventions import SimCC, SimRegArg
 from angr.utils.ssa import get_reg_offset_base_and_size
 
 l = logging.getLogger(__name__)
@@ -73,6 +73,25 @@ def is_sane_register_variable(
 
     l.critical("Unsupported architecture %s.", arch.name)
     return True
+
+
+def reg_arg_from_span(arch: archinfo.Arch, offset: int, size: int) -> SimRegArg:
+    """
+    Build a register argument for a read of ``size`` bytes at ``offset``.
+
+    SimRegArg is keyed by register name. A read that starts at an unnamed offset (e.g., movmskpd's GET:I32 at xmm0+4)
+    widens to the smallest named register covering it instead of taking archinfo's stringified-offset fallback name.
+    """
+
+    name = arch.translate_register_name(offset, size=size)
+    if name in arch.registers:
+        return SimRegArg(name, size)
+    covering = [(sz, off, n) for n, (off, sz) in arch.registers.items() if off <= offset and offset + size <= off + sz]
+    if not covering:
+        return SimRegArg(name, size)
+    sz, off, n = min(covering)
+    canonical = arch.translate_register_name(off, size=sz)
+    return SimRegArg(canonical if arch.registers.get(canonical) == (off, sz) else n, sz)
 
 
 def merge_overlapping_register_spans(arch: archinfo.Arch, spans: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:

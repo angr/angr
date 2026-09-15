@@ -19,7 +19,7 @@ from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
 
-from .utils import is_sane_register_variable, merge_overlapping_register_spans
+from .utils import is_sane_register_variable, merge_overlapping_register_spans, reg_arg_from_span
 
 if TYPE_CHECKING:
     from angr.codenode import CodeNode
@@ -1256,8 +1256,7 @@ class FactCollector(Analysis):
                 reg_reads[offset] = max(reg_reads.get(offset, 0), size)
         # reads of overlapping sub-registers (e.g., ch and cx) describe one argument
         for offset, size in merge_overlapping_register_spans(self.project.arch, reg_reads.items()):
-            reg_name = self.project.arch.translate_register_name(offset, size=size)
-            arg = SimRegArg(reg_name, size)
+            arg = reg_arg_from_span(self.project.arch, offset, size)
             self.input_args.append(arg)
             if offset in unused_hint_offsets:
                 self.unused_args.append(arg)
