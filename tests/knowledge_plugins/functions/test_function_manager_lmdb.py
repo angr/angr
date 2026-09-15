@@ -350,6 +350,25 @@ class TestFunctionManagerLMDB(unittest.TestCase):
         for addr in addrs:
             assert new_map[addr].addr == addr
 
+    def test_spilling_dict_copy_preserves_clean_cached_function_after_eviction(self):
+        """A copied cache entry needs a record in its own store when it is evicted."""
+        proj, function_map = self._spilled_function_map()
+        main_symbol = proj.loader.find_symbol("main")
+        assert main_symbol is not None
+        main_addr = main_symbol.rebased_addr
+        original = function_map[main_addr]
+        expected_blocks = set(original.block_addrs_set)
+        assert expected_blocks
+        assert not original.dirty
+
+        new_map = function_map.copy()
+        assert new_map.data[main_addr] is not original
+        new_map.evict_all_cached()
+
+        assert main_addr in new_map._spilled_keys
+        assert set(new_map[main_addr].block_addrs_set) == expected_blocks
+        assert set(function_map[main_addr].block_addrs_set) == expected_blocks
+
     def test_spilling_dict_copy_holds_one_transaction_at_a_time(self):
         """
         copy() writes the spilled records back out into a new sub-database, and that write may have to grow the

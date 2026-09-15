@@ -119,19 +119,22 @@ class TrackedTransaction:
     exactly as long as it exists.
     """
 
-    __slots__ = ("_db", "_env", "_rtdb", "_txn", "_write")
+    __slots__ = ("_db_name", "_env", "_rtdb", "_txn", "_write")
 
-    def __init__(self, rtdb: RuntimeDb, env: lmdb.Environment, db: Any, write: bool):
-        self._db = db
-        self._env = env
+    def __init__(self, rtdb: RuntimeDb, db_name: str | None, write: bool):
+        self._db_name = db_name
+        self._env: lmdb.Environment | None = None
         self._rtdb = rtdb
-        self._txn: lmdb.Transaction | None = None
+        self._txn: lmdb.Transaction[bytes] | None = None
         self._write = write
 
-    def __enter__(self) -> lmdb.Transaction:
+    def __enter__(self) -> lmdb.Transaction[bytes]:
         self._rtdb._transaction_opened()
         try:
-            self._txn = self._env.begin(db=self._db, write=self._write)
+            self._env = self._rtdb._lmdb_env
+            assert self._env is not None
+            db = self._rtdb._dbs[self._db_name] if self._db_name is not None else None
+            self._txn = self._env.begin(db=db, write=self._write)
         except BaseException:
             self._rtdb._transaction_closed()
             raise
@@ -143,7 +146,8 @@ class TrackedTransaction:
             return self._txn.__exit__(exc_type, exc_value, traceback)
         finally:
             self._txn = None
-            self._rtdb._transaction_closed()
+            if self._env is self._rtdb._lmdb_env:
+                self._rtdb._transaction_closed()
 
 
 class RuntimeDbForkCondom:
@@ -441,17 +445,17 @@ class RuntimeDb(KnowledgeBasePlugin):
 
         with self._open_txns_lock:
             open_txns = self._open_txns
-        if open_txns:
-            raise AngrRuntimeDbError(
-                f"Cannot increase the LMDB map size: {open_txns} transaction(s) are still open. Remapping the "
-                f"environment invalidates everything an open transaction holds into the old mapping."
-            )
+            if open_txns:
+                raise AngrRuntimeDbError(
+                    f"Cannot increase the LMDB map size: {open_txns} transaction(s) are still open. Remapping the "
+                    f"environment invalidates everything an open transaction holds into the old mapping."
+                )
 
-        delta = min(self._lmdb_mapsize, 1024 * 1024 * 256)
-        l.debug("Increasing LMDB map size by %d bytes", delta)
-        self._lmdb_mapsize += delta
-        self._lmdb_env.set_mapsize(self._lmdb_mapsize)
-        self.reopen_lmdb_databases()
+            delta = min(self._lmdb_mapsize, 1024 * 1024 * 256)
+            l.debug("Increasing LMDB map size by %d bytes", delta)
+            self._lmdb_mapsize += delta
+            self._lmdb_env.set_mapsize(self._lmdb_mapsize)
+            self.reopen_lmdb_databases()
 
     def reopen_lmdb(self):
         """
@@ -469,8 +473,8 @@ class RuntimeDb(KnowledgeBasePlugin):
         # Transactions counted against the closed environment can never be closed against the new one. The most
         # common way to get here is a fork, where the child inherits the count of every thread that did not come
         # along with it.
-        with self._open_txns_lock:
-            self._open_txns = 0
+        self._open_txns_lock = threading.Lock()
+        self._open_txns = 0
 
         self._init_lmdb()
         self.reopen_lmdb_databases()
@@ -496,9 +500,10 @@ class RuntimeDb(KnowledgeBasePlugin):
         Return a context manager that holds a transaction on a sub-database open for the duration of its body. The
         environment cannot be remapped while it is open.
         """
-        db = self._dbs[db_name]
+        if db_name not in self._dbs:
+            raise KeyError(db_name)
         assert self._lmdb_env is not None
-        return TrackedTransaction(self, self._lmdb_env, db, write)
+        return TrackedTransaction(self, db_name, write)
 
     def _transaction_opened(self) -> None:
         with self._open_txns_lock:
@@ -512,7 +517,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         db = self._dbs[db_name]
         if self._lmdb_env is None:
             return
-        with TrackedTransaction(self, self._lmdb_env, db=None, write=True) as txn:
+        with TrackedTransaction(self, db_name=None, write=True) as txn:
             txn.drop(db)
         del self._dbs[db_name]
 

@@ -327,8 +327,11 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         new_dict._eviction_enabled = False
         # iterate over in-memory functions and copy them
         for address, function in self.data.items():
+            copied_function = function.copy()
+            # The new store has no backing record for a cached function, even if the source was clean.
+            copied_function.mark_dirty()
             new_dict._list.add(address)
-            super(SpillingFunctionDict, new_dict).__setitem__(address, function.copy())
+            super(SpillingFunctionDict, new_dict).__setitem__(address, copied_function)
             new_dict._lru_order[address] = None
 
         # Copy any remaining spilled addresses and their LMDB data, a batch at a time. Each batch is read, the read
