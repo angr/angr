@@ -925,7 +925,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._force_smart_scan = force_smart_scan
         self._force_complete_scan = force_complete_scan
         self._use_eh_frame = eh_frame
+        self._eh_frame_boundaries = eh_frame_boundaries
         self._use_exceptions = exceptions
+        # the instruction that CET-enabled compilers place at every indirect branch target, i.e., function entries
+        self._ibt_marker: bytes | None = {"AMD64": b"\xf3\x0f\x1e\xfa", "X86": b"\xf3\x0f\x1e\xfb"}.get(
+            self.project.arch.name
+        )
         self._check_funcret_max_job = check_funcret_max_job
         self._retedges = retedges
 
@@ -4215,6 +4220,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 )
                 if not target_is_inside_current_symbol:
                     target_func_addr = target_addr
+            # case 3: an unconditional jump to an untraced indirect-branch landing pad (endbr64/endbr32). compilers
+            # only emit these at function entries (jump table cases are reached with notrack jumps), so this is a
+            # tail call.
+            if (
+                target_func_addr is None
+                and self._ibt_marker is not None
+                and jumpkind == "Ijk_Boring"
+                and all_successors is not None
+                and len(all_successors) == 1
+                and target_addr != src_addr + src_node.size
+                and real_target_addr not in self._traced_addresses
+                and self._fast_memory_load_bytes(target_addr, len(self._ibt_marker)) == self._ibt_marker
+            ):
+                target_func_addr = target_addr
             # last resort: the block probably belongs to the current function
             if target_func_addr is None:
                 target_func_addr = current_function_addr
