@@ -100,6 +100,32 @@ class TestPeepholeOptimizations(unittest.TestCase):
         expr_opt = opt.optimize(expr)
         assert expr_opt is None
 
+    def test_eager_eval_ite(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
+
+        a = Register(manager.next_atom(), 16, 64)
+        b = Register(manager.next_atom(), 24, 64)
+
+        # ITE(0, a, b) --> b
+        expr = ITE(manager.next_atom(), Const(manager.next_atom(), 0, 1), a, b)
+        assert opt.optimize(expr).likes(b)
+
+        # ITE(1, a, b) --> a
+        expr = ITE(manager.next_atom(), Const(manager.next_atom(), 1, 1), a, b)
+        assert opt.optimize(expr).likes(a)
+
+        # ITE(cond, 2, 2) --> 2
+        cond = BinaryOp(manager.next_atom(), "CmpEQ", [a, b], False, bits=1)
+        expr = ITE(manager.next_atom(), cond, Const(manager.next_atom(), 2, 64), Const(manager.next_atom(), 2, 64))
+        expr_opt = opt.optimize(expr)
+        assert isinstance(expr_opt, Const) and expr_opt.value == 2
+
+        # ITE(cond, a, b) is left alone
+        expr = ITE(manager.next_atom(), cond, a, b)
+        assert opt.optimize(expr) is None
+
     def test_eager_eval_mul_div_cancellation_requires_integers(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
         manager = Manager()

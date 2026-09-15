@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from angr.ailment import Expr
 from angr.engines.vex.claripy.ccall import (
+    ARMG_CC_OP_ADC,
     ARMG_CC_OP_ADD,
+    ARMG_CC_OP_COPY,
     ARMG_CC_OP_LOGIC,
     ARMG_CC_OP_MUL,
+    ARMG_CC_OP_MULL,
     ARMG_CC_OP_NUMBER,
     ARMG_CC_OP_SBB,
     ARMG_CC_OP_SUB,
+    ARMG_CC_SHIFT_C,
+    ARMG_CC_SHIFT_N,
+    ARMG_CC_SHIFT_V,
+    ARMG_CC_SHIFT_Z,
     ARMCondAL,
     ARMCondEQ,
     ARMCondGE,
@@ -22,49 +29,72 @@ from angr.engines.vex.claripy.ccall import (
     ARMCondNE,
     ARMCondNV,
     ARMCondPL,
+    ARMCondVC,
+    ARMCondVS,
 )
 
 from .rewriter_base import CCallRewriterBase
 
-# Valid ARM CC operation range
-_VALID_CC_OPS = range(ARMG_CC_OP_NUMBER)
+_FLAG_CALLEES = {
+    "armg_calculate_flag_c": "c",
+    "armg_calculate_flag_n": "n",
+    "armg_calculate_flag_z": "z",
+    "armg_calculate_flag_v": "v",
+}
+
+# condition code -> (comparison, signed) for flags computed from ``dep_1 - dep_2``
+_SUB_CMP_OPS: dict[int, tuple[str, bool]] = {
+    ARMCondEQ: ("CmpEQ", False),
+    ARMCondNE: ("CmpNE", False),
+    ARMCondHS: ("CmpGE", False),
+    ARMCondLO: ("CmpLT", False),
+    ARMCondHI: ("CmpGT", False),
+    ARMCondLS: ("CmpLE", False),
+    ARMCondGE: ("CmpGE", True),
+    ARMCondLT: ("CmpLT", True),
+    ARMCondGT: ("CmpGT", True),
+    ARMCondLE: ("CmpLE", True),
+}
+_UNSIGNED_CONDS = {ARMCondHS, ARMCondLO, ARMCondHI, ARMCondLS}
+_SIGNED_CONDS = {ARMCondGE, ARMCondLT, ARMCondGT, ARMCondLE}
+
+_MASK32 = 0xFFFF_FFFF
 
 
 class ARMCCallRewriter(CCallRewriterBase):
     """
-    ARM condition codes encode flag checks on N, Z, C, V flags. The ``cond_n_op``
-    operand packs condition (upper 4 bits) and cc_op (lower 4 bits). Conditions
-    come in pairs where the odd member inverts the even one (inv = cond & 1).
+    Rewrites ARM flag helpers following libVEX's guest_arm_helpers.c. ``cond_n_op`` packs the condition code in bits
+    7:4 and the cc_op in bits 3:0; odd condition codes negate their even partner.
 
-    Flag semantics per operation:
+    Flag semantics per cc_op (dep_1, dep_2, dep_3):
 
-    SUB (CMP):  N = sign(dep1-dep2), Z = (dep1==dep2), C = (dep1 >=u dep2), V = signed overflow
-    ADD (CMN):  N = sign(dep1+dep2), Z = (dep1+dep2==0), C = unsigned carry, V = signed overflow
-    LOGIC:      N = sign(dep1), Z = (dep1==0), C = dep2 (shifter carry), V = dep3 (old V)
-    MUL:        N = sign(dep1), Z = (dep1==0), C/V from dep3
-    SBB:        like SUB but with borrow: dep1 - dep2 - (dep3^1)
+    COPY:   NZCV in bits 31:28 of dep_1
+    ADD:    res = dep_1 + dep_2;              C = res <u dep_1
+    SUB:    res = dep_1 - dep_2;              C = dep_1 >=u dep_2
+    ADC:    res = dep_1 + dep_2 + dep_3;      C = res <=u dep_1 if dep_3 else res <u dep_1
+    SBB:    res = dep_1 - dep_2 - (dep_3^1);  C = dep_1 >=u dep_2 if dep_3 else dep_1 >u dep_2
+    LOGIC:  res = dep_1;  C = dep_2 (shifter carry out);  V = dep_3 (old V)
+    MUL:    res = dep_1;  C = dep_3[1];  V = dep_3[0]
+    MULL:   res = dep_2:dep_1;  C = dep_3[1];  V = dep_3[0]
 
-    Also handles individual flag helpers (armg_calculate_flag_c/n/z/v) and
-    previously-renamed ``_ccall`` expressions (common when constant propagation
-    resolves operands after the initial rename pass).
+    ADC with dep_3 == 0 is ADD and SBB with dep_3 == 1 is SUB. Only shapes that map exactly onto AIL expressions are
+    rewritten; everything else is left alone.
     """
 
     __slots__ = ()
 
     def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
-        if ccall.callee == "armg_calculate_condition":
+        if len(ccall.operands) != 4 or ccall.bits != 32 or any(o.bits != 32 for o in ccall.operands):
+            return None
+        callee = self._original_callee(ccall)
+        if callee == "armg_calculate_condition":
             return self._rewrite_condition(ccall)
-        if ccall.callee == "armg_calculate_flag_c":
-            return self._rewrite_flag_c(ccall)
-        if ccall.callee == "armg_calculate_flag_n":
-            return self._rewrite_flag_n(ccall)
-        if ccall.callee == "armg_calculate_flag_z":
-            return self._rewrite_flag_z(ccall)
-        # _ccall: try to interpret as armg_calculate_condition (the callee name
-        # was lost during a prior rename pass when the operands were still
-        # non-constant; constant propagation may have resolved them since)
-        if ccall.callee == "_ccall" and len(ccall.operands) == 4:
-            return self._rewrite_renamed_ccall(ccall)
+        if callee in _FLAG_CALLEES:
+            cc_op = ccall.operands[0]
+            if not isinstance(cc_op, Expr.Const):
+                return None
+            r = self._flag(ccall, _FLAG_CALLEES[callee], cc_op.value_int, *ccall.operands[1:])
+            return None if r is None else self._wrap(ccall, r)
         return None
 
     # ---- armg_calculate_condition ----
@@ -73,285 +103,309 @@ class ARMCCallRewriter(CCallRewriterBase):
         cond_n_op = ccall.operands[0]
         if not isinstance(cond_n_op, Expr.Const):
             return None
-        return self._do_rewrite_condition(ccall, cond_n_op.value_int)
-
-    def _rewrite_renamed_ccall(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
-        """Try to rewrite a ``_ccall`` as ``armg_calculate_condition``."""
-        cond_n_op = ccall.operands[0]
-        if not isinstance(cond_n_op, Expr.Const):
-            return None
-        val = cond_n_op.value_int
-        cond = val >> 4
-        op = val & 0xF
-        # Sanity: valid condition code (0-15) and valid cc_op
-        if cond > 15 or op not in _VALID_CC_OPS:
-            return None
-        return self._do_rewrite_condition(ccall, val)
-
-    def _do_rewrite_condition(self, ccall: Expr.VEXCCallExpression, concrete_cond_n_op: int) -> Expr.Expression | None:
-        cond_v = concrete_cond_n_op >> 4
-        op_v = concrete_cond_n_op & 0xF
-        inv = cond_v & 1
-
-        dep_1 = ccall.operands[1]
-        dep_2 = ccall.operands[2]
-        dep_3 = ccall.operands[3]
-
-        # AL (always) / NV (never) — independent of operation
-        if cond_v == ARMCondAL:
+        cond = (cond_n_op.value_int >> 4) & 0xF
+        op = cond_n_op.value_int & 0xF
+        if cond == ARMCondAL:
             return Expr.Const(ccall.idx, 1, ccall.bits, **ccall.tags)
-        if cond_v == ARMCondNV:
+        if cond == ARMCondNV:
             return Expr.Const(ccall.idx, 0, ccall.bits, **ccall.tags)
+        if op >= ARMG_CC_OP_NUMBER:
+            return None
+        r = self._condition(ccall, cond, op, *ccall.operands[1:])
+        return None if r is None else self._wrap(ccall, r)
 
-        if op_v == ARMG_CC_OP_SUB:
-            return self._rewrite_sub(ccall, cond_v, inv, dep_1, dep_2)
-        if op_v == ARMG_CC_OP_ADD:
-            return self._rewrite_add(ccall, cond_v, inv, dep_1, dep_2)
-        if op_v == ARMG_CC_OP_LOGIC:
-            return self._rewrite_logic(ccall, cond_v, inv, dep_1)
-        if op_v == ARMG_CC_OP_MUL:
-            return self._rewrite_logic(ccall, cond_v, inv, dep_1)
-        if op_v == ARMG_CC_OP_SBB:
-            return self._rewrite_sbb(ccall, cond_v, inv, dep_1, dep_2, dep_3)
-
+    def _condition(
+        self,
+        ccall: Expr.VEXCCallExpression,
+        cond: int,
+        op: int,
+        dep_1: Expr.Expression,
+        dep_2: Expr.Expression,
+        dep_3: Expr.Expression,
+    ) -> Expr.Expression | None:
+        op = self._normalize_op(op, dep_3)
+        if op == ARMG_CC_OP_SUB:
+            return self._cond_sub(ccall, cond, dep_1, dep_2)
+        if op == ARMG_CC_OP_ADD:
+            return self._cond_add(ccall, cond, dep_1, dep_2)
+        if op == ARMG_CC_OP_SBB and self._is_const(dep_3, 0):
+            r = self._cond_sub_borrow(ccall, cond, dep_1, dep_2)
+            if r is not None:
+                return r
+        if op in {ARMG_CC_OP_ADC, ARMG_CC_OP_SBB}:
+            return self._cond_carry_result(ccall, cond, op, dep_1, dep_2, dep_3)
+        if op in {ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL}:
+            return self._cond_logic(ccall, cond, op, dep_1, dep_2)
+        if op == ARMG_CC_OP_COPY:
+            return self._cond_copy(ccall, cond, dep_1)
         return None
 
-    # ---- individual flag helpers ----
-
-    def _rewrite_flag_c(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
-        """armg_calculate_flag_c(cc_op, dep1, dep2, dep3) → C flag."""
-        cc_op = ccall.operands[0]
-        if not isinstance(cc_op, Expr.Const):
-            return None
-        op_v = cc_op.value_int
-        dep_1 = ccall.operands[1]
-        dep_2 = ccall.operands[2]
-        dep_3 = ccall.operands[3]
-
-        if op_v == ARMG_CC_OP_SUB:
-            # C = (dep_1 >=u dep_2)
-            r = Expr.BinaryOp(ccall.idx, "CmpGE", (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-        if op_v == ARMG_CC_OP_ADD:
-            # C = unsigned carry: (dep_1 + dep_2) <u dep_1
-            add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
-            r = Expr.BinaryOp(ccall.idx, "CmpLT", (add_expr, dep_1), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-        if op_v == ARMG_CC_OP_SBB:
-            # C = if dep_3==0 then dep_1>=dep_2 else dep_1>dep_2
-            if isinstance(dep_3, Expr.Const) and dep_3.value_int == 0:
-                r = Expr.BinaryOp(ccall.idx, "CmpGE", (dep_1, dep_2), signed=False, **ccall.tags)
-            else:
-                r = Expr.BinaryOp(ccall.idx, "CmpGT", (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-        if op_v == ARMG_CC_OP_LOGIC:
-            # C = dep_2 (shifter carry out)
-            return dep_2
-
+    def _cond_sub(
+        self, ccall: Expr.VEXCCallExpression, cond: int, dep_1: Expr.Expression, dep_2: Expr.Expression
+    ) -> Expr.Expression | None:
+        if cond in _SUB_CMP_OPS:
+            cmp_op, signed = _SUB_CMP_OPS[cond]
+            return self._cmp(ccall, cmp_op, dep_1, dep_2, signed)
+        if cond in {ARMCondMI, ARMCondPL}:
+            # N is the sign of the (wrapped) difference, not the signed comparison
+            res = dep_1 if self._is_const(dep_2, 0) else self._binop(ccall, "Sub", dep_1, dep_2)
+            return self._cmp(ccall, "CmpLT" if cond == ARMCondMI else "CmpGE", res, self._const(ccall, 0), True)
         return None
 
-    def _rewrite_flag_n(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
-        """armg_calculate_flag_n(cc_op, dep1, dep2, dep3) → N flag (sign bit)."""
-        cc_op = ccall.operands[0]
-        if not isinstance(cc_op, Expr.Const):
+    def _cond_add(
+        self, ccall: Expr.VEXCCallExpression, cond: int, dep_1: Expr.Expression, dep_2: Expr.Expression
+    ) -> Expr.Expression | None:
+        if isinstance(dep_2, Expr.Const) and cond in _SUB_CMP_OPS:
+            # dep_1 + c compares like dep_1 - (-c); unsigned conditions need c != 0 (no carry is possible), signed
+            # ones need -c to be representable
+            c = dep_2.value_int & _MASK32
+            if (
+                cond in {ARMCondEQ, ARMCondNE}
+                or (cond in _UNSIGNED_CONDS and c != 0)
+                or (cond in _SIGNED_CONDS and c != 0x8000_0000)
+            ):
+                cmp_op, signed = _SUB_CMP_OPS[cond]
+                return self._cmp(ccall, cmp_op, dep_1, self._const(ccall, (-c) & _MASK32), signed)
             return None
-        op_v = cc_op.value_int
-        dep_1 = ccall.operands[1]
-        dep_2 = ccall.operands[2]
-        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
 
-        if op_v == ARMG_CC_OP_SUB:
-            # N = sign(dep_1 - dep_2) → (dep_1 - dep_2) <s 0 → dep_1 <s dep_2
-            r = Expr.BinaryOp(ccall.idx, "CmpLT", (dep_1, dep_2), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-        if op_v == ARMG_CC_OP_ADD:
-            # N = sign(dep_1 + dep_2) → (dep_1 + dep_2) <s 0
-            add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
-            r = Expr.BinaryOp(ccall.idx, "CmpLT", (add_expr, zero), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-        if op_v in {ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL}:
-            # N = sign(dep_1) → dep_1 <s 0
-            r = Expr.BinaryOp(ccall.idx, "CmpLT", (dep_1, zero), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-
+        res = self._binop(ccall, "Add", dep_1, dep_2)
+        zero = self._const(ccall, 0)
+        if cond in {ARMCondEQ, ARMCondNE}:
+            return self._cmp(ccall, "CmpEQ" if cond == ARMCondEQ else "CmpNE", res, zero, False)
+        if cond in {ARMCondMI, ARMCondPL}:
+            return self._cmp(ccall, "CmpLT" if cond == ARMCondMI else "CmpGE", res, zero, True)
+        if cond in {ARMCondHS, ARMCondLO}:
+            return self._cmp(ccall, "CmpLT" if cond == ARMCondHS else "CmpGE", res, dep_1, False)
+        if cond == ARMCondHI:
+            return self._logical(
+                ccall, "LogicalAnd", self._cmp(ccall, "CmpLT", res, dep_1, False), self._cmp(ccall, "CmpNE", res, zero)
+            )
+        if cond == ARMCondLS:
+            return self._logical(
+                ccall, "LogicalOr", self._cmp(ccall, "CmpGE", res, dep_1, False), self._cmp(ccall, "CmpEQ", res, zero)
+            )
         return None
 
-    def _rewrite_flag_z(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
-        """armg_calculate_flag_z(cc_op, dep1, dep2, dep3) → Z flag (zero test)."""
-        cc_op = ccall.operands[0]
-        if not isinstance(cc_op, Expr.Const):
-            return None
-        op_v = cc_op.value_int
-        dep_1 = ccall.operands[1]
-        dep_2 = ccall.operands[2]
-        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
+    def _cond_sub_borrow(
+        self, ccall: Expr.VEXCCallExpression, cond: int, dep_1: Expr.Expression, dep_2: Expr.Expression
+    ) -> Expr.Expression | None:
+        # res = dep_1 - dep_2 - 1
+        if cond in {ARMCondHS, ARMCondLO}:
+            return self._cmp(ccall, "CmpGT" if cond == ARMCondHS else "CmpLE", dep_1, dep_2, False)
+        if cond in {ARMCondEQ, ARMCondNE}:
+            rhs = self._binop(ccall, "Add", dep_2, self._const(ccall, 1))
+            return self._cmp(ccall, "CmpEQ" if cond == ARMCondEQ else "CmpNE", dep_1, rhs)
+        return None
 
-        if op_v == ARMG_CC_OP_SUB:
-            # Z = (dep_1 == dep_2)
-            r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-        if op_v == ARMG_CC_OP_ADD:
-            # Z = (dep_1 + dep_2) == 0
-            add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
-            r = Expr.BinaryOp(ccall.idx, "CmpEQ", (add_expr, zero), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-        if op_v in {ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL}:
-            # Z = (dep_1 == 0)
-            r = Expr.BinaryOp(ccall.idx, "CmpEQ", (dep_1, zero), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
+    def _cond_carry_result(
+        self,
+        ccall: Expr.VEXCCallExpression,
+        cond: int,
+        op: int,
+        dep_1: Expr.Expression,
+        dep_2: Expr.Expression,
+        dep_3: Expr.Expression,
+    ) -> Expr.Expression | None:
+        # Z and N of ADC/SBB only depend on the result, whatever the incoming carry is
+        res = self._carry_result(ccall, op, dep_1, dep_2, dep_3)
+        zero = self._const(ccall, 0)
+        if cond in {ARMCondEQ, ARMCondNE}:
+            return self._cmp(ccall, "CmpEQ" if cond == ARMCondEQ else "CmpNE", res, zero)
+        if cond in {ARMCondMI, ARMCondPL}:
+            return self._cmp(ccall, "CmpLT" if cond == ARMCondMI else "CmpGE", res, zero, True)
+        return None
+
+    def _cond_logic(
+        self, ccall: Expr.VEXCCallExpression, cond: int, op: int, res: Expr.Expression, shco: Expr.Expression
+    ) -> Expr.Expression | None:
+        zero = self._const(ccall, 0)
+        if cond in {ARMCondEQ, ARMCondNE}:
+            return self._cmp(ccall, "CmpEQ" if cond == ARMCondEQ else "CmpNE", res, zero)
+        if cond in {ARMCondMI, ARMCondPL}:
+            return self._cmp(ccall, "CmpLT" if cond == ARMCondMI else "CmpGE", res, zero, True)
+        if op == ARMG_CC_OP_LOGIC:
+            if cond in {ARMCondHS, ARMCondLO}:
+                return self._is_nonzero(ccall, shco, cond == ARMCondHS)
+            if cond == ARMCondHI:
+                return self._logical(
+                    ccall, "LogicalAnd", self._is_nonzero(ccall, shco, True), self._cmp(ccall, "CmpNE", res, zero)
+                )
+            if cond == ARMCondLS:
+                return self._logical(
+                    ccall, "LogicalOr", self._is_nonzero(ccall, shco, False), self._cmp(ccall, "CmpEQ", res, zero)
+                )
+        return None
+
+    def _cond_copy(self, ccall: Expr.VEXCCallExpression, cond: int, nzcv: Expr.Expression) -> Expr.Expression | None:
+        def flag(shift: int, is_set: bool) -> Expr.Expression:
+            return self._is_nonzero(ccall, self._binop(ccall, "And", nzcv, self._const(ccall, 1 << shift)), is_set)
+
+        if cond in {ARMCondEQ, ARMCondNE}:
+            return flag(ARMG_CC_SHIFT_Z, cond == ARMCondEQ)
+        if cond in {ARMCondHS, ARMCondLO}:
+            return flag(ARMG_CC_SHIFT_C, cond == ARMCondHS)
+        if cond in {ARMCondMI, ARMCondPL}:
+            return flag(ARMG_CC_SHIFT_N, cond == ARMCondMI)
+        if cond in {ARMCondVS, ARMCondVC}:
+            return flag(ARMG_CC_SHIFT_V, cond == ARMCondVS)
+        if cond == ARMCondHI:
+            return self._logical(ccall, "LogicalAnd", flag(ARMG_CC_SHIFT_C, True), flag(ARMG_CC_SHIFT_Z, False))
+        if cond == ARMCondLS:
+            return self._logical(ccall, "LogicalOr", flag(ARMG_CC_SHIFT_C, False), flag(ARMG_CC_SHIFT_Z, True))
+        # N != V: bit 31 xor bit 28
+        n_xor_v = self._binop(
+            ccall,
+            "And",
+            self._binop(ccall, "Xor", self._shr(ccall, nzcv, ARMG_CC_SHIFT_N - ARMG_CC_SHIFT_V), nzcv),
+            self._const(ccall, 1 << ARMG_CC_SHIFT_V),
+        )
+        if cond in {ARMCondGE, ARMCondLT}:
+            return self._is_nonzero(ccall, n_xor_v, cond == ARMCondLT)
+        if cond == ARMCondGT:
+            return self._logical(
+                ccall, "LogicalAnd", flag(ARMG_CC_SHIFT_Z, False), self._is_nonzero(ccall, n_xor_v, False)
+            )
+        if cond == ARMCondLE:
+            return self._logical(
+                ccall, "LogicalOr", flag(ARMG_CC_SHIFT_Z, True), self._is_nonzero(ccall, n_xor_v, True)
+            )
+        return None
+
+    # ---- armg_calculate_flag_{c,n,z,v} ----
+
+    def _flag(
+        self,
+        ccall: Expr.VEXCCallExpression,
+        flag: str,
+        op: int,
+        dep_1: Expr.Expression,
+        dep_2: Expr.Expression,
+        dep_3: Expr.Expression,
+    ) -> Expr.Expression | None:
+        op = self._normalize_op(op, dep_3)
+        zero = self._const(ccall, 0)
+        one = self._const(ccall, 1)
+
+        if flag == "c":
+            if op == ARMG_CC_OP_SUB:
+                return self._cmp(ccall, "CmpGE", dep_1, dep_2, False)
+            if op == ARMG_CC_OP_ADD:
+                return self._cmp(ccall, "CmpLT", self._binop(ccall, "Add", dep_1, dep_2), dep_1, False)
+            if op == ARMG_CC_OP_SBB and self._is_const(dep_3, 0):
+                return self._cmp(ccall, "CmpGT", dep_1, dep_2, False)
+            if op == ARMG_CC_OP_LOGIC:
+                return dep_2
+            if op in {ARMG_CC_OP_MUL, ARMG_CC_OP_MULL}:
+                return self._binop(ccall, "And", self._shr(ccall, dep_3, 1), one)
+            if op == ARMG_CC_OP_COPY:
+                return self._binop(ccall, "And", self._shr(ccall, dep_1, ARMG_CC_SHIFT_C), one)
+            return None
+
+        if flag == "n":
+            if op == ARMG_CC_OP_SUB:
+                res = dep_1 if self._is_const(dep_2, 0) else self._binop(ccall, "Sub", dep_1, dep_2)
+                return self._cmp(ccall, "CmpLT", res, zero, True)
+            if op == ARMG_CC_OP_ADD:
+                return self._cmp(ccall, "CmpLT", self._binop(ccall, "Add", dep_1, dep_2), zero, True)
+            if op in {ARMG_CC_OP_ADC, ARMG_CC_OP_SBB}:
+                return self._cmp(ccall, "CmpLT", self._carry_result(ccall, op, dep_1, dep_2, dep_3), zero, True)
+            if op in {ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL}:
+                return self._cmp(ccall, "CmpLT", dep_1, zero, True)
+            if op == ARMG_CC_OP_MULL:
+                return self._cmp(ccall, "CmpLT", dep_2, zero, True)
+            if op == ARMG_CC_OP_COPY:
+                return self._binop(ccall, "And", self._shr(ccall, dep_1, ARMG_CC_SHIFT_N), one)
+            return None
+
+        if flag == "z":
+            if op == ARMG_CC_OP_SUB:
+                return self._cmp(ccall, "CmpEQ", dep_1, dep_2)
+            if op == ARMG_CC_OP_ADD:
+                return self._cmp(ccall, "CmpEQ", self._binop(ccall, "Add", dep_1, dep_2), zero)
+            if op in {ARMG_CC_OP_ADC, ARMG_CC_OP_SBB}:
+                return self._cmp(ccall, "CmpEQ", self._carry_result(ccall, op, dep_1, dep_2, dep_3), zero)
+            if op in {ARMG_CC_OP_LOGIC, ARMG_CC_OP_MUL}:
+                return self._cmp(ccall, "CmpEQ", dep_1, zero)
+            if op == ARMG_CC_OP_MULL:
+                return self._cmp(ccall, "CmpEQ", self._binop(ccall, "Or", dep_1, dep_2), zero)
+            if op == ARMG_CC_OP_COPY:
+                return self._binop(ccall, "And", self._shr(ccall, dep_1, ARMG_CC_SHIFT_Z), one)
+            return None
+
+        if flag == "v":
+            if op == ARMG_CC_OP_SUB:
+                res = self._binop(ccall, "Sub", dep_1, dep_2)
+                v = self._binop(
+                    ccall, "And", self._binop(ccall, "Xor", dep_1, dep_2), self._binop(ccall, "Xor", dep_1, res)
+                )
+                return self._shr(ccall, v, 31)
+            if op == ARMG_CC_OP_ADD:
+                res = self._binop(ccall, "Add", dep_1, dep_2)
+                v = self._binop(
+                    ccall, "And", self._binop(ccall, "Xor", res, dep_1), self._binop(ccall, "Xor", res, dep_2)
+                )
+                return self._shr(ccall, v, 31)
+            if op == ARMG_CC_OP_LOGIC:
+                return dep_3
+            if op in {ARMG_CC_OP_MUL, ARMG_CC_OP_MULL}:
+                return self._binop(ccall, "And", dep_3, one)
+            if op == ARMG_CC_OP_COPY:
+                return self._binop(ccall, "And", self._shr(ccall, dep_1, ARMG_CC_SHIFT_V), one)
+            return None
 
         return None
 
     # ---- helpers ----
 
-    def _wrap(self, ccall: Expr.VEXCCallExpression, r: Expr.BinaryOp) -> Expr.Expression:
-        """Wrap a 1-bit comparison result to match the ccall's output width."""
-        if r.bits == ccall.bits:
-            return r
-        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
+    @staticmethod
+    def _normalize_op(op: int, dep_3: Expr.Expression) -> int:
+        if op == ARMG_CC_OP_ADC and ARMCCallRewriter._is_const(dep_3, 0):
+            return ARMG_CC_OP_ADD
+        if op == ARMG_CC_OP_SBB and ARMCCallRewriter._is_const(dep_3, 1):
+            return ARMG_CC_OP_SUB
+        return op
 
-    # ---- SUB (CMP instruction) ----
-
-    def _rewrite_sub(
+    def _carry_result(
         self,
         ccall: Expr.VEXCCallExpression,
-        cond_v: int,
-        inv: int,
-        dep_1: Expr.Expression,
-        dep_2: Expr.Expression,
-    ) -> Expr.Expression | None:
-        """
-        SUB: flags from ``dep_1 - dep_2`` (CMP instruction).
-
-        Z = (dep_1 == dep_2)
-        C = (dep_1 >=u dep_2)   [no borrow]
-        N = sign(dep_1 - dep_2)
-        V = signed overflow of dep_1 - dep_2
-
-        For SUB, the compound signed conditions (GE/LT checking N==V, GT/LE
-        checking !Z && N==V) are exactly equivalent to signed comparisons.
-        """
-
-        # EQ/NE — Z flag (exact)
-        if cond_v in {ARMCondEQ, ARMCondNE}:
-            op = "CmpEQ" if inv == 0 else "CmpNE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # HS/LO — C flag, unsigned (exact)
-        if cond_v in {ARMCondHS, ARMCondLO}:
-            op = "CmpGE" if inv == 0 else "CmpLT"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # MI/PL — N flag, sign of difference (approximate: ignores overflow)
-        if cond_v in {ARMCondMI, ARMCondPL}:
-            op = "CmpLT" if inv == 0 else "CmpGE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # HI/LS — C=1 && Z=0, unsigned greater / unsigned less-or-same (exact)
-        if cond_v in {ARMCondHI, ARMCondLS}:
-            op = "CmpGT" if inv == 0 else "CmpLE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # GE/LT — N==V, signed greater-or-equal / signed less (exact for SUB)
-        if cond_v in {ARMCondGE, ARMCondLT}:
-            op = "CmpGE" if inv == 0 else "CmpLT"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # GT/LE — !Z && N==V, signed greater / signed less-or-equal (exact for SUB)
-        if cond_v in {ARMCondGT, ARMCondLE}:
-            op = "CmpGT" if inv == 0 else "CmpLE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # VS/VC — overflow: not expressible as simple comparison
-        return None
-
-    # ---- ADD (CMN instruction, or flags from addition) ----
-
-    def _rewrite_add(
-        self,
-        ccall: Expr.VEXCCallExpression,
-        cond_v: int,
-        inv: int,
-        dep_1: Expr.Expression,
-        dep_2: Expr.Expression,
-    ) -> Expr.Expression | None:
-        """
-        ADD: flags from ``dep_1 + dep_2``.
-        """
-        add_expr = Expr.BinaryOp(self.ail_manager.next_atom(), "Add", (dep_1, dep_2), signed=False, **ccall.tags)
-        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
-
-        # EQ/NE — Z flag: (dep_1 + dep_2) == 0
-        if cond_v in {ARMCondEQ, ARMCondNE}:
-            op = "CmpEQ" if inv == 0 else "CmpNE"
-            r = Expr.BinaryOp(ccall.idx, op, (add_expr, zero), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # MI/PL — N flag: sign(dep_1 + dep_2) → (dep_1 + dep_2) <s 0
-        if cond_v in {ARMCondMI, ARMCondPL}:
-            op = "CmpLT" if inv == 0 else "CmpGE"
-            r = Expr.BinaryOp(ccall.idx, op, (add_expr, zero), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        return None
-
-    # ---- LOGIC / MUL (result in dep_1) ----
-
-    def _rewrite_logic(
-        self,
-        ccall: Expr.VEXCCallExpression,
-        cond_v: int,
-        inv: int,
-        dep_1: Expr.Expression,
-    ) -> Expr.Expression | None:
-        """
-        LOGIC: flags from AND/OR/XOR result (dep_1 = result).
-        MUL:   flags from multiply result (dep_1 = result).
-        """
-        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits, **ccall.tags)
-
-        # EQ/NE — Z flag: dep_1 == 0
-        if cond_v in {ARMCondEQ, ARMCondNE}:
-            op = "CmpEQ" if inv == 0 else "CmpNE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, zero), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        # MI/PL — N flag: dep_1 < 0 (signed)
-        if cond_v in {ARMCondMI, ARMCondPL}:
-            op = "CmpLT" if inv == 0 else "CmpGE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, zero), signed=True, **ccall.tags)
-            return self._wrap(ccall, r)
-
-        return None
-
-    # ---- SBB (subtract with borrow) ----
-
-    def _rewrite_sbb(
-        self,
-        ccall: Expr.VEXCCallExpression,
-        cond_v: int,
-        inv: int,
+        op: int,
         dep_1: Expr.Expression,
         dep_2: Expr.Expression,
         dep_3: Expr.Expression,
-    ) -> Expr.Expression | None:
-        """
-        SBB: flags from ``dep_1 - dep_2 - (dep_3 ^ 1)``.
-        C flag: if dep_3==0 then dep_1 >= dep_2 else dep_1 > dep_2.
-        """
-        # HS/LO — C flag (unsigned)
-        if cond_v in {ARMCondHS, ARMCondLO}:
-            if isinstance(dep_3, Expr.Const) and dep_3.value_int == 0:
-                op = "CmpGE" if inv == 0 else "CmpLT"
-            else:
-                op = "CmpGT" if inv == 0 else "CmpLE"
-            r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
-            return self._wrap(ccall, r)
+    ) -> Expr.BinaryOp:
+        if op == ARMG_CC_OP_ADC:
+            return self._binop(ccall, "Add", self._binop(ccall, "Add", dep_1, dep_2), dep_3)
+        # SBB: dep_1 - dep_2 - (dep_3 ^ 1)
+        borrow = self._binop(ccall, "Xor", dep_3, self._const(ccall, 1))
+        return self._binop(ccall, "Sub", self._binop(ccall, "Sub", dep_1, dep_2), borrow)
 
-        return None
+    @staticmethod
+    def _is_const(expr: Expr.Expression, value: int) -> bool:
+        return isinstance(expr, Expr.Const) and expr.value_int == value
+
+    def _const(self, ccall: Expr.VEXCCallExpression, value: int, bits: int = 32) -> Expr.Const:
+        return Expr.Const(self.ail_manager.next_atom(), value, bits, **ccall.tags)
+
+    def _binop(self, ccall: Expr.VEXCCallExpression, op: str, a: Expr.Expression, b: Expr.Expression) -> Expr.BinaryOp:
+        return Expr.BinaryOp(self.ail_manager.next_atom(), op, (a, b), False, **ccall.tags)
+
+    def _shr(self, ccall: Expr.VEXCCallExpression, a: Expr.Expression, amount: int) -> Expr.BinaryOp:
+        return self._binop(ccall, "Shr", a, self._const(ccall, amount, 8))
+
+    def _cmp(
+        self, ccall: Expr.VEXCCallExpression, op: str, a: Expr.Expression, b: Expr.Expression, signed: bool = False
+    ) -> Expr.BinaryOp:
+        return Expr.BinaryOp(self.ail_manager.next_atom(), op, (a, b), signed, bits=1, **ccall.tags)
+
+    def _is_nonzero(self, ccall: Expr.VEXCCallExpression, a: Expr.Expression, nonzero: bool) -> Expr.BinaryOp:
+        return self._cmp(ccall, "CmpNE" if nonzero else "CmpEQ", a, self._const(ccall, 0, a.bits))
+
+    def _logical(
+        self, ccall: Expr.VEXCCallExpression, op: str, a: Expr.Expression, b: Expr.Expression
+    ) -> Expr.BinaryOp:
+        return Expr.BinaryOp(self.ail_manager.next_atom(), op, (a, b), False, bits=1, **ccall.tags)
+
+    def _wrap(self, ccall: Expr.VEXCCallExpression, r: Expr.Expression) -> Expr.Expression:
+        if r.bits == ccall.bits:
+            return r
+        return Expr.Convert(ccall.idx, r.bits, ccall.bits, False, r, **ccall.tags)
