@@ -31,6 +31,7 @@ class TraversalAnalysis:
         project: Project,
         func: Function,
         ail_graph: networkx.DiGraph[ailment.Block],
+        entry: ailment.Block,
         sp_tracker,
         bp_as_gpr: bool,
         stackvars: bool,
@@ -44,6 +45,7 @@ class TraversalAnalysis:
         self._tmps = tmps
         self._function = func
         self._ail_graph = ail_graph
+        self._entry = entry
         self._func_args = func_args
         self.input_states: dict[ailment.Block, dict[ailment.Block | None, TraversalState]] = {}
         self.start_states: dict[ailment.Block, TraversalState] = {}
@@ -70,10 +72,8 @@ class TraversalAnalysis:
 
     def _analyze(self):
         for _ in range(2):
-            entry_block = next((n for n in self._ail_graph if n.addr == self._function.addr), None)
             entry_blocks = {n for n in self._ail_graph if not self._ail_graph.pred[n]}
-            if entry_block is not None:
-                entry_blocks.add(entry_block)
+            entry_blocks.add(self._entry)
             traverse_in_order(self._ail_graph, sorted(entry_blocks), self._run_on_node)
             if not self._pending:
                 break
