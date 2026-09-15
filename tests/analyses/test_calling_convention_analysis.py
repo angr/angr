@@ -695,6 +695,25 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert dec.codegen is not None
         assert re.search(r"sub_25659\([^,()]+, [^,()]+\)", dec.codegen.text) is not None
 
+    def test_amd64_va_start_xmm_save_area_is_not_fp_args(self):
+        """version_etc(FILE*, cmd, pkg, ver, ...) spills xmm0-xmm7 into the va_start register save area; those reads
+        must not become FP arguments (and then leak into every caller's prototype)."""
+        binary = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
+        project, cfg = load_project_with_scoped_cfg(
+            binary,
+            0x41567C,  # version_etc
+            expand_call_tree=False,
+            project_kwargs={"auto_load_libs": False, "load_debug_info": False},
+            run_ccc=False,
+        )
+        func = cfg.kb.functions[0x41567C]
+        project.analyses.VariableRecoveryFast(func)
+        cca = project.analyses.CallingConvention(func, cfg=cfg.model)
+        assert cca.has_va_xmm_save_area_amd64(func)
+        assert cca.cc is not None and cca.prototype is not None
+        arg_locs = cca.cc.arg_locs(cca.prototype)
+        assert [a.reg_name for a in arg_locs if isinstance(a, SimRegArg)] == ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+
     def test_reorder_args_merges_overlapping_register_args(self):
         binary = os.path.join(test_location, "x86_64", "fauxware")
         project = angr.Project(binary, auto_load_libs=False)

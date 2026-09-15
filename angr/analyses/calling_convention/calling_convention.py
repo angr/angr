@@ -522,6 +522,15 @@ class CallingConventionAnalysis(Analysis):
         # check if this function is a variadic function
         if self.project.arch.name == "AMD64":
             is_variadic, fixed_args = self.is_va_start_amd64(self._function)
+            if self.has_va_xmm_save_area_amd64(self._function):
+                # xmm0-7 are only read to fill the va_start register save area; they are not FP arguments
+                input_args = {
+                    a
+                    for a in input_args
+                    if not (
+                        isinstance(a, SimRegArg) and self._is_fp_reg_offset(self.project.arch.registers[a.reg_name][0])
+                    )
+                }
         else:
             is_variadic = False
             fixed_args = None
@@ -1997,6 +2006,46 @@ class CallingConventionAnalysis(Analysis):
                     None,
                 )
                 if src_reg_def is not None and isinstance(src_reg_def.codeloc, ExternalCodeLocation):
+                    return True
+        return False
+
+    def has_va_xmm_save_area_amd64(self, func: Function) -> bool:
+        """
+        Detect the va_start prologue idiom that spills xmm0-xmm7 into the register save area
+        (``test al, al; je ...; movaps [base+disp+16*i], xmm_i`` for i in 0..7).
+        """
+
+        xmm_regs = [
+            capstone.x86.X86_REG_XMM0,
+            capstone.x86.X86_REG_XMM1,
+            capstone.x86.X86_REG_XMM2,
+            capstone.x86.X86_REG_XMM3,
+            capstone.x86.X86_REG_XMM4,
+            capstone.x86.X86_REG_XMM5,
+            capstone.x86.X86_REG_XMM6,
+            capstone.x86.X86_REG_XMM7,
+        ]
+        for blk in func.blocks:
+            run: list[tuple[int, int]] = []  # (base, disp)
+            for insn in blk.capstone.insns:
+                if not (
+                    insn.mnemonic == "movaps"
+                    and len(insn.operands) == 2
+                    and insn.operands[0].type == capstone.x86.X86_OP_MEM
+                    and insn.operands[0].mem.base in (capstone.x86.X86_REG_RSP, capstone.x86.X86_REG_RBP)
+                    and insn.operands[0].mem.index == 0
+                    and insn.operands[1].type == capstone.x86.X86_OP_REG
+                    and insn.operands[1].reg in xmm_regs
+                ):
+                    run = []
+                    continue
+                idx = xmm_regs.index(insn.operands[1].reg)
+                base, disp = insn.operands[0].mem.base, insn.operands[0].mem.disp
+                if idx == len(run) and (not run or (run[-1][0] == base and run[-1][1] + 16 == disp)):
+                    run.append((base, disp))
+                else:
+                    run = [(base, disp)] if idx == 0 else []
+                if len(run) == len(xmm_regs):
                     return True
         return False
 
