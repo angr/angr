@@ -93,7 +93,7 @@ class AILExprIdAnnotation(claripy.Annotation):
 
 def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int, ail_manager: Manager):
     # ensure operand1 is of the same size as operand0
-    if isinstance(operand1, ailment.Expr.Const):
+    if isinstance(operand1, ailment.Expr.Const) and isinstance(operand1.value, int):
         # amazing - we do the easy thing here
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1.value)
     if operand1.bits == operand0.bits:

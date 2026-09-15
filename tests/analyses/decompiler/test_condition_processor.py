@@ -51,6 +51,15 @@ class TestConditionProcessor(TestCase):
         cmp = BinaryOp(5, "CmpEQ", [_vvar(6, 32, 16), _vvar(7, 64, 24)], False, bits=1)
         assert cp.claripy_ast_from_ail_condition(cmp) is not None
 
+    def test_float_constant_operand_is_converted(self):
+        # a float-valued Const must go through the bit-pattern conversion instead of being handed to claripy as-is
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        for op in ("Add", "Mul"):
+            expr = BinaryOp(0, op, [_vvar(1, 64, 16), Const(2, 1.0, 64)], False, bits=64, floating_point=True)
+            ast = cp.claripy_ast_from_ail_condition(expr)
+            assert ast.size() == 64
+
     def test_signed_comparisons_map_to_signed_claripy_operations(self):
         arch = archinfo.ArchAMD64()
         cp = ConditionProcessor(arch, ailment.Manager())
