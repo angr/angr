@@ -39,7 +39,7 @@ from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
-from angr.analyses.typehoon import Typehoon
+from angr.analyses.typehoon import Typehoon, typevars
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
 from angr.calling_conventions import (
@@ -2801,7 +2801,7 @@ class Clinic(Analysis, Serializable):
                 # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
                 # the combined type onto the caller-side value, and back-propagate it to the involved callees.
                 self._unify_callee_argument_structs(vr, var_manager, arg_vvars)
-                self._register_referenced_union_structs(var_manager)
+                self._register_referenced_union_structs(var_manager, vr)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
                     raise
@@ -2948,6 +2948,48 @@ class Clinic(Analysis, Serializable):
         if own_struct is not None and not self._layout_covers(union_struct, own_struct):
             return None
         return pushed
+
+    def _global_manager(self):
+        return self.kb.dec_variables["global"]
+
+    @property
+    def _global_union_contributors(self) -> dict[int, set[tuple[int, int]]]:
+        """
+        Session-lifetime record of every (callee, argument) that ever received a global's content, keyed by the
+        global's address. Each function's Typehoon rewrites the global's stored type with its own view, so the union
+        is recomputed in every function that touches the global, from the views recorded for it, and pushed back to
+        all of these callees so they stay consistent.
+        """
+        table = getattr(self.kb.types, "_global_union_contributors", None)
+        if table is None:
+            table = {}
+            self.kb.types._global_union_contributors = table  # pylint:disable=protected-access
+        return table
+
+    @staticmethod
+    def _is_global_variable(variable) -> bool:
+        return isinstance(variable, SimMemoryVariable) and not isinstance(variable, SimStackVariable)
+
+    def _global_content_observations(self, observations) -> dict:
+        """
+        Observations keyed by the *content* of a global rather than by the global itself: an argument that is a load
+        from a global pointer carries the type variable ``base.load.<ptr bits>@0``, while variable recovery maps the
+        global variable to ``base``. Return a map from the base type variable to those observations.
+        """
+        out: dict = {}
+        bits = self.project.arch.bits
+        for tv, obs in observations.items():
+            if not isinstance(tv, typevars.DerivedTypeVariable) or len(tv.labels) != 2:
+                continue
+            load, field = tv.labels
+            if (
+                isinstance(load, typevars.Load)
+                and isinstance(field, typevars.HasField)
+                and field.offset == 0
+                and field.bits == bits
+            ):
+                out.setdefault(tv.type_var, []).extend(obs)
+        return out
 
     def _minted_union_struct_names(self) -> set[str]:
         registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
@@ -3098,7 +3140,7 @@ class Clinic(Analysis, Serializable):
             registry[signature] = name
         return ref
 
-    def _register_referenced_union_structs(self, var_manager) -> None:
+    def _register_referenced_union_structs(self, var_manager, vr=None) -> None:
         """
         Ensure canonical union structs referenced by this function's variable types or prototype are present in the
         per-function type store, which the code generator emits typedefs from. Union structs are registered in the
@@ -3110,6 +3152,9 @@ class Clinic(Analysis, Serializable):
         if not minted_names:
             return
         worklist: list = list(var_manager.variable_to_types.values())
+        if vr is not None:
+            global_manager = self._global_manager()
+            worklist += [global_manager.get_variable_type(v) for v in vr.var_to_typevars if self._is_global_variable(v)]
         if self.function.prototype is not None:
             worklist += list(self.function.prototype.args or ())
             worklist.append(self.function.prototype.returnty)
@@ -3212,14 +3257,20 @@ class Clinic(Analysis, Serializable):
         own back-propagation; the caller variable, which variable recovery may have shared between several values, is
         only pinned when those per-value unions agree with each other.
         """
-        observations = getattr(vr, "arg_struct_observations", None)
-        if not observations:
-            return
+        # even a function that passes no pointer to any callee may touch a global whose layout other functions have
+        # already assembled, so there is no early exit on an empty observation set
+        observations = getattr(vr, "arg_struct_observations", None) or {}
         arch = self.project.arch
+        global_content = self._global_content_observations(observations)
         for variable, tvs in vr.var_to_typevars.items():
+            is_global = self._is_global_variable(variable)
             groups: dict = {}
             for tv in tvs:
-                for callee_addr, arg_idx, simtype, value_id in observations.get(tv, ()):
+                observed_here = list(observations.get(tv, ()))
+                if is_global:
+                    # the value passed to callees is the global's content; every call site loads the same object
+                    observed_here += [(a, i, t, ("global", variable.addr)) for a, i, t, _ in global_content.get(tv, ())]
+                for callee_addr, arg_idx, simtype, value_id in observed_here:
                     key = value_id if value_id is not None else ("tv", tv)
                     group = groups.setdefault(key, {"observed": [], "contributors": [], "contaminated": set()})
                     group["contributors"].append((callee_addr, arg_idx))
@@ -3231,23 +3282,38 @@ class Clinic(Analysis, Serializable):
                             off for name, off in pushed.offsets.items() if not name.startswith("padding_")
                         )
                     group["observed"].extend(self._contributor_evidence(callee_addr, arg_idx, simtype))
+            if is_global and ("global", variable.addr) in self._own_local_layouts:
+                # a global that took part in a union before: this function's view joins the recorded ones even when
+                # it passes the global to no callee, and the result goes back to every callee that ever received it
+                group = groups.setdefault(
+                    ("global", variable.addr), {"observed": [], "contributors": [], "contaminated": set()}
+                )
+                group["contributors"] += sorted(self._global_union_contributors.get(variable.addr, ()))
             if not groups:
                 continue
 
-            current = var_manager.get_variable_type(variable)
+            type_manager = self._global_manager() if is_global else var_manager
+            current = type_manager.get_variable_type(variable)
             unions: list[tuple[TypeRef, SimStruct, list[tuple[int, int]]]] = []
             for key, group in groups.items():
                 candidates = list(group["observed"])
                 # include the layout the caller's own accesses imply so caller-side fields are preserved in the union
                 caller_evidence = self._caller_evidence(variable, current, arg_vvars, group["contaminated"])
-                if isinstance(key, int):
+                if isinstance(key, int) or is_global:
                     # keep the layouts seen for this value on earlier decompilations: once the local is typed by the
-                    # unions its callees carry, the caller's own fields can no longer be told apart from them
-                    record_key = (self.function.addr, key)
+                    # unions its callees carry, the caller's own fields can no longer be told apart from them. For a
+                    # global the record also keeps the callee-side views, since every function that touches the
+                    # global recomputes its union from this record alone.
+                    record_key = ("global", variable.addr) if is_global else (self.function.addr, key)
                     recorded = self._own_local_layouts.setdefault(record_key, [])
                     known = {id(x) for x in recorded}
-                    recorded.extend(x for x in caller_evidence if id(x) not in known)
-                    caller_evidence = list(recorded)
+                    for layout in (caller_evidence + candidates) if is_global else caller_evidence:
+                        if id(layout) not in known:
+                            recorded.append(layout)
+                            known.add(id(layout))
+                    caller_evidence = list(recorded) if not is_global else []
+                    if is_global:
+                        candidates = list(recorded)
                 candidates.extend(caller_evidence)
                 if not candidates:
                     continue
@@ -3261,6 +3327,8 @@ class Clinic(Analysis, Serializable):
 
             # each value's union goes back to the callees that saw that value
             for canonical_ref, _, contributors in unions:
+                if is_global:
+                    self._global_union_contributors.setdefault(variable.addr, set()).update(contributors)
                 self._propagate_arg_struct_to_callees(contributors, SimTypePointer(canonical_ref).with_arch(arch))
 
             # pin the caller variable only when every value it carried agrees on the layout
@@ -3287,7 +3355,7 @@ class Clinic(Analysis, Serializable):
             ):
                 continue
 
-            var_manager.set_variable_type(variable, union_ptr, all_unified=True)
+            type_manager.set_variable_type(variable, union_ptr, all_unified=True)
 
     @staticmethod
     def _layout_covers(big: SimStruct, small: SimStruct) -> bool:
