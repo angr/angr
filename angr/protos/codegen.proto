@@ -268,6 +268,7 @@ message CVariableFieldMsg {
     uint32 variable_id = 1;
     uint32 field_id = 2;                          // CStructField node_id
     bool var_is_ptr = 3;
+    optional string stl_accessor = 4;             // e.g. "std::string::c_str"; set only for reads of STL fields
 }
 
 // CUnaryOp
@@ -507,6 +508,7 @@ message Codegen {
     optional int32 binop_depth_cutoff = 36;
     optional uint64 min_data_addr = 37;
     optional int32 max_str_len = 38;
+    optional bool stl_accessor_calls = 40;
 }
 
 message VlaDimEntry {

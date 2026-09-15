@@ -297,6 +297,10 @@ class Typehoon(Analysis):
                 return None
             return tc.new(specialized)
 
+        if isinstance(tc, Struct) and tc.is_cppclass:
+            # C++ classes have known layouts and identities; never specialize them away
+            return None
+
         if isinstance(tc, Struct) and tc.fields and min(tc.fields) >= 0:
             offsets: list[int] = sorted(tc.fields.keys())  # get a sorted list of offsets
             offset0 = offsets[0]
