@@ -59,7 +59,6 @@ class TestConditionProcessor(TestCase):
             assert cmp.verbose_op == ail_op + "s"
             assert cp.claripy_ast_from_ail_condition(cmp).op == claripy_op
 
-
     def test_narrow_shift_count_is_extended_to_value_width(self):
         arch = archinfo.ArchAMD64()
         manager = ailment.Manager()
@@ -84,7 +83,6 @@ class TestConditionProcessor(TestCase):
             assert converted_count.to_bits == value_bits
             assert not converted_count.is_signed
             assert converted_count.operand.likes(count)
-
 
     def test_wide_shift_count_does_not_get_truncated(self):
         arch = archinfo.ArchAMD64()
@@ -116,6 +114,39 @@ class TestConditionProcessor(TestCase):
             assert converted_value.is_signed == (op == "Sar")
             assert converted_value.operand.likes(value)
             assert converted_count.likes(count)
+
+    def test_wide_shifts_preserve_signedness_in_shared_condition(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+        value = _vvar(1, 8, 0)
+        count = _vvar(2, 64, 8)
+        shifts = [BinaryOp(3, op, [value, count], False, bits=8) for op in ("Shr", "Sar")]
+        asts = [cp.claripy_ast_from_ail_condition(shift) for shift in shifts]
+
+        for op, ast in zip(("Shr", "Sar"), asts):
+            result = cp.convert_claripy_bool_ast(ast)
+            assert isinstance(result, Convert)
+            converted_shift = result.operand
+            assert isinstance(converted_shift, BinaryOp)
+            widened_value = converted_shift.operands[0]
+            assert isinstance(widened_value, Convert)
+            assert widened_value.is_signed == (op == "Sar")
+            assert widened_value.operand.likes(value)
+
+    def test_arithmetic_keeps_truncating_wide_right_operands(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+        value = _vvar(1, 8, 0)
+        right = _vvar(2, 64, 8)
+        for op in ("Add", "Sub", "Mul"):
+            expr = BinaryOp(3, op, [value, right], False, bits=8)
+            result = cp.convert_claripy_bool_ast(cp.claripy_ast_from_ail_condition(expr))
+            assert isinstance(result, BinaryOp)
+            assert result.op == op
+            assert result.operands[0].likes(value)
+            converted_right = result.operands[1]
+            assert isinstance(converted_right, Convert)
+            assert converted_right.from_bits == 64
+            assert converted_right.to_bits == 8
+            assert converted_right.operand.likes(right)
 
 
 if __name__ == "__main__":

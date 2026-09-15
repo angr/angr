@@ -1034,11 +1034,11 @@ class ConditionProcessor:
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
             if condition.to_bits == 1 and not nobool:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {var_.hash()})"
+                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {condition.is_signed}, {var_.hash()})"
                 var = claripy.BoolS(name, explicit_name=True)
             else:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {var_.hash()})"
+                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {condition.is_signed}, {var_.hash()})"
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
