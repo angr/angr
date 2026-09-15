@@ -73,6 +73,9 @@ class ConstantCollector(SequenceWalker):
 
     # pylint:disable=unused-argument
 
+    # _handle below only adds AIL expressions and statements, which this walker never handles itself.
+    HANDLE_SEES_EVERY_NODE = False
+
     def __init__(self):
         self.const_values: set[int] = set()
         self._block_viewer = ailment.AILBlockViewer()

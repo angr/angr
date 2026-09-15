@@ -87,8 +87,8 @@ class SwitchClusterFinder(SequenceWalker):
 
     def __init__(self, node, variable_map):
         handlers = {
-            SwitchCaseNode: self._handle_SwitchCase,
-            ConditionNode: self._handle_Condition,
+            SwitchCaseNode: self._walk_SwitchCase,
+            ConditionNode: self._walk_Condition,
             ailment.Block: self._handle_Block,
         }
         super().__init__(handlers)
@@ -104,17 +104,17 @@ class SwitchClusterFinder(SequenceWalker):
             cond = node.statements[-1].condition
             self._process_condition(cond, node, parent)
 
-    def _handle_Condition(self, node, parent=None, **kwargs):
+    def _walk_Condition(self, node, parent=None, **kwargs):
         cond = node.condition
         self._process_condition(cond, node, parent)
-        return super()._handle_Condition(node, parent=parent, **kwargs)
+        return (yield from super()._walk_Condition(node, parent=parent, **kwargs))
 
-    def _handle_SwitchCase(self, node: SwitchCaseNode, parent=None, **kwargs):
+    def _walk_SwitchCase(self, node: SwitchCaseNode, parent=None, **kwargs):
         cond = node.switch_expr
         variable = self._variable_map.variable(cond)
         scr = SwitchCaseRegion(variable, node, parent)
         self.var2switches[variable].append(scr)
-        return super()._handle_SwitchCase(node, parent=parent, **kwargs)
+        return (yield from super()._walk_SwitchCase(node, parent=parent, **kwargs))
 
     def _process_condition(self, cond: ailment.Expr.Expression, node: ConditionNode | ailment.Block, parent):
         negated = False
