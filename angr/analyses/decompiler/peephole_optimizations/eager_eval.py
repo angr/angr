@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import gcd
 
 from angr.ailment import ExpressionKind
-from angr.ailment.expression import BinaryOp, Const, Convert, StackBaseOffset, UnaryOp
+from angr.ailment.expression import ITE, BinaryOp, Const, Convert, StackBaseOffset, UnaryOp
 from angr.utils.bits import sign_extend
 
 from .base import PeepholeOptimizationExprBase
@@ -17,7 +17,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Eager expression evaluation"
-    expr_classes = (BinaryOp, UnaryOp, Convert)
+    expr_classes = (BinaryOp, UnaryOp, Convert, ITE)
 
     def optimize(self, expr, **kwargs):  # type: ignore
         if isinstance(expr, BinaryOp):
@@ -26,6 +26,17 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             return self._optimize_convert(expr)
         if isinstance(expr, UnaryOp):
             return self._optimize_unaryop(expr)
+        if isinstance(expr, ITE):
+            return self._optimize_ite(expr)
+        return None
+
+    @staticmethod
+    def _optimize_ite(expr: ITE):
+        cond = expr.cond
+        if isinstance(cond, Const) and isinstance(cond.value, int):
+            return expr.iftrue if cond.value != 0 else expr.iffalse
+        if expr.iftrue.likes(expr.iffalse):
+            return expr.iftrue
         return None
 
     @staticmethod

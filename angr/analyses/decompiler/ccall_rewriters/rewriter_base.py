@@ -29,9 +29,18 @@ class CCallRewriterBase:
             f"Rewritten ccall expression has {self.result.bits} bits, expecting {ccall.bits} bits"
         )
         if rename_ccalls and self.result is None and ccall.callee != "_ccall":
-            renamed = ccall.copy()
-            renamed.callee = "_ccall"
-            self.result = renamed
+            # keep the original callee so the ccall can still be rewritten once its operands become constant
+            self.result = ailment.Expr.VEXCCallExpression(
+                ccall.idx, "_ccall", ccall.operands, ccall.bits, **{**ccall.tags, "vex_callee": ccall.callee}
+            )
+
+    @staticmethod
+    def _original_callee(ccall: ailment.Expr.VEXCCallExpression) -> str:
+        if ccall.callee == "_ccall":
+            callee = ccall.tags.get("vex_callee")
+            if isinstance(callee, str):
+                return callee
+        return ccall.callee
 
     def _rewrite(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Expression | None:
         raise NotImplementedError

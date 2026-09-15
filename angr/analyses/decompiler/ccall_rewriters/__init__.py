@@ -8,4 +8,6 @@ CCALL_REWRITERS = {
     "X86": X86CCallRewriter,
     "AMD64": AMD64CCallRewriter,
     "ARMEL": ARMCCallRewriter,
+    "ARMHF": ARMCCallRewriter,
+    "ARMCortexM": ARMCCallRewriter,
 }
