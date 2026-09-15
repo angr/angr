@@ -857,11 +857,40 @@ class PhoenixStructurer(StructurerBase):
 
             # an exit to a region successor whose only entry in the complete graph is this edge must not be virtualized:
             # the target would be left without any predecessor in the enclosing region, where no schema can place it.
-            # bail so that this region dissolves into its parent, where the target is a member and the acyclic schemas
-            # structure it together with the loop (e.g. a shared error block whose other entries, from loops that
-            # were structured earlier, have already become gotos).
-            for _, dst in outgoing_edges:
-                if dst is not successor and dst not in graph and self._region.complete_graph_entry_count(dst) == 1:
+            # such a target must be the loop successor instead (the loop is the only way into it, so it follows the
+            # loop), provided that the current successor keeps an entry from elsewhere once its exits become gotos.
+            # otherwise bail so that this region dissolves into its parent, where the target is a member and the
+            # acyclic schemas structure it together with the loop (e.g. a shared error block whose other entries,
+            # from loops that were structured earlier, have already become gotos).
+            sole_entry_dsts = sorted(
+                {
+                    dst
+                    for _, dst in outgoing_edges
+                    if dst is not successor and dst not in graph and self._region.complete_graph_entry_count(dst) == 1
+                },
+                key=lambda n: n.addr,
+            )
+            if sole_entry_dsts:
+                if (
+                    len(sole_entry_dsts) == 1
+                    and successor is not None
+                    and successor not in graph
+                    and loop_type != "do-while"
+                    and self._region.external_entry_count(successor) > 0
+                ):
+                    if loop_type == "while":
+                        # the head's exit is not among the outgoing edges (it is the while condition); it becomes a
+                        # goto now
+                        outgoing_edges.append((loop_head, successor))
+                        outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
+                    l.debug(
+                        "_refine_cyclic_core: %r is the only way into %r; it becomes the loop successor instead of %r",
+                        loop_head,
+                        sole_entry_dsts[0],
+                        successor,
+                    )
+                    successor = sole_entry_dsts[0]
+                else:
                     return False
 
             # sanity check: if removing outgoing edges would create dangling nodes, then it means we are not ready for
@@ -2514,6 +2543,22 @@ class PhoenixStructurer(StructurerBase):
 
     # other acyclic schemas
 
+    def _has_pending_back_edge(self, full_graph_raw, node) -> bool:
+        """
+        Whether node is a loop head whose back edge is hidden by a cyclic-refinement mark: an inner loop of a nest
+        was refined with node as its successor. The inner loop node reconnects to node, so no acyclic schema may
+        absorb node before that, or the outer loop is lost.
+        """
+        marks = self._region.edge_marks.get("cyclic_refinement_outgoing")
+        if not marks:
+            return False
+        # marks may still name nodes that structuring has since replaced, or both ends of a structured loop
+        srcs = [u for u, v in marks if v is node and u is not node and u in full_graph_raw]
+        if not srcs:
+            return False
+        idoms = networkx.immediate_dominators(full_graph_raw, self._region.head)
+        return any(dominates(idoms, node, u) for u in srcs)
+
     def _match_acyclic_sequence(self, graph_raw, full_graph_raw, start_node) -> bool:
         """
         Check if there is a sequence of regions, where each region has a single predecessor and a single successor.
@@ -2527,6 +2572,7 @@ class PhoenixStructurer(StructurerBase):
         end_node = next(iter(graph.successors(start_node)))
         if (
             full_graph.in_degree[end_node] == 1
+            and not self._has_pending_back_edge(full_graph_raw, end_node)
             and not full_graph.has_edge(end_node, start_node)
             and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
             and end_node not in self.dowhile_known_tail_nodes
@@ -2586,6 +2632,8 @@ class PhoenixStructurer(StructurerBase):
                 if (
                     full_graph.in_degree[left] == 1
                     and full_graph.in_degree[right] == 1
+                    and not self._has_pending_back_edge(full_graph_raw, left)
+                    and not self._has_pending_back_edge(full_graph_raw, right)
                     and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, left)
                     and not self._is_node_unstructured_switch_case_head_or_dispatch_node(full_graph, right)
                 ):

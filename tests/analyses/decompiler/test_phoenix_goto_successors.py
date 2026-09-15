@@ -9,9 +9,27 @@ import re
 import unittest
 
 import angr
-from tests.common import bin_location, print_decompilation_result
+from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
+
+
+def _missing_blocks(dec, func):
+    # blocks with real instructions that the output does not reach. jump-only and nop blocks are removed by the
+    # decompiler and are expected to be missing.
+    covered = set()
+    for element in dec.codegen.map_pos_to_addr.values():
+        tags = getattr(element.obj, "tags", None)
+        if tags and tags.get("ins_addr") is not None:
+            covered.add(tags["ins_addr"])
+    missing = []
+    for block in func.blocks:
+        if set(block.instruction_addrs) & covered:
+            continue
+        if all(insn.mnemonic in ("jmp", "nop") for insn in block.capstone.insns):
+            continue
+        missing.append(block)
+    return missing
 
 
 class TestPhoenixGotoSuccessors(unittest.TestCase):
@@ -67,6 +85,34 @@ class TestPhoenixGotoSuccessors(unittest.TestCase):
         assert len(missing) <= 35, [hex(b.addr) for b in missing]
         assert text.count("case ") >= 40
         assert len(re.findall(r"\b(while|for) \(", text)) >= 60
+
+    def test_bzip2_o0_unrle_fast_loop_exit_is_the_only_entry_of_its_target(self):
+        # unRLE_obuf_to_output_FAST: an inner while(1) loop with two exits, "goto return_notr" from the loop head
+        # (return_notr is shared with two other exits of the enclosing loop) and "break" to the code that follows
+        # the loop, whose only entry is that break. Cyclic refinement used to take the head's exit as the loop
+        # successor and turn the break into a goto, orphaning its target in the enclosing region; the region then
+        # bailed, dissolved, and the function lost the inner loop and everything behind it (59 of 91 blocks). The
+        # sole-entry target must become the loop successor instead.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "decbench_bzip2_O0")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x407AAD, run_ccc=False)
+        func = cfg.functions.function(name="unRLE_obuf_to_output_FAST")
+        assert func is not None and func.addr == 0x407AAD
+
+        dec = proj.analyses.Decompiler(func, cfg=proj.kb.cfgs["CFGFast"])
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert not dec.structuring_failures
+
+        assert len(list(func.blocks)) == 91
+        missing = _missing_blocks(dec, func)
+        assert not missing, [hex(b.addr) for b in missing]
+
+        text = dec.codegen.text
+        # the inner loop keeps its break; the exits to return_notr are gotos, and so is the jump past the
+        # run-finishing code into the middle of the loop body (IDA emits that one as a goto as well)
+        assert text.count("while (1)") >= 3
+        assert "break;" in text
+        assert text.count("goto ") <= 5
 
 
 if __name__ == "__main__":
