@@ -284,10 +284,11 @@ class TestAtomicsArm64Go127(GoDecompilationTarget):
         assert f"if {m.group(1)} == 0" in body and f"return {m.group(1)}" in body, body
 
     def test_compare_and_swap_is_the_bool(self):
-        assert "if atomic.CompareAndSwapInt32(&c.state, 0, 1) {" in self.texts["main.tryLock"]
+        # the cset that materializes the flag folds into the condition: no `v = 0 / v = 1` diamond, no `v & 1`
+        assert "return atomic.CompareAndSwapInt32(&c.state, 0, 1)" in self.texts["main.tryLock"]
         body = self.texts["main.lock"]
-        assert "if !atomic.CompareAndSwapInt32(&c.state, 0, 1) {" in body, body
-        assert body.count("atomic.CompareAndSwapInt32(") == 2, body
+        assert "if atomic.CompareAndSwapInt32(&c.state, 0, 1) {" in body, body
+        assert body.count("atomic.CompareAndSwapInt32(") == 2 and "& 1" not in body, body
 
     def test_loads_stores_swaps_and_masks(self):
         assert "c.state = 0" in self.texts["main.unlock"]
