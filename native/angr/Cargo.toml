@@ -53,6 +53,7 @@ tempfile = "3.27.0"
 # Not used from Rust: this is how the extension configures the Z3 that clarirs-z3 links against.
 # Windows links against an import library — only a name-to-DLL mapping — and the z3-solver wheel
 # ships none, so take the one from Z3's own release of the same version. setup.py points the other
-# platforms at the wheel, and angr/_z3.py loads the wheel's libz3 at runtime everywhere.
+# platforms at the wheel, and angr/_z3.py loads the wheel's libz3 at runtime everywhere. Emscripten
+# also needs a runtime path into the wheel for the loader to find it; build.rs records that.
 [target.'cfg(windows)'.dependencies]
 z3-sys = { version = "0.13", features = ["gh-release"] }

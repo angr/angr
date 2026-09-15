@@ -28,7 +28,13 @@ async function initialize(manifestUrl = new URL("./manifest.json", import.meta.u
   const micropip = pyodide.pyimport("micropip");
   try {
     const wheels = manifest.packages.map((wheel) => new URL(wheel, manifestUrl).href);
-    await micropip.install(wheels, { keep_going: true });
+    // micropip installs the wheels of one call concurrently and loads each wheel's extension
+    // modules as it installs them. angr's extension needs the z3-solver wheel's libz3.so to be on
+    // the filesystem by then, so install angr only after everything else is in place.
+    const angrWheels = wheels.filter((wheel) => /\/angr-[^/]*\.whl$/.test(wheel));
+    const dependencyWheels = wheels.filter((wheel) => !angrWheels.includes(wheel));
+    await micropip.install(dependencyWheels, { keep_going: true });
+    await micropip.install(angrWheels, { keep_going: true });
   } finally {
     micropip.destroy();
   }
