@@ -27,6 +27,8 @@ from angr.analyses.typehoon.typeconsts import (
     Int8,
     Int32,
     IntVar,
+    Pointer16,
+    Pointer24,
     Pointer64,
     SInt32,
     SInt64,
@@ -54,6 +56,7 @@ from angr.sim_type import (
     SimTypeInt,
     SimTypeNum,
     SimTypePointer,
+    SimTypeShort,
 )
 from tests.common import bin_location, print_decompilation_result
 
@@ -459,6 +462,32 @@ class TestTypeTranslator(unittest.TestCase):
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)
 
+    def test_16bit_pointer_round_trip(self):
+        arch = archinfo.ArchPcode("z80:LE:16:default")
+        tx = TypeTranslator(arch)
+
+        tc = tx.simtype2tc(SimTypePointer(SimTypeChar()).with_arch(arch))
+        assert isinstance(tc, Pointer16)
+        assert tc.size == 2
+
+        restored, has_nonexistent_ref = tx.tc2simtype(tc)
+        assert not has_nonexistent_ref
+        assert isinstance(restored, SimTypePointer)
+        assert restored.size == 16
+
+    def test_24bit_pointer_round_trip(self):
+        arch = archinfo.ArchPcode("avr8:LE:16:extended")
+        tx = TypeTranslator(arch)
+
+        tc = tx.simtype2tc(SimTypePointer(SimTypeChar()).with_arch(arch))
+        assert isinstance(tc, Pointer24)
+        assert tc.size == 3
+
+        restored, has_nonexistent_ref = tx.tc2simtype(tc)
+        assert not has_nonexistent_ref
+        assert isinstance(restored, SimTypePointer)
+        assert restored.size == 24
+
     def test_simtypenum_struct_round_trip(self):
         arch = archinfo.arch_from_id("amd64")
         st = SimTypePointer(
@@ -499,7 +528,7 @@ class TestTypeTranslator(unittest.TestCase):
         arch = archinfo.arch_from_id("amd64")
         tx = TypeTranslator(arch)
 
-        for bits in (1, 9, 24, 128):
+        for bits in (1, 9, 128):
             for signed in (False, True):
                 with self.subTest(bits=bits, signed=signed):
                     tc = tx.simtype2tc(SimTypeNum(bits, signed=signed, label=f"int{bits}_t").with_arch(arch))
@@ -517,7 +546,7 @@ class TestTypeTranslator(unittest.TestCase):
         arch = archinfo.arch_from_id("amd64")
         tx = TypeTranslator(arch)
 
-        for bits in (8, 16, 32, 64):
+        for bits in (8, 16, 24, 32, 64):
             for signed in (False, True):
                 with self.subTest(bits=bits, signed=signed):
                     label = f"{'u' if not signed else ''}int{bits}_t"
@@ -648,6 +677,49 @@ class TestSimpleSolverLatticeOps(unittest.TestCase):
         )
         assert isinstance(joined, SimTypePointer)
         assert isinstance(joined.pts_to, SimTypeChar)
+
+    def test_solver_accepts_narrow_pointer_widths(self):
+        # SimpleSolver refused any width it had no lattice for, which is where decompiling a 16-bit
+        # function stopped: "Pointer size 16 is not supported. Expect 32 or 64."
+        for bits in (16, 24, 32, 64):
+            with self.subTest(bits=bits):
+                tv = TypeVariable()
+                assert SimpleSolver(bits, {tv: set()}, {tv: {tv}}).bits == bits
+        with self.assertRaises(ValueError):
+            SimpleSolver(48, {}, {})
+
+    def test_join_same_pointer_16bit(self):
+        arch = archinfo.ArchPcode("z80:LE:16:default")
+        joined = SimpleSolver.join_simtypes(
+            SimTypePointer(SimTypeChar()).with_arch(arch),
+            SimTypePointer(SimTypeChar()).with_arch(arch),
+            arch,
+        )
+        assert isinstance(joined, SimTypePointer)
+        assert joined.size == 16
+        assert isinstance(joined.pts_to, SimTypeChar)
+
+    def test_join_same_pointer_24bit(self):
+        arch = archinfo.ArchPcode("avr8:LE:16:extended")
+        joined = SimpleSolver.join_simtypes(
+            SimTypePointer(SimTypeChar()).with_arch(arch),
+            SimTypePointer(SimTypeChar()).with_arch(arch),
+            arch,
+        )
+        assert isinstance(joined, SimTypePointer)
+        assert joined.size == 24
+        assert isinstance(joined.pts_to, SimTypeChar)
+
+    def test_join_narrow_pointer_and_same_width_int(self):
+        # a pointer hangs off the integer of its own width, so joining the two lands on that integer rather than
+        # falling all the way to the generic Int (which has no SimType and would come back as bottom)
+        arch = archinfo.ArchPcode("z80:LE:16:default")
+        joined = SimpleSolver.join_simtypes(
+            SimTypePointer(SimTypeChar()).with_arch(arch),
+            SimTypeShort(signed=False).with_arch(arch),
+            arch,
+        )
+        assert isinstance(joined, SimTypeShort)
 
     def test_join_same_struct_pointer_preserves_struct(self):
         # join(struct A *, struct A *) -> struct A *
