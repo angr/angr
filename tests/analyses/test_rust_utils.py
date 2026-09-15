@@ -228,9 +228,9 @@ def test_extract_str_rejects_negative_pointer():
     assert extract_str(project, str_ptr=-1, str_len=4) is None
 
 
-def test_extract_str_returns_none_when_no_readable_section_covers_pointer():
-    # load_shellcode produces a Blob with no sections, so find_section_containing
-    # always returns None and the helper falls through to None.
+def test_extract_str_returns_none_when_the_string_runs_off_the_end_of_memory():
+    # load_shellcode produces a one-byte Blob, so there is no section to consult and the four bytes asked
+    # for are not all mapped. Blobs are read on their mapped extent now, and this one is one byte long.
     project = angr.load_shellcode(b"\x90", arch="amd64")
     assert extract_str(project, str_ptr=0x0, str_len=4) is None
 
@@ -240,7 +240,8 @@ def test_extract_str_from_addr_rejects_negative_address():
     assert extract_str_from_addr(project, addr=-1) is None
 
 
-def test_extract_str_from_addr_returns_none_when_no_section_covers_address():
+def test_extract_str_from_addr_returns_none_when_the_fat_pointer_is_not_mapped():
+    # one byte of blob: the pointer word alone does not fit, so both reads are refused.
     project = angr.load_shellcode(b"\x90", arch="amd64")
     assert extract_str_from_addr(project, addr=0x0) is None
 
