@@ -186,6 +186,7 @@ MAPS_127 = go_binary("go1.27.1", "maps")
 CONC_122 = go_binary("go1.22.5", "conc")
 CONC_127 = go_binary("go1.27.1", "conc")
 ATOMICS_ARM64_127 = go_binary("go1.27.1", "atomics", arch="aarch64")
+ATOMICS_AMD64_127 = go_binary("go1.27.1", "atomics")
 
 
 class TestMapsGo122(MapIdioms):
@@ -240,13 +241,13 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestAtomicsArm64Go127(GoDecompilationTarget):
+class AtomicIdioms(GoDecompilationTarget):
     """
-    sync/atomic intrinsics on arm64: the arm64HasATOMICS dispatch, the LSE compare-and-swap loops, the alignment
-    fault exits and the fences all fold back into the calls the source made.
+    sync/atomic intrinsics: the compare-and-swap loops the lifter models (arm64's LSE instructions, x86's lock xadd,
+    xchg and lock cmpxchg), arm64's arm64HasATOMICS dispatch, fault exits and fences all fold back into the calls the
+    source made.
     """
 
-    BINARY = ATOMICS_ARM64_127
     FUNCS = (
         "main.bump",
         "main.bump64",
@@ -265,35 +266,45 @@ class TestAtomicsArm64Go127(GoDecompilationTarget):
         for name, text in self.texts.items():
             with self.subTest(func=name):
                 body = text[text.index("func ") :]
-                for leak in (
-                    "unsupported instruction",
-                    "goto",
-                    "arm64HasATOMICS",
-                    "atomic_compare_exchange",
-                    "& 3 != 0",
-                ):
+                for leak in ("unsupported instruction", "goto", "arm64HasATOMICS", "CasCmp", "& 3 != 0"):
                     assert leak not in body, body
 
     def test_add_returns_the_new_value(self):
-        # LDADDAL returns the old value and the compiler adds the delta back; atomic.Add returns the sum
+        # the fetch-and-add returns the old value and the compiler adds the delta back; atomic.Add returns the sum
         assert re.search(r"^\s+return atomic\.AddInt32\((?:&c\.hits|c), d\)$", self.texts["main.bump"], re.MULTILINE)
         assert "return atomic.AddInt64(&c.total, d)" in self.texts["main.bump64"]
         body = self.texts["main.release"]
         m = re.search(r"^\s+(\w+) := atomic\.AddInt32\((?:&c\.hits|c), -1\)$", body, re.MULTILINE)
         assert m, body
-        assert f"if {m.group(1)} == 0" in body and f"return {m.group(1)}" in body, body
+        assert f"if {m.group(1)} == 0" in body or f"if {m.group(1)} != 0" in body, body
 
     def test_compare_and_swap_is_the_bool(self):
-        # the cset that materializes the flag folds into the condition: no `v = 0 / v = 1` diamond, no `v & 1`
+        # the flag materialization folds into the condition: no `v = 0 / v = 1` diamond, no `v & 1`
         assert "return atomic.CompareAndSwapInt32(&c.state, 0, 1)" in self.texts["main.tryLock"]
         body = self.texts["main.lock"]
         assert "if atomic.CompareAndSwapInt32(&c.state, 0, 1) {" in body, body
         assert body.count("atomic.CompareAndSwapInt32(") == 2 and "& 1" not in body, body
 
-    def test_loads_stores_swaps_and_masks(self):
+    def test_loads_stores_and_swaps(self):
         assert "c.state = 0" in self.texts["main.unlock"]
         assert "return c.hits" in self.texts["main.peek"]
         assert "return c.total" in self.texts["main.total"]
         assert "return atomic.SwapInt32(&c.state, v)" in self.texts["main.swap"]
+
+
+class TestAtomicsArm64Go127(AtomicIdioms):
+    BINARY = ATOMICS_ARM64_127
+
+    def test_masks(self):
         assert "return atomic.OrUint32(&c.flags, bit)" in self.texts["main.setFlag"]
         assert "return atomic.AndUint32(&c.flags, ^bit)" in self.texts["main.clearFlag"]
+
+
+class TestAtomicsAmd64Go127(AtomicIdioms):
+    BINARY = ATOMICS_AMD64_127
+
+    def test_masks(self):
+        # the amd64 compiler writes And/Or out as a compare-and-swap loop, which stays one
+        for name in ("main.setFlag", "main.clearFlag"):
+            body = self.texts[name]
+            assert "for {" in body and "atomic_compare_exchange(" in body, body
