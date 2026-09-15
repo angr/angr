@@ -4,6 +4,7 @@ import contextlib
 import enum
 import functools
 import logging
+import time
 from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal, cast
@@ -42,6 +43,14 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 
 l = logging.getLogger(name=__name__)
+
+
+class OutOfTimeNotification(AngrError):
+    """
+    Raised from inside the slice's symbolic execution when the resolver's time limit is up. A single block of
+    undecoded bytes can cost minutes on its own, so the limit has to be checked between statements and not only
+    between steps.
+    """
 
 
 class NotAJumpTableNotification(AngrError):
@@ -841,6 +850,9 @@ class MIPSGPHook:
 #
 
 
+DEFAULT_TIME_LIMIT = 30.0
+
+
 class JumpTableResolver(IndirectJumpResolver):
     """
     A generic jump table resolver.
@@ -851,12 +863,17 @@ class JumpTableResolver(IndirectJumpResolver):
 
     Progressively larger program slices will be analyzed to determine jump table location and size. If the size of the
     table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
+
+    Each indirect jump gets at most ``time_limit`` seconds of symbolic execution. A jump that runs out of time is
+    reported unresolved, the same as one the resolver cannot make sense of. Pass ``time_limit=None`` to let a jump run
+    for as long as it takes.
     """
 
-    def __init__(self, project, resolve_calls: bool = True):
+    def __init__(self, project, resolve_calls: bool = True, time_limit: float | None = DEFAULT_TIME_LIMIT):
         super().__init__(project, timeless=False)
 
         self.resolve_calls = resolve_calls
+        self.time_limit = time_limit
 
         self._bss_regions = None
         # the maximum number of resolved targets. Will be initialized from CFG.
@@ -913,7 +930,12 @@ class JumpTableResolver(IndirectJumpResolver):
         else:
             cv_manager = None
 
+        deadline = None if self.time_limit is None else time.monotonic() + self.time_limit
+
         for slice_steps in range(1, 5):
+            if self._out_of_time(deadline, addr):
+                return False, None
+
             # Perform a backward slicing from the jump target
             # Important: Do not go across function call boundaries
             b = Blade(
@@ -932,12 +954,22 @@ class JumpTableResolver(IndirectJumpResolver):
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
             r, targets = self._resolve(
-                cfg, addr, func, b, cv_manager, potential_call_table=False, func_graph_complete=func_graph_complete
+                cfg,
+                addr,
+                func,
+                b,
+                cv_manager,
+                potential_call_table=False,
+                func_graph_complete=func_graph_complete,
+                deadline=deadline,
             )
             if r:
                 return r, targets
 
         if potential_call_table:
+            if self._out_of_time(deadline, addr):
+                return False, None
+
             b = Blade(
                 cfg.graph,
                 addr,
@@ -952,7 +984,14 @@ class JumpTableResolver(IndirectJumpResolver):
                 cross_insn_opt=True,
             )
             return self._resolve(
-                cfg, addr, func, b, cv_manager, potential_call_table=True, func_graph_complete=func_graph_complete
+                cfg,
+                addr,
+                func,
+                b,
+                cv_manager,
+                potential_call_table=True,
+                func_graph_complete=func_graph_complete,
+                deadline=deadline,
             )
 
         return False, None
@@ -960,6 +999,13 @@ class JumpTableResolver(IndirectJumpResolver):
     #
     # Private methods
     #
+
+    @staticmethod
+    def _out_of_time(deadline: float | None, addr: int) -> bool:
+        if deadline is None or time.monotonic() < deadline:
+            return False
+        l.debug("Ran out of time while resolving the indirect jump at %#x.", addr)
+        return True
 
     def _resolve(
         self,
@@ -970,6 +1016,7 @@ class JumpTableResolver(IndirectJumpResolver):
         cv_manager: ConstantValueManager | None,
         potential_call_table: bool = False,
         func_graph_complete: bool = True,
+        deadline: float | None = None,
     ) -> tuple[bool, Sequence[int] | None]:
         """
         Internal method for resolving jump tables.
@@ -978,6 +1025,7 @@ class JumpTableResolver(IndirectJumpResolver):
         :param addr:      Address of the block where the indirect jump is.
         :param func:      The Function instance.
         :param b:         The generated backward slice.
+        :param deadline:  A ``time.monotonic()`` reading past which to give up, or None for no limit.
         :return:          A bool indicating whether the indirect jump is resolved successfully, and a list of
                           resolved targets.
         """
@@ -1118,8 +1166,16 @@ class JumpTableResolver(IndirectJumpResolver):
         annotatedcfg = AnnotatedCFG(project, None, detect_loops=False)
         annotatedcfg.from_digraph(b.slice)
 
+        def out_of_time_bp(_state):
+            assert deadline is not None
+            if time.monotonic() >= deadline:
+                raise OutOfTimeNotification
+
         # pylint: disable=too-many-nested-blocks
         for block_addr, _ in sources:
+            if self._out_of_time(deadline, addr):
+                return False, None
+
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
             start_state = self._initial_state(block_addr, cfg, func_addr)
@@ -1134,6 +1190,9 @@ class JumpTableResolver(IndirectJumpResolver):
             # rewrite folded bound-check constraints (Shr(x, k) == 0) into forms that VSA can narrow x with
             shr_bounds_bp = BP(when=BP_BEFORE, enabled=True, action=ShrBoundsConstraintHook.hook)
             start_state.inspect.add_breakpoint("constraints", shr_bounds_bp)
+
+            if deadline is not None:
+                start_state.inspect.add_breakpoint("statement", BP(when=BP_BEFORE, enabled=True, action=out_of_time_bp))
 
             # constant value manager
             if cv_manager is not None:
@@ -1161,7 +1220,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Run it!
             try:
-                simgr.run()
+                simgr.run(until=None if deadline is None else lambda _: time.monotonic() >= deadline)
             except KeyError as ex:
                 # This is because the program slice is incomplete.
                 # Blade will support more IRExprs and IRStmts in the future
@@ -1170,6 +1229,9 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Get the jumping targets
             for r in simgr.found:
+                if self._out_of_time(deadline, addr):
+                    return False, None
+
                 jt2, jt2_addr, jt2_entrysize, jt2_size = None, None, None, None
                 entries_guessed = False
                 if load_stmt is not None:

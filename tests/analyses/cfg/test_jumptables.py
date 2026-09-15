@@ -13,6 +13,7 @@ import pyvex
 import angr
 from angr.analyses.cfg import CFGFast
 from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
+from angr.analyses.cfg.indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 from angr.knowledge_plugins.cfg import IndirectJumpType
 
 if TYPE_CHECKING:
@@ -2756,6 +2757,25 @@ class TestJumpTableResolver(unittest.TestCase):
     #
     # The jump table should be occupied and marked as data
     #
+
+    def test_jumptable_resolver_time_limit(self):
+        # A jump table the resolver runs out of time on is reported unresolved, the same as one it cannot make sense
+        # of. Without a limit the resolver runs unbounded symbolic execution over the slice.
+
+        p = angr.Project(os.path.join(test_location, "i386", "windows", "printenv.exe"), auto_load_libs=False)
+
+        cfg = p.analyses.CFGFast()
+        assert cfg.indirect_jumps[0x402E4D].jumptable is True
+        assert 0x402E4D not in cfg.kb.unresolved_indirect_jumps
+
+        resolvers = default_indirect_jump_resolvers(p.loader.main_object, p)
+        for resolver in resolvers:
+            if isinstance(resolver, JumpTableResolver):
+                resolver.time_limit = 0.0
+        cfg = p.analyses.CFGFast(indirect_jump_resolvers=resolvers)
+
+        assert cfg.indirect_jumps[0x402E4D].jumptable is not True
+        assert 0x402E4D in cfg.kb.unresolved_indirect_jumps
 
     def test_jumptable_occupied_as_data(self):
         # GitHub issue #1671
