@@ -756,7 +756,7 @@ class ConditionProcessor:
                 if target is not None and (
                     not isinstance(target, ailment.Expr.Const)
                     or target.value != dst_block.addr
-                    or (dst_is_indexed and target_idx != dst_block.idx)
+                    or target_idx != terminal_stmt.target_idx
                 ):
                     return False
         return True

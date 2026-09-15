@@ -16,7 +16,9 @@ from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, Vir
 from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.decompiler import Decompiler
+from angr.analyses.decompiler.region_overlay import OverlayManager
 from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement, MultiNode
+from angr.analyses.decompiler.structuring.structurer_base import StructurerBase
 from tests.common import bin_location
 
 
@@ -230,6 +232,43 @@ def test_convergence_requires_matching_multinode_target_idx():
     )
 
     assert predicate.symbolic
+
+
+@pytest.mark.parametrize("terminal_idx", [1, 2], ids=["convergent", "distinct-indices"])
+def test_convergence_preserves_indices_after_sequence_merges(terminal_idx):
+    arch = archinfo.ArchAMD64()
+    manager = ailment.Manager()
+    condition_processor = ConditionProcessor(arch, manager)
+    condition = VirtualVariable(0, 1, 1, VirtualVariableCategory.REGISTER, oident=arch.registers["rax"][0])
+    src = ailment.Block(
+        0x4000,
+        4,
+        statements=[
+            ConditionalJump(0, condition, Const(1, 0x5000, 64), None, true_target_idx=1, ins_addr=0x4000),
+            Jump(1, Const(2, 0x5000, 64), target_idx=terminal_idx, ins_addr=0x4001),
+        ],
+    )
+    graph = networkx.DiGraph()
+    pairs = []
+    for idx in sorted({1, terminal_idx}):
+        tail = ailment.Block(0x5100 + idx * 0x10, 4, statements=[Return(idx, [])])
+        entry = ailment.Block(0x5000, 4, idx=idx, statements=[Jump(idx, Const(idx, tail.addr, 64))])
+        graph.add_edges_from([(src, entry), (entry, tail)])
+        pairs.append((entry, tail))
+    overlay = OverlayManager(graph).root
+    structurer = StructurerBase(overlay, condition_processor=condition_processor, ail_manager=manager)
+    sequences = []
+    for entry, tail in pairs:
+        sequence = structurer._merge_nodes(entry, tail)  # pylint:disable=protected-access
+        overlay.replace_nodes(entry, sequence, old_node_1=tail)
+        sequences.append(sequence)
+    assert graph.out_degree(src) == len(pairs)
+    predicate = condition_processor.recover_edge_condition(graph, src, sequences[0])
+
+    if terminal_idx == 1:
+        assert claripy.is_true(predicate)
+    else:
+        assert predicate.symbolic
 
 
 def _vvar(idx, bits, oident):
