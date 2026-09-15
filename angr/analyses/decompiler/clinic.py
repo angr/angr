@@ -3688,8 +3688,39 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    @staticmethod
+    def _fold_bool_ites(ail_graph) -> None:
+        """
+        ``x = c ? 1 : 0`` (arm64 cset, csinc) is the condition itself: rewrite it to a conversion of the condition
+        instead of a diamond, so the propagator can fold it into the branch that tests x.
+        """
+        for block in ail_graph:
+            changed = False
+            stmts = list(block.statements)
+            for i, stmt in enumerate(stmts):
+                if not (isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE)):
+                    continue
+                ite = stmt.src
+                if ite.cond.bits != 1 or not (
+                    isinstance(ite.iftrue, ailment.Expr.Const) and isinstance(ite.iffalse, ailment.Expr.Const)
+                ):
+                    continue
+                mask = (1 << ite.bits) - 1
+                arms = (ite.iftrue.value & mask, ite.iffalse.value & mask)
+                if arms not in ((1, 0), (0, 1)):
+                    continue
+                cond = ite.cond
+                if arms == (0, 1):
+                    cond = ailment.Expr.UnaryOp(cond.idx, "Not", cond, bits=1, **cond.tags)
+                conv = ailment.Expr.Convert(ite.idx, 1, ite.bits, False, cond, **ite.tags)
+                stmts[i] = ailment.Stmt.Assignment(stmt.idx, stmt.dst, conv, **stmt.tags)
+                changed = True
+            if changed:
+                block.statements = stmts
+
     def _rewrite_ite_expressions(self, ail_graph):
         cfg = self._cfg
+        self._fold_bool_ites(ail_graph)
         block_and_ite_ins_addrs = []
         for block in ail_graph:
             if cfg is not None and block.addr in cfg.jump_tables:
@@ -3728,6 +3759,8 @@ class Clinic(Analysis, Serializable):
                     block_addr = self._create_triangle_for_ite_expression(ail_graph, block_addr, ite_ins_addr)
                     if block_addr is None or block_addr >= block.addr + block.original_size:
                         break
+        # a triangle relifts its head from the binary, which brings a folded ITE back
+        self._fold_bool_ites(ail_graph)
 
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
         ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
