@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from archinfo import Arch
+from cle import MetaELF
 
 from angr import claripy
 from angr.analyses.reaching_definitions.call_trace import CallTrace
@@ -39,6 +40,19 @@ class RDAStateInitializer:
     def __init__(self, arch: Arch, project=None):
         self.arch: Arch = arch
         self.project = project
+
+    def default_rtoc_value(self, func_addr: int) -> int | None:
+        """
+        Derive the initial TOC pointer of the object containing func_addr on PPC64. Returns None if unavailable.
+        """
+        if self.project is None:
+            return None
+        obj = self.project.loader.find_object_containing(func_addr)
+        if obj is None:
+            obj = self.project.loader.main_object
+        if isinstance(obj, MetaELF):
+            return obj.ppc64_initial_rtoc
+        return None
 
     def initialize_function_state(
         self, state: ReachingDefinitionsState, cc: SimCC | None, func_addr: int, rtoc_value: int | None = None
