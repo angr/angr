@@ -3998,6 +3998,45 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             result = GoUnaryOp("Reference", result, codegen=self)
         return result
 
+    @staticmethod
+    def _wants_first_field(param_type: SimType | None) -> bool:
+        if param_type is None:
+            return False
+        param = unpack_typeref(param_type)
+        if not isinstance(param, SimTypePointer):
+            return False
+        want = unpack_typeref(param.pts_to)
+        return not isinstance(want, (SimTypeBottom, SimStruct)) and want.size is not None
+
+    def _first_field_reference(self, arg: GoExpression, param_type: SimType) -> GoExpression | None:
+        """
+        A ``*S`` argument for a ``*T`` parameter, where the field of S at offset 0 has type T, is ``&s.field``: the
+        address is the same, the source named the field (``atomic.AddInt32(&m.state, -1)``, ``mu.Lock()`` on an
+        embedded mutex). None when the argument is not such a pointer.
+        """
+        if arg.type is None or isinstance(arg, (GoUnaryOp, GoBinaryOp, GoTypeCast)):
+            return None
+        have = unpack_typeref(arg.type)
+        if not isinstance(have, SimTypePointer):
+            return None
+        want, struct = unpack_typeref(unpack_typeref(param_type).pts_to), unpack_typeref(have.pts_to)
+        if not isinstance(struct, SimStruct):
+            return None
+        first = next((name for name, off in struct.offsets.items() if off == 0), None)
+        if first is None:
+            return None
+        field = unpack_typeref(struct.fields[first])
+        if not (
+            type_equals(field, want)
+            or (isinstance(field, SimTypeInt) and isinstance(want, SimTypeInt) and field.size == want.size)
+        ):
+            return None
+        ref = self._access_constant_offset_reference(arg, 0, want)
+        # only a plain field path: never a reinterpreting cast
+        if isinstance(ref, GoUnaryOp) and ref.op == "Reference" and isinstance(ref.operand, GoVariableField):
+            return ref
+        return None
+
     def _access_constant_offset_reference(
         self, expr: GoExpression, offset: int, data_type: SimType | None
     ) -> GoExpression:
@@ -4818,7 +4857,13 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         type_ = guess_value_type(arg.value, self.project) or type_
                     new_arg = self._handle_Expr_Const(arg, type_=type_)
                 else:
-                    new_arg = self._handle(arg, type_=type_)
+                    new_arg = None
+                    if self._wants_first_field(type_):
+                        # before the expected type is negotiated onto it, is the argument a pointer to a struct that
+                        # starts with the parameter's type?
+                        new_arg = self._first_field_reference(self._handle(arg), type_)
+                    if new_arg is None:
+                        new_arg = self._handle(arg, type_=type_)
                 args.append(new_arg)
 
         call_expr = GoFunctionCall(

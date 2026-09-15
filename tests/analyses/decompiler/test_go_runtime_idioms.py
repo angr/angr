@@ -271,10 +271,10 @@ class AtomicIdioms(GoDecompilationTarget):
 
     def test_add_returns_the_new_value(self):
         # the fetch-and-add returns the old value and the compiler adds the delta back; atomic.Add returns the sum
-        assert re.search(r"^\s+return atomic\.AddInt32\((?:&c\.hits|c), d\)$", self.texts["main.bump"], re.MULTILINE)
+        assert re.search(r"^\s+return atomic\.AddInt32\(&c\.hits, d\)$", self.texts["main.bump"], re.MULTILINE)
         assert "return atomic.AddInt64(&c.total, d)" in self.texts["main.bump64"]
         body = self.texts["main.release"]
-        m = re.search(r"^\s+(\w+) := atomic\.AddInt32\((?:&c\.hits|c), -1\)$", body, re.MULTILINE)
+        m = re.search(r"^\s+(\w+) := atomic\.AddInt32\(&c\.hits, -1\)$", body, re.MULTILINE)
         assert m, body
         assert f"if {m.group(1)} == 0" in body or f"if {m.group(1)} != 0" in body, body
 
