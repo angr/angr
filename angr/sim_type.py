@@ -2496,24 +2496,6 @@ class SimCppClass(SimStruct):
     def __repr__(self):
         return f"class {self.name}" if not self.name.startswith("class") else self.name
 
-    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
-        if memo is None:
-            memo = {}
-
-        if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
-        memo[self.name] = SimTypeRef(self.name, SimCppClass)
-        d = super().to_json(fields=fields, memo=memo)
-        if "pack" in d and d["pack"] is False:
-            d.pop("pack")
-        if "align" in d and d["align"] is None:
-            d.pop("align")
-        if "anonymous" in d and d["anonymous"] is False:
-            d.pop("anonymous")
-        if "q" in d and not d["q"]:
-            d.pop("q")
-        return d
-
     def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}
         for name, offset in self.offsets.items():

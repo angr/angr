@@ -13,6 +13,7 @@ from archinfo import Endness
 import angr
 from angr import AngrMissingTypeError
 from angr.sim_type import (
+    SimCppClass,
     SimStruct,
     SimType,
     SimTypeArray,
@@ -34,6 +35,7 @@ from angr.sim_type import (
     SimTypeTop,
     SimTypeWideChar,
     SimUnion,
+    TypeRef,
 )
 from angr.utils.library import convert_cppproto_to_py, convert_cproto_to_py
 from angr.utils.types import dereference_simtype
@@ -489,6 +491,29 @@ class TestTypes(unittest.TestCase):
         assert cast(SimTypePointer, b1.fields["p"]).pts_to is b0
         assert cast(SimTypePointer, back.returnty).pts_to is b0
         assert back == proto
+
+    def test_cppclass_json_roundtrip(self):
+        # SimCppClass.to_json() used to emit a bare SimTypeRef for the first occurrence of a class, so a class
+        # returned by value came back from any JSON round trip (function spilling, angrdb) as a TypeRef around an
+        # unresolvable SimTypeRef with no size
+        arch = archinfo.ArchAMD64()
+        cls = SimCppClass(members={"x": SimTypeInt()}, name="class Base::Type").with_arch(arch)
+        proto = SimTypeFunction([SimTypePointer(cls)], TypeRef("class Base::Type", cls)).with_arch(arch)
+
+        back = SimType.from_json(json.loads(json.dumps(proto.to_json())))
+        assert isinstance(back, SimTypeFunction)
+        ret = back.returnty
+        assert isinstance(ret, TypeRef)
+        assert isinstance(ret.type, SimCppClass)
+        assert list(ret.type.fields) == ["x"]
+        assert ret.size == 32
+        # the repeated occurrence is a reference resolved to the same decoded class
+        assert cast(SimTypePointer, back.args[0]).pts_to is ret.type
+
+        empty = SimCppClass(name="class Empty").with_arch(arch)
+        back_empty = SimType.from_json(json.loads(json.dumps(empty.to_json())))
+        assert isinstance(back_empty, SimCppClass)
+        assert back_empty.size == 0
 
     def test_simstruct_cmp_recursion_error(self):
         t0 = SimStruct(fields={"a": SimTypeBottom()})
