@@ -76,6 +76,20 @@ class TestStackPointerTracker(unittest.TestCase):
         sp_result = sptracker.offset_before_block(0x400700, sp)
         assert sp_result is None
 
+    def test_stack_pointer_tracker_block_mode_pcode_call(self):
+        """Block mode has no function to look callees up in, so the p-code path must not ask for one."""
+        p = angr.Project(os.path.join(test_location, "m68k", "mul_add_sub_xor_m68k_be"), auto_load_libs=False)
+        sp = p.arch.sp_offset
+        call_addr = 0x80000156  # a lone "jsr" instruction
+        block = p.factory.block(call_addr)
+        assert block.vex.jumpkind == "Ijk_Call"
+        sptracker = p.analyses.StackPointerTracker(None, {sp}, block=block, track_memory=False)
+        before = sptracker.offset_before(call_addr, sp)
+        after = sptracker.offset_after(call_addr, sp)
+        assert before is not None
+        assert after is not None
+        assert after - before == (p.arch.bytes if p.arch.call_pushes_ret else 0)
+
     def test_stack_pointer_tracker_offset_mask(self):
         # SPTracker should treat 0xfffffff8 as a bitmask
         proj = angr.Project(
