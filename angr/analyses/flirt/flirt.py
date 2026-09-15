@@ -14,6 +14,7 @@ from angr.utils.vex import block_branch_ins_addr
 
 from .flirt_function import FlirtFunction
 from .flirt_matcher import FlirtMatcher
+from .flirt_node import FlirtNode
 from .flirt_sig import FlirtSignature, FlirtSignatureParsed
 
 if TYPE_CHECKING:
@@ -134,6 +135,11 @@ class FlirtAnalysis(Analysis):
         self._suggestions = {}
         with open(sig.sig_path, "rb") as sigfile:
             flirt = FlirtSignatureParsed.parse(sigfile)
+            assert flirt.root is not None
+            # a module's CRC region, tail bytes, and referenced functions may lie past the end of a short function
+            # (e.g., a __*_chk stub that falls through into the function it guards), so never read fewer bytes than
+            # any module in this signature can inspect
+            min_match_len = self._max_module_extent(flirt.root)
             tolerances = range(self._max_mismatched_bytes + 1)
             for tolerance in tolerances:
                 # we iteratively match until we find no new matches
@@ -178,7 +184,7 @@ class FlirtAnalysis(Analysis):
                             end = end & 0xFFFF_FFFE
 
                         # load all bytes
-                        func_bytes = self.project.loader.memory.load(start, end - start + 0x100)
+                        func_bytes = self.project.loader.memory.load(start, max(end - start + 0x100, min_match_len))
                         matcher = FlirtMatcher(
                             flirt,
                             func,
@@ -193,6 +199,25 @@ class FlirtAnalysis(Analysis):
 
                     if not matched:
                         break
+
+    @staticmethod
+    def _max_module_extent(root: FlirtNode) -> int:
+        """
+        The largest offset, relative to a function start, that any module in the signature tree may inspect.
+        """
+        extent = 0
+        stack = [(root, 0)]
+        while stack:
+            node, offset = stack.pop()
+            offset += node.length
+            for child in node.children:
+                stack.append((child, offset))
+            for module in node.modules:
+                base = max(offset, 32) + module.crc_len
+                tail = max((off for off, _ in module.tail_bytes), default=-1) + 1
+                refs = max((ref.offset for ref in module.ref_funcs), default=-8) + 8
+                extent = max(extent, base + tail, base + refs)
+        return extent
 
     def _get_caller_funcs(self, update_func_addrs: set[int]) -> set[int]:
         caller_funcs = set()
