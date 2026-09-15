@@ -6816,15 +6816,22 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # Get an IRSB with statements
             irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
 
+        # the lui/daddu/daddiu sequence may be interleaved with other prologue instructions, so scan the whole block
+        insn_addr = irsb.addr
+        last_gp_setting_insn_addr = None
         for stmt in irsb.statements:
             if isinstance(stmt, pyvex.IRStmt.IMark):
                 insn_ctr += 1
-                if insn_ctr >= 10:
-                    break
+                insn_addr = stmt.addr
             elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == self.project.arch.registers["gp"][0]:
                 last_gp_setting_insn_id = insn_ctr
+                last_gp_setting_insn_addr = insn_addr
 
-        if last_gp_setting_insn_id is None:
+        if last_gp_setting_insn_id is None or last_gp_setting_insn_addr is None:
+            return None
+        # a block that ends right after lui only yields the upper half of $gp
+        insns = self.project.factory.block(last_gp_setting_insn_addr, size=4).capstone.insns
+        if insns and insns[0].mnemonic == "lui":
             return None
 
         # Prudently search for $gp values
