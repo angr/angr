@@ -16,7 +16,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.doms import IncrementalDominators
-from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_between_nodes
+from angr.utils.graph import GraphUtils, dfs_back_edges, dominates
 
 from .condition_processor import ConditionProcessor
 from .region_overlay import OverlayManager, RegionOverlay, Tx
@@ -94,26 +94,6 @@ class RegionIdentifier(Analysis):
         self._node_order: dict[TNode, tuple[int, int]] = {}
 
         self._graph = self._analyze(graph)
-
-    @staticmethod
-    def slice_graph(graph, node, frontier, include_frontier=False) -> TGraph:
-        """
-        Generate a slice of the graph from the head node to the given frontier.
-
-        :param networkx.DiGraph graph: The graph to work on.
-        :param node: The starting node in the graph.
-        :param frontier: A list of frontier nodes.
-        :param bool include_frontier: Whether the frontier nodes are included in the slice or not.
-        :return: A subgraph.
-        :rtype: networkx.DiGraph
-        """
-
-        subgraph = subgraph_between_nodes(graph, node, frontier, include_frontier=include_frontier)
-        # HACK: FIXME: for infinite loop nodes, this would return an empty set, so we include the loop body itself
-        # Make sure this makes sense (EDG thinks it does)
-        if not list(subgraph.nodes) and (node, node) in graph.edges:
-            subgraph.add_edge(node, node)
-        return subgraph
 
     def _analyze(self, block_graph: networkx.DiGraph[Block]) -> TGraph:
         shared_graph = cast(TGraph, self._pick_one_connected_component(block_graph, as_copy=True))
@@ -306,11 +286,48 @@ class RegionIdentifier(Analysis):
         heads = list({t for _, t in dfs_back_edges(graph, self._start_node)})
         return self._sort_nodes(heads)
 
+    @staticmethod
+    def _natural_loop_subgraph(graph: TGraph, head: TNode, latching_nodes: set[TNode]) -> TGraph:
+        """
+        Return the subgraph induced by the natural loop of head: head plus every node that lies on a path from head
+        to a latching node. Latching nodes are expanded too, so a latching node that is only reachable through
+        another latching node is still part of the loop body.
+        """
+        # nodes that reach a latching node without passing through head
+        reaches_latch = set(latching_nodes)
+        queue = deque(latching_nodes)
+        while queue:
+            node = queue.popleft()
+            if node is head:
+                continue
+            for pred in graph.predecessors(node):
+                if pred not in reaches_latch:
+                    reaches_latch.add(pred)
+                    queue.append(pred)
+
+        # among them, nodes that are reachable from head
+        loop_nodes = {head}
+        queue = deque([head])
+        while queue:
+            node = queue.popleft()
+            for succ in graph.successors(node):
+                if succ in reaches_latch and succ not in loop_nodes:
+                    loop_nodes.add(succ)
+                    queue.append(succ)
+
+        loop_subgraph: TGraph = networkx.DiGraph()
+        loop_subgraph.add_node(head)
+        for node in loop_nodes:
+            for succ in graph.successors(node):
+                if succ in loop_nodes:
+                    loop_subgraph.add_edge(node, succ)
+        return loop_subgraph
+
     def _find_initial_loop_nodes(self, graph: TGraph, head: TNode) -> set[TNode]:
         assert self._start_node is not None
         # TODO optimize
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
-        loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
+        loop_subgraph = self._natural_loop_subgraph(graph, head, latching_nodes)
 
         # special case: any node with more than two non-self successors is probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
