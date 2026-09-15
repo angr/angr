@@ -10,6 +10,7 @@ import re
 import time
 import unittest
 from functools import wraps
+from unittest import mock
 
 import networkx
 
@@ -466,11 +467,23 @@ class TestDecompiler(unittest.TestCase):
         p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=False, analyze_callsites=True)
 
         f = cfg.functions["process_file"]
-        dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        aliased_entries = []
+        original_make_switch_cases_core = PhoenixStructurer._make_switch_cases_core  # pylint:disable=protected-access
+
+        def audit_switch_entries(structurer, *args, **kwargs):
+            head, cases, default = args[0], args[2], args[4]
+            for case_value, case_node in cases.items():
+                if default is case_node:
+                    aliased_entries.append((head.addr, case_value, case_node.addr))
+            return original_make_switch_cases_core(structurer, *args, **kwargs)
+
+        with mock.patch.object(PhoenixStructurer, "_make_switch_cases_core", audit_switch_entries):
+            dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         print_decompilation_result(dec)
         code = dec.codegen.text
         assert code is not None
+        self.assertFalse(aliased_entries, f"case/default metadata selected the same live node: {aliased_entries!r}")
         # the reconstructed switch and its case bodies survive: without the fix, structuring drops the outer switch
         # entirely, leaving only a small fragment (~1.4k chars) that is missing these cases and their bodies.
         assert "switch (" in code
@@ -481,6 +494,14 @@ class TestDecompiler(unittest.TestCase):
         assert "print_size(" in code
         # no unstructured switch head statement leaked into the output
         assert "IncompleteSwitchCaseHeadStatement" not in code
+        self.assertRegex(
+            code,
+            re.compile(
+                r"case 7:.*?case 1:\s+[A-Za-z_]\w* = 1;\s+return 1;\s+"
+                r"default:\s+[A-Za-z_]\w* = 1;\s+break;",
+                re.DOTALL,
+            ),
+        )
 
     @for_all_structuring_algos
     def test_decompiling_true_x86_64_0(self, decompiler_options=None):
