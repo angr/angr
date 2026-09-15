@@ -44,7 +44,11 @@ class RewriteMipsGpLoads(PeepholeOptimizationExprBase):
                 addr &= 0xFFFF_FFFF
             else:
                 addr &= 0xFFFF_FFFF_FFFF_FFFF
-            value = self.project.loader.memory.unpack_word(addr, size=expr.size)
+            try:
+                value = self.project.loader.memory.unpack_word(addr, size=expr.size)
+            except KeyError:
+                # unmapped address; leave the load alone
+                return None
             return Const(self.manager.next_atom(), value, expr.size * self.project.arch.byte_width, **expr.tags)
 
         return None
