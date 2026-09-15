@@ -6317,7 +6317,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 irsb._instruction_addresses = tuple(
                     ins_addr for ins_addr in irsb.instruction_addresses if ins_addr < next_func_addr
                 )
-                irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
+                if irsb.data_refs is not None:
+                    irsb.data_refs = [dr for dr in irsb.data_refs if dr.ins_addr < next_func_addr]
                 irsb._exit_statements = tuple(x for x in irsb.exit_statements if x[0] < next_func_addr)
                 irsb.next = pyvex.expr.Const(
                     pyvex.const.U32(next_func_addr) if self.project.arch.bits == 32 else pyvex.const.U64(next_func_addr)
