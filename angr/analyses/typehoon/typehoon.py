@@ -145,7 +145,15 @@ class Typehoon(Analysis):
             if func_addr != "global":
                 the_type = self._flatten_pointer_to_array(the_type, self.project.arch)
 
-            manager.set_variable_type(var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None)
+            name = the_type.name if isinstance(the_type, SimStruct) else None
+            if func_addr == "global" and isinstance(the_type, SimStruct):
+                # per-function struct names collide in the shared global store: a later function's richer layout
+                # would silently resolve to an earlier function's struct. Name the struct after the global object and
+                # refresh the definition, so the store always carries this function's view.
+                name = f"struct_{var.name}" if getattr(var, "name", None) else f"struct_{var.addr:x}"
+                if name in manager.types:
+                    manager.types[name].type = the_type
+            manager.set_variable_type(var, the_type, name=name)
 
     def _variable_manager_for(self, func_addr: int | str, flavor: str | None) -> VariableManagerInternal:
         if func_addr == "global":
