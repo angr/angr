@@ -16,7 +16,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.doms import IncrementalDominators
-from angr.utils.graph import GraphUtils, dfs_back_edges, dominates
+from angr.utils.graph import GraphUtils, dfs_back_edges, dominates, subgraph_between_nodes
 
 from .condition_processor import ConditionProcessor
 from .region_overlay import OverlayManager, RegionOverlay, Tx
@@ -327,7 +327,14 @@ class RegionIdentifier(Analysis):
         assert self._start_node is not None
         # TODO optimize
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
-        loop_subgraph = self._natural_loop_subgraph(graph, head, latching_nodes)
+        idom = networkx.immediate_dominators(graph, self._start_node)
+        if all(dominates(idom, head, latching_node) for latching_node in latching_nodes):
+            loop_subgraph = self._natural_loop_subgraph(graph, head, latching_nodes)
+        else:
+            # retreating edges of an irreducible region (e.g., a goto into the middle of a loop body). the head does
+            # not dominate its latching nodes, so the natural loop is undefined; slice from the head to the latching
+            # nodes without walking past them, which keeps the pseudo-loop small.
+            loop_subgraph = subgraph_between_nodes(graph, head, latching_nodes, include_frontier=True)
 
         # special case: any node with more than two non-self successors is probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
