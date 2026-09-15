@@ -3,8 +3,9 @@
 This is angr's Pyodide build, for browsers and other WebAssembly hosts. It carries the VEX execution engine, Z3
 solving, binary loading, CFG recovery, AIL, and the portable parts of `angr.rustylib`.
 
-It does not run yet. The wheels build and install, but Pyodide cannot resolve `libz3.so` when it loads
-`angr.rustylib`, which has linked Z3 since angr/angr#6550, so `import angr` fails in the browser.
+`angr.rustylib` links Z3, and Pyodide resolves the extension's `libz3.so` dependency through the runtime path the
+extension records (`$ORIGIN/../z3/lib`), which points at the z3-solver wheel's copy. That copy has to be on the
+filesystem when the extension loads, so the worker installs angr's wheel only after the others.
 
 WebAssembly builds do not provide LMDB-backed spilling, psutil memory monitoring, Unicorn, Icicle, subprocesses, or
 multiprocessing. Browser files live in Pyodide's virtual filesystem; pass uploaded bytes to the worker rather than a

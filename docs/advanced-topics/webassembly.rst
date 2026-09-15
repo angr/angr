@@ -6,8 +6,8 @@ PyVEX, pypcode, Capstone and pydemumble, and Z3's own Emscripten wheel is downlo
 dependencies are installed as pure Python or Pyodide packages. The VEX execution engine, Z3, CLE loaders, CFG
 recovery, AIL, and the portable Rust extension modules are all carried into the build.
 
-The build does not run yet. Pyodide cannot resolve ``libz3.so`` when it loads ``angr.rustylib``, which has linked
-Z3 since angr/angr#6550, so importing angr in the browser fails.
+``angr.rustylib`` links Z3, so the Emscripten build records a runtime path into the z3-solver wheel
+(``$ORIGIN/../z3/lib``) for Pyodide to resolve ``libz3.so`` from; the wheel has to be installed before angr's.
 
 The browser host does not provide every native operating-system facility. WebAssembly builds do not provide
 LMDB-backed spilling, psutil memory monitoring, Unicorn, Icicle, subprocesses, or multiprocessing. Analyses use
