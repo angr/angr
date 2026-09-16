@@ -302,9 +302,14 @@ class TestTypehoon(unittest.TestCase):
             for tv in sols
             if not isinstance(tv, DerivedTypeVariable) and tv.name is None and isinstance(sols[tv], SimTypePointer)
         ]
-        assert len(tvs) == 3
-        assert sols[tvs[1]] == sols[tvs[2]]
-        sol = sols[tvs[1]]
+        # cgc_insert returns nothing: what sits in rax at its ret is the base register of the last store, and every
+        # caller overwrites rax right away, so the calling-convention analysis makes the prototype void and there is
+        # no return-value type variable to count
+        assert "void cgc_insert(" in dec.codegen.text
+        assert len(tvs) == 2
+        assert sols is not None
+        assert sols[tvs[0]] == sols[tvs[1]]
+        sol = sols[tvs[0]]
         assert isinstance(sol, SimTypePointer)
         assert isinstance(sol.pts_to, SimStruct)
         assert len(sol.pts_to.fields) == 2
@@ -367,8 +372,11 @@ class TestTypehoon(unittest.TestCase):
             ],
             key=lambda x: x.idx,
         )
-        assert len(tvs) == 4  # the last two tvs are for the NULL pointers
-        sol = sols[tvs[1]]
+        # cgc_remove returns nothing either (see the note in the insert test above)
+        assert "void cgc_remove(" in dec.codegen.text
+        assert len(tvs) == 3  # the last two tvs are for the NULL pointers
+        assert sols is not None
+        sol = sols[tvs[0]]
         assert isinstance(sol, SimTypePointer)
         assert isinstance(sol.pts_to, SimStruct)
         assert len(sol.pts_to.fields) == 2
