@@ -103,6 +103,18 @@ class VariableMap:
         self._vvar_id_to_variable: dict[int, SimVariable] = {}
         self._vvar_id_to_variable_offset: dict[int, int] = {}
 
+    def copy(self) -> VariableMap:
+        """Return an independent container with the same variable metadata."""
+        copied = VariableMap()
+        for slot in self.__slots__:
+            values = getattr(self, slot)
+            if slot == "_reference_values":
+                values = {idx: reference_values.copy() for idx, reference_values in values.items()}
+            else:
+                values = values.copy()
+            setattr(copied, slot, values)
+        return copied
+
     #
     # Key helper
     #
