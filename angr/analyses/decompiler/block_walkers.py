@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment import AILBlockViewer
+from angr.ailment.utils import is_llsc_expression
 
 
 class HasCallNotification(Exception):
@@ -22,3 +23,8 @@ class HasCallExprWalker(AILBlockViewer):
 
     def _handle_FunctionLikeMacro(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
         raise HasCallNotification
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if is_llsc_expression(expr):
+            raise HasCallNotification
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)

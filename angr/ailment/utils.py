@@ -3,6 +3,9 @@ from __future__ import annotations
 import archinfo
 
 from angr import ailment
+from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.expression import DirtyExpression, Expression
+from angr.ailment.statement import Statement
 
 try:
     from claripy.ast import Bits
@@ -10,6 +13,66 @@ except ImportError:
     from typing import Never as Bits
 
 type GetBitsTypeParams = "ailment.expression.Expression"
+
+_LOAD_LINKED_CALLEES = frozenset({"load_linked_le", "load_linked_be", "load_linked_unknown_endness"})
+_STORE_CONDITIONAL_CALLEES = frozenset(
+    {"store_conditional_le", "store_conditional_be", "store_conditional_unknown_endness"}
+)
+
+
+def is_llsc_expression(expr: Expression) -> bool:
+    """Return whether ``expr`` is an LL/SC operation emitted by the VEX-to-AIL converter."""
+    return isinstance(expr, DirtyExpression) and (
+        (expr.callee in _LOAD_LINKED_CALLEES and expr.mfx == "Ifx_Read")
+        or (expr.callee in _STORE_CONDITIONAL_CALLEES and expr.mfx == "Ifx_Write")
+    )
+
+
+def is_store_conditional_expression(expr: Expression) -> bool:
+    """Return whether ``expr`` is a store-conditional emitted by the VEX-to-AIL converter."""
+    return isinstance(expr, DirtyExpression) and expr.callee in _STORE_CONDITIONAL_CALLEES and expr.mfx == "Ifx_Write"
+
+
+class _LLSCExpressionFound(Exception):
+    pass
+
+
+class _LLSCExpressionFinder(AILBlockViewer):
+    def __init__(self, store_conditional_only: bool):
+        super().__init__()
+        self._store_conditional_only = store_conditional_only
+
+    def _handle_DirtyExpression(self, expr_idx, expr, stmt_idx, stmt, block):
+        if is_store_conditional_expression(expr) if self._store_conditional_only else is_llsc_expression(expr):
+            raise _LLSCExpressionFound
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def _contains_llsc_expression(obj: Expression | Statement, store_conditional_only: bool) -> bool:
+    if isinstance(obj, DirtyExpression):
+        return is_store_conditional_expression(obj) if store_conditional_only else is_llsc_expression(obj)
+
+    finder = _LLSCExpressionFinder(store_conditional_only)
+    try:
+        if isinstance(obj, Expression):
+            finder.walk_expression(obj)
+        elif isinstance(obj, Statement):
+            finder.walk_statement(obj)
+        else:
+            raise TypeError(type(obj))
+    except _LLSCExpressionFound:
+        return True
+    return False
+
+
+def has_llsc_expression(obj: Expression | Statement) -> bool:
+    """Return whether ``obj`` recursively contains a converted LL/SC operation."""
+    return _contains_llsc_expression(obj, False)
+
+
+def has_store_conditional(obj: Expression | Statement) -> bool:
+    """Return whether ``obj`` recursively contains a converted store-conditional operation."""
+    return _contains_llsc_expression(obj, True)
 
 
 def get_bits(expr: GetBitsTypeParams) -> int:

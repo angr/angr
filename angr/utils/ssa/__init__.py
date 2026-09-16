@@ -28,6 +28,7 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Statement, Store
+from angr.ailment.utils import has_store_conditional
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.rustylib.ailment import ExpressionKind as _EK  # pylint:disable=import-error
@@ -538,7 +539,13 @@ def has_store_stmt_in_between_stmts(
     defloc: AILCodeLocation,
     useloc: AILCodeLocation,
 ) -> bool:
-    return check_in_between_stmts(graph, blocks, defloc, useloc, lambda stmt: isinstance(stmt, Store))
+    return check_in_between_stmts(
+        graph,
+        blocks,
+        defloc,
+        useloc,
+        lambda stmt: isinstance(stmt, Store) or has_store_conditional(stmt),
+    )
 
 
 def has_call_in_between_stmts(
