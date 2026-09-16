@@ -90,14 +90,18 @@ class TestDeadAssignmentRemoval(unittest.TestCase):
 
 
 class TestPackerFillerDecompilation(unittest.TestCase):
-    def test_xchg_filler_decompiles_quickly(self):
-        # issue #6968: 0x91 (xchg ecx, eax) filler decodes cleanly, so CFGFast happily builds one long chain of
-        # 99-instruction blocks out of it. Every instruction turns into a pair of dead virtual variables, and retiring
-        # that chain used to be quadratic.
-        block_count = 39
+    @staticmethod
+    def _decompile_xchg_filler(block_count: int):
+        """
+        Decompile ``block_count`` blocks of 0x91 (xchg ecx, eax) filler. Returns the CPU seconds it cost and the
+        decompiler.
+
+        CPU time rather than wall clock: CI runs this suite several tests at a time on a shared runner, so wall
+        clock here measures the neighbours as much as it measures the decompiler.
+        """
         code = b"\x91" * (99 * block_count) + b"\xc3"
 
-        start = time.time()
+        start = time.process_time()
         proj = angr.load_shellcode(code, arch="x86", load_address=0x400000)
         # repeating_byte_run_threshold=0: CFGFast refuses to decode this filler by default (the CFG-side fix for the
         # same issue). This test targets the decompiler, so the chain has to be built anyway.
@@ -105,32 +109,56 @@ class TestPackerFillerDecompilation(unittest.TestCase):
             normalize=True, cross_references=False, function_starts=[0x400000], repeating_byte_run_threshold=0
         )
         dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], cfg=cfg.model, preset="malware")
+        elapsed = time.process_time() - start
+
+        assert dec.clinic is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return elapsed, dec
+
+    def test_xchg_filler_decompiles_quickly(self):
+        # issue #6968: 0x91 (xchg ecx, eax) filler decodes cleanly, so CFGFast happily builds one long chain of
+        # 99-instruction blocks out of it. Every instruction turns into a pair of dead virtual variables, and retiring
+        # that chain used to be quadratic.
+        block_count = 39
+        elapsed, dec = self._decompile_xchg_filler(block_count)
         print_decompilation_result(dec)
-        elapsed = time.time() - start
 
         assert dec.clinic is not None
         assert dec.clinic._cross_insn_opt_for_large_blocks is False
-        assert dec.codegen is not None and dec.codegen.text is not None
         assert elapsed < 20.0, f"decompiling {block_count} blocks of filler took {elapsed:.1f}s"
 
-    def test_xchg_filler_decompiles_quickly_cross_insn_opt(self):
-        # we should hit cross-insn-opt = True
-        block_count = 5000
-        code = b"\x91" * (99 * block_count) + b"\xc3"
+    def test_xchg_filler_decompiles_in_linear_time_cross_insn_opt(self):
+        # both sizes are past the 40 large blocks that turn cross-insn-opt on, so both take that path.
+        #
+        # issue #7054: this used to time one 5,000-block run and require it to finish inside 60 seconds. A constant
+        # cannot say what the test is for. The same run costs about twice as much under the coverage job as it does
+        # without instrumentation, and a run that shares a machine with its neighbours spreads about 1.5x either way,
+        # so the bound was one slow shard away from firing and fired four times. What #6968 was about is the shape of
+        # the cost, not its size: the fixed point that retired dead virtual variables re-scanned every definition once
+        # per retired use-def link. Five times the blocks costs the worklist about five times the work and costs that
+        # scan loop roughly nine to sixteen times, and a ratio of two runs on the same machine says which of the two
+        # this is without having to know how fast the machine is.
+        #
+        # The baseline is the smaller of two 1,000-block runs. A busy machine can only ever make a run slower, and a
+        # baseline that came out slow is what would let a real regression through: it divides the large run by too
+        # much. Taking the smaller of two is what keeps the marginal case caught.
+        first, dec_small = self._decompile_xchg_filler(1000)
+        second, _ = self._decompile_xchg_filler(1000)
+        small = min(first, second)
+        large, dec_large = self._decompile_xchg_filler(5000)
+        print_decompilation_result(dec_large)
 
-        start = time.time()
-        proj = angr.load_shellcode(code, arch="x86", load_address=0x400000)
-        cfg = proj.analyses.CFGFast(
-            normalize=True, cross_references=False, function_starts=[0x400000], repeating_byte_run_threshold=0
+        assert dec_small.clinic is not None
+        assert dec_large.clinic is not None
+        assert dec_small.clinic._cross_insn_opt_for_large_blocks is True
+        assert dec_large.clinic._cross_insn_opt_for_large_blocks is True
+        assert large < small * 8.0, (
+            f"five times the filler cost {large / small:.1f} times the work "
+            f"({small:.1f}s for 1,000 blocks, {large:.1f}s for 5,000)"
         )
-        dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], cfg=cfg.model, preset="malware")
-        print_decompilation_result(dec)
-        elapsed = time.time() - start
-
-        assert dec.clinic is not None
-        assert dec.clinic._cross_insn_opt_for_large_blocks is True
-        assert dec.codegen is not None and dec.codegen.text is not None
-        assert elapsed < 60.0, f"decompiling {block_count} blocks of filler took {elapsed:.1f}s"
+        # a ratio cancels a slowdown that hits both sizes alike, so bound the large run as well. This is a backstop,
+        # not the guard: it is roughly twice the worst wall clock this run has ever recorded on CI.
+        assert large < 120.0, f"decompiling 5,000 blocks of filler took {large:.1f}s of CPU"
 
 
 if __name__ == "__main__":
