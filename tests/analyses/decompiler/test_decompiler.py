@@ -4035,7 +4035,7 @@ class TestDecompiler(unittest.TestCase):
 
         # Locate every emitted `typedef struct NAME { ... } NAME;` block.
         typedef_blocks = {}
-        for m in re.finditer(r"typedef struct (struct_\w+) \{", text):
+        for m in re.finditer(r"typedef struct (st_\w+) \{", text):
             name = m.group(1)
             end_marker = "} " + name + ";"
             end = text.index(end_marker, m.start()) + len(end_marker)
@@ -6125,8 +6125,8 @@ class TestDecompiler(unittest.TestCase):
 
         # ensure structs are deduplicated
         #
-        # Collect every emitted `typedef struct struct_N { ... } struct_N;` definition and its (normalized) body.
-        struct_defs = re.findall(r"typedef struct (struct_\w+) \{(.*?)\}\s*\1;", text, re.DOTALL)
+        # Collect every emitted `typedef struct st_<addr>_N { ... } st_<addr>_N;` definition and its (normalized) body.
+        struct_defs = re.findall(r"typedef struct (st_\w+) \{(.*?)\}\s*\1;", text, re.DOTALL)
         struct_names = [name for name, _ in struct_defs]
 
         # Exactly 3 struct typedefs survive: the two genuine, distinct, dereferenced structs plus one shared

@@ -49,7 +49,7 @@ class TestDecompilationWorkflows(unittest.TestCase):
         types = dec.kb.dec_variables["main"].types
         # let's rename a struct field
         new_type_name = "my_awesome_type"
-        t = types["struct_0"]
+        t = types[f"st_{func.addr:x}_0"]
         assert isinstance(t, TypeRef)
         assert len(t.type.fields) == 2
         t.type.name = new_type_name
@@ -74,7 +74,7 @@ class TestDecompilationWorkflows(unittest.TestCase):
         assert dec.func.addr in dec.kb.dec_variables
         types = dec.kb.dec_variables["main"].types
         # let's rename a struct field
-        t = types["struct_0"]
+        t = types[f"st_{func.addr:x}_0"]
         assert isinstance(t, TypeRef)
         assert len(t.type.fields) == 2
         new_field_name = "my_new_field_120"
@@ -97,12 +97,12 @@ class TestDecompilationWorkflows(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=proj.kb.cfgs["CFGFast"])
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert "struct struct_1 *field_120;" in dec.codegen.text
+        assert f"struct st_{func.addr:x}_1 *field_120;" in dec.codegen.text
 
         assert dec.func.addr in dec.kb.dec_variables
         types = dec.kb.dec_variables["main"].types
         # let's type a struct field
-        t = types["struct_0"]
+        t = types[f"st_{func.addr:x}_0"]
         assert isinstance(t, TypeRef)
         assert len(t.type.fields) == 2
         assert "field_120" in t.type.fields
@@ -114,7 +114,7 @@ class TestDecompilationWorkflows(unittest.TestCase):
         print_decompilation_result(dec_2)
 
         assert "int field_120;" in dec_2.codegen.text, "Decompilation results should reflect the retyped struct field."
-        assert "struct_1" not in dec_2.codegen.text
+        assert f"st_{func.addr:x}_1" not in dec_2.codegen.text
 
 
 if __name__ == "__main__":
