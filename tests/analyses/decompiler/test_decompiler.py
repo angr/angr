@@ -1780,7 +1780,7 @@ class TestDecompiler(unittest.TestCase):
             is_simprocedure=False,
             is_plt=False,
             returning=True,
-            prototype=SimTypeFunction([], SimTypeInt()).with_arch(arch),
+            prototype=cast(SimTypeFunction, SimTypeFunction([], SimTypeInt()).with_arch(arch)),
             prototype_libname="old-lib",
             prototype_source=PrototypeSource.CCA_LOW,
             calling_convention=old_calling_convention_cls(arch),
@@ -1790,7 +1790,7 @@ class TestDecompiler(unittest.TestCase):
         old_prototype_source = func.prototype_source
         old_calling_convention = func.calling_convention
         old_ran_cca = func.ran_cca
-        seeded_prototype = SimTypeFunction([], SimTypeLongLong()).with_arch(arch)
+        seeded_prototype = cast(SimTypeFunction, SimTypeFunction([], SimTypeLongLong()).with_arch(arch))
         seeded_calling_convention = old_calling_convention_cls(arch)
         seed_calls = 0
 
