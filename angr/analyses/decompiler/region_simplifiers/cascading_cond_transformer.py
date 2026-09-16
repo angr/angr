@@ -20,7 +20,7 @@ class CascadingConditionTransformer(SequenceWalker):
 
     def __init__(self, node, manager: Manager):
         handlers = {
-            ConditionNode: self._handle_Condition,
+            ConditionNode: self._walk_Condition,
         }
         super().__init__(handlers)
         self.manager = manager
@@ -28,7 +28,7 @@ class CascadingConditionTransformer(SequenceWalker):
 
         self.walk(node)
 
-    def _handle_Condition(self, cond_node: ConditionNode, **kwargs):
+    def _walk_Condition(self, cond_node: ConditionNode, **kwargs):
         if (
             cond_node.false_node is not None
             and isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode))
@@ -53,11 +53,11 @@ class CascadingConditionTransformer(SequenceWalker):
             remaining_node = cond_node.true_node
 
         else:
-            return super()._handle_Condition(cond_node, **kwargs)
+            return (yield from super()._walk_Condition(cond_node, **kwargs))
 
         # structure else_node
         if not isinstance(remaining_node, CascadingConditionNode):
-            structured = self._handle_Condition(remaining_node)
+            structured = yield remaining_node, {}
             if structured is None:
                 structured = remaining_node
         else:

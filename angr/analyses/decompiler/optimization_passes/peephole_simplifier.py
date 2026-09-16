@@ -15,6 +15,9 @@ class ExpressionSequenceWalker(SequenceWalker):
     Walks sequences with generic expression handling.
     """
 
+    # _handle below only adds AIL expressions, which this walker never handles itself.
+    HANDLE_SEES_EVERY_NODE = False
+
     def _handle(self, node, **kwargs):
         if isinstance(node, ailment.Expr.Expression):
             handler = self._handlers.get(ailment.Expr.Expression, None)

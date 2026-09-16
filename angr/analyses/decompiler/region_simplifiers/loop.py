@@ -1,4 +1,4 @@
-# pylint:disable=unused-argument,arguments-differ
+# pylint:disable=unused-argument,arguments-differ,no-self-use
 from __future__ import annotations
 
 from collections import defaultdict
@@ -26,12 +26,12 @@ class LoopSimplifier(SequenceWalker):
 
     def __init__(self, node, functions):
         handlers = {
-            SequenceNode: self._handle_sequencenode,
-            CodeNode: self._handle_codenode,
-            MultiNode: self._handle_multinode,
-            LoopNode: self._handle_loopnode,
-            ConditionNode: self._handle_conditionnode,
-            CascadingConditionNode: self._handle_cascadingconditionnode,
+            SequenceNode: self._walk_sequencenode,
+            CodeNode: self._walk_codenode,
+            MultiNode: self._walk_multinode,
+            LoopNode: self._walk_loopnode,
+            ConditionNode: self._walk_conditionnode,
+            CascadingConditionNode: self._walk_cascadingconditionnode,
             ailment.Block: self._handle_block,
         }
 
@@ -47,40 +47,48 @@ class LoopSimplifier(SequenceWalker):
             (ailment.Stmt.SideEffectStatement, ailment.Stmt.Return, ailment.Stmt.Jump, ailment.Stmt.ConditionalJump),
         )
 
-    def _handle_sequencenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+    def _walk_sequencenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         for n0, n1, n2 in zip(node.nodes, [*node.nodes[1:], successor], [predecessor, *node.nodes[:-1]]):
-            self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
+            yield n0, {"predecessor": n2, "successor": n1, "loop": loop, "loop_successor": loop_successor}
 
-    def _handle_codenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
-        self._handle(node.node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
+    def _walk_codenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+        yield (
+            node.node,
+            {"predecessor": predecessor, "successor": successor, "loop": loop, "loop_successor": loop_successor},
+        )
 
-    def _handle_conditionnode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+    def _walk_conditionnode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         if node.true_node is not None:
-            self._handle(
-                node.true_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor
+            yield (
+                node.true_node,
+                {"predecessor": predecessor, "successor": successor, "loop": loop, "loop_successor": loop_successor},
             )
         if node.false_node is not None:
-            self._handle(
-                node.false_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor
+            yield (
+                node.false_node,
+                {"predecessor": predecessor, "successor": successor, "loop": loop, "loop_successor": loop_successor},
             )
 
-    def _handle_cascadingconditionnode(
+    def _walk_cascadingconditionnode(
         self, node: CascadingConditionNode, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs
     ):
         for _, child_node in node.condition_and_nodes:
-            self._handle(
-                child_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor
+            yield (
+                child_node,
+                {"predecessor": predecessor, "successor": successor, "loop": loop, "loop_successor": loop_successor},
             )
         if node.else_node is not None:
-            self._handle(
-                node.else_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor
+            yield (
+                node.else_node,
+                {"predecessor": predecessor, "successor": successor, "loop": loop, "loop_successor": loop_successor},
             )
 
-    def _handle_loopnode(
+    def _walk_loopnode(
         self, node: LoopNode, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs
     ):
-        self._handle(
-            node.sequence_node, predecessor=predecessor, successor=successor, loop=node, loop_successor=successor
+        yield (
+            node.sequence_node,
+            {"predecessor": predecessor, "successor": successor, "loop": node, "loop_successor": successor},
         )
 
         # find for-loop iterators
@@ -126,11 +134,11 @@ class LoopSimplifier(SequenceWalker):
             node.initializer = predecessor.statements[-1]
             predecessor.statements = predecessor.statements[:-1]
 
-    def _handle_multinode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+    def _walk_multinode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         for n0, n1, n2 in zip(node.nodes, [*node.nodes[1:], successor], [predecessor, *node.nodes[:-1]]):
-            self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
+            yield n0, {"predecessor": n2, "successor": n1, "loop": loop, "loop_successor": loop_successor}
 
-    def _handle_block(self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):  # pylint:disable=no-self-use
+    def _handle_block(self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         if isinstance(successor, ContinueNode) or successor is loop_successor:
             # ensure this block is not returning or exiting
             try:
