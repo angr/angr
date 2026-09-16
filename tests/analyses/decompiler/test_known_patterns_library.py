@@ -3,7 +3,6 @@ from __future__ import annotations
 # pylint: disable=missing-class-docstring,no-self-use
 import os.path
 import re
-import unittest
 from unittest import TestCase
 
 import angr
@@ -1058,10 +1057,6 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
                 (0x1400016C0, "std::vector<int>::operator[]("),
             ],
         )
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestBswapPeephole(TestCase):

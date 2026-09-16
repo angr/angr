@@ -1020,10 +1020,6 @@ class TestKnownPatternPipeline(TestCase):
             assert "CONTAINING_RECORD(" not in dec.codegen.text
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestLargestMatchWins(TestCase):
     # Two statement-set matches anchored at the same statement both sit at the
     # expression root, so len(expr_path) cannot separate them. The finder breaks
@@ -1864,3 +1860,7 @@ class TestStackSlotResolution(TestCase):
             VirtualVariable(None, 3, 64, VirtualVariableCategory.STACK, oident=-48), st, ctx
         )
         assert st2 is not None
+
+
+if __name__ == "__main__":
+    unittest.main()
