@@ -2072,7 +2072,14 @@ class CVariableField(CExpression):
         if self.collapsed:
             yield "...", self
             return
+
+        wrap_variable = isinstance(self.variable, (CUnaryOp, CBinaryOp, CTypeCast))
+        paren = CClosingObject("(")
+        if wrap_variable:
+            yield "(", paren
         yield from self.variable.c_repr_chunks()
+        if wrap_variable:
+            yield ")", paren
         if self.var_is_ptr:
             yield "->", self
         else:
