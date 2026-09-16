@@ -9,6 +9,7 @@ import re
 import unittest
 
 import angr
+from angr.analyses.typehoon.translator import imported_struct_name
 from angr.sim_type import SimStruct, SimTypePointer, TypeRef
 from tests.common import WORKER, bin_location, print_decompilation_result
 
@@ -40,7 +41,10 @@ class TestTypePropagation(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        assert re.search(struct_ty.name + r" v\d+;", dec.codegen.text) is not None
+        # `run_calculator` gets this struct from `evaluate`'s recovered prototype. A struct that reaches a
+        # function under another function's generated name is renamed after its own layout, so the caller spells
+        # it that way rather than by the number `evaluate`'s own type inference happened to give it.
+        assert re.search(imported_struct_name(struct_ty) + r" v\d+;", dec.codegen.text) is not None
 
 
 if __name__ == "__main__":
