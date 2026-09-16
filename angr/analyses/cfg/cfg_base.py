@@ -1354,6 +1354,22 @@ class CFGBase(Analysis):
                 smallest_node = all_nodes[0]  # take the one that has the highest address
                 other_nodes = all_nodes[1:]
 
+                # sanity check: there are cases where a node starts in the middle of an instruction of another node.
+                # in such cases, we do not want to break the other node by limiting its size to cut into the middle of
+                # a legitimate instruction. so we further drop any nodes from other_nodes whose last instruction
+                # address does not exist in the smallest_node's instruction_addrs list.
+                # example: 1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c, 0x21514B6908 and
+                # 0x21514B690C (the source of this jump is at 0x21514B3A67)
+                if smallest_node.instruction_addrs:
+                    other_nodes = [
+                        n
+                        for n in other_nodes
+                        if n.instruction_addrs and n.instruction_addrs[-1] in smallest_node.instruction_addrs
+                    ]
+                if not other_nodes:
+                    del end_addr_to_nodes[key_to_find]
+                    continue
+
                 self._normalize_core(
                     graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addr_to_nodes
                 )
@@ -1920,13 +1936,21 @@ class CFGBase(Analysis):
                 # alignments
                 return False
 
+            # note that the size of block may change after calling _is_noop_block, because _is_noop_block attempts to
+            # lift the block at the end of the method!
+
             # TODO: We may want to add support for filtering dummy PLT stubs for other architectures, but I haven't
             # TODO: seen any need for those.
-            return not (
-                arch_.name in {"X86", "AMD64"}
-                and len(block.vex.instruction_addresses) == 2
-                and block.vex.jumpkind == "Ijk_Boring"
-            )
+            try:
+                return not (
+                    arch_.name in {"X86", "AMD64"}
+                    and block.size > 0
+                    and len(block.instruction_addrs) == 2
+                    and block.vex.jumpkind == "Ijk_Boring"
+                )
+            except SimError:
+                # catch any exceptions that may raise during VEX block lifting
+                return False
 
         to_remove = set()
 
