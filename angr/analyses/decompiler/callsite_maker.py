@@ -565,7 +565,7 @@ class CallSiteMaker:
         return s
 
     def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_expr: Expr.Call) -> list[SimType]:
-        if "printf" in func.name or "scanf" in func.name:
+        if "printf" in func.name or "scanf" in func.name or func.name == "syslog":
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_expr)
         return []
 
