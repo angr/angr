@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
+import inspect
 import os
 import pickle
 import unittest
@@ -28,10 +29,12 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from angr.analyses.decompiler.structured_codegen.c import CConstruct
+from angr.analyses.decompiler.structured_codegen import c as c_codegen
+from angr.analyses.decompiler.structured_codegen.c import CConstruct, CExpression, CLoop, CStatement
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
+    _SERIALIZE_KIND_BY_CLASS,
     _parse_tags,
     _sanitize_tags,
 )
@@ -613,6 +616,58 @@ class TestClinicSerializationAboveFourGigabytes(unittest.TestCase):
         back = d[key]
         assert back.codegen is not None
         assert back.codegen.text == self.text
+
+
+class TestSerializerRegistration(unittest.TestCase):
+    """Every concrete CConstruct subclass must have a serializer/parser pair registered."""
+
+    # Bases that are never instantiated directly and therefore need no serializer.
+    ABSTRACT = (CConstruct, CStatement, CExpression, CLoop)
+
+    def test_every_concrete_cconstruct_is_registered(self):
+        unregistered = [
+            obj.__name__
+            for obj in vars(c_codegen).values()
+            if inspect.isclass(obj)
+            and issubclass(obj, CConstruct)
+            and obj not in self.ABSTRACT
+            and obj not in _SERIALIZE_KIND_BY_CLASS
+        ]
+        assert not unregistered, f"CConstruct subclasses missing from the serializer dispatch table: {unregistered}"
+
+
+class TestVectorConvertSerialization(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(os.path.join(test_location, "x86_64", "vector_conversions"), auto_load_libs=False)
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.func = cls.proj.kb.functions.function(name="truncate_to_ints")
+        cls.decompiler = cls.proj.analyses.Decompiler(cls.func, cfg=cls.cfg.model, generate_code=True)
+
+    def test_codegen_roundtrip_preserves_vector_converts(self):
+        codegen = self.decompiler.codegen
+        assert "ConvF32toI32Sx4(" in codegen.text, "the binary no longer decompiles to a lane-wise conversion"
+
+        blob = codegen.serialize()
+        msg = codegen_pb2.Codegen()
+        msg.ParseFromString(blob)
+        vector_converts = [n for n in msg.nodes if n.kind == codegen_pb2.CCK_VECTOR_CONVERT]
+        assert vector_converts
+        for node in vector_converts:
+            assert node.cvector_convert.operand_id != 0
+
+        back = type(codegen).parse(blob, project=self.proj, kb=self.proj.kb)
+        assert back.text == codegen.text
+
+    def test_cache_spills_instead_of_parking_in_memory(self):
+        cache = self.decompiler.cache
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=0)
+        key = (self.func.addr, "pseudocode")
+        d[key] = cache
+
+        assert key in d._spilled
+        assert not d._unspillable
+        assert d[key].codegen.text == cache.codegen.text
 
 
 if __name__ == "__main__":
