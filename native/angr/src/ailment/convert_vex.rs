@@ -516,8 +516,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     to_size,
                     signed,
                     shifted,
-                    ConvertType::TypeInt,
-                    ConvertType::TypeInt,
+                    convert_type_of(simop.from_type.as_deref()),
+                    convert_type_of(simop.to_type.as_deref()),
                     None,
                     self.tags(),
                 ));
@@ -531,8 +531,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 to_size,
                 signed,
                 operand,
-                ConvertType::TypeInt,
-                ConvertType::TypeInt,
+                convert_type_of(simop.from_type.as_deref()),
+                convert_type_of(simop.to_type.as_deref()),
                 None,
                 self.tags(),
             ));
