@@ -349,6 +349,22 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert set(back.parameters.keys()) == set(cache.parameters.keys())
         assert len(back.parameters) == 15
 
+    def test_stackvar_max_sizes_roundtrip_beyond_int32(self):
+        # max_size is the distance to the next stack offset and can exceed 2**31 on bogus stack accesses; the proto
+        # field used to be int32 and made the whole cache unspillable
+        cache = self.decompiler.cache
+        saved = dict(cache.stackvar_max_sizes)
+        big = SimStackVariable(-0x40, 8, ident="huge")
+        cache.stackvar_max_sizes = {**saved, big: 5419868274}
+        try:
+            back = DecompilationCache.parse(
+                cache.serialize(), project=self.proj, kb=self.proj.kb, function=self.func, cfg=self.cfg.model
+            )
+        finally:
+            cache.stackvar_max_sizes = saved
+        assert back.stackvar_max_sizes[big] == 5419868274
+        assert len(back.stackvar_max_sizes) == len(saved) + 1
+
     def test_cache_hit_on_deserialized_cache(self):
         cache = self.decompiler.cache
         blob = cache.serialize()
