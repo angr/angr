@@ -184,15 +184,15 @@ class SimEngineVRAIL(
 
         ret_expr_bits = expr.bits
 
+        computed_funcaddr_typevar = None
         if isinstance(target, ailment.Expr.Expression) and not isinstance(
             target, (ailment.Expr.Const, ailment.Expr.DirtyExpression)
         ):
             # this is a dynamically calculated call target
             target_expr = self._expr(target)
             funcaddr_typevar = target_expr.typevar
-            if isinstance(funcaddr_typevar, typevars.TypeVariable):
-                load_typevar = self._create_access_typevar(funcaddr_typevar, False, self.arch.bytes, 0)
-                self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
+            if isinstance(funcaddr_typevar, (typevars.TypeVariable, typevars.DerivedTypeVariable)):
+                computed_funcaddr_typevar = funcaddr_typevar
         elif isinstance(target, str):
             # special handling for some intrinsics
             match target:
@@ -273,7 +273,61 @@ class SimEngineVRAIL(
         if ret_ty is None:
             ret_ty = self.tv_manager.new_tv()
 
+        if computed_funcaddr_typevar is not None:
+            self._add_computed_call_target_constraints(computed_funcaddr_typevar, args, ret_ty, target=target)
+
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
+
+    def _add_computed_call_target_constraints(self, funcaddr_typevar, args, ret_ty, target=None) -> None:
+        """
+        Add FuncIn/FuncOut constraints for an indirect call, so the solver types the call target as a
+        function pointer rather than a pointer to a one-field struct. For a call through a global, the
+        constraints go on the global's own type variable, so the global itself becomes the function pointer.
+        """
+        # A global function pointer and a call through a struct field (`p->fn()`) both look like a
+        # pointer-sized load that is then called. Only the global has a constant load address, so only
+        # then is the loaded-from cell retyped; retyping a struct pointer would drop a level of
+        # indirection and lose the called field.
+        base_tv = funcaddr_typevar
+        target_is_global = isinstance(target, ailment.Expr.Load) and isinstance(target.addr, ailment.Expr.Const)
+        if (
+            target_is_global
+            and isinstance(funcaddr_typevar, typevars.DerivedTypeVariable)
+            and len(funcaddr_typevar.labels) == 2
+            and isinstance(funcaddr_typevar.labels[0], typevars.Load)
+            and isinstance(funcaddr_typevar.labels[1], typevars.HasField)
+            and funcaddr_typevar.labels[1].offset == 0
+        ):
+            base_tv = funcaddr_typevar.type_var
+            # drop the plain load access on the cell, or the solver will not form a function type
+            self.state.type_constraints[self.state.func_typevar].discard(
+                typevars.Subtype(funcaddr_typevar, typeconsts.TopType())
+            )
+
+        # return value -> FuncOut(0)
+        if ret_ty is not None:
+            funcout_tv = self.tv_manager.new_dtv(base_tv, labels=(typevars.FuncOut(0),))
+            self.state.add_type_constraint(typevars.Subtype(funcout_tv, ret_ty))
+
+        # arguments -> FuncIn(i)
+        for i, arg in enumerate(args):
+            if arg is None or arg.typevar is None:
+                continue
+            # drop trailing ConvertTo labels; the constraint filter would discard the edge otherwise
+            arg_tv = arg.typevar
+            while (
+                isinstance(arg_tv, typevars.DerivedTypeVariable)
+                and arg_tv.labels
+                and isinstance(arg_tv.labels[-1], typevars.ConvertTo)
+            ):
+                remaining = arg_tv.labels[:-1]
+                arg_tv = (
+                    typevars.DerivedTypeVariable(arg_tv.type_var, None, labels=remaining)
+                    if remaining
+                    else arg_tv.type_var
+                )
+            funcin_tv = self.tv_manager.new_dtv(base_tv, labels=(typevars.FuncIn(i),))
+            self.state.add_type_constraint(typevars.Subtype(arg_tv, funcin_tv))
 
     def _handle_stmt_SideEffectStatement(self, stmt):
         if not isinstance(stmt.expr, ailment.Expr.Call):
@@ -299,15 +353,15 @@ class SimEngineVRAIL(
             # the return expression is not used, so we treat this call as not returning anything
             create_variable = False
 
+        computed_funcaddr_typevar = None
         if isinstance(target, ailment.Expr.Expression) and not isinstance(
             target, (ailment.Expr.Const, ailment.Expr.DirtyExpression)
         ):
             # this is a dynamically calculated call target
             target_expr = self._expr(target)
             funcaddr_typevar = target_expr.typevar
-            if isinstance(funcaddr_typevar, typevars.TypeVariable):
-                load_typevar = self._create_access_typevar(funcaddr_typevar, False, self.arch.bytes, 0)
-                self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
+            if isinstance(funcaddr_typevar, (typevars.TypeVariable, typevars.DerivedTypeVariable)):
+                computed_funcaddr_typevar = funcaddr_typevar
 
         # discover the prototype
         prototype: SimTypeFunction | None = None
@@ -344,6 +398,18 @@ class SimEngineVRAIL(
 
         if ret_ty is None:
             ret_ty = self.tv_manager.new_tv()
+
+        if computed_funcaddr_typevar is not None:
+            # An unused result gets no return type, so the function renders as void instead of int.
+            # With no arguments the return is the only evidence of a call, so keep it then.
+            has_arg_evidence = any(arg is not None and arg.typevar is not None for arg in args)
+            result_used = ret_expr is not None or stmt.fp_ret_expr is not None
+            self._add_computed_call_target_constraints(
+                computed_funcaddr_typevar,
+                args,
+                ret_ty if result_used or not has_arg_evidence else None,
+                target=target,
+            )
 
         # TODO: Expose it as an option
         return_value_use_full_width_reg = True

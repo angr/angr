@@ -11,6 +11,16 @@ import itertools
 from ._typehash import type_tag
 
 
+def _typeconsts_equal(a, b, visited: set[tuple[int, int]]) -> bool:
+    # Structural equality with a per-call visited set, so self-referential function types terminate.
+    if a is b:
+        return True
+    if a is None or b is None:
+        return False
+    # pylint: disable-next=protected-access
+    return a._eq(b, visited)
+
+
 def memoize(f):
     @functools.wraps(f)
     def wrapped_repr(self, *args, **kwargs):
@@ -45,6 +55,10 @@ class TypeConstant:
 
     def __eq__(self, other):
         return type(self) is type(other)
+
+    def _eq(self, other, visited: set[tuple[int, int]]) -> bool:  # pylint:disable=unused-argument
+        # leaf types and Struct compare directly
+        return self == other
 
     def __hash__(self):
         # the hash of a plain type constant is fully determined by its class, so there is nothing to
@@ -230,6 +244,9 @@ class Pointer(TypeConstant):
     def __eq__(self, other):
         return type(self) is type(other) and self.basetype == other.basetype
 
+    def _eq(self, other, visited):
+        return type(self) is type(other) and _typeconsts_equal(self.basetype, other.basetype, visited)
+
     def _hash(self, visited: set[int]):
         if self.basetype is None:
             return self.TYPE_HASH
@@ -309,6 +326,13 @@ class Array(TypeConstant):
     def __eq__(self, other):
         return type(other) is type(self) and self.element == other.element and self.count == other.count
 
+    def _eq(self, other, visited):
+        return (
+            type(other) is type(self)
+            and self.count == other.count
+            and _typeconsts_equal(self.element, other.element, visited)
+        )
+
     def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
@@ -348,6 +372,7 @@ class Struct(TypeConstant):
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
+        # pylint: disable-next=protected-access
         tpl = tuple((k, self.fields[k]._hash(visited) if self.fields[k] is not None else None) for k in keys)
         return hash(tpl)
 
@@ -523,22 +548,45 @@ class Function(TypeConstant):
 
     @memoize
     def __repr__(self, memo=None):
-        param_str = ", ".join(repr(param) for param in self.params)
-        outputs_str = ", ".join(repr(output) for output in self.outputs)
+        # pass memo through params/outputs (None marks a missing slot) so cycles terminate
+        param_str = ", ".join(p.__repr__(memo=memo) if p is not None else "None" for p in self.params)
+        outputs_str = ", ".join(o.__repr__(memo=memo) if o is not None else "None" for o in self.outputs)
         return f"func({param_str}) -> {outputs_str}"
 
     def __eq__(self, other):
+        return self._eq(other, set())
+
+    def _eq(self, other, visited):
+        if self is other:
+            return True
         if not isinstance(other, Function):
             return False
-        return self.params == other.params and self.outputs == other.outputs
+        # a self-referential function type would recurse forever; track the pairs being compared and
+        # treat a pair seen again as equal, as _hash does
+        key = (id(self), id(other))
+        if key in visited:
+            return True
+        visited.add(key)
+        try:
+            return (
+                len(self.params) == len(other.params)
+                and len(self.outputs) == len(other.outputs)
+                and all(_typeconsts_equal(p, q, visited) for p, q in zip(self.params, other.params))
+                and all(_typeconsts_equal(x, y, visited) for x, y in zip(self.outputs, other.outputs))
+            )
+        finally:
+            visited.discard(key)
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
         visited.add(id(self))
 
-        params_hash = tuple(param._hash(visited) for param in self.params)
-        outputs_hash = tuple(out._hash(visited) for out in self.outputs)
+        # None marks a missing slot
+        # pylint: disable-next=protected-access
+        params_hash = tuple(None if param is None else param._hash(visited) for param in self.params)
+        # pylint: disable-next=protected-access
+        outputs_hash = tuple(None if out is None else out._hash(visited) for out in self.outputs)
         return hash((self.TYPE_HASH, params_hash, outputs_hash))
 
     def __hash__(self):
@@ -557,12 +605,12 @@ class Function(TypeConstant):
         new_outputs = []
         changed = False
         for param in self.params:
-            new_param = param.replace(mapping, memo=memo)
+            new_param = param if param is None else param.replace(mapping, memo=memo)
             new_params.append(new_param)
             if new_param is not param:
                 changed = True
         for output in self.outputs:
-            new_output = output.replace(mapping, memo=memo)
+            new_output = output if output is None else output.replace(mapping, memo=memo)
             new_outputs.append(new_output)
             if new_output is not output:
                 changed = True
