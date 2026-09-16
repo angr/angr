@@ -13,6 +13,7 @@ from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import 
 from angr.analyses.decompiler.structurer_nodes import LoopNode
 from angr.analyses.decompiler.variable_map import variable_map_of
 
+from .break_rebinder import BreakRebinder
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .cascading_ifs import CascadingIfsRemover
 from .expr_folding import (
@@ -110,6 +111,8 @@ class RegionSimplifier(Analysis):
         r = self._remove_empty_nodes(r)
         # Find nested if-else constructs and convert them into CascadingIfs
         r = self._transform_to_cascading_ifs(r)
+        # Turn break and continue statements that the final structure no longer binds to their targets into gotos
+        r = self._rebind_breaks(r)
 
         self.result = r
 
@@ -260,6 +263,10 @@ class RegionSimplifier(Analysis):
 
     def _simplify_loops(self, region):
         LoopSimplifier(region, self.kb.functions)
+        return region
+
+    def _rebind_breaks(self, region):
+        BreakRebinder(region, self.ail_manager, self.project.arch.bits)
         return region
 
     def _apply_region_loop_counter_naming(self, region) -> None:
