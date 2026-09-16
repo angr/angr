@@ -1104,7 +1104,7 @@ class TestSharedChasedDefinitions(TestCase):
     def test_shared_chased_defs_are_duplicated(self):
         for func_name, n_dup in (("vec_size_shared_diff", 1), ("vec_size_shared_chain", 2)):
             with self.subTest(func=func_name):
-                proj, cfg, func, dec = _decompile(STL3_BIN, func_name)
+                proj, cfg, func, dec = _decompile(STL3_BIN, func_name, apply_patterns=False)
                 finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
                 matches = [m for m in finder.matches if m.pattern.name == "std_vector_T12_size"]
                 assert len(matches) == 1, [m.pattern.name for m in finder.matches]
@@ -1141,8 +1141,10 @@ class TestSharedChasedDefinitions(TestCase):
         # std::string::length is a bare Load(s + 8), i.e. exactly the _M_finish
         # load a std::vector<T>::size() reads through; the vector match covers
         # more of the block and must be the one that is offered.
-        proj, _, func, dec = _decompile(STL3_BIN, "vec_size_shared_chain")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        proj, _, func, dec = _decompile(STL3_BIN, "vec_size_shared_chain", apply_patterns=False)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_STRING_LENGTH, TEMPLATE_BY_CALL_NAME["std::vector<T12>::size"]]
+        )
         assert [m.pattern.name for m in finder.matches] == ["std_vector_T12_size"]
 
 
@@ -1155,7 +1157,7 @@ class TestRemoteChasedDefinitions(TestCase):
     # lost. Because the computation is pure, the outlined region can recompute it.
 
     def test_cse_mask_feeding_an_if_chain_is_matched(self):
-        proj, _, func, dec = _decompile(MV_BIN, "copy_internal")
+        proj, _, func, dec = _decompile(MV_BIN, "copy_internal", apply_patterns=False)
         with_remote = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         without = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, chase_remote_defs=False)
         recomputed = [m for m in with_remote.matches if m.recomputed_defs]
@@ -1172,7 +1174,7 @@ class TestRemoteChasedDefinitions(TestCase):
                 assert any(isinstance(o, Const) and o.value == 0o170000 for o in expr.operands)
 
     def test_recomputed_definition_is_outlined_into_the_callee(self):
-        proj, _, func, dec = _decompile(MV_BIN, "copy_internal")
+        proj, _, func, dec = _decompile(MV_BIN, "copy_internal", apply_patterns=False)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         m = next(m for m in finder.matches if m.recomputed_defs)
         block = next(b for b in dec.ail_graph if (b.addr, b.idx) == m.block_loc)
@@ -1223,7 +1225,7 @@ class TestOutlinedResultIdentity(TestCase):
         def _const_build(pat):
             return lambda ctx: pat
 
-        templates = [make_template(p.call_name, _const_build(p)) for p in patterns]
+        templates = [make_template(p.call_name, _const_build(p), default_enabled=True) for p in patterns]
         saved, saved_map = list(ALL_KNOWN_PATTERN_TEMPLATES), dict(TEMPLATE_BY_CALL_NAME)
         ALL_KNOWN_PATTERN_TEMPLATES[:] = templates
         TEMPLATE_BY_CALL_NAME.clear()
@@ -1435,10 +1437,12 @@ class TestBinaryEvidence(TestCase):
                 assert not ctx.is_windows_kernel_driver
 
     def _gate_opened(self, path):
+        # gated templates are opt-in, so they are only candidates when handed in; the gate then decides
         proj = angr.Project(path, auto_load_libs=False)
         gctx = GateContext(ctx=PatternContext.from_project(proj), project=proj)
-        enabled, _ = partition_templates(gctx)
-        return {t.call_name for t in enabled if not t.default_enabled}
+        gated = [t for t in ALL_KNOWN_PATTERN_TEMPLATES if t.gate is not None and not t.default_enabled]
+        enabled, _ = partition_templates(gctx, templates=gated)
+        return {t.call_name for t in enabled}
 
     def test_kernel_gate_opens_the_list_family(self):
         driver = self._gate_opened(DRIVER_BIN)
@@ -1481,11 +1485,17 @@ class TestGateObjects(TestCase):
         assert any_of(no, corroborated_by("x")).requires_evidence
         assert not any_of(no, yes).requires_evidence
 
-    def test_a_gate_never_disables_a_default_on_template(self):
-        # enabled_for() is only consulted for opt-in templates
-        assert STD_STRING_LENGTH.default_enabled
-        assert STD_STRING_LENGTH.enabled_for(GateContext(ctx=_AMD64_CTX))
-        assert not STD_STRING_FRONT.enabled_for(GateContext(ctx=_AMD64_CTX))
+    def test_enabled_for_is_the_gate(self):
+        # a template without a gate is enabled on any target; a gated one needs its gate open, and the string
+        # accessors' gate wants a witness the bare target context cannot supply
+        gctx = GateContext(ctx=_AMD64_CTX)
+        assert STD_VECTOR_INT_SIZE.gate is None and STD_VECTOR_INT_SIZE.enabled_for(gctx)
+        assert STD_STRING_LENGTH.gate is not None and not STD_STRING_LENGTH.enabled_for(gctx)
+        assert not STD_STRING_FRONT.enabled_for(gctx)
+        # an explicit selection puts a gated template among the candidates; the gate still holds it back until
+        # there is evidence, so it lands in the deferred list rather than the enabled one
+        enabled, deferred = partition_templates(gctx, templates=[STD_STRING_LENGTH, STD_VECTOR_INT_SIZE])
+        assert STD_VECTOR_INT_SIZE in enabled and STD_STRING_LENGTH in deferred
 
 
 class TestUnderscorePrefixedMangling(TestCase):
@@ -1585,13 +1595,15 @@ class TestMemberContainers(TestCase):
     def test_member_string_capacity(self):
         # the SSO select on a member string: _M_p at this+32 tested against the
         # local buffer at this+48
-        _, _, _, dec = _decompile(self.STL4_BIN, "doc_name_capacity", preset="full")
+        _, _, _, dec = _decompile(
+            self.STL4_BIN, "doc_name_capacity", preset="full", include_patterns=["std::string::capacity"]
+        )
         text = dec.codegen.text
         assert "std::string::capacity(" in text
         assert "std::string *" in text
 
     def test_member_string_back(self):
-        _, _, _, dec = _decompile(self.STL4_BIN, "doc_name_back", preset="full")
+        _, _, _, dec = _decompile(self.STL4_BIN, "doc_name_back", preset="full", include_patterns=["std::string::back"])
         assert "std::string::back(" in dec.codegen.text
 
 
@@ -1670,7 +1682,9 @@ class TestSwapWidthsAndInterleaving(TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(name="pair_swap")
         assert func is not None
-        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, preset="full", options=[("known_patterns", [t.name for t in STD_SWAP_TEMPLATES])]
+        )
         assert dec.codegen is not None and dec.codegen.text is not None
         return proj, cfg, func, dec
 
@@ -1682,7 +1696,16 @@ class TestSwapWidthsAndInterleaving(TestCase):
         assert dec.codegen.text.startswith("void pair_swap("), dec.codegen.text
         for name in ("swap_ints", "swap_chars"):
             func = cfg.functions.function(name=name)
-            text = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full").codegen.text
+            text = (
+                proj.analyses[Decompiler]
+                .prep(fail_fast=True)(
+                    func,
+                    cfg=cfg.model,
+                    preset="full",
+                    options=[("known_patterns", [t.name for t in STD_SWAP_TEMPLATES])],
+                )
+                .codegen.text
+            )
             assert text.startswith(f"void {name}("), text
 
     def test_all_three_field_swaps_are_matched(self):
@@ -1691,8 +1714,10 @@ class TestSwapWidthsAndInterleaving(TestCase):
         # writeback. All three have to be found; asserting only that some
         # std::swap appeared passed while two of the three were still raw
         # load/store shuffles.
-        proj, _, func, dec = _decompile(self.STL4_BIN, "pair_swap")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        proj, _, func, dec = _decompile(self.STL4_BIN, "pair_swap", apply_patterns=False)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=STD_SWAP_TEMPLATES
+        )
         swaps = [m for m in finder.matches if m.pattern.name == "std_swap"]
         assert len(swaps) == 3, [(m.pattern.name, sorted(m.stmt_span or ())) for m in finder.matches]
         # three different spans, one per field
@@ -1731,7 +1756,9 @@ class TestSwapWidthsAndInterleaving(TestCase):
     def test_narrow_widths_are_matched_on_their_own(self):
         for func in ("swap_ints", "swap_chars"):
             with self.subTest(func=func):
-                _, _, _, dec = _decompile(self.STL4_BIN, func, preset="full")
+                _, _, _, dec = _decompile(
+                    self.STL4_BIN, func, preset="full", include_patterns=[t.name for t in STD_SWAP_TEMPLATES]
+                )
                 assert dec.codegen.text.count("std::swap(") == 1, dec.codegen.text
 
     def test_disjointness_admits_a_nonaliasing_gap(self):

@@ -20,7 +20,10 @@ from angr.analyses.decompiler.known_patterns import (
     ALL_VECTOR_MATH_TEMPLATES,
     ALL_WDK_TEMPLATES,
     STD_STRING_CSTR,
+    GateContext,
     KnownPatternFinder,
+    PatternContext,
+    partition_templates,
 )
 from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
 from angr.knowledge_plugins.functions.function import PrototypeSource
@@ -903,10 +906,13 @@ class TestStlAccessors2(TestCase):
     def test_opt_in_accessors(self):
         # string::front is operator[] with i == 0 folded away, and vector::back is
         # a bare end-pointer dereference: both too generic for default-on
-        proj, _, func, dec = _decompile(STL2_BIN, "str_front")
+        proj, cfg, func, dec = _decompile(STL2_BIN, "str_front")
         finder = _find(proj, func, dec, ALL_STL2_TEMPLATES)
         assert "std_string_front" in [m.pattern.name for m in finder.matches]
-        assert "std::string::front(" not in self._full("str_front")
+        # by default the gate holds it back (no string witness in str_front); selecting everything bypasses the gate
+        by_default = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        assert "std::string::front(" not in by_default.codegen.text, by_default.codegen.text
+        assert "std::string::front(" in self._full("str_front")
 
         for func_name, pattern_name in (
             ("vec_back_s", "std_vector_short_back"),
@@ -1102,7 +1108,16 @@ class TestKernelTargetGate(TestCase):
         )
         func = cfg.functions.function(addr=self.DRIVER_ENTRY)
         assert func is not None
-        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        # the list family is opt-in: handed in as candidates, its gate opens on a kernel driver
+        gctx = GateContext(ctx=PatternContext.from_project(proj), project=proj)
+        enabled, _ = partition_templates(gctx, templates=ALL_LINKED_LIST_TEMPLATES)
+        assert "InitializeListHead" in {t.call_name for t in enabled}
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            cfg=cfg.model,
+            preset="full",
+            options=[("known_patterns", [t.call_name for t in ALL_LINKED_LIST_TEMPLATES])],
+        )
         assert dec.codegen is not None
         assert "InitializeListHead(" in dec.codegen.text, dec.codegen.text
 
@@ -1132,16 +1147,25 @@ class TestCorroborationGate(TestCase):
     # (std::string::length) and, on the one-character path, *_M_p (front)
     ASSIGN = 0x524B90
 
-    def test_corroborated_front_is_outlined_by_default(self):
+    def test_front_is_gated_by_default_and_selectable(self):
         proj, cfg = load_project_with_scoped_cfg(
             LIBSTDCXX_BIN, self.ASSIGN, window=0x1000, project_kwargs={"auto_load_libs": False}
         )
         func = cfg.functions.function(addr=self.ASSIGN)
         assert func is not None
+        # front is default-on but gated on a string witness (capacity or the destructor); _M_assign has neither,
+        # so by default it stays raw
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
         assert dec.codegen is not None
+        assert "std::string::front(" not in dec.codegen.text, dec.codegen.text
+        # selecting the string accessors by name bypasses the gate: length and front both come out
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            cfg=cfg.model,
+            preset="full",
+            options=[("known_patterns", ["std::string::length", "std::string::front"])],
+        )
         text = dec.codegen.text
-        # the witness is what opens the gate, so both must be present
         assert "std::string::length(" in text, text
         assert "std::string::front(" in text, text
 
@@ -1160,20 +1184,25 @@ class TestCorroborationGate(TestCase):
         )
         assert "std::string::front(" in forced.codegen.text, forced.codegen.text
 
-    def test_circular_corroboration_is_rejected(self):
-        # str_empty(const std::string &s) { return s.empty(); } is
-        # `CmpEQ(Load(s + 8), 0)`, and the inner load is the very std::string::length
-        # match that would open the gate. Naming the whole thing `empty` erases that
-        # witness, so the corroboration is circular and must be refused: the
-        # function keeps the length() reading.
+    def test_empty_alone_is_no_witness(self):
+        # str_empty(const std::string &s) { return s.empty(); } is `CmpEQ(Load(s + 8), 0)`: a bare word load
+        # compared with zero, with nothing else in the function that says "string". length and empty are both
+        # opt-in and gated on a string witness, so by default the function stays raw; selecting them by name
+        # is the user's call and names the whole comparison
         proj = angr.Project(STL_BIN, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(name="str_empty")
         assert func is not None
         gated = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-        assert "std::string::empty(" not in gated.codegen.text, gated.codegen.text
-        assert "std::string::length(" in gated.codegen.text, gated.codegen.text
+        assert "std::string::" not in gated.codegen.text, gated.codegen.text
+        selected = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func,
+            cfg=cfg.model,
+            preset="full",
+            options=[("known_patterns", ["std::string::length", "std::string::empty"])],
+        )
+        assert "std::string::empty(" in selected.codegen.text, selected.codegen.text
         forced = proj.analyses[Decompiler].prep(fail_fast=True)(
             func, cfg=cfg.model, preset="full", options=ALL_PATTERNS_OPTION
         )
