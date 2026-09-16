@@ -94,4 +94,7 @@ message DecompilationCache {
     optional DecompilationParameters parameters = 12;
 
     map<string, string> notes_json = 13;      // DecompilationNote serialized to JSON; key = note key
+
+    // True when `codegen` holds a DummyStructuredCodeGenerator (user comments/formats only, no AST).
+    bool codegen_is_dummy = 14;
 }

@@ -166,13 +166,12 @@ class StructuredCodeManagerSerializer:
         """
 
         manager = StructuredCodeManager(kb)
-        backing = manager.cached
 
         db_caches = session.query(DbDecompilationCache).filter_by(kb=db_kb)
-        if isinstance(backing, SpillingDecompilationDict) and db_caches.count() > backing.cache_limit:
+        if isinstance(manager.cached, SpillingDecompilationDict) and db_caches.count() > manager.cached.cache_limit:
             # move the serialized bytes directly into the LMDB backing store and register every cache as spilled,
             # instead of deserializing every cache and thrashing the LRU cache
-            backing.bulk_import_serialized(
+            manager.cached.bulk_import_serialized(
                 [((db_cache.func_addr, db_cache.flavor), db_cache.blob) for db_cache in db_caches]
             )
         else:
@@ -183,12 +182,12 @@ class StructuredCodeManagerSerializer:
                     kb=kb,
                     function=kb.functions.get(db_cache.func_addr),
                 )
-                backing[(db_cache.func_addr, db_cache.flavor)] = cache
+                manager.cached[(db_cache.func_addr, db_cache.flavor)] = cache
 
         db_code_collection = session.query(DbStructuredCode).filter_by(kb=db_kb)
 
         for db_code in db_code_collection:
-            if (db_code.func_addr, db_code.flavor) in backing:
+            if (db_code.func_addr, db_code.flavor) in manager.cached:
                 continue
             if not db_code.expr_comments:
                 expr_comments = None
@@ -220,6 +219,6 @@ class StructuredCodeManagerSerializer:
             cache.codegen = dummy_codegen
             cache.ite_exprs = set()
             cache.errors = db_code.errors.split("\n\n\n")
-            manager[(db_code.func_addr, db_code.flavor)] = cache
+            manager.cached[(db_code.func_addr, db_code.flavor)] = cache
 
         return manager

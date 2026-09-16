@@ -236,7 +236,10 @@ class DecompilationCache(Serializable):
         if self.clinic is not None:
             msg.clinic = self.clinic.serialize()
         if self.codegen is not None:
+            from .structured_codegen.dummy import DummyStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
+
             msg.codegen = self.codegen.serialize()
+            msg.codegen_is_dummy = isinstance(self.codegen, DummyStructuredCodeGenerator)
 
         msg.errors.extend(self.errors)
         if self.function_summary is not None:
@@ -281,6 +284,7 @@ class DecompilationCache(Serializable):
         validity checks. Decompilation variables live on kb.dec_variables."""
         from .notes import DecompilationNote  # pylint:disable=import-outside-toplevel
         from .structured_codegen.c import CStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
+        from .structured_codegen.dummy import DummyStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
 
         cache = cls(cmsg.addr)
         # cfg is not serialized; reattach from kwargs so cache-validity checks still work.
@@ -289,7 +293,10 @@ class DecompilationCache(Serializable):
         if cmsg.HasField("clinic"):
             cache.clinic = Clinic.parse(cmsg.clinic, project=project, kb=kb, function=function, cfg=cfg)
         if cmsg.HasField("codegen"):
-            cache.codegen = CStructuredCodeGenerator.parse(cmsg.codegen, project=project, kb=kb, func=function)
+            if cmsg.codegen_is_dummy:
+                cache.codegen = DummyStructuredCodeGenerator.parse(cmsg.codegen)
+            else:
+                cache.codegen = CStructuredCodeGenerator.parse(cmsg.codegen, project=project, kb=kb, func=function)
 
         cache.errors = list(cmsg.errors)
         if cmsg.HasField("function_summary"):
