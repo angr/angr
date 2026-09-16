@@ -89,6 +89,28 @@ def _defaultdict_set():
     return defaultdict(set)
 
 
+_SYMBOL_VERSION = re.compile(r"@@?[^@]*$")
+
+
+def variable_name_from_label(label: str) -> str:
+    """
+    Derive a variable name from the symbol label at the variable's address.
+
+    MSVC decorates a variable with its enclosing scopes, at-separated and innermost first, behind a
+    leading question mark, as in ?count@detail@ns@@3HA; those become the :: spelling the code
+    generators use for scoped names elsewhere. Every other label is a plain symbol name, and the
+    only at-separated suffix it can carry is the version an ELF reference resolved against, written
+    into the name as stderr@GLIBC_2.2.5 or stderr@@GLIBC_2.2.5. That names the same object as the
+    plain symbol, which cle keeps the version on separately.
+    """
+    if label.startswith("?"):
+        name = label[1:]
+        if "@@" in name:
+            name = name[: name.index("@@")]
+        return "::".join(name.split("@")[::-1])
+    return _SYMBOL_VERSION.sub("", label)
+
+
 class VariableManagerInternal(Serializable):
     """
     Manage variables for a function. It is meant to be used internally by VariableManager, but it's common to be
@@ -1043,13 +1065,7 @@ class VariableManagerInternal(Serializable):
                     continue
                 if labels is not None and var.addr in labels:
                     var.renamed = True
-                    var.name = labels[var.addr]
-                    # poor man's demangling
-                    var.name = var.name.removeprefix("?")
-                    if "@@" in var.name:
-                        var.name = var.name[: var.name.index("@@")]
-                    if "@" in var.name:
-                        var.name = "::".join(var.name.split("@")[::-1])
+                    var.name = variable_name_from_label(labels[var.addr])
                 elif isinstance(var.addr, int):
                     var.name = f"g_{var.addr:x}"
                 elif var.ident is not None:
@@ -1112,9 +1128,7 @@ class VariableManagerInternal(Serializable):
                     continue
                 # assign names directly
                 if labels is not None and var.addr in labels:
-                    var.name = labels[var.addr]
-                    if "@@" in var.name:
-                        var.name = var.name[: var.name.index("@@")]
+                    var.name = variable_name_from_label(labels[var.addr])
                 elif var.ident:
                     var.name = var.ident
                 else:
