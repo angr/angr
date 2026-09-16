@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import networkx
 
 from angr.ailment import AILBlockViewer, Block
-from angr.ailment.expression import BinaryOp, Const, Expression, Load, VirtualVariable
+from angr.ailment.expression import BinaryOp, Const, Expression, Load, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label
 from angr.analyses.decompiler.region_simplifiers.switch_cluster_simplifier import SwitchClusterFinder
 from angr.analyses.decompiler.structurer_nodes import (
@@ -17,6 +17,7 @@ from angr.analyses.decompiler.structurer_nodes import (
 )
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
 
 from .optimization_pass import MultipleBlocksException, StructuringOptimizationPass
@@ -230,6 +231,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         graph_copy = networkx.DiGraph(self._graph)
         self.out_graph = graph_copy
         node_to_heads = defaultdict(set)
+        folded_into: dict[tuple[int, int | None], tuple[int, int | None]] = {}
         modified = False
 
         for caselists in variablehash_to_cases.values():
@@ -377,6 +379,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         if succ not in original_nodes and (onode, succ.addr, succ.idx) not in copied_case_targets:
                             graph_copy.add_edge(new_head, succ)
                             node_to_heads[succ].add(new_head)
+                    folded_into[onode.addr, onode.idx] = new_head.addr, new_head.idx
                     graph_copy.remove_node(onode)
                 for onode in redundant_nodes:
                     if onode in original_nodes:
@@ -437,7 +440,53 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             # the graph is not modified
             self.out_graph = None
             return False
+
+        self._repoint_phi_sources(graph_copy, folded_into)
         return True
+
+    def _repoint_phi_sources(
+        self, graph: networkx.DiGraph, folded_into: dict[tuple[int, int | None], tuple[int, int | None]]
+    ) -> None:
+        """
+        Name the switch head in the phi variables that named a comparison node folded into it.
+
+        Every comparison node is removed once the head carries its out-edges, so a phi that still names one names a
+        block the graph no longer holds while leaving out the predecessor it now has.
+        """
+        if not folded_into:
+            return
+
+        for block in list(graph.nodes):
+            predecessors = {(pred.addr, pred.idx) for pred in graph.predecessors(block)}
+            statements = None
+            for idx, stmt in enumerate(block.statements):
+                if not is_phi_assignment(stmt):
+                    continue
+                assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
+                if all(src in predecessors for src, _ in stmt.src.src_and_vvars):
+                    continue
+
+                src_and_vvars = []
+                named = set()
+                for src, vvar in stmt.src.src_and_vvars:
+                    head = folded_into.get(src)
+                    if head is not None and src not in predecessors and head in predecessors:
+                        src = head
+                    # a chain folds several comparison nodes into one head, which is one predecessor
+                    if src in named:
+                        continue
+                    named.add(src)
+                    src_and_vvars.append((src, vvar))
+
+                if src_and_vvars == list(stmt.src.src_and_vvars):
+                    continue
+                if statements is None:
+                    statements = list(block.statements)
+                new_phi = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars, **stmt.src.tags)
+                statements[idx] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+
+            if statements is not None:
+                self._update_block(block, block.copy(statements=statements))
 
     def _find_cascading_switch_variable_comparisons(self):
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(self._graph)
