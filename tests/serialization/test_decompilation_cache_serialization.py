@@ -446,18 +446,51 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert "synthetic error" in d[auth_key].errors
 
     def test_unserializable_cache_is_kept_in_memory(self):
+        class _UnserializableCodegen(DummyStructuredCodeGenerator):
+            def serialize_to_cmessage(self):
+                raise TypeError("not serializable")
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        bad_key = (0xDEAD, "pseudocode")
+        bad_cache = DecompilationCache(0xDEAD)
+        bad_cache.codegen = _UnserializableCodegen("pseudocode")
+        d[bad_key] = bad_cache
+
+        # inserting another entry evicts the cache, which cannot be serialized and must be parked in memory
+        main_key = (self.main_func.addr, "pseudocode")
+        d[main_key] = self.main_dec.cache
+        assert bad_key in d._unspillable
+        assert d[bad_key] is bad_cache
+        assert len(d) == 2
+
+    def test_dummy_codegen_cache_spills_and_reloads(self):
+        # a DummyStructuredCodeGenerator (user comments/formats only, e.g. loaded from a legacy angrdb) must spill to
+        # LMDB and come back as a dummy with its user data intact instead of being parked in memory
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         dummy_key = (0xDEAD, "pseudocode")
         dummy_cache = DecompilationCache(0xDEAD)
-        dummy_cache.codegen = DummyStructuredCodeGenerator("pseudocode")
+        dummy_cache.codegen = DummyStructuredCodeGenerator(
+            "pseudocode",
+            expr_comments={0x1004: "expr"},
+            stmt_comments={0x1000: "stmt"},
+            const_formats={(0x1000, 0, "5"): {"hex": True}},
+        )
+        dummy_cache.errors = ["boom"]
         d[dummy_key] = dummy_cache
 
-        # inserting another entry evicts the dummy cache, which cannot be serialized and must be parked in memory
         main_key = (self.main_func.addr, "pseudocode")
         d[main_key] = self.main_dec.cache
-        assert dummy_key in d._unspillable
-        assert d[dummy_key] is dummy_cache
-        assert len(d) == 2
+        assert dummy_key in d._spilled
+        assert dummy_key not in d._unspillable
+
+        back = d[dummy_key]
+        assert back is not dummy_cache
+        assert isinstance(back.codegen, DummyStructuredCodeGenerator)
+        assert back.codegen.flavor == "pseudocode"
+        assert back.codegen.expr_comments == {0x1004: "expr"}
+        assert back.codegen.stmt_comments == {0x1000: "stmt"}
+        assert back.codegen.const_formats == {(0x1000, 0, "5"): {"hex": True}}
+        assert back.errors == ["boom"]
 
     def test_delete_and_discard(self):
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
