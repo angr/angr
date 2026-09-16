@@ -4,6 +4,13 @@ import logging
 
 from angr.ailment.expression import Call
 from angr.ailment.statement import SideEffectStatement
+from angr.analyses.decompiler.known_patterns import (
+    GateContext,
+    PatternContext,
+    partition_templates,
+    patterns_for,
+    resolve_pattern_selection,
+)
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -43,16 +50,8 @@ class KnownPatternOutliner(OptimizationPass):
         if not self._recognize_known_patterns:
             return False, None
 
-        from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
-            GateContext,
-            PatternContext,
-            partition_templates,
-            patterns_for,
-            resolve_pattern_selection,
-        )
-
         ctx = PatternContext.from_project(self.project)
-        templates = resolve_pattern_selection(self._known_patterns)
+        templates = resolve_pattern_selection(self._known_patterns) if self._known_patterns is not None else None
         enabled, deferred = partition_templates(GateContext(ctx=ctx, project=self.project), templates=templates)
         return bool(patterns_for(ctx, enabled + deferred)), None
 
@@ -76,7 +75,7 @@ class KnownPatternOutliner(OptimizationPass):
                 vvar_id_start=max(self.vvar_id_start, 1),
                 block_addr_start=block_addr_start,
                 ail_manager=self.manager,
-                patterns=self._known_patterns,
+                patterns=resolve_pattern_selection(self._known_patterns) if self._known_patterns is not None else None,
             )
             if not finder.matches:
                 break

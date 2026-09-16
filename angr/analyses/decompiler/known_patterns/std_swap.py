@@ -118,6 +118,7 @@ def _make_swap_template(size: int, order: str):
                 PatternParam("b", type=_ptr_type(ctx, size)),
             ),
             returnty=None,  # void: the temporary dies inside the region
+            default_enabled=False,
         )
 
     return make_template(call_name, build, arches=INTEL, languages=(CPP,), name=name, default_enabled=False)

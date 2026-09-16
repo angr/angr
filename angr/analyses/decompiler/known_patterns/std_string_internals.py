@@ -104,6 +104,7 @@ STD_STRING_SET_LENGTH = make_template(
     runtimes=(LIBSTDCXX,),
     default_enabled=False,
     name="std_string_set_length",
+    gate=STRING_WITNESSED,
 )
 STD_STRING_CLEAR = make_template(
     "std::string::clear",

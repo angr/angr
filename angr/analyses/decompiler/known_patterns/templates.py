@@ -62,12 +62,7 @@ class KnownPatternTemplate:
     _cache: dict = field(default_factory=dict, compare=False, repr=False, hash=False)
 
     def enabled_for(self, gate_ctx: GateContext) -> bool:
-        """Whether this template is on for the given target/function, taking the
-        default flag and the gate (but not an explicit user selection) into
-        account."""
-        if self.default_enabled:
-            return True
-        return self.gate is not None and self.gate(gate_ctx)
+        return self.gate is None or self.gate(gate_ctx)
 
     def applicable(self, ctx: PatternContext) -> bool:
         if self.arches is not None and ctx.arch_name not in self.arches:

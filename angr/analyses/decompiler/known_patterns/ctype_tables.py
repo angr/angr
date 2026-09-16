@@ -152,6 +152,7 @@ def _build_case_map(macro: str, names: frozenset[str]):
             params=(PatternParam("c", type="int"),),
             returnty="int",
             pure_calls=names,
+            default_enabled=True,
         )
 
     return make_template(

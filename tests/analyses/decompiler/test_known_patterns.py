@@ -30,7 +30,6 @@ from angr.analyses.decompiler.known_patterns import (
     OPERATOR_DELETE,
     STD_STRING_DTOR,
     STD_STRING_LENGTH,
-    STD_STRING_SET_LENGTH,
     STD_SWAP_TEMPLATES,
     STD_VECTOR_CAPACITY_TEMPLATES,
     STD_VECTOR_INT_SIZE,
@@ -374,7 +373,7 @@ class TestRecognizeKnownPatternsOption(TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(name="pair_swap")
-        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full", options=options)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=options)
         assert dec.codegen is not None and dec.codegen.text is not None
         return dec.codegen.text.count("std::swap(")
 
@@ -388,16 +387,16 @@ class TestRecognizeKnownPatternsOption(TestCase):
 
     def test_on_and_off(self):
         opt = PARAM_TO_OPTION["recognize_known_patterns"]
-        assert self._swaps([(opt, True)]) == 3
-        assert self._swaps([(opt, False)]) == 0
-        # ...and on is what you get without saying anything
-        assert self._swaps(None) == 3
+        assert self._swaps([(opt, True), ("known_patterns", [tmpl.name for tmpl in STD_SWAP_TEMPLATES])]) == 3
+        assert self._swaps([(opt, False), ("known_patterns", [tmpl.name for tmpl in STD_SWAP_TEMPLATES])]) == 0
+        # ...and off is what you get without saying anything because std::swap is not enabled by default
+        assert self._swaps(None) == 0
 
     def test_off_beats_the_force_enable_selection(self):
         # the two options answer different questions ("run pattern matching at
         # all" and "also run the opt-in ones"), and off wins
         off = (PARAM_TO_OPTION["recognize_known_patterns"], False)
-        force_all = (PARAM_TO_OPTION["known_patterns"], "all")
+        force_all = (PARAM_TO_OPTION["known_patterns"], ["all"])
         assert self._swaps([force_all]) == 3
         assert self._swaps([off, force_all]) == 0
 
@@ -453,7 +452,7 @@ class TestKnownPatternFinder(TestCase):
         assert isinstance(m.matched_expr, Load)
 
     def test_find_std_vector_size(self):
-        proj, _, func, dec = _decompile(STL_BIN, "get_size")
+        proj, _, func, dec = _decompile(STL_BIN, "get_size", apply_patterns=False)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
             func, dec.ail_graph, patterns=[STD_VECTOR_INT_SIZE]
         )
@@ -470,7 +469,7 @@ class TestKnownPatternFinder(TestCase):
             ("get_size_ll", "std_vector_long_long_size"),
         ):
             with self.subTest(func=func_name):
-                proj, _, func, dec = _decompile(STL_BIN, func_name)
+                proj, _, func, dec = _decompile(STL_BIN, func_name, apply_patterns=False)
                 finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
                     func, dec.ail_graph, patterns=[STD_VECTOR_SHORT_SIZE, STD_VECTOR_LONG_LONG_SIZE]
                 )
@@ -574,7 +573,7 @@ class TestKnownPatternStmtSeq(TestCase):
     def test_find_std_swap(self):
         proj, _, func, dec = _decompile(MB_BIN, "do_swap")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
-            func, dec.ail_graph, patterns=[STD_SWAP_TEMPLATES]
+            func, dec.ail_graph, patterns=STD_SWAP_TEMPLATES
         )
         assert len(finder.matches) == 1
         m = finder.matches[0]
@@ -588,7 +587,7 @@ class TestKnownPatternStmtSeq(TestCase):
     def test_outline_std_swap(self):
         proj, cfg, func, dec = _decompile(MB_BIN, "do_swap")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
-            func, dec.ail_graph, patterns=[STD_SWAP_TEMPLATES]
+            func, dec.ail_graph, patterns=STD_SWAP_TEMPLATES
         )
         result = finder.outline(finder.matches[0])
 
@@ -606,7 +605,8 @@ class TestKnownPatternStmtSeq(TestCase):
         assert "*(" not in text  # the loads/stores moved into the callee
 
     def test_automatic_pipeline_std_swap(self):
-        _, _, _, dec = _decompile(MB_BIN, "do_swap", preset="full")
+        _, _, _, dec = _decompile(MB_BIN, "do_swap", include_patterns=[tmpl.name for tmpl in STD_SWAP_TEMPLATES])
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "std::swap(" in text
 
@@ -760,10 +760,10 @@ class TestStringDestructor(TestCase):
     def test_the_callee_is_what_guards_the_pattern(self):
         # it is the callee that makes this idiom identifiable rather than a plain
         # nullable-pointer test, so the call node has to name operator delete
-        proj, _, func, dec = _decompile(
-            STL5_BIN, "ptr_free", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        proj, _, func, dec = _decompile(STL5_BIN, "ptr_free", apply_patterns=False)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=ALL_STRING_DTOR_TEMPLATES
         )
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert any(m.pattern.name == "std_string_dtor" for m in finder.matches)
 
         dtor = STD_STRING_DTOR.instantiate(_AMD64_CTX)
@@ -785,7 +785,6 @@ class TestStringInternals(TestCase):
         _, _, _, dec = _decompile(STL5_BIN, "str_shrink", include_patterns=["std::string::_M_set_length"])
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::_M_set_length(" in dec.codegen.text
-        assert STD_STRING_SET_LENGTH.default_enabled
 
     def test_clear_is_opt_in_and_corroborated(self):
         # with n == 0 there is no second occurrence of n, so the shape is only
@@ -794,10 +793,13 @@ class TestStringInternals(TestCase):
         assert not template.default_enabled
         assert template.gate is not None and template.gate.requires_evidence
 
-        proj, _, func, dec = _decompile(STL5_BIN, "str_clear", include_patterns=["std::string::clear"])
+        proj, _, func, dec = _decompile(STL5_BIN, "str_clear")
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert not any(m.pattern.name == "std_string_clear" for m in finder.matches)
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, force_patterns="all")
+
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=["std::string::clear"]
+        )
         assert any(m.pattern.name == "std_string_clear" for m in finder.matches)
 
     def test_the_destructor_is_a_string_witness(self):
@@ -883,12 +885,13 @@ class TestMatchingSkipsDefinitions(TestCase):
         # definition's destination is not a use.
         # lower_twice uses tolower()'s result twice, so the table load has a
         # definition of its own, the shape that produced the bogus match
-        proj, _, func, dec = _decompile(CTYPE_BIN, "lower_twice", preset="fast")
+        proj, _, func, dec = _decompile(CTYPE_BIN, "lower_twice", apply_patterns=False)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         raw = [m for block in dec.ail_graph for m in finder._match_block(block)]
         assert raw, "the fixture stopped matching anything"
         assert not any(m.expr_path and m.expr_path[0][0] == "dst" for m in raw)
-        _, _, _, dec = _decompile(CTYPE_BIN, "lower_twice", preset="full")
+
+        _, _, _, dec = _decompile(CTYPE_BIN, "lower_twice", apply_patterns=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "tolower(" in dec.codegen.text, dec.codegen.text
 
@@ -981,19 +984,19 @@ class TestKnownPatternPipeline(TestCase):
     def test_automatic_pipeline(self):
         # with the "full" preset, patterns are outlined automatically in a
         # single decompilation and types flow into Typehoon in the same run
-        _, _, _, dec = _decompile(STL_BIN, "get_len", preset="full")
+        _, _, _, dec = _decompile(STL_BIN, "get_len", include_patterns=["all"])
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "std::string::length(" in text
         assert "std::string *" in text
 
-        _, _, _, dec = _decompile(STL_BIN, "get_size", preset="full")
+        _, _, _, dec = _decompile(STL_BIN, "get_size")
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "std::vector<int>::size(" in text
         assert "std::vector<int> *" in text
 
-        _, _, _, dec = _decompile(STL_BIN, "get_size_ll", preset="full")
+        _, _, _, dec = _decompile(STL_BIN, "get_size_ll")
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "std::vector<long long>::size(" in text

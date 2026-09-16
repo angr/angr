@@ -250,12 +250,12 @@ def partition_templates(
     the finder once the first matching stage has run.
     """
     if templates is None:
-        templates = ALL_KNOWN_PATTERN_TEMPLATES
+        templates = [t for t in ALL_KNOWN_PATTERN_TEMPLATES if t.default_enabled]
     forced_ids = {id(t) for t in forced}
     enabled: list[KnownPatternTemplate] = []
     deferred: list[KnownPatternTemplate] = []
     for t in templates:
-        if t.default_enabled or id(t) in forced_ids or t.enabled_for(gate_ctx):
+        if id(t) in forced_ids or t.enabled_for(gate_ctx):
             enabled.append(t)
         elif t.gate is not None and t.gate.requires_evidence:
             deferred.append(t)
