@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from itertools import count
 from typing import TYPE_CHECKING
 
 from angr import sim_type
@@ -61,12 +60,13 @@ class TypeTranslator:
         # _struct_sig_cache maps structural signatures to canonical SimStructs. Used to deduplicate auto-named,
         # angr-generated structs that share an identical layout. See _translate_Struct for the rationale.
         self._struct_sig_cache: dict[tuple, sim_type.SimStruct] = {}
-        self._struct_ctr = count()
+        # plain ints (not itertools.count) so the translator stays picklable
+        self._struct_ctr = 0
         # a name-independent, deterministic per-function ordering id stamped onto each translated struct
-        self._struct_def_ctr = count()
+        self._struct_def_ctr = 0
         # we encode SimStruct, SimCppClass, and SimTypeRef into strings so they can be used as unified keys for memo
         self.memo: dict[str, typeconsts.Struct] = {}
-        self.named_struct_id_counter = count(133337)
+        self.named_struct_id_counter = 133337
         self.struct_name_to_idx = {}
         # definitions of known structs (library types or user-defined types), keyed by name
         self.known_structs: dict[str, sim_type.SimStruct] = {}
@@ -78,8 +78,20 @@ class TypeTranslator:
     # Naming
     #
 
-    def struct_name(self):
-        return f"struct_{next(self._struct_ctr)}"
+    def struct_name(self) -> str:
+        name = f"struct_{self._struct_ctr}"
+        self._struct_ctr += 1
+        return name
+
+    def _next_struct_def_order(self) -> int:
+        order = self._struct_def_ctr
+        self._struct_def_ctr += 1
+        return order
+
+    def _next_named_struct_id(self) -> int:
+        idx = self.named_struct_id_counter
+        self.named_struct_id_counter += 1
+        return idx
 
     @staticmethod
     def _simstruct_cppclass_to_memo_key(
@@ -176,7 +188,7 @@ class TypeTranslator:
         else:
             s = sim_type.SimStruct({}, name=name).with_arch(self.arch)
         # stamp a stable, name-independent definition order for deterministic, rename-proof codegen ordering
-        s._def_order = next(self._struct_def_ctr)
+        s._def_order = self._next_struct_def_order()
         self.structs[tc] = s
 
         next_offset = 0
@@ -403,7 +415,7 @@ class TypeTranslator:
         struct_idx = {}
         if st.name:
             if st.name not in self.struct_name_to_idx:
-                self.struct_name_to_idx[st.name] = next(self.named_struct_id_counter)
+                self.struct_name_to_idx[st.name] = self._next_named_struct_id()
             struct_idx["idx"] = self.struct_name_to_idx[st.name]
 
         obj = typeconsts.Struct(fields={}, name=st.name, **struct_idx)
@@ -436,7 +448,7 @@ class TypeTranslator:
         struct_idx = {}
         if st.name:
             if st.name not in self.struct_name_to_idx:
-                self.struct_name_to_idx[st.name] = next(self.named_struct_id_counter)
+                self.struct_name_to_idx[st.name] = self._next_named_struct_id()
             struct_idx["idx"] = self.struct_name_to_idx[st.name]
 
         obj = typeconsts.Struct(fields={}, name=st.name, is_cppclass=True, **struct_idx)

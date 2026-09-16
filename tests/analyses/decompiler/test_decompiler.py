@@ -4875,6 +4875,11 @@ class TestDecompiler(unittest.TestCase):
             ]
         )
 
+        # the small constant 0x1234 is tied to g_1234; the codegen must still serialize (#5199 stashed a str-keyed
+        # CExpression in CConstant.reference_values, which broke DecompilationCache spilling)
+        back = type(d.codegen).parse(d.codegen.serialize(), project=proj, kb=proj.kb)
+        assert back.text == d.codegen.text
+
     def test_decompiling_rust_binary_rust_probestack(self, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "x86_64", "1cbbf108f44c8f4babde546d26425ca5340dccf878d306b90eb0fbec2f83ab51"
