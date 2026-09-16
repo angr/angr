@@ -880,7 +880,9 @@ class TestStlAccessors2(TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(name=func_name)
         assert func is not None, func_name
-        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, preset="full", options=[("known_patterns", ["all"])]
+        )
         assert dec.codegen is not None and dec.codegen.text is not None
         return dec.codegen.text
 
