@@ -84,7 +84,8 @@ def _rtti_evidence(project: Project) -> str | None:
             continue
         try:
             data = project.loader.memory.load(sec.vaddr, size)
-        except Exception:  # pylint:disable=broad-except  (best-effort fallback)
+        except Exception:  # pylint:disable=broad-except
+            # best-effort fallback: an unreadable section is simply not evidence
             continue
         if _MSVC_RTTI_RE.search(data):
             return MSVC

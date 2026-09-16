@@ -6,8 +6,9 @@ import unittest
 from unittest import TestCase
 
 import angr
-from angr.analyses.decompiler.known_patterns import STD_STRING_LENGTH, STD_VECTOR_INT_SIZE
+from angr.analyses.decompiler.known_patterns import STD_STRING_LENGTH, STD_VECTOR_INT_SIZE, KnownPattern
 from angr.analyses.decompiler.known_patterns.context import LIBSTDCXX, MSVC, PatternContext
+from angr.analyses.decompiler.known_patterns.dsl import PBinOp, PConst, PField, PLoad
 from tests.common import bin_location
 
 STL_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl")
@@ -17,6 +18,20 @@ MSVC_X86 = os.path.join(bin_location, "tests", "i386", "windows", "known_pattern
 
 def _ctx(bits, runtime, platform, arch):
     return PatternContext(arch, bits, bits // 8, platform, runtime, runtime is not None)
+
+
+def _vector_finish_offset(pat: KnownPattern | None) -> int:
+    # top node is PBinOp(Sar/Shr, (Sub(Load(PField(v, off)), Load(PField(v, 0))), 2))
+    assert pat is not None
+    shift = pat.pattern
+    assert isinstance(shift, PBinOp)
+    diff = shift.operands[0]
+    assert isinstance(diff, PBinOp)
+    finish = diff.operands[0]
+    assert isinstance(finish, PLoad)
+    field = finish.addr
+    assert isinstance(field, PField)
+    return field.offset
 
 
 class TestPatternContext(TestCase):
@@ -46,20 +61,23 @@ class TestPatternContext(TestCase):
         }
         for cx, (off, size) in expected.items():
             pat = STD_STRING_LENGTH.instantiate(cx)
-            load = pat.pattern
-            assert isinstance(load.pattern if hasattr(load, "pattern") else load, type(load))
+            assert pat is not None
             # the built pattern is a PLoad(PBinOp(Add,(PVVar, PConst(off))), size)
+            load = pat.pattern
+            assert isinstance(load, PLoad)
             assert load.size == size
             add = load.addr
-            assert add.operands[1].value == off
+            assert isinstance(add, PBinOp)
+            const = add.operands[1]
+            assert isinstance(const, PConst)
+            assert const.value == off
 
     def test_vector_size_word_scaled(self):
         # 64-bit: _M_finish at +8; 32-bit: at +4
         p64 = STD_VECTOR_INT_SIZE.instantiate(_ctx(64, LIBSTDCXX, "linux", "AMD64"))
         p32 = STD_VECTOR_INT_SIZE.instantiate(_ctx(32, LIBSTDCXX, "linux", "X86"))
-        # top node is PBinOp(Sar/Shr, (Sub(Load(PField(v, off)), Load(PField(v, 0))), 2))
-        finish64 = p64.pattern.operands[0].operands[0].addr.offset
-        finish32 = p32.pattern.operands[0].operands[0].addr.offset
+        finish64 = _vector_finish_offset(p64)
+        finish32 = _vector_finish_offset(p32)
         assert (finish64, finish32) == (8, 4)
 
 

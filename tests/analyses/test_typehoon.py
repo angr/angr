@@ -307,6 +307,7 @@ class TestTypehoon(unittest.TestCase):
         # no return-value type variable to count
         assert "void cgc_insert(" in dec.codegen.text
         assert len(tvs) == 2
+        assert sols is not None
         assert sols[tvs[0]] == sols[tvs[1]]
         sol = sols[tvs[0]]
         assert isinstance(sol, SimTypePointer)
@@ -374,6 +375,7 @@ class TestTypehoon(unittest.TestCase):
         # cgc_remove returns nothing either (see the note in the insert test above)
         assert "void cgc_remove(" in dec.codegen.text
         assert len(tvs) == 3  # the last two tvs are for the NULL pointers
+        assert sols is not None
         sol = sols[tvs[0]]
         assert isinstance(sol, SimTypePointer)
         assert isinstance(sol.pts_to, SimStruct)

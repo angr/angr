@@ -147,7 +147,7 @@ def _make_vector_div_template(
             # most of why this family scored 21% on gcc and 2.8% on clang. (The
             # Convert itself needs no pattern node; structural matching skips
             # Convert wrappers.)
-            magics = {exact_div_magic(elt_size, b)[1] for b in {ctx.bits, 32, 16, 8}}
+            magics = {exact_div_magic(elt_size, b)[1] for b in (ctx.bits, 32, 16, 8)}
             pattern = PBinOp("Mul", (scaled, PConst(pred=magics.__contains__)))
         return KnownPattern(
             name=name,

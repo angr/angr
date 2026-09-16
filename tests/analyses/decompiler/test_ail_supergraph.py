@@ -19,6 +19,11 @@ def _call(addr, name):
     return SideEffectStatement(0, Call(0, name, args=[], bits=64), ins_addr=addr)
 
 
+def _call_target(stmt: SideEffectStatement) -> str:
+    assert isinstance(stmt.expr, Call)
+    return stmt.expr.target
+
+
 class TestAILSupergraph(unittest.TestCase):
     def test_a_pair_joined_backwards_keeps_control_flow_order(self):
         # The KnownPatternOutliner numbers the blocks it splits off in the order
@@ -43,7 +48,7 @@ class TestAILSupergraph(unittest.TestCase):
         merged = to_ail_supergraph(graph, allow_fake=True)
         assert len(merged.nodes) == 1
         (node,) = merged.nodes
-        names = [stmt.expr.target for stmt in node.statements if isinstance(stmt, SideEffectStatement)]
+        names = [_call_target(stmt) for stmt in node.statements if isinstance(stmt, SideEffectStatement)]
         assert names == ["head", "std::string::length", "load", "std::string::empty"]
         assert isinstance(node.statements[-1], Return)
         # the merged block is entered where the chain was entered

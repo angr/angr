@@ -94,7 +94,7 @@ def _indexed_load(names: frozenset[str], elem_size: int) -> PDefOf:
 
 
 def _build_predicate(macro: str, mask: int):
-    def build(ctx: PatternContext) -> KnownPattern:
+    def build(_ctx: PatternContext) -> KnownPattern:
         entry = _indexed_load(CTYPE_B_LOC, 2)
         # The whole 16-bit entry masked with the mask as written. A low-byte
         # mask also arrives this way: the compiler narrows the entry to a byte,
@@ -142,7 +142,7 @@ def _build_predicate(macro: str, mask: int):
 
 
 def _build_case_map(macro: str, names: frozenset[str]):
-    def build(ctx: PatternContext) -> KnownPattern:
+    def build(_ctx: PatternContext) -> KnownPattern:
         return KnownPattern(
             name=f"ctype_{macro}",
             display_name=macro,

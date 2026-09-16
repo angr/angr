@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from angr.ailment.expression import BinaryOp
+
 from .dsl import PBinOp, PChoice, PConst, PVVar
 from .gating import LINUX_KERNEL
 from .pattern import KnownPattern, PatternParam
@@ -53,7 +55,7 @@ def _is_err_value(cap: str, ctx: PatternContext) -> PChoice:
 
 def _unsigned(bindings: dict[str, Expression]) -> bool:
     cmp_expr = bindings.get("err_cmp")
-    return cmp_expr is not None and not cmp_expr.signed
+    return isinstance(cmp_expr, BinaryOp) and not cmp_expr.signed
 
 
 def _build_is_err(ctx: PatternContext) -> KnownPattern:

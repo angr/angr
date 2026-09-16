@@ -6,11 +6,13 @@ from angr.ailment.expression import Call
 from angr.ailment.statement import SideEffectStatement
 from angr.analyses.decompiler.known_patterns import (
     GateContext,
+    KnownPatternFinder,
     PatternContext,
     partition_templates,
     patterns_for,
     resolve_pattern_selection,
 )
+from angr.analyses.decompiler.known_patterns.apply import apply_call_info_to_graph
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -32,7 +34,7 @@ class KnownPatternOutliner(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Outline known code patterns into calls"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip() if __doc__ else ""
 
     MAX_ROUNDS = 8
 
@@ -56,17 +58,11 @@ class KnownPatternOutliner(OptimizationPass):
         return bool(patterns_for(ctx, enabled + deferred)), None
 
     def _analyze(self, cache=None):
-        from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
-            KnownPatternFinder,
-        )
-        from angr.analyses.decompiler.known_patterns.apply import (  # pylint:disable=import-outside-toplevel
-            apply_call_info_to_graph,
-        )
-
         graph = self._graph
         block_addr_start = self.new_block_addr()
         changed = False
         pure_calls: set[str] = set()
+        finder = None
 
         for _ in range(self.MAX_ROUNDS):
             finder = self.project.analyses[KnownPatternFinder].prep(kb=self.kb)(
@@ -102,7 +98,7 @@ class KnownPatternOutliner(OptimizationPass):
             # simplification rounds have all run by this stage, so the dead
             # assignments are ours to remove.
             graph = self._remove_dead_definitions(graph)
-            if pure_calls:
+            if pure_calls and finder is not None:
                 self._drop_pure_calls(graph, pure_calls, finder)
             self.out_graph = graph
 

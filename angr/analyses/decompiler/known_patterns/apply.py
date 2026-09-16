@@ -16,6 +16,10 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import Call
 from angr.analyses.decompiler.variable_map import variable_map_of
 
+from .context import PatternContext
+from .finder import _iter_stmt_subexprs
+from .registry import TEMPLATE_BY_CALL_NAME
+
 if TYPE_CHECKING:
     import networkx
 
@@ -27,9 +31,6 @@ def prototype_for_call(project: Project, call: Call):
     """The ctx-instantiated prototype for a known-pattern call, or None. The
     return-type width and argument pointer sizes follow the target's
     PatternContext."""
-    from . import TEMPLATE_BY_CALL_NAME  # pylint:disable=import-outside-toplevel
-    from .context import PatternContext  # pylint:disable=import-outside-toplevel
-
     if not isinstance(call.target, str):
         return None
     template = TEMPLATE_BY_CALL_NAME.get(call.target)
@@ -46,8 +47,6 @@ def apply_call_info_to_graph(graph: networkx.DiGraph, manager: Manager, project:
     """Set the call-site prototype of every known-pattern call in ``graph`` in
     the VariableMap attached to ``manager``. Returns the number of calls that
     received a prototype."""
-    from .finder import _iter_stmt_subexprs  # pylint:disable=import-outside-toplevel
-
     variable_map = variable_map_of(manager)
     count = 0
     for block in graph:

@@ -55,6 +55,7 @@ class pthread_create(angr.SimProcedure):
                 break
             state = succ
 
+        assert self.cc is not None and self.arch is not None
         try:
             callfunc = self.cc.get_args(state, self.prototype)[2]
             retaddr = state.memory.load(state.regs.sp, size=self.arch.bytes)

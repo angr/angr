@@ -170,7 +170,8 @@ class PatternExpr(PatternNode):
             return None
         return expr, state
 
-    def _bind_if_named(self, name: str | None, expr: Expression, state: MatchState) -> MatchState | None:
+    @staticmethod
+    def _bind_if_named(name: str | None, expr: Expression, state: MatchState) -> MatchState | None:
         if name is None:
             return state
         return state.bind(name, expr)

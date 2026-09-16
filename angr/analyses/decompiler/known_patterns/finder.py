@@ -44,11 +44,14 @@ from angr.ailment.statement import (
     WeakAssignment,
 )
 from angr.analyses.analysis import AnalysesHub, Analysis
+from angr.analyses.decompiler.utils import copy_graph
 from angr.analyses.outliner import Outliner
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.functions import Function
 from angr.utils.ssa import is_phi_assignment
 
+from .block_split import split_ail_block
+from .context import PatternContext
 from .dsl import (
     MatchCtx,
     MatchState,
@@ -61,7 +64,15 @@ from .dsl import (
     stmt_anchor_key,
     stmt_pattern_anchor_key,
 )
+from .gating import GateContext
 from .pattern import KnownPattern
+from .registry import (
+    TEMPLATE_BY_CALL_NAME,
+    partition_templates,
+    patterns_for,
+    resolve_pattern_selection,
+)
+from .templates import KnownPatternTemplate
 
 BlockLoc = tuple[int, "int | None"]
 
@@ -138,8 +149,8 @@ class OutlineResult:
     graph: networkx.DiGraph
     match: KnownPatternMatch
     call_stmt: Statement
-    child_func: Function
-    child_graph: networkx.DiGraph
+    child_func: Function | None
+    child_graph: networkx.DiGraph | None
     child_funcargs: list[VirtualVariable]
 
 
@@ -270,15 +281,6 @@ class KnownPatternFinder(Analysis):
         an iterable of template names / call names, and is only consulted when
         ``patterns`` is None (an explicit pattern list is already a selection).
         """
-        from . import (  # pylint:disable=import-outside-toplevel
-            partition_templates,
-            patterns_for,
-            resolve_pattern_selection,
-        )
-        from .context import PatternContext  # pylint:disable=import-outside-toplevel
-        from .gating import GateContext  # pylint:disable=import-outside-toplevel
-        from .templates import KnownPatternTemplate  # pylint:disable=import-outside-toplevel
-
         self._func = func
         self._graph = ail_graph
         self._chase_defs = chase_defs
@@ -329,7 +331,8 @@ class KnownPatternFinder(Analysis):
         self._srda_model = None
         self._analyze()
 
-    def _fallback_ail_manager(self, ail_graph: networkx.DiGraph) -> AILManager:
+    @staticmethod
+    def _fallback_ail_manager(ail_graph: networkx.DiGraph) -> AILManager:
         """An index allocator for callers that did not bring one.
 
         The decompiler pipeline hands the finder Clinic's AIL manager; a direct
@@ -455,8 +458,6 @@ class KnownPatternFinder(Analysis):
         function no longer shows the unambiguous idiom the naming rests on. In
         that case the first stage's matches stand.
         """
-        from . import patterns_for  # pylint:disable=import-outside-toplevel
-
         stage1 = self.matches
         # known-pattern calls already in the graph count as evidence too: an earlier outlining round may have
         # replaced the corroborating idiom with its call, and the call name is exactly the witness name
@@ -495,8 +496,6 @@ class KnownPatternFinder(Analysis):
 
     def _known_pattern_calls(self) -> set[str]:
         """Call names of the known-pattern calls already present in the graph."""
-        from . import TEMPLATE_BY_CALL_NAME  # pylint:disable=import-outside-toplevel
-
         out: set[str] = set()
         for block in self._graph.nodes:
             for stmt in block.statements:
@@ -554,8 +553,9 @@ class KnownPatternFinder(Analysis):
                 selected.append(m)
         return self._suppress_on_claimed_bases(self._collapse_folded_idioms(selected), raw_matches + claims)
 
+    @staticmethod
     def _suppress_on_claimed_bases(
-        self, selected: list[KnownPatternMatch], everything: list[KnownPatternMatch]
+        selected: list[KnownPatternMatch], everything: list[KnownPatternMatch]
     ) -> list[KnownPatternMatch]:
         """Apply :attr:`KnownPattern.suppressed_by`: drop a selected match whose
         base another family also claimed.
@@ -720,7 +720,7 @@ class KnownPatternFinder(Analysis):
             # expression-level patterns
             for path, expr in _iter_stmt_subexprs(stmt, uses_only=True):
                 for pattern in self._expr_candidates(expr_anchor_key(expr)):
-                    m = self._try_match(pattern, block, stmt_idx, expr, path, stmt)
+                    m = self._try_match(pattern, block, stmt_idx, expr, path)
                     if m is not None:
                         yield m
 
@@ -917,7 +917,7 @@ class KnownPatternFinder(Analysis):
                     order.append(nb)
             i += 1
 
-        pat_edges = [(s, d) for s, d in gpat.edges]
+        pat_edges = list(gpat.edges)
 
         # recursive injective assignment of pattern labels to graph blocks
         def assign(
@@ -1008,10 +1008,12 @@ class KnownPatternFinder(Analysis):
         pattern: KnownPattern,
         block: Block,
         stmt_idx: int,
-        target: Expression | Statement,
+        target: Expression,
         path: ExprPath,
-        anchor_stmt: Statement,
     ) -> KnownPatternMatch | None:
+        pat = pattern.pattern
+        if not isinstance(pat, PatternExpr):
+            return None
         ctx = MatchCtx(
             ptr_bits=self.project.arch.bits,
             skip_conversions=self._skip_conversions,
@@ -1023,7 +1025,7 @@ class KnownPatternFinder(Analysis):
             call_target_fn=self._resolve_call_target,
             def_fn=self._resolve_def,
         )
-        state = pattern.pattern.match(target, MatchState(), ctx)
+        state = pat.match(target, MatchState(), ctx)
         if state is None:
             return None
         if pattern.where is not None and not pattern.where(state.bindings):
@@ -1150,6 +1152,7 @@ class KnownPatternFinder(Analysis):
             # every incoming value must be the same slot, which is exactly what
             # a field kept in a register across a branch looks like
             resolved: VirtualVariable | None = None
+            assert isinstance(stmt.src, Phi)
             for _, src_vvar in stmt.src.src_and_vvars:
                 if src_vvar is None:
                     return None
@@ -1216,9 +1219,8 @@ class KnownPatternFinder(Analysis):
         Nothing is consumed or moved.
         """
         if _depth == 0:
-            cached = self._def_cache.get(varid, False)
-            if cached is not False:
-                return cached
+            if varid in self._def_cache:
+                return self._def_cache[varid]
             out = self._resolve_def(varid, 1, frozenset((varid,)))
             self._def_cache[varid] = out
             return out
@@ -1236,6 +1238,7 @@ class KnownPatternFinder(Analysis):
         seen = _seen if _seen is not None else frozenset()
         if is_phi_assignment(def_stmt):
             resolved: Expression | None = None
+            assert isinstance(def_stmt.src, Phi)
             for _, src_vvar in def_stmt.src.src_and_vvars:
                 if src_vvar is None or src_vvar.varid in seen:
                     return None
@@ -1278,9 +1281,8 @@ class KnownPatternFinder(Analysis):
         compiler duplicated the computation into two arms of a diamond.
         """
         if _depth == 0:
-            cached = self._remote_def_cache.get(varid, False)
-            if cached is not False:
-                return cached
+            if varid in self._remote_def_cache:
+                return self._remote_def_cache[varid]
             out = self._resolve_remote_def(varid, 1, frozenset((varid,)))
             self._remote_def_cache[varid] = out
             return out
@@ -1300,6 +1302,7 @@ class KnownPatternFinder(Analysis):
         if is_phi_assignment(def_stmt):
             resolved: Expression | None = None
             seen = _seen if _seen is not None else frozenset()
+            assert isinstance(def_stmt.src, Phi)
             for _, src_vvar in def_stmt.src.src_and_vvars:
                 if src_vvar is None or src_vvar.varid in seen:
                     return None
@@ -1370,8 +1373,6 @@ class KnownPatternFinder(Analysis):
 
         Returns the new graph and the ids of the matches that were applied.
         """
-        from angr.analyses.decompiler.clinic import Clinic  # pylint:disable=import-outside-toplevel
-
         applied: set[int] = set()
         graph = ail_graph
         by_block: dict[tuple[int, int | None], list[KnownPatternMatch]] = defaultdict(list)
@@ -1394,7 +1395,7 @@ class KnownPatternFinder(Analysis):
                     _l.debug("Cannot rewrite %r in place: %s", m, ex)
             if len(rewrites) < 2:
                 continue
-            graph = Clinic._copy_graph(graph)
+            graph = copy_graph(graph)
             block = next(n for n in graph if (n.addr, n.idx) == loc)
             networkx.relabel_nodes(graph, {block: self._splice_calls(block, rewrites)}, copy=False)
             applied.update(id(m) for m in done)
@@ -1419,9 +1420,7 @@ class KnownPatternFinder(Analysis):
         its own block, invoke the Outliner analysis on it, and rewrite the
         synthesized callsite into the pattern's call. Operates on (and returns)
         a copy; neither ``self._graph`` nor ``ail_graph`` is mutated."""
-        from angr.analyses.decompiler.clinic import Clinic  # pylint:disable=import-outside-toplevel
-
-        g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
+        g = copy_graph(ail_graph if ail_graph is not None else self._graph)
         nodes_dict = {(node.addr, node.idx): node for node in g}
         try:
             block = nodes_dict[match.block_loc]
@@ -1452,7 +1451,7 @@ class KnownPatternFinder(Analysis):
                 # function has two), collapsing the region into the call in place
                 # is the same program. Re-validated from scratch on a fresh copy,
                 # since _outline_graph edits the graph before it gives up.
-                g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
+                g = copy_graph(ail_graph if ail_graph is not None else self._graph)
                 return self._rewrite_graph_in_place(match, g)
         if match.stmt_span is not None:
             void = match.pattern.returnty is None and match.pattern.returnty_factory is None
@@ -1479,7 +1478,7 @@ class KnownPatternFinder(Analysis):
                 # an idiom that reads a value the compiler hoisted out of it: the
                 # hoisted definition stays put, so an outlined callee would take
                 # it as an extra argument the pattern never declared.
-                g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
+                g = copy_graph(ail_graph if ail_graph is not None else self._graph)
                 block = {(n.addr, n.idx): n for n in g}[match.block_loc]
                 return self._rewrite_stmts_in_place(match, g, block)
 
@@ -1495,13 +1494,11 @@ class KnownPatternFinder(Analysis):
             # the recovered callee interface carries live-ins the pattern never
             # declared (every glibc ctype macro is this shape: one table entry
             # loaded once and masked five times).
-            g = Clinic._copy_graph(ail_graph if ail_graph is not None else self._graph)
+            g = copy_graph(ail_graph if ail_graph is not None else self._graph)
             block = {(n.addr, n.idx): n for n in g}[match.block_loc]
             return self._rewrite_in_place(match, g, block)
 
     def _outline_expr(self, match: KnownPatternMatch, g: networkx.DiGraph, block: Block) -> OutlineResult:
-        from .block_split import split_ail_block  # pylint:disable=import-outside-toplevel
-
         stmts = list(block.statements)
         anchor_idx = match.anchor_stmt_idx
         if anchor_idx >= len(stmts):
@@ -1570,6 +1567,7 @@ class KnownPatternFinder(Analysis):
             and isinstance(anchor.dst, VirtualVariable)
         )
         if anchor_absorbed:
+            assert isinstance(anchor, Assignment)
             result_vvar = anchor.dst
             region_anchor = anchor
             for old_varid, new_vvar in subst:
@@ -1578,6 +1576,7 @@ class KnownPatternFinder(Analysis):
             mid_stmts = dup_stmts + moved_stmts + [region_anchor]
             post_head: list[Statement] = []
         else:
+            assert match.matched_expr is not None
             vvar_id = self._next_vvar_id()
             result_vvar = VirtualVariable(
                 self._next_idx(),
@@ -2212,7 +2211,9 @@ class KnownPatternFinder(Analysis):
             )
 
         nodes_dict = {(node.addr, node.idx): node for node in g}
-        entry_loc = match.block_map[match.pattern.pattern.entry]
+        gpat = match.pattern.pattern
+        assert isinstance(gpat, PGraphPat)
+        entry_loc = match.block_map[gpat.entry]
         entry_block = nodes_dict.get(entry_loc)
         if entry_block is None:
             raise UnsupportedOutlineError("stale match: the entry block is gone from the graph")
@@ -2298,6 +2299,7 @@ class KnownPatternFinder(Analysis):
         for i, stmt in enumerate(block.statements):
             if not is_phi_assignment(stmt):
                 continue
+            assert isinstance(stmt, Assignment)
             phi = stmt.src
             assert isinstance(phi, Phi)
             if not any(src in removed for src, _ in phi.src_and_vvars):
@@ -2438,8 +2440,6 @@ class KnownPatternFinder(Analysis):
         """Outline a statement-sequence match: the matched statements (plus any
         chased definitions) move wholesale into the callee; no expression
         lifting is involved."""
-        from .block_split import split_ail_block  # pylint:disable=import-outside-toplevel
-
         assert match.stmt_span is not None
         # re-validate the match on the (copied) block; this both catches stale
         # matches and rebinds the captures to the copy's expressions
@@ -2451,6 +2451,7 @@ class KnownPatternFinder(Analysis):
         if revalidated is None or set(revalidated.stmt_span or ()) != set(match.stmt_span):
             raise UnsupportedOutlineError("stale match: the statement span no longer matches the pattern")
         match = revalidated
+        assert match.stmt_span is not None
 
         stmts = list(block.statements)
         span = list(match.stmt_span)
@@ -2498,8 +2499,6 @@ class KnownPatternFinder(Analysis):
         """Outline a multi-block (graph) match: the matched region (entry block
         plus fully-consumed interior blocks) is handed to the Outliner as a
         single-entry region with the matched external successor as frontier."""
-        from .block_split import split_ail_block  # pylint:disable=import-outside-toplevel
-
         assert match.block_map is not None and match.frontier_locs is not None
         assert match.consumed_by_block is not None
 
@@ -2511,7 +2510,9 @@ class KnownPatternFinder(Analysis):
         (frontier_loc,) = match.frontier_locs
 
         nodes_dict = {(node.addr, node.idx): node for node in g}
-        entry_loc = match.block_map[match.pattern.pattern.entry]
+        gpat = match.pattern.pattern
+        assert isinstance(gpat, PGraphPat)
+        entry_loc = match.block_map[gpat.entry]
         interior_locs = [loc for lbl, loc in match.block_map.items() if loc != entry_loc]
 
         # every interior (non-entry) block must be fully consumed apart from
@@ -2547,6 +2548,7 @@ class KnownPatternFinder(Analysis):
         base_stmts, rebases, base_caps = self._materialize_bases(match, ins_addr)
         if base_caps:
             match = dataclass_replace(match, captures={**match.captures, **base_caps})
+            assert match.block_map is not None
             for loc in match.block_map.values():
                 blk = nodes_dict.get(loc)
                 if blk is None:
@@ -2725,6 +2727,7 @@ class KnownPatternFinder(Analysis):
             # vvar; drop it so the call renders as a bare statement
             new_stmt = SideEffectStatement(self._next_idx(), new_call, ret_expr=None, fp_ret_expr=None, **old_stmt.tags)
         else:
+            assert old_stmt.dst is not None
             new_stmt = Assignment(self._next_idx(), old_stmt.dst, new_call, **old_stmt.tags)
         call_block.statements[call_stmt_idx] = new_stmt
         return new_stmt

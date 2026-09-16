@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 _WORD = 4  # _has_bits_ is a 32-bit word
 
 
-def _build_has_field(ctx: PatternContext) -> KnownPattern:
+def _build_has_field(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="protobuf_has_field",
         display_name="_pb_has_field",
@@ -36,7 +36,7 @@ def _build_has_field(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_set_has_field(ctx: PatternContext) -> KnownPattern:
+def _build_set_has_field(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="protobuf_set_has_field",
         display_name="_pb_set_has_field",
@@ -48,7 +48,7 @@ def _build_set_has_field(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_clear_has_field(ctx: PatternContext) -> KnownPattern:
+def _build_clear_has_field(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="protobuf_clear_has_field",
         display_name="_pb_clear_has_field",

@@ -44,6 +44,11 @@ def _decompile(bin_path: str, func_name: str):
     return proj, cfg, func, dec
 
 
+def _text(dec: Decompiler) -> str:
+    assert dec.codegen is not None and dec.codegen.text is not None
+    return dec.codegen.text
+
+
 def _matches(proj, func, dec, pattern):
     return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=[pattern])
 
@@ -52,7 +57,7 @@ class TestPatternGeneratorExpr(TestCase):
     def test_generate_vector_size(self):
         proj, _, func, dec = _decompile(STL_BIN, "get_size")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
-        t = dec.codegen.text
+        t = _text(dec)
         start = t.index("a0[1]")
         end = t.index(";", start)
         pat = gen.generate(start, end, "std::vector<int>::size", [t.index("a0[1]")], returnty="unsigned long long")
@@ -70,7 +75,7 @@ class TestPatternGeneratorExpr(TestCase):
         # recover the load structure from the graph
         proj, _, func, dec = _decompile(STL_BIN, "get_len")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
-        t = dec.codegen.text
+        t = _text(dec)
         start = t.index("a0->")
         end = t.index(";", start)
         pat = gen.generate(start, end, "std::string::length", [t.index("a0->")], returnty="unsigned long long")
@@ -83,7 +88,7 @@ class TestPatternGeneratorStmtSeq(TestCase):
     def test_generate_swap(self):
         proj, cfg, func, dec = _decompile(MB_BIN, "do_swap")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
-        t = dec.codegen.text
+        t = _text(dec)
         start = t.index("v1 = *(a0)")
         end = t.index("v1;", t.index("= v1")) + 3
         a_off = t.index("a0", t.index("*(a0)"))
@@ -100,6 +105,7 @@ class TestPatternGeneratorStmtSeq(TestCase):
         result = finder.outline(finder.matches[0])
         del proj.kb.dec_variables[func.addr]
         func.prototype_source = PrototypeSource.GUESSED
+        assert dec.clinic is not None
         dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
             func,
             clinic_graph=result.graph,
@@ -107,14 +113,14 @@ class TestPatternGeneratorStmtSeq(TestCase):
             clinic_arg_vvars=dec.clinic.arg_vvars,
             cfg=cfg.model,
         )
-        assert "std::swap(" in dec_outer.codegen.text
+        assert "std::swap(" in _text(dec_outer)
 
 
 class TestPatternGeneratorGraph(TestCase):
     def test_generate_route_diamond(self):
         proj, _, func, dec = _decompile(MB_BIN, "route")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
-        t = dec.codegen.text
+        t = _text(dec)
         start = t.index("if (")
         end = t.index("return")
         brace = t.index("{")
@@ -140,7 +146,7 @@ class TestPatternGeneratorErrors(TestCase):
     def test_arg_offset_not_a_variable(self):
         _, _, _, dec = _decompile(MB_BIN, "do_swap")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
-        t = dec.codegen.text
+        t = _text(dec)
         start = t.index("v1 = *(a0)")
         end = t.index("v1;", t.index("= v1")) + 3
         with self.assertRaises(PatternGenerationError):
@@ -149,7 +155,7 @@ class TestPatternGeneratorErrors(TestCase):
     def test_arg_set_mismatch(self):
         _, _, _, dec = _decompile(MB_BIN, "do_swap")
         gen = PatternGenerator(dec.codegen, dec.ail_graph)
-        t = dec.codegen.text
+        t = _text(dec)
         start = t.index("v1 = *(a0)")
         end = t.index("v1;", t.index("= v1")) + 3
         # only one arg given but the region has two inputs (a0, a1)

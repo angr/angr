@@ -38,6 +38,7 @@ def rewrite_phi_sources(
     for i, stmt in enumerate(block.statements):
         if not is_phi_assignment(stmt):
             continue
+        assert isinstance(stmt, Assignment)
         phi = stmt.src
         assert isinstance(phi, Phi)
         if not any(src == old_src for src, _ in phi.src_and_vvars):

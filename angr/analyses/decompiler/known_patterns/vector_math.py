@@ -33,7 +33,7 @@ def _add(x: PBinOp, y: PBinOp) -> PBinOp:
     return PBinOp("AddV", (x, y), commutative=True)
 
 
-def _build_dot3(ctx: PatternContext) -> KnownPattern:
+def _build_dot3(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="vec_dot3",
         display_name="dot3",
@@ -47,7 +47,7 @@ def _build_dot3(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_length_sq(ctx: PatternContext) -> KnownPattern:
+def _build_length_sq(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="vec_length_sq",
         display_name="length_sq",

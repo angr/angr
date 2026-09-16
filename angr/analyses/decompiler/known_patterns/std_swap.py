@@ -57,7 +57,7 @@ if TYPE_CHECKING:
 _SWAP_WIDTHS = (1, 2, 4, 8)
 
 
-def _ptr_type(ctx: PatternContext, size: int) -> str:
+def _ptr_type(_ctx: PatternContext, size: int) -> str:
     return {1: "char *", 2: "short *", 4: "unsigned int *", 8: "unsigned long long *"}[size]
 
 

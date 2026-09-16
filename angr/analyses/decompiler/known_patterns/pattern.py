@@ -201,4 +201,6 @@ class KnownPattern:
             returnty = resolve_typeref(self.returnty, arch)
             if returnty is None and self.returnty is not None:
                 return None
-        return SimTypeFunction(args, returnty).with_arch(arch)
+        proto = SimTypeFunction(args, returnty).with_arch(arch)
+        assert isinstance(proto, SimTypeFunction)
+        return proto

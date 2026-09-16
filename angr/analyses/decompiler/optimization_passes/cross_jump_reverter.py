@@ -95,6 +95,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
             # update the edges: the copy takes the target's place after its predecessor, so it must also carry the
             # target's outgoing edge; without it the copy is a dead end and everything past it is lost
+            assert self.out_graph is not None
             succs = list(self.out_graph.successors(goto_target))
             for src, goto_blk in update_edges:
                 cp = goto_blk.deep_copy(self.manager)

@@ -2502,6 +2502,7 @@ class TestDecompiler(unittest.TestCase):
         # zero only because the copies it made of the goto target had no outgoing edge: the two duplicated
         # find_bracketed_repeat() calls fell out of their branches and skipped the `if (!err)` handling that follows
         # the call. With the copies wired to the target's successor the join stays, and three gotos remain.
+        assert d.codegen is not None and d.codegen.text is not None
         assert d.codegen.text.count("goto") < 4
         assert d.codegen.text.count("find_bracketed_repeat(") == 3
 
@@ -2946,6 +2947,7 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
 
         assert "goto" not in d.codegen.text
+        assert d.codegen is not None and d.codegen.text is not None
         # the dereference of __errno_location() now renders as `errno`, so the
         # comma expression this test is about reads `(v = NULL, !errno)`
         assert (

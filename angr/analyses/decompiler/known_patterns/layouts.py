@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 # MSVC:      { _Bx (16-byte buf/pointer union) , _Mysize , _Myres }
 
 
-def string_data_offset(ctx: PatternContext) -> int:
+def string_data_offset(_ctx: PatternContext) -> int:
     """Offset of the character data pointer (_M_p / _Bx). 0 in both runtimes."""
     return 0
 

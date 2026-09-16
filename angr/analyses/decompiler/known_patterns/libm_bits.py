@@ -100,7 +100,7 @@ def _cmpf_operand(cap: str, width: int):
     return PVVar(cap) if width == 64 else PConv(PVVar(cap), from_bits=32, to_bits=64)
 
 
-def _build_fabs(ctx: PatternContext) -> KnownPattern:
+def _build_fabs(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_fabs",
         display_name="fabs",
@@ -111,7 +111,7 @@ def _build_fabs(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_fabsf(ctx: PatternContext) -> KnownPattern:
+def _build_fabsf(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_fabsf",
         display_name="fabsf",
@@ -122,7 +122,7 @@ def _build_fabsf(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_fneg(ctx: PatternContext) -> KnownPattern:
+def _build_fneg(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_fneg",
         display_name="-x (double)",
@@ -133,7 +133,7 @@ def _build_fneg(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_fnegf(ctx: PatternContext) -> KnownPattern:
+def _build_fnegf(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_fnegf",
         display_name="-x (float)",
@@ -160,7 +160,7 @@ def _copysign_pattern(sign: int) -> PBinOp:
     )
 
 
-def _build_copysign(ctx: PatternContext) -> KnownPattern:
+def _build_copysign(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_copysign",
         display_name="copysign",
@@ -171,7 +171,7 @@ def _build_copysign(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_copysignf(ctx: PatternContext) -> KnownPattern:
+def _build_copysignf(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_copysignf",
         display_name="copysignf",
@@ -182,7 +182,7 @@ def _build_copysignf(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_isnan(ctx: PatternContext) -> KnownPattern:
+def _build_isnan(_ctx: PatternContext) -> KnownPattern:
     # two independent spellings: the ucomisd self-compare the compilers emit for
     # the <math.h> macro, and the hand-rolled |bits| > +inf test
     return KnownPattern(
@@ -199,7 +199,7 @@ def _build_isnan(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_isnanf(ctx: PatternContext) -> KnownPattern:
+def _build_isnanf(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_isnanf",
         display_name="isnanf",
@@ -210,7 +210,7 @@ def _build_isnanf(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_isunordered(ctx: PatternContext) -> KnownPattern:
+def _build_isunordered(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_isunordered",
         display_name="isunordered",
@@ -221,7 +221,7 @@ def _build_isunordered(ctx: PatternContext) -> KnownPattern:
     )
 
 
-def _build_isinf(ctx: PatternContext) -> KnownPattern:
+def _build_isinf(_ctx: PatternContext) -> KnownPattern:
     return KnownPattern(
         name="libm_isinf",
         display_name="isinf",

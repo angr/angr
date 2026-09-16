@@ -35,7 +35,15 @@ from angr.ailment.expression import (
     UnaryOp,
     VirtualVariable,
 )
-from angr.ailment.statement import Assignment, ConditionalJump, Label, SideEffectStatement, Statement, Store
+from angr.ailment.statement import (
+    Assignment,
+    ConditionalJump,
+    Label,
+    Return,
+    SideEffectStatement,
+    Statement,
+    Store,
+)
 
 from .dsl import (
     PAny,
@@ -213,14 +221,13 @@ class PatternGenerator:
         # patternable statements (Assignment/Store) fully inside the selection.
         # Return / side-effect statements are not patternable: a selection that
         # lands on a return's expression is treated as an expression selection.
-        selected_stmts = [
-            s
-            for s in rendered_stmts
-            if isinstance(s, (Assignment, Store))
-            and (sp := self._stmt_span(s, memo)) is not None
-            and start_offset <= sp[0]
-            and sp[1] <= end_offset
-        ]
+        selected_stmts = []
+        for s in rendered_stmts:
+            if not isinstance(s, (Assignment, Store)):
+                continue
+            sp = self._stmt_span(s, memo)
+            if sp is not None and start_offset <= sp[0] and sp[1] <= end_offset:  # pylint:disable=unsubscriptable-object
+                selected_stmts.append(s)
 
         if selected_stmts:
             return self._generate_stmt_seq(
@@ -242,7 +249,6 @@ class PatternGenerator:
         return self._generate_expr(
             start_offset,
             end_offset,
-            rendered_stmts,
             memo,
             call_name,
             arg_varids,
@@ -361,7 +367,8 @@ class PatternGenerator:
                 stack.append(c)
         return out
 
-    def _build_captures(self, input_varids: list[int], arg_varids: list[int]) -> dict[int, str]:
+    @staticmethod
+    def _build_captures(input_varids: list[int], arg_varids: list[int]) -> dict[int, str]:
         if set(arg_varids) != set(input_varids):
             raise PatternGenerationError(
                 f"argument variables {sorted(arg_varids)} do not match the selection's inputs {sorted(input_varids)}"
@@ -374,7 +381,6 @@ class PatternGenerator:
         call_name,
         capture_of,
         arg_varids,
-        const_promote,
         name,
         display_name,
         returnty,
@@ -392,7 +398,7 @@ class PatternGenerator:
             for i, vid in enumerate(arg_varids)
         )
         extra_names = getattr(self, "_extra_names", {})
-        extra_args = tuple(extra_names[k] for k in extra_names)
+        extra_args = tuple(extra_names.values())
         return KnownPattern(
             name=name or _slug(call_name),
             display_name=display_name or call_name,
@@ -415,7 +421,6 @@ class PatternGenerator:
         self,
         start,
         end,
-        rendered_stmts,
         memo,
         call_name,
         arg_varids,
@@ -459,7 +464,6 @@ class PatternGenerator:
             call_name,
             capture_of,
             arg_varids,
-            const_promote,
             name,
             display_name,
             returnty,
@@ -509,8 +513,6 @@ class PatternGenerator:
 
     @staticmethod
     def _primary_exprs(stmt: Statement):
-        from angr.ailment.statement import Return  # pylint:disable=import-outside-toplevel
-
         if isinstance(stmt, Return):
             yield from stmt.ret_exprs
         elif isinstance(stmt, Assignment):
@@ -550,7 +552,6 @@ class PatternGenerator:
             call_name,
             capture_of,
             arg_varids,
-            const_promote,
             name,
             display_name,
             returnty,
@@ -645,7 +646,6 @@ class PatternGenerator:
             call_name,
             capture_of,
             arg_varids,
-            const_promote,
             name,
             display_name,
             returnty,

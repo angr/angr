@@ -37,6 +37,7 @@ from .edits import (
     resolve_variable,
     set_variable_type,
 )
+from .known_patterns import resolve_pattern_selection
 from .notes import DecompilationNote
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
@@ -391,8 +392,6 @@ class Decompiler(Analysis):
         The decompilation itself runs under ``_resilience()`` and falls back to the basic preset on any error, so a
         mistyped pattern name would otherwise be swallowed and silently produce output with no patterns applied at
         all. Validating here means ``proj.analyses.Decompiler(...)`` raises for the caller instead."""
-        from .known_patterns import resolve_pattern_selection  # pylint:disable=import-outside-toplevel
-
         for o, v in self._options:
             if o.param == "known_patterns":
                 resolve_pattern_selection(o.convert(v) if o.convert is not None else v)

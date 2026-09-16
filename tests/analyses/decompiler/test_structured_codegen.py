@@ -386,5 +386,9 @@ class TestSimpleCastQualification(unittest.TestCase):
         assert qualifies_for_simple_cast(ptr, longlong)
         assert qualifies_for_simple_cast(SimTypeNum(64).with_arch(arch), ptr)
         assert not qualifies_for_simple_cast(SimTypeInt().with_arch(arch), ptr)
-        assert not qualifies_for_simple_cast(SimTypeNum(None).with_arch(arch), longlong)
-        assert not qualifies_for_simple_cast(longlong, SimTypeNum(None).with_arch(arch))
+        # SimTypeNum(None): the constructor is annotated int, so the size is cleared after construction
+        sizeless = SimTypeNum(64)
+        sizeless._size = None
+        sizeless = sizeless.with_arch(arch)
+        assert not qualifies_for_simple_cast(sizeless, longlong)
+        assert not qualifies_for_simple_cast(longlong, sizeless)

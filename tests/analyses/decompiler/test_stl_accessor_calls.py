@@ -58,13 +58,20 @@ def _decompile_with_prototype(bin_path: str, func_name: str, arg_types, ret_type
     func = cfg.functions.function(name=func_name)
     assert func is not None
     arch = proj.arch
-    func.prototype = SimTypeFunction([t.with_arch(arch) for t in arg_types], ret_type.with_arch(arch)).with_arch(arch)
+    proto = SimTypeFunction([t.with_arch(arch) for t in arg_types], ret_type.with_arch(arch)).with_arch(arch)
+    assert isinstance(proto, SimTypeFunction)
+    func.prototype = proto
     func.prototype_source = PrototypeSource.USER
     dec = proj.analyses[Decompiler].prep(fail_fast=True)(
         func, cfg=cfg.model, preset="full", options=[(STL_ACCESSOR_OPTION, True)]
     )
     assert dec.codegen is not None and dec.codegen.text is not None
     return dec
+
+
+def _text(dec: Decompiler) -> str:
+    assert dec.codegen is not None and dec.codegen.text is not None
+    return dec.codegen.text
 
 
 def _tagged_accessors(codegen) -> set[str]:
@@ -125,7 +132,7 @@ class TestStlAccessorCalls(TestCase):
         dec = _decompile_with_prototype(
             STL2_BIN, "str_cstr", [_ptr_to(STD_BASIC_STRING)], SimTypePointer(SimTypeChar())
         )
-        text = dec.codegen.text
+        text = _text(dec)
         assert "std::string::c_str(" in text, text
         assert "->m_data" not in text, text
 
@@ -133,13 +140,13 @@ class TestStlAccessorCalls(TestCase):
         dec = _decompile_with_prototype(
             STL_BIN, "str_index", [_ptr_to(STD_BASIC_STRING), SimTypeLongLong(signed=False)], SimTypeChar()
         )
-        text = dec.codegen.text
+        text = _text(dec)
         assert re.search(r"std::string::c_str\(\w+\)\[", text) is not None, text
         assert "->m_data" not in text, text
 
     def test_vector_start_read_becomes_data_call(self):
         dec = _decompile_with_prototype(STL2_BIN, "vec_data", [_ptr_to(STD_VECTOR_INT)], SimTypePointer(SimTypeInt()))
-        text = dec.codegen.text
+        text = _text(dec)
         assert "std::vector<int>::data(" in text, text
         assert "->m_start" not in text, text
 
@@ -153,7 +160,7 @@ class TestStlAccessorCalls(TestCase):
             [_ptr_to(STD_BASIC_STRING)],
             SimTypeLongLong(),
         )
-        text = dec.codegen.text
+        text = _text(dec)
         # c_str() has no libstdc++ KnownPattern, so this call can only come from the typed-field naming
         assert "std::string::c_str(" in text, text
         assert _ACCESSOR_ASSIGNED_TO.search(text) is None, text
@@ -172,16 +179,20 @@ class TestStlAccessorCalls(TestCase):
         dec = _decompile_with_prototype(
             STL2_BIN, "str_cstr", [_ptr_to(STD_BASIC_STRING)], SimTypePointer(SimTypeChar())
         )
-        assert "std::string::c_str(" in dec.codegen.text
+        codegen = dec.codegen
+        assert codegen is not None
+        assert "std::string::c_str(" in _text(dec)
 
-        dec.codegen.reapply_options([(STL_ACCESSOR_OPTION, False)])
-        dec.codegen.regenerate_text()
-        assert "std::string::c_str(" not in dec.codegen.text, dec.codegen.text
-        assert "->m_data" in dec.codegen.text, dec.codegen.text
+        codegen.reapply_options([(STL_ACCESSOR_OPTION, False)])
+        codegen.regenerate_text()
+        text = _text(dec)
+        assert "std::string::c_str(" not in text, text
+        assert "->m_data" in text, text
 
-        dec.codegen.reapply_options([(STL_ACCESSOR_OPTION, True)])
-        dec.codegen.regenerate_text()
-        assert "std::string::c_str(" in dec.codegen.text, dec.codegen.text
+        codegen.reapply_options([(STL_ACCESSOR_OPTION, True)])
+        codegen.regenerate_text()
+        text = _text(dec)
+        assert "std::string::c_str(" in text, text
 
 
 if __name__ == "__main__":

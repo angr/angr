@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
+import dataclasses
 import os.path
 import re
 from unittest import TestCase
 
+import networkx
+
 import angr
+from angr.ailment.expression import BinaryOp, Const, Expression
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
@@ -18,12 +22,21 @@ from angr.analyses.decompiler.known_patterns import (
     ALL_STL_TEMPLATES,
     ALL_VECTOR_MATH_TEMPLATES,
     ALL_WDK_TEMPLATES,
+    INITIALIZE_LIST_HEAD,
+    MAJOR,
+    REMOVE_ENTRY_LIST,
     STD_STRING_CSTR,
+    STD_VECTOR_STRUCT_SIZE_TEMPLATES,
+    TEMPLATE_BY_CALL_NAME,
     GateContext,
     KnownPatternFinder,
     PatternContext,
+    exact_div_magic,
     partition_templates,
+    patterns_for,
 )
+from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
+from angr.analyses.decompiler.known_patterns.dsl import PStmtSeq
 from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from tests.common import bin_location, load_project_with_scoped_cfg
@@ -55,6 +68,23 @@ _PROTOBUF_NAMES = {"protobuf_has_field", "protobuf_set_has_field", "protobuf_cle
 _VECMATH_NAMES = {"vec_dot3", "vec_length_sq"}
 
 
+def _text(dec: Decompiler) -> str:
+    """The decompiled C of a finished decompilation."""
+    assert dec.codegen is not None and dec.codegen.text is not None
+    return dec.codegen.text
+
+
+def _graph(dec: Decompiler) -> networkx.DiGraph:
+    """The final AIL graph of a finished decompilation."""
+    assert dec.ail_graph is not None
+    return dec.ail_graph
+
+
+def _cmp(signed: bool) -> Expression:
+    """A comparison expression with the given signedness, for exercising a pattern's ``where`` predicate."""
+    return BinaryOp(None, "CmpGT", (Const(None, 0, 32), Const(None, 1, 32)), signed=signed)
+
+
 def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = None):
     # The pattern outliner is disabled here on purpose. These tests decompile a
     # function and then run KnownPatternFinder over the result by hand, which
@@ -72,14 +102,18 @@ def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = N
     return proj, cfg, func, dec
 
 
-def _find(proj, func, dec, templates=ALL_LINKED_LIST_TEMPLATES):
-    return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, patterns=templates)
+def _find(proj, func, dec, templates=None):
+    if templates is None:
+        templates = ALL_LINKED_LIST_TEMPLATES
+    return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec), patterns=templates)
 
 
-def _outline_text(proj, cfg, func, dec, finder):
-    result = finder.outline(finder.matches[0])
+def _outline_text(proj, cfg, func, dec: Decompiler, finder, match=None) -> str:
+    """Outline ``match`` (the first match by default) and re-decompile from the outlined graph."""
+    result = finder.outline(finder.matches[0] if match is None else match)
     del dec.kb.dec_variables.function_managers[func.addr]
     func.prototype_source = PrototypeSource.GUESSED
+    assert dec.clinic is not None
     dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
         func,
         clinic_graph=result.graph,
@@ -87,7 +121,7 @@ def _outline_text(proj, cfg, func, dec, finder):
         clinic_arg_vvars=dec.clinic.arg_vvars,
         cfg=cfg.model,
     )
-    return dec_outer.codegen.text
+    return _text(dec_outer)
 
 
 class TestLinkedListPatterns(TestCase):
@@ -122,7 +156,7 @@ class TestLinkedListPatterns(TestCase):
 
     def test_not_enabled_by_default(self):
         proj, _, func, dec = _decompile(LINUX_BIN, "lx_del")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec))
         assert not any(m.pattern.name in _LINKED_LIST_NAMES for m in finder.matches)
 
 
@@ -156,7 +190,7 @@ class TestStlContainerPatterns(TestCase):
         # allowed to float. It fires only where a size()/capacity() match in the
         # same function already identified the object.
         proj, _, func, dec = _decompile(STL_BIN, "vec_empty")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec))
         names = {m.pattern.name for m in finder.matches}
         if any(n.startswith("std_vector_") and n.endswith(("_size", "_capacity")) for n in names):
             assert "std_vector_int_empty" in names, names
@@ -184,7 +218,7 @@ class TestProtobufHasBitsPatterns(TestCase):
 
     def test_opt_in(self):
         proj, _, func, dec = _decompile(PB_BIN, "set_has_field")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec))
         assert not any(m.pattern.name in _PROTOBUF_NAMES for m in finder.matches)
 
 
@@ -205,7 +239,7 @@ class TestVectorMathPatterns(TestCase):
 
     def test_opt_in(self):
         proj, _, func, dec = _decompile(VM_BIN, "vec_dot3")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, _graph(dec))
         assert not any(m.pattern.name in _VECMATH_NAMES for m in finder.matches)
 
 
@@ -237,8 +271,6 @@ class TestMsvcStlPatterns(TestCase):
                 assert call_name + "(" in text
 
     def test_is_msvc_runtime(self):
-        from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
-
         assert detect_cxx_runtime(angr.Project(self.BIN, auto_load_libs=False)) == MSVC
 
 
@@ -260,13 +292,11 @@ class TestUnorderedStmtSeqDecl(TestCase):
     def test_unordered_matching_is_order_insensitive(self):
         # the WDK and Linux builds emit the init/remove stores in different
         # orders; a single ordered=False pattern matches both.
-        from angr.analyses.decompiler.known_patterns import INITIALIZE_LIST_HEAD, REMOVE_ENTRY_LIST
-        from angr.analyses.decompiler.known_patterns.context import PatternContext
-        from angr.analyses.decompiler.known_patterns.dsl import PStmtSeq
 
         ctx = PatternContext("AMD64", 64, 8, "linux", None, False)
         for t in (INITIALIZE_LIST_HEAD, REMOVE_ENTRY_LIST):
             p = t.instantiate(ctx)
+            assert p is not None
             assert isinstance(p.pattern, PStmtSeq) and p.pattern.ordered is False
 
 
@@ -303,9 +333,10 @@ class TestMsvcStringCstr(TestCase):
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(cfg=cfg.model)
         func = cfg.functions.function(addr=self.CSTR_FUNC)
+        assert func is not None
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-        assert dec.codegen is not None
-        assert dec.codegen.text.count("std::string::c_str(") == 3, dec.codegen.text
+        text = _text(dec)
+        assert text.count("std::string::c_str(") == 3, text
 
 
 #: force-enable every template, opt-in ones included, through the normal decompilation-option machinery
@@ -372,7 +403,7 @@ class TestPosixMacros(TestCase):
             with self.subTest(func=func_name):
                 proj, cfg, func, _ = _decompile(GLIBC_BIN, func_name)
                 dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-                text = dec.codegen.text
+                text = _text(dec)
                 for macro in macros:
                     assert f"{macro}(" in text, text
                 assert "uint0_t" not in text and "uint1_t" not in text, text
@@ -422,34 +453,18 @@ class TestWaitStatusMacros(TestCase):
                 names = [m.pattern.name for m in finder.matches]
                 assert pattern_name in names, f"{macro}: {names}"
                 match = next(m for m in finder.matches if m.pattern.name == pattern_name)
-                result = finder.outline(match)
-                del dec.kb.dec_variables.function_managers[func.addr]
-                func.prototype_source = PrototypeSource.GUESSED
-                dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
-                    func,
-                    clinic_graph=result.graph,
-                    clinic_start_stage=ClinicStage.POST_CALLSITES,
-                    clinic_arg_vvars=dec.clinic.arg_vvars,
-                    cfg=cfg.model,
-                )
-                assert macro + "(" in dec_outer.codegen.text
+                assert macro + "(" in _outline_text(proj, cfg, func, dec, finder, match=match)
 
     def test_wifsignaled_requires_a_signed_compare(self):
         # the (signed char) cast is the whole idiom: an unsigned compare against the
         # same constants is an unrelated test, so the pattern must reject it.
-        from angr.analyses.decompiler.known_patterns import PatternContext, patterns_for
 
         proj = angr.Project(GLIBC_BIN, auto_load_libs=False)
         ctx = PatternContext.from_project(proj)
         pat = next(p for p in patterns_for(ctx, ALL_POSIX_MACRO_TEMPLATES) if p.name == "wifsignaled")
         assert pat.where is not None
-
-        class _FakeCmp:
-            signed = False
-
-        assert pat.where({"cmp": _FakeCmp()}) is False
-        _FakeCmp.signed = True
-        assert pat.where({"cmp": _FakeCmp()}) is True
+        assert pat.where({"cmp": _cmp(signed=False)}) is False
+        assert pat.where({"cmp": _cmp(signed=True)}) is True
 
     def test_opt_in_macros_are_not_default_on(self):
         # WIFSTOPPED / WTERMSIG must not fire in a plain full-preset decompile
@@ -459,8 +474,9 @@ class TestWaitStatusMacros(TestCase):
         for func_name, _, macro in self._CASES[2:]:
             with self.subTest(macro=macro):
                 func = cfg.functions.function(name=func_name)
+                assert func is not None
                 dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-                assert macro + "(" not in dec.codegen.text, f"{macro} is opt-in but fired by default"
+                assert macro + "(" not in _text(dec), f"{macro} is opt-in but fired by default"
 
 
 class TestSysMacros(TestCase):
@@ -478,9 +494,6 @@ class TestSysMacros(TestCase):
         # applies, but it lives in a register pair, and each half of major()
         # reads a different half of the pair. The 32-bit template therefore has a
         # different shape and takes the two halves as separate arguments.
-        import dataclasses
-
-        from angr.analyses.decompiler.known_patterns import MAJOR, PatternContext
 
         ctx64 = PatternContext.from_project(angr.Project(GLIBC_BIN, auto_load_libs=False))
         p64 = MAJOR.instantiate(ctx64)
@@ -545,18 +558,9 @@ class TestKernelListPatterns(TestCase):
         names = [m.pattern.name for m in finder.matches]
         assert pattern_name in names, f"{func_name}: {names}"
         match = next(m for m in finder.matches if m.pattern.name == pattern_name)
-        result = finder.outline(match)
-        del dec.kb.dec_variables.function_managers[func.addr]
-        func.prototype_source = PrototypeSource.GUESSED
-        dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
-            func,
-            clinic_graph=result.graph,
-            clinic_start_stage=ClinicStage.POST_CALLSITES,
-            clinic_arg_vvars=dec.clinic.arg_vvars,
-            cfg=cfg.model,
-        )
-        assert call_name + "(" in dec_outer.codegen.text
-        return dec_outer.codegen.text
+        text = _outline_text(proj, cfg, func, dec, finder, match=match)
+        assert call_name + "(" in text
+        return text
 
     def test_insert_head_list(self):
         self._check(KERNEL_BIN, "k_list_add", "insert_head_list", "InsertHeadList")
@@ -602,17 +606,7 @@ class TestKernelErrPatterns(TestCase):
         names = [m.pattern.name for m in finder.matches]
         assert pattern_name in names, f"{func_name}: {names}"
         match = next(m for m in finder.matches if m.pattern.name == pattern_name)
-        result = finder.outline(match)
-        del dec.kb.dec_variables.function_managers[func.addr]
-        func.prototype_source = PrototypeSource.GUESSED
-        dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
-            func,
-            clinic_graph=result.graph,
-            clinic_start_stage=ClinicStage.POST_CALLSITES,
-            clinic_arg_vvars=dec.clinic.arg_vvars,
-            cfg=cfg.model,
-        )
-        assert call_name + "(" in dec_outer.codegen.text
+        assert call_name + "(" in _outline_text(proj, cfg, func, dec, finder, match=match)
 
     def test_is_err_value_form(self):
         self._check("k_is_err", "is_err", "IS_ERR")
@@ -633,18 +627,12 @@ class TestKernelErrPatterns(TestCase):
         assert [m.pattern.name for m in finder.matches] == ["is_err_or_null"]
 
     def test_is_err_requires_an_unsigned_compare(self):
-        from angr.analyses.decompiler.known_patterns import PatternContext, patterns_for
-
         proj = angr.Project(KERNEL_BIN, auto_load_libs=False)
         ctx = PatternContext.from_project(proj)
         pat = next(p for p in patterns_for(ctx, ALL_KERNEL_ERR_TEMPLATES) if p.name == "is_err")
-
-        class _FakeCmp:
-            signed = True
-
-        assert pat.where({"err_cmp": _FakeCmp()}) is False
-        _FakeCmp.signed = False
-        assert pat.where({"err_cmp": _FakeCmp()}) is True
+        assert pat.where is not None
+        assert pat.where({"err_cmp": _cmp(signed=True)}) is False
+        assert pat.where({"err_cmp": _cmp(signed=False)}) is True
 
     def test_ptr_err_leaves_no_residue(self):
         # PTR_ERR/ERR_PTR are pure casts: nothing to match, and nothing must be
@@ -773,7 +761,6 @@ class TestWdkSharedDataPatterns(TestCase):
     def test_systemcall_is_opt_in(self):
         # SystemCall moved from 0x300 to 0x308 in Windows 8, so neither offset can
         # be named with confidence without knowing the target's version
-        from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME
 
         for call_name in ("SharedUserData_SystemCall_pre_win8", "SharedUserData_SystemCall_win8"):
             assert TEMPLATE_BY_CALL_NAME[call_name].default_enabled is False
@@ -793,7 +780,6 @@ class TestWdkSharedDataPatterns(TestCase):
     def test_nt_success_is_not_a_pattern(self):
         # NT_SUCCESS(s) is a bare `(NTSTATUS)s >= 0` sign test; naming it would
         # rename every sign comparison in the program
-        from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME
 
         assert "NT_SUCCESS" not in TEMPLATE_BY_CALL_NAME
 
@@ -830,7 +816,6 @@ class TestVectorExactDivSize(TestCase):
         # is whatever the program's record happens to be, and an uncovered size leaves
         # the raw magic multiply in the output. 112 is sizeof(CryptoPP::ECPPoint),
         # which a hand-picked list missed entirely.
-        from angr.analyses.decompiler.known_patterns import STD_VECTOR_STRUCT_SIZE_TEMPLATES
 
         names = {t.name for t in STD_VECTOR_STRUCT_SIZE_TEMPLATES}
         for n in (3, 6, 12, 40, 48, 80, 96, 112, 224, 384):
@@ -846,8 +831,6 @@ class TestVectorExactDivSize(TestCase):
             assert f"std_vector_T{n}_size" in names, f"sizeof(T)={n} is not covered"
 
     def test_exact_div_magic_matches_the_compiler(self):
-        from angr.analyses.decompiler.known_patterns import exact_div_magic
-
         # shift/magic pairs read off g++ 12.2 -O2 output
         assert exact_div_magic(12, 64) == (2, 0xAAAAAAAAAAAAAAAB)
         assert exact_div_magic(20, 64) == (2, 0xCCCCCCCCCCCCCCCD)
@@ -866,7 +849,7 @@ class TestVectorExactDivSize(TestCase):
                 func = cfg.functions.function(name=f"vec_size_s{n}")
                 assert func is not None
                 dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-                text = dec.codegen.text
+                text = _text(dec)
                 assert f"std::vector<T{n}>::size(" in text, text
                 # the whole division must be absorbed: no bare magic multiply left
                 assert "12297829382473034411" not in text, text
@@ -910,7 +893,7 @@ class TestStlAccessors2(TestCase):
         assert "std_string_front" in [m.pattern.name for m in finder.matches]
         # by default the gate holds it back (no string witness in str_front); selecting everything bypasses the gate
         by_default = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-        assert "std::string::front(" not in by_default.codegen.text, by_default.codegen.text
+        assert "std::string::front(" not in _text(by_default), _text(by_default)
         assert "std::string::front(" in self._full("str_front")
 
         for func_name, pattern_name in (
@@ -926,7 +909,6 @@ class TestStlAccessors2(TestCase):
     def test_bare_one_word_loads_are_not_patterns(self):
         # c_str/data/begin/get all compile to the identical `mov (%rdi),%rax`;
         # naming any of them would rewrite ~1 in 37 AIL statements of a C++ binary
-        from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME
 
         for call_name in (
             "std::vector<int>::data",
@@ -1081,7 +1063,7 @@ class TestBswapPeephole(TestCase):
                 func = cfg.functions.function(name=func_name)
                 assert func is not None
                 dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
-                text = dec.codegen.text
+                text = _text(dec)
                 assert expected in text, f"{func_name}: {text}"
                 assert "0xff00ff00ff00ff00" not in text, f"{func_name}: SWAR mask tree survived"
 
@@ -1113,8 +1095,7 @@ class TestKernelTargetGate(TestCase):
             preset="full",
             options=[("known_patterns", [t.call_name for t in ALL_LINKED_LIST_TEMPLATES])],
         )
-        assert dec.codegen is not None
-        assert "InitializeListHead(" in dec.codegen.text, dec.codegen.text
+        assert "InitializeListHead(" in _text(dec), _text(dec)
 
     def test_user_space_binary_keeps_the_same_idiom_raw(self):
         proj = angr.Project(LINUX_BIN, auto_load_libs=False)
@@ -1125,12 +1106,12 @@ class TestKernelTargetGate(TestCase):
                 func = cfg.functions.function(name=func_name)
                 assert func is not None
                 gated = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-                assert call not in gated.codegen.text, gated.codegen.text
+                assert call not in _text(gated), _text(gated)
                 # ... and the only reason it stayed raw is the gate: force-enabling brings it back
                 forced = proj.analyses[Decompiler].prep(fail_fast=True)(
                     func, cfg=cfg.model, preset="full", options=ALL_PATTERNS_OPTION
                 )
-                assert call in forced.codegen.text, forced.codegen.text
+                assert call in _text(forced), _text(forced)
 
 
 class TestCorroborationGate(TestCase):
@@ -1151,8 +1132,7 @@ class TestCorroborationGate(TestCase):
         # front is default-on but gated on a string witness (capacity or the destructor); _M_assign has neither,
         # so by default it stays raw
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-        assert dec.codegen is not None
-        assert "std::string::front(" not in dec.codegen.text, dec.codegen.text
+        assert "std::string::front(" not in _text(dec), _text(dec)
         # selecting the string accessors by name bypasses the gate: length and front both come out
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(
             func,
@@ -1160,7 +1140,7 @@ class TestCorroborationGate(TestCase):
             preset="full",
             options=[("known_patterns", ["std::string::length", "std::string::front"])],
         )
-        text = dec.codegen.text
+        text = _text(dec)
         assert "std::string::length(" in text, text
         assert "std::string::front(" in text, text
 
@@ -1173,11 +1153,11 @@ class TestCorroborationGate(TestCase):
         func = cfg.functions.function(name="str_front")
         assert func is not None
         gated = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-        assert "std::string::front(" not in gated.codegen.text, gated.codegen.text
+        assert "std::string::front(" not in _text(gated), _text(gated)
         forced = proj.analyses[Decompiler].prep(fail_fast=True)(
             func, cfg=cfg.model, preset="full", options=[("known_patterns", ["std::string::front"])]
         )
-        assert "std::string::front(" in forced.codegen.text, forced.codegen.text
+        assert "std::string::front(" in _text(forced), _text(forced)
 
     def test_empty_alone_is_no_witness(self):
         # str_empty(const std::string &s) { return s.empty(); } is `CmpEQ(Load(s + 8), 0)`: a bare word load
@@ -1190,15 +1170,15 @@ class TestCorroborationGate(TestCase):
         func = cfg.functions.function(name="str_empty")
         assert func is not None
         gated = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, preset="full")
-        assert "std::string::" not in gated.codegen.text, gated.codegen.text
+        assert "std::string::" not in _text(gated), _text(gated)
         selected = proj.analyses[Decompiler].prep(fail_fast=True)(
             func,
             cfg=cfg.model,
             preset="full",
             options=[("known_patterns", ["std::string::length", "std::string::empty"])],
         )
-        assert "std::string::empty(" in selected.codegen.text, selected.codegen.text
+        assert "std::string::empty(" in _text(selected), _text(selected)
         forced = proj.analyses[Decompiler].prep(fail_fast=True)(
             func, cfg=cfg.model, preset="full", options=ALL_PATTERNS_OPTION
         )
-        assert "std::string::empty(" in forced.codegen.text, forced.codegen.text
+        assert "std::string::empty(" in _text(forced), _text(forced)

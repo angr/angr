@@ -8,6 +8,7 @@ import os
 import unittest
 
 import angr
+from angr.engines import UberEngine
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -48,7 +49,9 @@ class TestPthreadCreateStaticExits(unittest.TestCase):
 
         # the premise: the first block really does produce Ijk_SigSEGV successors first
         state = angr.SimState(project=proj, mode="fastpath", cle_memory_backer=proj.loader.memory)
-        succs = proj.factory.default_engine.process(state, blocks[0], force_addr=CAT_SSE_BLOCK).successors
+        engine = proj.factory.default_engine
+        assert isinstance(engine, UberEngine)
+        succs = engine.process(state, blocks[0], force_addr=CAT_SSE_BLOCK).successors
         assert succs[0].history.jumpkind == "Ijk_SigSEGV"
 
         # must not raise AngrExitError("Cannot execute following jumpkind Ijk_SigSEGV")
@@ -62,7 +65,9 @@ class TestPthreadCreateStaticExits(unittest.TestCase):
         blocks = [proj.factory.block(CAT_SSE_BLOCK).vex]
 
         state = angr.SimState(project=proj, mode="fastpath", cle_memory_backer=proj.loader.memory)
-        succs = proj.factory.default_engine.process(state, blocks[0], force_addr=CAT_SSE_BLOCK).successors
+        engine = proj.factory.default_engine
+        assert isinstance(engine, UberEngine)
+        succs = engine.process(state, blocks[0], force_addr=CAT_SSE_BLOCK).successors
         proc = self._procedure(proj)
 
         def sources(bv):

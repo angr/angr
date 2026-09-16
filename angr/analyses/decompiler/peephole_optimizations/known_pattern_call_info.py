@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Call, VirtualVariable
+from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME, PatternContext
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.knowledge_plugins.key_definitions import atoms
 
@@ -27,12 +28,6 @@ class KnownPatternCallInfo(PeepholeOptimizationExprBase):
     expr_classes = (Call,)
 
     def optimize(self, expr: Call, **kwargs):
-        # import here: peephole modules load before the known_patterns package
-        from angr.analyses.decompiler.known_patterns import (  # pylint:disable=import-outside-toplevel
-            TEMPLATE_BY_CALL_NAME,
-            PatternContext,
-        )
-
         assert self.project is not None
         if not isinstance(expr.target, str):
             return None
