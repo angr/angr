@@ -924,7 +924,7 @@ class FactCollector(Analysis):
         sp_offset = self.project.arch.sp_offset
         sp_diffs = set()  # should all be positive
 
-        for endpoint in self.function.endpoints:
+        for endpoint in self.function.endpoints_with_type["return"]:
             block = self.project.factory.block(endpoint.addr, size=endpoint.size)
             if not block.instruction_addrs:
                 continue
@@ -940,7 +940,7 @@ class FactCollector(Analysis):
             sp_off_before = spt.offset_before(last_ins_addr, sp_offset)
             if sp_off_after is None or sp_off_before is None:
                 continue
-            sp_diff = sp_off_after - sp_off_before
+            sp_diff = u2s((sp_off_after - sp_off_before) & ((1 << self.project.arch.bits) - 1), self.project.arch.bits)
             sp_diffs.add(sp_diff - self.project.arch.bytes)
 
         return 0 if not sp_diffs else max(sp_diffs)
