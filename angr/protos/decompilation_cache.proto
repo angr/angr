@@ -16,7 +16,7 @@ message BinopOperatorEntry {
 message StackvarMaxSizeEntry {
     // SimStackVariable is polymorphic; we use the same "<ClassName>\0<proto bytes>" wrapping as elsewhere.
     bytes simvar = 1;
-    int32 max_size = 2;
+    int64 max_size = 2;
 }
 
 // =====================================================================================================================
