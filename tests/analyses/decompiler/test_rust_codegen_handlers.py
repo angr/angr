@@ -8,6 +8,8 @@ import os
 import unittest
 from unittest import mock
 
+from cle.backends.blob import Blob
+
 import angr
 from angr.ailment import Manager
 from angr.ailment.block import Block
@@ -19,14 +21,21 @@ from angr.ailment.expression import (
     VirtualVariableCategory,
 )
 from angr.ailment.statement import CAS, DirtyStatement, Jump, Store, WeakAssignment
-from angr.analyses.decompiler.structured_codegen.rust import RustExpression, RustStructuredCodeGenerator
+from angr.analyses.decompiler.structured_codegen.rust import (
+    RustConstant,
+    RustExpression,
+    RustSimTypeReference,
+    RustStructuredCodeGenerator,
+)
 from angr.analyses.decompiler.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     SequenceNode,
 )
+from angr.rust.optimization_passes.utils import extract_str, extract_str_from_addr, looks_like_text
 from angr.rust.sim_type import RustSimTypeInt, RustSimTypeStrRef
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimStruct, SimTypeBottom
+from angr.utils.loader import is_in_section, is_known_writable_address, is_readable_address, object_has_sections
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -51,7 +60,7 @@ class TestRustCodegenHandlers(unittest.TestCase):
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
         dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust", fail_fast=True)
-        assert dec.codegen is not None
+        assert isinstance(dec.codegen, RustStructuredCodeGenerator)
         cls.proj = proj
         cls.codegen = dec.codegen
 
@@ -279,6 +288,159 @@ class TestRustStoreWidth(unittest.TestCase):
         with mock.patch.object(self.codegen, "_handle", handle):
             store = RustStructuredCodeGenerator._handle_Stmt_Store(self.codegen, stmt)
         assert store.lhs.type.size == 64
+
+
+class TestRustCodegenMalformedConstantReferences(unittest.TestCase):
+    """
+    The Rust backend treats a constant as a &str fat pointer and a pointer's pointee as a struct without
+    establishing that either really is one. Both guesses used to raise out of the code generator, and the
+    Decompiler's resilience turned that into an empty function body -- a silent, total loss of output.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        # df.o holds a constant one word short of the end of a mapped region whose first word points into
+        # a read-only section, which is exactly what the &str heuristic accepts and then reads past.
+        bin_path = os.path.join(test_location, "x86_64", "df.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x4033E5], cfg=cfg.model, flavor="rust", fail_fast=True)
+        assert isinstance(dec.codegen, RustStructuredCodeGenerator)
+        cls.proj = proj
+        cls.codegen = dec.codegen
+
+    def test_const_whose_str_length_word_is_unmapped(self):
+        proj = self.proj
+        m = Manager()
+        addr = 0x405600
+
+        # preconditions: the constant is in a readable section, its first word points into a read-only
+        # section -- so the &str heuristic engages -- but the length word beside it is not mapped at all.
+        section = proj.loader.find_section_containing(addr)
+        assert section is not None and section.is_readable
+        pointee = proj.loader.find_section_containing(proj.loader.memory.unpack(addr, proj.arch.struct_fmt())[0])
+        assert pointee is not None and pointee.is_readable and not pointee.is_writable
+        with self.assertRaises(KeyError):
+            proj.loader.memory.unpack(addr + proj.arch.bytes, proj.arch.struct_fmt())
+
+        out = self.codegen._handle_Expr_Const(Const(m.next_atom(), addr, proj.arch.bits))
+        # not a string: rendered as the plain constant it is
+        assert isinstance(out, RustConstant)
+        assert f"{addr:x}" in _render(out).lower().replace("_", "")
+
+    def test_access_constant_offset_through_a_struct_with_no_fields(self):
+        # a type database can hand the code generator a declared-but-empty struct; there is no field to
+        # select an offset within, so the access has to fall back to a pointer cast rather than blow up
+        proj = self.proj
+        struct_type = SimStruct({}, name="opaque").with_arch(proj.arch)
+        assert isinstance(struct_type, SimStruct)
+        assert not struct_type.offsets
+
+        expr = RustConstant(0x1000, RustSimTypeReference(struct_type).with_arch(proj.arch), codegen=self.codegen)
+        out = self.codegen._access_constant_offset(expr, 0, SimTypeBottom(), True)
+        # falls through to the pointer cast the C backend already produces
+        assert _render(out) == "*(0x1000 as *u8)"
+
+
+class TestRustStringRecoveryWithoutASectionTable(unittest.TestCase):
+    """
+    The Oxidizer asked ``find_section_containing`` before it would read a Rust ``&str``, so an object that
+    publishes no section table -- a monolithic image compiled from Rust, loaded through cle's Blob backend --
+    recovered no ``&str`` at all. Nothing raised and nothing was reported; the strings were simply absent.
+    """
+
+    BIN = os.path.join(test_location, "x86_64", "rust_hello_world")
+    MAIN = 0x408A20
+    FAT_POINTER = 0x45A148
+    LITERAL = "Hello, world!\n"
+    RENDERED = '"Hello, world!\\n"'  # how the code generator writes it back out
+    EMPTY_STR_REFS = (0x45A4B0, 0x45A4D0, 0x45A4F0, 0x45A848)  # fat pointers whose length word is zero
+
+    @classmethod
+    def setUpClass(cls):
+        cls.elf = angr.Project(cls.BIN, auto_load_libs=False)
+        base = cls.elf.loader.main_object.mapped_base
+        cls.base = base
+        # The same bytes with the section table removed: mapped the way the image's own program headers
+        # say, at the image's own link base, so every address the image stores in itself still resolves.
+        segments = [(s.offset, s.vaddr - base, s.filesize) for s in cls.elf.loader.main_object.segments if s.filesize]
+        cls.blob = angr.Project(
+            cls.BIN,
+            auto_load_libs=False,
+            main_opts={
+                "backend": "blob",
+                "arch": cls.elf.arch.name,
+                "base_addr": 0,
+                "entry_point": cls.elf.entry - base,
+                "segments": segments,
+            },
+        )
+
+    def test_the_blob_publishes_no_sections(self):
+        # the preconditions the recovery has to cope with, rather than an assumption about them
+        assert isinstance(self.blob.loader.main_object, Blob)
+        assert not self.blob.loader.main_object.sections
+        assert self.blob.loader.main_object.segments
+        assert not object_has_sections(self.blob, self.FAT_POINTER - self.base)
+        assert not is_in_section(self.blob, self.FAT_POINTER - self.base)
+        assert is_readable_address(self.blob, self.FAT_POINTER - self.base)
+        assert not is_known_writable_address(self.blob, self.FAT_POINTER - self.base)
+        # the same address in the ELF sits in .data.rel.ro, which is a writable section
+        assert object_has_sections(self.elf, self.FAT_POINTER)
+        assert is_in_section(self.elf, self.FAT_POINTER)
+        assert is_known_writable_address(self.elf, self.FAT_POINTER)
+
+    def test_str_ref_is_read_through_a_blob(self):
+        assert extract_str_from_addr(self.elf, self.FAT_POINTER) == self.LITERAL
+        assert extract_str_from_addr(self.blob, self.FAT_POINTER - self.base) == self.LITERAL
+
+    def test_one_byte_of_a_pointer_is_not_a_string(self):
+        # (0x45a148, 1) is a fat pointer and a piece count, not a pointer and a length. In the ELF the
+        # writable section says so; in the blob nothing does, and only the text filter keeps the low byte
+        # of the pointer -- "W" -- from being reported as a one-character literal.
+        assert extract_str(self.elf, self.FAT_POINTER, 1) is None
+        assert extract_str(self.blob, self.FAT_POINTER - self.base, 1) is None
+        assert not looks_like_text("W")
+        assert looks_like_text(self.LITERAL)
+
+    def test_a_hole_between_an_elf_s_sections_is_not_read(self):
+        # the ELF header sits inside a read-only segment and inside no section. An object that publishes
+        # sections and does not cover an address with one is saying something, so the loosening this change
+        # makes for a blob must not reach here -- including for bytes that would pass the text filter.
+        header = self.elf.loader.main_object.mapped_base
+        assert object_has_sections(self.elf, header)
+        assert not is_in_section(self.elf, header)
+        assert is_readable_address(self.elf, header)
+        assert extract_str(self.elf, header, 8) is None
+        assert bytes(self.elf.loader.memory.load(header + 1, 3)) == b"ELF"
+        assert extract_str(self.elf, header + 1, 3) is None
+
+        # and through the other entry point. fauxware's program headers hold what reads as a fat pointer,
+        # (0x400238, 28), whose data pointer is .interp -- so the text filter would not reject it either.
+        fauxware = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        hole = 0x400090
+        assert not is_in_section(fauxware, hole)
+        assert fauxware.loader.memory.unpack(hole, fauxware.arch.struct_fmt())[0] == 0x400238
+        assert is_in_section(fauxware, 0x400238)
+        assert extract_str_from_addr(fauxware, hole) is None
+
+    def test_an_empty_str_ref_reads_as_empty_where_a_section_says_so(self):
+        # a fat pointer whose length word is zero. The code generator has always rendered that as "" when
+        # a section said the pointer was constant data, and it still does; a blob has no section to say it.
+        for addr in self.EMPTY_STR_REFS:
+            assert is_in_section(self.elf, addr)
+            assert extract_str_from_addr(self.elf, addr) == ""
+            assert extract_str_from_addr(self.blob, addr - self.base) is None
+
+    def test_decompiling_a_blob_inlines_the_literal(self):
+        proj = self.blob
+        cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
+        func = proj.kb.functions.function(addr=self.MAIN - self.base)
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, flavor="rust", fail_fast=True)
+        assert dec.codegen is not None
+        print_decompilation_result(dec)
+        assert self.RENDERED in dec.codegen.text
 
 
 if __name__ == "__main__":
