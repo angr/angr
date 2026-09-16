@@ -52,8 +52,8 @@ class KnownPatternOutliner(OptimizationPass):
         )
 
         ctx = PatternContext.from_project(self.project)
-        forced = resolve_pattern_selection(self._known_patterns)
-        enabled, deferred = partition_templates(GateContext(ctx=ctx, project=self.project), forced)
+        templates = resolve_pattern_selection(self._known_patterns)
+        enabled, deferred = partition_templates(GateContext(ctx=ctx, project=self.project), templates=templates)
         return bool(patterns_for(ctx, enabled + deferred)), None
 
     def _analyze(self, cache=None):
@@ -76,7 +76,7 @@ class KnownPatternOutliner(OptimizationPass):
                 vvar_id_start=max(self.vvar_id_start, 1),
                 block_addr_start=block_addr_start,
                 ail_manager=self.manager,
-                force_patterns=self._known_patterns,
+                patterns=self._known_patterns,
             )
             if not finder.matches:
                 break

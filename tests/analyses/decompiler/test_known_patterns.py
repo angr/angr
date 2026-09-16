@@ -22,6 +22,7 @@ from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_KNOWN_PATTERN_TEMPLATES,
     ALL_STRING_DTOR_TEMPLATES,
+    ALL_VECTOR_CLAIM_TEMPLATES,
     CONTAINING_RECORD_PATTERN,
     CTYPE_PREDICATES,
     KERNEL_TARGET,
@@ -127,7 +128,7 @@ def _decompile(
     func_name: str,
     preset: str = "fast",
     apply_patterns: bool = True,
-    force_patterns: list[str] | None = None,
+    include_patterns: list[str] | None = None,
 ):
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
@@ -136,8 +137,8 @@ def _decompile(
     assert func is not None
 
     options = []
-    if force_patterns is not None:
-        options += [("known_patterns", force_patterns)]
+    if include_patterns is not None:
+        options += [("known_patterns", include_patterns)]
 
     dec = proj.analyses[Decompiler].prep(fail_fast=True)(
         func,
@@ -703,14 +704,14 @@ class TestStringDestructor(TestCase):
         # Doc has two std::string members: two triangles, the join of the first
         # being the entry of the second
         _, _, _, dec = _decompile(
-            STL5_BIN, "doc_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+            STL5_BIN, "doc_free", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         assert dec.codegen.text.count("std::string::~string(") == 2
 
     def test_local_string_is_named_in_place(self):
         _, _, _, dec = _decompile(
-            STL5_BIN, "local_len", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+            STL5_BIN, "local_len", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
@@ -722,7 +723,7 @@ class TestStringDestructor(TestCase):
 
     def test_two_locals(self):
         _, _, _, dec = _decompile(
-            STL5_BIN, "two_locals", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+            STL5_BIN, "two_locals", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         assert dec.codegen.text.count("std::string::~string(") == 2
@@ -730,7 +731,7 @@ class TestStringDestructor(TestCase):
     def test_by_pointer(self):
         # the arms rejoin: one region exit, the ordinary outlined path
         _, _, _, dec = _decompile(
-            STL5_BIN, "ptr_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+            STL5_BIN, "ptr_free", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
@@ -742,7 +743,7 @@ class TestStringDestructor(TestCase):
         # and the region has two exits at two addresses. v1 outlining declines;
         # a void region needs no callee, so it is collapsed in place instead.
         _, _, _, dec = _decompile(
-            STL5_BIN, "ptr_free_dup", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+            STL5_BIN, "ptr_free_dup", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
@@ -751,7 +752,7 @@ class TestStringDestructor(TestCase):
 
     def test_vector_of_strings_frees_elements_in_a_loop(self):
         _, _, _, dec = _decompile(
-            STL5_BIN, "vec_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+            STL5_BIN, "vec_free", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::~string(" in dec.codegen.text
@@ -760,7 +761,7 @@ class TestStringDestructor(TestCase):
         # it is the callee that makes this idiom identifiable rather than a plain
         # nullable-pointer test, so the call node has to name operator delete
         proj, _, func, dec = _decompile(
-            STL5_BIN, "ptr_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+            STL5_BIN, "ptr_free", include_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
         )
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert any(m.pattern.name == "std_string_dtor" for m in finder.matches)
@@ -781,7 +782,7 @@ class TestStringInternals(TestCase):
     def test_set_length(self):
         # erase(n) ends with `_M_string_length = n; _M_p[n] = 0`; the same n in
         # both places is what makes the shape specific enough to be default-on
-        _, _, _, dec = _decompile(STL5_BIN, "str_shrink", force_patterns=["std::string::_M_set_length"])
+        _, _, _, dec = _decompile(STL5_BIN, "str_shrink", include_patterns=["std::string::_M_set_length"])
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::_M_set_length(" in dec.codegen.text
         assert STD_STRING_SET_LENGTH.default_enabled
@@ -793,7 +794,7 @@ class TestStringInternals(TestCase):
         assert not template.default_enabled
         assert template.gate is not None and template.gate.requires_evidence
 
-        proj, _, func, dec = _decompile(STL5_BIN, "str_clear", force_patterns=["std::string::clear"])
+        proj, _, func, dec = _decompile(STL5_BIN, "str_clear", include_patterns=["std::string::clear"])
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert not any(m.pattern.name == "std_string_clear" for m in finder.matches)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, force_patterns="all")
@@ -809,7 +810,11 @@ class TestVectorClaims(TestCase):
     """std::string::length yields to anything vector-shaped on the same base."""
 
     def _finder(self, func_name, **kw):
-        proj, _, func, dec = _decompile(STL5_BIN, func_name)
+        proj, _, func, dec = _decompile(
+            STL5_BIN,
+            func_name,
+            include_patterns=["std::string::length"] + [tmpl.name for tmpl in ALL_VECTOR_CLAIM_TEMPLATES],
+        )
         return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, **kw), dec
 
     def test_push_back_is_not_a_string(self):
@@ -838,7 +843,7 @@ class TestVectorClaims(TestCase):
     def test_a_real_string_still_has_a_length(self):
         # the suppression is keyed on the base: a load at +8 on an object
         # nothing claims as a vector is still a string length
-        _, _, _, dec = _decompile(STL_BIN, "get_len", force_patterns=["std::string::length"])
+        _, _, _, dec = _decompile(STL_BIN, "get_len", include_patterns=["std::string::length"])
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::length(" in dec.codegen.text, dec.codegen.text
 
