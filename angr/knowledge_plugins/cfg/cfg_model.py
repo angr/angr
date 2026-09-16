@@ -14,6 +14,7 @@ from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
 from angr.protos import cfg_pb2, primitives_pb2
 from angr.serializable import Serializable
+from angr.utils.addr_conv import addr_from_pb, addr_to_pb
 from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
 
 from .cfg_node import CFGNode
@@ -223,7 +224,7 @@ class CFGModel(Serializable):
             for block_key, msg_bytes, _copied in self.graph.export_serialized_nodes():
                 node_pb = cmsg.nodes.add()
                 node_pb.ParseFromString(msg_bytes)
-                key_to_addr[block_key] = node_pb.ea
+                key_to_addr[block_key] = addr_from_pb(node_pb, "ea")
         else:
             nodes = [n.serialize_to_cmessage() for n in self.graph.nodes()]
             cmsg.nodes.extend(nodes)
@@ -239,14 +240,17 @@ class CFGModel(Serializable):
         edges = []
         for src_ea, dst_ea, data in edge_iter:
             edge = primitives_pb2.Edge()  # type:ignore
-            edge.src_ea = src_ea
-            edge.dst_ea = dst_ea
+            addr_to_pb(edge, "src_ea", src_ea)
+            addr_to_pb(edge, "dst_ea", dst_ea)
             for k, v in data.items():
                 if k == "jumpkind":
                     jk = cfg_jumpkind_to_pb(v)
                     edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk  # type:ignore
                 elif k == "ins_addr":
-                    edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
+                    if v is None:
+                        edge.ins_addr = 0xFFFF_FFFF_FFFF_FFFF
+                    else:
+                        addr_to_pb(edge, "ins_addr", v)
                 elif k == "stmt_idx":
                     edge.stmt_idx = v if v is not None else -1
                 else:
@@ -298,11 +302,12 @@ class CFGModel(Serializable):
             # edges
             for edge_pb2 in cmsg.edges:
                 # more than one node at a given address is unsupported, grab the first one
-                src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
-                dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
+                src = next(model.graph.nodes_by_addr(addr_from_pb(edge_pb2, "src_ea")))
+                dst = next(model.graph.nodes_by_addr(addr_from_pb(edge_pb2, "dst_ea")))
+                ins_addr = addr_from_pb(edge_pb2, "ins_addr")
                 data = {
                     "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
-                    "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+                    "ins_addr": ins_addr if ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
                     "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
                 }
                 model.graph.add_edge(src, dst, **data)
