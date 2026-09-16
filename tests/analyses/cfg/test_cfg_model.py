@@ -10,6 +10,7 @@ import unittest
 
 import angr
 from angr.analyses import CFGFast
+from angr.knowledge_plugins.cfg import MemoryData, MemoryDataSort
 from tests.common import bin_location
 
 log = logging.getLogger(__name__)
@@ -52,6 +53,30 @@ class TestCfgModel(unittest.TestCase):
 
         for addr in expected_removed_addrs:
             assert cfg.model.get_any_node(addr) is None
+
+    def test_cfgmodel_clear_region_for_reflow_keeps_defined_data(self):
+        """Test CFGModel::clear_region_for_reflow on a region a caller has just defined as data."""
+        proj = angr.Project(FAUXWARE_PATH, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+        func = proj.kb.functions["main"]
+        assert cfg.model.get_any_node(func.addr) is not None
+
+        # undefining code, the way angr-management does it: record the address as data, drop the function that
+        # covers it, then reanalyze from the function start
+        cfg.model.memory_data[func.addr] = MemoryData(func.addr, 1, MemoryDataSort.Integer)
+        cfg.model.clear_region_for_reflow(func.addr)
+        assert func.addr in cfg.model.memory_data
+
+        proj.analyses[CFGFast].prep()(
+            symbols=False,
+            function_prologues=False,
+            start_at_entry=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+            function_starts=[func.addr],
+            model=cfg.model,
+        )
+        assert cfg.model.get_any_node(func.addr) is None
 
     def test_cfgmodel_find_func_for_reflow(self):
         """Test CFGModel::find_func_for_reflow in same function"""
