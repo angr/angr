@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring
+# pylint:disable=missing-class-docstring,protected-access
 """Test cases for SpillingCFGGraph and SpillingCFGNodeDict functionality."""
 
 from __future__ import annotations
@@ -264,6 +264,44 @@ class TestSpillingCFGGraphWithSpilling(unittest.TestCase):
         for node in copied.graph.nodes():
             assert node is not None
             break
+
+    def test_copy_holds_one_transaction_at_a_time(self):
+        """
+        Copying a spilled store writes it back out into a new sub-database, and that write may have to grow the
+        LMDB map. Growing the map remaps the whole environment, so the copy has to close its read transaction
+        before writing anything.
+        """
+        proj = angr.Project(self.bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        original = cfg.model
+
+        # spill as much as the eviction thresholds allow
+        for spilling_dict in (original.graph._nodes, original.graph._graph._adj, original.graph._graph._pred):
+            spilling_dict._cache_limit = 0
+            spilling_dict._db_batch_size = 1
+            spilling_dict._evict_lru()
+        assert original.graph._nodes.spilled_count > 0
+        assert original.graph._graph._adj._spilled_keys
+
+        rtdb = proj.kb.rtdb
+        original_transaction_opened = rtdb._transaction_opened
+        open_counts = []
+
+        def transaction_opened():
+            original_transaction_opened()
+            open_counts.append(rtdb._open_txns)
+
+        rtdb._transaction_opened = transaction_opened
+        try:
+            copied = original.copy()
+        finally:
+            del rtdb._transaction_opened
+
+        assert open_counts, "copy() read nothing back out of LMDB"
+        assert max(open_counts) == 1, "copy() opened a second transaction before closing the first"
+        assert len(copied.graph) == len(original.graph)
+        # reading the copied nodes back proves the spilled records landed in the new sub-database intact
+        assert {node.addr for node in copied.graph.nodes()} == {node.addr for node in original.graph.nodes()}
 
 
 class TestCFGModelIntegration(unittest.TestCase):

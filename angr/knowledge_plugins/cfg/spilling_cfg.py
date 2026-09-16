@@ -152,6 +152,12 @@ class SpillingCFGNodeDict:
         self._cleanup_lmdb()
 
     def copy(self) -> SpillingCFGNodeDict:
+        """
+        Copy this node store, including whatever it has spilled to LMDB.
+
+        The cached nodes are copied in memory. The spilled ones are copied as raw records into a fresh sub-database
+        of the same environment, without being deserialized.
+        """
         new_dict = SpillingCFGNodeDict(
             self.rtdb,
             self._cfg_model,
@@ -166,20 +172,17 @@ class SpillingCFGNodeDict:
             new_dict._data[block_key] = node.copy()
             new_dict._lru_order[block_key] = None
 
-        # Copy spilled data from LMDB
+        # Copy spilled data from LMDB, a batch at a time. Each batch is read, the read transaction is closed, and
+        # only then is the batch written back out: the write may have to grow the map, which remaps the whole
+        # environment.
         if self._spilled_keys and self._nodesdb is not None and self.rtdb is not None:
-            new_dict._init_lmdb()
-            assert new_dict._nodesdb is not None
-            with (
-                self.rtdb.begin_txn(self._nodesdb) as src_txn,
-                self.rtdb.begin_txn(new_dict._nodesdb, write=True) as dst_txn,
-            ):
-                for block_key in self._spilled_keys:
-                    key = str(block_key).encode("utf-8")
-                    value = src_txn.get(key)
-                    if value is not None:
-                        dst_txn.put(key, value)
-                        new_dict._spilled_keys.add(block_key)
+            spilled = list(self._spilled_keys)
+            batch_size = max(self._db_batch_size, 1)
+            for start in range(0, len(spilled), batch_size):
+                batch = spilled[start : start + batch_size]
+                with self._db_load_lock, self.rtdb.begin_txn(self._nodesdb) as src_txn:
+                    records = [(key, src_txn.get(str(key).encode("utf-8"))) for key in batch]
+                new_dict.bulk_import_serialized([(key, value) for key, value in records if value is not None])
 
         new_dict._eviction_enabled = True
         return new_dict
