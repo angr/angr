@@ -258,22 +258,18 @@ def _build_hlist_del(ctx: PatternContext) -> KnownPattern:
 # ``struct module``-carrying ELFs and ntoskrnl-importing PEs are built out of, so on those targets the shapes stop
 # being ambiguous C and become the macros they are; on a user-space program they stay ambiguous and stay off. The
 # Linux-only supersets (poisoned unlink, hlist) need only the Linux half of that evidence.
-IS_LIST_EMPTY = make_template("IsListEmpty", _build_is_list_empty, enabled_by_default=False, gate=KERNEL_TARGET)
+IS_LIST_EMPTY = make_template("IsListEmpty", _build_is_list_empty, default_enabled=False, gate=KERNEL_TARGET)
 INITIALIZE_LIST_HEAD = make_template(
-    "InitializeListHead", _build_initialize_list_head, enabled_by_default=False, gate=KERNEL_TARGET
+    "InitializeListHead", _build_initialize_list_head, default_enabled=False, gate=KERNEL_TARGET
 )
 REMOVE_ENTRY_LIST = make_template(
-    "RemoveEntryList", _build_remove_entry_list, enabled_by_default=False, gate=KERNEL_TARGET
+    "RemoveEntryList", _build_remove_entry_list, default_enabled=False, gate=KERNEL_TARGET
 )
-INSERT_HEAD_LIST = make_template(
-    "InsertHeadList", _build_insert_head_list, enabled_by_default=False, gate=KERNEL_TARGET
-)
-INSERT_TAIL_LIST = make_template(
-    "InsertTailList", _build_insert_tail_list, enabled_by_default=False, gate=KERNEL_TARGET
-)
-LIST_DEL = make_template("list_del", _build_list_del, enabled_by_default=False, gate=LINUX_KERNEL)
-LIST_DEL_INIT = make_template("list_del_init", _build_list_del_init, enabled_by_default=False, gate=LINUX_KERNEL)
-HLIST_DEL = make_template("hlist_del", _build_hlist_del, enabled_by_default=False, gate=LINUX_KERNEL)
+INSERT_HEAD_LIST = make_template("InsertHeadList", _build_insert_head_list, default_enabled=False, gate=KERNEL_TARGET)
+INSERT_TAIL_LIST = make_template("InsertTailList", _build_insert_tail_list, default_enabled=False, gate=KERNEL_TARGET)
+LIST_DEL = make_template("list_del", _build_list_del, default_enabled=False, gate=LINUX_KERNEL)
+LIST_DEL_INIT = make_template("list_del_init", _build_list_del_init, default_enabled=False, gate=LINUX_KERNEL)
+HLIST_DEL = make_template("hlist_del", _build_hlist_del, default_enabled=False, gate=LINUX_KERNEL)
 
 ALL_LINKED_LIST_TEMPLATES = [
     IS_LIST_EMPTY,

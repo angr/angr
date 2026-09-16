@@ -185,7 +185,7 @@ def patterns_for(
         templates = ALL_KNOWN_PATTERN_TEMPLATES
     out: list[KnownPattern] = []
     for t in templates:
-        if enabled_only and not t.enabled_by_default:
+        if enabled_only and not t.default_enabled:
             continue
         p = t.instantiate(ctx)
         if p is not None:
@@ -255,7 +255,7 @@ def partition_templates(
     enabled: list[KnownPatternTemplate] = []
     deferred: list[KnownPatternTemplate] = []
     for t in templates:
-        if t.enabled_by_default or id(t) in forced_ids or t.enabled_for(gate_ctx):
+        if t.default_enabled or id(t) in forced_ids or t.enabled_for(gate_ctx):
             enabled.append(t)
         elif t.gate is not None and t.gate.requires_evidence:
             deferred.append(t)

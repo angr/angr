@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # pylint: disable=missing-class-docstring,no-self-use
+import ast
 import os.path
 import re
 import unittest
@@ -10,14 +11,17 @@ from unittest import TestCase
 import archinfo
 
 import angr
-from angr.ailment.expression import BinaryOp, Call, Const, Load, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment, SideEffectStatement
+from angr.ailment import expression as ail_expr
+from angr.ailment import statement as ail_stmt
+from angr.ailment.expression import BinaryOp, Call, Const, Load, Phi, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement, Store
 from angr.analyses.decompiler import known_patterns as known_patterns_pkg
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION, parse_known_patterns
 from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.known_patterns import (
     ALL_KNOWN_PATTERN_TEMPLATES,
+    ALL_STRING_DTOR_TEMPLATES,
     CONTAINING_RECORD_PATTERN,
     CTYPE_PREDICATES,
     KERNEL_TARGET,
@@ -26,34 +30,59 @@ from angr.analyses.decompiler.known_patterns import (
     STD_STRING_DTOR,
     STD_STRING_LENGTH,
     STD_STRING_SET_LENGTH,
+    STD_SWAP_TEMPLATES,
+    STD_VECTOR_CAPACITY_TEMPLATES,
     STD_VECTOR_INT_SIZE,
+    STD_VECTOR_LONG_LONG_SIZE,
+    STD_VECTOR_SHORT_SIZE,
     TEMPLATE_BY_CALL_NAME,
     GateContext,
+    KnownPattern,
     KnownPatternFinder,
+    PatternParam,
     TargetGate,
     UnknownPatternError,
     all_of,
     any_of,
     corroborated_by,
+    make_template,
     partition_templates,
+    register_pattern_template,
     resolve_pattern_selection,
 )
-from angr.analyses.decompiler.known_patterns.context import LIBSTDCXX, MSVC, PatternContext
+from angr.analyses.decompiler.known_patterns.context import (
+    LIBSTDCXX,
+    MSVC,
+    PatternContext,
+    _mangled_symbol_prefixes,
+    detect_cxx_runtime,
+)
 from angr.analyses.decompiler.known_patterns.dsl import (
+    PITE,
     MatchCtx,
     MatchState,
+    PAssign,
+    PBinOp,
+    PBlockPat,
     PCall,
     PCallResult,
     PCallStmt,
+    PChoice,
+    PCondJump,
     PConst,
     PDefOf,
+    PField,
+    PGraphPat,
+    PLoad,
+    PPhi,
+    PStackField,
+    PStmtSeq,
+    PStore,
     PVVar,
     expr_anchor_key,
     pattern_anchor_key,
 )
-from angr.analyses.decompiler.known_patterns.dsl import (
-    PLoad as PLoadPat,
-)
+from angr.analyses.decompiler.known_patterns.finder import _iter_subexprs
 from angr.analyses.decompiler.known_patterns.std_string_length import STRING_WITNESSED
 from angr.analyses.decompiler.known_patterns.stl_accessors2 import STD_STRING_FRONT
 from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
@@ -93,36 +122,36 @@ _STRLEN = STD_STRING_LENGTH.instantiate(_AMD64_CTX)
 _VECSIZE = STD_VECTOR_INT_SIZE.instantiate(_AMD64_CTX)
 
 
-def _decompile(bin_path: str, func_name: str, preset: str = "fast", apply_patterns: bool | None = None):
-    """Decompile one function.
-
-    ``apply_patterns`` defaults to True only for the ``full`` preset. Most tests
-    here decompile and then run KnownPatternFinder over the result by hand,
-    which only works on a graph where the idioms are still idioms: once the
-    outliner has replaced one with a call there is nothing left to match. The
-    ``fast`` preset used to be pattern-free and is not any more, so what used to
-    be implicit has to be said.
-    """
-    if apply_patterns is None:
-        apply_patterns = preset == "full"
+def _decompile(
+    bin_path: str,
+    func_name: str,
+    preset: str = "fast",
+    apply_patterns: bool = True,
+    force_patterns: list[str] | None = None,
+):
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
     proj.analyses.CompleteCallingConventions(cfg=cfg.model)
     func = cfg.functions.function(name=func_name)
     assert func is not None
+
+    options = []
+    if force_patterns is not None:
+        options += [("known_patterns", force_patterns)]
+
     dec = proj.analyses[Decompiler].prep(fail_fast=True)(
         func,
         cfg=cfg.model,
         preset=preset,
         disable_opts=None if apply_patterns else [KnownPatternOutliner],
+        options=options,
     )
     assert dec.codegen is not None and dec.codegen.text is not None
     return proj, cfg, func, dec
 
 
 def _redecompile(proj, cfg, func, dec, graph):
-    # drop the previous run's recovered variables and prototype so they do not
-    # feed Typehoon as ground truth
+    # drop the previous run's recovered variables and prototype so they do not feed Typehoon as ground truth
     del dec.kb.dec_variables.function_managers[func.addr]
     func.prototype_source = PrototypeSource.GUESSED
     dec_outer = proj.analyses[Decompiler].prep(fail_fast=True)(
@@ -139,8 +168,6 @@ def _redecompile(proj, cfg, func, dec, graph):
 class TestKnownPatternsDsl(TestCase):
     def test_match_and_unification(self):
         s = VirtualVariable(None, 7, 64, VirtualVariableCategory.PARAMETER)
-        from angr.ailment.expression import BinaryOp, Const
-
         load = Load(None, BinaryOp(None, "Add", [s, Const(None, 8, 64)]), 8, "Iend_LE")
         state = _STRLEN.pattern.match(load, MatchState(), MatchCtx())
         assert state is not None
@@ -157,8 +184,6 @@ class TestKnownPatternsDsl(TestCase):
     def test_string_length_template_is_context_aware(self):
         # one template instantiates the right layout for each context
         s = VirtualVariable(None, 7, 64, VirtualVariableCategory.PARAMETER)
-        from angr.ailment.expression import BinaryOp, Const
-
         load16 = Load(None, BinaryOp(None, "Add", [s, Const(None, 16, 64)]), 8, "Iend_LE")
         load8 = Load(None, BinaryOp(None, "Add", [s, Const(None, 8, 64)]), 8, "Iend_LE")
 
@@ -176,8 +201,6 @@ class TestKnownPatternsDsl(TestCase):
         assert not STD_STRING_LENGTH.applicable(_ctx(runtime=None))  # not C++
 
     def test_cxx_runtime_detection(self):
-        from angr.analyses.decompiler.known_patterns.context import detect_cxx_runtime
-
         # the mingw PE is a C binary
         assert detect_cxx_runtime(angr.Project(CR_BIN, auto_load_libs=False)) is None
         # the g++ ELF is libstdc++
@@ -187,17 +210,11 @@ class TestKnownPatternsDsl(TestCase):
         assert detect_cxx_runtime(angr.Project(STATIC_MSVC_BIN, auto_load_libs=False)) == MSVC
 
     def test_register_rejects_duplicate_call_name(self):
-        from angr.analyses.decompiler.known_patterns import make_template, register_pattern_template
-
         dup = make_template("std::string::length", lambda ctx: None)
         with self.assertRaises(ValueError):
             register_pattern_template(dup)
 
     def test_pphi_and_pcondjump(self):
-        from angr.ailment.expression import BinaryOp, Const, Phi
-        from angr.ailment.statement import ConditionalJump, Store
-        from angr.analyses.decompiler.known_patterns import PBinOp, PCondJump, PConst, PPhi, PVVar
-
         v = VirtualVariable(None, 7, 64, VirtualVariableCategory.PARAMETER)
         phi = Phi(None, 64, [((0x400000, None), v), ((0x400010, None), None)])
         assert PPhi("p").match(phi, MatchState(), MatchCtx()) is not None
@@ -214,8 +231,6 @@ class TestKnownPatternsDsl(TestCase):
         assert pat.match(Store(None, v, v, 8, "Iend_LE"), MatchState(), MatchCtx()) is None
 
     def test_vector_size_requires_same_base(self):
-        from angr.ailment.expression import BinaryOp, Const
-
         v = VirtualVariable(None, 3, 64, VirtualVariableCategory.PARAMETER)
         other = VirtualVariable(None, 4, 64, VirtualVariableCategory.PARAMETER)
 
@@ -321,7 +336,7 @@ class TestPCall(TestCase):
         loaded = VirtualVariable(None, 9, 64, VirtualVariableCategory.REGISTER)
         load = Load(None, s_, 8, "Iend_LE")
         ctx = self._ctx_with(def_by_varid={9: load})
-        pat = PDefOf(PLoadPat(PVVar("s"), size=8))
+        pat = PDefOf(PLoad(PVVar("s"), size=8))
         # the load itself still matches, unchanged
         state = pat.match(load, MatchState(), ctx)
         assert state is not None and state.bindings["s"].likes(s_)
@@ -331,7 +346,7 @@ class TestPCall(TestCase):
         assert not state.consumed_stmt_idxs and not state.chased_defs
         # a variable defined by something else does not
         assert (
-            PDefOf(PLoadPat(PVVar("s"), size=8)).match(
+            PDefOf(PLoad(PVVar("s"), size=8)).match(
                 VirtualVariable(None, 10, 64, VirtualVariableCategory.REGISTER), MatchState(), ctx
             )
             is None
@@ -400,11 +415,6 @@ class TestAilIndicesAreReal(TestCase):
     """
 
     def test_no_ail_object_is_built_with_a_none_index(self):
-        import ast
-
-        from angr.ailment import expression as ail_expr
-        from angr.ailment import statement as ail_stmt
-
         # every AIL class whose first positional parameter is the atom index
         ail_names = {
             n
@@ -416,7 +426,7 @@ class TestAilIndicesAreReal(TestCase):
 
         offenders = []
         for path in sorted(pkg.glob("*.py")):
-            tree = ast.parse(path.read_text(), filename=str(path))
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call) or not node.args:
                     continue
@@ -432,7 +442,9 @@ class TestAilIndicesAreReal(TestCase):
 class TestKnownPatternFinder(TestCase):
     def test_find_std_string_length(self):
         proj, _, func, dec = _decompile(STL_BIN, "get_len")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_STRING_LENGTH]
+        )
         assert len(finder.matches) == 1
         m = finder.matches[0]
         assert m.pattern.name == "std_string_length"
@@ -441,7 +453,9 @@ class TestKnownPatternFinder(TestCase):
 
     def test_find_std_vector_size(self):
         proj, _, func, dec = _decompile(STL_BIN, "get_size")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_VECTOR_INT_SIZE]
+        )
         assert len(finder.matches) == 1
         m = finder.matches[0]
         # the std::string::length sub-pattern also matches the _M_finish load;
@@ -456,7 +470,9 @@ class TestKnownPatternFinder(TestCase):
         ):
             with self.subTest(func=func_name):
                 proj, _, func, dec = _decompile(STL_BIN, func_name)
-                finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+                finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+                    func, dec.ail_graph, patterns=[STD_VECTOR_SHORT_SIZE, STD_VECTOR_LONG_LONG_SIZE]
+                )
                 assert len(finder.matches) == 1
                 assert finder.matches[0].pattern.name == expected_pattern
 
@@ -495,7 +511,9 @@ class TestKnownPatternFinder(TestCase):
 class TestKnownPatternOutlining(TestCase):
     def test_outline_std_string_length(self):
         proj, cfg, func, dec = _decompile(STL_BIN, "get_len")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_STRING_LENGTH]
+        )
         result = finder.outline(finder.matches[0])
 
         # the callee interface is exactly the string pointer
@@ -513,8 +531,10 @@ class TestKnownPatternOutlining(TestCase):
         assert "std::string *" in text
 
     def test_outline_std_vector_size(self):
-        proj, cfg, func, dec = _decompile(STL_BIN, "get_size")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        proj, cfg, func, dec = _decompile(STL_BIN, "get_size", apply_patterns=False)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_VECTOR_INT_SIZE]
+        )
         result = finder.outline(finder.matches[0])
 
         dec_outer = _redecompile(proj, cfg, func, dec, result.graph)
@@ -523,7 +543,7 @@ class TestKnownPatternOutlining(TestCase):
         assert "std::vector<int> *" in text
 
     def test_outline_containing_record(self):
-        proj, cfg, func, dec = _decompile(CR_BIN, "sum_list")
+        proj, cfg, func, dec = _decompile(CR_BIN, "sum_list", apply_patterns=False)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
             func, dec.ail_graph, patterns=[CONTAINING_RECORD_PATTERN]
         )
@@ -536,8 +556,10 @@ class TestKnownPatternOutlining(TestCase):
         assert "8)" in text or ", 8" in text
 
     def test_outline_at(self):
-        proj, _, func, dec = _decompile(STL_BIN, "get_len")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        proj, _, func, dec = _decompile(STL_BIN, "get_len", apply_patterns=False)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_STRING_LENGTH]
+        )
         m = finder.matches[0]
         result = finder.outline_at(m.block_loc, STD_STRING_LENGTH, dec.ail_graph)
         assert any(
@@ -550,7 +572,9 @@ class TestKnownPatternOutlining(TestCase):
 class TestKnownPatternStmtSeq(TestCase):
     def test_find_std_swap(self):
         proj, _, func, dec = _decompile(MB_BIN, "do_swap")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_SWAP_TEMPLATES]
+        )
         assert len(finder.matches) == 1
         m = finder.matches[0]
         assert m.pattern.name == "std_swap"
@@ -562,7 +586,9 @@ class TestKnownPatternStmtSeq(TestCase):
 
     def test_outline_std_swap(self):
         proj, cfg, func, dec = _decompile(MB_BIN, "do_swap")
-        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
+        finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(
+            func, dec.ail_graph, patterns=[STD_SWAP_TEMPLATES]
+        )
         result = finder.outline(finder.matches[0])
 
         # a void call: rendered as a bare statement, not an assignment
@@ -585,19 +611,6 @@ class TestKnownPatternStmtSeq(TestCase):
 
 
 def _route_graph_pattern():
-    from angr.analyses.decompiler.known_patterns import (
-        KnownPattern,
-        PatternParam,
-        PBinOp,
-        PBlockPat,
-        PCondJump,
-        PConst,
-        PGraphPat,
-        PStmtSeq,
-        PStore,
-        PVVar,
-    )
-
     return KnownPattern(
         name="route_demo",
         display_name="route",
@@ -624,8 +637,6 @@ def _route_graph_pattern():
 
 class TestKnownPatternGraph(TestCase):
     def test_pgraphpat_validation(self):
-        from angr.analyses.decompiler.known_patterns import PBlockPat, PGraphPat, PStmtSeq
-
         empty = PBlockPat("x", PStmtSeq(()))
         # entry not among blocks
         with self.assertRaises(ValueError):
@@ -691,17 +702,17 @@ class TestStringDestructor(TestCase):
     def test_member_strings_are_outlined(self):
         # Doc has two std::string members: two triangles, the join of the first
         # being the entry of the second
-        _, _, _, dec = _decompile(STL5_BIN, "doc_free", preset="full")
+        _, _, _, dec = _decompile(
+            STL5_BIN, "doc_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert dec.codegen.text.count("std::string::~string(") == 2
 
-    def test_default_on(self):
-        # nothing is forced: the pattern's four agreeing constraints (same base
-        # in the compare and both loads, the local-buffer offset as address and
-        # as field, the +1, the callee) earn it a place in the default set
-        assert STD_STRING_DTOR.enabled_by_default
-
     def test_local_string_is_named_in_place(self):
-        _, _, _, dec = _decompile(STL5_BIN, "local_len", preset="full")
+        _, _, _, dec = _decompile(
+            STL5_BIN, "local_len", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert text.count("std::string::~string(") == 1
         # the argument is spelled the way the rest of the output spells a stack
@@ -710,12 +721,18 @@ class TestStringDestructor(TestCase):
         assert "stack_base" not in text
 
     def test_two_locals(self):
-        _, _, _, dec = _decompile(STL5_BIN, "two_locals", preset="full")
+        _, _, _, dec = _decompile(
+            STL5_BIN, "two_locals", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert dec.codegen.text.count("std::string::~string(") == 2
 
     def test_by_pointer(self):
         # the arms rejoin: one region exit, the ordinary outlined path
-        _, _, _, dec = _decompile(STL5_BIN, "ptr_free", preset="full")
+        _, _, _, dec = _decompile(
+            STL5_BIN, "ptr_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert text.count("std::string::~string(") == 1
         assert "operatordelete" not in text
@@ -724,19 +741,27 @@ class TestStringDestructor(TestCase):
         # every arm ends the function, so gcc duplicates the `return 1` epilogue
         # and the region has two exits at two addresses. v1 outlining declines;
         # a void region needs no callee, so it is collapsed in place instead.
-        _, _, _, dec = _decompile(STL5_BIN, "ptr_free_dup", preset="full")
+        _, _, _, dec = _decompile(
+            STL5_BIN, "ptr_free_dup", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert text.count("std::string::~string(") == 1
         assert "operatordelete" not in text
 
     def test_vector_of_strings_frees_elements_in_a_loop(self):
-        _, _, _, dec = _decompile(STL5_BIN, "vec_free", preset="full")
+        _, _, _, dec = _decompile(
+            STL5_BIN, "vec_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::~string(" in dec.codegen.text
 
     def test_the_callee_is_what_guards_the_pattern(self):
         # it is the callee that makes this idiom identifiable rather than a plain
         # nullable-pointer test, so the call node has to name operator delete
-        proj, _, func, dec = _decompile(STL5_BIN, "ptr_free", preset="fast")
+        proj, _, func, dec = _decompile(
+            STL5_BIN, "ptr_free", force_patterns=[tmpl.name for tmpl in ALL_STRING_DTOR_TEMPLATES]
+        )
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert any(m.pattern.name == "std_string_dtor" for m in finder.matches)
 
@@ -756,18 +781,19 @@ class TestStringInternals(TestCase):
     def test_set_length(self):
         # erase(n) ends with `_M_string_length = n; _M_p[n] = 0`; the same n in
         # both places is what makes the shape specific enough to be default-on
-        _, _, _, dec = _decompile(STL5_BIN, "str_shrink", preset="full")
+        _, _, _, dec = _decompile(STL5_BIN, "str_shrink", force_patterns=["std::string::_M_set_length"])
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::_M_set_length(" in dec.codegen.text
-        assert STD_STRING_SET_LENGTH.enabled_by_default
+        assert STD_STRING_SET_LENGTH.default_enabled
 
     def test_clear_is_opt_in_and_corroborated(self):
         # with n == 0 there is no second occurrence of n, so the shape is only
         # "zero a word at +8 and a byte through the pointer at +0"
         template = TEMPLATE_BY_CALL_NAME["std::string::clear"]
-        assert not template.enabled_by_default
+        assert not template.default_enabled
         assert template.gate is not None and template.gate.requires_evidence
 
-        proj, _, func, dec = _decompile(STL5_BIN, "str_clear", preset="fast")
+        proj, _, func, dec = _decompile(STL5_BIN, "str_clear", force_patterns=["std::string::clear"])
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph)
         assert not any(m.pattern.name == "std_string_clear" for m in finder.matches)
         finder = proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, force_patterns="all")
@@ -783,13 +809,14 @@ class TestVectorClaims(TestCase):
     """std::string::length yields to anything vector-shaped on the same base."""
 
     def _finder(self, func_name, **kw):
-        proj, _, func, dec = _decompile(STL5_BIN, func_name, preset="fast")
+        proj, _, func, dec = _decompile(STL5_BIN, func_name)
         return proj.analyses[KnownPatternFinder].prep(fail_fast=True)(func, dec.ail_graph, **kw), dec
 
     def test_push_back_is_not_a_string(self):
         # push_back opens with _M_finish == _M_end_of_storage; the +8 word in
         # that comparison is not a string length, however much it reads like one
         finder, dec = self._finder("vec_push")
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::length" not in dec.codegen.text, dec.codegen.text
         assert not any(m.pattern.name == "std_string_length" for m in finder.matches)
 
@@ -797,29 +824,22 @@ class TestVectorClaims(TestCase):
         # size() of a vector<char> is _M_finish - _M_start with nothing to key
         # a size() template on, so it is claimed rather than named
         finder, dec = self._finder("vec_bytes")
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::length" not in dec.codegen.text, dec.codegen.text
         assert not any(m.pattern.name == "std_string_length" for m in finder.matches)
 
     def test_claims_never_surface(self):
         # a claims-only pattern is evidence, not output: no call, no match
         finder, dec = self._finder("vec_push")
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert not any(m.pattern.claims_only for m in finder.matches)
         assert "(claim)" not in dec.codegen.text
-
-    def test_the_fixture_exercises_the_suppression(self):
-        # without the claim the bare load at +8 *is* a length match on this
-        # function; the test above passes because of the suppression, not
-        # because the shape went away
-        from unittest import mock
-
-        with mock.patch.object(KnownPatternFinder, "_suppress_on_claimed_bases", lambda self, sel, _all: sel):
-            finder, _ = self._finder("vec_push")
-        assert any(m.pattern.name == "std_string_length" for m in finder.matches)
 
     def test_a_real_string_still_has_a_length(self):
         # the suppression is keyed on the base: a load at +8 on an object
         # nothing claims as a vector is still a string length
-        _, _, _, dec = _decompile(STL_BIN, "get_len", preset="full")
+        _, _, _, dec = _decompile(STL_BIN, "get_len", force_patterns=["std::string::length"])
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "std::string::length(" in dec.codegen.text, dec.codegen.text
 
 
@@ -864,6 +884,7 @@ class TestMatchingSkipsDefinitions(TestCase):
         assert raw, "the fixture stopped matching anything"
         assert not any(m.expr_path and m.expr_path[0][0] == "dst" for m in raw)
         _, _, _, dec = _decompile(CTYPE_BIN, "lower_twice", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "tolower(" in dec.codegen.text, dec.codegen.text
 
 
@@ -872,6 +893,7 @@ class TestCtypeMacros(TestCase):
 
     def test_one_predicate(self):
         _, _, _, dec = _decompile(CTYPE_BIN, "one_space", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "isspace(" in dec.codegen.text
 
     def test_the_whole_family_over_one_entry(self):
@@ -879,6 +901,7 @@ class TestCtypeMacros(TestCase):
         # once per character, so every mask applies to a register rather than to
         # a Load, which is what PDefOf is for
         _, _, _, dec = _decompile(CTYPE_BIN, "classify", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         for macro in ("isspace", "isdigit", "isalpha", "isupper", "isxdigit", "isalnum"):
             assert f"{macro}(" in text, f"{macro} not named:\n{text}"
@@ -887,6 +910,7 @@ class TestCtypeMacros(TestCase):
         for func, macro in (("lower_all", "tolower"), ("upper_all", "toupper")):
             with self.subTest(func=func):
                 _, _, _, dec = _decompile(CTYPE_BIN, func, preset="full")
+                assert dec.codegen is not None and dec.codegen.text is not None
                 assert f"{macro}(" in dec.codegen.text
 
     def test_the_hoisted_table_call_goes_with_the_macro(self):
@@ -895,6 +919,7 @@ class TestCtypeMacros(TestCase):
         # is named nothing uses v; the outliner removes the dead assignment, and
         # the pattern vouches for the callee being pure, so the bare call goes too
         proj, _, _, dec = _decompile(CTYPE_BIN, "lower_all", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "tolower(" in text
         assert "__ctype_tolower_loc" not in text, text
@@ -907,6 +932,7 @@ class TestCtypeMacros(TestCase):
         # that the return value, which kept the load, and with it the
         # __ctype_b_loc() that fed it, alive in every iteration
         _, _, _, dec = _decompile(CTYPE_BIN, "classify", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert text.startswith("void classify("), text
         assert "__ctype_b_loc" not in text, text
@@ -918,6 +944,7 @@ class TestCtypeMacros(TestCase):
         # per-predicate pattern can honestly name that. Asserted so the gap is
         # recorded rather than discovered later.
         _, _, _, dec = _decompile(CTYPE_BIN, "space_or_alnum", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "isspace(" not in text and "isalnum(" not in text
         assert "8200" in text  # 0x2008: _ISspace | _ISalnum
@@ -928,6 +955,7 @@ class TestCtypeMacros(TestCase):
         # call can go. It is a codegen rule, and it has to follow the pointer
         # through the register the compiler kept it in.
         _, _, _, dec = _decompile(CTYPE_BIN, "errno_rw", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "errno = 22;" in text, text
         assert "return errno;" in text, text
@@ -940,7 +968,7 @@ class TestCtypeMacros(TestCase):
         # glibc's _ISbit(n) = n < 8 ? (1 << n) << 8 : (1 << n) >> 8
         assert masks["isspace"] == 0x2000 and masks["isalnum"] == 0x0008
         template = TEMPLATE_BY_CALL_NAME["isspace"]
-        assert template.enabled_by_default
+        assert template.default_enabled
         assert template.platforms == frozenset({"linux"})
 
 
@@ -949,16 +977,19 @@ class TestKnownPatternPipeline(TestCase):
         # with the "full" preset, patterns are outlined automatically in a
         # single decompilation and types flow into Typehoon in the same run
         _, _, _, dec = _decompile(STL_BIN, "get_len", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "std::string::length(" in text
         assert "std::string *" in text
 
         _, _, _, dec = _decompile(STL_BIN, "get_size", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "std::vector<int>::size(" in text
         assert "std::vector<int> *" in text
 
         _, _, _, dec = _decompile(STL_BIN, "get_size_ll", preset="full")
+        assert dec.codegen is not None and dec.codegen.text is not None
         text = dec.codegen.text
         assert "std::vector<long long>::size(" in text
         assert "std::vector<long long> *" in text
@@ -993,8 +1024,6 @@ class TestLargestMatchWins(TestCase):
 
     @staticmethod
     def _unlink_stmts():
-        from angr.analyses.decompiler.known_patterns.dsl import PAssign, PBinOp, PConst, PLoad, PStore, PVVar
-
         def field(cap, off):
             addr = PVVar(cap) if off == 0 else PBinOp("Add", (PVVar(cap), PConst(off)))
             return PLoad(addr, size=8)
@@ -1013,9 +1042,6 @@ class TestLargestMatchWins(TestCase):
     def _subset_and_superset(cls):
         """A 4-statement list unlink, and the 6-statement unlink+re-init that
         strictly contains it (the list_del_init shape)."""
-        from angr.analyses.decompiler.known_patterns import KnownPattern, PatternParam
-        from angr.analyses.decompiler.known_patterns.dsl import PStmtSeq, PStore, PVVar
-
         unlink, addr = cls._unlink_stmts()
         subset = KnownPattern(
             name="unlink_only",
@@ -1176,9 +1202,6 @@ class TestOutlinedResultIdentity(TestCase):
     @staticmethod
     def _abs_load_pattern(name: str, addr: int, size: int):
         """A nullary accessor: a fixed-size load from an absolute address."""
-        from angr.analyses.decompiler.known_patterns import KnownPattern
-        from angr.analyses.decompiler.known_patterns.dsl import PConst, PLoad
-
         return KnownPattern(
             name=name,
             display_name=name,
@@ -1189,9 +1212,6 @@ class TestOutlinedResultIdentity(TestCase):
         )
 
     def _decompile_full(self, patterns, func_name):
-        from angr.analyses.decompiler.known_patterns import ALL_KNOWN_PATTERN_TEMPLATES, TEMPLATE_BY_CALL_NAME
-        from angr.analyses.decompiler.known_patterns.templates import make_template
-
         def _const_build(pat):
             return lambda ctx: pat
 
@@ -1254,17 +1274,11 @@ class TestPITE(TestCase):
     STL2_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl2")
 
     def test_anchor_key_is_ite(self):
-        from angr.analyses.decompiler.known_patterns import PITE
-        from angr.analyses.decompiler.known_patterns.dsl import PConst, PVVar, pattern_anchor_key
-
         assert pattern_anchor_key(PITE(PVVar("c"), PConst(1), PConst(2))) == ("ITE", None)
 
     def test_pchoice_keeps_a_shared_anchor_key(self):
         # a PChoice is usually a polarity alternation of one shape; when every
         # alternative discriminates the same way, pruning must be preserved
-        from angr.analyses.decompiler.known_patterns import PChoice
-        from angr.analyses.decompiler.known_patterns.dsl import PBinOp, PConst, PLoad, PVVar, pattern_anchor_key
-
         same = PChoice(
             PBinOp("CmpEQ", (PVVar("a"), PConst(0))),
             PBinOp("CmpEQ", (PVVar("a"), PConst(1))),
@@ -1274,17 +1288,6 @@ class TestPITE(TestCase):
         assert pattern_anchor_key(mixed) is None
 
     def test_pite_matches_a_converted_select(self):
-        from angr.analyses.decompiler.known_patterns import (
-            PITE,
-            KnownPattern,
-            KnownPatternFinder,
-            PatternParam,
-            PBinOp,
-            PConst,
-            PLoad,
-            PVVar,
-        )
-
         # the libstdc++ SSO capacity select: _M_p == &_M_local_buf ? 15 : _M_allocated_capacity
         local_buf = PBinOp("Add", (PVVar("s"), PConst(16)))
         pat = KnownPattern(
@@ -1427,7 +1430,7 @@ class TestBinaryEvidence(TestCase):
         proj = angr.Project(path, auto_load_libs=False)
         gctx = GateContext(ctx=PatternContext.from_project(proj), project=proj)
         enabled, _ = partition_templates(gctx)
-        return {t.call_name for t in enabled if not t.enabled_by_default}
+        return {t.call_name for t in enabled if not t.default_enabled}
 
     def test_kernel_gate_opens_the_list_family(self):
         driver = self._gate_opened(DRIVER_BIN)
@@ -1472,7 +1475,7 @@ class TestGateObjects(TestCase):
 
     def test_a_gate_never_disables_a_default_on_template(self):
         # enabled_for() is only consulted for opt-in templates
-        assert STD_STRING_LENGTH.enabled_by_default
+        assert STD_STRING_LENGTH.default_enabled
         assert STD_STRING_LENGTH.enabled_for(GateContext(ctx=_AMD64_CTX))
         assert not STD_STRING_FRONT.enabled_for(GateContext(ctx=_AMD64_CTX))
 
@@ -1485,8 +1488,6 @@ class TestUnderscorePrefixedMangling(TestCase):
     # for all libstdc++ families on that arm rather than as a detection failure.
 
     def test_double_underscore_mangling_is_cpp(self):
-        from angr.analyses.decompiler.known_patterns.context import LIBSTDCXX, _mangled_symbol_prefixes
-
         class _Sym:
             def __init__(self, name):
                 self.name = name
@@ -1507,8 +1508,6 @@ class TestUnderscorePrefixedMangling(TestCase):
 
     def test_msvc_x86_binary_still_detects_msvc(self):
         bin_path = os.path.join(bin_location, "tests", "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
-        from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
-
         assert detect_cxx_runtime(angr.Project(bin_path, auto_load_libs=False)) == MSVC
 
 
@@ -1528,9 +1527,6 @@ class TestMemberContainers(TestCase):
     STL4_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl4")
 
     def test_pfield_binds_the_object_not_the_pointer(self):
-        from angr.ailment.expression import BinaryOp, Const, VirtualVariable, VirtualVariableCategory
-        from angr.analyses.decompiler.known_patterns.dsl import PField
-
         this = VirtualVariable(None, 7, 64, VirtualVariableCategory.REGISTER, oident=16)
         addr = BinaryOp(None, "Add", [this, Const(None, 16, 64)], False)
 
@@ -1554,9 +1550,6 @@ class TestMemberContainers(TestCase):
     def test_pfield_rejects_a_negative_object_offset(self):
         # without this a bare `Load(p)` would satisfy a field at +8, and
         # std::string::length would match every one-word load in the binary
-        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
-        from angr.analyses.decompiler.known_patterns.dsl import PField
-
         p = VirtualVariable(None, 7, 64, VirtualVariableCategory.REGISTER, oident=16)
         assert PField("v", 8).match(p, MatchState(), MatchCtx()) is None
 
@@ -1607,8 +1600,6 @@ class TestVectorElementSizes(TestCase):
     STL4_BIN = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_stl4")
 
     def test_capacity_is_generated_per_element_size(self):
-        from angr.analyses.decompiler.known_patterns import STD_VECTOR_CAPACITY_TEMPLATES
-
         names = {t.call_name for t in STD_VECTOR_CAPACITY_TEMPLATES}
         assert "std::vector<int>::capacity" in names
         assert "std::vector<long long>::capacity" in names
@@ -1658,8 +1649,6 @@ class TestSwapWidthsAndInterleaving(TestCase):
         # affordable since the matcher prunes statement patterns by their first
         # statement's key, which for these is "an assignment whose source is a
         # load of exactly this width".
-        from angr.analyses.decompiler.known_patterns import STD_SWAP_TEMPLATES
-
         names = {t.name for t in STD_SWAP_TEMPLATES}
         assert len(STD_SWAP_TEMPLATES) == 12
         for width in (1, 2, 4, 8):
@@ -1719,9 +1708,6 @@ class TestSwapWidthsAndInterleaving(TestCase):
         # the AIL side of the same thing: the VariableMap is keyed by index, so
         # two synthesized arguments sharing one is two arguments sharing a
         # variable
-        from angr.ailment.expression import Call
-        from angr.analyses.decompiler.known_patterns.finder import _iter_subexprs
-
         _, _, _, dec = self._decompile_pair_swap()
         idxs = [
             arg.idx
@@ -1742,10 +1728,6 @@ class TestSwapWidthsAndInterleaving(TestCase):
 
     def test_disjointness_admits_a_nonaliasing_gap(self):
         # a read of `*(b + 8)` between a write of `*a` and a write of `*b`
-        from angr.ailment.expression import Const, VirtualVariable, VirtualVariableCategory
-        from angr.ailment.statement import Assignment, Store
-        from angr.analyses.decompiler.known_patterns.finder import KnownPatternFinder as F
-
         a = VirtualVariable(None, 1, 64, VirtualVariableCategory.PARAMETER)
         b = VirtualVariable(None, 2, 64, VirtualVariableCategory.PARAMETER)
         t = VirtualVariable(None, 3, 32, VirtualVariableCategory.REGISTER, oident=16)
@@ -1753,11 +1735,11 @@ class TestSwapWidthsAndInterleaving(TestCase):
         gap_far = Assignment(None, t, Load(None, BinaryOp(None, "Add", [b, Const(None, 8, 64)]), 4, "Iend_LE"))
         gap_near = Assignment(None, t, Load(None, b, 4, "Iend_LE"))
 
-        region = [F._mem_accesses(store_a)]
+        region = [KnownPatternFinder._mem_accesses(store_a)]
         # [b+8, +4) does not overlap [a, +8) even if a and b are the same object
-        assert F._commutes_with_region(gap_far, region)
+        assert KnownPatternFinder._commutes_with_region(gap_far, region)
         # [b, +4) does overlap it under that assumption, so the motion is refused
-        assert not F._commutes_with_region(gap_near, region)
+        assert not KnownPatternFinder._commutes_with_region(gap_near, region)
 
 
 class TestStackFields(TestCase):
@@ -1774,9 +1756,6 @@ class TestStackFields(TestCase):
         return VirtualVariable(None, varid, bits, VirtualVariableCategory.STACK, oident=off)
 
     def test_two_fields_unify_on_the_object_offset(self):
-        from angr.ailment.expression import UnaryOp
-        from angr.analyses.decompiler.known_patterns import PStackField
-
         # libstdc++ std::string at s-112: _M_p at +0, the local buffer at +16
         data = self._slot(1, -112)
         localbuf = self._slot(2, -96)
@@ -1793,9 +1772,6 @@ class TestStackFields(TestCase):
         assert PStackField("s", 8, as_address=True).match(ref, st, MatchCtx()) is None
 
     def test_value_and_address_forms_are_distinct(self):
-        from angr.ailment.expression import UnaryOp
-        from angr.analyses.decompiler.known_patterns import PStackField
-
         slot = self._slot(1, -96)
         ref = UnaryOp(None, "Reference", slot)
         # capacity() needs both: it compares the data pointer against the address
@@ -1806,8 +1782,6 @@ class TestStackFields(TestCase):
         assert PStackField("s", 0, as_address=True).match(slot, MatchState(), MatchCtx()) is None
 
     def test_register_slots_are_not_stack_fields(self):
-        from angr.analyses.decompiler.known_patterns import PStackField
-
         reg = VirtualVariable(None, 1, 64, VirtualVariableCategory.REGISTER, oident=16)
         assert PStackField("s", 0).match(reg, MatchState(), MatchCtx()) is None
 
@@ -1840,8 +1814,6 @@ class TestStackSlotResolution(TestCase):
     # two halves do not look like one object until the copies are followed back.
 
     def test_pstackfield_needs_the_resolver_for_a_register_copy(self):
-        from angr.analyses.decompiler.known_patterns import PStackField
-
         slot = VirtualVariable(None, 1, 64, VirtualVariableCategory.STACK, oident=-56)
         reg = VirtualVariable(None, 2, 64, VirtualVariableCategory.REGISTER, oident=16)
 

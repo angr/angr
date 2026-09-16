@@ -169,7 +169,7 @@ class PatternGenerator:
         arches: tuple[str, ...] | None = None,
         platforms: tuple[str, ...] | None = None,
         binary_guard=None,
-        enabled_by_default: bool = True,
+        default_enabled: bool = False,
     ) -> KnownPattern:
         if start_offset >= end_offset:
             raise PatternGenerationError("empty selection")
@@ -204,7 +204,7 @@ class PatternGenerator:
                 arches,
                 platforms,
                 binary_guard,
-                enabled_by_default,
+                default_enabled,
             )
 
         rendered_stmts = self._rendered_statements()
@@ -235,7 +235,7 @@ class PatternGenerator:
                 arches,
                 platforms,
                 binary_guard,
-                enabled_by_default,
+                default_enabled,
             )
 
         # otherwise: a sub-expression selection
@@ -254,7 +254,7 @@ class PatternGenerator:
             arches,
             platforms,
             binary_guard,
-            enabled_by_default,
+            default_enabled,
         )
 
     #
@@ -382,7 +382,7 @@ class PatternGenerator:
         arches,
         platforms,
         binary_guard,
-        enabled_by_default,
+        default_enabled,
     ) -> KnownPattern:
         params = tuple(
             PatternParam(
@@ -404,7 +404,7 @@ class PatternGenerator:
             arches=arches,
             platforms=platforms,
             binary_guard=binary_guard,
-            enabled_by_default=enabled_by_default,
+            default_enabled=default_enabled,
         )
 
     #
@@ -427,7 +427,7 @@ class PatternGenerator:
         arches,
         platforms,
         binary_guard,
-        enabled_by_default,
+        default_enabled,
     ) -> KnownPattern:
         # the root is the widest rendered expression whose text extent is fully
         # inside the selection (the outermost by containment)
@@ -467,7 +467,7 @@ class PatternGenerator:
             arches,
             platforms,
             binary_guard,
-            enabled_by_default,
+            default_enabled,
         )
 
     def _covered_atoms(self, start: int, end: int) -> tuple[set[int], set[int]]:
@@ -537,7 +537,7 @@ class PatternGenerator:
         arches,
         platforms,
         binary_guard,
-        enabled_by_default,
+        default_enabled,
     ) -> KnownPattern:
         # order by text position
         memo: dict[int, tuple[int, int] | None] = {}
@@ -558,7 +558,7 @@ class PatternGenerator:
             arches,
             platforms,
             binary_guard,
-            enabled_by_default,
+            default_enabled,
         )
 
     def _stmt_captures(self, stmts, arg_varids) -> dict[int, str]:
@@ -592,7 +592,7 @@ class PatternGenerator:
         arches,
         platforms,
         binary_guard,
-        enabled_by_default,
+        default_enabled,
     ) -> KnownPattern:
         if self.ail_graph is None:
             raise PatternGenerationError("multi-block selection requires ail_graph")
@@ -653,7 +653,7 @@ class PatternGenerator:
             arches,
             platforms,
             binary_guard,
-            enabled_by_default,
+            default_enabled,
         )
 
     def _selected_ins_addrs(self, start: int, end: int) -> set[int]:

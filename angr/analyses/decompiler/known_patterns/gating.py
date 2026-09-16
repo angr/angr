@@ -1,7 +1,7 @@
 """Criteria gates: per-target (and per-function) enablement for pattern templates.
 
 A :class:`~.templates.KnownPatternTemplate` carries static applicability filters
-(arch / language / runtime / platform) and a boolean ``enabled_by_default``.
+(arch / language / runtime / platform) and a boolean ``default_enabled``.
 Many idioms are opt-in because their shape is too generic to ship on every
 binary: ``Load(p) == 0`` is a list-emptiness test in a kernel module and a null
 check everywhere else.

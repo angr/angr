@@ -126,6 +126,6 @@ STD_STRING_CSTR = make_template(
     _build_string_cstr,
     arches=INTEL,
     platforms=("windows",),
-    enabled_by_default=True,
+    default_enabled=True,
     name="msvc_string_c_str",
 )

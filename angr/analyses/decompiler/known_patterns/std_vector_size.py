@@ -156,10 +156,16 @@ def _make_vector_div_template(
             pattern=pattern,
             params=(PatternParam("v", type=CppRef(unique_name)),),
             returnty=size_t_typename(ctx.bits),
+            default_enabled=True,
         )
 
     return make_template(
-        registry_name, build, arches=INTEL, languages=(CPP,), name=name + ("_stack" if on_stack else "")
+        registry_name,
+        build,
+        arches=INTEL,
+        languages=(CPP,),
+        name=name + ("_stack" if on_stack else ""),
+        default_enabled=True,
     )
 
 

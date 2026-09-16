@@ -102,6 +102,7 @@ STD_STRING_SET_LENGTH = make_template(
     arches=INTEL,
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
+    default_enabled=False,
     name="std_string_set_length",
 )
 STD_STRING_CLEAR = make_template(
@@ -110,7 +111,7 @@ STD_STRING_CLEAR = make_template(
     arches=INTEL,
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
-    enabled_by_default=False,
+    default_enabled=False,
     name="std_string_clear",
     gate=STRING_WITNESSED,
 )
@@ -120,7 +121,7 @@ STD_STRING_IS_LOCAL = make_template(
     arches=INTEL,
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
-    enabled_by_default=False,
+    default_enabled=False,
     name="std_string_is_local",
     gate=STRING_WITNESSED,
 )

@@ -150,7 +150,7 @@ def make_shared_user_data_template(field: KsudField):
         call_name,
         build,
         platforms=("windows",),
-        enabled_by_default=field.stable,
+        default_enabled=field.stable,
         name=f"ksud_{field.name.lower()}_{field.size}",
     )
 
@@ -209,7 +209,7 @@ def make_ntstatus_severity_template(macro: str, severity: int):
             returnty="int",
         )
 
-    return make_template(macro, build, platforms=("windows",), name=macro.lower())
+    return make_template(macro, build, platforms=("windows",), name=macro.lower(), default_enabled=True)
 
 
 ALL_NTSTATUS_TEMPLATES = [make_ntstatus_severity_template(m, sev) for m, sev in NTSTATUS_SEVERITIES]

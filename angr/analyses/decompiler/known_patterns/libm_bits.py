@@ -234,18 +234,18 @@ def _build_isinf(ctx: PatternContext) -> KnownPattern:
 
 # isnan registered before isunordered so a self-compare is named isnan(), not
 # isunordered(x, x).
-LIBM_ISNAN = make_template("isnan", _build_isnan, arches=INTEL)
-LIBM_ISNANF = make_template("isnanf", _build_isnanf, arches=INTEL)
-LIBM_ISUNORDERED = make_template("isunordered", _build_isunordered, arches=INTEL)
-LIBM_ISINF = make_template("isinf", _build_isinf, arches=INTEL)
-LIBM_COPYSIGN = make_template("copysign", _build_copysign, arches=INTEL)
-LIBM_COPYSIGNF = make_template("copysignf", _build_copysignf, arches=INTEL)
-LIBM_FNEG = make_template("fneg", _build_fneg, arches=INTEL)
-LIBM_FNEGF = make_template("fnegf", _build_fnegf, arches=INTEL)
+LIBM_ISNAN = make_template("isnan", _build_isnan, arches=INTEL, default_enabled=True)
+LIBM_ISNANF = make_template("isnanf", _build_isnanf, arches=INTEL, default_enabled=True)
+LIBM_ISUNORDERED = make_template("isunordered", _build_isunordered, arches=INTEL, default_enabled=True)
+LIBM_ISINF = make_template("isinf", _build_isinf, arches=INTEL, default_enabled=True)
+LIBM_COPYSIGN = make_template("copysign", _build_copysign, arches=INTEL, default_enabled=True)
+LIBM_COPYSIGNF = make_template("copysignf", _build_copysignf, arches=INTEL, default_enabled=True)
+LIBM_FNEG = make_template("fneg", _build_fneg, arches=INTEL, default_enabled=True)
+LIBM_FNEGF = make_template("fnegf", _build_fnegf, arches=INTEL, default_enabled=True)
 # `x & 0x7fffffff[ffffffff]` is also a plain integer "clear the top bit", so the
 # fabs patterns are opt-in.
-LIBM_FABS = make_template("fabs", _build_fabs, arches=INTEL, enabled_by_default=False)
-LIBM_FABSF = make_template("fabsf", _build_fabsf, arches=INTEL, enabled_by_default=False)
+LIBM_FABS = make_template("fabs", _build_fabs, arches=INTEL, default_enabled=False)
+LIBM_FABSF = make_template("fabsf", _build_fabsf, arches=INTEL, default_enabled=False)
 
 ALL_LIBM_TEMPLATES = [
     LIBM_ISNAN,

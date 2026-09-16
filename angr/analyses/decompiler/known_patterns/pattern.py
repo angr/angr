@@ -117,7 +117,7 @@ class KnownPattern:
                               only used when it returns True (e.g. require C++
                               evidence for STL patterns to avoid false
                               positives on plain C binaries).
-    :ivar enabled_by_default: Whether the pattern is used when the caller does
+    :ivar default_enabled: Whether the pattern is used when the caller does
                               not explicitly select patterns. Generic patterns
                               prone to false positives should set this False.
     """
@@ -136,7 +136,7 @@ class KnownPattern:
     collapse_capture: str | None = None
     collapse_max_capture: str | None = None
     binary_guard: Callable[[Project], bool] | None = None
-    enabled_by_default: bool = True
+    default_enabled: bool = True
     #: Drop a match of this pattern when a pattern whose name matches the regex
     #: matched on the same object: ``(name regex, my capture, their capture)``.
     #: The two captures must bind ``.likes()``-equal expressions. This is how a

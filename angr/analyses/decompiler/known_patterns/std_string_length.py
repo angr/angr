@@ -37,9 +37,7 @@ STD_BASIC_STRING = "class std::basic_string<char, struct std::char_traits<char>,
 # offset, which std::vector's _M_finish shares, so it measures 59.9% precision on the benchmark corpus against 98%+
 # for the self-guarding shapes. It stays in the set because dropping it costs recall on functions that touch a string
 # only through its length; narrowing it is its own piece of work.
-STRING_WITNESSED = corroborated_by(
-    "std::string::length", "std::string::capacity", "std::string::~string", "std_string_dtor"
-)
+STRING_WITNESSED = corroborated_by("std::string::capacity", "std::string::~string", "std_string_dtor")
 
 
 def _string_field(cap: str, off: int, size: int) -> PLoad:
@@ -89,7 +87,14 @@ def _build_string_index(ctx: PatternContext) -> KnownPattern:
     )
 
 
-STD_STRING_LENGTH = make_template("std::string::length", _build_string_length, arches=INTEL, languages=(CPP,))
+STD_STRING_LENGTH = make_template(
+    "std::string::length",
+    _build_string_length,
+    arches=INTEL,
+    languages=(CPP,),
+    default_enabled=False,
+    gate=STRING_WITNESSED,
+)
 
 # opt-in: "field == 0" is generic unless an unambiguous string idiom already identified the object
 STD_STRING_EMPTY = make_template(
@@ -97,7 +102,7 @@ STD_STRING_EMPTY = make_template(
     _build_string_empty,
     arches=INTEL,
     languages=(CPP,),
-    enabled_by_default=False,
+    default_enabled=False,
     gate=STRING_WITNESSED,
 )
 
@@ -108,6 +113,6 @@ STD_STRING_INDEX = make_template(
     arches=INTEL,
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
-    enabled_by_default=False,
+    default_enabled=False,
     gate=STRING_WITNESSED,
 )

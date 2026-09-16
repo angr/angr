@@ -33,7 +33,7 @@ class KnownPatternTemplate:
                               None = any.
     :ivar platforms:          Allowed platforms ({"linux","windows"});
                               None = any.
-    :ivar enabled_by_default: Whether the template is used when the caller does
+    :ivar default_enabled:    Whether the template is used when the caller does
                               not explicitly select patterns.
     :ivar gate:               Optional :class:`~.gating.PatternGate` that turns
                               an opt-in template on for targets (or functions)
@@ -48,7 +48,7 @@ class KnownPatternTemplate:
     languages: frozenset[str] | None = None
     runtimes: frozenset[str] | None = None
     platforms: frozenset[str] | None = None
-    enabled_by_default: bool = True
+    default_enabled: bool = False
     # human label, defaults to call_name
     name: str = ""
     gate: PatternGate | None = None
@@ -65,7 +65,7 @@ class KnownPatternTemplate:
         """Whether this template is on for the given target/function, taking the
         default flag and the gate (but not an explicit user selection) into
         account."""
-        if self.enabled_by_default:
+        if self.default_enabled:
             return True
         return self.gate is not None and self.gate(gate_ctx)
 
@@ -98,7 +98,7 @@ def make_template(
     languages: frozenset[str] | tuple[str, ...] | None = None,
     runtimes: frozenset[str] | tuple[str, ...] | None = None,
     platforms: frozenset[str] | tuple[str, ...] | None = None,
-    enabled_by_default: bool = True,
+    default_enabled: bool = False,
     name: str = "",
     gate: PatternGate | None = None,
 ) -> KnownPatternTemplate:
@@ -112,7 +112,7 @@ def make_template(
         languages=_fs(languages),
         runtimes=_fs(runtimes),
         platforms=_fs(platforms),
-        enabled_by_default=enabled_by_default,
+        default_enabled=default_enabled,
         name=name or call_name,
         gate=gate,
     )

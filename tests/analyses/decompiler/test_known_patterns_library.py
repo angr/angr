@@ -774,7 +774,7 @@ class TestWdkSharedDataPatterns(TestCase):
         from angr.analyses.decompiler.known_patterns import TEMPLATE_BY_CALL_NAME
 
         for call_name in ("SharedUserData_SystemCall_pre_win8", "SharedUserData_SystemCall_win8"):
-            assert TEMPLATE_BY_CALL_NAME[call_name].enabled_by_default is False
+            assert TEMPLATE_BY_CALL_NAME[call_name].default_enabled is False
 
     def test_ntstatus_severity_predicates(self):
         for func_name, macro in (

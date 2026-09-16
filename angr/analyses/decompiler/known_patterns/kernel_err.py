@@ -65,7 +65,7 @@ def _build_is_err(ctx: PatternContext) -> KnownPattern:
         params=(PatternParam("ptr", "void *"),),
         returnty="int",
         where=_unsigned,
-        enabled_by_default=False,
+        default_enabled=False,
     )
 
 
@@ -83,14 +83,14 @@ def _build_is_err_or_null(ctx: PatternContext) -> KnownPattern:
         params=(PatternParam("ptr", "void *"),),
         returnty="int",
         where=_unsigned,
-        enabled_by_default=False,
+        default_enabled=False,
     )
 
 
 # Opt-in in general: renaming a comparison to IS_ERR() in a user-space binary would mislead even though the
 # threshold constant is in practice unique to <linux/err.h>. In a Linux kernel object there is no other reading of
 # it, so the gate turns the family on there.
-IS_ERR = make_template("IS_ERR", _build_is_err, enabled_by_default=False, gate=LINUX_KERNEL)
-IS_ERR_OR_NULL = make_template("IS_ERR_OR_NULL", _build_is_err_or_null, enabled_by_default=False, gate=LINUX_KERNEL)
+IS_ERR = make_template("IS_ERR", _build_is_err, default_enabled=False, gate=LINUX_KERNEL)
+IS_ERR_OR_NULL = make_template("IS_ERR_OR_NULL", _build_is_err_or_null, default_enabled=False, gate=LINUX_KERNEL)
 
 ALL_KERNEL_ERR_TEMPLATES = [IS_ERR_OR_NULL, IS_ERR]

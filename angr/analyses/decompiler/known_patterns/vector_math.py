@@ -63,7 +63,7 @@ def _build_length_sq(ctx: PatternContext) -> KnownPattern:
 
 # length_sq registered before dot3 so it wins on a dot-with-itself. Not
 # language-gated: scalar vector math appears in C as well as C++.
-VEC_LENGTH_SQ = make_template("length_sq", _build_length_sq, arches=INTEL, enabled_by_default=False)
-VEC_DOT3 = make_template("dot3", _build_dot3, arches=INTEL, enabled_by_default=False)
+VEC_LENGTH_SQ = make_template("length_sq", _build_length_sq, arches=INTEL, default_enabled=False)
+VEC_DOT3 = make_template("dot3", _build_dot3, arches=INTEL, default_enabled=False)
 
 ALL_VECTOR_MATH_TEMPLATES = [VEC_LENGTH_SQ, VEC_DOT3]

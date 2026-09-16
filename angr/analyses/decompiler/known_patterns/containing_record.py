@@ -86,4 +86,4 @@ def _build_containing_record(ctx: PatternContext) -> KnownPattern:  # pylint:dis
     )
 
 
-CONTAINING_RECORD_PATTERN = make_template("CONTAINING_RECORD", _build_containing_record, enabled_by_default=False)
+CONTAINING_RECORD_PATTERN = make_template("CONTAINING_RECORD", _build_containing_record, default_enabled=False)

@@ -130,7 +130,15 @@ def _build_predicate(macro: str, mask: int):
             pure_calls=CTYPE_B_LOC,
         )
 
-    return make_template(macro, build, arches=INTEL, languages=(C, CPP), platforms=("linux",), name=f"ctype_{macro}")
+    return make_template(
+        macro,
+        build,
+        arches=INTEL,
+        languages=(C, CPP),
+        platforms=("linux",),
+        name=f"ctype_{macro}",
+        default_enabled=True,
+    )
 
 
 def _build_case_map(macro: str, names: frozenset[str]):
@@ -146,7 +154,15 @@ def _build_case_map(macro: str, names: frozenset[str]):
             pure_calls=names,
         )
 
-    return make_template(macro, build, arches=INTEL, languages=(C, CPP), platforms=("linux",), name=f"ctype_{macro}")
+    return make_template(
+        macro,
+        build,
+        arches=INTEL,
+        languages=(C, CPP),
+        platforms=("linux",),
+        name=f"ctype_{macro}",
+        default_enabled=True,
+    )
 
 
 CTYPE_PREDICATE_TEMPLATES = [_build_predicate(macro, mask) for macro, mask in CTYPE_PREDICATES]

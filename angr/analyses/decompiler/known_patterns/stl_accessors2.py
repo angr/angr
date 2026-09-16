@@ -218,6 +218,8 @@ STD_STRING_CAPACITY = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_capacity",
+    default_enabled=True,
+    gate=STRING_WITNESSED,
 )
 # The triangle spelling is a second template rather than another arm of the
 # first: a PGraphPat is a region, a PITE is an expression, and one KnownPattern
@@ -230,6 +232,8 @@ STD_STRING_CAPACITY_BRANCH = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_capacity_branch",
+    default_enabled=True,
+    gate=STRING_WITNESSED,
 )
 STD_STRING_CAPACITY_STACK = make_template(
     "std::string::capacity (stack)",
@@ -238,6 +242,8 @@ STD_STRING_CAPACITY_STACK = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_capacity_stack",
+    default_enabled=True,
+    gate=STRING_WITNESSED,
 )
 STD_STRING_BACK = make_template(
     "std::string::back",
@@ -246,6 +252,8 @@ STD_STRING_BACK = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_back",
+    default_enabled=True,
+    gate=STRING_WITNESSED,
 )
 # opt-in: `**(char **)p` is one of the most common shapes in any C++ binary. Gated on corroboration: in a function
 # where length() or capacity() already pinned the object down as a std::string, the double dereference is front().
@@ -255,7 +263,7 @@ STD_STRING_FRONT = make_template(
     arches=INTEL,
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
-    enabled_by_default=False,
+    default_enabled=True,
     name="std_string_front",
     gate=STRING_WITNESSED,
 )
@@ -282,7 +290,7 @@ def make_std_vector_back_template(elt_name: str, elt_size: int, returnty: str):
         )
 
     return make_template(
-        call_name, build, arches=INTEL, languages=(CPP,), enabled_by_default=False, name=f"std_vector_{slug}_back"
+        call_name, build, arches=INTEL, languages=(CPP,), default_enabled=False, name=f"std_vector_{slug}_back"
     )
 
 

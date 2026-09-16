@@ -92,7 +92,7 @@ def make_std_vector_index_template(elt_name: str, elt_size: int, returnty: str):
 
     # opt-in: an indexed load off a pointer field describes every array in every
     # program; only the container's identity makes it operator[].
-    return make_template(call_name, build, arches=INTEL, languages=(CPP,), enabled_by_default=False, name=name)
+    return make_template(call_name, build, arches=INTEL, languages=(CPP,), default_enabled=False, name=name)
 
 
 # Opt-in, gated on a size()/capacity() match for the same kind of object.
@@ -112,7 +112,7 @@ STD_VECTOR_INT_EMPTY = make_template(
     _build_vector_empty,
     arches=INTEL,
     languages=(CPP,),
-    enabled_by_default=False,
+    default_enabled=False,
     gate=corroborated_by_pattern(r"std_vector_.*_(size|capacity)$"),
 )
 STD_VECTOR_INDEX_TEMPLATES = [

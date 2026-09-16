@@ -120,7 +120,7 @@ def _make_swap_template(size: int, order: str):
             returnty=None,  # void: the temporary dies inside the region
         )
 
-    return make_template(call_name, build, arches=INTEL, languages=(CPP,), name=name)
+    return make_template(call_name, build, arches=INTEL, languages=(CPP,), name=name, default_enabled=False)
 
 
 STD_SWAP_TEMPLATES = [

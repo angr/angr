@@ -173,6 +173,7 @@ STD_STRING_DTOR_UNSIZED = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_dtor_unsized",
+    default_enabled=True,
 )
 STD_STRING_DTOR_STACK = make_template(
     _DTOR_CALL_NAME + " (stack)",
@@ -181,6 +182,7 @@ STD_STRING_DTOR_STACK = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_dtor_stack",
+    default_enabled=True,
 )
 STD_STRING_DTOR_STACK_UNSIZED = make_template(
     _DTOR_CALL_NAME + " (stack, unsized)",
@@ -189,6 +191,7 @@ STD_STRING_DTOR_STACK_UNSIZED = make_template(
     languages=(CPP,),
     runtimes=(LIBSTDCXX,),
     name="std_string_dtor_stack_unsized",
+    default_enabled=True,
 )
 
 ALL_STRING_DTOR_TEMPLATES = [

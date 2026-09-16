@@ -62,8 +62,8 @@ def _build_clear_has_field(ctx: PatternContext) -> KnownPattern:
     )
 
 
-PROTOBUF_HAS_FIELD = make_template("_pb_has_field", _build_has_field, enabled_by_default=False)
-PROTOBUF_SET_HAS_FIELD = make_template("_pb_set_has_field", _build_set_has_field, enabled_by_default=False)
-PROTOBUF_CLEAR_HAS_FIELD = make_template("_pb_clear_has_field", _build_clear_has_field, enabled_by_default=False)
+PROTOBUF_HAS_FIELD = make_template("_pb_has_field", _build_has_field, default_enabled=False)
+PROTOBUF_SET_HAS_FIELD = make_template("_pb_set_has_field", _build_set_has_field, default_enabled=False)
+PROTOBUF_CLEAR_HAS_FIELD = make_template("_pb_clear_has_field", _build_clear_has_field, default_enabled=False)
 
 ALL_PROTOBUF_TEMPLATES = [PROTOBUF_HAS_FIELD, PROTOBUF_SET_HAS_FIELD, PROTOBUF_CLEAR_HAS_FIELD]

@@ -305,7 +305,14 @@ class KnownPatternFinder(Analysis):
             enabled, self._deferred_templates = partition_templates(self._gate_ctx, forced)
             self._patterns = patterns_for(ctx, enabled)
         else:
-            selected = list(patterns)
+            selected = []
+            for pattern in patterns:
+                if isinstance(pattern, (KnownPattern, KnownPatternTemplate)):
+                    selected.append(pattern)
+                elif isinstance(pattern, str):
+                    selected += resolve_pattern_selection(pattern)
+                else:
+                    raise TypeError(f"patterns must be KnownPatternTemplate or str, not {type(pattern)}")
             templates = [p for p in selected if isinstance(p, KnownPatternTemplate)]
             concrete = [p for p in selected if not isinstance(p, KnownPatternTemplate)]
             self._patterns = patterns_for(ctx, templates)

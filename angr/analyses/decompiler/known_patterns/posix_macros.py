@@ -208,7 +208,7 @@ def _build_wifstopped(ctx: PatternContext) -> KnownPattern:  # pylint:disable=un
         pattern=PBinOp("CmpEQ", (macro_operand("status"), PConst(0x7F, bits=8))),
         params=(PatternParam("status", "int"),),
         returnty="int",
-        enabled_by_default=False,
+        default_enabled=False,
     )
 
 
@@ -221,7 +221,7 @@ def _build_wtermsig(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unus
         pattern=PBinOp("And", (macro_operand("status"), PConst(0x7F))),
         params=(PatternParam("status", "int"),),
         returnty="int",
-        enabled_by_default=False,
+        default_enabled=False,
     )
 
 
@@ -295,27 +295,25 @@ def _build_major32(ctx: PatternContext) -> KnownPattern:  # pylint:disable=unuse
 # values (_S_IFMT 0xf000, _S_IFDIR 0x4000, _S_IFCHR 0x2000, _S_IFREG 0x8000), so
 # these are left ungated. The mask/value pairing is self-guarding.
 S_ISTYPE_TEMPLATES = [
-    make_template(macro, _make_s_istype(name, macro, ifval), enabled_by_default=True, name=name)
+    make_template(macro, _make_s_istype(name, macro, ifval), default_enabled=True, name=name)
     for name, macro, ifval in _S_ISTYPES
 ]
 
 # the wait-status bit layout is POSIX/glibc-specific, so these are gated to the
 # platform they were calibrated on
-WIFEXITED = make_template(
-    "WIFEXITED", _build_wifexited, platforms=("linux",), enabled_by_default=True, name="wifexited"
-)
+WIFEXITED = make_template("WIFEXITED", _build_wifexited, platforms=("linux",), default_enabled=True, name="wifexited")
 WIFSIGNALED = make_template(
-    "WIFSIGNALED", _build_wifsignaled, platforms=("linux",), enabled_by_default=True, name="wifsignaled"
+    "WIFSIGNALED", _build_wifsignaled, platforms=("linux",), default_enabled=True, name="wifsignaled"
 )
 # opt-in: the compiler absorbs the & 0xff, leaving a bare byte compare against
 # 0x7f that is indistinguishable from any other char test
 WIFSTOPPED = make_template(
-    "WIFSTOPPED", _build_wifstopped, platforms=("linux",), enabled_by_default=False, name="wifstopped"
+    "WIFSTOPPED", _build_wifstopped, platforms=("linux",), default_enabled=False, name="wifstopped"
 )
 # opt-in: a bare `x & 0x7f` is far too common to attribute to WTERMSIG, and it
 # also nests inside WIFEXITED / WIFSIGNALED
-WTERMSIG = make_template("WTERMSIG", _build_wtermsig, platforms=("linux",), enabled_by_default=False, name="wtermsig")
+WTERMSIG = make_template("WTERMSIG", _build_wtermsig, platforms=("linux",), default_enabled=False, name="wtermsig")
 
-MAJOR = make_template("major", _build_major, platforms=("linux",), enabled_by_default=True, name="gnu_dev_major")
+MAJOR = make_template("major", _build_major, platforms=("linux",), default_enabled=True, name="gnu_dev_major")
 
 ALL_POSIX_MACRO_TEMPLATES = [*S_ISTYPE_TEMPLATES, WIFEXITED, WIFSIGNALED, WIFSTOPPED, WTERMSIG, MAJOR]
