@@ -551,19 +551,48 @@ class VariableManagerInternal(Serializable):
             raise ValueError(f"Unsupported sort {sort} in add_variable().")
 
         if variable.ident is not None:
-            # find if there is already an existing variable with the same identifier
-            if variable.ident in self._ident_to_variable:
-                existing_var = self._ident_to_variable[variable.ident]
-                if existing_var.name is not None and not variable.renamed:
-                    variable.name = existing_var.name
-                    variable.renamed = existing_var.renamed
-                    variable.auto_renamed = existing_var.auto_renamed
+            self._supersede_variable(variable)
             self._ident_to_variable[variable.ident] = variable
 
         if region is not None:
             region.add_variable(start, variable)
         self._variables.add(variable)
         self._variables_without_writes.add(variable)
+
+    def _supersede_variable(self, variable: SimVariable) -> None:
+        """
+        Remove the existing variable with the same identifier as `variable` from the variable manager, and transfer its
+        name to `variable`.
+        """
+
+        assert variable.ident is not None
+        existing = self._ident_to_variable.get(variable.ident)
+        if existing is None or existing is variable:
+            return
+        if existing.name is not None and not variable.renamed:
+            variable.name = existing.name
+            variable.renamed = existing.renamed
+            variable.auto_renamed = existing.auto_renamed
+        if existing == variable:
+            return
+
+        self._variables.discard(existing)
+        self._variables_without_writes.discard(existing)
+        if isinstance(existing, SimStackVariable):
+            self._stack_region.remove_variable(existing.offset, existing)
+        elif isinstance(existing, SimRegisterVariable):
+            self._register_region.remove_variable(existing.reg, existing)
+        elif isinstance(existing, SimComboRegisterVariable):
+            self._register_region.remove_variable(existing.reg_offsets[0], existing)
+        elif isinstance(existing, SimMemoryVariable):
+            self._global_region.remove_variable(existing.addr, existing)
+
+        # re-key the stale unified variable to the new variable so that set_unified_variable() carries its name over
+        old_unified = self._variables_to_unified_variables.pop(existing, None)
+        if old_unified is not None:
+            if all(u is not old_unified for u in self._variables_to_unified_variables.values()):
+                self._unified_variables.discard(old_unified)
+            self._variables_to_unified_variables[variable] = old_unified
 
     def set_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":
@@ -626,7 +655,10 @@ class VariableManagerInternal(Serializable):
         overwrite=False,
         atom: ailment.expression.Atom | None = None,
     ):
-        if variable.ident not in self._ident_to_variable:
+        existing = self._ident_to_variable.get(variable.ident)
+        if existing is None or existing != variable:
+            if existing is not None:
+                self._supersede_variable(variable)
             self._ident_to_variable[variable.ident] = variable
             self._variables.add(variable)
         var_and_offset = variable, offset
