@@ -99,6 +99,10 @@ class RegionObject:
 
         self.add_object(obj)
 
+    def remove_object(self, obj) -> None:
+        self.stored_objects = {so for so in self.stored_objects if so.obj is not obj}
+        self._internal_objects = {so.obj for so in self.stored_objects}
+
     def copy(self):
         return RegionObject(self.start, self.size, objects=self.stored_objects.copy())
 
@@ -308,6 +312,27 @@ class KeyedRegion:
         """
 
         self._store(start, obj, object_size, overwrite=True)
+
+    def remove_variable(self, start, variable) -> None:
+        """
+        Remove a variable that was added at the given offset. Other variables are untouched.
+        """
+
+        size = variable.size if variable.size is not None else 1
+        self.remove_object(start, variable, size)
+
+    def remove_object(self, start, obj, object_size) -> None:
+        end = start + self._canonicalize_size(object_size)
+        keys = list(self._storage.irange(start, end - 1))
+        floor_key, floor_item = self._get_container(start)
+        if floor_item is not None and floor_key not in keys:
+            keys.insert(0, floor_key)
+        for key in keys:
+            item: RegionObject = self._storage[key]
+            item.remove_object(obj)
+            if item.is_empty:
+                del self._storage[key]
+        self._object_mapping.pop(id(obj), None)
 
     def get_base_addr(self, addr):
         """
