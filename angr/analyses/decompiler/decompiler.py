@@ -35,7 +35,9 @@ from .edits import (
     rename_function,
     rename_variable,
     resolve_variable,
+    restore_user_edits,
     set_variable_type,
+    snapshot_user_edits,
 )
 from .notes import DecompilationNote
 from .optimization_passes.optimization_pass import OptimizationPassStage
@@ -54,6 +56,7 @@ from .variable_map import VariableMap
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint, TypeVariable
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
+    from angr.sim_type import SimType
 
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
     from .structured_codegen.base import BaseStructuredCodeGenerator
@@ -490,18 +493,12 @@ class Decompiler(Analysis):
         def progress_callback(p, **kwargs):
             return self._update_progress(p * (70 - 5) / 100.0 + 5, **kwargs)
 
-        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
-        if (
-            self._regen_clinic
-            or old_clinic is None
-            or self.func.prototype is None
-            or self.func.addr not in self.kb.dec_variables
-        ):
-            clinic = self.project.analyses.Clinic(
+        def run_clinic(variable_map: VariableMap, return_type: SimType | None = None, reset_names: bool | None = None):
+            return self.project.analyses.Clinic(
                 self.func,
                 kb=self.kb,
                 fail_fast=self._fail_fast,
-                reset_variable_names=reset_variable_names,
+                reset_variable_names=reset_variable_names if reset_names is None else reset_names,
                 optimization_passes=self._optimization_passes,
                 sp_tracker_track_memory=self._sp_tracker_track_memory,
                 fold_callexprs_into_conditions=fold_callexprs_into_conditions,
@@ -528,8 +525,37 @@ class Decompiler(Analysis):
                 save_unoptimized_graph=self._save_unoptimized_graph,
                 flavor=self._flavor,
                 variable_map=variable_map,
+                return_type=return_type,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
+
+        # a deserialized clinic whose function has no dec_variables cannot drive codegen; re-run Clinic instead
+        if (
+            self._regen_clinic
+            or old_clinic is None
+            or self.func.prototype is None
+            or self.func.addr not in self.kb.dec_variables
+        ):
+            clinic = run_clinic(variable_map)
+            # Type inference just recovered a return type wider than the one the return statements were made for.
+            # Run Clinic again with that return type handed over explicitly: a prototype the decompiler inferred
+            # itself is not ground truth, so the second Clinic clears it and recovers the calling convention afresh,
+            # and would otherwise arrive at ReturnMaker with the narrow type again. A caller-supplied graph or
+            # argument-vvar map rules the retry out: the first Clinic edited both in place. Discard the first pass's
+            # variables so the second one numbers its locals from scratch.
+            if clinic.returns_missing_registers and self._clinic_graph is None and self._clinic_arg_vvars is None:
+                assert self.func.prototype is not None
+                return_type = self.func.prototype.returnty
+                # Dropping kb.dec_variables is what makes the second pass number its locals from scratch, and it
+                # also discards every rename and manual type the user made, so they are snapshotted and restored
+                # around it the way set_function_prototype does. The second pass numbers from scratch, so it needs
+                # reset_variable_names whatever the first pass was given: without it a re-decompilation renders two
+                # distinct locals under one name.
+                user_edits = snapshot_user_edits(self.kb, self.func.addr)
+                if self.func.addr in self.kb.dec_variables:
+                    del self.kb.dec_variables[self.func.addr]
+                clinic = run_clinic(VariableMap(), return_type=return_type, reset_names=True)
+                restore_user_edits(self.kb, self.func.addr, user_edits)
         else:
             clinic = old_clinic
             # the deserialized clinic may carry peephole-optimization names that were unresolvable at parse time
