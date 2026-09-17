@@ -44,6 +44,7 @@ from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
+from angr.protos import codegen_pb2
 from angr.rust.sim_type import (
     EnumVariant,
     RustSimStruct,
@@ -56,6 +57,7 @@ from angr.rust.sim_type import (
 from angr.rust.structuring.structurer_nodes import IfLetNode, PatternMatchNode
 from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.utils.demangler import demangle, normalize
+from angr.serializable import Serializable
 from angr.sim_type import (
     SimStruct,
     SimType,
@@ -2844,7 +2846,7 @@ class RustStructFieldNameDef:
         self.name = name
 
 
-class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
+class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializable):
     def __init__(
         self,
         func,
@@ -4470,6 +4472,21 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         stack_base = RustFakeVariable("stack_base", RustSimTypeReference(SimTypeBottom()), codegen=self)
         return RustBinaryOp("Add", stack_base, RustConstant(expr.offset, RustSimTypeInt(), codegen=self), codegen=self)
 
+    #
+    # Serialization
+    #
+
+    @classmethod
+    def _get_cmsg(cls):
+        return codegen_pb2.Codegen()  # pylint:disable=no-member
+
+    def serialize_to_cmessage(self):
+        return _rust_serialize.serialize_codegen(self)
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, *, project=None, kb=None, func=None, **kwargs):
+        return _rust_serialize.parse_codegen(cmsg, project=project, kb=kb, func=func)
+
 
 class RustStructuredCodeWalker:
     @classmethod
@@ -4750,3 +4767,10 @@ class PointerArithmeticFixer(RustStructuredCodeWalker):
 
 
 register_analysis(RustStructuredCodeGenerator, "RustStructuredCodeGenerator")
+
+
+# Register protobuf serializer/parser pairs for every concrete RustConstruct subclass. Imported after all classes are
+# defined so that ``rust_serialize.register_all`` can reference them by name.
+from . import rust_serialize as _rust_serialize  # pylint: disable=wrong-import-position
+
+_rust_serialize.register_all()
