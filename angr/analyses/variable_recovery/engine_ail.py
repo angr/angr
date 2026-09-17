@@ -815,7 +815,7 @@ class SimEngineVRAIL(
             # addition with constants. create a derived type variable
             if isinstance(r0_typevar, typevars.TypeVariable):
                 typevar = self.tv_manager.new_dtv_with_merged_labels(
-                    r0_typevar, label=typevars.AddN(r1.data.concrete_value)
+                    r0_typevar, label=typevars.add_label(r1.data.concrete_value, r1.data.size())
                 )
         elif r1.typevar is not None:
             typevar = self.tv_manager.new_tv()
@@ -834,7 +834,7 @@ class SimEngineVRAIL(
         typevar = None
         if r0.typevar is not None and r1.data.concrete and isinstance(r0.typevar, typevars.TypeVariable):
             typevar = self.tv_manager.new_dtv_with_merged_labels(
-                r0.typevar, label=typevars.SubN(r1.data.concrete_value)
+                r0.typevar, label=typevars.sub_label(r1.data.concrete_value, r1.data.size())
             )
         else:
             typevar = self.tv_manager.new_tv()

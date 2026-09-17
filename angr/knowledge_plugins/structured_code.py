@@ -51,6 +51,7 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
         self._db: str | None = None
         self._eviction_enabled: bool = True
         self._warned_unspillable: bool = False
+        self._warned_unserializable: bool = False
         # serialized entries restored by __setstate__, imported into LMDB on first access (the owning knowledge
         # base may still be mid-unpickle during __setstate__)
         self._pending_import: dict[CacheKey, bytes] | None = None
@@ -208,6 +209,14 @@ class SpillingDecompilationDict(collections.abc.MutableMapping):
             try:
                 serialized.append((key, cache.serialize()))
             except Exception:  # pylint:disable=broad-exception-caught
+                if not self._warned_unserializable:
+                    self._warned_unserializable = True
+                    l.warning(
+                        "Decompilation cache %r cannot be serialized; only its codegen metadata will be stored. "
+                        "Further occurrences will not be logged.",
+                        key,
+                        exc_info=True,
+                    )
                 unserializable[key] = cache
 
         return serialized, unserializable

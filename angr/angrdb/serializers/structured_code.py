@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import insert
@@ -16,6 +17,8 @@ if TYPE_CHECKING:
     from angr.analyses.decompiler.structured_codegen.base import IdentType
     from angr.angrdb.models import DbKnowledgeBase
     from angr.knowledge_base import KnowledgeBase
+
+l = logging.getLogger(name=__name__)
 
 
 class ConstFormatsSerializer:
@@ -95,10 +98,19 @@ class StructuredCodeManagerSerializer:
         else:
             serialized = []
             unserializable = {}
+            warned = False
             for key, cache in backing.items():
                 try:
                     serialized.append((key, cache.serialize()))
                 except Exception:  # pylint:disable=broad-exception-caught
+                    if not warned:
+                        warned = True
+                        l.warning(
+                            "Decompilation cache %r cannot be serialized; only its codegen metadata will be stored. "
+                            "Further occurrences will not be logged.",
+                            key,
+                            exc_info=True,
+                        )
                     unserializable[key] = cache
 
         rows = [
