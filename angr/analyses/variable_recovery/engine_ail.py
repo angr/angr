@@ -657,7 +657,7 @@ class SimEngineVRAIL(
         typevar = None
         if r.typevar is not None:
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
-                r.typevar.one_label, typevars.ConvertTo
+                r.typevar.one_label(), typevars.ConvertTo
             ):
                 # there is already a conversion - overwrite it
                 if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
@@ -688,7 +688,7 @@ class SimEngineVRAIL(
         typevar = None
         if r.typevar is not None:
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
-                r.typevar.one_label, typevars.ConvertTo
+                r.typevar.one_label(), typevars.ConvertTo
             ):
                 # there is already a conversion - overwrite it
                 if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
@@ -713,7 +713,7 @@ class SimEngineVRAIL(
         typevar = None
         if r.typevar is not None:
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
-                r.typevar.one_label, typevars.ReinterpretAs
+                r.typevar.one_label(), typevars.ReinterpretAs
             ):
                 # there is already a reinterpretas - overwrite it
                 typevar = self.tv_manager.new_dtv_with_merged_labels(
