@@ -8,6 +8,10 @@ MAX_POINTSTO_BITS = 0x1FFFC0DF * 8
 # treated as an access of an unknown size instead of an enormous field.
 MAX_ACCESS_SIZE = 0x10_0000
 
+# The largest struct field offset (in bytes) that Typehoon will take. Larger displacements come from junk code,
+# leaked constants, or offsets that wrapped around, not from fields of a real object.
+MAX_FIELD_OFFSET = 0x400_000
+
 #: Well-known "magic" constants that are universally recognized in hexadecimal.
 MAGIC_CONSTANTS = frozenset(
     {

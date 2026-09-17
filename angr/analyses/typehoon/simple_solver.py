@@ -13,7 +13,7 @@ import networkx
 from sortedcontainers import SortedDict
 
 import angr
-from angr.utils.constants import MAX_POINTSTO_BITS
+from angr.utils.constants import MAX_FIELD_OFFSET, MAX_POINTSTO_BITS
 
 from ._typehash import type_tag
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -2272,7 +2272,7 @@ class SimpleSolver:
                     result = self._pointer_class()(Int8_)
                 else:
                     for off in ptr_offs:
-                        if off not in fields:
+                        if off not in fields and off <= MAX_FIELD_OFFSET:
                             # missing field at this offset
                             fields[off] = Int8_  # not sure how it's accessed
 

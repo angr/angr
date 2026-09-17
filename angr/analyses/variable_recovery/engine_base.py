@@ -21,7 +21,7 @@ from angr.sim_variable import (
     SimVariable,
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from angr.utils.constants import MAX_ACCESS_SIZE, MAX_POINTSTO_BITS
+from angr.utils.constants import MAX_ACCESS_SIZE, MAX_FIELD_OFFSET, MAX_POINTSTO_BITS
 
 #
 # The base engine used in VariableRecoveryFast
@@ -1354,15 +1354,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             if self._likely_pointer(offset + (1 << self.arch.bits)):
                 # a mapped address that we reached by wrapping around; tv is the actual offset
                 return self.tv_manager.new_tv()
-        elif offset >= 4096:
-            if self._likely_pointer(offset):
-                # tv is the actual offset
-                return self.tv_manager.new_tv()
-            if (self.arch.bits == 32 and offset > 0x7FFF_FFFF) or (
-                self.arch.bits == 64 and offset > 0x7FFF_FFFF_FFFF_FFFF
-            ):
-                # probably a negative offset
-                return self.tv_manager.new_tv()
+        elif offset >= 4096 and self._likely_pointer(offset):
+            # tv is the actual offset
+            return self.tv_manager.new_tv()
+
+        if not -MAX_FIELD_OFFSET <= offset <= MAX_FIELD_OFFSET:
+            # too far out to be a field of a real object; this also covers offsets that wrapped around
+            return self.tv_manager.new_tv()
 
         new_dtv = self.tv_manager.new_dtv(
             tv,
