@@ -943,5 +943,42 @@ class TestFtopConflict:
         assert "ireg_" not in text, f"IRegister leaked into output: {text[:400]}"
 
 
+class TestX87ConstantLiterals:
+    """80-bit x87 constants outside the double range must render as long double literals."""
+
+    def test_round_and_return_ldbl_limits(self):
+        # glibc's round_and_return compares against LDBL_MIN and LDBL_MAX, whose exponents overflow a Python float
+        bin_path = os.path.join(bin_location, "tests", "x86_64", "static")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        func_addr = 0x48E590
+        cfg = proj.analyses[CFGFast].prep()(
+            normalize=True,
+            data_references=True,
+            regions=[(func_addr, 0x48E9F0)],
+            function_starts=[func_addr],
+            start_at_entry=False,
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[func_addr], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "1.18973149535723176502e+4932L" in text
+        assert "3.36210314311209350626e-4932L" in text
+
+    def test_decode_x87_extended_edges(self):
+        from angr.analyses.decompiler.structured_codegen.c import _decode_x87_extended
+
+        def enc(sign, exp, sig):
+            return (((sign << 15) | exp) << 64) | sig
+
+        assert _decode_x87_extended(enc(0, 16383, 1 << 63)) == "1.0L"
+        assert _decode_x87_extended(enc(1, 16384, 3 << 62)) == "-3.0L"
+        assert _decode_x87_extended(enc(1, 0, 0)) == "-0.0L"
+        assert _decode_x87_extended(enc(0, 0x7FFF, 1 << 63)) == "HUGE_VALL"
+        assert _decode_x87_extended(enc(1, 0x7FFF, 1 << 63)) == "-HUGE_VALL"
+        assert _decode_x87_extended(enc(0, 0x7FFF, (1 << 63) | 1)) == "NAN"
+        assert _decode_x87_extended(enc(0, 0, 1)) == "3.64519953188247460253e-4951L"
+        assert _decode_x87_extended(enc(0, 16383 + 1024, 1 << 63)) == "1.79769313486231590773e+308L"
+
+
 if __name__ == "__main__":
     unittest.main()

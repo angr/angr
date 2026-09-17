@@ -1,8 +1,10 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use,protected-access
 from __future__ import annotations
 
+import decimal
 import hashlib
 import logging
+import math
 import re
 import struct
 from collections import Counter, defaultdict
@@ -236,16 +238,27 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
 
 
 def _decode_x87_extended(value: int) -> str:
-    """Decode an 80-bit x87 extended-precision bit pattern into a printable decimal."""
+    """Decode an 80-bit x87 extended-precision bit pattern into a C long double literal."""
     significand = value & ((1 << 64) - 1)
     exp_sign = (value >> 64) & 0xFFFF
     exponent = exp_sign & 0x7FFF
-    sign = (exp_sign >> 15) & 1
-    if exponent == 0:
-        return "-0.0" if sign else "0.0"
-    bias = 16383
-    fval = ((-1) ** sign) * (significand / (1 << 63)) * (2.0 ** (exponent - bias))
-    return str(fval)
+    sign = "-" if exp_sign >> 15 else ""
+    if exponent == 0x7FFF:
+        return f"{sign}HUGE_VALL" if significand & ((1 << 63) - 1) == 0 else "NAN"
+    if significand == 0:
+        return f"{sign}0.0L"
+    # denormals use the minimum exponent; the explicit integer bit sits at bit 63
+    exp2 = max(exponent, 1) - 16383 - 63
+    try:
+        fval = math.ldexp(significand, exp2)
+    except OverflowError:
+        fval = 0.0
+    if fval != 0.0:
+        return f"{sign}{fval}L"
+    # outside the double range: 21 significant digits round-trip an x87 long double
+    with decimal.localcontext(decimal.Context(prec=21)):
+        dval = decimal.Decimal(significand) * decimal.Decimal(2) ** exp2
+    return f"{sign}{dval:e}L"
 
 
 def _safe_type_size(ty) -> int:
@@ -2884,7 +2897,7 @@ class CConstant(CExpression):
         if self.fmt_double and 0 < value <= 0xFFFF_FFFF_FFFF_FFFF:
             return str(struct.unpack("d", struct.pack("Q", value))[0])
         if self.fmt_double and 0 < value <= 0xFFFF_FFFF_FFFF_FFFF_FFFF:
-            return _decode_x87_extended(value) + "L"
+            return _decode_x87_extended(value)
 
         if self.fmt_neg:
             if value > 0:
