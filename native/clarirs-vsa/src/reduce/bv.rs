@@ -26,6 +26,17 @@ fn child_si(children: &[ReduceResult], index: usize) -> Result<StridedInterval, 
     }
 }
 
+fn fold_si(
+    children: &[ReduceResult],
+    op: impl Fn(&StridedInterval, &StridedInterval) -> StridedInterval,
+) -> Result<StridedInterval, ClarirsError> {
+    let mut result = child_si(children, 0)?;
+    for i in 1..children.len() {
+        result = op(&result, &child_si(children, i)?);
+    }
+    Ok(result)
+}
+
 /// Reduce a AstRef to a StridedInterval
 pub(crate) fn reduce_bv(
     ast: &AstRef<'_>,
@@ -59,13 +70,13 @@ pub(crate) fn reduce_bv(
         }
         AstOp::BVV(bv) => StridedInterval::constant(bv.len(), bv.to_biguint()),
         AstOp::Not(..) => child_si(children, 0)?.bitnot(),
-        AstOp::And(..) => child_si(children, 0)?.bitand(&child_si(children, 1)?),
-        AstOp::Or(..) => child_si(children, 0)?.bitor(&child_si(children, 1)?),
-        AstOp::Xor(..) => child_si(children, 0)?.bitxor(&child_si(children, 1)?),
+        AstOp::And(..) => fold_si(children, StridedInterval::bitand)?,
+        AstOp::Or(..) => fold_si(children, StridedInterval::bitor)?,
+        AstOp::Xor(..) => fold_si(children, StridedInterval::bitxor)?,
         AstOp::Neg(..) => child_si(children, 0)?.neg(),
-        AstOp::Add(..) => child_si(children, 0)?.add(&child_si(children, 1)?),
+        AstOp::Add(..) => fold_si(children, StridedInterval::add)?,
         AstOp::Sub(..) => child_si(children, 0)?.sub(&child_si(children, 1)?),
-        AstOp::Mul(..) => child_si(children, 0)?.mul(&child_si(children, 1)?),
+        AstOp::Mul(..) => fold_si(children, StridedInterval::mul)?,
         AstOp::UDiv(..) => child_si(children, 0)?.udiv(&child_si(children, 1)?)?,
         AstOp::SDiv(..) => child_si(children, 0)?.sdiv(&child_si(children, 1)?)?,
         AstOp::URem(..) => child_si(children, 0)?.urem(&child_si(children, 1)?)?,
@@ -78,14 +89,7 @@ pub(crate) fn reduce_bv(
         AstOp::ZeroExt(_, amount) => child_si(children, 0)?.zero_extend(*amount),
         AstOp::SignExt(_, amount) => child_si(children, 0)?.sign_extend(*amount),
         AstOp::Extract(_, high, low) => child_si(children, 0)?.extract(*high, *low),
-        AstOp::Concat(args) => {
-            // Fold over all children with concat
-            let mut result = child_si(children, 0)?;
-            for i in 1..args.len() {
-                result = result.concat(&child_si(children, i)?);
-            }
-            result
-        }
+        AstOp::Concat(..) => fold_si(children, StridedInterval::concat)?,
         AstOp::ByteReverse(..) => child_si(children, 0)?.reverse_bytes()?,
         AstOp::FpToIEEEBV(..) | AstOp::FpToUBV(..) | AstOp::FpToSBV(..) => {
             return Err(ClarirsError::UnsupportedOperation(
