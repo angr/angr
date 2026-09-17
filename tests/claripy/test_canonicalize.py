@@ -12,7 +12,8 @@ class TestCanonicalize(unittest.TestCase):
         canon = (x + 1).canonicalize()[-1]
         # The lone variable becomes v0.
         self.assertIn("v0", str(canon))
-        self.assertNotIn("x", str(canon))
+        # The full symbol name, not just "x", which also occurs in hex literals.
+        self.assertNotIn(x.args[0], str(canon))
 
     def test_structurally_equal_exprs_canonicalize_equal(self):
         x = claripy.BVS("x", 32)

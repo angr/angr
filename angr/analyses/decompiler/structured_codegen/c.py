@@ -4796,6 +4796,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     dst_type = dst_type.with_arch(self.project.arch)
                     return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)
             return cvar
+
+        if expr.was_reg:
+            # Variable recovery does not create variables for the stack pointer, the instruction
+            # pointer or the link register, so a surviving write to one of them arrives here with
+            # nothing mapped. A register we could not name as a variable is still a register.
+            reg_name = self.project.arch.translate_register_name(expr.oident, expr.size)
+            return CRegister(reg_name or f"reg{expr.oident}", tags=expr.tags, codegen=self)
+
         return CDirtyExpression(expr, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
@@ -4931,6 +4939,14 @@ class CStructuredCodeWalker:
         obj.cond = self.handle(obj.cond)
         obj.iftrue = self.handle(obj.iftrue)
         obj.iffalse = self.handle(obj.iffalse)
+        return obj
+
+    def handle_CVectorConvert(self, obj):
+        obj.operand = self.handle(obj.operand)
+        return obj
+
+    def handle_CVEXCCallExpression(self, obj):
+        obj.operands = [self.handle(operand) for operand in obj.operands]
         return obj
 
 

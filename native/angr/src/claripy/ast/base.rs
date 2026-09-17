@@ -6,6 +6,7 @@ use num_bigint::BigUint;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyDict, PyFrozenSet, PyTuple, PyType};
 
+use crate::claripy::ast::repr;
 use crate::claripy::prelude::*;
 
 type Reduced<'py> = (
@@ -173,12 +174,34 @@ impl Base {
     }
 
     pub fn __repr__(&self) -> String {
-        self.inner.to_smtlib()
+        repr::pretty_repr(&self.inner, None, false, repr::LITE_REPR)
     }
 
-    #[pyo3(signature = (max_depth=2))]
-    pub fn shallow_repr(&self, max_depth: usize) -> String {
-        self.inner.to_smtlib_shallow(max_depth)
+    /// `details` selects how much is spelled out: 0 renders leaves and
+    /// operations in their short forms, 1 only leaves, 2 nothing.
+    #[pyo3(signature = (max_depth=8, explicit_length=false, details=repr::LITE_REPR))]
+    pub fn shallow_repr(
+        &self,
+        max_depth: Option<usize>,
+        explicit_length: bool,
+        details: u8,
+    ) -> String {
+        repr::pretty_repr(&self.inner, max_depth, explicit_length, details)
+    }
+
+    /// The full repr of this AST, with every operation and leaf spelled out.
+    pub fn dbg_repr(&self) -> String {
+        repr::pretty_repr(&self.inner, None, false, repr::FULL_REPR)
+    }
+
+    /// The SMT-LIB 2.6 rendering of this AST. `max_depth`, when given, elides
+    /// children below that depth as `...`.
+    #[pyo3(signature = (max_depth=None))]
+    pub fn smtlib(&self, max_depth: Option<usize>) -> String {
+        match max_depth {
+            Some(max_depth) => self.inner.to_smtlib_shallow(max_depth),
+            None => self.inner.to_smtlib(),
+        }
     }
 
     /// Canonicalize variable names to v0, v1, ... like claripy's

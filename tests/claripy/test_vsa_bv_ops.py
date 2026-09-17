@@ -242,6 +242,25 @@ class TestVSABVOperations(unittest.TestCase):
         self.assertEqual(list(self.solver.eval(nine % five, 4)), [4])
         self.assertEqual(list(self.solver.eval(five % five, 4)), [0])
 
+    def test_modulo_by_zero(self):
+        """Both remainders are total in SMT-LIB: bvurem x 0 and bvsrem x 0 are x."""
+        # 0 % 0 = 0
+        result = self.si_0 % self.si_0
+        self.assertEqual(self.solver.eval(result, 1)[0], 0)
+
+        # [1, 10] % 0 = [1, 10]
+        result = self.si_small % self.si_0
+        self.assertEqual(self.solver.min(result), 1)
+        self.assertEqual(self.solver.max(result), 10)
+
+        # 10 srem 0 = 10
+        result = self.bv_10.SMod(self.si_0)
+        self.assertEqual(self.solver.eval(result, 1)[0], 10)
+
+        # -1 srem 0 = -1
+        result = self.si_max.SMod(self.si_0)
+        self.assertEqual(self.solver.eval(result, 1)[0], 0xFFFFFFFF)
+
     def test_bitwise_and(self):
         """Test bitwise AND operations."""
         # Concrete AND
@@ -1000,3 +1019,21 @@ class TestVSAPrecisionLoss(unittest.TestCase):
                 break
 
         self.assertTrue(found, "Result should contain some expected values after operations")
+
+
+class TestVSAWrappingIntervalDivision(unittest.TestCase):
+    """Dividing by a wrapping strided interval used to panic the Rust VSA backend."""
+
+    def setUp(self):
+        self.solver = claripy.SolverVSA()
+        # 8-bit 1[0xF0, 0x10]: 0xF0..0xFF followed by 0x00..0x10, so it contains zero.
+        self.wrapping = claripy.SI(bits=8, stride=1, lower_bound=0xF0, upper_bound=0x10)
+        self.dividend = claripy.SI(bits=8, stride=1, lower_bound=1, upper_bound=10)
+
+    def test_udiv_by_wrapping_interval(self):
+        """contains_value underflowed a BigUint on the wrapped-round half of the divisor."""
+        self.assertEqual(len(self.solver.eval(self.dividend // self.wrapping, 1)), 1)
+
+    def test_sdiv_by_wrapping_interval(self):
+        """sdiv asks contains_zero() of the divisor too, and reached the same subtraction."""
+        self.assertEqual(len(self.solver.eval(self.dividend.SDiv(self.wrapping), 1)), 1)

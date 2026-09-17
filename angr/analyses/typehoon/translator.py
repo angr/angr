@@ -42,6 +42,7 @@ class TypeTranslator:
         "_struct_def_ctr",
         "_struct_sig_cache",
         "arch",
+        "func_addr",
         "known_structs",
         "memo",
         "named_struct_id_counter",
@@ -51,8 +52,11 @@ class TypeTranslator:
         "translated_simtypes",
     )
 
-    def __init__(self, arch: archinfo.Arch):
+    def __init__(self, arch: archinfo.Arch, func_addr: int | None = None):
         self.arch: archinfo.Arch = arch
+        # address of the function being analyzed; encoded into auto-generated struct names so that structs inferred in
+        # different functions never share a name
+        self.func_addr: int | None = func_addr
 
         self.translated: dict[TypeConstant, SimType] = {}
         self.translated_simtypes: dict[SimType, TypeConstant] = {}
@@ -79,9 +83,16 @@ class TypeTranslator:
     #
 
     def struct_name(self) -> str:
-        name = f"struct_{self._struct_ctr}"
-        self._struct_ctr += 1
-        return name
+        """
+        Create a name for an auto-generated struct.
+        Do not conflict with struct names in self.known_structs.
+        """
+        prefix = f"st_{self.func_addr:x}" if self.func_addr is not None else "struct"
+        while True:
+            name = f"{prefix}_{self._struct_ctr}"
+            self._struct_ctr += 1
+            if name not in self.known_structs:
+                return name
 
     def _next_struct_def_order(self) -> int:
         order = self._struct_def_ctr

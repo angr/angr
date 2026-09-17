@@ -4593,6 +4593,16 @@ class RustStructuredCodeWalker:
         obj.iffalse = cls.handle(obj.iffalse)
         return obj
 
+    @classmethod
+    def handle_RustVectorConvert(cls, obj):
+        obj.operand = cls.handle(obj.operand)
+        return obj
+
+    @classmethod
+    def handle_RustVEXCCallExpression(cls, obj):
+        obj.operands = [cls.handle(operand) for operand in obj.operands]
+        return obj
+
 
 class MakeTypecastsImplicit(RustStructuredCodeWalker):
     @classmethod
