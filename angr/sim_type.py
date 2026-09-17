@@ -1752,7 +1752,8 @@ class SimStruct(NamedTypeMixin, SimType):
 
         if self.name in memo:
             return memo[self.name].to_json(fields=fields, memo=memo)
-        memo[self.name] = SimTypeRef(self.name, self.__class__)
+        if not self.anonymous:
+            memo[self.name] = SimTypeRef(self.name, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
         if d["pack"] is False:
             d.pop("pack")
@@ -1996,6 +1997,9 @@ class SimStructValue:
         return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
 
+_UNION_ANON_NAME = "<anon>"
+
+
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
     _args = ("members", "name", "label", "qualifier")
@@ -2006,7 +2010,7 @@ class SimUnion(NamedTypeMixin, SimType):
         :param members:     The members of the union, as a mapping name -> type
         :param name:        The name of the union
         """
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(label, name=name if name is not None else _UNION_ANON_NAME)
         self.members = members
         if qualifier:
             self.qualifier = qualifier
@@ -2018,6 +2022,19 @@ class SimUnion(NamedTypeMixin, SimType):
 
         # cached alignment
         self._alignment: int | None = None
+
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+
+        if self.name in memo:
+            return memo[self.name].to_json(fields=fields, memo=memo)
+        if self.name != _UNION_ANON_NAME:
+            memo[self.name] = SimTypeRef(self.name, self.__class__)
+        d = super().to_json(fields=fields, memo=memo)
+        if "q" in d and not d["q"]:
+            d.pop("q")
+        return d
 
     @property
     def size(self):
