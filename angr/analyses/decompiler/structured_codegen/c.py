@@ -4887,6 +4887,14 @@ class CStructuredCodeWalker:
         obj.iffalse = self.handle(obj.iffalse)
         return obj
 
+    def handle_CVectorConvert(self, obj):
+        obj.operand = self.handle(obj.operand)
+        return obj
+
+    def handle_CVEXCCallExpression(self, obj):
+        obj.operands = [self.handle(operand) for operand in obj.operands]
+        return obj
+
 
 class MakeTypecastsImplicit(CStructuredCodeWalker):
     @classmethod
