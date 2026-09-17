@@ -488,6 +488,26 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert d[bad_key] is bad_cache
         assert len(d) == 2
 
+    def test_export_serialized_warns_about_unserializable_caches(self):
+        # a cache that cannot be serialized is dropped from the angrdb (only its codegen metadata is stored), so the
+        # failure must at least be logged instead of being swallowed silently
+        class _UnserializableCodegen(DummyStructuredCodeGenerator):
+            def serialize_to_cmessage(self):
+                raise TypeError("not serializable")
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=10)
+        bad_key = (0xDEAD, "pseudocode")
+        bad_cache = DecompilationCache(0xDEAD)
+        bad_cache.codegen = _UnserializableCodegen("pseudocode")
+        d[bad_key] = bad_cache
+
+        with self.assertLogs("angr.knowledge_plugins.structured_code", level="WARNING") as logs:
+            serialized, unserializable = d.export_serialized()
+
+        assert bad_key in unserializable
+        assert all(key != bad_key for key, _ in serialized)
+        assert any("cannot be serialized" in message for message in logs.output)
+
     def test_dummy_codegen_cache_spills_and_reloads(self):
         # a DummyStructuredCodeGenerator (user comments/formats only, e.g. loaded from a legacy angrdb) must spill to
         # LMDB and come back as a dummy with its user data intact instead of being parked in memory
