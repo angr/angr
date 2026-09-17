@@ -593,7 +593,7 @@ class Op(Expression):
         """UnaryOp.op / BinaryOp.op / Call.op (== "call") / DirtyExpression.op / VEXCCallExpression.op (== callee) / Let.op (== "let") / Macro.op + FunctionLikeMacro.op (== "call")"""
     @property
     def verbose_op(self) -> str:
-        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
 
 # --- Atom subclasses -------------------------------------------------------
 
@@ -699,7 +699,7 @@ class Phi(Atom):
     def op(self) -> str: ...
     @property
     def verbose_op(self) -> str:
-        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
     def __init__(self, idx: int | None, bits: int, src_and_vvars: Any, **tags: Any) -> None: ...
 
 # --- Op subclasses ---------------------------------------------------------
@@ -770,6 +770,9 @@ class Convert(Op):
     @property
     def rounding_mode(self) -> RoundingMode | Expression | None:
         """Convert.rounding_mode"""
+    @property
+    def vector_count(self) -> int | None:
+        """Convert.vector_count: lane count of a lane-wise (vector) conversion; from_bits/to_bits are total widths"""
     def __init__(
         self,
         idx: int | None,
@@ -780,6 +783,7 @@ class Convert(Op):
         from_type: ConvertType | None = ...,
         to_type: ConvertType | None = ...,
         rounding_mode: RoundingMode | Expression | None = ...,
+        vector_count: int | None = ...,
         **tags: Any,
     ) -> None: ...
 
@@ -860,7 +864,7 @@ class Call(Expression):
         """Call.op (== "call")"""
     @property
     def verbose_op(self) -> str:
-        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
     def __init__(
         self,
         idx: int | None,
@@ -883,7 +887,7 @@ class DirtyExpression(Expression):
         """DirtyExpression.op"""
     @property
     def verbose_op(self) -> str:
-        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
     @property
     def mfx(self) -> str | None:
         """DirtyExpression.mfx"""
@@ -933,7 +937,7 @@ class FunctionLikeMacro(Expression):
         """FunctionLikeMacro.op (== "call")"""
     @property
     def verbose_op(self) -> str:
-        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
     def __init__(
         self,
         idx: int | None,
@@ -1050,7 +1054,7 @@ class VEXCCallExpression(Expression):
         """VEXCCallExpression.op (== callee)"""
     @property
     def verbose_op(self) -> str:
-        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. The legacy per-class pyclasses exposed it on every op-shaped expression with the same content as ``op``."""
+        """``verbose_op`` -- defaults to ``op`` for the regular operator variants (UnaryOp / BinaryOp / Convert / Reinterpret) so callers that look up an op-handler via ``mapping[expr.verbose_op]`` find a match regardless of variant. A signed (non-floating-point) BinaryOp carries an ``s`` suffix (``CmpLEs``), as the Python classes did before the port."""
     def __init__(self, idx: int | None, callee: str, operands: Any, bits: int, **tags: Any) -> None: ...
 
 # ---------------------------------------------------------------------------

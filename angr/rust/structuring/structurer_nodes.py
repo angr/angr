@@ -11,7 +11,6 @@ class PatternMatchNode(BaseNode):
     """A Rust match expression node in the structured code tree."""
 
     __slots__ = (
-        "addr",
         "arms",
         "default_node",
         "scrutinee",
@@ -24,10 +23,10 @@ class PatternMatchNode(BaseNode):
         default_node,
         addr=None,
     ):
+        super().__init__(addr)
         self.scrutinee = scrutinee
         self.arms = arms
         self.default_node = default_node
-        self.addr = addr
 
     def dbg_repr(self, indent=0):
         indent_str = indent * " "
@@ -41,7 +40,6 @@ class IfLetNode(BaseNode):
     """A Rust if-let expression node in the structured code tree."""
 
     __slots__ = (
-        "addr",
         "false_node",
         "pattern",
         "scrutinee",
@@ -56,11 +54,11 @@ class IfLetNode(BaseNode):
         false_node=None,
         addr=None,
     ):
+        super().__init__(addr)
         self.pattern = pattern
         self.scrutinee = scrutinee
         self.true_node = true_node
         self.false_node = false_node
-        self.addr = addr
 
     def dbg_repr(self, indent=0):
         indent_str = indent * " "

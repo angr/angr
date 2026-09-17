@@ -16,6 +16,14 @@ def is_phi_assignment(stmt: Statement) -> bool:
     return isinstance(stmt, _RustStatement) and stmt.is_phi_assignment
 
 
+def is_scalar_int_convert(expr: Convert) -> bool:
+    """
+    True for a plain integer width conversion: not lane-wise (vector_count is None) and neither side is floating
+    point. Only these converts admit the usual integer rewrites (folding cascaded conversions, masking, etc.).
+    """
+    return expr.vector_count is None and expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT
+
+
 class HasExprWalker(AILBlockViewer):
     """
     Test if any expressions in exprs_to_check is used in another AIL expression.

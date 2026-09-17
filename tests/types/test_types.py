@@ -2,6 +2,7 @@
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
 from __future__ import annotations
 
+import json
 import unittest
 from typing import cast
 
@@ -12,6 +13,7 @@ from archinfo import Endness
 import angr
 from angr import AngrMissingTypeError
 from angr.sim_type import (
+    SimCppClass,
     SimStruct,
     SimType,
     SimTypeArray,
@@ -33,6 +35,7 @@ from angr.sim_type import (
     SimTypeTop,
     SimTypeWideChar,
     SimUnion,
+    TypeRef,
 )
 from angr.utils.library import convert_cppproto_to_py, convert_cproto_to_py
 from angr.utils.types import dereference_simtype
@@ -468,6 +471,49 @@ class TestTypes(unittest.TestCase):
         new_t = SimType.from_json(d)
         deref_new_t = dereference_simtype(new_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
         assert deref_t == deref_new_t
+
+    def test_from_json_resolves_repeated_and_recursive_structs(self):
+        # to_json() emits a reference for every repeated occurrence of a named struct; from_json() must resolve those
+        # references (including references back to a struct that is still being decoded) to the same object
+        s0 = SimStruct({"a": SimTypeInt()}, name="struct_0")
+        s0.fields["self"] = SimTypePointer(s0)
+        s1 = SimStruct({"p": SimTypePointer(s0)}, name="struct_1")
+        s0.fields["other"] = SimTypePointer(s1)
+        proto = SimTypeFunction([SimTypePointer(s0), SimTypePointer(s1)], SimTypePointer(s0))
+
+        back = SimType.from_json(json.loads(json.dumps(proto.to_json())))
+        assert isinstance(back, SimTypeFunction)
+        b0 = cast(SimTypePointer, back.args[0]).pts_to
+        b1 = cast(SimTypePointer, back.args[1]).pts_to
+        assert isinstance(b0, SimStruct) and isinstance(b1, SimStruct)
+        assert cast(SimTypePointer, b0.fields["self"]).pts_to is b0
+        assert cast(SimTypePointer, b0.fields["other"]).pts_to is b1
+        assert cast(SimTypePointer, b1.fields["p"]).pts_to is b0
+        assert cast(SimTypePointer, back.returnty).pts_to is b0
+        assert back == proto
+
+    def test_cppclass_json_roundtrip(self):
+        # SimCppClass.to_json() used to emit a bare SimTypeRef for the first occurrence of a class, so a class
+        # returned by value came back from any JSON round trip (function spilling, angrdb) as a TypeRef around an
+        # unresolvable SimTypeRef with no size
+        arch = archinfo.ArchAMD64()
+        cls = SimCppClass(members={"x": SimTypeInt()}, name="class Base::Type").with_arch(arch)
+        proto = SimTypeFunction([SimTypePointer(cls)], TypeRef("class Base::Type", cls)).with_arch(arch)
+
+        back = SimType.from_json(json.loads(json.dumps(proto.to_json())))
+        assert isinstance(back, SimTypeFunction)
+        ret = back.returnty
+        assert isinstance(ret, TypeRef)
+        assert isinstance(ret.type, SimCppClass)
+        assert list(ret.type.fields) == ["x"]
+        assert ret.size == 32
+        # the repeated occurrence is a reference resolved to the same decoded class
+        assert cast(SimTypePointer, back.args[0]).pts_to is ret.type
+
+        empty = SimCppClass(name="class Empty").with_arch(arch)
+        back_empty = SimType.from_json(json.loads(json.dumps(empty.to_json())))
+        assert isinstance(back_empty, SimCppClass)
+        assert back_empty.size == 0
 
     def test_simstruct_cmp_recursion_error(self):
         t0 = SimStruct(fields={"a": SimTypeBottom()})

@@ -10,6 +10,7 @@ import networkx
 
 from angr.analyses.decompiler.region_overlay import OverlayManager, RegionOverlay
 from angr.utils.graph import GraphUtils, dfs_back_edges
+from angr.utils.hashing import stable_hash
 
 
 class Node:
@@ -139,7 +140,7 @@ class TestRegionOverlayMutation(unittest.TestCase):
         sub.replace_nodes(n[2], seq, old_node_1=n[3])
         assert sub.head is seq
         assert set(sub.members) == {seq, n[4], n[5]}
-        # the external in-edge 1 -> 2 has been rewired to the new node in the shared graph
+        # the external in-edge 1 -> 2 has been rewired to the new node in the complete graph
         assert g.has_edge(n[1], seq)
         assert n[2] not in g and n[3] not in g
         assert mgr.owner_of(seq) is sub
@@ -359,7 +360,7 @@ class TestRegionOverlayViewEdgeCases(unittest.TestCase):
 
         checkpoint = mgr.checkpoint()
 
-        # detaching the edge must remove both the shared-graph edge and the view-only extra edge; if the extra
+        # detaching the edge must remove both the complete-graph edge and the view-only extra edge; if the extra
         # edge survived, virtualizing this edge would pick it again forever in last-resort refinement
         loop.detach_edge(nodes[3], nodes[5])
         assert not g.has_edge(nodes[3], nodes[5])
@@ -417,10 +418,6 @@ class TestRegionOverlayViewEdgeCases(unittest.TestCase):
         # (b) dominator computation over the with-successors view must not raise
         idoms = networkx.immediate_dominators(full, loop.head)
         assert idoms[nodes[5]] is nodes[3]
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestRegionOverlayGraph(unittest.TestCase):
@@ -553,7 +550,7 @@ class TestRegionOverlayGraph(unittest.TestCase):
         assert rog.has_edge(n[3], n[5], all_edges=True)
         assert rog.with_all_edges().has_edge(n[3], n[5])
         assert set(rog.with_all_edges().successors(n[3])) == {n[5]}
-        # the underlying shared graph data is untouched
+        # the underlying complete graph data is untouched
         assert g.has_edge(n[3], n[5])
 
     def test_to_acyclic(self):
@@ -601,3 +598,50 @@ class TestRegionOverlayGraph(unittest.TestCase):
         m.remove_node(n[4])
         assert n[4] in rog
         assert g.has_edge(n[2], n[4])
+
+
+class TestRegionOverlayIdentity(unittest.TestCase):
+    """RegionOverlays live in sets (RegionOverlay._members) and double as graph nodes, so their hash must be
+    identity- and seed-independent, and their equality must stay identity-based."""
+
+    def test_hash_is_seed_and_identity_independent(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3]], cyclic=False)
+        assert hash(sub) == stable_hash((RegionOverlay, 2, None))
+
+    def test_hash_survives_head_reassignment(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        sub = mgr.root.create_subregion(n[2], [n[2], n[3]], cyclic=False)
+        h = hash(sub)
+        holder = {sub, mgr.root}
+
+        sub.head = n[3]
+        assert hash(sub) == h
+        assert sub in mgr.root.members
+        assert sub in holder
+
+    def test_distinct_overlays_sharing_a_head_stay_distinct(self):
+        g, n = diamond()
+        mgr = OverlayManager(g)
+        mgr.root.head = n[1]
+        a = mgr.root.create_subregion(n[2], [n[2], n[3]], cyclic=False)
+        b = mgr.root.create_subregion(n[4], [n[4]], cyclic=False)
+        b.head = n[2]
+
+        assert a != b
+        assert len({a, b}) == 2
+        d = {a: "a", b: "b"}
+        assert (len(d), d[a], d[b]) == (2, "a", "b")
+
+    def test_headless_overlay_is_hashable_and_sortable(self):
+        mgr = OverlayManager(networkx.DiGraph())
+        assert isinstance(hash(mgr.root), int)
+        assert len(sorted([mgr.root, Node(1)], key=GraphUtils.sort_node)) == 2
+
+
+if __name__ == "__main__":
+    unittest.main()

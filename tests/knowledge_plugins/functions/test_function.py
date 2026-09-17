@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
+# pylint:disable=missing-class-docstring,protected-access,no-self-use
 from __future__ import annotations
 
+import os
 from unittest import TestCase, main
 
 import archinfo
 import networkx
 
+import angr
+from angr.codenode import BlockNode
 from angr.knowledge_plugins.functions import Function
-from angr.sim_type import parse_defns
+from angr.sim_type import SimTypeFunction, parse_defns
+from tests.common import bin_location
+
+test_location = os.path.join(bin_location, "tests")
 
 
 def makeFunction(function_manager, function_address, function_name):
@@ -106,6 +113,7 @@ class TestFunction(TestCase):
         parsed_proto = parse_defns("int func(int, char*);")["func"]
         function.prototype = parsed_proto.with_arch(archinfo.arch_from_id("AMD64"))
 
+        assert isinstance(function.prototype, SimTypeFunction)
         assert len(function.prototype.args) == 2
         assert len(function.prototype.arg_names) == 2
         # default function argument names apply
@@ -115,9 +123,11 @@ class TestFunction(TestCase):
     def test_function_set_prototype_missing_a_parameter_name(self):
         function = makeFunction(self.function_manager, 0x42, "function")
         parsed_proto = parse_defns("int func(int, char*);")["func"]
-        parsed_proto.arg_names = ["", "a3"]
+        assert isinstance(parsed_proto, SimTypeFunction)
+        parsed_proto.arg_names = ("", "a3")
         function.prototype = parsed_proto.with_arch(archinfo.arch_from_id("AMD64"))
 
+        assert isinstance(function.prototype, SimTypeFunction)
         assert len(function.prototype.args) == 2
         assert len(function.prototype.arg_names) == 2
         # default function argument names apply
@@ -134,3 +144,23 @@ class TestFunction(TestCase):
 
 if __name__ == "__main__":
     main()
+
+
+class TestLocalTransitionGraphCache(TestCase):
+    """function.graph is cached; registering a node must invalidate it, or a reader that touched the graph earlier
+    (e.g. a GUI thread during CFG recovery) leaves get_node() pointing at a node the cached graph does not contain."""
+
+    def test_registering_a_node_invalidates_the_cached_graph(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"))
+        func = proj.kb.functions.function(0x40071D, create=True)
+        assert func is not None
+        assert func.get_node(0x40071D) is None
+        cached = func.graph  # populate the cache while the function is still empty
+
+        node = BlockNode(0x40071D, 4, graph=func.transition_graph)
+        func._register_node(True, node)
+
+        assert func.get_node(0x40071D) is node
+        assert func.graph is not cached
+        assert node in func.graph
+        assert not list(func.graph.successors(node))

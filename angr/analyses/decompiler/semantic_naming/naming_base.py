@@ -78,8 +78,8 @@ class SemanticNamingBase(ABC):
             if var in exclude_vars:
                 continue
 
-            # Check if variable already has a meaningful name (not auto-generated)
-            if var.renamed:
+            # Check if variable already has a meaningful name (user-given, or from an earlier pattern)
+            if var.renamed or var.auto_renamed:
                 continue
 
             # Find the unified variable and rename it
@@ -93,13 +93,13 @@ class SemanticNamingBase(ABC):
             if unified_var in renamed_vars:
                 continue
 
-            if target_var.renamed:
+            if target_var.renamed or target_var.auto_renamed:
                 continue
 
             l.debug("Renaming %s -> %s (pattern: %s)", target_var.name, new_name, self.__class__.__name__)
             self.original_names.setdefault(target_var, target_var.name)
             target_var.name = new_name
-            target_var.renamed = True
+            target_var.auto_renamed = True
             target_var.clear_hash()
             renamed_vars.add(var)
             if unified_var:

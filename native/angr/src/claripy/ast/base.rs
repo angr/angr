@@ -3,8 +3,10 @@ use std::collections::{BTreeSet, HashMap};
 use clarirs_core::algorithms::{collect_vars::collect_vars, structurally_match};
 use clarirs_vsa::cardinality::Cardinality;
 use num_bigint::BigUint;
-use pyo3::types::{PyDict, PyFrozenSet, PyType};
+use pyo3::sync::PyOnceLock;
+use pyo3::types::{PyDict, PyFrozenSet, PyTuple, PyType};
 
+use crate::claripy::ast::repr;
 use crate::claripy::prelude::*;
 
 type Reduced<'py> = (
@@ -26,8 +28,11 @@ pub struct Base {
     inner: AstRef<'static>,
     name: Option<String>,
     encoded_name: Option<Vec<u8>>,
-    /// Python annotation objects materialized once at construction, in the same order as `inner.annotations()`, so reads avoid the Rust round-trip.
+    /// Python annotation objects created once at construction, in the same order as `inner.annotations()`, so reads avoid the Rust round-trip.
     annotations: Vec<Py<PyAnnotation>>,
+    /// Python `args` tuple built on first access.
+    /// This is important, otherwise expr.args will cause a new Python list to be created each time it's accessed.
+    args: PyOnceLock<Py<PyTuple>>,
 }
 
 impl Base {
@@ -47,6 +52,7 @@ impl Base {
             name,
             encoded_name,
             annotations,
+            args: PyOnceLock::new(),
         })
     }
 
@@ -94,8 +100,13 @@ impl Base {
     }
 
     #[getter]
-    pub fn args<'py>(&self, py: Python<'py>) -> Result<Vec<Bound<'py, PyAny>>, ClaripyError> {
-        self.inner.extract_py_args(py)
+    pub fn args<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyTuple>, ClaripyError> {
+        let args = self
+            .args
+            .get_or_try_init(py, || -> Result<Py<PyTuple>, ClaripyError> {
+                Ok(PyTuple::new(py, self.inner.extract_py_args(py)?)?.unbind())
+            })?;
+        Ok(args.bind(py).clone())
     }
 
     #[getter]
@@ -163,12 +174,34 @@ impl Base {
     }
 
     pub fn __repr__(&self) -> String {
-        self.inner.to_smtlib()
+        repr::pretty_repr(&self.inner, None, false, repr::LITE_REPR)
     }
 
-    #[pyo3(signature = (max_depth=2))]
-    pub fn shallow_repr(&self, max_depth: usize) -> String {
-        self.inner.to_smtlib_shallow(max_depth)
+    /// `details` selects how much is spelled out: 0 renders leaves and
+    /// operations in their short forms, 1 only leaves, 2 nothing.
+    #[pyo3(signature = (max_depth=8, explicit_length=false, details=repr::LITE_REPR))]
+    pub fn shallow_repr(
+        &self,
+        max_depth: Option<usize>,
+        explicit_length: bool,
+        details: u8,
+    ) -> String {
+        repr::pretty_repr(&self.inner, max_depth, explicit_length, details)
+    }
+
+    /// The full repr of this AST, with every operation and leaf spelled out.
+    pub fn dbg_repr(&self) -> String {
+        repr::pretty_repr(&self.inner, None, false, repr::FULL_REPR)
+    }
+
+    /// The SMT-LIB 2.6 rendering of this AST. `max_depth`, when given, elides
+    /// children below that depth as `...`.
+    #[pyo3(signature = (max_depth=None))]
+    pub fn smtlib(&self, max_depth: Option<usize>) -> String {
+        match max_depth {
+            Some(max_depth) => self.inner.to_smtlib_shallow(max_depth),
+            None => self.inner.to_smtlib(),
+        }
     }
 
     /// Canonicalize variable names to v0, v1, ... like claripy's

@@ -98,6 +98,9 @@ class Atom:
         :param sp:      The current stack offset. Optional. Only used when argument is a SimStackArg.
         """
         if isinstance(argument, SimRegArg):
+            if argument.reg_name not in arch.registers:
+                # e.g., the x87 st0 an X86 calling convention returns floats in
+                raise ValueError(f"Register {argument.reg_name} is unknown to {arch.name}")
             if full_reg:
                 return Register(arch.registers[argument.reg_name][0], arch.registers[argument.reg_name][1], arch)
             return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)

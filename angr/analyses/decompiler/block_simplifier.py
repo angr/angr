@@ -406,10 +406,12 @@ class BlockSimplifier:
                             if (
                                 r
                                 and max_expr_depth is not None
+                                and new.depth > 1
                                 and new_src.depth >= old.depth
                                 and new_src.depth > max_expr_depth
                             ):
-                                # avoid replacing if the new expression is too deep, to prevent exponential blowup
+                                # avoid replacing if the new expression is too deep, to prevent exponential blowup.
+                                # atoms (depth <= 1) never cause blowups and are always replaced.
                                 r = False
                         if r:
                             new_stmt = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
@@ -418,10 +420,12 @@ class BlockSimplifier:
                         if (
                             r
                             and max_expr_depth is not None
+                            and new.depth > 1
                             and new_stmt.depth >= stmt.depth
                             and new_stmt.depth > max_expr_depth - 1
                         ):
-                            # avoid replacing if the new statement is too deep, to prevent exponential blowup
+                            # avoid replacing if the new statement is too deep, to prevent exponential blowup.
+                            # atoms (depth <= 1) never cause blowups and are always replaced.
                             r = False
 
                 if r and watch_growth:

@@ -186,6 +186,18 @@ class AILMergeGraph:
         for block in base_to_split:
             if block not in subgraph:
                 return None
+        # maintain a split order so that we can replace split blocks in an order where a predecessor is always
+        # replaced before its successor. this avoids consulting the graph using the old node.
+        split_order = nx.DiGraph()
+        split_order.add_nodes_from(base_to_split)
+        for block in base_to_split:
+            for succ in subgraph.successors(block):
+                if succ in base_to_split and succ is not block:
+                    split_order.add_edge(block, succ)
+        if not nx.is_directed_acyclic_graph(split_order):
+            _l.debug("The blocks to split form a cycle, which is not supported; skipping this candidate")
+            return None
+        base_to_split = {block: base_to_split[block] for block in nx.topological_sort(split_order)}
         self.graph, update_blocks = self.clone_graph_replace_splits(subgraph, base_to_split)
         self._update_all_split_refs(update_blocks)
         for update_block, new_block in update_blocks.items():
@@ -424,11 +436,15 @@ class AILMergeGraph:
         return False
 
     def _update_all_split_refs(self, update_map: dict[Block, Block]):
-        for original, updated in update_map.items():
-            for k in list(self.original_split_blocks.keys()):
+
+        def _rekey(mapping: dict, original: Block, updated: Block) -> None:
+            for k in list(mapping.keys()):
                 if k == original:
-                    self.original_split_blocks[updated] = self.original_split_blocks[k]
-                    del self.original_split_blocks[k]
+                    # note that updated might be the same as k
+                    mapping[updated] = mapping.pop(k)
+
+        for original, updated in update_map.items():
+            _rekey(self.original_split_blocks, original, updated)
 
             for v in self.original_split_blocks.values():
                 for sblock in v:
@@ -436,10 +452,7 @@ class AILMergeGraph:
                         if getattr(sblock, attr) == original:
                             setattr(sblock, attr, updated)
 
-            for k in list(self.original_blocks.keys()):
-                if k == original:
-                    self.original_blocks[updated] = self.original_blocks[k]
-                    del self.original_blocks[k]
+            _rekey(self.original_blocks, original, updated)
 
     def _find_merge_block_by_original(self, block: Block):
         for merge_block, originals in self.merge_blocks_to_originals.items():

@@ -244,6 +244,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
+        if extra_offset < 0 and base_offset == -self.project.arch.bytes:
+            # a negative offset from the saved-frame-pointer slot (rbp = sp-8 after the prologue) addresses a local,
+            # not an object that starts at the base; treat it as a plain access at the concrete address. pointers
+            # into the middle of a stack array (p = &arr[1]; p[-1]) must keep extending the array backwards.
+            return self.stackvar_get(base_offset + extra_offset, 0, base_size)
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size
@@ -323,6 +328,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
+        if extra_offset < 0 and base_offset == -self.project.arch.bytes:
+            # see stackvar_get
+            self.stackvar_set(base_offset + extra_offset, 0, base_size, value)
+            return
         concrete_offset = base_offset + extra_offset
         offset = min(concrete_offset, base_offset)
         end_offset = max(concrete_offset, base_offset) + base_size

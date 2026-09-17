@@ -218,6 +218,8 @@ pub enum ExprInner {
         from_type: ConvertType,
         to_type: ConvertType,
         rounding_mode: Option<RoundingModeOrExpr>,
+        /// lane count of a vector conversion; from_bits/to_bits stay the total widths
+        vector_count: Option<u32>,
     },
     Reinterpret {
         operand: Arc<AilExpression>,
@@ -820,6 +822,7 @@ impl Hash for AilExpression {
                 from_type,
                 to_type,
                 rounding_mode,
+                vector_count,
             } => {
                 operand.cached_hash_or_compute().hash(h);
                 from_bits.hash(h);
@@ -829,6 +832,7 @@ impl Hash for AilExpression {
                 from_type.hash(h);
                 to_type.hash(h);
                 rounding_mode.hash(h);
+                vector_count.hash(h);
             }
             ExprInner::Reinterpret {
                 operand,
@@ -1171,6 +1175,7 @@ impl AilExpression {
                 from_type,
                 to_type,
                 rounding_mode,
+                vector_count,
             } => {
                 let (c, r) = walk(operand);
                 if !c {
@@ -1186,6 +1191,7 @@ impl AilExpression {
                         from_type: *from_type,
                         to_type: *to_type,
                         rounding_mode: rounding_mode.clone(),
+                        vector_count: *vector_count,
                     }),
                 )
             }
@@ -1741,6 +1747,7 @@ impl AilExpression {
                 from_type,
                 to_type,
                 rounding_mode,
+                vector_count,
             } => ExprInner::Convert {
                 operand: recurse(operand)?,
                 from_bits: *from_bits,
@@ -1749,6 +1756,7 @@ impl AilExpression {
                 from_type: *from_type,
                 to_type: *to_type,
                 rounding_mode: rounding_mode.clone(),
+                vector_count: *vector_count,
             },
             ExprInner::Reinterpret {
                 operand,
@@ -2080,6 +2088,7 @@ impl AilExpression {
                     from_type: a_ft,
                     to_type: a_tt,
                     rounding_mode: a_rm,
+                    vector_count: a_vc,
                 },
                 ExprInner::Convert {
                     operand: b_o,
@@ -2089,6 +2098,7 @@ impl AilExpression {
                     from_type: b_ft,
                     to_type: b_tt,
                     rounding_mode: b_rm,
+                    vector_count: b_vc,
                 },
             ) => {
                 a_fb == b_fb
@@ -2096,6 +2106,7 @@ impl AilExpression {
                     && a_s == b_s
                     && a_ft == b_ft
                     && a_tt == b_tt
+                    && a_vc == b_vc
                     && self.header.bits == other.header.bits
                     && RoundingModeOrExpr::opt_cmp_ail::<MODE>(a_rm, b_rm)
                     && a_o.cmp_ail::<MODE>(b_o)
@@ -2704,7 +2715,7 @@ impl Expression {
     #[staticmethod]
     #[pyo3(signature = (
         idx, from_bits, to_bits, is_signed, operand,
-        from_type=None, to_type=None, rounding_mode=None,
+        from_type=None, to_type=None, rounding_mode=None, vector_count=None,
         **kwargs
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2717,6 +2728,7 @@ impl Expression {
         from_type: Option<ConvertType>,
         to_type: Option<ConvertType>,
         rounding_mode: Option<RoundingModeOrExpr>,
+        vector_count: Option<u32>,
         kwargs: Option<Tags>,
     ) -> PyResult<Self> {
         let tags = kwargs.unwrap_or_default();
@@ -2731,6 +2743,7 @@ impl Expression {
                 from_type: from_type.unwrap_or(ConvertType::TypeInt),
                 to_type: to_type.unwrap_or(ConvertType::TypeInt),
                 rounding_mode,
+                vector_count,
             },
         }))
     }
@@ -3665,8 +3678,8 @@ impl Expression {
     /// variants (UnaryOp / BinaryOp / Convert / Reinterpret) so
     /// callers that look up an op-handler via
     /// ``mapping[expr.verbose_op]`` find a match regardless of variant.
-    /// The legacy per-class pyclasses exposed it on every op-shaped
-    /// expression with the same content as ``op``.
+    /// A signed (non-floating-point) BinaryOp carries an ``s`` suffix
+    /// (``CmpLEs``), as the Python classes did before the port.
     #[getter]
     fn verbose_op(&self) -> PyResult<String> {
         match &self.expr.inner {
@@ -3677,7 +3690,19 @@ impl Expression {
             ExprInner::DirtyExpression { callee, .. }
             | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
             ExprInner::Let { .. } => Ok("let".to_string()),
-            ExprInner::UnaryOp { op, .. } | ExprInner::BinaryOp { op, .. } => Ok(op.clone()),
+            ExprInner::UnaryOp { op, .. } => Ok(op.clone()),
+            ExprInner::BinaryOp {
+                op,
+                signed,
+                floating_point,
+                ..
+            } => {
+                if *signed && !*floating_point {
+                    Ok(format!("{op}s"))
+                } else {
+                    Ok(op.clone())
+                }
+            }
             ExprInner::Convert { .. } => Ok("Convert".to_string()),
             ExprInner::Reinterpret { .. } => Ok("Reinterpret".to_string()),
             _ => Err(PyAttributeError::new_err(
@@ -4238,6 +4263,7 @@ impl Expression {
     fn vector_count(&self) -> PyResult<Option<i64>> {
         match &self.expr.inner {
             ExprInner::BinaryOp { vector_count, .. } => Ok(*vector_count),
+            ExprInner::Convert { vector_count, .. } => Ok(vector_count.map(|v| v as i64)),
             _ => Err(PyAttributeError::new_err(
                 "no 'vector_count' on this Expression",
             )),
@@ -4695,6 +4721,7 @@ impl Expression {
                 is_signed,
                 from_type,
                 to_type,
+                vector_count,
                 ..
             } => {
                 let o = Expression::wrap((**operand).clone()).__str__(py)?;
@@ -4709,10 +4736,19 @@ impl Expression {
                     ""
                 };
                 let s = if *is_signed { "s" } else { "" };
-                Ok(format!(
-                    "Conv({}{}->{}{}{}, {})",
-                    from_bits, ft, s, to_bits, tt, o
-                ))
+                Ok(match vector_count {
+                    Some(n) => format!(
+                        "ConvV({}{}->{}{}{}x{}, {})",
+                        from_bits / n,
+                        ft,
+                        s,
+                        to_bits / n,
+                        tt,
+                        n,
+                        o
+                    ),
+                    None => format!("Conv({}{}->{}{}{}, {})", from_bits, ft, s, to_bits, tt, o),
+                })
             }
             ExprInner::Reinterpret {
                 operand,
@@ -5229,7 +5265,7 @@ const EXPR_VARIANTS: &[&str] = &[
 ];
 #[rustfmt::skip]
 const EXPR_FIELD_COUNTS: &[usize] = &[
-    1, 1, 1, 1, 1, 4, 2, 7, 5, 7, 5, 3, 6, 2, 2, 3, 2, 1, 2, 2, 3, 3, 3, 4, 1, 2, 1,
+    1, 1, 1, 1, 1, 4, 2, 8, 5, 7, 5, 3, 6, 2, 2, 3, 2, 1, 2, 2, 3, 3, 3, 4, 1, 2, 1,
 ];
 
 impl Serialize for ExprInner {
@@ -5287,8 +5323,9 @@ impl Serialize for ExprInner {
                 from_type,
                 to_type,
                 rounding_mode,
+                vector_count,
             } => {
-                let mut tv = s.serialize_tuple_variant("ExprInner", 7, "Convert", 7)?;
+                let mut tv = s.serialize_tuple_variant("ExprInner", 7, "Convert", 8)?;
                 tv.serialize_field(operand)?;
                 tv.serialize_field(from_bits)?;
                 tv.serialize_field(to_bits)?;
@@ -5296,6 +5333,7 @@ impl Serialize for ExprInner {
                 tv.serialize_field(from_type)?;
                 tv.serialize_field(to_type)?;
                 tv.serialize_field(rounding_mode)?;
+                tv.serialize_field(vector_count)?;
                 tv.end()
             }
             ExprInner::Reinterpret {
@@ -5553,6 +5591,7 @@ impl<'de> Deserialize<'de> for ExprInner {
                         from_type: next(&mut seq)?,
                         to_type: next(&mut seq)?,
                         rounding_mode: next(&mut seq)?,
+                        vector_count: next(&mut seq)?,
                     },
                     8 => ExprInner::Reinterpret {
                         operand: next(&mut seq)?,

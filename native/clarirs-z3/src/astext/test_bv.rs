@@ -561,12 +561,15 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(Z3_mk_bvudiv(*z3_ctx, *x, *y)).unwrap();
+            let simplified = RcAst::try_from(Z3_simplify(*z3_ctx, *z3_ast)).unwrap();
+            assert_eq!(simplified.decl_kind(), DeclKind::BudivI);
 
             let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .udiv(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
             assert_eq!(result, expected);
+            assert_eq!(AstRef::from_z3(&ctx, simplified).unwrap(), expected);
         });
     }
 
@@ -577,12 +580,15 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(Z3_mk_bvsdiv(*z3_ctx, *x, *y)).unwrap();
+            let simplified = RcAst::try_from(Z3_simplify(*z3_ctx, *z3_ast)).unwrap();
+            assert_eq!(simplified.decl_kind(), DeclKind::BsdivI);
 
             let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .sdiv(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
             assert_eq!(result, expected);
+            assert_eq!(AstRef::from_z3(&ctx, simplified).unwrap(), expected);
         });
     }
 
@@ -593,12 +599,15 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(Z3_mk_bvurem(*z3_ctx, *x, *y)).unwrap();
+            let simplified = RcAst::try_from(Z3_simplify(*z3_ctx, *z3_ast)).unwrap();
+            assert_eq!(simplified.decl_kind(), DeclKind::BuremI);
 
             let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .urem(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
             assert_eq!(result, expected);
+            assert_eq!(AstRef::from_z3(&ctx, simplified).unwrap(), expected);
         });
     }
 
@@ -609,12 +618,15 @@ mod from_z3 {
             let x = RcAst::mk_bv("x", 8);
             let y = RcAst::mk_bv("y", 8);
             let z3_ast = RcAst::try_from(Z3_mk_bvsrem(*z3_ctx, *x, *y)).unwrap();
+            let simplified = RcAst::try_from(Z3_simplify(*z3_ctx, *z3_ast)).unwrap();
+            assert_eq!(simplified.decl_kind(), DeclKind::BsremI);
 
             let result = AstRef::from_z3(&ctx, z3_ast).unwrap();
             let expected = ctx
                 .srem(ctx.bvs("x", 8).unwrap(), ctx.bvs("y", 8).unwrap())
                 .unwrap();
             assert_eq!(result, expected);
+            assert_eq!(AstRef::from_z3(&ctx, simplified).unwrap(), expected);
         });
     }
 

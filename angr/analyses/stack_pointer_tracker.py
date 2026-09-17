@@ -1007,9 +1007,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
         callees: list[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
-            if data.get("type") == "call" and isinstance(dst, FuncNode):
-                func = self.kb.functions.get_by_addr(dst.addr)
-                callees.append(func)
+            # a callee outside the CFG's analysis regions is registered on the edge but never becomes a function
+            if data.get("type") == "call" and isinstance(dst, FuncNode) and self.kb.functions.contains_addr(dst.addr):
+                callees.append(self.kb.functions.get_by_addr(dst.addr, meta_only=True))
         return callees
 
 

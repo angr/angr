@@ -58,6 +58,19 @@ class MVPageMemory(
 
 
 class TestMemory(unittest.TestCase):
+    def test_store_large_symbolic_concat(self):
+        # a 4096-arg Concat across page boundary must decompose without recreating args per byte
+        s = SimState(project=minimal_project("AMD64"), mode="symbolic")
+        chunks = [claripy.BVS(f"b{i}", 8) for i in range(0x1000)]
+        start = time.time()
+        s.memory.store(0x800, claripy.Concat(*chunks))
+        elapsed = time.time() - start
+        assert elapsed < 0.5, f"A simple memory store takes too long: {elapsed} seconds"
+
+        assert s.memory.load(0x800, 4) is claripy.Concat(*chunks[:4])
+        assert s.memory.load(0x800 + 0xFFC, 4) is claripy.Concat(*chunks[0xFFC:])
+        assert s.memory.load(0x800 + 0x7FE, 4) is claripy.Concat(*chunks[0x7FE:0x802])
+
     def test_copy(self):
         s = SimState(project=minimal_project("AMD64"), mode="symbolic")
         s.memory.store(0x100, b"ABCDEFGHIJKLMNOP")

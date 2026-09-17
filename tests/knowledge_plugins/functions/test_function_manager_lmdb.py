@@ -10,6 +10,8 @@ import os
 import unittest
 
 import angr
+from angr.calling_conventions import SimCCMicrosoftAMD64
+from angr.sim_type import SimCppClass, SimTypeFunction, TypeRef
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -88,6 +90,32 @@ class TestFunctionManagerLMDB(unittest.TestCase):
         # Verify it was loaded
         assert func is not None, "Failed to load spilled function"
         assert func.addr == spilled_addr, "Loaded function has wrong address"
+
+    def test_spilled_function_keeps_cppclass_return_type(self):
+        """A prototype returning a C++ class by value must survive the LMDB round trip (angr/angr#7135)."""
+        proj = angr.Project(self.bin_path, auto_load_libs=False)
+        proj.analyses.CFGFast()
+        fm = proj.kb.functions
+
+        func = fm["main"]
+        cls = SimCppClass(name="class Base::Type").with_arch(proj.arch)
+        func.prototype = SimTypeFunction([], TypeRef("class Base::Type", cls)).with_arch(proj.arch)
+        func.calling_convention = SimCCMicrosoftAMD64(proj.arch)
+
+        fm.cache_limit = 1
+        # touch other functions so that main is evicted, then reload it from LMDB
+        for addr in list(fm._spilled_addrs)[:3]:
+            _ = fm[addr]
+        assert func.addr in fm._spilled_addrs
+        reloaded = fm[func.addr]
+        assert reloaded is not func
+
+        assert reloaded.prototype is not None
+        returnty = reloaded.prototype.returnty
+        assert isinstance(returnty, TypeRef)
+        assert isinstance(returnty.type, SimCppClass)
+        assert returnty.type.name == "class Base::Type"
+        assert reloaded.arguments == []
 
     def test_dynamic_cache_limit_decrease(self):
         """Test decreasing cache limit dynamically."""

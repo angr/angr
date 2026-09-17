@@ -29,6 +29,7 @@ altnames = set()
 # regenerated win32/wdk JSON back there.
 dump_root = Path(angr_data.get_path("procedures", "definitions"))
 
+# note that this typelib *does not hold* anonymous structs or unions!
 typelib = SimTypeCollection()
 typelib.names = ["win32"]
 
@@ -45,7 +46,7 @@ known_struct_names: set[str] = set()
 
 
 def is_anonymous_struct(s_name: str) -> bool:
-    return "anonymous" in s_name.lower()
+    return "_anonymous_e__" in s_name.lower() or "<anon>" in s_name.lower()
 
 
 def get_angr_type_from_name(name):
@@ -88,7 +89,11 @@ def get_angr_type_from_name(name):
 def get_typeref_if_available(t: angr.types.SimType) -> angr.types.SimType:
     if isinstance(t, angr.types.SimTypeRef):
         return t
-    if isinstance(t, (angr.types.SimStruct, angr.types.SimTypeEnum)) and t.name and not is_anonymous_struct(t.name):
+    if (
+        isinstance(t, (angr.types.SimStruct, angr.types.SimTypeEnum, angr.types.SimUnion))
+        and t.name
+        and not is_anonymous_struct(t.name)
+    ):
         # replace it with a SimTypeRef to avoid duplicate definition
         t = angr.types.SimTypeRef(t.name, t.__class__)
     elif t.label is not None and t.label in typelib:
@@ -96,46 +101,68 @@ def get_typeref_if_available(t: angr.types.SimType) -> angr.types.SimType:
     return t
 
 
-def handle_json_type(t, create_missing: bool = False):
+def handle_json_type(t, anon_typelib: SimTypeCollection | None, create_missing: bool = False):
     if t["Kind"] == "NativeTypedef":
-        ty = handle_json_type(t["Def"], create_missing=create_missing)
+        ty = handle_json_type(t["Def"], anon_typelib, create_missing=create_missing)
         ty.label = t["Name"]
         return ty
     if t["Kind"] == "Native":
         return get_angr_type_from_name(t["Name"])
     if t["Kind"] == "PointerTo":
-        pts_to = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
+        pts_to = get_typeref_if_available(handle_json_type(t["Child"], anon_typelib, create_missing=create_missing))
         return angr.types.SimTypePointer(pts_to)
     if t["Kind"] == "Array":
-        elem = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
+        elem = get_typeref_if_available(handle_json_type(t["Child"], anon_typelib, create_missing=create_missing))
         if t["Shape"]:
             return angr.types.SimTypeFixedSizeArray(elem, length=int(t["Shape"]["Size"]))
         return angr.types.SimTypePointer(elem)
     if t["Kind"] == "ApiRef":
         try:
-            named_type = typelib.get(t["Name"], bottom_on_missing=create_missing)
+            anonymous = is_anonymous_struct(t["Name"])
+            if anonymous:
+                named_type = anon_typelib.get(t["Name"], bottom_on_missing=create_missing)
+            else:
+                named_type = typelib.get(t["Name"], bottom_on_missing=create_missing)
         except AngrMissingTypeError:
             if t["Name"] in known_struct_names:
                 return angr.types.SimTypeRef(t["Name"], angr.types.SimStruct)
             raise
         return get_typeref_if_available(named_type)
     if t["Kind"] == "Struct":
+        local_anon_typelib = SimTypeCollection()
         for nested_type in t["NestedTypes"]:
-            typelib.add(nested_type["Name"], handle_json_type(nested_type, create_missing=create_missing))
+            anonymous = is_anonymous_struct(nested_type["Name"])
+            if anonymous:
+                local_anon_typelib.add(
+                    nested_type["Name"], handle_json_type(nested_type, None, create_missing=create_missing)
+                )
+            else:
+                typelib.add(nested_type["Name"], handle_json_type(nested_type, None, create_missing=create_missing))
         fields = OrderedDict()
         for field in t["Fields"]:
-            child_type = get_typeref_if_available(handle_json_type(field["Type"], create_missing=create_missing))
+            child_type = get_typeref_if_available(
+                handle_json_type(field["Type"], local_anon_typelib, create_missing=create_missing)
+            )
             fields[field["Name"]] = child_type
         return angr.types.SimStruct(fields, name=t["Name"])
     if t["Kind"] == "LPArray":
-        pts_to = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
+        pts_to = get_typeref_if_available(handle_json_type(t["Child"], anon_typelib, create_missing=create_missing))
         return angr.types.SimTypePointer(pts_to, label="LPArray")
     if t["Kind"] == "Union":
+        local_anon_typelib = SimTypeCollection()
         for nested_type in t["NestedTypes"]:
-            typelib.add(nested_type["Name"], handle_json_type(nested_type, create_missing=create_missing))
+            anonymous = is_anonymous_struct(nested_type["Name"])
+            if anonymous:
+                local_anon_typelib.add(
+                    nested_type["Name"], handle_json_type(nested_type, None, create_missing=create_missing)
+                )
+            else:
+                typelib.add(nested_type["Name"], handle_json_type(nested_type, None, create_missing=create_missing))
         members = {}
         for field in t["Fields"]:
-            child_type = get_typeref_if_available(handle_json_type(field["Type"], create_missing=create_missing))
+            child_type = get_typeref_if_available(
+                handle_json_type(field["Type"], local_anon_typelib, create_missing=create_missing)
+            )
             members[field["Name"]] = child_type
         return angr.types.SimUnion(members)
     if t["Kind"] == "MissingClrType":
@@ -150,7 +177,8 @@ def create_angr_type_from_json(t):
         if t["Name"] == "PWSTR":
             new_typedef = angr.types.SimTypePointer(angr.types.SimTypeWideChar(label="WCHAR"), label="PWSTR")
         else:
-            new_typedef = handle_json_type(t)
+            anon_typelib = SimTypeCollection()
+            new_typedef = handle_json_type(t, anon_typelib)
         typelib.add(t["Name"], new_typedef)
     elif t["Kind"] == "Enum":
         match t["IntegerBase"]:
@@ -194,14 +222,17 @@ def create_angr_type_from_json(t):
         typelib.add(t["Name"], ty)
     elif t["Kind"] == "Struct":
         known_struct_names.add(t["Name"])
-        real_new_type = handle_json_type(t)
+        anon_typelib = SimTypeCollection()
+        real_new_type = handle_json_type(t, anon_typelib)
         typelib.add(t["Name"], real_new_type)
     elif t["Kind"] == "FunctionPointer":
-        ret_type = handle_json_type(t["ReturnType"])
+        anon_typelib = SimTypeCollection()
+        ret_type = handle_json_type(t["ReturnType"], anon_typelib)
         args = []
         arg_names = []
         for param in t["Params"]:
-            new_param = handle_json_type(param["Type"])
+            anon_typelib = SimTypeCollection()
+            new_param = handle_json_type(param["Type"], anon_typelib)
             args.append(new_param)
             arg_names.append(param["Name"])
 
@@ -214,7 +245,8 @@ def create_angr_type_from_json(t):
     elif t["Kind"] == "ComClassID":
         return
     elif t["Kind"] == "Union":
-        real_new_type = handle_json_type(t)
+        anon_typelib = SimTypeCollection()
+        real_new_type = handle_json_type(t, anon_typelib)
         typelib.add(t["Name"], real_new_type)
         return
     else:
@@ -225,6 +257,8 @@ def do_it(in_dir):
     p = Path(in_dir)
 
     files = p.glob("*.json")
+
+    log.info("Dump root: %s", dump_root)
 
     for file in files:
         log.info("Found file %s", file)
@@ -279,12 +313,14 @@ def do_it(in_dir):
             if prefix == "wdk" and libname == "ntdll" and suffix == "dll":
                 libname = "ntoskrnl"
                 suffix = "exe"
-            ret_type = handle_json_type(f["ReturnType"], create_missing=True)
+            anon_typelib = SimTypeCollection()
+            ret_type = handle_json_type(f["ReturnType"], anon_typelib, create_missing=True)
             variadic = f["CallingConvention"] == "VarArgs"
             args = []
             arg_names = []
             for idx, param in enumerate(f["Params"]):
-                new_param = handle_json_type(param["Type"], create_missing=True)
+                anon_typelib = SimTypeCollection()
+                new_param = handle_json_type(param["Type"], anon_typelib, create_missing=True)
                 assert new_param is not None, "This should not happen, please report this."
                 args.append(new_param)
                 arg_names.append(param["Name"])

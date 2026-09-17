@@ -61,7 +61,7 @@ class ModuloSimplifier(PeepholeOptimizationExprBase):
 
                     if a0.likes(a1) and mul_const.value == div_const.value:
                         operands = [a0, div_const]
-                        mod = BinaryOp(expr.idx, "Mod", operands, False, bits=a0.bits, **expr.tags)
+                        mod = BinaryOp(expr.idx, "Mod", operands, op1_left.signed, bits=a0.bits, **expr.tags)
                         if inner_conv_expr is not None:
                             conv_from_bits = inner_conv_expr.from_bits
                             conv_to_bits = (

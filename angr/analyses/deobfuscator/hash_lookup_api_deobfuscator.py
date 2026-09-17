@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Sequence
 
+import networkx
+
 import angr
 from angr import ailment, claripy, sim_type
 from angr.ailment.block_walker import AILBlockViewer
 from angr.analyses.analysis import Analysis
+from angr.analyses.decompiler.clinic import Clinic
 from angr.errors import AngrCallableError
 from angr.knowledge_plugins.functions.function import Function
 
@@ -16,9 +19,8 @@ class HashLookupAPIDeobfuscator(Analysis):
     see if they resolve symbols.
     """
 
-    def __init__(
-        self, lifter: Callable[[Function], angr.analyses.decompiler.Clinic], func_addrs: Sequence[int] | None = None
-    ):
+    def __init__(self, lifter: Callable[[Function], Clinic | None], func_addrs: Sequence[int] | None = None):
+        # the lifter returns None for functions that cannot be lifted to AIL; such functions are skipped
         self.lifter = lifter
         self.results: dict[int, tuple[str, str]] = {}
 
@@ -51,18 +53,17 @@ class HashLookupAPIDeobfuscator(Analysis):
         self.kb.obfuscations.type3_deobfuscated_apis.update(self.results)
 
     def _is_metadata_accessor_candidate(self, function: Function) -> bool:
-        if function.is_simprocedure or function.is_plt or function.is_alignment:
+        graph = self._lift(function)
+        if graph is None:
             return False
-        clinic = self.lifter(function)
-        assert clinic.graph is not None
-        walker0 = FindCallsTo(target="NtGetCurrentPeb", variable_map=clinic.variable_map)
-        for node in clinic.graph:
+        walker0 = FindCallsTo(target="NtGetCurrentPeb")
+        for node in graph:
             walker0.walk(node)
         return bool(walker0.found_calls)
 
     def _analyze1(self, function: Function) -> Iterator[tuple[int, Callable[..., claripy.ast.BV], list[int]]]:
-        clinic = self.lifter(function)
-        assert clinic.graph is not None
+        if self._lift(function) is None:
+            return
 
         callgraph = self.kb.functions.callgraph
         if function.addr not in callgraph:
@@ -74,10 +75,10 @@ class HashLookupAPIDeobfuscator(Analysis):
             if caller_addr in seen:
                 continue
             seen.add(caller_addr)
-            pred_func = self.kb.functions[caller_addr]
-            pred_clinic = self.lifter(pred_func)
-            assert pred_clinic.graph is not None
-            for each_pred_node in pred_clinic.graph:
+            pred_graph = self._lift(self.kb.functions[caller_addr])
+            if pred_graph is None:
+                continue
+            for each_pred_node in pred_graph:
                 walker1.walk(each_pred_node)
 
         callme = self.project.factory.callable(
@@ -95,6 +96,18 @@ class HashLookupAPIDeobfuscator(Analysis):
                 conc_args.append(arg.value)
             else:
                 yield call_expr.tags["ins_addr"], callme, conc_args  # type: ignore
+
+    def _lift(self, function: Function) -> networkx.DiGraph | None:
+        """
+        Lift a function to its AIL graph. Returns None when the function is not real code (SimProcedure, PLT stub,
+        alignment) or when the lifter fails to produce a graph (decompilation failure or an empty function).
+        """
+        if function.is_simprocedure or function.is_plt or function.is_alignment:
+            return None
+        clinic = self.lifter(function)
+        if clinic is None or clinic.graph is None:
+            return None
+        return clinic.graph
 
     def _analyze2(self, ins_addr: int, callme: Callable[..., claripy.ast.BV], conc_args: list[int]):
         try:

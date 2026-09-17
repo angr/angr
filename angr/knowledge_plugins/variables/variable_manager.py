@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+from bisect import bisect_left
 from collections import defaultdict
 from collections.abc import Iterator
 from itertools import chain, count
@@ -39,7 +41,7 @@ from angr.sim_variable import (
 )
 from angr.utils.ail import is_phi_assignment
 from angr.utils.orderedset import OrderedSet
-from angr.utils.types import replace_pointer_pts_to, unpack_pointer
+from angr.utils.types import relink_typerefs, replace_pointer_pts_to, unpack_pointer
 
 from .spilling_vardict import USE_SPILLING_DVARS, SpillingVariableInternalDict
 from .variable_access import VariableAccess, VariableAccessSort
@@ -313,6 +315,21 @@ class VariableManagerInternal(Serializable):
             entry.manual = var in self.variables_with_manual_types
             type_entries.append(entry)
         cmsg.types.extend(type_entries)
+
+        # Named local types (self.types): the TypeRef targets, interned into the same pool
+        local_type_entries = []
+        for name in self.types.iter_own_keys():
+            type_json = json.dumps(self.types.get_own(name).type.to_json())
+            ref = type_ref_by_json.get(type_json)
+            if ref is None:
+                type_pool.append(type_json)
+                ref = len(type_pool)
+                type_ref_by_json[type_json] = ref
+            entry = variables_pb2.LocalType()  # type: ignore[reportAttributeAccessIssue]
+            entry.name = name
+            entry.type_ref = ref
+            local_type_entries.append(entry)
+        cmsg.local_types.extend(local_type_entries)
         cmsg.type_pool.extend(type_pool)
 
         # TODO: vvarid_to_varialbes & variable_to_vvarids
@@ -437,6 +454,24 @@ class VariableManagerInternal(Serializable):
         for ref, type_json in enumerate(cmsg.type_pool, start=1):
             var_type = SimType.from_json(json.loads(type_json))
             type_by_ref[ref] = var_type.with_arch(arch) if arch is not None else var_type
+
+        # Named local types come back as fresh TypeRefs owned by model.types; TypeRefs of the same name inside the
+        # decoded types are relinked to them so that the store stays the single owner of each named type.
+        typerefs: dict[str, TypeRef] = {}
+        if model.manager is not None:
+            for local_type_pb2 in cmsg.local_types:
+                ty = type_by_ref.get(local_type_pb2.type_ref)
+                if ty is None:
+                    continue
+                if isinstance(ty, TypeRef):
+                    ty = ty.type
+                typerefs[local_type_pb2.name] = TypeRef(local_type_pb2.name, ty)
+            for name, typeref in typerefs.items():
+                relink_typerefs(typeref.type, typerefs)
+                model.types[name] = typeref
+            for ref, ty in type_by_ref.items():
+                type_by_ref[ref] = relink_typerefs(ty, typerefs)
+
         for type_pb2 in cmsg.types:
             var = variable_by_ident.get(type_pb2.ident) or unified_variable_by_ident.get(type_pb2.ident)
             var_type = type_by_ref.get(type_pb2.type_ref)
@@ -464,6 +499,17 @@ class VariableManagerInternal(Serializable):
             region.add_variable(offset, var)
 
         model._variables_without_writes = set(model.get_variables_without_writes())
+
+        # restore the ident counters so that new variables never reuse the ident of a loaded one
+        prefix_to_sort = {"r": "register", "s": "stack", "arg": "argument", "g": "global", "c": "constant", "m": "phi"}
+        for var in chain(model._variables, model._phi_variables, model._unified_variables):
+            if var.ident is None:
+                continue
+            m = re.fullmatch(r"i([a-z]+)_(\d+)", var.ident)
+            if m is None or m.group(1) not in prefix_to_sort:
+                continue
+            sort = prefix_to_sort[m.group(1)]
+            model._variable_counters[sort] = max(model._variable_counters[sort], int(m.group(2)) + 1)
 
         return model
 
@@ -505,18 +551,48 @@ class VariableManagerInternal(Serializable):
             raise ValueError(f"Unsupported sort {sort} in add_variable().")
 
         if variable.ident is not None:
-            # find if there is already an existing variable with the same identifier
-            if variable.ident in self._ident_to_variable:
-                existing_var = self._ident_to_variable[variable.ident]
-                if existing_var.name is not None and not variable.renamed:
-                    variable.name = existing_var.name
-                    variable.renamed = existing_var.renamed
+            self._supersede_variable(variable)
             self._ident_to_variable[variable.ident] = variable
 
         if region is not None:
             region.add_variable(start, variable)
         self._variables.add(variable)
         self._variables_without_writes.add(variable)
+
+    def _supersede_variable(self, variable: SimVariable) -> None:
+        """
+        Remove the existing variable with the same identifier as `variable` from the variable manager, and transfer its
+        name to `variable`.
+        """
+
+        assert variable.ident is not None
+        existing = self._ident_to_variable.get(variable.ident)
+        if existing is None or existing is variable:
+            return
+        if existing.name is not None and not variable.renamed:
+            variable.name = existing.name
+            variable.renamed = existing.renamed
+            variable.auto_renamed = existing.auto_renamed
+        if existing == variable:
+            return
+
+        self._variables.discard(existing)
+        self._variables_without_writes.discard(existing)
+        if isinstance(existing, SimStackVariable):
+            self._stack_region.remove_variable(existing.offset, existing)
+        elif isinstance(existing, SimRegisterVariable):
+            self._register_region.remove_variable(existing.reg, existing)
+        elif isinstance(existing, SimComboRegisterVariable):
+            self._register_region.remove_variable(existing.reg_offsets[0], existing)
+        elif isinstance(existing, SimMemoryVariable):
+            self._global_region.remove_variable(existing.addr, existing)
+
+        # re-key the stale unified variable to the new variable so that set_unified_variable() carries its name over
+        old_unified = self._variables_to_unified_variables.pop(existing, None)
+        if old_unified is not None:
+            if all(u is not old_unified for u in self._variables_to_unified_variables.values()):
+                self._unified_variables.discard(old_unified)
+            self._variables_to_unified_variables[variable] = old_unified
 
     def set_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":
@@ -533,6 +609,7 @@ class VariableManagerInternal(Serializable):
             if existing_var.name is not None and not variable.renamed:
                 variable.name = existing_var.name
                 variable.renamed = existing_var.renamed
+                variable.auto_renamed = existing_var.auto_renamed
         region.set_variable(start, variable)
         self._variables.add(variable)
         self._variables_without_writes.add(variable)
@@ -578,7 +655,10 @@ class VariableManagerInternal(Serializable):
         overwrite=False,
         atom: ailment.expression.Atom | None = None,
     ):
-        if variable.ident not in self._ident_to_variable:
+        existing = self._ident_to_variable.get(variable.ident)
+        if existing is None or existing != variable:
+            if existing is not None:
+                self._supersede_variable(variable)
             self._ident_to_variable[variable.ident] = variable
             self._variables.add(variable)
         var_and_offset = variable, offset
@@ -1058,7 +1138,9 @@ class VariableManagerInternal(Serializable):
                     sorted_combo_reg_variables.append(var)
 
             elif isinstance(var, SimMemoryVariable):
-                if not reset and var.name is not None:
+                if var.auto_renamed and not var.renamed:
+                    var.auto_renamed = False
+                elif not reset and var.name is not None:
                     continue
                 # assign names directly
                 if labels is not None and var.addr in labels:
@@ -1091,7 +1173,10 @@ class VariableManagerInternal(Serializable):
 
         for var in chain(sorted_stack_variables, sorted_reg_variables, sorted_combo_reg_variables, phi_only_vars):
             idx = next(var_ctr)
-            if var.name is not None and var.name != var.ident and not reset:
+            if var.auto_renamed and not var.renamed:
+                # a semantic name from an earlier run: drop it so this run can name the variable afresh
+                var.auto_renamed = False
+            elif var.name is not None and var.name != var.ident and not reset:
                 continue
             if isinstance(var, (SimStackVariable, SimRegisterVariable, SimComboRegisterVariable)):
                 var.name = f"v{idx}"
@@ -1103,7 +1188,9 @@ class VariableManagerInternal(Serializable):
         arg_vars = sorted(arg_vars, key=lambda v: _id_from_varident(v.ident))
         for var in arg_vars:
             idx = next(arg_ctr)
-            if var.name is not None and var.name != var.ident and not reset:
+            if var.auto_renamed and not var.renamed:
+                var.auto_renamed = False
+            elif var.name is not None and var.name != var.ident and not reset:
                 continue
             var.name = arg_names[idx] if arg_names else f"a{idx}"
             var._hash = None
@@ -1255,6 +1342,7 @@ class VariableManagerInternal(Serializable):
             if old_unified.name is not None and not unified.renamed:
                 unified.name = old_unified.name
                 unified.renamed = old_unified.renamed
+                unified.auto_renamed = old_unified.auto_renamed
 
         self._unified_variables.add(unified)
         self._variables_to_unified_variables[variable] = unified
@@ -1306,11 +1394,13 @@ class VariableManagerInternal(Serializable):
         max_sizes = {}
         offsets = sorted(list(stackvars_by_offset) + list(stack_items))
         for i, offset in enumerate(offsets):
-            if i + 1 < len(offsets):
-                next_off = offsets[i + 1]
-                sz = next_off - offset
-                if offset in stackvars_by_offset:
-                    for v in stackvars_by_offset[offset]:
+            if i + 1 < len(offsets) and offset in stackvars_by_offset:
+                for v in stackvars_by_offset[offset]:
+                    # find the next offset after the end of this variable
+                    next_off_idx_after_variable_end = bisect_left(offsets, offset + v.size)
+                    if next_off_idx_after_variable_end < len(offsets):
+                        next_off = offsets[next_off_idx_after_variable_end]
+                        sz = next_off - offset
                         max_sizes[v] = max(v.size, sz)
 
         return max_sizes

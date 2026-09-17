@@ -66,6 +66,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         # cache items
         self._idom_cache = {}
         self._entry_node_cache = {}
+        self._regions_by_block_loc_cache = None
 
         self.analyze()
 
@@ -299,7 +300,10 @@ class DuplicationReverter(StructuringOptimizationPass):
                 # we are at a block that has no ending, if this block does not end in one successor, then
                 # it is just an incorrect graph
                 orig_pred_succs = list(self.read_graph.successors(orig_pred))
-                assert len(orig_pred_succs) == 1
+                if len(orig_pred_succs) != 1:
+                    _l.debug("A predecessor without a jump has %d successors; skipping it", len(orig_pred_succs))
+                    self.write_graph = self.read_graph.copy()
+                    return False
 
                 orig_pred_succ = orig_pred_succs[0]
                 new_succ = None
@@ -322,7 +326,9 @@ class DuplicationReverter(StructuringOptimizationPass):
                 self.write_graph.add_edge(orig_pred, new_succ)
 
         self.write_graph = self._correct_all_broken_jumps(self.write_graph)
-        self.write_graph = self._uniquify_addrs(self.write_graph)
+        # do not change the address of the function entry block
+        entry_blocks = {node for node in self.read_graph.nodes if node.addr == self._func.addr}
+        self.write_graph = self._uniquify_addrs(self.write_graph, keep=entry_blocks)
         _l.info("Candidate merge successful on blocks: %s", candidate)
         return True
 
@@ -330,7 +336,10 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Helpers
     #
 
-    def _uniquify_addrs(self, graph):
+    def _uniquify_addrs(self, graph, keep: set[Block] | None = None):
+        """
+        Assign every block a unique address.
+        """
         new_graph = nx.DiGraph()
         new_nodes = {}
         nodes_by_addr = defaultdict(list)
@@ -343,6 +352,10 @@ class DuplicationReverter(StructuringOptimizationPass):
 
             # we have multiple nodes with the same address
             duplicate_addr_nodes = sorted(nodes, reverse=True)
+            if keep is not None:
+                kept = [node for node in duplicate_addr_nodes if node in keep]
+                if len(kept) == 1:
+                    duplicate_addr_nodes = [node for node in duplicate_addr_nodes if node is not kept[0]]
             for duplicate_node in duplicate_addr_nodes:
                 new_node = duplicate_node.copy()
                 new_node.idx = None
@@ -389,7 +402,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             # correct the last statement of the node for single-successor nodes
             new_node = node
             if graph.out_degree(node) == 1:
-                last_stmt = node.statements[-1]
+                last_stmt = node.statements[-1] if node.statements else None
                 successor = next(iter(graph.successors(node)))
                 if isinstance(last_stmt, Jump):
                     if last_stmt.target.value != successor.addr:
@@ -411,7 +424,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                     new_node.statements.append(new_last_stmt)
 
             elif graph.out_degree(node) == 2:
-                last_stmt = node.statements[-1]
+                last_stmt = node.statements[-1] if node.statements else None
                 if isinstance(last_stmt, ConditionalJump):
                     real_successor_addrs = [_n.addr for _n in graph.successors(node)]
                     addr_map = {}
@@ -959,10 +972,31 @@ class DuplicationReverter(StructuringOptimizationPass):
     # Search Stages
     #
 
+    def _regions_by_block_loc(self) -> dict[tuple[int, int | None], set[int]]:
+        """
+        Return a mapping of RegionIdentifier's block-address regions indexed by block location.
+        """
+        cache = self._regions_by_block_loc_cache
+        if cache is not None and cache[0] is self._ri:
+            return cache[1]
+        index: dict[tuple[int, int | None], set[int]] = {}
+        for region_idx, region in enumerate(self._ri.regions_by_block_addrs):
+            for loc in region:
+                index.setdefault(loc, set()).add(region_idx)
+        self._regions_by_block_loc_cache = self._ri, index
+        return index
+
     def _share_subregion(self, blocks: list[Block]) -> bool:
-        return any(
-            all((block.addr, block.idx) in region for block in blocks) for region in self._ri.regions_by_block_addrs
-        )
+        index = self._regions_by_block_loc()
+        shared: set[int] | None = None
+        for block in blocks:
+            regions = index.get((block.addr, block.idx))
+            if not regions:
+                return False
+            shared = set(regions) if shared is None else shared & regions
+            if not shared:
+                return False
+        return shared is not None
 
     def _is_valid_candidate(self, b0, b1):
         # blocks must have statements

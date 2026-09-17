@@ -415,6 +415,8 @@ class Clinic(Analysis, Serializable):
         flavor: str = "pseudocode",
         variable_map: VariableMap | None = None,
         save_unoptimized_graph: bool = False,
+        known_patterns: str | tuple[str, ...] | None = None,
+        recognize_known_patterns: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -522,6 +524,9 @@ class Clinic(Analysis, Serializable):
 
         self._constrain_callee_prototypes = constrain_callee_prototypes
         self._save_unoptimized_graph = save_unoptimized_graph
+        # the user's KnownPattern force-enable selection; consumed by the KnownPatternOutliner optimization pass
+        self._known_patterns = known_patterns
+        self._recognize_known_patterns = recognize_known_patterns
 
         self._new_block_addrs: set[int] = set()
 
@@ -1525,7 +1530,7 @@ class Clinic(Analysis, Serializable):
         # finally, recover the calling convention of the current function
         if (
             self.function.prototype is None or self.function.calling_convention is None
-        ) or self.function.prototype_source < PrototypeSource.CCA_DECOMPILER:
+        ) or not self.function.is_prototype_groundtruth:
             old_proto = self.function.prototype
             old_source = self.function.prototype_source
 
@@ -1537,6 +1542,9 @@ class Clinic(Analysis, Serializable):
                 skip_other_funcs=True,
                 skip_signature_matched_functions=False,
                 func_graphs={self.function.addr: func_graph} if func_graph is not None else None,
+                # a function that writes rax last is not thereby returning it; its callers know whether they read
+                # it, and this is one function, so asking them is cheap
+                analyze_callsites=True,
             )
 
             if (
@@ -2025,8 +2033,8 @@ class Clinic(Analysis, Serializable):
             new_last_stmt.tags["is_prototype_guessed"] = True
             new_last_stmt.expr.tags["is_prototype_guessed"] = True
             if func is not None:
-                new_last_stmt.tags["is_prototype_guessed"] = func.is_prototype_guessed
-                new_last_stmt.expr.tags["is_prototype_guessed"] = func.is_prototype_guessed
+                new_last_stmt.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth
+                new_last_stmt.expr.tags["is_prototype_guessed"] = not func.is_prototype_groundtruth
             block.statements[-1] = new_last_stmt
 
         return ail_graph
@@ -2333,6 +2341,8 @@ class Clinic(Analysis, Serializable):
                 notes=self.notes,
                 static_vvars=self.static_vvars,
                 static_buffers=self.static_buffers,
+                known_patterns=self._known_patterns,
+                recognize_known_patterns=self._recognize_known_patterns,
                 **kwargs,
             )
             if a.out_graph:
@@ -2493,12 +2503,7 @@ class Clinic(Analysis, Serializable):
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
         if self.function.calling_convention is not None and self.function.prototype is not None:
-            proto = (
-                dereference_simtype_by_lib(self.function.prototype, self.function.prototype_libname)
-                if self.function.prototype_libname
-                else self.function.prototype
-            )
-            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(proto)
+            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
             if self._flatten_args:
                 new_args = []
                 for arg in args:
@@ -2636,9 +2641,8 @@ class Clinic(Analysis, Serializable):
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
         if self.function.prototype is not None:
-            if self.function.prototype_source.value >= PrototypeSource.CCA_DECOMPILER.value:
-                # do not overwrite an existing function prototype
-                # if you want to re-generate the prototype, clear the existing one first
+            if self.function.is_prototype_groundtruth:
+                # do not overwrite a prototype that came from outside our own analyses
                 return
             if isinstance(self.function.prototype.returnty, SimTypeFloat) or any(
                 isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args
@@ -2719,7 +2723,8 @@ class Clinic(Analysis, Serializable):
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
 
-        if self.function.prototype is not None and not self.function.is_prototype_guessed:
+        if self.function.is_prototype_groundtruth:
+            assert self.function.prototype is not None
             for arg_i, (_, variable) in arg_vvars.items():
                 if arg_i < len(self.function.prototype.args):
                     for tv in vr.var_to_typevars[variable]:
@@ -4701,7 +4706,7 @@ class Clinic(Analysis, Serializable):
             if not self.kb.functions.contains_addr(func_addr):
                 continue
             func = self.kb.functions.get_by_addr(func_addr)
-            if func.prototype is not None and func.is_prototype_guessed is False:
+            if func.prototype is not None and func.is_prototype_groundtruth:
                 # already has a "good" prototype; don't overwrite it
                 continue
 
@@ -4947,6 +4952,9 @@ class Clinic(Analysis, Serializable):
         clinic.typehoon = None
         clinic._optimization_passes = []
         clinic.optimization_scratch = {}
+        # the pattern selection is an input to the optimization passes, which a deserialized clinic never re-runs
+        clinic._known_patterns = None
+        clinic._recognize_known_patterns = True
 
         # AIL-typed slots consumed by the cache-reuse path and by post-decompilation consumers.
         clinic.cc_graph = parse_graph(msg.cc_graph, msg.block_pool) if msg.HasField("cc_graph") else None

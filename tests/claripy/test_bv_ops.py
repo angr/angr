@@ -130,6 +130,28 @@ class TestBVOperations(unittest.TestCase):
         result = self.bv1.SMod(self.bv_neg)
         self._check_equal(result, 0)
 
+    def test_symbolic_div_and_mod_eval(self):
+        """Evaluate a symbolic quotient and remainder through z3.
+
+        z3 rewrites bvudiv, bvsdiv, bvurem and bvsrem into its internal total
+        forms bvudiv_i, bvsdiv_i, bvurem_i and bvsrem_i, so an expression read
+        back out of the solver carries the _i spelling.
+        """
+        x = claripy.BVS("dividend", 32)
+        divisor = claripy.BVV(7, 32)
+
+        def value(expr):
+            # A fresh solver each time: the first successful eval fills the
+            # model cache, which then answers the rest without converting.
+            solver = claripy.SolverZ3()
+            solver.add(x == 100)
+            return solver.eval(expr, 1)[0]
+
+        self.assertEqual(value(x // divisor), 14)
+        self.assertEqual(value(x % divisor), 2)
+        self.assertEqual(value(x.SDiv(divisor)), 14)
+        self.assertEqual(value(x.SMod(divisor)), 2)
+
     def test_and(self):
         """Test bitwise AND"""
         result = self.bv1 & self.bv2

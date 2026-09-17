@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from collections import OrderedDict
 
@@ -28,7 +29,7 @@ from angr.rust.sim_type import (
     is_composite_type,
 )
 from angr.rust.typehoon.translator import RustTypeTranslator
-from angr.sim_type import SimTypeArray, SimTypeFunction, SimTypeLongLong
+from angr.sim_type import SimType, SimTypeArray, SimTypeFunction, SimTypeLongLong, SimTypePointer, SimTypeRef, TypeRef
 
 
 def _blank_type_db_loader() -> TypeDBLoader:
@@ -185,6 +186,34 @@ class TestRustSimType(unittest.TestCase):
         assert some_with_arch.size == some_with_arch.bits // 8
         assert some_with_arch.as_struct_ty().fields["discriminant"].size == 8
         assert EnumVariant.from_json(some_with_arch.to_json()) == some
+
+    def test_rust_recursive_types_json_roundtrip(self):
+        # Regression test for angr/angr#7137: to_json must break reference cycles through the memo like SimStruct does.
+        node = RustSimStruct(OrderedDict(), name="struct_0")
+        node.fields["next"] = SimTypePointer(TypeRef("struct_0", node))
+        node.fields["val"] = RustSimTypeInt(64, signed=True)
+        d = json.loads(json.dumps(node.to_json()))
+        assert d["fields"]["next"]["pts_to"]["ty"] == {"_t": "_ref", "name": "struct_0", "ot": "rust_struct"}
+        back = SimType.from_json(d)
+        assert isinstance(back, RustSimStruct) and back.name == "struct_0"
+        assert isinstance(back.fields["next"].pts_to.type, SimTypeRef)
+
+        a = RustSimStruct(OrderedDict(), name="A")
+        b = RustSimStruct(OrderedDict(), name="B")
+        a.fields["b"] = SimTypePointer(TypeRef("B", b))
+        b.fields["a"] = SimTypePointer(TypeRef("A", a))
+        assert SimType.from_json(json.loads(json.dumps(a.to_json()))).name == "A"
+
+        lst = RustSimEnum("List", [EnumVariant.from_no_data("Nil", 0, 8)])
+        lst.variants.append(EnumVariant.from_single_field_ty("Cons", SimTypePointer(TypeRef("List", lst)), 1, 8))
+        assert RustSimEnum.from_json(json.loads(json.dumps(lst.to_json()))).name == "List"
+
+        holder = RustSimStruct(OrderedDict(), name="Node")
+        holder.fields["next"] = RustSimTypeOption(0, 8, SimTypePointer(TypeRef("Node", holder)), 1, 8)
+        assert SimType.from_json(json.loads(json.dumps(holder.to_json()))).name == "Node"
+        ok = RustSimStruct(OrderedDict(), name="Tree")
+        ok.fields["child"] = RustSimTypeResult(SimTypePointer(TypeRef("Tree", ok)), 0, 8, RustSimTypeInt(32), 1, 8)
+        assert SimType.from_json(json.loads(json.dumps(ok.to_json()))).name == "Tree"
 
     def test_rust_slice_layout_uses_two_machine_words(self):
         arch = archinfo.ArchAMD64()

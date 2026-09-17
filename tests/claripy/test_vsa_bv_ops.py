@@ -154,6 +154,24 @@ class TestVSABVOperations(unittest.TestCase):
         # Check that we have both large (potentially negative) and small values
         self.assertTrue(len(values) > 0)
 
+    def test_multiplication_beyond_the_signed_range(self):
+        """Multiplying a wrapping interval used to panic the Rust VSA backend."""
+        # psplit leaves 127[0xFF, 0xFD] with the piece 127[0x7E, 0x01], which
+        # still wraps, so wrapped_signed_mul reads its signed bounds as (126, 1)
+        # and takes the corner 126 * -127 = -16002. That is below -2**8, where
+        # to_unsigned added the modulus once, was left with a negative value,
+        # and got None back from to_biguint.
+        result = claripy.SI(bits=8, stride=127, lower_bound=0xFF, upper_bound=0xFD) * claripy.SI(
+            bits=8, stride=1, lower_bound=0x80, upper_bound=0x81
+        )
+        self.assertEqual(len(self.solver.eval(result, 1)), 1)
+
+        # The same shape at another width.
+        result = claripy.SI(bits=4, stride=7, lower_bound=0xF, upper_bound=0xD) * claripy.SI(
+            bits=4, stride=1, lower_bound=0x8, upper_bound=0x9
+        )
+        self.assertEqual(len(self.solver.eval(result, 1)), 1)
+
     def test_basic_division(self):
         """Test basic division operations."""
         # Concrete division
@@ -205,6 +223,43 @@ class TestVSABVOperations(unittest.TestCase):
         # VSA modeling of modulo may vary, but the range should be a subset of [0, 4]
         for i in range(5):
             self.assertTrue(i in self.solver.eval(result, 10))
+
+    def test_modulo_non_constant_dividend(self):
+        """A dividend whose lower bound equals the constant divisor is not a constant."""
+        # [5, 9] % 5 covers every remainder in {0, 1, 2, 3, 4}; the old fast path
+        # answered the singleton 5 % 5 == 0.
+        dividend = claripy.SI(bits=32, stride=1, lower_bound=5, upper_bound=9)
+        result = dividend % self.bv_5
+        values = self.solver.eval(result, 10)
+        for x in range(5, 10):
+            self.assertIn(x % 5, values)
+
+        # A genuinely single-valued dividend still gets the exact answer, and
+        # gets it even when it differs from the divisor. `claripy.BVV(9) % BVV(5)`
+        # would not reach the VSA backend at all, so use strided intervals.
+        nine = claripy.SI(bits=32, stride=0, lower_bound=9, upper_bound=9)
+        five = claripy.SI(bits=32, stride=0, lower_bound=5, upper_bound=5)
+        self.assertEqual(list(self.solver.eval(nine % five, 4)), [4])
+        self.assertEqual(list(self.solver.eval(five % five, 4)), [0])
+
+    def test_modulo_by_zero(self):
+        """Both remainders are total in SMT-LIB: bvurem x 0 and bvsrem x 0 are x."""
+        # 0 % 0 = 0
+        result = self.si_0 % self.si_0
+        self.assertEqual(self.solver.eval(result, 1)[0], 0)
+
+        # [1, 10] % 0 = [1, 10]
+        result = self.si_small % self.si_0
+        self.assertEqual(self.solver.min(result), 1)
+        self.assertEqual(self.solver.max(result), 10)
+
+        # 10 srem 0 = 10
+        result = self.bv_10.SMod(self.si_0)
+        self.assertEqual(self.solver.eval(result, 1)[0], 10)
+
+        # -1 srem 0 = -1
+        result = self.si_max.SMod(self.si_0)
+        self.assertEqual(self.solver.eval(result, 1)[0], 0xFFFFFFFF)
 
     def test_bitwise_and(self):
         """Test bitwise AND operations."""

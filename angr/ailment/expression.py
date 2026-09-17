@@ -239,6 +239,7 @@ else:
             from_type=None,
             to_type=None,
             rounding_mode=None,
+            vector_count=None,
             **tags,
         ) -> _Expression:
             return _Expression._new_convert(
@@ -250,6 +251,7 @@ else:
                 from_type=from_type,
                 to_type=to_type,
                 rounding_mode=rounding_mode,
+                vector_count=vector_count,
                 **tags,
             )
 

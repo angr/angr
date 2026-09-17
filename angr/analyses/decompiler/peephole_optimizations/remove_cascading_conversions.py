@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import BinaryOp, Const, Convert
+from angr.utils.ail import is_scalar_int_convert
 
 from .base import PeepholeOptimizationExprBase
 
@@ -12,13 +13,9 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
     expr_classes = (Convert,)
 
     def optimize(self, expr: Convert, **kwargs):
-        if (
-            expr.from_type == Convert.TYPE_INT
-            and expr.to_type == Convert.TYPE_INT
-            and isinstance(expr.operand, Convert)
-            and expr.operand.from_type == Convert.TYPE_INT
-            and expr.operand.to_type == Convert.TYPE_INT
-        ):
+        if not is_scalar_int_convert(expr):
+            return None
+        if isinstance(expr.operand, Convert) and is_scalar_int_convert(expr.operand):
             inner = expr.operand
             if inner.from_bits == expr.to_bits and inner.from_type == expr.to_type:
                 if inner.from_bits < inner.to_bits:

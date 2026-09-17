@@ -2,14 +2,17 @@
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 from typing import Any
 from unittest import TestCase, main
 
 import archinfo
 
+import angr
 from angr import ailment, claripy
-from angr.analyses.decompiler.optimization_passes.engine_base import SimplifierAILEngine
+from angr.ailment.expression import BinaryOp, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.analyses.decompiler.optimization_passes.engine_base import SimplifierAILEngine, SimplifierAILState
 from angr.analyses.decompiler.optimization_passes.inlined_string_transformation_simplifier import (
     InlinedStringTransformationAILEngine,
 )
@@ -20,6 +23,7 @@ from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
 from angr.analyses.variable_recovery.engine_base import RichR
 from angr.engines.light.engine import longest_prefix_lookup
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from tests.common import bin_location
 
 
 class TestLightEngine(TestCase):
@@ -132,6 +136,18 @@ class TestLightEngine(TestCase):
 
         assert seen == [operand]
         assert result is provenance
+
+
+class TestUnknownAILOperations(TestCase):
+    def test_an_operation_without_a_handler_is_unknown_not_a_crash(self):
+        proj = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)
+        engine = SimplifierAILEngine(proj)
+        engine.state = SimplifierAILState(proj.arch)
+        vvar = VirtualVariable(0, 1, 128, VirtualVariableCategory.REGISTER, oident=16)
+        binop = BinaryOp(1, "PermOrZeroV", [vvar, vvar], False, bits=128)
+        unop = UnaryOp(2, "SomethingNew", vvar, bits=128)
+        assert engine._handle_expr_BinaryOp(binop) in (None, binop)
+        assert engine._handle_expr_UnaryOp(unop) in (None, unop)
 
 
 if __name__ == "__main__":

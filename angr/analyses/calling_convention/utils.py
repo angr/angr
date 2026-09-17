@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 
 import archinfo
 from archinfo.arch_arm import ArchARMCortexM, ArchARMHF, is_arm_arch
 
 from angr.calling_conventions import SimCC
+from angr.utils.ssa import get_reg_offset_base_and_size
 
 l = logging.getLogger(__name__)
 
@@ -66,3 +68,42 @@ def is_sane_register_variable(
 
     l.critical("Unsupported architecture %s.", arch.name)
     return True
+
+
+def merge_overlapping_register_spans(arch: archinfo.Arch, spans: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
+    """
+    Merge register reads that belong to the same base register into one span per base register.
+
+    The merged span is the smallest named register starting at the base register that covers every read (e.g., reads
+    of ``ch`` and ``cx`` become ``cx``). When no register of the covering size exists, the widest read is kept.
+    Floating-point and vector registers are left alone: their sub-registers hold separate arguments (e.g., ``s0`` and
+    ``s1`` in ``d0`` on ARM hard-float).
+
+    :param arch:    The architecture.
+    :param spans:   Register reads as (offset, size) tuples.
+    :return:        Merged (offset, size) tuples, sorted by offset.
+    """
+
+    groups: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for offset, size in spans:
+        base_offset, base_size = get_reg_offset_base_and_size(offset, arch, size=size)
+        groups.setdefault((base_offset, base_size), []).append((offset, size))
+
+    fp_or_vector_offsets = {r.vex_offset for r in arch.register_list if r.floating_point or r.vector}
+    merged = []
+    for (base_offset, base_size), group in sorted(groups.items()):
+        if len(group) == 1 or base_offset in fp_or_vector_offsets:
+            merged.extend(sorted(group))
+            continue
+        end = max(offset + size for offset, size in group) - base_offset
+        cover_size = 1
+        while cover_size < end:
+            cover_size *= 2
+        cover_size = min(cover_size, base_size)
+        name = arch.translate_register_name(base_offset, size=cover_size)
+        if name in arch.registers and arch.registers[name] == (base_offset, cover_size):
+            merged.append((base_offset, cover_size))
+        else:
+            # no register covers the reads; keep the widest read
+            merged.append(max(group, key=lambda s: (s[1], -s[0])))
+    return merged

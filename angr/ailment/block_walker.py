@@ -1068,7 +1068,18 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         changed = new_operand != operand_in
 
         if changed:
-            return Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **expr.tags)
+            return Convert(
+                expr.idx,
+                expr.from_bits,
+                expr.to_bits,
+                expr.is_signed,
+                new_operand,
+                from_type=expr.from_type,
+                to_type=expr.to_type,
+                rounding_mode=expr.rounding_mode,
+                vector_count=expr.vector_count,
+                **expr.tags,
+            )
         return expr
 
     def _handle_Reinterpret(

@@ -6,6 +6,7 @@ from itertools import count
 
 from sortedcontainers import SortedDict
 
+from angr.ailment.expression import Convert
 from angr.sim_variable import SimVariable
 
 IdentType = tuple[int, int, str]
@@ -209,3 +210,19 @@ class BaseStructuredCodeGenerator:
         v = self._next_node_idx
         self._next_node_idx += 1
         return v
+
+
+def vector_convert_name(expr: Convert) -> str:
+    """
+    Intrinsic-style name for a lane-wise conversion, e.g. ``ConvF32toI32Sx4`` for ``Iop_F32toI32Sx4``.
+    """
+    ct = expr.vector_count
+    if ct is None:
+        raise ValueError("not a lane-wise conversion")
+    from_lane = expr.from_bits // ct
+    to_lane = expr.to_bits // ct
+    sign = "S" if expr.is_signed else "U"
+    # VEX spelling: the integer side carries the sign marker (I32StoF32x4, F32toI32Ux4)
+    src = f"F{from_lane}" if expr.from_type == Convert.TYPE_FP else f"I{from_lane}{sign}"
+    dst = f"F{to_lane}" if expr.to_type == Convert.TYPE_FP else f"I{to_lane}{sign}"
+    return f"Conv{src}to{dst}x{ct}"

@@ -18,6 +18,7 @@ from collections.abc import Callable
 from typing import Any
 
 from angr import sim_variable
+from angr.ailment.expression import Convert as AilConvert
 from angr.analyses.decompiler.notes import DecompilationNote
 from angr.knowledge_plugins.cfg.memory_data import MemoryData
 from angr.protos import codegen_pb2
@@ -64,8 +65,10 @@ from .c import (
     CUnsupportedStatement,
     CVariable,
     CVariableField,
+    CVectorConvert,
     CVEXCCallExpression,
     CWhileLoop,
+    cextern_sort_key,
 )
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -548,7 +551,9 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
             entry.idx = idx
         entry.label_id = ctx.serialize(label)
     if codegen.cexterns:
-        for v in codegen.cexterns:
+        # cexterns is a set, whose iteration order varies from run to run. Emit it in the same rename-independent
+        # order the renderer uses, so the same codegen always serializes to the same bytes.
+        for v in sorted(codegen.cexterns, key=cextern_sort_key):
             msg.cexterns_ids.append(ctx.serialize(v))
 
     # VLA runtime dimensions (SimVariable -> CExpression), so ``uint8_t <name>[<dim>];`` re-renders after reload.
@@ -1119,6 +1124,8 @@ def _ser_cvarfield(node, pb, ctx):
     pb.cvar_field.variable_id = ctx.serialize(node.variable)
     pb.cvar_field.field_id = ctx.serialize(node.field)
     pb.cvar_field.var_is_ptr = node.var_is_ptr
+    if node.stl_accessor is not None:
+        pb.cvar_field.stl_accessor = node.stl_accessor
 
 
 def _parse_cvarfield(pb, ctx):
@@ -1127,6 +1134,7 @@ def _parse_cvarfield(pb, ctx):
     obj.variable = ctx.resolve(body.variable_id)
     obj.field = ctx.resolve(body.field_id)
     obj.var_is_ptr = body.var_is_ptr
+    obj.stl_accessor = body.stl_accessor if body.HasField("stl_accessor") else None
     return obj
 
 
@@ -1329,6 +1337,20 @@ def _parse_cdirtyexpr(pb, _ctx):
     return obj
 
 
+def _ser_cvectorconvert(node, pb, ctx):
+    pb.cvector_convert.expr = node.expr.to_bytes()
+    pb.cvector_convert.operand_id = ctx.serialize(node.operand)
+
+
+def _parse_cvectorconvert(pb, ctx):
+    obj = CVectorConvert.__new__(CVectorConvert)
+    expr = AilExpression.from_bytes(pb.cvector_convert.expr)
+    assert isinstance(expr, AilConvert)
+    obj.expr = expr
+    obj.operand = ctx.resolve(pb.cvector_convert.operand_id)
+    return obj
+
+
 def register_all() -> None:
     """Registers serializer/parser pairs for every concrete CConstruct subclass. Called from c.py at import time."""
     _register(CBreak, codegen_pb2.CCK_BREAK, _ser_cbreak, _parse_cbreak)
@@ -1370,3 +1392,4 @@ def register_all() -> None:
     _register(CAILBlock, codegen_pb2.CCK_AIL_BLOCK, _ser_cailblock, _parse_cailblock)
     _register(CUnsupportedStatement, codegen_pb2.CCK_UNSUPPORTED_STATEMENT, _ser_cunsupported, _parse_cunsupported)
     _register(CDirtyExpression, codegen_pb2.CCK_DIRTY_EXPRESSION, _ser_cdirtyexpr, _parse_cdirtyexpr)
+    _register(CVectorConvert, codegen_pb2.CCK_VECTOR_CONVERT, _ser_cvectorconvert, _parse_cvectorconvert)

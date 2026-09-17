@@ -95,33 +95,13 @@ class RegionIdentifier(Analysis):
 
         self._graph = self._analyze(graph)
 
-    @staticmethod
-    def slice_graph(graph, node, frontier, include_frontier=False) -> TGraph:
-        """
-        Generate a slice of the graph from the head node to the given frontier.
-
-        :param networkx.DiGraph graph: The graph to work on.
-        :param node: The starting node in the graph.
-        :param frontier: A list of frontier nodes.
-        :param bool include_frontier: Whether the frontier nodes are included in the slice or not.
-        :return: A subgraph.
-        :rtype: networkx.DiGraph
-        """
-
-        subgraph = subgraph_between_nodes(graph, node, frontier, include_frontier=include_frontier)
-        # HACK: FIXME: for infinite loop nodes, this would return an empty set, so we include the loop body itself
-        # Make sure this makes sense (EDG thinks it does)
-        if not list(subgraph.nodes) and (node, node) in graph.edges:
-            subgraph.add_edge(node, node)
-        return subgraph
-
     def _analyze(self, block_graph: networkx.DiGraph[Block]) -> TGraph:
         shared_graph = cast(TGraph, self._pick_one_connected_component(block_graph, as_copy=True))
 
         # preprocess: make it a super graph
         self._make_supergraph(shared_graph)
 
-        # the shared graph stays intact from here on (except for in-place block-statement rewrites); regions are
+        # the complete graph stays intact from here on (except for in-place block-statement rewrites); regions are
         # overlays on it. region identification collapses a separate working graph.
         self.overlay_manager = OverlayManager(shared_graph, expose_loop_head_backedges=self._expose_loop_head_backedges)
         graph = cast(TGraph, networkx.DiGraph(shared_graph))
@@ -191,7 +171,7 @@ class RegionIdentifier(Analysis):
             children_regions: list[TOverlay] = []
             for region in work_list:
                 children_blocks = []
-                for node in region.members:
+                for node in sorted(region.members, key=GraphUtils.sort_node):
                     if isinstance(node, Block):
                         children_blocks.append((node.addr, node.idx))
                     elif isinstance(node, MultiNode):
@@ -306,11 +286,55 @@ class RegionIdentifier(Analysis):
         heads = list({t for _, t in dfs_back_edges(graph, self._start_node)})
         return self._sort_nodes(heads)
 
+    @staticmethod
+    def _natural_loop_subgraph(graph: TGraph, head: TNode, latching_nodes: set[TNode]) -> TGraph:
+        """
+        Return the subgraph induced by the natural loop of head: head plus every node that lies on a path from head
+        to a latching node. Latching nodes are expanded too, so a latching node that is only reachable through
+        another latching node is still part of the loop body.
+        """
+        # nodes that reach a latching node without passing through head
+        reaches_latch = set(latching_nodes)
+        queue = deque(latching_nodes)
+        while queue:
+            node = queue.popleft()
+            if node is head:
+                continue
+            for pred in graph.predecessors(node):
+                if pred not in reaches_latch:
+                    reaches_latch.add(pred)
+                    queue.append(pred)
+
+        # among them, nodes that are reachable from head
+        loop_nodes = {head}
+        queue = deque([head])
+        while queue:
+            node = queue.popleft()
+            for succ in graph.successors(node):
+                if succ in reaches_latch and succ not in loop_nodes:
+                    loop_nodes.add(succ)
+                    queue.append(succ)
+
+        loop_subgraph: TGraph = networkx.DiGraph()
+        loop_subgraph.add_node(head)
+        for node in loop_nodes:
+            for succ in graph.successors(node):
+                if succ in loop_nodes:
+                    loop_subgraph.add_edge(node, succ)
+        return loop_subgraph
+
     def _find_initial_loop_nodes(self, graph: TGraph, head: TNode) -> set[TNode]:
         assert self._start_node is not None
         # TODO optimize
         latching_nodes = {s for s, t in dfs_back_edges(graph, self._start_node) if t == head}
-        loop_subgraph = self.slice_graph(graph, head, latching_nodes, include_frontier=True)
+        idom = networkx.immediate_dominators(graph, self._start_node)
+        if all(dominates(idom, head, latching_node) for latching_node in latching_nodes):
+            loop_subgraph = self._natural_loop_subgraph(graph, head, latching_nodes)
+        else:
+            # retreating edges of an irreducible region (e.g., a goto into the middle of a loop body). the head does
+            # not dominate its latching nodes, so the natural loop is undefined; slice from the head to the latching
+            # nodes without walking past them, which keeps the pseudo-loop small.
+            loop_subgraph = subgraph_between_nodes(graph, head, latching_nodes, include_frontier=True)
 
         # special case: any node with more than two non-self successors is probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
@@ -637,7 +661,7 @@ class RegionIdentifier(Analysis):
         # recover reaching conditions
         self.cond_proc.recover_reaching_conditions(region, with_successors=True)
 
-        successors = list(region.successor_nodes())
+        successors = sorted(region.successor_nodes(), key=GraphUtils.sort_node)
 
         condnode_addr = next(CONDITIONNODE_ADDR)
         # create a new successor
@@ -662,7 +686,7 @@ class RegionIdentifier(Analysis):
         parent = region.parent
         assert parent is not None
 
-        # add the condition node to the shared graph as a member of the enclosing region
+        # add the condition node to the complete graph as a member of the enclosing region
         parent.add_node(cond)
 
         for succ in successors:
@@ -724,7 +748,7 @@ class RegionIdentifier(Analysis):
                         mgr.graph_remove_edge(u, v)
                         mgr.graph_add_edge(u, cond, **data)
 
-        # connect the condition node to the (former) successors in the shared graph
+        # connect the condition node to the (former) successors in the complete graph
         for succ in successors:
             entry = succ
             while isinstance(entry, RegionOverlay):
@@ -838,7 +862,7 @@ class RegionIdentifier(Analysis):
                             node, region_nodes, cyclic=False, cyclic_ancestor=cyclic
                         )
                         # note that successors of the new region (the frontier, plus loop exits when this region
-                        # nests inside a cyclic region) are derived from the shared graph on demand; no successor
+                        # nests inside a cyclic region) are derived from the complete graph on demand; no successor
                         # graph bookkeeping is needed here
 
                         # l.debug("Walked back %d levels in postdom tree.", levels)
@@ -966,7 +990,7 @@ class RegionIdentifier(Analysis):
         out_edges = RegionIdentifier._region_out_edges(graph, region, data=True)
 
         nodes_set = set()
-        for node_ in list(region.members):
+        for node_ in sorted(region.members, key=GraphUtils.sort_node):
             nodes_set.add(node_)
             if node_ is not dummy_endnode:
                 graph.remove_node(node_)
@@ -982,7 +1006,7 @@ class RegionIdentifier(Analysis):
             if dst not in nodes_set:
                 graph.add_edge(region, dst, **data)
 
-        for frontier_node in frontier:
+        for frontier_node in sorted(frontier, key=GraphUtils.sort_node):
             if frontier_node is not dummy_endnode:
                 graph.add_edge(region, frontier_node)
 
@@ -999,6 +1023,7 @@ class RegionIdentifier(Analysis):
     ) -> TOverlay:
         loop_nodes = set(loop_nodes)
         region = self._parent_overlay_of(head).create_subregion(head, loop_nodes, cyclic=True)
+        self._tag_abnormal_entry_edges(region)
 
         delayed_edges = []
 
@@ -1036,6 +1061,54 @@ class RegionIdentifier(Analysis):
 
         return region
 
+    def _tag_abnormal_entry_edges(self, region: TOverlay) -> None:
+        """
+        Tag all abnormal entry edges of the given region with abnormal_entry=<target address>.
+
+        This is critical for correctness.
+        Example: bzip2 BZ2_decompress has code that looks like the following::
+
+            for (i = 0; i < 16; i++) {
+                if (inUse16[i]) {
+                    for (j = 0; j < 16; j++) {
+                        case BZ_X_MAPPING_2:
+                        GET_BIT(...)
+                    }
+                }
+            }
+
+        The dispatch edge into the case label BZ_X_MAPPING_2 is an abnormal entry of the loop. With the abnormal entry
+        tag, we will render it as ``case BZ_X_MAPPING_2: goto LABEL_<label>;`` with the labeled block staying as a
+        member node of the loop. For obivous reasons, it is incorrect to either create an edge that goes to the loop's
+        entry or simply drop the edge.
+        """
+
+        assert self.overlay_manager is not None
+        complete_graph = self.overlay_manager.graph
+        under = region.underlying_nodes()
+        entry: Any = region.head
+        while isinstance(entry, RegionOverlay):
+            entry = entry.head
+        for v in under:
+            if v is entry or v not in complete_graph or self._jump_only_chain_reaches(complete_graph, v, entry, under):
+                continue
+            for u in complete_graph.predecessors(v):
+                if u not in under:
+                    complete_graph[u][v]["abnormal_entry"] = v.addr
+
+    @staticmethod
+    def _jump_only_chain_reaches(graph: networkx.DiGraph, node: Any, target: Any, within: set) -> bool:
+        seen = set()
+        while node is not target:
+            if node in seen or node not in within or not isinstance(node, Block):
+                return False
+            seen.add(node)
+            stmts = [stmt for stmt in node.statements if not isinstance(stmt, ailment.Stmt.Label)]
+            if len(stmts) != 1 or not isinstance(stmts[0], Jump) or graph.out_degree(node) != 1:
+                return False
+            node = next(iter(graph.successors(node)))
+        return True
+
     def _parent_overlay_of(self, node: TNode) -> TOverlay:
         """Find the overlay that the given working-graph node is currently a direct member of."""
         if isinstance(node, RegionOverlay):
@@ -1063,7 +1136,7 @@ class RegionIdentifier(Analysis):
     @staticmethod
     def _region_out_edges(graph, region: TOverlay, data=False):
         out_edges = []
-        for node in region.members:
+        for node in sorted(region.members, key=GraphUtils.sort_node):
             out_ = graph.out_edges(node, data=data)
             for _, dst, data_ in out_:
                 if dst in region.members:

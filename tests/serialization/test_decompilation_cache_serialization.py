@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
 
+import inspect
 import os
 import pickle
 import unittest
@@ -28,10 +29,18 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from angr.analyses.decompiler.structured_codegen.c import CConstruct
+from angr.analyses.decompiler.structured_codegen import c as c_codegen
+from angr.analyses.decompiler.structured_codegen.c import (
+    CConstruct,
+    CExpression,
+    CLoop,
+    CStatement,
+    cextern_sort_key,
+)
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
+    _SERIALIZE_KIND_BY_CLASS,
     _parse_tags,
     _sanitize_tags,
 )
@@ -349,6 +358,22 @@ class TestDecompilationCacheEndToEnd(unittest.TestCase):
         assert set(back.parameters.keys()) == set(cache.parameters.keys())
         assert len(back.parameters) == 15
 
+    def test_stackvar_max_sizes_roundtrip_beyond_int32(self):
+        # max_size is the distance to the next stack offset and can exceed 2**31 on bogus stack accesses; the proto
+        # field used to be int32 and made the whole cache unspillable
+        cache = self.decompiler.cache
+        saved = dict(cache.stackvar_max_sizes)
+        big = SimStackVariable(-0x40, 8, ident="huge")
+        cache.stackvar_max_sizes = {**saved, big: 5419868274}
+        try:
+            back = DecompilationCache.parse(
+                cache.serialize(), project=self.proj, kb=self.proj.kb, function=self.func, cfg=self.cfg.model
+            )
+        finally:
+            cache.stackvar_max_sizes = saved
+        assert back.stackvar_max_sizes[big] == 5419868274
+        assert len(back.stackvar_max_sizes) == len(saved) + 1
+
     def test_cache_hit_on_deserialized_cache(self):
         cache = self.decompiler.cache
         blob = cache.serialize()
@@ -446,18 +471,51 @@ class TestSpillingDecompilationDict(unittest.TestCase):
         assert "synthetic error" in d[auth_key].errors
 
     def test_unserializable_cache_is_kept_in_memory(self):
+        class _UnserializableCodegen(DummyStructuredCodeGenerator):
+            def serialize_to_cmessage(self):
+                raise TypeError("not serializable")
+
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
+        bad_key = (0xDEAD, "pseudocode")
+        bad_cache = DecompilationCache(0xDEAD)
+        bad_cache.codegen = _UnserializableCodegen("pseudocode")
+        d[bad_key] = bad_cache
+
+        # inserting another entry evicts the cache, which cannot be serialized and must be parked in memory
+        main_key = (self.main_func.addr, "pseudocode")
+        d[main_key] = self.main_dec.cache
+        assert bad_key in d._unspillable
+        assert d[bad_key] is bad_cache
+        assert len(d) == 2
+
+    def test_dummy_codegen_cache_spills_and_reloads(self):
+        # a DummyStructuredCodeGenerator (user comments/formats only, e.g. loaded from a legacy angrdb) must spill to
+        # LMDB and come back as a dummy with its user data intact instead of being parked in memory
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
         dummy_key = (0xDEAD, "pseudocode")
         dummy_cache = DecompilationCache(0xDEAD)
-        dummy_cache.codegen = DummyStructuredCodeGenerator("pseudocode")
+        dummy_cache.codegen = DummyStructuredCodeGenerator(
+            "pseudocode",
+            expr_comments={0x1004: "expr"},
+            stmt_comments={0x1000: "stmt"},
+            const_formats={(0x1000, 0, "5"): {"hex": True}},
+        )
+        dummy_cache.errors = ["boom"]
         d[dummy_key] = dummy_cache
 
-        # inserting another entry evicts the dummy cache, which cannot be serialized and must be parked in memory
         main_key = (self.main_func.addr, "pseudocode")
         d[main_key] = self.main_dec.cache
-        assert dummy_key in d._unspillable
-        assert d[dummy_key] is dummy_cache
-        assert len(d) == 2
+        assert dummy_key in d._spilled
+        assert dummy_key not in d._unspillable
+
+        back = d[dummy_key]
+        assert back is not dummy_cache
+        assert isinstance(back.codegen, DummyStructuredCodeGenerator)
+        assert back.codegen.flavor == "pseudocode"
+        assert back.codegen.expr_comments == {0x1004: "expr"}
+        assert back.codegen.stmt_comments == {0x1000: "stmt"}
+        assert back.codegen.const_formats == {(0x1000, 0, "5"): {"hex": True}}
+        assert back.errors == ["boom"]
 
     def test_delete_and_discard(self):
         d = SpillingDecompilationDict(self.proj.kb, cache_limit=1)
@@ -564,6 +622,83 @@ class TestClinicSerializationAboveFourGigabytes(unittest.TestCase):
         back = d[key]
         assert back.codegen is not None
         assert back.codegen.text == self.text
+
+
+class TestSerializerRegistration(unittest.TestCase):
+    """Every concrete CConstruct subclass must have a serializer/parser pair registered."""
+
+    # Bases that are never instantiated directly and therefore need no serializer.
+    ABSTRACT = (CConstruct, CStatement, CExpression, CLoop)
+
+    def test_every_concrete_cconstruct_is_registered(self):
+        unregistered = [
+            obj.__name__
+            for obj in vars(c_codegen).values()
+            if inspect.isclass(obj)
+            and issubclass(obj, CConstruct)
+            and obj not in self.ABSTRACT
+            and obj not in _SERIALIZE_KIND_BY_CLASS
+        ]
+        assert not unregistered, f"CConstruct subclasses missing from the serializer dispatch table: {unregistered}"
+
+
+class TestVectorConvertSerialization(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(os.path.join(test_location, "x86_64", "vector_conversions"), auto_load_libs=False)
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.func = cls.proj.kb.functions.function(name="truncate_to_ints")
+        cls.decompiler = cls.proj.analyses.Decompiler(cls.func, cfg=cls.cfg.model, generate_code=True)
+
+    def test_codegen_roundtrip_preserves_vector_converts(self):
+        codegen = self.decompiler.codegen
+        assert "ConvF32toI32Sx4(" in codegen.text, "the binary no longer decompiles to a lane-wise conversion"
+
+        blob = codegen.serialize()
+        msg = codegen_pb2.Codegen()
+        msg.ParseFromString(blob)
+        vector_converts = [n for n in msg.nodes if n.kind == codegen_pb2.CCK_VECTOR_CONVERT]
+        assert vector_converts
+        for node in vector_converts:
+            assert node.cvector_convert.operand_id != 0
+
+        back = type(codegen).parse(blob, project=self.proj, kb=self.proj.kb)
+        assert back.text == codegen.text
+
+    def test_cache_spills_instead_of_parking_in_memory(self):
+        cache = self.decompiler.cache
+        d = SpillingDecompilationDict(self.proj.kb, cache_limit=0)
+        key = (self.func.addr, "pseudocode")
+        d[key] = cache
+
+        assert key in d._spilled
+        assert not d._unspillable
+        assert d[key].codegen.text == cache.codegen.text
+
+
+class TestExternSerializationOrder(unittest.TestCase):
+    """cexterns is a set, so serializing it in iteration order made the blob differ run to run."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.proj.analyses.CompleteCallingConventions()
+        cls.func = cls.proj.kb.functions.function(name="__do_global_dtors_aux")
+        cls.codegen = cls.proj.analyses.Decompiler(cls.func, cfg=cls.cfg.model).codegen
+
+    def test_externs_are_emitted_in_address_order(self):
+        assert len(self.codegen.cexterns) > 1, "this function no longer has several externs"
+        msg = codegen_pb2.Codegen()
+        msg.ParseFromString(self.codegen.serialize())
+        expected = [v.idx for v in sorted(self.codegen.cexterns, key=cextern_sort_key)]
+        assert list(msg.cexterns_ids) == expected
+
+    def test_externs_survive_the_roundtrip(self):
+        blob = self.codegen.serialize()
+        back = type(self.codegen).parse(blob, project=self.proj, kb=self.proj.kb, func=self.func)
+        assert {v.idx for v in back.cexterns} == {v.idx for v in self.codegen.cexterns}
+        assert back.serialize() == blob
 
 
 if __name__ == "__main__":

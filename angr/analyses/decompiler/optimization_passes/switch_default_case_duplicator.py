@@ -130,6 +130,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                 continue
 
             default_case_node = self._func.get_node(default_addr)
+            if default_case_node is None:
+                continue
             unexpected_pred_addrs = {
                 pred.addr
                 for pred in self._func.graph.predecessors(default_case_node)
@@ -137,6 +139,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
             }
             if unexpected_pred_addrs:
                 default_case_block = self._get_block(default_addr)
+                if default_case_block is None or default_case_block not in self._graph:
+                    continue
                 default_case_succ_block = next(iter(self._graph.successors(default_case_block)))
 
                 jump_nodes = self._get_blocks(jump_node_addr)

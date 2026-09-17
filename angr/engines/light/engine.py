@@ -20,6 +20,8 @@ from angr.misc.ux import once
 if TYPE_CHECKING:
     from angr.project import Project
 
+_l = logging.getLogger(__name__)
+
 
 class BlockProtocol(Protocol):
     """
@@ -775,10 +777,25 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
         raise TypeError("We should never see raw Ops")
 
     def _handle_expr_UnaryOp(self, expr: ailment.expression.UnaryOp) -> DataType_co:
-        return self._unop_handlers[expr.op](expr)
+        handler = self._unop_handlers.get(expr.op)
+        if handler is None:
+            return self._handle_unop_Default(expr)
+        return handler(expr)
 
     def _handle_expr_BinaryOp(self, expr: ailment.expression.BinaryOp) -> DataType_co:
-        return self._binop_handlers[expr.op](expr)
+        handler = self._binop_handlers.get(expr.op)
+        if handler is None:
+            return self._handle_binop_Default(expr)
+        return handler(expr)
+
+    def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> DataType_co:
+        # an operation this engine has no handler for (e.g., a vector op): its value is unknown
+        _l.debug("Unsupported unary operation %s", expr.op)
+        return cast(DataType_co, None)
+
+    def _handle_binop_Default(self, expr: ailment.expression.BinaryOp) -> DataType_co:
+        _l.debug("Unsupported binary operation %s", expr.op)
+        return cast(DataType_co, None)
 
     @abstractmethod
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType_co: ...

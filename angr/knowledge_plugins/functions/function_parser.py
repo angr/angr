@@ -16,7 +16,7 @@ from angr.utils.enums_conv import (
     func_edge_type_from_pb,
     func_edge_type_to_pb,
 )
-from angr.utils.types import make_type_reference
+from angr.utils.types import make_type_reference, type_collections_for_lib
 
 l = logging.getLogger(name=__name__)
 
@@ -77,8 +77,10 @@ class FunctionParser:
         if function.prototype is None:
             obj.prototype = b""
         else:
-            # convert all named structs in the prototype to typerefs; they will be dereferenced when used
-            prototype_ref = make_type_reference(function.prototype)
+            # convert library-defined structs in the prototype to typerefs; Function.prototype dereferences them lazily
+            prototype_ref = make_type_reference(
+                function.prototype, type_collections=type_collections_for_lib(function.prototype_libname)
+            )
             obj.prototype = json.dumps(prototype_ref.to_json()).encode("utf-8")
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.prototype_source = function.prototype_source.value

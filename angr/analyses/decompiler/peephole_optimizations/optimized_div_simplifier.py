@@ -144,6 +144,9 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             expr0 = expr0.operands[0]
         elif isinstance(expr0, Convert) and expr0.from_bits == 64 and expr0.to_bits == 32:
             expr0 = expr0.operand
+        elif isinstance(expr0, Convert) and expr0.from_bits == 128 and expr0.to_bits == 64:
+            # 64-bit signed division: Conv(128->64, (a *s C) >>a (64 + M)) - (a >>a 63)
+            expr0 = expr0.operand
         else:
             return None
 

@@ -23,6 +23,7 @@ class SimVariable(Serializable):
 
     __slots__ = [
         "_hash",
+        "auto_renamed",
         "candidate_names",
         "category",
         "ident",
@@ -46,6 +47,8 @@ class SimVariable(Serializable):
         self.region: int | None = region
         self.category: str | None = category
         self.renamed = False
+        # named by a semantic naming pass rather than by the user; reset at the start of each run
+        self.auto_renamed = False
         self.candidate_names = None
         self.size = size
         self._hash = None
@@ -68,6 +71,7 @@ class SimVariable(Serializable):
         if self.name is not None:
             obj.base.name = self.name
         obj.base.renamed = self.renamed
+        obj.base.auto_renamed = self.auto_renamed
 
     def _from_base(self, obj):
         self.ident = obj.base.ident
@@ -79,6 +83,7 @@ class SimVariable(Serializable):
             self.region = obj.base.region
         self.name = obj.base.name
         self.renamed = obj.base.renamed
+        self.auto_renamed = obj.base.auto_renamed
 
     @property
     def is_function_argument(self):

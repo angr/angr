@@ -14,6 +14,7 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
     default_cc,
 )
+from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -112,6 +113,35 @@ class TestFactCollector(unittest.TestCase):
         facts = self._collect_shellcode_facts(code)
 
         self.assertEqual(facts.retval_size, 8)
+
+    def test_s390x_float_constant_write_does_not_break_retval_size(self):
+        # atan2 compares its argument against zero loaded by lzdr, which lifts to an 8-byte Put of an
+        # Ity_F64 constant. The return-value size check masked such a constant against
+        # 0xFFFF_FFFF_0000_0000, and a float constant carries a Python float.
+        binary_path = os.path.join(test_location, "s390x", "libm.so.6")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        atan2 = proj.loader.find_symbol("atan2")
+        assert atan2 is not None
+
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(atan2.rebased_addr, atan2.rebased_addr + atan2.size)],
+            function_starts=[atan2.rebased_addr],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        facts = proj.analyses.FunctionFactCollector(cfg.kb.functions[atan2.rebased_addr])
+
+        self.assertEqual(facts.retval_size, 8)
+
+    def test_overlapping_subregister_reads_are_one_input_arg(self):
+        # mov al, ch; mov bx, cx; ret
+        facts = self._collect_shellcode_facts(bytes.fromhex("88e86689cbc3"))
+        # the lifter may model the reads as ch/cx or as narrowed rcx reads; either way, one argument
+        assert len(facts.input_args) == 1
+        arch = facts.project.arch
+        assert get_reg_offset_base(arch.registers[facts.input_args[0].reg_name][0], arch) == arch.registers["rcx"][0]
 
     def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, arch, "fauxware")

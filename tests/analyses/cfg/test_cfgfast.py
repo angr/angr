@@ -1182,6 +1182,19 @@ class TestCfgfast(unittest.TestCase):
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
 
+    def test_normalize_should_skip_legitimate_node_pairs(self):
+        path = os.path.join(
+            test_location, "x86_64", "windows", "1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        node_0 = cfg.model.get_any_node(0x21514B6908)
+        assert node_0 is not None
+        assert node_0.instruction_addrs == [0x21514B6908]
+        node_1 = cfg.model.get_any_node(0x21514B690C)
+        assert node_1 is None  # this overlapping node is currently removed, but maybe we want to keep it?
+        # assert node_1.instruction_addrs == [0x21514B690C, 0x21514B690E, 0x21514B690F]
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1892,8 +1892,13 @@ impl StridedInterval {
             ) => {
                 let bits = max(*bits1, *bits2);
 
+                // bvurem x 0 = x in SMT-LIB, which is what BitVec::urem answers.
+                if o_lb == o_ub && o_lb.is_zero() {
+                    return Ok(self.clone());
+                }
+
                 // Simple case: both are constants
-                if s_lb == o_lb && s_lb == o_ub {
+                if self.is_integer() && other.is_integer() {
                     let result = s_lb % o_lb;
                     return Ok(StridedInterval::constant(bits, result));
                 }
@@ -1921,17 +1926,17 @@ impl StridedInterval {
             return Ok(Self::empty(max(self.bits(), other.bits())));
         }
 
-        // // Check for division by zero
-        // if other.contains_zero() {
-        //     return Err(ClarirsError::DivideByZero);
-        // }
-
         let bits = max(self.bits(), other.bits());
 
         // Simple case: both are constants
         if self.is_integer() && other.is_integer() {
             let (self_signed, _) = self.get_signed_bounds();
             let (other_signed, _) = other.get_signed_bounds();
+
+            // bvsrem x 0 = x in SMT-LIB, which is what BitVec::srem answers.
+            if other_signed.is_zero() {
+                return Ok(self.clone());
+            }
 
             // Perform signed remainder
             let result = self_signed % other_signed;
@@ -3438,6 +3443,74 @@ mod si_arithmetic_op_tests {
         let result = a.sub(&b);
         assert_eq!(result, StridedInterval::range(32, 5u32, 25u32));
         assert!(!result.is_integer());
+    }
+
+    #[test]
+    fn test_mul_product_beyond_the_width() {
+        // psplit leaves 127[0xff, 0xfd] with the piece 127[0x7e, 0x01], which
+        // still wraps, so wrapped_signed_mul reads its signed bounds as
+        // (126, 1) and picks the corner (1 * -128, 126 * -127). The overflow
+        // check above the conversion assumes the bounds are ordered, so -16002
+        // reached to_unsigned and panicked.
+        let a = StridedInterval::new(8, 127u32, 0xffu32, 0xfdu32);
+        let b = StridedInterval::new(8, 1u32, 0x80u32, 0x81u32);
+        let result = a.mul(&b);
+        assert_eq!(result.bits(), 8);
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_urem_constant_divisor_non_constant_dividend() {
+        // [5, 9] urem 5 is {0, 1, 2, 3, 4}, not the constant 5 % 5.
+        let a = StridedInterval::range(32, 5u32, 9u32);
+        let b = StridedInterval::constant(32, 5u32);
+        let result = a.urem(&b).unwrap();
+        for x in 5u32..=9u32 {
+            assert!(
+                result.contains_value(&BigUint::from(x % 5)),
+                "urem dropped {} from [5, 9] urem 5",
+                x % 5
+            );
+        }
+
+        // Both constant still takes the exact path.
+        let a = StridedInterval::constant(32, 9u32);
+        let result = a.urem(&b).unwrap();
+        assert_eq!(result, StridedInterval::constant(32, 4u32));
+    }
+
+    #[test]
+    fn test_urem_zero_by_zero() {
+        let zero = StridedInterval::constant(32, 0u32);
+        assert_eq!(zero.urem(&zero).unwrap(), zero);
+    }
+
+    #[test]
+    fn test_urem_by_zero() {
+        let zero = StridedInterval::constant(32, 0u32);
+
+        // A non-constant dividend takes the constant-divisor branch, where
+        // o_lb - 1 underflowed; it goes first so that is the line this test
+        // pins. A constant dividend takes the constant path, s_lb % o_lb.
+        let a = StridedInterval::range(32, 1u32, 10u32);
+        assert_eq!(a.urem(&zero).unwrap(), a);
+
+        let a = StridedInterval::constant(32, 42u32);
+        assert_eq!(a.urem(&zero).unwrap(), a);
+    }
+
+    #[test]
+    fn test_srem_by_zero() {
+        let zero = StridedInterval::constant(32, 0u32);
+
+        let a = StridedInterval::constant(32, 42u32);
+        assert_eq!(a.srem(&zero).unwrap(), a);
+
+        // -42 in two's complement.
+        let a = StridedInterval::constant(32, 0xffff_ffd6u32);
+        assert_eq!(a.srem(&zero).unwrap(), a);
+
+        assert_eq!(zero.srem(&zero).unwrap(), zero);
     }
 }
 

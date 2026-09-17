@@ -58,7 +58,7 @@ from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
 from angr.utils.vex import block_branch_ins_addr
 
 from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector
-from .utils import is_sane_register_variable
+from .utils import is_sane_register_variable, merge_overlapping_register_spans
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -139,6 +139,7 @@ class CallingConventionAnalysis(Analysis):
         self._input_args = input_args
         self._unused_args: list[SimRegArg] = []
         self._retval_size = retval_size
+        self._retval_incidental: bool | None = None
         self._extra_pop: int | None = extra_pop
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
@@ -283,6 +284,7 @@ class CallingConventionAnalysis(Analysis):
             )
             self._input_args = facts.input_args
             self._retval_size = facts.retval_size
+            self._retval_incidental = facts.retval_incidental
             self._callsites = facts.callsites
             self._pointer_arg_derefs = facts.pointer_arg_derefs
             self._unused_args = facts.unused_args
@@ -876,7 +878,19 @@ class CallingConventionAnalysis(Analysis):
         # is the return value used anywhere?
         if facts:
             if all(fact.return_value_used is False for fact in facts):
-                proto.returnty = SimTypeBottom(label="void")
+                # callers ignoring a result is not proof there is none; printf's is ignored all day. It settles the
+                # question only when the function's own evidence for a return value is a leftover: rax written by
+                # a load or a move whose value is then stored or tested, and merely still there at the ret. The
+                # call-site fact only ever looked at the integer return register, so a floating-point return is
+                # out of its reach entirely.
+                # The exception: with no function body to ask (call-site-only analysis) or no type at all yet, the
+                # call sites are the only evidence there is
+                if (
+                    self._function is None
+                    or proto.returnty is None
+                    or (self._is_retval_incidental() and not isinstance(proto.returnty, (SimTypeFloat, SimTypeDouble)))
+                ):
+                    proto.returnty = SimTypeBottom(label="void")
             else:
                 if proto.returnty is None or isinstance(proto.returnty, SimTypeBottom):
                     returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
@@ -1045,19 +1059,38 @@ class CallingConventionAnalysis(Analysis):
             full_off1 = get_reg_offset_base(off1, self.project.arch, sz1)
             return full_off0 == full_off1
 
+        arch = self.project.arch
         reg_args = []
+
+        # reads of overlapping sub-registers (e.g., ch and cx) describe one argument
+        regarg_by_span: dict[tuple[int, int], SimRegArg] = {}
+        for arg in args:
+            if isinstance(arg, SimRegArg):
+                regarg_by_span[(arch.registers[arg.reg_name][0] + arg.reg_offset, arg.size)] = arg
+        merged_reg_args: list[SimRegArg] = []
+        for span in merge_overlapping_register_spans(arch, regarg_by_span):
+            arg = regarg_by_span.get(span)
+            if arg is None:
+                arg = SimRegArg(arch.translate_register_name(span[0], size=span[1]), span[1])
+            merged_reg_args.append(arg)
 
         # split args into two lists
         int_args = []
         fp_args = []
-        for arg in args:
-            if isinstance(arg, SimRegArg):
-                if cc.FP_ARG_REGS and arg.reg_name in cc.FP_ARG_REGS:
-                    fp_args.append(arg)
-                else:
-                    int_args.append(arg)
+        for arg in merged_reg_args:
+            if cc.FP_ARG_REGS and arg.reg_name in cc.FP_ARG_REGS:
+                fp_args.append(arg)
+            else:
+                int_args.append(arg)
 
-        initial_stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
+        # stack args at the same offset describe one argument; keep the widest access
+        stackarg_by_offset: dict[int, SimStackArg] = {}
+        for arg in args:
+            if isinstance(arg, SimStackArg):
+                existing = stackarg_by_offset.get(arg.stack_offset)
+                if existing is None or arg.size > existing.size:
+                    stackarg_by_offset[arg.stack_offset] = arg
+        initial_stack_args = [stackarg_by_offset[offset] for offset in sorted(stackarg_by_offset)]
         # ensure stack args are consecutive if necessary
         if cc.STACKARG_SP_DIFF is not None and initial_stack_args:
             arg_by_offset = {a.stack_offset: a for a in initial_stack_args}
@@ -1168,6 +1201,16 @@ class CallingConventionAnalysis(Analysis):
             return SimTypeChar()
         # Unsupported for now
         return SimTypeBottom()
+
+    def _is_retval_incidental(self) -> bool:
+        """See :attr:`FactCollector.retval_incidental`. Collected with the other facts in fact-collecting mode;
+        computed on demand when the return value size came from variable recovery instead."""
+        if self._retval_incidental is None:
+            self._retval_incidental = (
+                self._function is not None
+                and self.project.analyses[FactCollector].prep(kb=self.kb)(self._function).retval_incidental
+            )
+        return self._retval_incidental
 
     def _guess_retval_type(self, cc: SimCC, ret_val_size: int | None) -> SimType:
         assert self._function is not None

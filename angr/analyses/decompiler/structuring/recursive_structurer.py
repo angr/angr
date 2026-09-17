@@ -49,12 +49,15 @@ class RecursiveStructurer(Analysis):
 
         self.result: BaseNode | None = None
         self.result_incomplete: bool = False
+        # addresses of the top-level regions whose structuring failed; their output misses code blocks
+        self.structuring_failures: list[int] = []
 
         self._analyze()
 
     def _analyze(self):
         self._case_entry_to_switch_head: dict[int, int] = self._get_switch_case_entries()
         self.result_incomplete = False
+        self.structuring_failures = []
 
         assert isinstance(self._region, RegionOverlay), "RecursiveStructurer requires a RegionOverlay region"
         self._structure_overlay_tree()
@@ -62,9 +65,9 @@ class RecursiveStructurer(Analysis):
 
     def _structure_overlay_tree(self):
         """
-        Structure an overlay tree natively and destructively: structuring algorithms mutate the shared graph
+        Structure an overlay tree natively and destructively: structuring algorithms mutate the complete graph
         through the region overlay, so a structured region becomes a single node of its parent without any
-        region replacement step (and a failed region simply dissolves into its parent). The whole shared graph
+        region replacement step (and a failed region simply dissolves into its parent). The whole complete graph
         and the overlay tree are restored from the undo log afterwards, keeping the region identifier's result
         intact for later consumers.
         """
@@ -93,7 +96,7 @@ class RecursiveStructurer(Analysis):
                     stack.pop()
 
                     parent_region = parent_map.get(current_region)
-                    # capture the region's successors before structuring mutates the shared graph, so finalize can
+                    # capture the region's successors before structuring mutates the complete graph, so finalize can
                     # re-establish the region-to-successor edges that refinement/virtualization removes
                     succ_snapshot = current_region.snapshot_successors()
                     # structure this region
@@ -120,6 +123,7 @@ class RecursiveStructurer(Analysis):
                             )
                             self.result = self._pick_incomplete_result_from_region(current_region)
                             self.result_incomplete = True
+                            self.structuring_failures.append(current_region.addr)
                         else:
                             self.result = st.result
                         break
@@ -131,11 +135,11 @@ class RecursiveStructurer(Analysis):
                         # that node is the result and takes the region's place in the parent
                         current_region.finalize(st.result, succ_snapshot=succ_snapshot)
                     else:
-                        # the structurer produced an external result without reducing the shared graph (e.g. Dream):
+                        # the structurer produced an external result without reducing the complete graph (e.g. Dream):
                         # collapse all member nodes onto the result node
                         current_region.collapse_to(st.result)
         finally:
-            # restore the shared graph and the overlay tree for post-structuring consumers of the region tree
+            # restore the complete graph and the overlay tree for post-structuring consumers of the region tree
             manager.rollback(checkpoint)
             manager.commit(checkpoint)
 
