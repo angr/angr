@@ -5,6 +5,7 @@ from collections.abc import Iterable, Sequence
 from itertools import count
 from typing import TYPE_CHECKING, Any, Union
 
+from angr.utils.bits import u2s
 from angr.utils.constants import MAX_POINTSTO_BITS
 
 from ._typehash import type_tag
@@ -623,6 +624,23 @@ class SubN(BaseLabel):
 
     def __repr__(self):
         return f"-{self.n}"
+
+
+def add_label(value: int, bits: int) -> AddN | SubN:
+    """
+    Build the label for ``ptr + value``, where ``value`` is a ``bits``-wide constant. The constant is interpreted as
+    signed, so that ``ptr + 0xffff_ffff_ffff_ffe8`` yields ``SubN(24)`` instead of ``AddN(2 ** 64 - 24)``.
+    """
+    n = u2s(value, bits)
+    return AddN(n) if n >= 0 else SubN(-n)
+
+
+def sub_label(value: int, bits: int) -> AddN | SubN:
+    """
+    Build the label for ``ptr - value``. See :func:`add_label`.
+    """
+    n = u2s(value, bits)
+    return SubN(n) if n >= 0 else AddN(-n)
 
 
 class ConvertTo(BaseLabel):

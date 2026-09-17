@@ -1350,7 +1350,11 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             else MAX_POINTSTO_BITS
         )
 
-        if offset >= 4096:
+        if offset < 0:
+            if self._likely_pointer(offset + (1 << self.arch.bits)):
+                # a mapped address that we reached by wrapping around; tv is the actual offset
+                return self.tv_manager.new_tv()
+        elif offset >= 4096:
             if self._likely_pointer(offset):
                 # tv is the actual offset
                 return self.tv_manager.new_tv()
