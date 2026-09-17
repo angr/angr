@@ -3,11 +3,7 @@ from __future__ import annotations
 import archinfo
 
 from angr import ailment
-
-try:
-    from claripy.ast import Bits
-except ImportError:
-    from typing import Never as Bits
+from angr.claripy import Bits
 
 type GetBitsTypeParams = "ailment.expression.Expression"
 
