@@ -281,6 +281,16 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(sol, Pointer64)
         assert isinstance(sol.basetype, BottomType)
 
+    def test_huge_field_offset_does_not_become_a_giant_struct(self):
+        # "rcl byte ptr [rax+0x1ce95fe0], 0xe4; ret", lifted verbatim from junk code that an opaque predicate
+        # guards in a stripped PE: the displacement is a leftover constant, not a struct field offset
+        proj = angr.load_shellcode(b"\xc0\x90\xe0\x5f\xe9\x1c\xe4\xc3", "AMD64", load_address=0x400000)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        dec = proj.analyses.Decompiler(cfg.functions[0x400000], cfg=cfg.model, fail_fast=True)
+
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "typedef struct" not in dec.codegen.text
+
     def test_solving_cascading_type_constraints(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "tiny_aes_test.elf"), auto_load_libs=False)
         cfg = p.analyses.CFG(data_references=True, normalize=True)
