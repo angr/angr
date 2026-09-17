@@ -766,9 +766,9 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         typevar = self.tv_manager.new_tv() if richr_addr.typevar is None else richr_addr.typevar
 
         if isinstance(typevar, typevars.TypeVariable):
-            if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.one_label, typevars.AddN):
+            if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.one_label(), typevars.AddN):
                 base_typevar = typevar.type_var
-                field_offset = typevar.one_label.n
+                field_offset = typevar.one_label().n
             else:
                 base_typevar = typevar
                 field_offset = 0
@@ -954,9 +954,9 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
         # parse the loading offset
         offset = 0
         if isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and isinstance(
-            richr_addr.typevar.one_label, typevars.AddN
+            richr_addr.typevar.one_label(), typevars.AddN
         ):
-            offset = richr_addr.typevar.one_label.n
+            offset = richr_addr.typevar.one_label().n
             richr_addr_typevar = richr_addr.typevar.type_var  # unpack
         else:
             richr_addr_typevar = richr_addr.typevar

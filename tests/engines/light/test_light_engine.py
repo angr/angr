@@ -18,7 +18,7 @@ from angr.analyses.decompiler.optimization_passes.inlined_string_transformation_
 )
 from angr.analyses.purity.engine import DataSource, PurityEngineAIL
 from angr.analyses.reaching_definitions.engine_ail import SimEngineRDAIL
-from angr.analyses.typehoon.typevars import TypeVariable
+from angr.analyses.typehoon.typevars import ConvertTo, DerivedTypeVariable, TypeVariable, TypeVariableManager
 from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
 from angr.analyses.variable_recovery.engine_base import RichR
 from angr.engines.light.engine import longest_prefix_lookup
@@ -123,6 +123,27 @@ class TestLightEngine(TestCase):
         assert seen == [operand]
         assert result.typevar is operand_typevar
         assert len(result.data) == 32
+
+    def test_variable_recovery_convert_replaces_an_existing_conversion(self):
+        base_typevar = TypeVariable(name="conv_base")
+        engine: Any = object.__new__(SimEngineVRAIL)
+        engine.tv_manager = TypeVariableManager(0x400000)
+        converted = engine.tv_manager.new_dtv_with_merged_labels(base_typevar, label=ConvertTo(32))
+        engine._expr = lambda expr: RichR(claripy.BVV(0, 32), typevar=converted)
+        engine.state = SimpleNamespace(
+            top=lambda bits: claripy.BVS("vr_conv_top", bits),
+            add_type_constraint=lambda tc: None,
+        )
+        conv = ailment.Expr.Convert(1, 32, 64, False, ailment.Expr.Const(0, 0, 32))
+
+        result = engine._handle_expr_Convert(conv)
+
+        # the existing conversion is replaced, not stacked on top of
+        assert isinstance(result.typevar, DerivedTypeVariable)
+        assert result.typevar.type_var is base_typevar
+        assert len(result.typevar.labels) == 1
+        assert isinstance(result.typevar.labels[0], ConvertTo)
+        assert result.typevar.labels[0].to_bits == 64
 
     def test_purity_abs_preserves_provenance(self):
         provenance = frozenset((DataSource(function_arg=0),))
