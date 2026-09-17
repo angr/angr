@@ -11,8 +11,9 @@ from unittest import mock
 import networkx
 
 import angr
-from angr.ailment.expression import VirtualVariable
-from angr.ailment.statement import Assignment, SideEffectStatement
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ail import is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector
@@ -114,6 +115,53 @@ class TestSLiveness(unittest.TestCase):
             assert first.model.live_ins == second.model.live_ins
             assert first.model.live_outs == second.model.live_outs
             assert first.model.block_end_vvars == second.model.block_end_vvars
+
+
+class TestInterferenceGraphRestriction(unittest.TestCase):
+    """interference_graph(vvar_ids=...) must be the induced subgraph of the full graph, built without touching the rest."""
+
+    @staticmethod
+    def _vvar(varid: int) -> VirtualVariable:
+        return VirtualVariable(varid, varid, 64, VirtualVariableCategory.REGISTER, oident=16)
+
+    def _liveness(self):
+        v = self._vvar
+        # v1 and v2 interfere with v3's definition site; v2 is dead once v3 is defined
+        stmts = [
+            Assignment(0, v(1), Const(0, 1, 64), ins_addr=0x400000),
+            Assignment(1, v(2), Const(1, 2, 64), ins_addr=0x400001),
+            Assignment(2, v(3), BinaryOp(2, "Add", [v(1), v(2)], bits=64), ins_addr=0x400002),
+            Assignment(3, v(4), BinaryOp(3, "Add", [v(1), v(3)], bits=64), ins_addr=0x400003),
+            Return(4, [v(4)], ins_addr=0x400004),
+        ]
+        block = Block(0x400000, 5, statements=stmts)
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        proj = angr.load_shellcode(b"\x90", arch="AMD64")
+        func = proj.kb.functions.function(addr=0x400000, name="dummy", create=True)
+        return proj.analyses[SLivenessAnalysis].prep()(func, func_graph=graph, entry=block, arg_vvars=[])
+
+    @staticmethod
+    def _edges(graph: networkx.Graph) -> set[frozenset[int]]:
+        return {frozenset(e) for e in graph.edges}
+
+    def test_restricted_graph_is_the_induced_subgraph(self):
+        liveness = self._liveness()
+        full = liveness.interference_graph()
+        assert frozenset({1, 3}) in self._edges(full)
+        assert frozenset({2, 3}) not in self._edges(full)
+
+        for vvar_ids in ({1, 3}, {2, 3}, {1, 2, 3, 4}, {4}, {99}):
+            restricted = liveness.interference_graph(vvar_ids=vvar_ids)
+            assert set(restricted.nodes) <= vvar_ids
+            assert self._edges(restricted) == self._edges(full.subgraph(vvar_ids))
+
+    def test_empty_restriction_builds_nothing(self):
+        liveness = self._liveness()
+        with mock.patch.object(VVarUsesCollector, "walk_statement") as walk:
+            graph = liveness.interference_graph(vvar_ids=set())
+        assert graph.number_of_nodes() == 0
+        walk.assert_not_called()
 
 
 if __name__ == "__main__":

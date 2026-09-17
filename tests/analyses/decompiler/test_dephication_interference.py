@@ -8,10 +8,17 @@ import os.path
 import re
 import unittest
 from collections import defaultdict
+from unittest import mock
 
-from angr.ailment.expression import Phi, VirtualVariable
-from angr.ailment.statement import Assignment
+import networkx
+
+import angr
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Const, Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.decompiler.clinic import Clinic
+from angr.analyses.decompiler.dephication.graph_vvar_mapping import GraphDephicationVVarMapping
 from angr.analyses.s_liveness import SLivenessAnalysis
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
@@ -111,6 +118,95 @@ class TestDephicationInterference(unittest.TestCase):
             all_findings.append((vvar1, vvar2))
         if not all_findings:
             assert False, "Did not find any expression of the form !vvar & vvar. Maybe the decompilation is incorrect?"
+
+
+class TestDephicationWithoutPhi(unittest.TestCase):
+    """Liveness and the (quadratic) interference graph are only needed when there is something to coalesce."""
+
+    @staticmethod
+    def _vvar(varid: int) -> VirtualVariable:
+        return VirtualVariable(varid, varid, 64, VirtualVariableCategory.REGISTER, oident=16)
+
+    def _mapping(self, graph: networkx.DiGraph, entry: Block) -> dict[int, int]:
+        proj = angr.load_shellcode(b"\x90", arch="AMD64")
+        func = proj.kb.functions.function(addr=0x400000, name="dummy", create=True)
+        dephi = proj.analyses[GraphDephicationVVarMapping].prep()(
+            func, graph, Manager(), entry=entry, vvar_id_start=100
+        )
+        assert dephi.vvar_to_vvar_mapping is not None
+        return dephi.vvar_to_vvar_mapping
+
+    def test_no_phi_skips_liveness(self):
+        v = self._vvar
+        a = Block(
+            0x400000,
+            4,
+            statements=[
+                Assignment(0, v(1), Const(0, 1, 64), ins_addr=0x400000),
+                Jump(1, Const(1, 0x400004, 64), ins_addr=0x400001),
+            ],
+        )
+        b = Block(
+            0x400004,
+            4,
+            statements=[
+                Assignment(0, v(2), BinaryOp(0, "Add", [v(1), Const(0, 1, 64)], bits=64), ins_addr=0x400004),
+                Return(1, [v(2)], ins_addr=0x400005),
+            ],
+        )
+        graph = networkx.DiGraph([(a, b)])
+        with (
+            mock.patch.object(SLivenessAnalysis, "_analyze") as analyze,
+            mock.patch.object(SLivenessAnalysis, "interference_graph") as interference,
+        ):
+            mapping = self._mapping(graph, a)
+        assert mapping == {}
+        analyze.assert_not_called()
+        interference.assert_not_called()
+
+    def test_phi_sources_are_still_coalesced(self):
+        v = self._vvar
+        a = Block(
+            0x400000,
+            4,
+            statements=[
+                Assignment(0, v(1), Const(0, 1, 64), ins_addr=0x400000),
+                ConditionalJump(1, Const(1, 1, 1), Const(1, 0x400010, 64), Const(1, 0x400020, 64), ins_addr=0x400001),
+            ],
+        )
+        b = Block(
+            0x400010,
+            4,
+            statements=[
+                Assignment(0, v(2), Const(0, 2, 64), ins_addr=0x400010),
+                Jump(1, Const(1, 0x400030, 64), ins_addr=0x400011),
+            ],
+        )
+        c = Block(
+            0x400020,
+            4,
+            statements=[
+                Assignment(0, v(3), Const(0, 3, 64), ins_addr=0x400020),
+                Jump(1, Const(1, 0x400030, 64), ins_addr=0x400021),
+            ],
+        )
+        d = Block(
+            0x400030,
+            4,
+            statements=[
+                Assignment(
+                    0, v(4), Phi(0, 64, [((0x400010, None), v(2)), ((0x400020, None), v(3))]), ins_addr=0x400030
+                ),
+                Return(1, [v(4)], ins_addr=0x400031),
+            ],
+        )
+        graph = networkx.DiGraph([(a, b), (a, c), (b, d), (c, d)])
+        with mock.patch.object(
+            SLivenessAnalysis, "interference_graph", autospec=True, side_effect=SLivenessAnalysis.interference_graph
+        ) as interference:
+            mapping = self._mapping(graph, a)
+        interference.assert_called_once()
+        assert mapping == {2: 2, 3: 2, 4: 2}
 
 
 if __name__ == "__main__":
