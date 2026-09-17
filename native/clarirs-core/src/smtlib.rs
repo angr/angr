@@ -14,13 +14,29 @@ fn fprm_to_smtlib(fprm: &FPRM) -> &'static str {
     }
 }
 
+/// Renders a variable name as an SMT-LIB symbol.
+///
+/// Names outside the simple-symbol grammar are quoted; `|` and `\` are escaped
+/// as z3 does, since a quoted symbol cannot hold them literally.
+fn smtlib_symbol(name: &str) -> String {
+    fn is_simple_char(c: char) -> bool {
+        c.is_ascii_alphanumeric() || "~!@$%^&*_-+=<>.?/".contains(c)
+    }
+    let starts_ok = name.chars().next().is_some_and(|c| !c.is_ascii_digit());
+    if starts_ok && name.chars().all(is_simple_char) {
+        name.to_string()
+    } else {
+        format!("|{}|", name.replace('\\', "\\\\").replace('|', "\\|"))
+    }
+}
+
 /// Renders a single node to SMT-LIB given its already-rendered children. A
 /// single match over the unified op enum replaces the previous per-sort
 /// functions.
 fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
     match ast.op() {
         // Booleans
-        AstOp::BoolS(s) => s.to_string(),
+        AstOp::BoolS(s) => smtlib_symbol(s.as_str()),
         AstOp::BoolV(b) => b.to_string(),
         AstOp::Eq(a, _) => {
             if a.ast_type().is_float() {
@@ -75,7 +91,7 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         ),
 
         // Bitvectors
-        AstOp::BVS(s, _) => s.to_string(),
+        AstOp::BVS(s, _) => smtlib_symbol(s.as_str()),
         AstOp::BVV(bit_vec) => format!("(_ bv{} {})", bit_vec.to_biguint(), bit_vec.len()),
         AstOp::Xor(..) if ast.ast_type().is_bool() => format!("(xor {})", children.join(" ")),
         AstOp::Xor(..) => format!(
@@ -136,7 +152,7 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         AstOp::Widen(..) => format!("(vsawiden {} {})", children[0], children[1]),
 
         // Floats
-        AstOp::FPS(s, _) => s.to_string(),
+        AstOp::FPS(s, _) => smtlib_symbol(s.as_str()),
         AstOp::FPV(float) => {
             let sign = if float.sign() { "#b1" } else { "#b0" };
             let exp = float.exponent();
@@ -200,7 +216,7 @@ fn to_smtlib_op(ast: &AstRef<'_>, children: &[String]) -> String {
         ),
 
         // Strings
-        AstOp::StringS(s) => s.to_string(),
+        AstOp::StringS(s) => smtlib_symbol(s.as_str()),
         AstOp::StringV(s) => format!("\"{}\"", s.replace('"', "\\\"")),
         AstOp::StrConcat(..) => format!("(str.++ {} {})", children[0], children[1]),
         AstOp::StrSubstr(..) => format!(
@@ -254,15 +270,15 @@ impl<'c> AstNode<'c> {
 /// `ast` is not a variable.
 fn var_declaration(ast: &AstRef<'_>) -> Option<(String, String)> {
     match ast.op() {
-        AstOp::BoolS(s) => Some((s.to_string(), "Bool".to_string())),
-        AstOp::BVS(s, width) => Some((s.to_string(), format!("(_ BitVec {width})"))),
+        AstOp::BoolS(s) => Some((smtlib_symbol(s.as_str()), "Bool".to_string())),
+        AstOp::BVS(s, width) => Some((smtlib_symbol(s.as_str()), format!("(_ BitVec {width})"))),
         // SMT-LIB's FloatingPoint significand width counts the implicit hidden
         // bit, which clarirs' FSort::mantissa does not.
         AstOp::FPS(s, sort) => Some((
-            s.to_string(),
+            smtlib_symbol(s.as_str()),
             format!("(_ FloatingPoint {} {})", sort.exponent, sort.mantissa + 1),
         )),
-        AstOp::StringS(s) => Some((s.to_string(), "String".to_string())),
+        AstOp::StringS(s) => Some((smtlib_symbol(s.as_str()), "String".to_string())),
         _ => None,
     }
 }
@@ -502,5 +518,64 @@ mod tests {
 
         // Depth 2: full tree (only 2 deep)
         assert_eq!(neg.to_smtlib_shallow(2), "(bvneg (bvadd x y))");
+    }
+
+    #[test]
+    fn test_symbol_simple_names_unquoted() {
+        let ctx = Context::new();
+        for name in [
+            "x",
+            "mem_7ffe_1_64",
+            "cgc-flag-byte-0",
+            "a.b/c<=>?!@$%^&*+~",
+        ] {
+            assert_eq!(ctx.bvs(name, 32).unwrap().to_smtlib(), name);
+            assert_eq!(ctx.bools(name).unwrap().to_smtlib(), name);
+        }
+    }
+
+    #[test]
+    fn test_symbol_quoted_when_not_simple() {
+        let ctx = Context::new();
+        for name in [
+            "Func_read_Arg#0",
+            "mem_7ffe{UNINITIALIZED}",
+            "has space",
+            "[mem_7ffe_1_64]",
+            "ailexpr_(r0<64> Add 0x8<64>)",
+            "0starts_with_digit",
+            "",
+        ] {
+            let quoted = format!("|{name}|");
+            assert_eq!(ctx.bvs(name, 32).unwrap().to_smtlib(), quoted);
+            assert_eq!(ctx.bools(name).unwrap().to_smtlib(), quoted);
+            assert_eq!(ctx.fps(name, FSort::f64()).unwrap().to_smtlib(), quoted);
+            assert_eq!(ctx.strings(name).unwrap().to_smtlib(), quoted);
+        }
+    }
+
+    #[test]
+    fn test_symbol_escapes_pipe_and_backslash() {
+        let ctx = Context::new();
+        // Escaped the way z3 prints and reads them back, so the name survives a round trip.
+        for (name, expected) in [
+            ("pipe|name", "|pipe\\|name|"),
+            ("back\\slash", "|back\\\\slash|"),
+            ("[p_0_64 | q_1_64]", "|[p_0_64 \\| q_1_64]|"),
+            ("both|and\\here", "|both\\|and\\\\here|"),
+        ] {
+            assert_eq!(ctx.bvs(name, 32).unwrap().to_smtlib(), expected);
+            assert_eq!(ctx.bools(name).unwrap().to_smtlib(), expected);
+        }
+    }
+
+    #[test]
+    fn test_constraints_to_smtlib_quotes_declaration_and_use() {
+        let ctx = Context::new();
+        let x = ctx.bvs("has space", 8).unwrap();
+        let c = ctx.eq_(&x, ctx.bvv(BitVec::from((5, 8))).unwrap()).unwrap();
+        let smt = constraints_to_smtlib(&[c]).unwrap();
+        assert!(smt.contains("(declare-fun |has space| () (_ BitVec 8))\n"));
+        assert!(smt.contains("(assert (= |has space| (_ bv5 8)))\n"));
     }
 }
