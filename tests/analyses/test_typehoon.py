@@ -262,6 +262,25 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(sol.basetype.fields[8], Pointer64)
         assert sol.basetype.fields[8].basetype == sol.basetype
 
+    def test_wrapped_negative_field_offset_does_not_become_a_giant_struct(self):
+        # an offset that wrapped around into the unsigned range is a negative offset in disguise; taking it at face
+        # value builds a struct spanning almost 2 ** 64 bytes, whose field offsets no longer fit in an int64
+        func_f = TypeVariable(name="F")
+        t0 = TypeVariable(name="T0")
+        type_constraints = {
+            func_f: {
+                Subtype(DerivedTypeVariable(t0, None, labels=[Store(), HasField(64, 0)]), t0),
+                Subtype(DerivedTypeVariable(t0, None, labels=[Store(), HasField(64, 8)]), t0),
+                Subtype(DerivedTypeVariable(t0, None, labels=[Load(), HasField(8, 0xFFFF_FFFF_FFFF_FFE8)]), Int32()),
+            },
+        }
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
+
+        sol = typehoon.solution[t0]
+        assert isinstance(sol, Pointer64)
+        assert isinstance(sol.basetype, BottomType)
+
     def test_solving_cascading_type_constraints(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "tiny_aes_test.elf"), auto_load_libs=False)
         cfg = p.analyses.CFG(data_references=True, normalize=True)
