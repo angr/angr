@@ -30,7 +30,13 @@ from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import Fi
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.structured_codegen import c as c_codegen
-from angr.analyses.decompiler.structured_codegen.c import CConstruct, CExpression, CLoop, CStatement
+from angr.analyses.decompiler.structured_codegen.c import (
+    CConstruct,
+    CExpression,
+    CLoop,
+    CStatement,
+    cextern_sort_key,
+)
 from angr.analyses.decompiler.structured_codegen.c_serialize import (
     _DISPLAY_OPTION_ATTRS,
     _DISPLAY_OPTION_FIELD_FIRST,
@@ -668,6 +674,31 @@ class TestVectorConvertSerialization(unittest.TestCase):
         assert key in d._spilled
         assert not d._unspillable
         assert d[key].codegen.text == cache.codegen.text
+
+
+class TestExternSerializationOrder(unittest.TestCase):
+    """cexterns is a set, so serializing it in iteration order made the blob differ run to run."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.proj.analyses.CompleteCallingConventions()
+        cls.func = cls.proj.kb.functions.function(name="__do_global_dtors_aux")
+        cls.codegen = cls.proj.analyses.Decompiler(cls.func, cfg=cls.cfg.model).codegen
+
+    def test_externs_are_emitted_in_address_order(self):
+        assert len(self.codegen.cexterns) > 1, "this function no longer has several externs"
+        msg = codegen_pb2.Codegen()
+        msg.ParseFromString(self.codegen.serialize())
+        expected = [v.idx for v in sorted(self.codegen.cexterns, key=cextern_sort_key)]
+        assert list(msg.cexterns_ids) == expected
+
+    def test_externs_survive_the_roundtrip(self):
+        blob = self.codegen.serialize()
+        back = type(self.codegen).parse(blob, project=self.proj, kb=self.proj.kb, func=self.func)
+        assert {v.idx for v in back.cexterns} == {v.idx for v in self.codegen.cexterns}
+        assert back.serialize() == blob
 
 
 if __name__ == "__main__":

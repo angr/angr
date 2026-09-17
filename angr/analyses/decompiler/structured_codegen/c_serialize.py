@@ -68,6 +68,7 @@ from .c import (
     CVectorConvert,
     CVEXCCallExpression,
     CWhileLoop,
+    cextern_sort_key,
 )
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -550,7 +551,9 @@ def serialize_codegen(codegen) -> codegen_pb2.Codegen:
             entry.idx = idx
         entry.label_id = ctx.serialize(label)
     if codegen.cexterns:
-        for v in codegen.cexterns:
+        # cexterns is a set, whose iteration order varies from run to run. Emit it in the same rename-independent
+        # order the renderer uses, so the same codegen always serializes to the same bytes.
+        for v in sorted(codegen.cexterns, key=cextern_sort_key):
             msg.cexterns_ids.append(ctx.serialize(v))
 
     # VLA runtime dimensions (SimVariable -> CExpression), so ``uint8_t <name>[<dim>];`` re-renders after reload.
