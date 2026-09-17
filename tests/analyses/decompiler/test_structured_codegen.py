@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import itertools
 import os
 import re
+import time
 import unittest
 from types import SimpleNamespace
 
@@ -22,12 +23,14 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CStructuredCodeGenerator,
     CUnaryOp,
     qualifies_for_simple_cast,
+    type_layout_key,
     type_to_c_repr_chunks,
 )
 from angr.calling_conventions import SimComboArg
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
+    SimType,
     SimTypeBottom,
     SimTypeFloat,
     SimTypeFunction,
@@ -392,3 +395,69 @@ class TestSimpleCastQualification(unittest.TestCase):
         sizeless = sizeless.with_arch(arch)
         assert not qualifies_for_simple_cast(sizeless, longlong)
         assert not qualifies_for_simple_cast(longlong, sizeless)
+
+
+class TestTypeLayoutKey(unittest.TestCase):
+    """
+    type_layout_key() keys a type by its memory layout so that struct definitions are emitted in an order that is
+    deterministic and survives renames.
+    """
+
+    @staticmethod
+    def _struct(name: str, fields: dict, arch) -> SimStruct:
+        s = SimStruct(fields, name=name)
+        s._arch = arch
+        return s
+
+    def test_shared_members_do_not_blow_up(self):
+        # the key used to enumerate every path through the type graph, so a struct whose two fields point at the
+        # same struct cost 2**depth
+        arch = archinfo.ArchAMD64()
+        cur: SimType = self._struct("leaf", {"a": SimTypeInt().with_arch(arch)}, arch)
+        for i in range(25):
+            ptr = SimTypePointer(cur)
+            ptr._arch = arch
+            cur = self._struct(f"s{i}", {"x": ptr, "y": ptr}, arch)
+
+        start = time.time()
+        key = type_layout_key(cur)
+        assert time.time() - start < 5
+        assert len(key) < 200
+
+    def test_mutually_recursive_structs_do_not_blow_up(self):
+        # ... and every simple path through a cycle, which is worse: a clique of n structs cost about n!
+        arch = archinfo.ArchAMD64()
+        structs = [self._struct(f"c{i}", {}, arch) for i in range(25)]
+        for s in structs:
+            for j, other in enumerate(structs):
+                ptr = SimTypePointer(other)
+                ptr._arch = arch
+                s.fields[f"f{j}"] = ptr
+
+        start = time.time()
+        keys = [type_layout_key(s) for s in structs]
+        assert time.time() - start < 5
+        # these structs are isomorphic, so they all key the same
+        assert len(set(keys)) == 1
+
+    def test_key_ignores_names_but_not_layout(self):
+        arch = archinfo.ArchAMD64()
+        a = self._struct("alpha", {"x": SimTypeInt().with_arch(arch), "y": SimTypeInt().with_arch(arch)}, arch)
+        renamed = self._struct("zulu", {"p": SimTypeInt().with_arch(arch), "q": SimTypeInt().with_arch(arch)}, arch)
+        different = self._struct("alpha", {"x": SimTypeLongLong().with_arch(arch)}, arch)
+
+        assert type_layout_key(a) == type_layout_key(renamed)
+        assert type_layout_key(a) != type_layout_key(different)
+
+    def test_key_does_not_depend_on_visit_order(self):
+        arch = archinfo.ArchAMD64()
+        structs = []
+        for i in range(5):
+            inner = self._struct(f"inner{i}", {"v": SimTypeInt().with_arch(arch)}, arch)
+            ptr = SimTypePointer(inner)
+            ptr._arch = arch
+            structs.append(self._struct(f"outer{i}", {"p": ptr}, arch))
+
+        forward = [type_layout_key(s) for s in structs]
+        backward = [type_layout_key(s) for s in reversed(structs)]
+        assert backward[::-1] == forward

@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use,protected-access
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import struct
@@ -42,6 +43,7 @@ from angr.sim_type import (
     SimType,
     SimTypeArray,
     SimTypeBitfield,
+    SimTypeBool,
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
@@ -223,26 +225,68 @@ def _safe_type_size(ty) -> int:
     return sz if isinstance(sz, int) else -1
 
 
-def type_layout_key(ty, _seen: frozenset = frozenset()) -> str:
+_SIGNED_TYPES = SimTypeNum, SimTypeInt, SimTypeChar, SimTypeWideChar, SimTypeBool
+
+# Levels of struct nesting that a layout key considers.
+TYPE_LAYOUT_KEY_DEPTH = 4
+
+
+class _LayoutKeyMemo:
+    """
+    Scratch space shared by the layout keys computed for one sort: keys and field offsets already computed, plus
+    strong references to the types they were computed for so that their ids cannot be reused while in use.
+    """
+
+    __slots__ = ("keys", "offsets", "types")
+
+    def __init__(self):
+        self.keys: dict[tuple[int, int], str] = {}
+        self.offsets: dict[int, dict[str, int]] = {}
+        self.types: list[SimType] = []
+
+
+def type_layout_key(ty, memo: _LayoutKeyMemo | None = None) -> str:
     """
     A structural sort key for a type, derived purely from its memory layout (sizes, field offsets, and the
     layouts of field/element/pointee types) and not from any user-renamable struct or field name. This lets
     the code generator order type definitions stably without their order changing when the user renames a struct
-    or a field. Cycles through recursive struct/pointer references are broken with a marker.
+    or a field.
+
+    The key covers the type down to TYPE_LAYOUT_KEY_DEPTH levels of struct nesting. The key summarizes the member of
+    each struct level in a hash.
     """
+    if memo is None:
+        memo = _LayoutKeyMemo()
+    return _type_layout_key(ty, TYPE_LAYOUT_KEY_DEPTH, memo)
+
+
+def _type_layout_key(ty, depth: int, memo: _LayoutKeyMemo) -> str:
     ty = unpack_typeref(ty)
     if isinstance(ty, SimStruct):
-        if id(ty) in _seen:
-            return "@"  # a reference back to an enclosing struct (recursive type)
-        _seen = _seen | {id(ty)}
-        offsets = ty.offsets
-        fields = sorted(f"{offsets.get(fname, -1)}:{type_layout_key(fty, _seen)}" for fname, fty in ty.fields.items())
-        return f"S[{_safe_type_size(ty)};{int(bool(getattr(ty, 'packed', False)))};{';'.join(fields)}]"
+        if depth <= 0:
+            return "@"
+        cache_key = (id(ty), depth)
+        cached = memo.keys.get(cache_key)
+        if cached is not None:
+            return cached
+        memo.types.append(ty)
+        offsets = memo.offsets.get(id(ty))
+        if offsets is None:
+            offsets = ty.offsets
+            memo.offsets[id(ty)] = offsets
+        fields = sorted(
+            f"{offsets.get(fname, -1)}:{_type_layout_key(fty, depth - 1, memo)}" for fname, fty in ty.fields.items()
+        )
+        digest = hashlib.blake2b(";".join(fields).encode(), digest_size=8).hexdigest()
+        key = f"S[{_safe_type_size(ty)};{int(ty.packed)};{len(fields)};{digest}]"
+        memo.keys[cache_key] = key
+        return key
     if isinstance(ty, SimTypePointer):
-        return f"P({type_layout_key(ty.pts_to, _seen)})"
+        return f"P({_type_layout_key(ty.pts_to, depth, memo)})"
     if isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
-        return f"A{getattr(ty, 'length', None)}({type_layout_key(ty.elem_type, _seen)})"
-    return f"T:{type(ty).__name__}:{_safe_type_size(ty)}:{getattr(ty, 'signed', None)}"
+        return f"A{ty.length}({_type_layout_key(ty.elem_type, depth, memo)})"
+    signed = ty.signed if isinstance(ty, _SIGNED_TYPES) else None
+    return f"T:{type(ty).__name__}:{_safe_type_size(ty)}:{signed}"
 
 
 def cextern_sort_key(cextern) -> tuple:
@@ -819,12 +863,14 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             # struct or a field. Structurally identical structs (e.g. isomorphic recursive types) are broken by
             # the translator's name-independent definition order, also rename-proof; the name is only a final
             # fallback for types with no such order (e.g. library structs not produced by type inference).
+            layout_key_memo = _LayoutKeyMemo()  # shared so that types referenced by several locals are keyed once
+
             def _local_type_sort_key(ty) -> tuple:
-                order = getattr(ty, "_def_order", None)
+                order = ty._def_order if isinstance(ty, SimStruct) else None
                 tiebreak = (
                     (0, order) if order is not None else (1, ty.name if isinstance(ty, SimStruct) and ty.name else "")
                 )
-                return (type_layout_key(ty), tiebreak)
+                return (type_layout_key(ty, layout_key_memo), tiebreak)
 
             emitted_struct_names: set[str] = set()
             for ty in sorted(local_types, key=_local_type_sort_key):
