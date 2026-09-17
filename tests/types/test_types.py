@@ -545,6 +545,98 @@ class TestTypes(unittest.TestCase):
         assert "a" in st_deref.offsets
         assert "b" in st_deref.offsets  # this assertion fails because st_deref.fields["b"] is a SimTypeRef
 
+    def test_dereference_simtype_keeps_recursive_types_cyclic(self):
+        # dereference_simtype() used to call with_arch() on every level, which deep-copies the members and so
+        # discards the object sharing that the memo establishes. Recursive types were unrolled into ever deeper
+        # trees of struct copies with a dangling SimTypeRef at the bottom, and every extra call grew the tree.
+        angr.procedures.definitions.load_win32_type_collections()
+        arch = archinfo.ArchX86()
+        collections = [angr.SIM_TYPE_COLLECTIONS["win32"]]
+
+        def struct_count(t: SimType) -> tuple[int, int]:
+            structs: set[int] = set()
+            refs = 0
+            queue = [t]
+            while queue:
+                ty = queue.pop()
+                while isinstance(ty, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                    ty = ty.pts_to if isinstance(ty, SimTypePointer) else ty.elem_type
+                if isinstance(ty, SimTypeRef):
+                    refs += 1
+                elif isinstance(ty, SimStruct):
+                    if id(ty) in structs:
+                        continue
+                    structs.add(id(ty))
+                    queue.extend(ty.fields.values())
+                elif isinstance(ty, SimUnion):
+                    queue.extend(ty.members.values())
+            return len(structs), refs
+
+        # CRITICAL_SECTION <-> CRITICAL_SECTION_DEBUG is a two-struct cycle; LIST_ENTRY points at itself
+        t = SimTypePointer(SimTypeRef("CRITICAL_SECTION", SimStruct)).with_arch(arch)
+        deref = dereference_simtype(t, collections)
+        assert struct_count(deref) == (3, 0)
+
+        # ... and dereferencing again changes nothing: the operation is idempotent
+        for _ in range(3):
+            deref = dereference_simtype(deref, collections)
+            assert struct_count(deref) == (3, 0)
+
+        # the cycle is a real cycle, not a copy
+        cs = cast(SimTypePointer, deref).pts_to
+        assert isinstance(cs, SimStruct)
+        debug = cs.fields["DebugInfo"]
+        assert isinstance(debug, SimTypePointer)
+        assert isinstance(debug.pts_to, SimStruct)
+        assert cast(SimTypePointer, debug.pts_to.fields["CriticalSection"]).pts_to is cs
+        assert cs._arch is arch
+        assert debug.pts_to._arch is arch
+
+    def test_dereference_simtype_keeps_anonymous_types_distinct(self):
+        # every unnamed struct and union is called "<anon>", so the memo must key them by identity: keying by name
+        # merged unrelated anonymous types into one, which could even make a type contain itself
+        angr.procedures.definitions.load_win32_type_collections()
+        arch = archinfo.ArchX86()
+        collections = [angr.SIM_TYPE_COLLECTIONS["win32"]]
+        u1 = SimUnion({"a": SimTypeInt()})
+        u2 = SimUnion({"b": SimTypeChar()})
+        outer = SimStruct({"u1": u1, "u2": u2}, name="holder").with_arch(arch)
+
+        deref = cast(SimStruct, dereference_simtype(outer, collections))
+        d1, d2 = deref.fields["u1"], deref.fields["u2"]
+        assert isinstance(d1, SimUnion)
+        assert isinstance(d2, SimUnion)
+        assert d1 is not d2
+        assert set(d1.members) == {"a"}
+        assert set(d2.members) == {"b"}
+
+    def test_serialize_keeps_anonymous_unions_distinct(self):
+        # unnamed unions are all called "<anon>", so serializing the second one as a reference to that name made
+        # both of them load back as the first one
+        u1 = SimUnion({"a": SimTypeInt()})
+        u2 = SimUnion({"b": SimTypeChar()})
+        outer = SimStruct({"u1": u1, "u2": u2}, name="holder").with_arch(archinfo.ArchAMD64())
+
+        back = SimType.from_json(outer.to_json())
+        assert isinstance(back, SimStruct)
+        m1, m2 = back.fields["u1"], back.fields["u2"]
+        assert isinstance(m1, SimUnion)
+        assert isinstance(m2, SimUnion)
+        assert set(m1.members) == {"a"}
+        assert set(m2.members) == {"b"}
+
+    def test_serialize_recursive_union(self):
+        # a union that (transitively) contains itself must serialize like a recursive struct does
+        u = SimUnion({"i": SimTypeInt()}, name="recursive_union")
+        u.members["self"] = SimTypePointer(u)
+        u = cast(SimUnion, u.with_arch(archinfo.ArchAMD64()))
+
+        d = u.to_json()  # shall not raise
+        new_u = SimType.from_json(d)
+        assert isinstance(new_u, SimUnion)
+        assert set(new_u.members) == {"i", "self"}
+        assert cast(SimTypePointer, new_u.members["self"]).pts_to is new_u
+
 
 if __name__ == "__main__":
     unittest.main()

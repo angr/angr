@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Iterable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from angr.errors import AngrMissingTypeError
 from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
@@ -19,6 +19,8 @@ from angr.sim_type import (
 )
 
 if TYPE_CHECKING:
+    from archinfo import Arch
+
     from angr.procedures.definitions import SimTypeCollection
 
 
@@ -83,15 +85,20 @@ def dereference_simtype(
     type_collections: list[SimTypeCollection],
     memo: dict[str | int, SimType] | None = None,
     keep_missing: bool = False,
+    arch: Arch | None = None,
 ) -> SimType:
     """
     Replace every SimTypeRef inside `t` with the real type from `type_collections`.
+
+    When arch is not None, memo holds the with_arch() copies of every dereferenced struct and union. This way we can
+    avoid creating duplicate arch-ed copies of the same type.
 
     :param keep_missing:    Leave a SimTypeRef in place when no collection defines it, instead of raising
                             AngrMissingTypeError.
     """
     if memo is None:
         memo = {}
+    arch = t._arch if t._arch is not None else arch
 
     if isinstance(t, SimTypeRef):
         real_type = None
@@ -109,55 +116,67 @@ def dereference_simtype(
         if real_type is None:
             if keep_missing:
                 return t
-            raise AngrMissingTypeError(t.name)
-        if t._arch is not None:
-            real_type = real_type.with_arch(t._arch)
-        return dereference_simtype(real_type, type_collections, memo=memo, keep_missing=keep_missing)
+            raise AngrMissingTypeError(t.name if t.name is not None else str(t))
+        return dereference_simtype(real_type, type_collections, memo=memo, keep_missing=keep_missing, arch=arch)
 
-    # the following code prepares a real_type SimType object that will be returned at the end of this method
+    def _memo_key(ty: SimStruct | SimUnion) -> str | int:
+        anonymous = (isinstance(ty, SimStruct) and ty.anonymous) or ty.name is None or ty.name == "<anon>"
+        return id(ty) if anonymous else ty.name
+
+    def _archify(ty: SimType) -> SimType:
+        copied = ty.copy()
+        return copied if arch is None else copied.with_arch(arch)
+
     if isinstance(t, SimStruct):
-        if t.name in memo or (t.anonymous and id(t) in memo):
-            return memo[t.name if not t.anonymous else id(t)]
-
-        real_type = t.copy()
-        memo[t.name if not t.anonymous else id(t)] = real_type
-        fields = OrderedDict(
-            (k, dereference_simtype(v, type_collections, memo=memo, keep_missing=keep_missing))
+        key = _memo_key(t)
+        if key in memo:
+            return memo[key]
+        real_struct = cast(SimStruct, _archify(t))
+        real_struct._def_order = t._def_order
+        memo[key] = real_struct
+        real_struct.fields = OrderedDict(
+            (k, dereference_simtype(v, type_collections, memo=memo, keep_missing=keep_missing, arch=arch))
             for k, v in t.fields.items()
         )
-        real_type.fields = fields
-    elif isinstance(t, SimTypePointer):
-        real_pts_to = dereference_simtype(t.pts_to, type_collections, memo=memo, keep_missing=keep_missing)
-        real_type = t.copy()
-        real_type.pts_to = real_pts_to
-    elif isinstance(t, SimTypeArray):
-        real_elem_type = dereference_simtype(t.elem_type, type_collections, memo=memo, keep_missing=keep_missing)
-        real_type = t.copy()
-        real_type.elem_type = real_elem_type
-    elif isinstance(t, SimUnion):
-        memo[t.name] = t
-        real_members = {
-            k: dereference_simtype(v, type_collections, memo=memo, keep_missing=keep_missing)
+        if arch is not None:
+            real_struct.fixup_bitfield_offsets(arch)
+        return real_struct
+    if isinstance(t, SimUnion):
+        key = _memo_key(t)
+        if key in memo:
+            return memo[key]
+        real_union = cast(SimUnion, _archify(t))
+        memo[key] = real_union
+        real_union.members = {
+            k: dereference_simtype(v, type_collections, memo=memo, keep_missing=keep_missing, arch=arch)
             for k, v in t.members.items()
         }
-        real_type = t.copy()
-        real_type.members = real_members
-    elif isinstance(t, SimTypeFunction):
-        real_args = [dereference_simtype(arg, type_collections, memo=memo, keep_missing=keep_missing) for arg in t.args]
-        real_return_type = (
-            dereference_simtype(t.returnty, type_collections, memo=memo, keep_missing=keep_missing)
+        return real_union
+    if isinstance(t, SimTypePointer):
+        real_ptr = cast(SimTypePointer, _archify(t))
+        real_ptr.pts_to = dereference_simtype(
+            t.pts_to, type_collections, memo=memo, keep_missing=keep_missing, arch=arch
+        )
+        return real_ptr
+    if isinstance(t, SimTypeArray):
+        real_arr = cast(SimTypeArray, _archify(t))
+        real_arr.elem_type = dereference_simtype(
+            t.elem_type, type_collections, memo=memo, keep_missing=keep_missing, arch=arch
+        )
+        return real_arr
+    if isinstance(t, SimTypeFunction):
+        real_func = cast(SimTypeFunction, _archify(t))
+        real_func.args = tuple(
+            dereference_simtype(arg, type_collections, memo=memo, keep_missing=keep_missing, arch=arch)
+            for arg in t.args
+        )
+        real_func.returnty = (
+            dereference_simtype(t.returnty, type_collections, memo=memo, keep_missing=keep_missing, arch=arch)
             if t.returnty is not None
             else None
         )
-        real_type = t.copy()
-        real_type.args = tuple(real_args)
-        real_type.returnty = real_return_type
-    else:
-        return t
-
-    if t._arch is not None:
-        real_type = real_type.with_arch(t._arch)
-    return real_type
+        return real_func
+    return t if arch is None else t.with_arch(arch)
 
 
 def type_collections_for_lib(libname: str | None) -> list[SimTypeCollection]:
