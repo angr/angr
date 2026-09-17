@@ -357,8 +357,10 @@ pub(crate) fn simplify_bool<'c>(
                         )?)
                     }
 
-                    // If both sides are ZeroExt of the same size, we can compare the inner values directly
-                    (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _)) => {
+                    // If both sides are ZeroExt of the same inner width, we can compare the inner values directly
+                    (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _))
+                        if inner_lhs.size() == inner_rhs.size() =>
+                    {
                         state.rerun(ctx.eq_(inner_lhs.clone(), inner_rhs.clone())?)
                     }
 
@@ -530,8 +532,10 @@ pub(crate) fn simplify_bool<'c>(
                         )?)
                     }
 
-                    // If both sides are ZeroExt of the same size, we can compare the inner values directly
-                    (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _)) => {
+                    // If both sides are ZeroExt of the same inner width, we can compare the inner values directly
+                    (AstOp::ZeroExt(inner_lhs, _), AstOp::ZeroExt(inner_rhs, _))
+                        if inner_lhs.size() == inner_rhs.size() =>
+                    {
                         state.rerun(ctx.neq(inner_lhs.clone(), inner_rhs.clone())?)
                     }
 
@@ -890,8 +894,8 @@ fn simplify_unsigned_cmp<'c>(
     // Rules below see the constant on the right; a constant on the left flips the relation.
     let (x, c, rel) = match (lhs.op(), rhs.op()) {
         (AstOp::BVV(a), AstOp::BVV(b)) => return Ok(ctx.boolv(kind.fold(a, b))?),
-        // If both sides are ZeroExt of the same size, we can compare the inner values directly
-        (AstOp::ZeroExt(a, _), AstOp::ZeroExt(b, _)) => {
+        // If both sides are ZeroExt of the same inner width, we can compare the inner values directly
+        (AstOp::ZeroExt(a, _), AstOp::ZeroExt(b, _)) if a.size() == b.size() => {
             return state.rerun(kind.build(ctx, a.clone(), b.clone())?);
         }
         (AstOp::BVV(c), _) => (&rhs, c, kind.flip()),

@@ -793,3 +793,41 @@ fn test_flatten_with_identity_keeps_argument_count() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_zero_ext_cmp_equal_inner_widths_compares_inners() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 8)?;
+    let y = ctx.bvs("y", 8)?;
+    let a = ctx.zero_ext(&x, 56)?;
+    let b = ctx.zero_ext(&y, 56)?;
+
+    assert_eq!(ctx.eq_(&a, &b)?.simplify()?, ctx.eq_(&x, &y)?);
+    assert_eq!(ctx.neq(&a, &b)?.simplify()?, ctx.neq(&x, &y)?);
+    assert_eq!(ctx.ult(&a, &b)?.simplify()?, ctx.ult(&x, &y)?);
+    assert_eq!(ctx.ule(&a, &b)?.simplify()?, ctx.ule(&x, &y)?);
+    assert_eq!(ctx.ugt(&a, &b)?.simplify()?, ctx.ugt(&x, &y)?);
+    assert_eq!(ctx.uge(&a, &b)?.simplify()?, ctx.uge(&x, &y)?);
+
+    Ok(())
+}
+
+#[test]
+fn test_zero_ext_cmp_unequal_inner_widths_not_rewritten() -> Result<()> {
+    let ctx = Context::new();
+    let x = ctx.bvs("x", 8)?;
+    let y = ctx.bvs("y", 32)?;
+    // Both operands are 64 bits, so every comparison below is well-formed.
+    let a = ctx.zero_ext(&x, 56)?;
+    let b = ctx.zero_ext(&y, 32)?;
+
+    // Comparing the inner values would build an 8-bit against a 32-bit operand.
+    assert_eq!(ctx.eq_(&a, &b)?.simplify()?, ctx.eq_(&a, &b)?);
+    assert_eq!(ctx.neq(&a, &b)?.simplify()?, ctx.neq(&a, &b)?);
+    assert_eq!(ctx.ult(&a, &b)?.simplify()?, ctx.ult(&a, &b)?);
+    assert_eq!(ctx.ule(&a, &b)?.simplify()?, ctx.ule(&a, &b)?);
+    assert_eq!(ctx.ugt(&a, &b)?.simplify()?, ctx.ugt(&a, &b)?);
+    assert_eq!(ctx.uge(&a, &b)?.simplify()?, ctx.uge(&a, &b)?);
+
+    Ok(())
+}
