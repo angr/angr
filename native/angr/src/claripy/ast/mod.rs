@@ -6,6 +6,7 @@ pub mod bv;
 pub mod coerce;
 pub mod fp;
 pub mod opstring;
+pub mod repr;
 pub mod string;
 pub mod util;
 
