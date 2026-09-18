@@ -157,10 +157,13 @@ impl<'c> AstFactory<'c> for Context<'c> {
         self
     }
 
-    fn intern_ast(&'c self, node: AstNode<'c>) -> Result<AstRef<'c>, ClarirsError> {
-        let hash = node.hash();
+    fn intern_ast(
+        &'c self,
+        hash: u64,
+        build: impl FnOnce() -> AstNode<'c>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
         self.ast_cache
-            .get_or_insert::<ClarirsError>(hash, || Ok(Arc::new(node)))
+            .get_or_insert::<ClarirsError>(hash, || Ok(Arc::new(build())))
     }
 }
 
