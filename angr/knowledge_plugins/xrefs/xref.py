@@ -19,7 +19,6 @@ class XRef(Serializable):
         "ins_addr",
         "insn_op_idx",
         "insn_op_type",
-        "memory_data",
         "stmt_idx",
         "type",
     )
@@ -44,7 +43,9 @@ class XRef(Serializable):
         self.stmt_idx: int | None = stmt_idx
 
         # dst
-        self.memory_data = memory_data  # optional
+        # Note that XRef does not hold a reference to a MemoryData object: the corresponding MemoryData (if any) is
+        # the model's memory_data entry at self.dst. Holding a reference here would pin the object in memory and
+        # defeat the spilling of CFGModel.memory_data.
         self.dst = dst
         self.type = xref_type
 
@@ -56,12 +57,7 @@ class XRef(Serializable):
         return XRefType.to_string(self.type)
 
     def __repr__(self):
-        if self.dst is not None:
-            dst_str = hex(self.dst) if isinstance(self.dst, int) else str(self.dst)
-        elif self.memory_data is not None:
-            dst_str = hex(self.memory_data.addr)
-        else:
-            dst_str = "unknown"
+        dst_str = (hex(self.dst) if isinstance(self.dst, int) else str(self.dst)) if self.dst is not None else "unknown"
         ins_addr_str = f"{self.ins_addr:#x}" if self.ins_addr is not None else f"{self.block_addr:#x}[{self.stmt_idx}]"
         return f"<XRef {self.type_string}: {ins_addr_str}->{dst_str}>"
 
@@ -80,19 +76,19 @@ class XRef(Serializable):
     def _get_cmsg(cls):
         return primitives_pb2.CodeReference()
 
-    def serialize_to_cmessage(self):
+    def serialize_to_cmessage(self, memory_data=None):  # pylint:disable=arguments-differ
         # pylint:disable=no-member
 
         cmsg = self._get_cmsg()
-        if self.memory_data is not None:
+        if memory_data is not None:
             # determine target_type from memory_data.sort
-            if self.memory_data.sort == angr.knowledge_plugins.cfg.memory_data.MemoryDataSort.CodeReference:
+            if memory_data.sort == angr.knowledge_plugins.cfg.memory_data.MemoryDataSort.CodeReference:
                 cmsg.target_type = primitives_pb2.CodeReference.CodeTarget
             else:
                 cmsg.target_type = primitives_pb2.CodeReference.DataTarget
 
             cmsg.location = primitives_pb2.CodeReference.Internal
-            cmsg.data_ea = self.memory_data.addr
+            cmsg.data_ea = memory_data.addr
         elif self.dst is not None:
             if isinstance(self.dst, SpOffset):
                 cmsg.target_type = primitives_pb2.CodeReference.StackTarget
@@ -114,8 +110,6 @@ class XRef(Serializable):
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, bits=None, **kwargs):  # pylint:disable=arguments-differ
-        # Note that we cannot recover _memory_data from cmsg
-
         if not isinstance(bits, int):
             raise TypeError("bits must be provided.")
 
@@ -140,7 +134,6 @@ class XRef(Serializable):
             block_addr=self.block_addr,
             stmt_idx=self.stmt_idx,
             insn_op_idx=self.insn_op_idx,
-            memory_data=self.memory_data,
             dst=self.dst,
             xref_type=self.type,
         )

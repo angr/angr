@@ -12,7 +12,7 @@ import logging
 import os
 import threading
 import weakref
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from collections.abc import Generator, Iterator
 from typing import TYPE_CHECKING, Literal, overload
 
@@ -24,10 +24,12 @@ from angr.protos import cfg_pb2
 
 from .block_id import BlockID
 from .cfg_node import CFGENode, CFGNode
-from .spilling_digraph import SpillingDiGraph
+from .spilling_digraph import KeyFlagSet, SpillingDiGraph
 from .types import CFG_ADDR_TYPES, CFGENODE_K, CFGNODE_K, SOOTNODE_K, K
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
 
     from .cfg_model import CFGModel
@@ -61,12 +63,15 @@ class SpillingCFGNodeDict:
         db_batch_size: int = 200,
     ):
         self._data: dict[K, CFGNode] = {}
-        self._spilled_keys: set[K] = set()
+        self._spilled_keys: KeyFlagSet = KeyFlagSet()
 
         self._cache_limit: int = cache_limit
         self._db_batch_size: int = db_batch_size
 
         self.rtdb: RuntimeDb | None = rtdb
+        # optional callable that maps a block key to its canonical (interned) object, so that all containers of a
+        # spilling CFG share a single resident copy of each key
+        self.intern_key: Callable[[K], K] | None = None
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
 
         self._lru_order: OrderedDict[K, None] = OrderedDict()
@@ -105,6 +110,8 @@ class SpillingCFGNodeDict:
         raise KeyError(block_key)
 
     def __setitem__(self, block_key: K, node: CFGNode) -> None:
+        if self.intern_key is not None:
+            block_key = self.intern_key(block_key)
         self._data[block_key] = node
         self._on_node_stored(block_key)
 
@@ -368,6 +375,8 @@ class SpillingCFGNodeDict:
                 node.dirty = False
 
             # Remove from spilled set and add to cache
+            if self.intern_key is not None:
+                block_key = self.intern_key(block_key)
             self._spilled_keys.discard(block_key)
             self._data[block_key] = node
             self._on_node_stored(block_key)
@@ -436,6 +445,16 @@ class SpillingCFGNodeDict:
         with self._db_store_lock:
             self._evict_n(self.cached_count)
 
+    def set_spill_flags(self, flags: dict[K, int], bit: int) -> None:
+        """
+        Re-home this container's spilled-key tracking onto a shared flags dict (see :class:`KeyFlagSet`),
+        migrating any currently-tracked spilled keys.
+        """
+        new_set = KeyFlagSet(flags, bit)
+        for key in self._spilled_keys:
+            new_set.add(key)
+        self._spilled_keys = new_set
+
     #
     # Pickling
     #
@@ -455,9 +474,10 @@ class SpillingCFGNodeDict:
         self._db_batch_size = state["db_batch_size"]
         self._data = {}
         self.rtdb = None
+        self.intern_key = None
         self._cfg_model_ref = None
         self._lru_order = OrderedDict()
-        self._spilled_keys = set()
+        self._spilled_keys = KeyFlagSet()
         self._nodesdb = None
         self._eviction_enabled = True
         self._loading_from_lmdb = False
@@ -802,11 +822,14 @@ class SpillingCFG:
             cache_limit=effective_cache_limit,
             db_batch_size=db_batch_size,
         )
-        self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
+        # addr -> block key(s) at that address. Since almost every address has exactly one node, a lone key is
+        # stored directly and only promoted to a set when a second key appears at the same address.
+        self._keys_by_addr: dict[int | SootAddressDescriptor, K | set[K]] = {}
         self._call_dst_keys: set[K] = set()
         self._out_degree_cache: dict[K, int] = {}
         self._spilling_enabled = cache_limit is not None
         self._edge_spilling_enabled = edge_cache_limit is not None
+        self._wire_spilling_containers()
 
     @property
     def addr_type(self) -> str:
@@ -820,6 +843,74 @@ class SpillingCFG:
             raise RuntimeError("Cannot change addr_type after nodes have been added")
         self._addr_type = value
         self._graph.addr_type = value
+        # setting addr_type re-creates the adjacency containers; re-attach the shared spilling bookkeeping
+        self._wire_spilling_containers()
+
+    #
+    # Key bookkeeping (interning and per-address key tracking)
+    #
+
+    def _wire_spilling_containers(self) -> None:
+        """
+        Attach the shared per-node bookkeeping to the node dict and both adjacency dicts: a single canonical-key
+        intern function, and one shared spilled-key flags dict (instead of three separate sets).
+        """
+        self._nodes.intern_key = self._intern_key
+        self._graph.set_intern_key(self._intern_key)
+        flags: dict[K, int] = {}
+        self._nodes.set_spill_flags(flags, 0b001)
+        self._graph._adj.set_spill_flags(flags, 0b010)
+        self._graph._pred.set_spill_flags(flags, 0b100)
+
+    def _intern_key(self, key: K) -> K:
+        """
+        Return the canonical object for ``key`` if one is registered in ``_keys_by_addr``, so that every container
+        holds the same single key object per node instead of one equal-but-distinct copy each.
+        """
+        if isinstance(key, tuple):
+            item = key[0]
+            addr = item.addr if isinstance(item, BlockID) else item
+        else:
+            addr = key
+        v = self._keys_by_addr.get(addr)
+        if v is None:
+            return key
+        if isinstance(v, set):
+            for k in v:
+                if k == key:
+                    return k
+            return key
+        return v if v == key else key
+
+    def _keys_by_addr_add(self, addr: int | SootAddressDescriptor, key: K) -> None:
+        v = self._keys_by_addr.get(addr)
+        if v is None:
+            self._keys_by_addr[addr] = key
+        elif isinstance(v, set):
+            v.add(key)
+        elif v != key:
+            self._keys_by_addr[addr] = {v, key}
+
+    def _keys_by_addr_discard(self, addr: int | SootAddressDescriptor, key: K) -> None:
+        v = self._keys_by_addr.get(addr)
+        if v is None:
+            return
+        if isinstance(v, set):
+            v.discard(key)
+            if not v:
+                del self._keys_by_addr[addr]
+        elif v == key:
+            del self._keys_by_addr[addr]
+
+    def iter_keys_by_addr(self, addr: int | SootAddressDescriptor) -> Iterator[K]:
+        """Yield the block key(s) of the node(s) at the given address."""
+        v = self._keys_by_addr.get(addr)
+        if v is None:
+            return
+        if isinstance(v, set):
+            yield from v
+        else:
+            yield v
 
     @property
     def _cfg_model(self) -> CFGModel | None:
@@ -848,12 +939,17 @@ class SpillingCFG:
     # Node operations
     #
 
-    def add_node(self, node: CFGNode, **attr) -> None:
-        block_key = get_block_key(node)
+    def add_node(self, node: CFGNode, **attr) -> K:
+        block_key = self._intern_key(get_block_key(node))
         self._nodes[block_key] = node
-        self._graph.add_node(block_key, **attr)
+        self._graph.add_node(block_key)
+        if attr:
+            # node attribute dicts are normally a shared immutable empty dict; only materialize a real one when
+            # attributes are actually supplied
+            self._graph._node[block_key] = {**self._graph._node[block_key], **attr}
         # update _keys_by_addr
-        self._keys_by_addr[node.addr].add(block_key)
+        self._keys_by_addr_add(node.addr, block_key)
+        return block_key
 
     def export_serialized_nodes(self) -> list[tuple[K, bytes, bool]]:
         """
@@ -914,20 +1010,19 @@ class SpillingCFG:
                         SpillingCFGNodeDict.bulk_import_serialized() for the payload format.
         """
 
+        items = [(self._intern_key(block_key), addr, payload) for block_key, addr, payload in items]
         self._nodes.bulk_import_serialized([(block_key, payload) for block_key, _, payload in items])
         graph_add_node = self._graph.add_node
-        keys_by_addr = self._keys_by_addr
+        keys_by_addr_add = self._keys_by_addr_add
         for block_key, addr, _ in items:
             graph_add_node(block_key)
-            keys_by_addr[addr].add(block_key)
+            keys_by_addr_add(addr, block_key)
 
     def remove_node(self, node: CFGNode) -> None:
         block_key = get_block_key(node)
         if block_key in self._nodes:
             del self._nodes[block_key]
-        self._keys_by_addr[node.addr].discard(block_key)
-        if not self._keys_by_addr.get(node.addr):
-            self._keys_by_addr.pop(node.addr, None)
+        self._keys_by_addr_discard(node.addr, block_key)
         if block_key in self._graph:
             # Update call destination cache: remove this node as a destination
             self._call_dst_keys.discard(block_key)
@@ -958,7 +1053,7 @@ class SpillingCFG:
         return block_key in self._graph
 
     def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:
-        for block_key in self._keys_by_addr.get(addr, []):
+        for block_key in self.iter_keys_by_addr(addr):
             yield self.get_node_by_key(block_key)
 
     def has_node_addr(self, addr: int) -> bool:
@@ -987,8 +1082,8 @@ class SpillingCFG:
     #
 
     def add_edge(self, src: CFGNode, dst: CFGNode, **attr) -> None:
-        src_block_key = get_block_key(src)
-        dst_block_key = get_block_key(dst)
+        src_block_key = self._intern_key(get_block_key(src))
+        dst_block_key = self._intern_key(get_block_key(dst))
 
         # Always update _nodes with the passed nodes
         # This is needed for node replacement during _shrink_node
@@ -998,6 +1093,8 @@ class SpillingCFG:
         self.add_edge_by_key(src_block_key, dst_block_key, **attr)
 
     def add_edge_by_key(self, src_block_key: K, dst_block_key: K, **attr) -> None:
+        src_block_key = self._intern_key(src_block_key)
+        dst_block_key = self._intern_key(dst_block_key)
         # Ensure nodes exist in the graph structure
         if src_block_key not in self._graph:
             self._graph.add_node(src_block_key)
@@ -1154,12 +1251,13 @@ class SpillingCFG:
         new_graph._nodes = self._nodes.copy()
         new_graph._spilling_enabled = self._spilling_enabled
         new_graph._edge_spilling_enabled = self._edge_spilling_enabled
-        new_graph._keys_by_addr = defaultdict(set)
-        for addr, keys in self._keys_by_addr.items():
-            new_graph._keys_by_addr[addr] = set(keys)
+        new_graph._keys_by_addr = {
+            addr: set(keys) if isinstance(keys, set) else keys for addr, keys in self._keys_by_addr.items()
+        }
         new_graph._call_dst_keys = set(self._call_dst_keys)
         new_graph._graph = self._graph.copy()
         new_graph._out_degree_cache = dict(self._out_degree_cache)
+        new_graph._wire_spilling_containers()
 
         return new_graph
 
@@ -1283,7 +1381,7 @@ class SpillingCFG:
         self._edge_spilling_enabled = state.get("edge_spilling_enabled", False)
         self._cfg_model_ref = None
         self._rtdb = None
-        self._keys_by_addr = defaultdict(set)
+        self._keys_by_addr = {}
 
         nodes_state = state["nodes"]
         self._nodes = SpillingCFGNodeDict.__new__(SpillingCFGNodeDict)
@@ -1291,7 +1389,7 @@ class SpillingCFG:
 
         # initialize _keys_by_addr
         for node_key, node in self._nodes.items():
-            self._keys_by_addr[node.addr].add(node_key)
+            self._keys_by_addr_add(node.addr, node_key)
 
         # rebuild _out_degree_cache from the graph
         self._out_degree_cache = {}
@@ -1304,3 +1402,5 @@ class SpillingCFG:
             jk = edata.get("jumpkind", "")
             if jk == "Ijk_Call" or jk.startswith("Ijk_Sys"):
                 self._call_dst_keys.add(dst_key)
+
+        self._wire_spilling_containers()
