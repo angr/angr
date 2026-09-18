@@ -915,11 +915,8 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         if self._kb is None or self._kb._project is None:
             return max_limit
-        limit = self._kb._project.get_function_cache_limit()
-        if limit is None:
-            return limit
-        limit = max(limit, 100)
-        return min(max_limit, limit)
+        project = self._kb._project
+        return project.get_function_cache_limit()
 
     def _generate_callmap_sif(self, filepath):
         """
