@@ -1035,11 +1035,14 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(retn_node, self.address_types):
             retn_node = self._kb._project.factory.snippet(retn_node)
+        if to_addr is not None:
+            # load or create the callee before fetching the caller: loading it may evict the caller, and a caller
+            # fetched earlier would then be mutated after it was written out
+            self.function(addr=to_addr, create=True, syscall=syscall)
         func = self._function_map[function_addr]
         func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
         if to_addr is not None:
-            self.function(addr=to_addr, create=True, syscall=syscall)
             dest_func_node = FuncNode(to_addr)
             func._call_to(
                 from_node,
