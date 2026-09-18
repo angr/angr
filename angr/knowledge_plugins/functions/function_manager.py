@@ -19,7 +19,7 @@ from archinfo.arch_soot import SootMethodDescriptor
 from cachetools import LRUCache
 from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
-from angr.codenode import FuncNode, HookNode
+from angr.codenode import FuncNode
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
@@ -1447,21 +1447,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
             if func.block_addrs_set:
-                for node in func.transition_graph:
-                    if isinstance(node, HookNode) and node.addr == func.addr:
-                        # the start node of a hooked function, not a callee
-                        continue
-                    if isinstance(node, (HookNode, FuncNode)) and self.contains_addr(node.addr):
-                        self.callgraph.add_edge(func.addr, node.addr)
-                    else:
-                        inedges = func.transition_graph.in_edges(node, data=True)
-                        for _, _, data in inedges:
-                            if (
-                                data.get("type") == "transition"
-                                and data.get("outside") is True
-                                and self.contains_addr(node.addr)
-                            ):
-                                self.callgraph.add_edge(func.addr, node.addr)
+                for target in func.outgoing_function_targets():
+                    if self.contains_addr(target):
+                        self.callgraph.add_edge(func.addr, target)
 
     #
     # Non-returning function cache
