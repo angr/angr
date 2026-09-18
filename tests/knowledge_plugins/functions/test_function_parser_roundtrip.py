@@ -2,7 +2,7 @@
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
 """
 Serialize/parse round trips of Function objects must be lossless: node kinds (HookNode/SyscallNode/FuncNode), Thumb
-blocks, standalone fake-return edges, and unset edge attributes (ins_addr/stmt_idx) all round trip.
+blocks, standalone fake-return edges, retout sites, and unset edge attributes (ins_addr/stmt_idx) all round trip.
 These paths are what SpillingFunctionDict and angrdb use to store functions.
 """
 
@@ -147,6 +147,29 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
         self.assertTrue(all(n.thumb for n in loaded.transition_graph.nodes()))
         self.assertTrue(loaded.startpoint.thumb)
         self.assertEqual(loaded.get_node(0x8417).bytestr, b1.bytestr)
+
+    def test_retout_site(self):
+        proj = self.proj
+        fm = proj.kb.functions
+        func = fm.function(addr=0x400664, create=True)
+        src = proj.factory.snippet(0x400664)
+        ret = proj.factory.snippet(0x40068E)
+        fm._add_call_to(0x400664, src, 0x400550, retn_node=ret, stmt_idx=-2, ins_addr=0x400689, return_to_outside=True)
+        assert func.retout_sites == [src] and not func.has_return
+
+        loaded = _roundtrip(func)
+        _assert_graph_equal(self, func, loaded)
+        self.assertEqual(loaded.retout_sites, [src])
+        self.assertEqual(loaded.ret_sites, [])
+        self.assertFalse(loaded.has_return)
+        self.assertEqual(loaded.transition_graph[src][ret]["outside"], True)
+
+        # a block that is both a return site and a retout site keeps both roles
+        fm._add_return_from(0x400664, src)
+        loaded = _roundtrip(func)
+        _assert_graph_equal(self, func, loaded)
+        self.assertTrue(loaded.has_return)
+        self.assertEqual(loaded.retout_sites, [src])
 
     def test_none_and_zero_ins_addr_stmt_idx(self):
         proj = self.proj

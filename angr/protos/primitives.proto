@@ -155,6 +155,7 @@ enum EndpointType {
     CALL = 0;
     RETURN = 1;
     TRANSITION = 2;
+    RETOUT = 3; // returning to outside of the function (Function.retout_sites)
 }
 
 // Function endpoints

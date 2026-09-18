@@ -88,21 +88,30 @@ class FunctionParser:
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
 
+        ret_sites = function._ret_sites
+        retout_sites = function._retout_sites
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
             for node in endpoint_nodes:
-                ep = primitives_pb2.Endpoint()
-                ep.ea = node.addr
-                ep.size = node.size
                 match endpoint_type:
                     case "call":
-                        ep.type = primitives_pb2.EndpointType.CALL
+                        ep_types = [primitives_pb2.EndpointType.CALL]
                     case "return":
-                        ep.type = primitives_pb2.EndpointType.RETURN
+                        # a "return" endpoint is a return site, a retout site, or (rarely) both
+                        ep_types = []
+                        if node in retout_sites:
+                            ep_types.append(primitives_pb2.EndpointType.RETOUT)
+                        if node in ret_sites or not ep_types:
+                            ep_types.append(primitives_pb2.EndpointType.RETURN)
                     case "transition":
-                        ep.type = primitives_pb2.EndpointType.TRANSITION
+                        ep_types = [primitives_pb2.EndpointType.TRANSITION]
                     case _:
                         continue
-                obj.endpoints.append(ep)
+                for ep_type in ep_types:
+                    ep = primitives_pb2.Endpoint()
+                    ep.ea = node.addr
+                    ep.size = node.size
+                    ep.type = ep_type
+                    obj.endpoints.append(ep)
 
         # signature matched?
         if not function.from_signature:
@@ -424,6 +433,8 @@ class FunctionParser:
                 func._add_endpoint(block, "call")
             case primitives_pb2.EndpointType.RETURN:
                 func._add_return_site(block)
+            case primitives_pb2.EndpointType.RETOUT:
+                func.add_retout_site(block)
             case primitives_pb2.EndpointType.TRANSITION:
                 func.add_jumpout_site(block)
             case _:
