@@ -110,6 +110,8 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 oident=stmt.dst.oident,
                 **stmt.dst.tags,
             )
+            if self.variable_map is not None:
+                self.variable_map.transfer(stmt.dst, new_dst)
 
         # ensure we do not generate vvar_A = vvar_A or var_A = var_A (even if lhs and rhs are different vvars, they
         # can be mapped to the same variable)
@@ -288,7 +290,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
 
     def _handle_expr_VirtualVariable(self, expr: VirtualVariable) -> VirtualVariable | None:
         if expr.varid in self.vvar_to_vvar:
-            return VirtualVariable(
+            new_expr = VirtualVariable(
                 expr.idx,
                 self.vvar_to_vvar[expr.varid],
                 expr.bits,
@@ -296,6 +298,9 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 oident=expr.oident,
                 **expr.tags,
             )
+            if self.variable_map is not None:
+                self.variable_map.transfer(expr, new_expr)
+            return new_expr
         return None
 
     def _handle_stmt_Return(self, stmt):
