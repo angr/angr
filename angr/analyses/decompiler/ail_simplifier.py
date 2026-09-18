@@ -1816,13 +1816,14 @@ class AILSimplifier(Analysis):
                 assert the_def.codeloc.stmt_idx is not None
 
                 # Do not fold a call whose defining statement carries extra_defs (side-effect writes through pointer
-                # arguments, e.g. a call that fills a stack buffer). Folding moves the call to its single return-value
-                # use site, which would move the side-effect write as well and leave other uses of the written-through
-                # vvars reading an undefined value.
+                # arguments, e.g. a call that fills a stack buffer) or clobber_defs (caller-saved registers that a
+                # later statement reads). Folding moves the call to its single return-value use site, which would
+                # move those definitions as well and leave their other uses reading an undefined value.
                 def_block = addr_and_idx_to_block.get((the_def.codeloc.block_addr, the_def.codeloc.block_idx))
                 if def_block is not None:
                     def_block = self.blocks.get(def_block, def_block)
-                    if def_block.statements[the_def.codeloc.stmt_idx].tags.get("extra_defs"):
+                    def_tags = def_block.statements[the_def.codeloc.stmt_idx].tags
+                    if def_tags.get("extra_defs") or def_tags.get("clobber_defs"):
                         continue
 
                 all_uses = rd.get_vvar_uses_with_expr(the_def.atom)
@@ -2234,6 +2235,23 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
+                if (
+                    idx in stmts_to_remove
+                    and idx in stmts_to_keep
+                    and isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.varid in dead_vvar_ids
+                    and stmt.dst.varid not in self._avoid_vvar_ids
+                    and not stmt.dst.was_combo_reg
+                ):
+                    # the call's return value is dead, but the statement stays for the registers the call clobbers
+                    # (clobber_defs); keep the call without the assignment
+                    if isinstance(stmt.src, (Call, FunctionLikeMacro)):
+                        stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
+                        simplified = True
+                    elif isinstance(stmt.src, Convert) and isinstance(stmt.src.operand, (Call, FunctionLikeMacro)):
+                        stmt = SideEffectStatement(stmt.idx, stmt.src.operand, **stmt.tags)
+                        simplified = True
                 if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, SideEffectStatement):
                     # this statement declares more than one variable. we should handle it surgically
                     # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used

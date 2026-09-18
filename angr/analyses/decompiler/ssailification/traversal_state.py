@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 from typing import TYPE_CHECKING
 
 from angr.ailment.expression import StackBaseOffset
@@ -45,7 +45,7 @@ class TraversalState:
         func,
         live_registers: MutableMapping[int, Value] | None = None,
         live_stackvars: DefaultChainMapCOW[int, Value] | None = None,
-        register_blackout: set[int] | None = None,
+        register_blackout: Mapping[int, set[AILCodeLocation]] | None = None,
         live_vvars: DefaultChainMapCOW[int, Value] | None = None,
         stackvar_bases: ChainMapCOW[int, tuple[int, int]] | None = None,
         register_bases: MutableMapping[int, tuple[int, int]] | None = None,
@@ -56,7 +56,10 @@ class TraversalState:
         self.arch = arch
         self.func = func
 
-        self.register_blackout = set(register_blackout or ())
+        # register byte offset -> code locations of the calls that clobbered it
+        self.register_blackout: dict[int, set[AILCodeLocation]] = (
+            {k: set(v) for k, v in register_blackout.items()} if register_blackout else {}
+        )
         self.live_registers = defaultdict(set, {} if live_registers is None else live_registers)
         self.live_stackvars: DefaultChainMapCOW[int, Value] = (
             DefaultChainMapCOW(default_factory=set, collapse_threshold=50)
@@ -226,8 +229,10 @@ class TraversalState:
             self.pending_ptr_defines_nonlocal_live.update(o.pending_ptr_defines_nonlocal_live)
             merge_occurred |= len(self.pending_ptr_defines_nonlocal_live) > old_len
 
-            old_len = len(self.register_blackout)
-            self.register_blackout.update(o.register_blackout)
-            merge_occurred |= len(self.register_blackout) > old_len
+            for suboff, locs in o.register_blackout.items():
+                dst_locs = self.register_blackout.setdefault(suboff, set())
+                old_len = len(dst_locs)
+                dst_locs.update(locs)
+                merge_occurred |= len(dst_locs) > old_len
 
         return merge_occurred

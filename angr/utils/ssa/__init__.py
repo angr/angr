@@ -26,6 +26,7 @@ from angr.ailment.expression import (
     Tmp,
     UnaryOp,
     VirtualVariable,
+    VirtualVariableCategory,
 )
 from angr.ailment.statement import CAS, Assignment, SideEffectStatement, Statement, Store
 from angr.code_location import AILCodeLocation
@@ -113,6 +114,28 @@ def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
     return base_reg_and_size[0]
 
 
+def clobber_def_ids(stmt) -> list[int]:
+    """
+    vvar IDs of the registers that a call statement clobbers and thereby defines. The ``clobber_defs`` tag holds
+    ``(varid, reg_offset, bits)`` triples, flattened so that it survives serialization.
+    """
+    raw = stmt.tags.get("clobber_defs")
+    return raw[0::3] if raw else []
+
+
+def clobber_def_vvars(stmt) -> list[VirtualVariable]:
+    """
+    The register virtual variables that a call statement defines by clobbering them (see ``clobber_def_ids``).
+    """
+    raw = stmt.tags.get("clobber_defs")
+    if not raw:
+        return []
+    return [
+        VirtualVariable(None, raw[i], raw[i + 2], VirtualVariableCategory.REGISTER, oident=raw[i + 1])
+        for i in range(0, len(raw), 3)
+    ]
+
+
 def get_vvar_deflocs(
     blocks, phi_vvars: dict[int, set[int | None]] | None = None, check_extra_defs: bool = True
 ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
@@ -154,6 +177,10 @@ def get_vvar_deflocs(
                 assert not check_extra_defs or all(varid in vvar_to_loc for varid in extra_defs), (
                     "extra_def tag was dropped"
                 )
+            if "clobber_defs" in stmt.tags:
+                loc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
+                for cvvar in clobber_def_vvars(stmt):
+                    vvar_to_loc[cvvar.varid] = (cvvar, loc)
 
     return vvar_to_loc
 
@@ -271,6 +298,10 @@ def get_uses_defs(
                 assert not check_extra_defs or all(varid in vvar_deflocs for varid in extra_defs), (
                     "extra_def tag was dropped"
                 )
+            if "clobber_defs" in stmt.tags:
+                loc = AILCodeLocation(block_addr, block_idx, stmt_idx, stmt_ins_addr)
+                for cvvar in clobber_def_vvars(stmt):
+                    vvar_deflocs[cvvar.varid] = (cvvar, loc)
 
         collector.walk(block)
 
@@ -648,6 +679,8 @@ __all__ = (
     "AILWhitelistExprTypeWalker",
     "VVarUsesCollector",
     "check_in_between_stmts",
+    "clobber_def_ids",
+    "clobber_def_vvars",
     "get_tmp_deflocs",
     "get_tmp_uselocs",
     "get_vvar_deflocs",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from itertools import chain
+from itertools import chain, count
 from typing import TYPE_CHECKING, cast
 
 from angr.ailment.expression import (
@@ -88,6 +88,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         use_tmps: bool = False,
         functions: Callable[[int | str], Function | None] | None = None,
         variable_map=None,
+        ail_manager=None,
     ):
         super().__init__(project)
         self.simos = simos
@@ -97,6 +98,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.use_tmps = use_tmps
         self.functions = functions
         self.variable_map: VariableMap | None = variable_map
+        self._next_atom = ail_manager.next_atom if ail_manager is not None else count(1 << 30).__next__
+        # a call defines every caller-saved register it clobbers. One synthetic Def per (call, base register),
+        # created lazily when a clobbered register is read, so reads on every path share the definition.
+        self._clobber_defs: dict[tuple[AILCodeLocation, int], Register] = {}
+        self.clobber_defs_by_loc: dict[tuple[int, int | None, int], list[Register]] = defaultdict(list)
         self.def_info: dict[Def, DefInfo] = {}
         # stack offset -> code location, StackBaseOffset expr, set of (offset, size) tuples, required, no_reaching_def
         self.pending_ptr_defines_nonlocal: dict[
@@ -429,22 +435,24 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 break
 
         defs: set[Def] = set().union(*secret_stash.values())
-        blacked_out = full_offset in self.state.register_blackout
+        clobber_locs = self.state.register_blackout.get(full_offset)
         def_as = None
-        if not defs or blacked_out:
-            assert def_ is not None, "register_get() requires def_, but no definition reaches this point"
-            self.perform_def(
-                "reg",
-                def_,
-                full_offset,
-                full_size,
-                offset,
-                size,
-                AILCodeLocation.make_extern(0) if not blacked_out else None,
-            )
-            def_as = {def_}
+        if clobber_locs:
+            # the register was clobbered by one call per incoming path; each call defines it. Definitions that
+            # reach along paths without a clobbering call stay in play, so a merge point still gets its phi.
+            def_as = set(defs)
+            for loc in sorted(
+                clobber_locs, key=lambda loc: (loc.addr, -1 if loc.block_idx is None else loc.block_idx, loc.stmt_idx)
+            ):
+                cdef = self._clobber_def(loc, full_offset, full_size)
+                self.perform_def("reg", cdef, full_offset, full_size, offset, size, loc)
+                def_as.add(cdef)
             for suboff in range(full_offset, full_offset + full_size):
-                self.state.register_blackout.discard(suboff)
+                self.state.register_blackout.pop(suboff, None)
+        elif not defs:
+            assert def_ is not None, "register_get() requires def_, but no definition reaches this point"
+            self.perform_def("reg", def_, full_offset, full_size, offset, size, AILCodeLocation.make_extern(0))
+            def_as = {def_}
         else:
             def_as = defs
 
@@ -458,13 +466,31 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             else set()
         )
 
+    def clobber_def_for(self, loc: AILCodeLocation, reg_offset: int) -> Register | None:
+        """
+        The definition that the call at ``loc`` created for the register containing ``reg_offset``, if a read of that
+        register ever reached back to this call.
+        """
+        base_off, _ = get_reg_offset_base_and_size(reg_offset, self.project.arch)
+        return self._clobber_defs.get((loc, base_off))
+
+    def _clobber_def(self, loc: AILCodeLocation, full_offset: int, full_size: int) -> Register:
+        base_off, _ = get_reg_offset_base_and_size(full_offset, self.project.arch)
+        key = (loc, base_off)
+        cdef = self._clobber_defs.get(key)
+        if cdef is None:
+            cdef = Register(self._next_atom(), full_offset, full_size * self.project.arch.byte_width, clobber=True)
+            self._clobber_defs[key] = cdef
+            self.clobber_defs_by_loc[(loc.addr, loc.block_idx, loc.stmt_idx)].append(cdef)
+        return cdef
+
     def register_set(self, offset: int, size: int, value: Value, def_: Def):
         self.state.live_registers[offset] = value
 
         for suboff in range(offset, offset + size):
             self.state.register_defs.pop(suboff, None)
             self.state.register_bases[suboff] = (offset, size)
-            self.state.register_blackout.discard(suboff)
+            self.state.register_blackout.pop(suboff, None)
 
         self.perform_def("reg", def_, offset, size, offset, size)
 
@@ -623,18 +649,19 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         ):
             self._use_potential_arg_regs(cc)
 
-        # kill caller-saved registers
+        # kill caller-saved registers; the call becomes their definition
+        call_loc = self._acodeloc()
         for reg_name in call_clobbered_regs(cc, target, self.arch):
             reg_offset, _ = self.arch.registers[reg_name]
             base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch)
             self.state.live_registers.pop(base_off, None)
             for suboff in range(base_off, base_off + base_size):
-                self.state.register_blackout.add(suboff)
+                self.state.register_blackout[suboff] = {call_loc}
                 self.state.register_defs.pop(suboff, None)
         for reg in cc.arch.vex_cc_regs or []:
             self.state.live_registers.pop(reg.vex_offset, None)
             for suboff in range(reg.vex_offset, reg.vex_offset + reg.size):
-                self.state.register_blackout.add(suboff)
+                self.state.register_blackout[suboff] = {call_loc}
                 self.state.register_defs.pop(suboff, None)
 
         return set()
