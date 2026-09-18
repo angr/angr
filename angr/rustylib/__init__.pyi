@@ -1,4 +1,4 @@
-from . import ailment, automaton, claripy, fuzzer, icicle
+from . import ailment, automaton, claripy, function_graph, fuzzer, icicle
 
 class Segment:
     """
@@ -183,4 +183,4 @@ class SegmentList:
         :returns: A copy of the SegmentList instance.
         """
 
-__all__ = ["Segment", "SegmentList", "ailment", "automaton", "claripy", "fuzzer", "icicle"]
+__all__ = ["Segment", "SegmentList", "ailment", "automaton", "claripy", "function_graph", "fuzzer", "icicle"]
