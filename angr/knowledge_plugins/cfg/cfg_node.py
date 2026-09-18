@@ -657,7 +657,7 @@ class CFGENode(CFGNode):
         # Parse block_id
         block_id = None
         bid = cmsg.block_id_obj
-        if bid.HasField("callsite_tuples"):
+        if bid.callsite_tuples:
             callsite_tuples = tuple(entry.value if entry.has_value else None for entry in bid.callsite_tuples)
         else:
             callsite_tuples = None
