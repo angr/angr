@@ -253,7 +253,7 @@ class Function(Serializable):
         self._tg: TransitionGraph | None = None
         # one canonical CodeNode object per store node id, created on demand
         self._node_objs: dict[int, CodeNode] = {}
-        self._block_addrs_cache: frozenset[int] | None = None
+        self._block_addrs_cache: set[int] | None = None
         self._local_transition_graph = None
         self.normalized = False
 
@@ -813,7 +813,7 @@ class Function(Serializable):
         """
 
         if self._block_addrs_cache is None:
-            self._block_addrs_cache = frozenset(self._graph.local_addrs())
+            self._block_addrs_cache = set(self._graph.local_addrs())
         return self._block_addrs_cache
 
     def get_block(self, addr: int, size: int | None = None, byte_string: bytes | None = None):
@@ -1538,7 +1538,8 @@ class Function(Serializable):
         self.mark_dirty()
         self._local_transition_graph = None
         if new_local:
-            self._block_addrs_cache = None
+            if self._block_addrs_cache is not None:
+                self._block_addrs_cache.add(addr)
             if update_func_block_count:
                 self.update_func_block_count()
         if self._tg is not None and self._graph.contains_node(idx):
