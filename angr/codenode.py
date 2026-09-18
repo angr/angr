@@ -25,13 +25,15 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     The base class of nodes in a function graph.
     """
 
-    __slots__ = ["_graph", "_hash", "addr", "size", "thumb"]
+    __slots__ = ["_graph", "_hash", "_owner", "addr", "size", "thumb"]
 
     def __init__(self, addr: K, size: int, graph=None, thumb=False):
         self.addr = addr
         self.size: int = size
         self.thumb = thumb
         self._graph = weakref.proxy(graph) if graph is not None else None
+        # the Function whose transition graph this node belongs to; successors()/predecessors() go through it
+        self._owner = None
 
         self._hash = None
 
@@ -63,15 +65,24 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     def set_graph(self, graph):
         self._graph = weakref.proxy(graph)
 
-    def successors(self) -> list[CodeNode]:
+    def set_owner(self, func) -> None:
+        self._owner = weakref.proxy(func)
+
+    def _graph_view(self):
+        if self._owner is not None:
+            try:
+                return self._owner.transition_graph
+            except ReferenceError:
+                pass
         if self._graph is None:
             raise ValueError("Cannot calculate successors for graphless node")
-        return list(self._graph.successors(self))
+        return self._graph
+
+    def successors(self) -> list[CodeNode]:
+        return list(self._graph_view().successors(self))
 
     def predecessors(self):
-        if self._graph is None:
-            raise ValueError("Cannot calculate predecessors for graphless node")
-        return list(self._graph.predecessors(self))
+        return list(self._graph_view().predecessors(self))
 
     def __getstate__(self) -> tuple:
         return self.addr, self.size
