@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use,protected-access
 """
-Serialize/parse round trips of Function objects must be lossless: unset edge attributes (ins_addr/stmt_idx) round trip.
+Serialize/parse round trips of Function objects must be lossless: node kinds (HookNode/SyscallNode/FuncNode), Thumb
+blocks, standalone fake-return edges, and unset edge attributes (ins_addr/stmt_idx) all round trip.
 These paths are what SpillingFunctionDict and angrdb use to store functions.
 """
 
@@ -11,8 +12,9 @@ import os
 import unittest
 
 import angr
-from angr.codenode import FuncNode
+from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.knowledge_plugins.functions.function import Function
+from angr.protos import primitives_pb2
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -68,6 +70,84 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
             os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False, cache_limits={"functions": None}
         )
 
+    def test_fake_return_only_edge(self):
+        # a fall-through edge without a call edge from the same block (e.g. the call target was unresolvable)
+        proj = self.proj
+        fm = proj.kb.functions
+        func = fm.function(addr=0x400664, create=True)
+        src = proj.factory.snippet(0x400664)
+        dst = proj.factory.snippet(0x40068E)
+        fm._add_node(0x400664, src)
+        fm._add_fakeret_to(0x400664, src, dst, confirmed=None)
+        # an unconfirmed fake-return edge to a block that is not part of the function
+        src2 = proj.factory.snippet(0x400699)
+        ext = proj.factory.snippet(0x4006AF)
+        fm._add_node(0x400664, src2)
+        fm._add_fakeret_to(0x400664, src2, ext, confirmed=False)
+        assert ext.addr not in func.block_addrs_set
+
+        loaded = _roundtrip(func)
+        _assert_graph_equal(self, func, loaded)
+        self.assertEqual(loaded.transition_graph[src][dst], {"type": "fake_return", "outside": False})
+        self.assertEqual(
+            loaded.transition_graph[src2][ext], {"type": "fake_return", "outside": False, "confirmed": False}
+        )
+        self.assertNotIn(ext.addr, loaded.block_addrs_set)
+
+    def test_local_hook_node_and_hooked_edge_targets(self):
+        proj = self.proj
+        fm = proj.kb.functions
+        puts_addr = proj.loader.find_symbol("puts").rebased_addr
+        assert proj.is_hooked(puts_addr)
+
+        # the hooked function itself: a single local HookNode that is the start point and a return site
+        hooked = fm.function(addr=puts_addr, create=True)
+        hook_node = proj.factory.snippet(puts_addr)
+        assert isinstance(hook_node, HookNode)
+        fm._add_node(puts_addr, hook_node)
+        fm._add_return_from(puts_addr, hook_node)
+
+        loaded = _roundtrip(hooked)
+        _assert_graph_equal(self, hooked, loaded)
+        self.assertIsInstance(loaded.startpoint, HookNode)
+        self.assertIs(loaded.startpoint.sim_procedure, proj.hooked_by(puts_addr))
+        self.assertEqual([type(n) for n in loaded.ret_sites], [HookNode])
+
+        # a caller: call and syscall edges target FuncNodes, a tail jump targets the HookNode
+        caller = fm.function(addr=0x400664, create=True)
+        src = proj.factory.snippet(0x400664)
+        fm._add_call_to(0x400664, src, puts_addr, stmt_idx=-2, ins_addr=0x400689)
+        src2 = proj.factory.snippet(0x400699)
+        fm._add_call_to(0x400664, src2, puts_addr, syscall=True, stmt_idx=-2, ins_addr=0x4006AA)
+        src3 = proj.factory.snippet(0x4006AF)
+        fm._add_outside_transition_to(0x400664, src3, puts_addr, to_function_addr=puts_addr, ins_addr=0x4006C3)
+
+        loaded = _roundtrip(caller)
+        _assert_graph_equal(self, caller, loaded)
+        kinds = {(src_.addr, data["type"]): type(dst_) for src_, dst_, data in loaded.transition_graph.edges(data=True)}
+        self.assertIs(kinds[(0x400664, "call")], FuncNode)
+        self.assertIs(kinds[(0x400699, "syscall")], FuncNode)
+        self.assertIs(kinds[(0x4006AF, "transition")], HookNode)
+
+    def test_thumb_blocks(self):
+        proj = angr.Project(
+            os.path.join(test_location, "armel", "fauxware"), auto_load_libs=False, cache_limits={"functions": None}
+        )
+        fm = proj.kb.functions
+        func = fm.function(addr=0x8411, create=True)
+        b0 = proj.factory.snippet(0x8411)
+        b1 = proj.factory.snippet(0x8417)
+        assert isinstance(b0, BlockNode) and b0.thumb and b1.thumb
+        fm._add_node(0x8411, b0)
+        fm._add_transition_to(0x8411, b0, b1, ins_addr=0x8415, stmt_idx=-2)
+        fm._add_return_from(0x8411, b1)
+
+        loaded = _roundtrip(func)
+        _assert_graph_equal(self, func, loaded)
+        self.assertTrue(all(n.thumb for n in loaded.transition_graph.nodes()))
+        self.assertTrue(loaded.startpoint.thumb)
+        self.assertEqual(loaded.get_node(0x8417).bytestr, b1.bytestr)
+
     def test_none_and_zero_ins_addr_stmt_idx(self):
         proj = self.proj
         fm = proj.kb.functions
@@ -91,6 +171,31 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
         self.assertEqual(
             loaded.transition_graph[b2][FuncNode(0x400550)], {"type": "call", "ins_addr": None, "stmt_idx": None}
         )
+
+    def test_legacy_message_without_node_kinds(self):
+        # messages written before Block.kind/thumb existed still load: external functions are only listed by address
+        proj = self.proj
+        fm = proj.kb.functions
+        puts_addr = proj.loader.find_symbol("puts").rebased_addr
+        func = fm.function(addr=0x400664, create=True)
+        src = proj.factory.snippet(0x400664)
+        ret = proj.factory.snippet(0x40068E)
+        fm._add_call_to(0x400664, src, 0x400550, retn_node=ret, stmt_idx=-2, ins_addr=0x400689)
+        fm._add_fakeret_to(0x400664, src, ret, confirmed=True)
+        fm._add_outside_transition_to(0x400664, ret, puts_addr, to_function_addr=puts_addr, ins_addr=0x400690)
+        fm._add_return_from(0x400664, ret)
+
+        cmsg = func.serialize_to_cmessage()
+        legacy_external = [b for b in cmsg.external_blocks if b.kind == primitives_pb2.CodeNodeKind.BLOCK_NODE]
+        del cmsg.external_blocks[:]
+        cmsg.external_blocks.extend(legacy_external)
+        for block in list(cmsg.blocks) + list(cmsg.external_blocks):
+            block.ClearField("kind")
+            block.ClearField("thumb")
+        assert cmsg.external_functions
+
+        loaded = Function.parse_from_cmessage(cmsg, function_manager=fm, project=proj)
+        _assert_graph_equal(self, func, loaded)
 
 
 if __name__ == "__main__":

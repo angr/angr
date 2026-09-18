@@ -52,12 +52,22 @@ message Instruction {
     bool            local_noreturn = 4;
 }
 
+// Kind of a node in a function transition graph
+enum CodeNodeKind {
+    BLOCK_NODE = 0; // BlockNode (the default, so that messages without a kind load as blocks)
+    HOOK_NODE = 1; // HookNode
+    SYSCALL_NODE = 2; // SyscallNode
+    FUNC_NODE = 3; // FuncNode
+}
+
 // Derived from McSema's CFG.proto
 message Block {
     uint64  ea = 1; // Effective address of the block
     Instruction instructions = 2;   // Instructions in this block
     uint32  size = 4; // Size of the block
     bytes   bytes = 5; // Bytes of this block
+    bool    thumb = 6; // Whether this block is in THUMB mode (ARM only)
+    CodeNodeKind kind = 7; // Kind of the function graph node this block describes
 }
 
 // Derived from McSema's CFG.proto
