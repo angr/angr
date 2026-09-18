@@ -4,7 +4,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
-from angr.protos import decompilation_cache_pb2
+from angr.protos import codegen_pb2, decompilation_cache_pb2
 from angr.serializable import Serializable
 from angr.utils.ail_serialization import (
     pack_arg_vvars,
@@ -285,6 +285,7 @@ class DecompilationCache(Serializable):
         from .notes import DecompilationNote  # pylint:disable=import-outside-toplevel
         from .structured_codegen.c import CStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
         from .structured_codegen.dummy import DummyStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
+        from .structured_codegen.rust import RustStructuredCodeGenerator  # pylint:disable=import-outside-toplevel
 
         cache = cls(cmsg.addr)
         # cfg is not serialized; reattach from kwargs so cache-validity checks still work.
@@ -296,7 +297,12 @@ class DecompilationCache(Serializable):
             if cmsg.codegen_is_dummy:
                 cache.codegen = DummyStructuredCodeGenerator.parse(cmsg.codegen)
             else:
-                cache.codegen = CStructuredCodeGenerator.parse(cmsg.codegen, project=project, kb=kb, func=function)
+                # Both flavors share the Codegen envelope; Codegen.flavor picks the generator (and the node class
+                # family its node table belongs to).
+                codegen_msg = codegen_pb2.Codegen()  # pylint:disable=no-member
+                codegen_msg.ParseFromString(cmsg.codegen)
+                codegen_cls = RustStructuredCodeGenerator if codegen_msg.flavor == "rust" else CStructuredCodeGenerator
+                cache.codegen = codegen_cls.parse_from_cmessage(codegen_msg, project=project, kb=kb, func=function)
 
         cache.errors = list(cmsg.errors)
         if cmsg.HasField("function_summary"):
