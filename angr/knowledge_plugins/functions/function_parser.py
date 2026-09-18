@@ -9,13 +9,12 @@ import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.protos import function_pb2, primitives_pb2
-from angr.rustylib.function_graph import EndpointKind, SiteKind
+from angr.rustylib.function_graph import EndpointKind, FunctionGraph, SiteKind
 from angr.sim_type import SimType, SimTypeFunction
 from angr.utils.enums_conv import (
     _EDGETYPE_MISSING,
     _PB_TO_FUNCTION_EDGETYPES,
     func_edge_type_from_pb,
-    func_edge_type_to_pb,
 )
 from angr.utils.types import make_type_reference, type_collections_for_lib
 
@@ -89,31 +88,6 @@ class FunctionParser:
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
 
-        ret_sites = set(function.ret_sites)
-        retout_sites = set(function.retout_sites)
-        for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
-            for node in endpoint_nodes:
-                match endpoint_type:
-                    case "call":
-                        ep_types = [primitives_pb2.EndpointType.CALL]
-                    case "return":
-                        # a "return" endpoint is a return site, a retout site, or (rarely) both
-                        ep_types = []
-                        if node in retout_sites:
-                            ep_types.append(primitives_pb2.EndpointType.RETOUT)
-                        if node in ret_sites or not ep_types:
-                            ep_types.append(primitives_pb2.EndpointType.RETURN)
-                    case "transition":
-                        ep_types = [primitives_pb2.EndpointType.TRANSITION]
-                    case _:
-                        continue
-                for ep_type in ep_types:
-                    ep = primitives_pb2.Endpoint()
-                    ep.ea = node.addr
-                    ep.size = node.size
-                    ep.type = ep_type
-                    obj.endpoints.append(ep)
-
         # signature matched?
         if not function.from_signature:
             obj.matched_from = function_pb2.Function.UNMATCHED
@@ -125,60 +99,8 @@ class FunctionParser:
                     f"Cannot convert from_signature {function.from_signature} into a SignatureSource enum."
                 )
 
-        # local nodes
-        code_nodes = function.code_nodes
-        blocks_list = []
-        for b in code_nodes.values():
-            blocks_list.append(FunctionParser._node_to_block_cmsg(b))
-        obj.blocks.extend(blocks_list)  # pylint:disable=no-member
-
-        # nodes outside of this function; FuncNode, HookNode, and SyscallNode addresses are also recorded in
-        # external_functions for readers that predate Block.kind
-        external_func_addrs = []
-        external_blocks = []
-        for node in function.transition_graph:
-            if code_nodes.get(node.addr) == node:
-                continue
-            external_blocks.append(FunctionParser._node_to_block_cmsg(node))
-            if isinstance(node, (FuncNode, HookNode)):
-                external_func_addrs.append(node.addr)
-
-        TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
-        edges = []
-        for src, dst, data in function.transition_graph.edges(data=True):
-            edge = primitives_pb2.Edge()
-            edge.src_ea = src.addr
-            edge.dst_ea = dst.addr
-            edge.jumpkind = TRANSITION_JK
-            edge.confirmed = 2  # default value
-            for key, value in data.items():
-                if key == "type":
-                    edge.jumpkind = func_edge_type_to_pb(value)
-                elif key == "ins_addr":
-                    if value is not None:
-                        edge.ins_addr = value
-                elif key == "stmt_idx":
-                    if value is not None:
-                        edge.stmt_idx = value
-                elif key == "outside":
-                    edge.is_outside = value
-                elif key == "confirmed":
-                    edge.confirmed = 0 if value is False else 1
-                else:
-                    l.warning('Unexpected edge data type "%s" encountered during serialization.', key)
-            edges.append(edge)
-        obj.graph.edges.extend(edges)  # pylint:disable=no-member
-        obj.external_functions.extend(external_func_addrs)  # pylint:disable=no-member
-        obj.external_blocks.extend(external_blocks)  # pylint:disable=no-member
-
-        for call_site_addr, (call_target_addr, retn_addr) in function._call_sites.items():
-            call_site = function_pb2.CallSite()
-            call_site.ea = call_site_addr
-            if call_target_addr is not None:
-                call_site.target_ea = call_target_addr
-            if retn_addr is not None:
-                call_site.return_ea = retn_addr
-            obj.call_sites.append(call_site)  # pylint:disable=no-member
+        # blocks, graph, endpoints, external references and call sites
+        obj.graph_blob = function._graph.to_bytes()
 
         return obj
 
@@ -279,6 +201,26 @@ class FunctionParser:
         else:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
+        if cmsg.graph_blob:
+            graph = FunctionGraph.from_bytes(cmsg.graph_blob)
+            if graph.func_addr != cmsg.ea:
+                raise ValueError(f"Function graph of {graph.func_addr:#x} stored under {cmsg.ea:#x}")
+            obj._graph = graph
+            obj._block_addrs_cache = None
+            if meta_only:
+                obj.meta_only = True  # can't be serialized again when evicted from the cache
+            else:
+                obj.update_func_block_count()
+            obj._dirty = False
+            return obj
+
+        return FunctionParser._parse_legacy_layout(cmsg, obj, project, meta_only)
+
+    @staticmethod
+    def _parse_legacy_layout(cmsg, obj, project, meta_only: bool):
+        """
+        Rebuild the graph from the per-block / per-edge protobuf layout that angr wrote before graph_blob existed.
+        """
         if meta_only:
             for b in cmsg.blocks:
                 obj._register(

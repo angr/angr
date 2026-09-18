@@ -28,6 +28,7 @@ import unittest
 import angr
 from angr.codenode import BlockNode, FuncNode
 from angr.knowledge_plugins.functions.function import Function
+from angr.rustylib.function_graph import FunctionGraph
 
 
 class TestFunctionParserFakeret(unittest.TestCase):
@@ -86,14 +87,12 @@ class TestFunctionParserFakeret(unittest.TestCase):
         pre = set(func.block_addrs_set)
         cmsg = func.serialize_to_cmessage()
 
-        # Sanity: cmsg shape that exposes the bug.
-        self.assertEqual([b.ea for b in cmsg.blocks], [addr])
-        fakeret_edges = [e for e in cmsg.graph.edges if e.dst_ea == fakeret_dst_addr]
+        # Sanity: the shape that exposes the bug survives serialization
+        graph = FunctionGraph.from_bytes(cmsg.graph_blob)
+        self.assertEqual(graph.local_addrs(), [addr])
+        fakeret_edges = [(u, v, d) for u, v, d in graph.edges_with_data() if graph.node_addr(v) == fakeret_dst_addr]
         self.assertEqual(len(fakeret_edges), 1)
-        self.assertFalse(
-            bool(fakeret_edges[0].is_outside),
-            "test setup: edge must have is_outside=False",
-        )
+        self.assertFalse(fakeret_edges[0][2]["outside"], "test setup: edge must have outside=False")
 
         loaded = Function.parse_from_cmessage(
             cmsg,

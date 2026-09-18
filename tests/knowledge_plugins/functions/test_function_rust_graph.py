@@ -7,16 +7,19 @@ from __future__ import annotations
 
 import os
 import pickle
+import tempfile
 import unittest
 
 import networkx
 
 import angr
-from angr.codenode import BlockNode, FuncNode
+from angr.angrdb import AngrDB
+from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.knowledge_plugins.functions.transition_graph import TransitionGraph
 from tests.common import bin_location
 
 FAUXWARE = os.path.join(bin_location, "tests", "x86_64", "fauxware")
+TRUE = os.path.join(bin_location, "tests", "x86_64", "true")
 
 
 class TestFunctionRustGraph(unittest.TestCase):
@@ -130,6 +133,62 @@ class TestFunctionRustGraph(unittest.TestCase):
         assert main.transition_graph.number_of_nodes() == 0
         assert main.startpoint is None
         assert not main.block_addrs_set
+
+    def test_hook_nodes_survive_reload(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        plt_func = next(f for f in cfg.kb.functions.values() if f.is_plt)
+        hook = next(n for n in plt_func.transition_graph.nodes() if isinstance(n, HookNode))
+        cmsg = plt_func.serialize_to_cmessage()
+        loaded = angr.knowledge_plugins.Function.parse_from_cmessage(
+            cmsg, function_manager=proj.kb.functions, project=proj
+        )
+        reloaded_hook = next(n for n in loaded.transition_graph.nodes() if n.addr == hook.addr)
+        assert isinstance(reloaded_hook, HookNode)
+        assert reloaded_hook.sim_procedure is not None
+
+    def test_angrdb_round_trip(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        before = {addr: _signature(f) for addr, f in cfg.kb.functions.items()}
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "fauxware.adb")
+            AngrDB(proj).dump(path)
+            proj2 = AngrDB().load(path)
+        after = {addr: _signature(f) for addr, f in proj2.kb.functions.items()}
+        assert before == after
+
+    def test_cfg_with_spilling_matches_cfg_without(self):
+        # a tiny cache limit forces almost every function through LMDB during recovery
+        spilled = angr.Project(TRUE, auto_load_libs=False, cache_limits={"functions": 3})
+        cfg_spilled = spilled.analyses.CFGFast()
+        assert spilled.kb.functions.spilled_function_count > 0
+        plain = angr.Project(TRUE, auto_load_libs=False, cache_limits={"functions": None})
+        cfg_plain = plain.analyses.CFGFast()
+        assert {n.addr for n in cfg_spilled.graph.nodes()} == {n.addr for n in cfg_plain.graph.nodes()}
+        assert set(spilled.kb.functions) == set(plain.kb.functions)
+        for addr in plain.kb.functions:
+            assert _signature(spilled.kb.functions[addr]) == _signature(plain.kb.functions[addr]), hex(addr)
+
+
+def _node(n):
+    return (type(n).__name__, n.addr, n.size, bool(n.thumb))
+
+
+def _signature(f):
+    tg = f.transition_graph
+    return (
+        f.returning,
+        None if f.startpoint is None else _node(f.startpoint),
+        sorted(f.block_addrs_set),
+        sorted(_node(n) for n in tg.nodes()),
+        sorted((_node(u), _node(v), tuple(sorted(d.items()))) for u, v, d in tg.edges(data=True)),
+        {k: sorted(_node(n) for n in v) for k, v in f.endpoints_with_type.items()},
+        sorted(_node(n) for n in f.ret_sites),
+        sorted(_node(n) for n in f.jumpout_sites),
+        sorted(_node(n) for n in f.callout_sites),
+        sorted((a, f.get_call_target(a), f.get_call_return(a)) for a in f.get_call_sites()),
+    )
 
 
 if __name__ == "__main__":
