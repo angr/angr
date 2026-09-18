@@ -83,7 +83,7 @@ class TestFunctionParserFakeret(unittest.TestCase):
             stmt_idx=None,
         )
 
-        pre = set(func._local_block_addrs)
+        pre = set(func.block_addrs_set)
         cmsg = func.serialize_to_cmessage()
 
         # Sanity: cmsg shape that exposes the bug.
@@ -100,7 +100,7 @@ class TestFunctionParserFakeret(unittest.TestCase):
             function_manager=fm,
             project=proj,
         )
-        post = set(loaded._local_block_addrs)
+        post = set(loaded.block_addrs_set)
         self.assertEqual(
             pre,
             post,

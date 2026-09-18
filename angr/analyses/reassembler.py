@@ -1163,7 +1163,7 @@ class Procedure:
                 b = BasicBlock(
                     self.binary,
                     block_addr,
-                    self.function._block_sizes[block_addr],
+                    self.function.get_block_size(block_addr),
                     x86_getpc_retsite=block_addr in x86_getpc_retsites,
                 )
                 self.blocks.append(b)

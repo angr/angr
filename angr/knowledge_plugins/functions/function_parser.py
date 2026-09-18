@@ -9,6 +9,7 @@ import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.protos import function_pb2, primitives_pb2
+from angr.rustylib.function_graph import EndpointKind, SiteKind
 from angr.sim_type import SimType, SimTypeFunction
 from angr.utils.enums_conv import (
     _EDGETYPE_MISSING,
@@ -88,8 +89,8 @@ class FunctionParser:
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
 
-        ret_sites = function._ret_sites
-        retout_sites = function._retout_sites
+        ret_sites = set(function.ret_sites)
+        retout_sites = set(function.retout_sites)
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
             for node in endpoint_nodes:
                 match endpoint_type:
@@ -128,10 +129,6 @@ class FunctionParser:
         code_nodes = function.code_nodes
         blocks_list = []
         for b in code_nodes.values():
-            if isinstance(b, BlockNode):
-                assert b.bytestr is not None, (
-                    f"Block bytes cannot be None when serializing a function. Is this function meta-only ({function.meta_only})?"
-                )
             blocks_list.append(FunctionParser._node_to_block_cmsg(b))
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
@@ -283,20 +280,16 @@ class FunctionParser:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
         if meta_only:
-            start_block = next((b for b in cmsg.blocks if b.ea == cmsg.ea), None)
-            if start_block is not None:
-                obj.startpoint = FunctionParser._node_from_block_cmsg(start_block, project, local=True)
-            else:
+            for b in cmsg.blocks:
+                obj._register(
+                    True, FunctionParser._node_from_block_cmsg(b, project, local=True), update_func_block_count=False
+                )
+            if obj.startpoint is None:
                 obj.startpoint = (
                     HookNode(cmsg.ea, 0, project.hooked_by(cmsg.ea))
                     if project and project.is_hooked(cmsg.ea)
                     else BlockNode(cmsg.ea, 1, bytestr=None)
                 )  # the size is incorrect, but it should probably be fine?
-
-            block_addrs_set = set()
-            for b in cmsg.blocks:
-                block_addrs_set.add(b.ea)
-            obj._local_block_addrs = block_addrs_set
 
             for endpoint in cmsg.endpoints:
                 block = BlockNode(endpoint.ea, endpoint.size, bytestr=None)
@@ -395,7 +388,7 @@ class FunctionParser:
                 to_outside=data["outside"] or dst.addr not in blocks,
                 update_func_block_count=False,  # we will update the block count at the end of this function
             )
-            obj.transition_graph[src][dst]["outside"] = data["outside"]
+            obj._set_edge_outside(src, dst, data["outside"])
 
         for endpoint in cmsg.endpoints:
             if endpoint.ea not in blocks:
@@ -405,18 +398,18 @@ class FunctionParser:
         # add leftover nodes: local blocks without edges or only reachable via unconfirmed fake-return edges, and
         # external nodes without edges
         for block in blocks.values():
-            if block.addr not in obj._local_blocks:
-                obj._register_node(True, block, update_func_block_count=False)
-        graph = obj.transition_graph
+            if not obj._graph.is_local(block.addr):
+                obj._register(True, block, update_func_block_count=False)
         for nodes in external_nodes.values():
             for node in nodes:
-                if node not in graph:
-                    obj._register_node(False, node, update_func_block_count=False)
+                if not obj._has_node(node):
+                    obj._register(False, node, update_func_block_count=False)
 
         obj.update_func_block_count()
 
         for call_site_cmsg in cmsg.call_sites:
-            obj._call_sites[call_site_cmsg.ea] = (
+            obj._graph.add_call_site(
+                call_site_cmsg.ea,
                 call_site_cmsg.target_ea if call_site_cmsg.HasField("target_ea") else None,
                 call_site_cmsg.return_ea if call_site_cmsg.HasField("return_ea") else None,
             )
@@ -429,8 +422,9 @@ class FunctionParser:
     def _add_endpoint(func, block: CodeNode, endpoint_type) -> None:
         match endpoint_type:
             case primitives_pb2.EndpointType.CALL:
-                func._callout_sites.add(block)
-                func._add_endpoint(block, "call")
+                idx = func._register(True, block)
+                func._graph.add_site(idx, SiteKind.CALLOUT)
+                func._graph.add_endpoint(idx, EndpointKind.CALL)
             case primitives_pb2.EndpointType.RETURN:
                 func._add_return_site(block)
             case primitives_pb2.EndpointType.RETOUT:
