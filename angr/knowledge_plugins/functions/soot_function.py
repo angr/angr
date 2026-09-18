@@ -755,6 +755,19 @@ class SootFunction(Function):
 
         return func
 
+    def outgoing_function_targets(self) -> list:
+        targets = []
+        for node in self.transition_graph:
+            if isinstance(node, HookNode) and node.addr == self.addr:
+                # the start node of a hooked function, not a callee
+                continue
+            if isinstance(node, (HookNode, FuncNode)) or any(
+                data.get("type") == "transition" and data.get("outside") is True
+                for _, _, data in self.transition_graph.in_edges(node, data=True)
+            ):
+                targets.append(node.addr)
+        return targets
+
     def _remove_edge(self, from_node, to_node) -> None:
         self.transition_graph.remove_edge(from_node, to_node)
         self._local_transition_graph = None

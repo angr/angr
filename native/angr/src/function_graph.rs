@@ -814,13 +814,16 @@ impl FunctionGraph {
         Ok(self.in_adj[idx as usize].len())
     }
 
-    /// Addresses of callees and jump-out targets: FuncNode/HookNode members plus targets of outside
-    /// transition edges. This is what the call graph needs.
+    /// Addresses of callees and jump-out targets: FuncNode/HookNode/SyscallNode members (other than the start
+    /// node of a hooked function) plus targets of outside transition edges. This is what the call graph needs.
     pub fn outgoing_function_targets(&self) -> Vec<(u64, bool)> {
         let mut out = Vec::new();
         for idx in self.graph_nodes() {
             let n = &self.nodes[idx as usize];
-            if matches!(n.kind, NodeKind::Func | NodeKind::Hook) {
+            if matches!(n.kind, NodeKind::Hook | NodeKind::Syscall) && n.addr == self.func_addr {
+                continue;
+            }
+            if matches!(n.kind, NodeKind::Func | NodeKind::Hook | NodeKind::Syscall) {
                 out.push((n.addr, true));
             } else if self.in_adj[idx as usize].iter().any(|&u| {
                 let e = &self.edges[&(u, idx)];

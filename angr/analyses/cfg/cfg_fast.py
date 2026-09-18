@@ -3100,9 +3100,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 for src, dst in edges_to_remove:
                     f._remove_fakeret(src, dst)
 
-                # Clear the cache
-                f._local_transition_graph = None
-
                 # Finally, mark endpoints of every single function
                 f.mark_nonreturning_calls_endpoints()
 

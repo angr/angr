@@ -1621,6 +1621,13 @@ class Function(Serializable):
     def _call_sites(self) -> dict[int, tuple[int | None, int | None]]:
         return {addr: (target, ret) for addr, target, ret in self._graph.call_sites()}
 
+    def outgoing_function_targets(self) -> list[int]:
+        """
+        Addresses of the functions this function calls or jumps out to: callee nodes plus the targets of outside
+        transition edges. This is what the call graph is built from.
+        """
+        return [addr for addr, _ in self._graph.outgoing_function_targets()]
+
     def get_call_sites(self) -> Iterable[int]:
         """
         Gets a list of all the basic blocks that end in calls.
