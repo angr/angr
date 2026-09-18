@@ -319,8 +319,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         # Temporarily disable eviction during copy
         new_dict._eviction_enabled = False
         # iterate over in-memory functions and copy them
-        for address in self.cached_keys:
-            function = super().__getitem__(address)
+        for address, function in self.data.items():
+            new_dict._list.add(address)
             super(SpillingFunctionDict, new_dict).__setitem__(address, function.copy())
             new_dict._lru_order[address] = None
 
@@ -337,6 +337,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                     if value is not None:
                         dst_txn.put(key, value)
                         new_dict._spilled_keys.add(addr)
+                        new_dict._list.add(addr)
 
         new_dict._eviction_enabled = True
         return new_dict
