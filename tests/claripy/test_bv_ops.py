@@ -469,3 +469,54 @@ class TestBVOperations(unittest.TestCase):
         # Test with symbolic values
         sym_pos = +self.sym_x
         self._check_symbolic_evaluation(sym_pos, lambda solver: solver.satisfiable())
+
+
+class TestZeroExtComparison(unittest.TestCase):
+    """Comparing two ZeroExt values of equal width is legal whatever their inner
+    widths are; the simplifier may compare the inner values only when those
+    widths agree."""
+
+    def setUp(self):
+        self.x = claripy.BVS("x", 8)
+        self.y = claripy.BVS("y", 32)
+        self.a = claripy.ZeroExt(56, self.x)
+        self.b = claripy.ZeroExt(32, self.y)
+        self.cmps = [
+            ("__eq__", lambda p, q: p == q),
+            ("__ne__", lambda p, q: p != q),
+            ("ULT", claripy.ULT),
+            ("ULE", claripy.ULE),
+            ("UGT", claripy.UGT),
+            ("UGE", claripy.UGE),
+        ]
+
+    def test_unequal_inner_widths_are_not_rewritten(self):
+        self.assertEqual(self.a.size(), self.b.size())
+        for name, op in self.cmps:
+            with self.subTest(op=name):
+                self.assertEqual(tuple(op(self.a, self.b).args), (self.a, self.b))
+
+    def test_equal_inner_widths_compare_the_inner_values(self):
+        p, q = claripy.BVS("p", 8), claripy.BVS("q", 8)
+        for name, op in self.cmps:
+            with self.subTest(op=name):
+                expr = op(claripy.ZeroExt(56, p), claripy.ZeroExt(56, q))
+                self.assertEqual(tuple(expr.args), (p, q))
+
+    def test_concat_written_zero_extension_is_the_same_case(self):
+        # Concat(BVV(0, n), v) is normalised to ZeroExt, so it is the same case.
+        a = claripy.Concat(claripy.BVV(0, 56), self.x)
+        b = claripy.Concat(claripy.BVV(0, 32), self.y)
+        self.assertEqual((a.op, b.op), ("ZeroExt", "ZeroExt"))
+        for name, op in self.cmps:
+            with self.subTest(op=name):
+                self.assertEqual(tuple(op(a, b).args), (a, b))
+
+    def test_unequal_inner_widths_solve_correctly(self):
+        solver = claripy.SolverZ3()
+        solver.add(self.a == self.b)
+        self.assertTrue(solver.satisfiable())
+        # the equality holds exactly when y's high bits are zero and its low byte is x
+        self.assertTrue(solver.satisfiable(extra_constraints=(self.x == 0x41, self.y == 0x41)))
+        self.assertFalse(solver.satisfiable(extra_constraints=(self.y == 0x141,)))
+        self.assertFalse(solver.satisfiable(extra_constraints=(self.x == 0x41, self.y == 0x42)))
