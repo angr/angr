@@ -325,8 +325,8 @@ class FunctionParser:
 
             data = {
                 "outside": edge_cmsg.is_outside,
-                "ins_addr": edge_cmsg.ins_addr,
-                "stmt_idx": edge_cmsg.stmt_idx,
+                "ins_addr": edge_cmsg.ins_addr if edge_cmsg.HasField("ins_addr") else None,
+                "stmt_idx": edge_cmsg.stmt_idx if edge_cmsg.HasField("stmt_idx") else None,
             }
             if edge_cmsg.confirmed == 0:
                 data["confirmed"] = False

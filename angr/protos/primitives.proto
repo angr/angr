@@ -131,8 +131,8 @@ message Edge {
     uint64              dst_ea = 2; // Address of the destination block
     JumpKind            jumpkind = 3; // Jumpkind of the edge
     bool                is_outside = 4; // Is this an edge going outside of the current function?
-    uint64              ins_addr = 5; // Address of the source instruction
-    int64               stmt_idx = 6; // ID of the source statement
+    optional uint64     ins_addr = 5; // Address of the source instruction; unset if unknown
+    optional int64      stmt_idx = 6; // ID of the source statement; unset if unknown
     uint32              confirmed = 7; // whether this is a confirmed return edge; 0 = unconfirmed, 1 = confirmed,
                                        // 2 (or other values) = n/a (not a return edge)
 }
