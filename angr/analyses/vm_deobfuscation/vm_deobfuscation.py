@@ -89,16 +89,18 @@ class AndingSimSolver(SimSolver):
                     general_constraints.append(cons)
 
 
+        to_add = []
         for var, cons in cons_dict.items():
             if len(cons) == 2:
-                merged_frontend.add(cons[0] | cons[1])
+                to_add.append(cons[0] | cons[1])
             elif len(cons) == 1:
-                merged_frontend.add(cons[0])
+                to_add.append(cons[0])
             elif len(cons) > 2:
                 import ipdb;ipdb.set_trace()
-
-        for con in general_constraints:
-            merged_frontend.add(con)
+        to_add.extend(general_constraints)
+        # one add() call: the Rust solver rebuilds its dedup set from every stored constraint per
+        # call, so adding one constraint at a time is quadratic in the constraint count
+        merged_frontend.add(to_add)
 
         for other in others:
             merged_frontend.import_replacements(other._solver)
