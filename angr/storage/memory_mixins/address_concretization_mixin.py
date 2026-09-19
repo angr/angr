@@ -353,7 +353,7 @@ class AddressConcretizationMixin(MemoryMixin):
             # instead of silently dropping the write
             if options.REPLACEMENT_SOLVER not in self.state.options:
                 return  # not completed
-            addr = claripy.replace_dict(addr, self.state.solver._solver._replacement_cache)
+            addr = self.state.solver._solver.apply_replacements(addr)
             if self.state.solver.symbolic(addr):
                 return  # not completed
             self._store_one_addr(self.state.solver.eval(addr), data, True, addr, condition, size, **kwargs)

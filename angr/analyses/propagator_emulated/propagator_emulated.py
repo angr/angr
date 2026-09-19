@@ -189,7 +189,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             if not skip:
                 try:
                     ## Get hte MBA replaceed version
-                    #simp_result = self.state.partial_symbolic_constraint_solver._solver._replacement(result[0])
+                    #simp_result = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(result[0])
                     eval_result = self.state.partial_symbolic_constraint_solver.eval_one(result[0])
                     simp_result = claripy.BVV(eval_result, result[0].size())
                 except SimValueError:
@@ -976,7 +976,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
                     new_states = []
                     uncon_succ = sim_successors.unconstrained_successors[0]
-                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver._replacement(uncon_succ.regs.ip)
+                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver.apply_replacements(uncon_succ.regs.ip)
                     poss_target = uncon_succ.regs.ip
 
                     # if it's till symbolic try to eval with the partial constraint solver
@@ -1011,7 +1011,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
 
                     else:
-                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver._replacement(sim_successors.all_successors[0].regs.ip)
+                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver.apply_replacements(sim_successors.all_successors[0].regs.ip)
 
                         state_var_ast = []
                         for ast in repl_ip.leaf_asts():
@@ -1044,7 +1044,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
                                 # we are doing eval_one because only when one soln exists unsafe replacements will happen
 
-                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver._replacement(new_state.regs.ip))
+                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver.apply_replacements(new_state.regs.ip))
 
                                 new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
                                 new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)

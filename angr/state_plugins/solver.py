@@ -954,17 +954,11 @@ class SimSolver(SimStatePlugin, SupportsMerge):
         Rebuild the underlying Claripy frontend (fresh Z3 context) and
         restore replacement rules. Keep the cache empty to avoid slow reseeding.
         """
-        rf = self._solver  # e.g., ReplacementFrontend
-
+        old = self._solver
         self.reload_solver()  # rebuild Claripy/Z3
-
-        rf2 = self._solver
-        if hasattr(rf2, "_replacements"):
-            repl = dict(getattr(rf, "_replacements", {}))  # copy the rules
-            rf2._replacements = repl
-        if hasattr(rf2, "_replacement_cache"):
-            repl = dict(getattr(rf, "_replacements", {}))  # copy the rules
-            rf2._replacement_cache = repl
+        new = self._solver
+        if isinstance(old, claripy.SolverReplacement) and isinstance(new, claripy.SolverReplacement):
+            new.import_replacements(old)
 
     @overload
     def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
