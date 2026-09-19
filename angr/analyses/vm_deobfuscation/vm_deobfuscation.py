@@ -10,7 +10,7 @@ from angr.utils.graph import as_networkx
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
 import logging
 import pyvex
-import claripy
+from angr import claripy
 import networkx as nx
 import re
 import copy
@@ -70,9 +70,9 @@ class AndingSimSolver(SimSolver):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=W0613
         # Start from our current constraints
 
-        fast_exact = claripy.solvers.SolverCacheless(track=False, timeout=1200000)
+        fast_exact = claripy.SolverCacheless(track=False, timeout=1200000)
 
-        repl = claripy.solvers.SolverReplacement(
+        repl = claripy.SolverReplacement(
             actual_frontend=fast_exact,
             unsafe_replacement=True,
             auto_replace=False,
@@ -2671,17 +2671,17 @@ class VMDeobfuscation(Analysis):
                                                                         'SYMBOL_FILL_UNCONSTRAINED_MEMORY',
                                                                         'TOP_LIST_REGISTERS_SYMBOLIZER',
                                                                         'TOP_LIST_MEMORY_SYMBOLIZER'})  # 'REPLACEMENT_SOLVER' removed to test the spped without replacements
-            # initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+            # initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.SolverComposite()))
 
             # initial_input_state.register_plugin('partial_symbolic_constraint_solver',
             #                                     angr.state_plugins.solver.SimSolver(
-            #                                         claripy.solvers.SolverReplacement(claripy.Solver(timeout=1200000),
+            #                                         claripy.SolverReplacement(claripy.Solver(timeout=1200000),
             #                                                                           unsafe_replacement=True,
             #                                                                           auto_replace=False)))  # auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
 
-            fast_exact = claripy.solvers.SolverCacheless(track=False, timeout=1200000)
+            fast_exact = claripy.SolverCacheless(track=False, timeout=1200000)
 
-            repl = claripy.solvers.SolverReplacement(
+            repl = claripy.SolverReplacement(
                 actual_frontend=fast_exact,
                 unsafe_replacement=True,
                 auto_replace=False,
@@ -2689,9 +2689,9 @@ class VMDeobfuscation(Analysis):
 
             initial_input_state.register_plugin('solver', angr.state_plugins.solver.SimSolver(repl))
 
-            fast_exact = claripy.solvers.SolverCacheless(track=False, timeout=1200000)
+            fast_exact = claripy.SolverCacheless(track=False, timeout=1200000)
 
-            repl = claripy.solvers.SolverReplacement(
+            repl = claripy.SolverReplacement(
                 actual_frontend=fast_exact,
                 unsafe_replacement=True,
                 auto_replace=False,
@@ -2725,7 +2725,7 @@ class VMDeobfuscation(Analysis):
             initial_input_state.globals['constant_prop_level'] = constant_prop_level
             initial_input_state.globals['same_sp_merged'] = False
             initial_input_state.globals['no_one_soln_cache'] = {}
-            initial_input_state.globals['no_constraints_solver'] = claripy.solvers.SolverReplacement(claripy.Solver(timeout=500000),
+            initial_input_state.globals['no_constraints_solver'] = claripy.SolverReplacement(claripy.Solver(timeout=500000),
                                                                                       unsafe_replacement=True,
                                                                                       auto_replace=False)
 
@@ -6426,9 +6426,9 @@ class VMDeobfuscation(Analysis):
             # kwargs = {'plugins': {'memory': DefaultListPagesMemory(memory_id="mem")}, 'cle_memory_backer':proj.loader, }#,
             #                       #'registers': TopListPagesMemory(memory_id="reg")}}
             initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY', 'TOP_LIST_REGISTERS_CONSTANT_PROP', 'TOP_LIST_MEMORY_CONSTANT_PROP'})#'REPLACEMENT_SOLVER' removed to test the spped without replacements
-            #initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+            #initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.SolverComposite()))
 
-            initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(), unsafe_replacement=True, auto_replace=False))) #auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
+            initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.SolverReplacement(claripy.Solver(), unsafe_replacement=True, auto_replace=False))) #auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
 
             if proj.arch.bits == 32:
                 initial_input_state.registers.store('ss', 0)

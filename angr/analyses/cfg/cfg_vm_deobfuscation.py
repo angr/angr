@@ -5,7 +5,7 @@ from collections import defaultdict
 from functools import reduce
 from typing import Dict
 
-import claripy
+from angr import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
@@ -446,10 +446,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self.to_use_symbolic_exprs = set()
 
         # create a new solver which holds partial constriants, this is essentially used as simplification solver
-        #initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
+        #initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.SolverComposite()))
         if not hasattr(initial_state, 'partial_symbolic_constraint_solver'):
             from ..vm_deobfuscation.vm_deobfuscation import AndingSimSolver
-            initial_state.register_plugin('partial_symbolic_constraint_solver', AndingSimSolver(claripy.solvers.SolverReplacement(claripy.Solver(),
+            initial_state.register_plugin('partial_symbolic_constraint_solver', AndingSimSolver(claripy.SolverReplacement(claripy.Solver(),
                                                                                   unsafe_replacement=True,
                                                                                   auto_replace=False)))
         initial_state.globals['existing_mba_split_constraints'] = []
