@@ -651,6 +651,39 @@ def skip_if_unchanged(func):
     return wrapper
 
 
+_vm_pass_dump_counter = 0
+
+
+def _dump_vex_cfg(result, name):
+    """
+    Write every node's IRSB of the CFG a pass just returned to $VM_PASS_DUMP/vm_pass_NN_<name>.txt.
+    Diagnostics for the VEX-level pipeline; the Clinic stages have CLINIC_STAGE_DUMP.
+    """
+    directory = os.environ.get("VM_PASS_DUMP")
+    if not directory:
+        return
+    cfg = result[0] if isinstance(result, tuple) else result
+    graph = getattr(cfg, "graph", None)
+    if graph is None:
+        return
+    global _vm_pass_dump_counter
+    _vm_pass_dump_counter += 1
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, f"vm_pass_{_vm_pass_dump_counter:02d}_{name}.txt")
+    with open(path, "w") as fp:
+        fp.write(f"nodes={graph.number_of_nodes()} edges={graph.number_of_edges()}\n")
+        for node in sorted(graph.nodes(), key=lambda n: (n.addr, str(getattr(n, "block_id", "")))):
+            irsb = getattr(node, "irsb", None)
+            succs = ", ".join(f"{s.addr:#x}" for s in graph.successors(node))
+            fp.write(f"\n## Node {node.addr:#x} {getattr(node, 'block_id', '')} -> [{succs}]\n")
+            if irsb is None:
+                fp.write("(no irsb)\n")
+                continue
+            for i, stmt in enumerate(irsb.statements):
+                fp.write(f"{i:02d} | {stmt.pp_str(arch=irsb.arch, tyenv=irsb.tyenv)}\n")
+            fp.write(f"next: {irsb.next} ; {irsb.jumpkind}\n")
+
+
 def logtime(func):
     @wraps(func)
     def timed_func(*args, **kwargs):
@@ -668,6 +701,7 @@ def logtime(func):
             l.info(f"Started: {func.__name__}")
             r = func(*args, **kwargs)
             l.info(f"Finished: {func.__name__}")
+            _dump_vex_cfg(r, func.__name__)
             millisec = _t() - start
             sec = millisec / 1000
 
