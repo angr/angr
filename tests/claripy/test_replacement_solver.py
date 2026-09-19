@@ -142,5 +142,19 @@ class TestReplacementSolverPushanApi(unittest.TestCase):
         self.assertEqual(merged.eval(x + y, 2), [3])
 
 
+class TestLeafAsts(unittest.TestCase):
+    def test_leaf_asts_dedup_and_order(self):
+        x, y = claripy.BVS("x", 8), claripy.BVS("y", 8)
+        expr = (x + y) * (x + claripy.BVV(3, 8))
+        leaves = expr.leaf_asts()
+        self.assertTrue(all(leaf.depth == 1 for leaf in leaves))
+        names = sorted(str(leaf.variables) for leaf in leaves if leaf.symbolic)
+        # x appears twice in the expression but once among the leaves
+        self.assertEqual(len([leaf for leaf in leaves if leaf.symbolic]), 2)
+        self.assertEqual(len(names), 2)
+        self.assertEqual([leaf.concrete_value for leaf in leaves if leaf.concrete], [3])
+        self.assertEqual(x.leaf_asts()[0].hash(), x.hash())
+
+
 if __name__ == "__main__":
     unittest.main()

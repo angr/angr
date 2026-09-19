@@ -313,6 +313,26 @@ impl Base {
         self.inner.depth()
     }
 
+    /// The leaf ASTs (depth 1: symbols and values) under this one, each once, in the
+    /// order the old Python claripy produced: a depth-first walk that visits the last
+    /// operand first.
+    pub fn leaf_asts<'py>(&self, py: Python<'py>) -> Result<Vec<Bound<'py, Base>>, ClaripyError> {
+        let mut seen = std::collections::HashSet::new();
+        let mut stack = vec![self.inner.clone()];
+        let mut leaves = Vec::new();
+        while let Some(ast) = stack.pop() {
+            if !seen.insert(ast.hash()) {
+                continue;
+            }
+            if ast.depth() == 1 {
+                leaves.push(Base::from_ast(py, ast)?);
+            } else {
+                stack.extend(ast.op().child_iter());
+            }
+        }
+        Ok(leaves)
+    }
+
     pub fn is_leaf(&self) -> bool {
         self.inner.depth() == 1
     }
