@@ -1259,11 +1259,13 @@ class CFGBase(Analysis):
             func = functions.get_by_addr(func_addr)
             returning = self._determine_function_returning(func, all_funcs_completed=all_funcs_completed)
 
+            if returning is not None:
+                # _determine_function_returning() may have evicted func from a SpillingFunctionDict; write to a
+                # fresh instance
+                functions.get_by_addr(func_addr).returning = returning
             if returning:
-                func.returning = True
                 changes["functions_return"].append(func.addr)
             elif returning is False:
-                func.returning = False
                 changes["functions_do_not_return"].append(func.addr)
 
             if returning is not None and func.addr in functions.callgraph:

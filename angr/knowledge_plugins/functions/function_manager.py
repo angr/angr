@@ -429,7 +429,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         Set the maximum number of functions to keep in memory.
         """
         self._cache_limit = value
-        if self.cached_count > value + self._db_batch_size:
+        if self.cached_count > value:
             self._evict_lru()
 
     @property
@@ -484,7 +484,11 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         with self._db_store_lock:
             evicted_any = False
             while self.cached_count > self._cache_limit:
-                if self._evict_n(min(self._db_batch_size, self.cached_count)) == 0:
+                # evict in batches, but keep the most recently used half of the cache: callers may still be holding
+                # on to recently loaded functions (e.g. a small cache_limit with a large batch size would otherwise
+                # evict a function right after loading it)
+                n = min(self._db_batch_size, max(1, self.cached_count // 2))
+                if self._evict_n(n) == 0:
                     break
                 evicted_any = True
             return evicted_any
