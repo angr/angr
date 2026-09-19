@@ -21,6 +21,12 @@ from .utils import (
 _l = logging.getLogger(name=__name__)
 
 
+def _replace_block_key[V](mapping: dict[Block, V], old_key: Block, new_key: Block) -> None:
+    replacement = {new_key if key is old_key else key: value for key, value in mapping.items()}
+    mapping.clear()
+    mapping.update(replacement)
+
+
 class AILBlockSplit:
     """
     This class represents a block that has been split into three parts, which is best explained in the
@@ -440,8 +446,8 @@ class AILMergeGraph:
         def _rekey(mapping: dict, original: Block, updated: Block) -> None:
             for k in list(mapping.keys()):
                 if k == original:
-                    # note that updated might be the same as k
-                    mapping[updated] = mapping.pop(k)
+                    _replace_block_key(mapping, k, updated)
+                    break
 
         for original, updated in update_map.items():
             _rekey(self.original_split_blocks, original, updated)
