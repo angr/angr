@@ -1,4 +1,4 @@
-# pylint:disable=raise-missing-from
+# pylint:disable=raise-missing-from,protected-access
 from __future__ import annotations
 
 import bisect

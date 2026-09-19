@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,protected-access
+# pylint:disable=missing-class-docstring,protected-access,no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests.knowledge_plugins.functions"  # pylint:disable=redefined-builtin
