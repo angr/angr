@@ -676,9 +676,7 @@ class FormatParser(SimProcedure):
 
         if o.REPLACEMENT_SOLVER in self.state.options:
             # under a replacement solver the pointer is usually only nominally symbolic
-            conc_fmtstr_ptr = claripy.replace_dict(
-                self.state.solver.simplify(fmtstr_ptr), self.state.solver._solver._replacement_cache
-            )
+            conc_fmtstr_ptr = self.state.solver._solver.apply_replacements(self.state.solver.simplify(fmtstr_ptr))
             if not self.state.solver.symbolic(conc_fmtstr_ptr):
                 fmtstr_ptr = conc_fmtstr_ptr
             else:

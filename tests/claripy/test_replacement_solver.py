@@ -123,7 +123,8 @@ class TestReplacementSolverPushanApi(unittest.TestCase):
         a.add_replacement(x, claripy.BVV(1, 8))
         b.add_replacement(y, claripy.BVV(2, 8))
         self.assertEqual(len(a.replacements), 1)
-        self.assertEqual(a.replacements[hash(x)].concrete_value, 1)
+        # keys are Base.hash(); Python's hash() folds the u64 into Py_hash_t and differs
+        self.assertEqual(a.replacements[x.hash()].concrete_value, 1)
         a.import_replacements(b)
         self.assertEqual(len(a.replacements), 2)
         self.assertEqual(a.eval(x + y, 2), [3])

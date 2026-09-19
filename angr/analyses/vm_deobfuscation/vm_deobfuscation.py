@@ -70,13 +70,7 @@ class AndingSimSolver(SimSolver):
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=W0613
         # Start from our current constraints
 
-        fast_exact = claripy.SolverCacheless(track=False, timeout=1200000)
-
-        repl = claripy.SolverReplacement(
-            actual_frontend=fast_exact,
-            unsafe_replacement=True,
-            auto_replace=False,
-        )
+        repl = claripy.SolverReplacement(auto_replace=False, timeout=1200000)
         merged_frontend = repl
 
         cons_dict = defaultdict(list)
@@ -107,11 +101,8 @@ class AndingSimSolver(SimSolver):
             merged_frontend.add(con)
 
         for other in others:
-            for var, val in other._solver._replacements.items():
-                merged_frontend.add_replacement(var.ast, val)
-
-        for var, val in self._solver._replacements.items():
-            merged_frontend.add_replacement(var.ast, val)
+            merged_frontend.import_replacements(other._solver)
+        merged_frontend.import_replacements(self._solver)
 
         # Store and report
         self._stored_solver = merged_frontend
@@ -451,31 +442,31 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                 ## That should not be a problem since we try to evaluate every address above, so it should be resolved
                 for ind in range(len(self.state.scratch.temps)):
                     if self.state.scratch.temps[ind] is not None:
-                        self.state.scratch.temps[ind] = self.state.partial_symbolic_constraint_solver._solver._replacement(self.state.scratch.temps[ind])
+                        self.state.scratch.temps[ind] = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(self.state.scratch.temps[ind])
 
                 for reg in self.state.arch.registers.keys():
                     offset = self.state.arch.registers[reg][0]
                     size = self.state.arch.registers[reg][1]
                     old_val = self.state.registers.load(offset, size)
-                    new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val)
+                    new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(old_val)
                     if old_val is not new_val:
                         self.state.registers.store(offset, new_val)
                     else:
                         #perform extra simplifications and check
                         simp_ast = self.custom_simplify_ast(old_val)
                         if simp_ast is not old_val:
-                            new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(simp_ast)
+                            new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(simp_ast)
                             if new_val is not simp_ast:
                                 self.state.registers.store(offset, new_val)
                         elif old_val.op == "__add__" and len(old_val.args) == 3:
                             new_val = old_val
                             # deal with three argument adds, since they are not in the replacements
                             if old_val.args[0].depth == 1:
-                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val.args[1] + old_val.args[2]) + old_val.args[0]
+                                new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(old_val.args[1] + old_val.args[2]) + old_val.args[0]
                             elif old_val.args[1].depth == 1:
-                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val.args[0] + old_val.args[2]) + old_val.args[1]
+                                new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(old_val.args[0] + old_val.args[2]) + old_val.args[1]
                             elif old_val.args[2].depth == 1:
-                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val.args[0] + old_val.args[1]) + old_val.args[2]
+                                new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(old_val.args[0] + old_val.args[1]) + old_val.args[2]
 
                             if new_val is not old_val:
                                 self.state.registers.store(offset, new_val)
@@ -2679,23 +2670,11 @@ class VMDeobfuscation(Analysis):
             #                                                                           unsafe_replacement=True,
             #                                                                           auto_replace=False)))  # auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
 
-            fast_exact = claripy.SolverCacheless(track=False, timeout=1200000)
-
-            repl = claripy.SolverReplacement(
-                actual_frontend=fast_exact,
-                unsafe_replacement=True,
-                auto_replace=False,
-            )
+            repl = claripy.SolverReplacement(auto_replace=False, timeout=1200000)
 
             initial_input_state.register_plugin('solver', angr.state_plugins.solver.SimSolver(repl))
 
-            fast_exact = claripy.SolverCacheless(track=False, timeout=1200000)
-
-            repl = claripy.SolverReplacement(
-                actual_frontend=fast_exact,
-                unsafe_replacement=True,
-                auto_replace=False,
-            )
+            repl = claripy.SolverReplacement(auto_replace=False, timeout=1200000)
 
             initial_input_state.register_plugin(
                 'partial_symbolic_constraint_solver',
@@ -2725,9 +2704,7 @@ class VMDeobfuscation(Analysis):
             initial_input_state.globals['constant_prop_level'] = constant_prop_level
             initial_input_state.globals['same_sp_merged'] = False
             initial_input_state.globals['no_one_soln_cache'] = {}
-            initial_input_state.globals['no_constraints_solver'] = claripy.SolverReplacement(claripy.Solver(timeout=500000),
-                                                                                      unsafe_replacement=True,
-                                                                                      auto_replace=False)
+            initial_input_state.globals['no_constraints_solver'] = claripy.SolverReplacement(auto_replace=False, timeout=500000)
 
             def preconstrain_return_value(state):
                 if state.inspect.simprocedure_name == "malloc" and state.inspect.simprocedure_result is not None and not state.solver.symbolic(
@@ -6428,7 +6405,7 @@ class VMDeobfuscation(Analysis):
             initial_input_state = proj.factory.blank_state(addr=start_addr, mode="fastpath", add_options={'REPLACEMENT_SOLVER','DO_CCALLS', 'SYMBOL_FILL_UNCONSTRAINED_REGISTERS', 'SYMBOL_FILL_UNCONSTRAINED_MEMORY', 'TOP_LIST_REGISTERS_CONSTANT_PROP', 'TOP_LIST_MEMORY_CONSTANT_PROP'})#'REPLACEMENT_SOLVER' removed to test the spped without replacements
             #initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.SolverComposite()))
 
-            initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.SolverReplacement(claripy.Solver(), unsafe_replacement=True, auto_replace=False))) #auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
+            initial_input_state.register_plugin('partial_symbolic_constraint_solver',angr.state_plugins.solver.SimSolver(claripy.SolverReplacement(auto_replace=False))) #auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
 
             if proj.arch.bits == 32:
                 initial_input_state.registers.store('ss', 0)

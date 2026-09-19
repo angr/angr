@@ -62,7 +62,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         # _perform_vex_expr_Load installs replacements as it goes; those change eval results
         # without touching the constraint list.
         try:
-            sig += (len(sim_solver._solver._replacements),)
+            sig += (sim_solver._solver.replacement_count,)
         except Exception:
             sig += (None,)
         return sig
@@ -88,7 +88,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             return solver.eval_one(ast)
 
         try:
-            key = ast.cache_key
+            key = ast.hash()
         except AttributeError:
             return solver.eval_one(ast)
 
@@ -520,7 +520,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 ## That should not be a problem since we try to evaluate every address above, so it should be resolved
                 for ind in range(len(self.state.scratch.temps)):
                     if self.state.scratch.temps[ind] is not None:
-                        new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                        new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(
                             self.state.scratch.temps[ind])
                         if new_val is not self.state.scratch.temps[ind]:
                             self.state.scratch.temps[ind] = new_val
@@ -537,27 +537,27 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                     offset = self.state.arch.registers[reg][0]
                     size = self.state.arch.registers[reg][1]
                     old_val = self.state.registers.load(offset, size)
-                    new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(old_val)
+                    new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(old_val)
                     if old_val is not new_val:
                         self.state.registers.store(offset, new_val)
                     else:
                         # perform extra simplifications and check
                         simp_ast = self.custom_simplify_ast(old_val)
                         if simp_ast is not old_val:
-                            new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(simp_ast)
+                            new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(simp_ast)
                             if new_val is not simp_ast:
                                 self.state.registers.store(offset, new_val)
                         elif old_val.op == "__add__" and len(old_val.args) == 3:
                             new_val = old_val
                             # deal with three argument adds, since they are not in the replacements
                             if old_val.args[0].depth == 1:
-                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                                new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(
                                     old_val.args[1] + old_val.args[2]) + old_val.args[0]
                             elif old_val.args[1].depth == 1:
-                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                                new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(
                                     old_val.args[0] + old_val.args[2]) + old_val.args[1]
                             elif old_val.args[2].depth == 1:
-                                new_val = self.state.partial_symbolic_constraint_solver._solver._replacement(
+                                new_val = self.state.partial_symbolic_constraint_solver._solver.apply_replacements(
                                     old_val.args[0] + old_val.args[1]) + old_val.args[2]
 
                             if new_val is not old_val:
@@ -1468,7 +1468,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                     new_states = []
                     uncon_succ = sim_successors.unconstrained_successors[0]
-                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver._replacement(uncon_succ.regs.ip)
+                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver.apply_replacements(uncon_succ.regs.ip)
                     poss_target = uncon_succ.regs.ip
 
                     try:
@@ -1514,7 +1514,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
 
                     else:
-                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver._replacement(sim_successors.all_successors[0].regs.ip)
+                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver.apply_replacements(sim_successors.all_successors[0].regs.ip)
 
                         state_var_ast = []
                         for ast in repl_ip.leaf_asts():
@@ -1587,7 +1587,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                                 # we are doing eval_one because only when one soln exists unsafe replacements will happen
 
-                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver._replacement(new_state.regs.ip))
+                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver.apply_replacements(new_state.regs.ip))
 
                                 new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
                                 new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)

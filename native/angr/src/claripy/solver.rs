@@ -878,8 +878,9 @@ impl PySolver {
         }
     }
 
-    /// The registered replacements as `{Base.hash(): replacement}`. Only supported
-    /// for SolverReplacement.
+    /// The registered replacements as `{Base.hash(): replacement}`. The keys are the
+    /// u64 structural hash, not Python's `hash()`, which folds it into Py_hash_t.
+    /// Only supported for SolverReplacement.
     #[getter]
     fn replacements<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, ClaripyError> {
         let dict = PyDict::new(py);
@@ -887,6 +888,13 @@ impl PySolver {
             dict.set_item(*hash, Base::from_ast(py, ast.clone())?)?;
         }
         Ok(dict)
+    }
+
+    /// Number of registered replacements. Cheap, unlike building `replacements`; cache
+    /// signatures that need to notice a new replacement use it. Only SolverReplacement.
+    #[getter]
+    fn replacement_count(&self) -> Result<usize, ClaripyError> {
+        Ok(self.inner.replacements()?.len())
     }
 
     /// Copy every replacement registered on `other` into this solver. Only supported

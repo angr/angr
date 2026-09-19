@@ -49,12 +49,13 @@ class DataSensitiveEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEng
     pass
 
 def annotate_with_new_replacements(state, variable, annotation):
-    if o.REPLACEMENT_SOLVER in state.options and variable.cache_key in state.solver._solver._replacement_cache:
-        new_variable = variable.annotate(annotation)
-        #state.preconstrainer.preconstrain(state.solver._solver._replacement_cache[variable.cache_key], new_variable)
-        state.solver._solver.add_replacement(new_variable, state.solver._solver._replacement_cache[variable.cache_key], invalidate_cache=False)
-    else:
-        new_variable = variable.annotate(annotation)
+    new_variable = variable.annotate(annotation)
+    if o.REPLACEMENT_SOLVER in state.options:
+        # the solver already matches replacements across annotations; registering the annotated
+        # form explicitly keeps the replacement visible in solver.replacements
+        replaced = state.solver._solver.get_replacement(variable)
+        if replaced is not None:
+            state.solver._solver.add_replacement(new_variable, replaced)
     return new_variable
 
 class VMProgramCounterAnnotation(claripy.Annotation):
@@ -449,9 +450,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         #initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.SolverComposite()))
         if not hasattr(initial_state, 'partial_symbolic_constraint_solver'):
             from ..vm_deobfuscation.vm_deobfuscation import AndingSimSolver
-            initial_state.register_plugin('partial_symbolic_constraint_solver', AndingSimSolver(claripy.SolverReplacement(claripy.Solver(),
-                                                                                  unsafe_replacement=True,
-                                                                                  auto_replace=False)))
+            initial_state.register_plugin('partial_symbolic_constraint_solver', AndingSimSolver(claripy.SolverReplacement(auto_replace=False)))
         initial_state.globals['existing_mba_split_constraints'] = []
         actual_stack_end = initial_state.solver.eval(initial_state.regs.sp)
         initial_state.globals['sp_start_value'] = actual_stack_end
@@ -1962,7 +1961,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # we drop all the unsat successors
                     new_states = []
                     uncon_succ = sim_successors.unconstrained_successors[0]
-                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver._replacement(uncon_succ.regs.ip)
+                    #poss_target = uncon_succ.partial_symbolic_constraint_solver._solver.apply_replacements(uncon_succ.regs.ip)
                     poss_target = uncon_succ.regs.ip
 
                     # if it's till symbolic try to eval with the partial constraint solver
@@ -1997,7 +1996,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
 
                     else:
-                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver._replacement(sim_successors.all_successors[0].regs.ip)
+                        repl_ip= sim_successors.all_successors[0].partial_symbolic_constraint_solver._solver.apply_replacements(sim_successors.all_successors[0].regs.ip)
 
                         state_var_ast = []
                         for ast in repl_ip.leaf_asts():
@@ -2065,7 +2064,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                                 # we are doing eval_one because only when one soln exists unsafe replacements will happen
 
-                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver._replacement(new_state.regs.ip))
+                                k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver.apply_replacements(new_state.regs.ip))
 
                                 new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
                                 new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
