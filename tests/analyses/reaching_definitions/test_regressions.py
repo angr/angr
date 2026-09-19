@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import os
 import struct
-from unittest import TestCase
+from unittest import TestCase, main
 
 from archinfo import ArchAArch64
 
 import angr
 from angr.analyses import CFGFast, ReachingDefinitionsAnalysis
 from angr.knowledge_plugins import Function
-from angr.knowledge_plugins.key_definitions.atoms import Atom
-from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
+from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from tests.common import bin_location
 
 
@@ -233,3 +233,18 @@ class TestRDARegressions(TestCase):
         }, (
             f"Expected selector to contain the pointers to 'startAnimating' and 'stopAnimating' i.e. 0x100191A4C, 0x100191A3D, but got: {selector}"
         )
+
+    def test_wide_register_read_uses_narrow_definition(self):
+        # mov dl, [0xc00001e0] ; test dl, dl. In libVEX 3.27.1, the byte read is lifted as GET:I64(rdx) + 64to8, and
+        # that read must count as a use of the 1-byte PUT(dl) definition.
+        project = angr.load_shellcode(bytes.fromhex("8a1425e00100c084d2"), arch="AMD64")
+        block = project.factory.block(0)
+        rda = project.analyses.ReachingDefinitions(block, track_tmps=True, observation_points=[("node", 0, OP_AFTER)])
+        dl_defs = [d for d in rda.all_definitions if isinstance(d.atom, Register) and d.atom.size == 1]
+        assert len(dl_defs) == 1
+        read_insns = {u.ins_addr for u in rda.all_uses.get_uses(dl_defs[0])}
+        assert 0x7 in read_insns, f"PUT(dl) is not used by the `test dl, dl` at 0x7; uses at {read_insns}"
+
+
+if __name__ == "__main__":
+    main()
