@@ -63,4 +63,34 @@ impl<'c> AstNode<'c> {
             &GenericCache::default(),
         )
     }
+
+    /// [`replace_many`](Self::replace_many), but a node carrying annotations also matches
+    /// a replacement registered for its bare form and vice versa. The replacement solver
+    /// uses this: annotations are metadata about where a value came from, not part of
+    /// its identity, and a concretization learned for `x` must fire on `x{region}`.
+    pub fn replace_many_loose(
+        self: &Arc<Self>,
+        replacements: &HashMap<u64, AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        if replacements.is_empty() {
+            return Ok(self.clone());
+        }
+
+        let ctx = self.context();
+        walk(
+            self.clone(),
+            |node| {
+                if let Some(replacement) = replacements
+                    .get(&node.hash())
+                    .or_else(|| replacements.get(&node.hash_without_annotations()))
+                {
+                    Ok(Some(replacement.clone()))
+                } else {
+                    Ok(None)
+                }
+            },
+            |node, children| reconstruct_node(ctx, &node, children),
+            &GenericCache::default(),
+        )
+    }
 }

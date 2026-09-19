@@ -143,6 +143,18 @@ impl<'c> AstNode<'c> {
         self.hash
     }
 
+    /// The structural hash this node would have with no annotations. Annotations are
+    /// part of [`hash`](Self::hash), so a replacement registered for `x` does not match
+    /// `x` carrying an annotation; callers that want annotation-insensitive lookup key on
+    /// this instead.
+    pub fn hash_without_annotations(&self) -> u64 {
+        if self.annotations.is_empty() {
+            self.hash
+        } else {
+            structural_hash(self.ast_type, &self.op, &BTreeSet::new())
+        }
+    }
+
     pub fn symbolic(&self) -> bool {
         self.symbolic
     }
