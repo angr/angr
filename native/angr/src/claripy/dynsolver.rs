@@ -4,6 +4,7 @@ use clarirs_core::solver_mixins::{
 };
 use clarirs_vsa::VSASolver;
 use clarirs_z3::Z3Solver;
+use std::collections::HashMap;
 
 // Type aliases for the wrapped solvers with mixins.
 //
@@ -153,6 +154,52 @@ impl DynSolver {
             }
             _ => Err(ClarirsError::UnsupportedOperation(
                 "clear_replacements is only supported for Replacement solver".to_string(),
+            )),
+        }
+    }
+
+    fn replacement_solver(&self) -> Result<&WrappedReplacementSolver<'static>, ClarirsError> {
+        match self {
+            DynSolver::Replacement(solver) => Ok(solver),
+            _ => Err(ClarirsError::UnsupportedOperation(
+                "replacements are only supported for Replacement solver".to_string(),
+            )),
+        }
+    }
+
+    /// Apply the registered replacements to `ast` (only Replacement solver).
+    pub(crate) fn apply_replacements(
+        &self,
+        ast: &AstRef<'static>,
+    ) -> Result<AstRef<'static>, ClarirsError> {
+        self.replacement_solver()?.apply_replacements(ast)
+    }
+
+    /// The replacement registered for `ast`, if any (only Replacement solver).
+    pub(crate) fn get_replacement(
+        &self,
+        ast: &AstRef<'static>,
+    ) -> Result<Option<AstRef<'static>>, ClarirsError> {
+        Ok(self.replacement_solver()?.get_replacement(ast))
+    }
+
+    /// The replacement map, hash -> replacement (only Replacement solver).
+    pub(crate) fn replacements(&self) -> Result<&HashMap<u64, AstRef<'static>>, ClarirsError> {
+        Ok(self.replacement_solver()?.replacements())
+    }
+
+    /// Copy `other`'s replacements into this solver (only Replacement solver).
+    pub(crate) fn import_replacements(
+        &mut self,
+        other: &HashMap<u64, AstRef<'static>>,
+    ) -> Result<(), ClarirsError> {
+        match self {
+            DynSolver::Replacement(solver) => {
+                solver.import_replacements(other);
+                Ok(())
+            }
+            _ => Err(ClarirsError::UnsupportedOperation(
+                "import_replacements is only supported for Replacement solver".to_string(),
             )),
         }
     }
