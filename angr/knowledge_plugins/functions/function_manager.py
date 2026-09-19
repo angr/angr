@@ -1447,6 +1447,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         for func in self._function_map.values():
             if func.block_addrs_set:
                 for node in func.transition_graph:
+                    if isinstance(node, HookNode) and node.addr == func.addr:
+                        # the start node of a hooked function, not a callee
+                        continue
                     if isinstance(node, (HookNode, FuncNode)) and self.contains_addr(node.addr):
                         self.callgraph.add_edge(func.addr, node.addr)
                     else:
