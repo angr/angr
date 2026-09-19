@@ -288,7 +288,7 @@ class PagedMemoryMixin[PageType: PageBase](
                     continue
 
                 obj = mo.object
-                key = getattr(obj, "cache_key", None) if decisions is not None else None
+                key = obj.hash() if decisions is not None and hasattr(obj, "hash") else None
                 conc_val = decisions.get(key, _CONCRETIZE_UNSEEN) if key is not None else _CONCRETIZE_UNSEEN
                 if conc_val is _CONCRETIZE_UNSEEN:
                     conc_val = self._concretize_memory_object(obj, state)
