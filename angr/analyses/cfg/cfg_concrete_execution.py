@@ -3052,9 +3052,15 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                 new_state.options.add(o.DO_RET_EMULATION)
                 # Remove bad constraints
                 # FIXME: This is so hackish...
-                new_state.solver._solver.constraints = [c for c in new_state.solver.constraints if
-                                                    c.op != 'BoolV' or c.args[0] is not False]
-                new_state.solver._solver._result = None
+                preserved_constraints = [c for c in new_state.solver.constraints if
+                                         c.op != 'BoolV' or c.args[0] is not False]
+                old_solver = new_state.solver._solver
+                new_solver = old_solver.blank_copy()
+                new_solver.add(preserved_constraints)
+                if isinstance(new_solver, claripy.SolverReplacement):
+                    # blank_copy drops the replacements the old solver had collected; keep them
+                    new_solver.import_replacements(old_solver)
+                new_state.solver._stored_solver = new_solver
                 # Swap them
                 saved_state, job.state = job.state, new_state
                 sim_successors, exception_info, _ = self._get_simsuccessors(addr, job)
