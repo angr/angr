@@ -28,6 +28,9 @@ pub struct ReplacementSolver<'c, S: Solver<'c>> {
     replacement_cache: HashMap<u64, AstRef<'c>>,
     /// Whether to automatically extract replacements from `x == <concrete>` constraints.
     auto_replace: bool,
+    /// full hash -> annotation-free hash, for every replacement whose key carried
+    /// annotations. Lets `remove_replacements` drop both entries.
+    bare_aliases: HashMap<u64, u64>,
     _marker: std::marker::PhantomData<&'c ()>,
 }
 
@@ -43,6 +46,7 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
             replacements: HashMap::new(),
             replacement_cache: HashMap::new(),
             auto_replace,
+            bare_aliases: HashMap::new(),
             _marker: std::marker::PhantomData,
         }
     }
@@ -66,13 +70,25 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
     pub fn add_replacement(&mut self, old: AstRef<'c>, new: AstRef<'c>) {
         let hash = old.hash();
         self.replacements.insert(hash, new.clone());
-        self.replacement_cache.insert(hash, new);
+        self.replacement_cache.insert(hash, new.clone());
+        // Annotations are metadata, not identity: register the bare form too, so a
+        // replacement learned for an annotated `x` fires on plain `x` (lookups on an
+        // annotated key are handled by `replace_many_loose`).
+        let bare = old.hash_without_annotations();
+        if bare != hash {
+            self.replacements.insert(bare, new.clone());
+            self.replacement_cache.insert(bare, new);
+            self.bare_aliases.insert(hash, bare);
+        }
     }
 
     /// Remove specific replacements by their hashes.
     pub fn remove_replacements(&mut self, hashes: &[u64]) {
         for hash in hashes {
             self.replacements.remove(hash);
+            if let Some(bare) = self.bare_aliases.remove(hash) {
+                self.replacements.remove(&bare);
+            }
         }
         // Rebuild cache from canonical replacements
         self.replacement_cache = self.replacements.clone();
@@ -82,6 +98,23 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
     pub fn clear_replacements(&mut self) {
         self.replacements.clear();
         self.replacement_cache.clear();
+        self.bare_aliases.clear();
+    }
+
+    /// Copy every replacement of `other` into this solver.
+    pub fn import_replacements(&mut self, other: &HashMap<u64, AstRef<'c>>) {
+        for (hash, new) in other {
+            self.replacements.insert(*hash, new.clone());
+            self.replacement_cache.insert(*hash, new.clone());
+        }
+    }
+
+    /// The replacement registered for `ast`, if any, ignoring annotations.
+    pub fn get_replacement(&self, ast: &AstRef<'c>) -> Option<AstRef<'c>> {
+        self.replacement_cache
+            .get(&ast.hash())
+            .or_else(|| self.replacement_cache.get(&ast.hash_without_annotations()))
+            .cloned()
     }
 
     /// Get the current replacement map (hash → AstRef).
@@ -90,8 +123,28 @@ impl<'c, S: Solver<'c>> ReplacementSolver<'c, S> {
     }
 
     /// Apply known replacements to an AstRef.
-    fn apply_replacements(&self, ast: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
-        ast.replace_many(&self.replacement_cache)
+    ///
+    /// `Add` is n-ary and flattened, so a caller that registered `a + b` finds no such
+    /// node inside `Add[a, b, c]`. Mirror what they meant: when the first two operands
+    /// of the top-level sum have a replacement, apply it and keep the rest.
+    pub fn apply_replacements(&self, ast: &AstRef<'c>) -> Result<AstRef<'c>, ClarirsError> {
+        let ast = if let AstOp::Add(args) = ast.op()
+            && args.len() > 2
+        {
+            let prefix = ast.context().add(&args[0], &args[1])?;
+            match self.get_replacement(&prefix) {
+                Some(replaced) => {
+                    let mut rest = Vec::with_capacity(args.len() - 1);
+                    rest.push(replaced);
+                    rest.extend(args[2..].iter().cloned());
+                    ast.context().add_many(rest)?
+                }
+                None => ast.clone(),
+            }
+        } else {
+            ast.clone()
+        };
+        ast.replace_many_loose(&self.replacement_cache)
     }
 
     /// Try to extract a replacement from an equality constraint like `sym == concrete`.
@@ -209,6 +262,74 @@ impl<'c, S: Solver<'c>> Solver<'c> for ReplacementSolver<'c, S> {
 mod tests {
     use super::*;
     use crate::ast::AstFactory;
+
+    fn anno() -> Annotation {
+        Annotation::new(AnnotationType::Uninitialized, true, true)
+    }
+
+    #[test]
+    fn test_replacement_ignores_annotations_on_lookup() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = ReplacementSolver::new(ConcreteSolver::new(&ctx));
+        let x = ctx.bvs("x", 8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
+        solver.add_replacement(x.clone(), five.clone());
+
+        let annotated = x.clone().annotate(std::iter::once(anno()))?;
+        assert_ne!(annotated.hash(), x.hash());
+        assert_eq!(solver.eval(&annotated)?, five);
+        assert_eq!(solver.get_replacement(&annotated), Some(five));
+        Ok(())
+    }
+
+    #[test]
+    fn test_replacement_registered_on_annotated_fires_on_bare() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = ReplacementSolver::new(ConcreteSolver::new(&ctx));
+        let x = ctx.bvs("x", 8)?;
+        let five = ctx.bvv(BitVec::from((5, 8)))?;
+        let annotated = x.clone().annotate(std::iter::once(anno()))?;
+        solver.add_replacement(annotated.clone(), five.clone());
+
+        assert_eq!(solver.eval(&x)?, five);
+        solver.remove_replacements(&[annotated.hash()]);
+        assert!(solver.replacements().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_replacement_of_flattened_add_prefix() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut solver = ReplacementSolver::new(ConcreteSolver::new(&ctx));
+        let x = ctx.bvs("x", 8)?;
+        let y = ctx.bvs("y", 8)?;
+        let z = ctx.bvs("z", 8)?;
+        let seven = ctx.bvv(BitVec::from((7, 8)))?;
+        solver.add_replacement(ctx.add(&x, &y)?, seven.clone());
+
+        let sum = ctx.add_many([x.clone(), y.clone(), z.clone()])?;
+        assert!(matches!(sum.op(), AstOp::Add(a) if a.len() == 3));
+        let replaced = solver.apply_replacements(&sum)?;
+        assert!(replaced.variables().is_disjoint(x.variables()));
+        assert!(replaced.variables().is_superset(z.variables()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_import_replacements() -> Result<(), ClarirsError> {
+        let ctx = Context::new();
+        let mut a = ReplacementSolver::new(ConcreteSolver::new(&ctx));
+        let mut b = ReplacementSolver::new(ConcreteSolver::new(&ctx));
+        let x = ctx.bvs("x", 8)?;
+        let y = ctx.bvs("y", 8)?;
+        let one = ctx.bvv(BitVec::from((1, 8)))?;
+        let two = ctx.bvv(BitVec::from((2, 8)))?;
+        a.add_replacement(x.clone(), one.clone());
+        b.add_replacement(y.clone(), two.clone());
+        a.import_replacements(b.replacements());
+        assert_eq!(a.eval(&ctx.add(&x, &y)?)?, ctx.bvv(BitVec::from((3, 8)))?);
+        Ok(())
+    }
 
     #[test]
     fn test_replacement_solver_basic() -> Result<(), ClarirsError> {

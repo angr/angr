@@ -67,3 +67,79 @@ class TestReplacementSolver(unittest.TestCase):
         restored.add(x == 5)
         restored.add_replacement(x, claripy.BVV(6, 8))
         self.assertEqual(restored.eval(x, 1)[0], 6)
+
+
+class _Marker(claripy.Annotation):
+    eliminatable = True
+    relocatable = True
+
+
+class TestReplacementSolverPushanApi(unittest.TestCase):
+    """The surface the data-sensitive analyses (pushan) reach into."""
+
+    def test_timeout_kwarg(self):
+        s = claripy.SolverReplacement(auto_replace=False, timeout=1234)
+        self.assertEqual(s.timeout, 1234)
+
+    def test_apply_replacements_without_eval(self):
+        s = claripy.SolverReplacement(auto_replace=False)
+        x, y = claripy.BVS("x", 8), claripy.BVS("y", 8)
+        s.add_replacement(x, claripy.BVV(5, 8))
+        replaced = s.apply_replacements(x + y)
+        self.assertNotIn("x", str(replaced.variables))
+        self.assertIn("y", str(replaced.variables))
+
+    def test_lookup_ignores_annotations(self):
+        s = claripy.SolverReplacement(auto_replace=False)
+        x = claripy.BVS("x", 8)
+        s.add_replacement(x, claripy.BVV(5, 8))
+        annotated = x.annotate(_Marker())
+        self.assertNotEqual(hash(annotated), hash(x))
+        self.assertEqual(s.eval(annotated + 1, 2), [6])
+        self.assertIs(s.get_replacement(annotated).concrete_value, 5)
+        self.assertIsNone(s.get_replacement(claripy.BVS("y", 8)))
+
+    def test_replacement_registered_on_annotated_fires_on_bare(self):
+        s = claripy.SolverReplacement(auto_replace=False)
+        x = claripy.BVS("x", 8)
+        s.add_replacement(x.annotate(_Marker()), claripy.BVV(9, 8))
+        self.assertEqual(s.eval(x, 2), [9])
+
+    def test_flattened_add_prefix(self):
+        s = claripy.SolverReplacement(auto_replace=False)
+        x, y, z = (claripy.BVS(n, 8) for n in "xyz")
+        s.add_replacement(x + y, claripy.BVV(7, 8))
+        total = x + y + z
+        self.assertEqual(total.op, "__add__")
+        self.assertEqual(len(total.args), 3)
+        replaced = s.apply_replacements(total)
+        self.assertNotIn("x", str(replaced.variables))
+        self.assertIn("z", str(replaced.variables))
+
+    def test_replacements_dict_and_import(self):
+        a = claripy.SolverReplacement(auto_replace=False)
+        b = claripy.SolverReplacement(auto_replace=False)
+        x, y = claripy.BVS("x", 8), claripy.BVS("y", 8)
+        a.add_replacement(x, claripy.BVV(1, 8))
+        b.add_replacement(y, claripy.BVV(2, 8))
+        self.assertEqual(len(a.replacements), 1)
+        self.assertEqual(a.replacements[hash(x)].concrete_value, 1)
+        a.import_replacements(b)
+        self.assertEqual(len(a.replacements), 2)
+        self.assertEqual(a.eval(x + y, 2), [3])
+
+    def test_merge_unions_replacements(self):
+        a = claripy.SolverReplacement(auto_replace=False)
+        b = claripy.SolverReplacement(auto_replace=False)
+        x, y = claripy.BVS("x", 8), claripy.BVS("y", 8)
+        a.add_replacement(x, claripy.BVV(1, 8))
+        b.add_replacement(y, claripy.BVV(2, 8))
+        c1, c2 = claripy.BoolS("c1"), claripy.BoolS("c2")
+        merged_occurred, merged = a.merge([b], [c1, c2])
+        self.assertTrue(merged_occurred)
+        self.assertEqual(len(merged.replacements), 2)
+        self.assertEqual(merged.eval(x + y, 2), [3])
+
+
+if __name__ == "__main__":
+    unittest.main()

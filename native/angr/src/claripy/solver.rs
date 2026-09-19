@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::claripy::ast::{and, or};
 use crate::claripy::{dynsolver::DynSolver, prelude::*};
@@ -9,7 +9,7 @@ use clarirs_core::solver_mixins::{
 use clarirs_vsa::VSASolver;
 use clarirs_z3::Z3Solver;
 use num_bigint::BigInt;
-use pyo3::types::PyTuple;
+use pyo3::types::{PyDict, PyTuple};
 
 #[pyclass(name = "Solver", module = "angr.rustylib.claripy.solver", subclass)]
 #[derive(Debug)]
@@ -306,6 +306,19 @@ impl PySolver {
 
             merged_bound
         };
+
+        // A replacement solver's merge keeps every input's replacements. Data-sensitive
+        // analyses merge states whose solvers hold the concretizations they discovered;
+        // a merged solver that forgot them would answer with the symbolic forms again.
+        if let DynSolver::Replacement(..) = slf.borrow().inner {
+            let mut imported: HashMap<u64, AstRef<'static>> = slf.borrow().inner.replacements()?.clone();
+            for other in &others {
+                if let Ok(theirs) = other.borrow().inner.replacements() {
+                    imported.extend(theirs.iter().map(|(h, a)| (*h, a.clone())));
+                }
+            }
+            merged.borrow_mut().inner.import_replacements(&imported)?;
+        }
 
         Ok((
             matches!(
@@ -841,6 +854,52 @@ impl PySolver {
         Ok(())
     }
 
+    /// `expr` with every registered replacement applied, without evaluating it.
+    /// Only supported for SolverReplacement.
+    fn apply_replacements<'py>(
+        &self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+    ) -> Result<Bound<'py, Base>, ClaripyError> {
+        let replaced = self.inner.apply_replacements(&expr.get().ast())?;
+        Base::from_ast(py, replaced)
+    }
+
+    /// The replacement registered for `expr`, or None. Annotations on `expr` are
+    /// ignored. Only supported for SolverReplacement.
+    fn get_replacement<'py>(
+        &self,
+        py: Python<'py>,
+        expr: Bound<'py, Base>,
+    ) -> Result<Option<Bound<'py, Base>>, ClaripyError> {
+        match self.inner.get_replacement(&expr.get().ast())? {
+            Some(ast) => Ok(Some(Base::from_ast(py, ast)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// The registered replacements as `{Base.hash(): replacement}`. Only supported
+    /// for SolverReplacement.
+    #[getter]
+    fn replacements<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, ClaripyError> {
+        let dict = PyDict::new(py);
+        for (hash, ast) in self.inner.replacements()? {
+            dict.set_item(*hash, Base::from_ast(py, ast.clone())?)?;
+        }
+        Ok(dict)
+    }
+
+    /// Copy every replacement registered on `other` into this solver. Only supported
+    /// for SolverReplacement.
+    fn import_replacements<'py>(
+        &mut self,
+        other: Bound<'py, PySolver>,
+    ) -> Result<(), ClaripyError> {
+        let imported: HashMap<u64, AstRef<'static>> = other.borrow().inner.replacements()?.clone();
+        self.inner.import_replacements(&imported)?;
+        Ok(())
+    }
+
     fn __getstate__<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyTuple>, ClaripyError> {
         // Get the solver type
         let solver_type = match &self.inner {
@@ -1035,14 +1094,17 @@ pub struct PyReplacementSolver;
 #[pymethods]
 impl PyReplacementSolver {
     #[new]
-    #[pyo3(signature = (auto_replace = true))]
-    fn new(auto_replace: bool) -> Result<PyClassInitializer<Self>, ClaripyError> {
+    #[pyo3(signature = (auto_replace = true, timeout = None))]
+    fn new(
+        auto_replace: bool,
+        timeout: Option<u32>,
+    ) -> Result<PyClassInitializer<Self>, ClaripyError> {
         Ok(PyClassInitializer::from(PySolver {
             inner: DynSolver::Replacement(ReplacementSolver::new_with_options(
-                wrap_z3_cached(Z3Solver::new_with_options(&GLOBAL_CONTEXT, None, false)),
+                wrap_z3_cached(Z3Solver::new_with_options(&GLOBAL_CONTEXT, timeout, false)),
                 auto_replace,
             )),
-            timeout: None,
+            timeout,
             unsat_core: false,
         })
         .add_subclass(Self {}))
