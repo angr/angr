@@ -5,7 +5,7 @@ import logging
 import math
 import time
 
-import claripy
+from angr import claripy
 import pyvex
 
 from angr.engines.engine import SimEngine

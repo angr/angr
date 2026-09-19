@@ -6,7 +6,7 @@ import os
 import time
 from typing import Any, TypeVar, overload
 
-from claripy.errors import ClaripyZ3Error
+from angr.claripy.errors import ClaripySolverInterruptError
 
 from angr import claripy
 from angr import sim_options as o
@@ -944,7 +944,7 @@ class SimSolver(SimStatePlugin, SupportsMerge):
                 return kwargs.pop("default")
             raise
         # NEW: catch Z3 timeouts/interrupts only
-        except (ClaripyZ3Error, claripy.ClaripySolverInterruptError):
+        except (ClaripySolverInterruptError, claripy.ClaripySolverInterruptError):
             # Reload the frontend (fresh Z3), restore replacements, empty caches, then retry once.
             self._reload_frontend_preserve_replacements()
             raise

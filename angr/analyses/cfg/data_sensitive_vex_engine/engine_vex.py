@@ -1,4 +1,4 @@
-import claripy
+from angr import claripy
 import pyvex
 
 from ....engines.vex.heavy.heavy import HeavyVEXMixin
