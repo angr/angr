@@ -110,7 +110,7 @@ class MultiValueMergerMixin(MemoryMixin):
         # than comparing, so key the set on hash() and keep the AST as the value.
         stripped_values = {}
         for v in values_set:
-            stripped = v._apply_to_annotations(lambda alist: ())
+            stripped = v.clear_annotations()
             stripped_values[stripped.hash()] = stripped
         if len(stripped_values) == 1:
             ret_val = next(iter(stripped_values.values()))
