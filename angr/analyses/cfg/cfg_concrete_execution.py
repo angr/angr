@@ -3057,9 +3057,13 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                 old_solver = new_state.solver._solver
                 new_solver = old_solver.blank_copy()
                 new_solver.add(preserved_constraints)
-                if isinstance(new_solver, claripy.SolverReplacement):
-                    # blank_copy drops the replacements the old solver had collected; keep them
+                try:
+                    # blank_copy drops the replacements the old solver had collected; keep them.
+                    # Copies of a SolverReplacement lose the Python subclass, so probe instead
+                    # of isinstance; a non-replacement solver raises.
                     new_solver.import_replacements(old_solver)
+                except claripy.errors.ClaripyError:
+                    pass
                 new_state.solver._stored_solver = new_solver
                 # Swap them
                 saved_state, job.state = job.state, new_state
