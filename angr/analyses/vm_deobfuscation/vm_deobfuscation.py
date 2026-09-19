@@ -2109,7 +2109,7 @@ class VMDeobfuscation(Analysis):
                     end_node_block_ids.append(cur_node.block_id)
         VM_1_func = Function(self.project.kb.functions, self.convert_addr_to_int(start_node.addr, start_node.block_id), 'VM_1', None, is_simprocedure=False)
         #set the calling convention
-        VM_1_func.calling_convention = self.project.factory._default_cc(self.project.arch)
+        VM_1_func.calling_convention = self.project.factory.cc()
         # prototype for toy samples
         VM_1_func.prototype = decomp_main_func_prototype
 
@@ -2157,7 +2157,7 @@ class VMDeobfuscation(Analysis):
                 if succ.is_simprocedure:
                     succ_func = None
                     # succ_func = Function(self.project.kb.functions, succ.addr, None, None, is_simprocedure=True)
-                    # succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
+                    # succ_func.calling_convention = self.project.factory.cc()
                     succ_proc=None
                     for name_addr, sim_proc in semantic_verf_hooks:
                         if isinstance(name_addr, str) and succ.name == name_addr:
@@ -2184,7 +2184,7 @@ class VMDeobfuscation(Analysis):
                             if succ_func.prototype.returnty:
                                 succ_func.prototype.returnty._arch = self.project.arch
                         if succ_func.calling_convention is None:
-                            succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
+                            succ_func.calling_convention = self.project.factory.cc()
 
                         if self.project.hooked_by(succ_func.addr).display_name:
                             succ_func.name = self.project.hooked_by(succ_func.addr).display_name
@@ -2219,11 +2219,11 @@ class VMDeobfuscation(Analysis):
                     succ_func = self.project.kb.functions.function(succ.addr, decomp_function_addresses[succ.addr][1], create=True)
                     succ_func.is_simprocedure = False
 
-                    succ_func.calling_convention = self.project.factory._default_cc(self.project.arch)
+                    succ_func.calling_convention = self.project.factory.cc()
 
                     if succ.addr in decomp_function_prototypes:
                         self.project.kb.callsite_prototypes.set_prototype(new_cur_node.addr,
-                                                                          self.project.factory._default_cc(self.project.arch),
+                                                                          self.project.factory.cc(),
                                                                           decomp_function_prototypes[succ.addr],
                                                                           manual=True)
                         succ_func.prototype = decomp_function_prototypes[succ.addr]
