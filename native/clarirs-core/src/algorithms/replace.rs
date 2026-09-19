@@ -23,6 +23,19 @@ fn commutative_operands<'a, 'c>(op: &'a AstOp<'c>) -> Option<&'a [AstRef<'c>]> {
     }
 }
 
+/// `node` rebuilt over `children`, a leaf as is. Unlike [`AstNode::replace_many`], a rebuilt node
+/// drops its own annotations (the pre-#7748 rebuild, which the replacement solver's walks keep).
+fn rebuild_unannotated<'c>(
+    ctx: &'c Context<'c>,
+    node: &AstRef<'c>,
+    children: &[AstRef<'c>],
+) -> Result<AstRef<'c>, ClarirsError> {
+    if node.op().num_children() == 0 {
+        return Ok(node.clone());
+    }
+    ctx.make_ast(node.op().with_children(children))
+}
+
 /// A set of `from -> to` substitutions for [`AstNode::replace_many`].
 ///
 /// Besides whole-node matches, an entry whose `from` is an associative and
@@ -226,6 +239,36 @@ impl<'c> AstNode<'c> {
                     ),
                 }
             },
+            &GenericCache::default(),
+        )
+    }
+
+    /// [`replace_many`](Self::replace_many), but a node carrying annotations also matches
+    /// a replacement registered for its bare form and vice versa. The replacement solver
+    /// uses this: annotations are metadata about where a value came from, not part of
+    /// its identity, and a concretization learned for `x` must fire on `x{region}`.
+    pub fn replace_many_loose(
+        self: &Arc<Self>,
+        replacements: &HashMap<u64, AstRef<'c>>,
+    ) -> Result<AstRef<'c>, ClarirsError> {
+        if replacements.is_empty() {
+            return Ok(self.clone());
+        }
+
+        let ctx = self.context();
+        walk(
+            self.clone(),
+            |node| {
+                if let Some(replacement) = replacements
+                    .get(&node.hash())
+                    .or_else(|| replacements.get(&node.hash_without_annotations()))
+                {
+                    Ok(Some(replacement.clone()))
+                } else {
+                    Ok(None)
+                }
+            },
+            |node, children| rebuild_unannotated(ctx, &node, children),
             &GenericCache::default(),
         )
     }
