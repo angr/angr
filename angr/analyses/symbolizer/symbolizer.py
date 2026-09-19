@@ -6,10 +6,10 @@ import logging
 import networkx
 
 from angr import ailment
-import claripy
+from angr import claripy
 import pyvex
 from angr.utils.graph import GraphUtils
-from claripy.errors import ClaripyZ3Error
+from angr.claripy.errors import ClaripySolverInterruptError
 from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveU64, DataSensitiveU32
 from pyvex.expr import DataSensitiveRdTmp
 from ...errors import SimUnsatError, SimValueError, SimSolverError

@@ -5,7 +5,7 @@ from collections import defaultdict
 from functools import reduce
 from typing import Dict
 
-import claripy
+from angr import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM

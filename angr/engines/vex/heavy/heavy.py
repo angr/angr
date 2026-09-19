@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from claripy.errors import ClaripyZ3Error
+from angr.claripy.errors import ClaripySolverInterruptError
 import pyvex
 
 from angr import claripy, errors
@@ -101,7 +101,7 @@ class SimStateStorageMixin(VEXMixin):
 
         try:
             solns = solver._solver.batch_eval([state_split_cond, addr], 2)
-        except (errors.SimValueError, ClaripyZ3Error):
+        except (errors.SimValueError, ClaripySolverInterruptError):
             return addr
 
         # solns[i] == (cond_value, addr_value); the address paired with cond==True takes the new

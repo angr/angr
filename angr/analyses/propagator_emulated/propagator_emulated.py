@@ -6,7 +6,7 @@ import copy
 import networkx
 
 from angr import ailment
-import claripy
+from angr import claripy
 import pyvex
 from angr.utils.graph import GraphUtils
 from ..vm_deobfuscation.vm_deobfuscation import DataSensitiveU64, DataSensitiveU32
@@ -263,7 +263,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         save = False
         var_ast_list = []
 
-        # no_constraints_solver = claripy.solvers.SolverComposite()
+        # no_constraints_solver = claripy.SolverComposite()
         # no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
         # conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
         conc_addrs = self.state.partial_symbolic_constraint_solver.eval_upto(addr[0],5)
@@ -317,7 +317,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
         if save:
             # create a solver without any constraints and use that to solve. This is equivalent to simplifying it and should not have the same issues that regular symbolic execution/solving with contraints should have
-            # no_constraints_solver = claripy.solvers.SolverComposite()
+            # no_constraints_solver = claripy.SolverComposite()
             # no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
             # conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
 
@@ -336,7 +336,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             # loaded_values = []
             # for conc_addr in conc_addrs:
             #     new_ast_constraints = []
-            #     no_constraints_solver = claripy.solvers.SolverComposite()
+            #     no_constraints_solver = claripy.SolverComposite()
             #     no_constraints_solver.add(self.state.partial_symbolic_constraint_solver.constraints)
             #     no_constraints_solver.add(simplified_addr == conc_addr)
             #
