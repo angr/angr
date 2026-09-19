@@ -1085,7 +1085,7 @@ class VEXMixin(SimEngine):
         # _perform_vex_expr_Load installs replacements as it goes; those change eval results
         # without touching the constraint list.
         try:
-            sig += (len(sim_solver._solver._replacements),)
+            sig += (sim_solver._solver.replacement_count,)
         except Exception:
             sig += (None,)
 
@@ -1121,7 +1121,7 @@ class VEXMixin(SimEngine):
                 self._ctf_eval_cache = {}
             cache = self._ctf_eval_cache
             try:
-                key = (expr.cache_key, self._ctf_eval_cache_sig())
+                key = (expr.hash(), self._ctf_eval_cache_sig())
             except AttributeError:
                 key = None
             if key is not None and key in cache:
