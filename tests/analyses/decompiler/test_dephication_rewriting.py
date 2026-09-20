@@ -9,7 +9,7 @@ import unittest
 
 import angr
 from angr.ailment import Manager
-from angr.ailment.expression import BinaryOp, ITE, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import ITE, BinaryOp, Const, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.dephication.rewriting_engine import SimEngineDephiRewriting
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
