@@ -193,7 +193,7 @@ class TestReachingDefinitions(TestCase):
 
         # Here, the statement content does not matter, neither if it is really in the block or else…
         statement = ailment.statement.DirtyStatement(0, ailment.expression.DirtyExpression(1, "foobar", [], bits=0))
-        block = main_function._addr_to_block_node[main_function.addr]  # pylint: disable=W0212
+        block = main_function.get_node(main_function.addr)
 
         reaching_definition.insn_observe(0x43, statement, block, state, OP_AFTER)
 
@@ -212,7 +212,7 @@ class TestReachingDefinitions(TestCase):
 
         project, main_function, reaching_definition, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
 
-        code_block = main_function._addr_to_block_node[main_function.addr]  # pylint: disable=W0212
+        code_block = main_function.get_node(main_function.addr)
         block = Block(addr=0x43, byte_string=code_block.bytestr, project=project)
         statement = block.vex.statements[0]
 
@@ -233,7 +233,7 @@ class TestReachingDefinitions(TestCase):
 
         project, main_function, reaching_definition, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
 
-        code_block = main_function._addr_to_block_node[main_function.addr]  # pylint: disable=W0212
+        code_block = main_function.get_node(main_function.addr)
         block = Block(addr=0x43, byte_string=code_block.bytestr, project=project)
         # When observing OP_AFTER an instruction, the statement has to be the last of a block
         # (or preceding an IMark)
