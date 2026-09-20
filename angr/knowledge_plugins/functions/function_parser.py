@@ -7,7 +7,7 @@ from collections import defaultdict
 
 import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
-from angr.codenode import BlockNode, FuncNode, HookNode
+from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.protos import function_pb2, primitives_pb2
 from angr.sim_type import SimType, SimTypeFunction
 from angr.utils.enums_conv import (
@@ -88,21 +88,30 @@ class FunctionParser:
         obj.ran_cca = function.ran_cca
         obj.previous_names.extend(function.previous_names)
 
+        ret_sites = function._ret_sites
+        retout_sites = function._retout_sites
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
             for node in endpoint_nodes:
-                ep = primitives_pb2.Endpoint()
-                ep.ea = node.addr
-                ep.size = node.size
                 match endpoint_type:
                     case "call":
-                        ep.type = primitives_pb2.EndpointType.CALL
+                        ep_types = [primitives_pb2.EndpointType.CALL]
                     case "return":
-                        ep.type = primitives_pb2.EndpointType.RETURN
+                        # a "return" endpoint is a return site, a retout site, or (rarely) both
+                        ep_types = []
+                        if node in retout_sites:
+                            ep_types.append(primitives_pb2.EndpointType.RETOUT)
+                        if node in ret_sites or not ep_types:
+                            ep_types.append(primitives_pb2.EndpointType.RETURN)
                     case "transition":
-                        ep.type = primitives_pb2.EndpointType.TRANSITION
+                        ep_types = [primitives_pb2.EndpointType.TRANSITION]
                     case _:
                         continue
-                obj.endpoints.append(ep)
+                for ep_type in ep_types:
+                    ep = primitives_pb2.Endpoint()
+                    ep.ea = node.addr
+                    ep.size = node.size
+                    ep.type = ep_type
+                    obj.endpoints.append(ep)
 
         # signature matched?
         if not function.from_signature:
@@ -115,38 +124,30 @@ class FunctionParser:
                     f"Cannot convert from_signature {function.from_signature} into a SignatureSource enum."
                 )
 
-        # blocks
+        # local nodes
+        code_nodes = function.code_nodes
         blocks_list = []
-        for b in function.code_nodes.values():
-            block = primitives_pb2.Block()
-            block.ea = b.addr
-            block.size = b.size
+        for b in code_nodes.values():
             if isinstance(b, BlockNode):
                 assert b.bytestr is not None, (
                     f"Block bytes cannot be None when serializing a function. Is this function meta-only ({function.meta_only})?"
                 )
-                block.bytes = b.bytestr
-            blocks_list.append(block)
+            blocks_list.append(FunctionParser._node_to_block_cmsg(b))
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
-        block_addrs_set = function.block_addrs_set
-        # graph
-        edges = []
-        external_func_addrs = set()
+        # nodes outside of this function; FuncNode, HookNode, and SyscallNode addresses are also recorded in
+        # external_functions for readers that predate Block.kind
+        external_func_addrs = []
         external_blocks = []
-
         for node in function.transition_graph:
-            # this is a Block in another function, or just another Function instance.
+            if code_nodes.get(node.addr) == node:
+                continue
+            external_blocks.append(FunctionParser._node_to_block_cmsg(node))
             if isinstance(node, (FuncNode, HookNode)):
-                external_func_addrs.add(node.addr)
-            elif node.addr not in block_addrs_set and isinstance(node, BlockNode):
-                block = primitives_pb2.Block()
-                block.ea = node.addr
-                block.size = node.size
-                block.bytes = node.bytestr or b""
-                external_blocks.append(block)
+                external_func_addrs.append(node.addr)
 
         TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
+        edges = []
         for src, dst, data in function.transition_graph.edges(data=True):
             edge = primitives_pb2.Edge()
             edge.src_ea = src.addr
@@ -170,7 +171,6 @@ class FunctionParser:
                     l.warning('Unexpected edge data type "%s" encountered during serialization.', key)
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
-        # referenced functions
         obj.external_functions.extend(external_func_addrs)  # pylint:disable=no-member
         obj.external_blocks.extend(external_blocks)  # pylint:disable=no-member
 
@@ -184,6 +184,44 @@ class FunctionParser:
             obj.call_sites.append(call_site)  # pylint:disable=no-member
 
         return obj
+
+    @staticmethod
+    def _node_to_block_cmsg(node) -> primitives_pb2.Block:
+        block = primitives_pb2.Block()
+        block.ea = node.addr
+        block.size = node.size
+        block.thumb = node.thumb
+        if isinstance(node, SyscallNode):
+            block.kind = primitives_pb2.CodeNodeKind.SYSCALL_NODE
+        elif isinstance(node, HookNode):
+            block.kind = primitives_pb2.CodeNodeKind.HOOK_NODE
+        elif isinstance(node, FuncNode):
+            block.kind = primitives_pb2.CodeNodeKind.FUNC_NODE
+        elif isinstance(node, BlockNode):
+            block.kind = primitives_pb2.CodeNodeKind.BLOCK_NODE
+            if node.bytestr is not None:
+                block.bytes = node.bytestr
+        else:
+            raise TypeError(f"Unsupported node type {type(node)}")
+        return block
+
+    @staticmethod
+    def _node_from_block_cmsg(block, project, local: bool):
+        match block.kind:
+            case primitives_pb2.CodeNodeKind.BLOCK_NODE:
+                # local blocks always carry their bytes; empty bytes on an external block mean "unknown"
+                bytestr = block.bytes if local or block.bytes else None
+                return BlockNode(block.ea, block.size, bytestr=bytestr, thumb=block.thumb)
+            case primitives_pb2.CodeNodeKind.HOOK_NODE:
+                hooker = project.hooked_by(block.ea) if project is not None and project.is_hooked(block.ea) else None
+                return HookNode(block.ea, block.size, hooker, thumb=block.thumb)
+            case primitives_pb2.CodeNodeKind.SYSCALL_NODE:
+                syscall = project.simos.syscall_from_addr(block.ea) if project is not None else None
+                return SyscallNode(block.ea, block.size, syscall, thumb=block.thumb)
+            case primitives_pb2.CodeNodeKind.FUNC_NODE:
+                return FuncNode(block.ea, thumb=block.thumb)
+            case _:
+                raise ValueError(f"Unsupported CodeNodeKind {block.kind}")
 
     @staticmethod
     def parse_from_cmsg(cmsg, function_manager=None, project=None, meta_only: bool = False):
@@ -245,12 +283,15 @@ class FunctionParser:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
         if meta_only:
-            startpoint_addr = cmsg.ea
-            obj.startpoint = (
-                HookNode(startpoint_addr, 0, project.hooked_by(startpoint_addr))
-                if project and project.is_hooked(startpoint_addr)
-                else BlockNode(startpoint_addr, 1, bytestr=None)
-            )  # the size is incorrect, but it should probably be fine?
+            start_block = next((b for b in cmsg.blocks if b.ea == cmsg.ea), None)
+            if start_block is not None:
+                obj.startpoint = FunctionParser._node_from_block_cmsg(start_block, project, local=True)
+            else:
+                obj.startpoint = (
+                    HookNode(cmsg.ea, 0, project.hooked_by(cmsg.ea))
+                    if project and project.is_hooked(cmsg.ea)
+                    else BlockNode(cmsg.ea, 1, bytestr=None)
+                )  # the size is incorrect, but it should probably be fine?
 
             block_addrs_set = set()
             for b in cmsg.blocks:
@@ -259,168 +300,118 @@ class FunctionParser:
 
             for endpoint in cmsg.endpoints:
                 block = BlockNode(endpoint.ea, endpoint.size, bytestr=None)
-                match endpoint.type:
-                    case primitives_pb2.EndpointType.CALL:
-                        obj._callout_sites.add(block)
-                        obj._add_endpoint(block, "call")
-                    case primitives_pb2.EndpointType.RETURN:
-                        obj._add_return_site(block)
-                    case primitives_pb2.EndpointType.TRANSITION:
-                        obj.add_jumpout_site(block)
-                    case _:
-                        continue
+                FunctionParser._add_endpoint(obj, block, endpoint.type)
 
             obj.meta_only = True  # can't be serialized again when evicted from the cache
             obj._dirty = False
             return obj
 
-        # blocks
-        blocks = {}
-        external_blocks = {}
+        # nodes
+        blocks: dict[int, CodeNode] = {}
         for b in cmsg.blocks:
-            block = BlockNode(b.ea, b.size, bytestr=b.bytes)
+            block = FunctionParser._node_from_block_cmsg(b, project, local=True)
             blocks[block.addr] = block
 
+        external_nodes: dict[int, list[CodeNode]] = defaultdict(list)
         for b in cmsg.external_blocks:
-            block = BlockNode(b.ea, b.size, bytestr=b.bytes)
-            external_blocks[block.addr] = block
+            external_nodes[b.ea].append(FunctionParser._node_from_block_cmsg(b, project, local=False))
 
-        # addresses of referenced functions that are not inside the current function
+        # addresses of referenced functions that are not inside the current function (readers of old messages only)
         external_func_addrs = set(cmsg.external_functions)
 
+        def resolve(addr: int) -> CodeNode:
+            node = blocks.get(addr)
+            if node is not None:
+                return node
+            return FunctionParser._get_external_node(addr, external_nodes, external_func_addrs, project)
+
         # edges
-        edges = {}
-        fake_return_edges = defaultdict(list)
+        edges = []
+        fake_return_edges = []
         # inline the protobuf-jumpkind -> edge-type lookup on this hot per-edge path; fall back to
         # func_edge_type_from_pb only to log the error for an unrecognized value
         edge_type_of = _PB_TO_FUNCTION_EDGETYPES.get
         for edge_cmsg in cmsg.graph.edges:
-            if edge_cmsg.src_ea in blocks:
-                src = blocks[edge_cmsg.src_ea]
-            else:
-                src = FunctionParser._get_hook_or_func_node(
-                    edge_cmsg.src_ea,
-                    external_blocks,
-                    external_func_addrs,
-                    project,
-                )
-
             edge_type = edge_type_of(edge_cmsg.jumpkind, _EDGETYPE_MISSING)
             if edge_type is _EDGETYPE_MISSING:
                 edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
-            if edge_type == "call":
-                dst = FuncNode(edge_cmsg.dst_ea)
-            else:
-                if edge_cmsg.dst_ea in blocks:
-                    dst = blocks[edge_cmsg.dst_ea]
-                else:
-                    dst = FunctionParser._get_hook_or_func_node(
-                        edge_cmsg.dst_ea,
-                        external_blocks,
-                        external_func_addrs,
-                        project,
-                    )
+            # Function._call_to() and Function._return_from_call() always take the callee as a FuncNode
+            src = FuncNode(edge_cmsg.src_ea) if edge_type == "return" else resolve(edge_cmsg.src_ea)
+            dst = FuncNode(edge_cmsg.dst_ea) if edge_type in ("call", "syscall") else resolve(edge_cmsg.dst_ea)
 
             data = {
                 "outside": edge_cmsg.is_outside,
-                "ins_addr": edge_cmsg.ins_addr,
-                "stmt_idx": edge_cmsg.stmt_idx,
+                "ins_addr": edge_cmsg.ins_addr if edge_cmsg.HasField("ins_addr") else None,
+                "stmt_idx": edge_cmsg.stmt_idx if edge_cmsg.HasField("stmt_idx") else None,
             }
             if edge_cmsg.confirmed == 0:
                 data["confirmed"] = False
             elif edge_cmsg.confirmed == 1:
                 data["confirmed"] = True
             if edge_type == "fake_return":
-                fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
+                fake_return_edges.append((src, dst, data))
             else:
-                edges[(edge_cmsg.src_ea, edge_cmsg.dst_ea, edge_type)] = (src, dst, data)
+                edges.append((src, dst, edge_type, data))
 
-        added_nodes = set()
-        for k, v in edges.items():
-            src_addr, dst_addr, edge_type = k
-            src, dst, data = v
-
-            outside = data.get("outside", False)
-            ins_addr = data.get("ins_addr", None)
-            stmt_idx = data.get("stmt_idx", None)
-            added_nodes.add(src)
-            added_nodes.add(dst)
+        for src, dst, edge_type, data in edges:
             if edge_type in ("transition", "exception"):
                 obj._transit_to(
                     src,
                     dst,
-                    outside=outside,
-                    ins_addr=ins_addr,
-                    stmt_idx=stmt_idx,
+                    outside=data["outside"],
+                    ins_addr=data["ins_addr"],
+                    stmt_idx=data["stmt_idx"],
                     is_exception=edge_type == "exception",
                     update_func_block_count=False,  # we will update the block count at the end of this function
                 )
             elif edge_type in ("call", "syscall"):
-                # find the corresponding fake_ret edge
-                fake_ret_edge = next(
-                    iter(edge_ for edge_ in fake_return_edges[src_addr] if edge_[1].addr == src.addr + src.size), None
+                obj._call_to(
+                    src,
+                    dst,
+                    None,  # fake-return edges are restored on their own below
+                    stmt_idx=data["stmt_idx"],
+                    ins_addr=data["ins_addr"],
+                    syscall=edge_type == "syscall",
+                    update_func_block_count=False,  # we will update the block count at the end of this function
                 )
-                if dst is None:
-                    l.warning(
-                        "The destination function %#x does not exist, and it cannot be created since function "
-                        "manager is not provided. Please consider passing in a function manager to rebuild this "
-                        "graph.",
-                        dst_addr,
-                    )
-                else:
-                    fakeret_is_outside = fake_ret_edge is None or fake_ret_edge[1].addr not in blocks
-                    if isinstance(dst, (FuncNode, HookNode)):
-                        obj._call_to(
-                            src,
-                            dst,
-                            None if fake_ret_edge is None else fake_ret_edge[1],
-                            stmt_idx=stmt_idx,
-                            ins_addr=ins_addr,
-                            return_to_outside=fakeret_is_outside,
-                            syscall=edge_type == "syscall",
-                            update_func_block_count=False,  # we will update the block count at the end of this function
-                        )
-                    if fake_ret_edge is not None:
-                        fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge
-                        added_nodes.add(fakeret_dst)
-                        obj._fakeret_to(
-                            fakeret_src,
-                            fakeret_dst,
-                            confirmed=fakeret_data.get("confirmed"),
-                            to_outside=(fakeret_data.get("outside", None) or fakeret_is_outside),
-                            update_func_block_count=False,  # we will update the block count at the end of this function
-                        )
             elif edge_type == "return":
                 obj._return_from_call(
                     src,
                     dst,
-                    to_outside=outside,
+                    to_outside=data["outside"],
                     confirm_fakeret=False,
                 )
-            elif edge_type == "fake_return":
-                pass
+
+        for src, dst, data in fake_return_edges:
+            confirmed = data.get("confirmed")
+            # _fakeret_to() registers a confirmed destination as a local block unless to_outside is set; the block
+            # list decides locality, the stored flag is restored on the edge afterwards
+            obj._fakeret_to(
+                src,
+                dst,
+                confirmed=confirmed,
+                to_outside=data["outside"] or dst.addr not in blocks,
+                update_func_block_count=False,  # we will update the block count at the end of this function
+            )
+            obj.transition_graph[src][dst]["outside"] = data["outside"]
 
         for endpoint in cmsg.endpoints:
             if endpoint.ea not in blocks:
                 continue
-            block = blocks[endpoint.ea]
-            match endpoint.type:
-                case primitives_pb2.EndpointType.CALL:
-                    obj._callout_sites.add(block)
-                    obj._add_endpoint(block, "call")
-                case primitives_pb2.EndpointType.RETURN:
-                    obj._add_return_site(block)
-                case primitives_pb2.EndpointType.TRANSITION:
-                    obj.add_jumpout_site(block)
-                case _:
-                    continue
+            FunctionParser._add_endpoint(obj, blocks[endpoint.ea], endpoint.type)
 
-        # add leftover blocks
+        # add leftover nodes: local blocks without edges or only reachable via unconfirmed fake-return edges, and
+        # external nodes without edges
         for block in blocks.values():
-            if block not in added_nodes:
-                obj._register_node(True, block)
+            if block.addr not in obj._local_blocks:
+                obj._register_node(True, block, update_func_block_count=False)
+        graph = obj.transition_graph
+        for nodes in external_nodes.values():
+            for node in nodes:
+                if node not in graph:
+                    obj._register_node(False, node, update_func_block_count=False)
 
         obj.update_func_block_count()
 
@@ -435,17 +426,37 @@ class FunctionParser:
         return obj
 
     @staticmethod
-    def _get_hook_or_func_node(addr, external_blocks: dict, external_func_addrs: set[int], project):
-        # should we get a hook node, a func node, or a block in external_blocks?
+    def _add_endpoint(func, block: CodeNode, endpoint_type) -> None:
+        match endpoint_type:
+            case primitives_pb2.EndpointType.CALL:
+                func._callout_sites.add(block)
+                func._add_endpoint(block, "call")
+            case primitives_pb2.EndpointType.RETURN:
+                func._add_return_site(block)
+            case primitives_pb2.EndpointType.RETOUT:
+                func.add_retout_site(block)
+            case primitives_pb2.EndpointType.TRANSITION:
+                func.add_jumpout_site(block)
+            case _:
+                l.warning("Unsupported EndpointType %s encountered during deserialization.", endpoint_type)
+
+    @staticmethod
+    def _get_external_node(
+        addr, external_nodes: dict[int, list[CodeNode]], external_func_addrs: set[int], project
+    ) -> CodeNode:
+        candidates = external_nodes.get(addr)
+        if candidates:
+            # a FuncNode only ever coexists at the same address with a Block/Hook/SyscallNode that is the real target
+            for node in candidates:
+                if not isinstance(node, FuncNode):
+                    return node
+            return candidates[0]
+
+        # messages written before Block.kind existed only record the addresses of external functions
         if addr in external_func_addrs:
             if project is not None and project.is_hooked(addr):
-                # get a hook node instead
                 return HookNode(addr, 0, project.hooked_by(addr))
-            # get a function node
             return FuncNode(addr)
-        if addr in external_blocks:
-            # create a block
-            return external_blocks[addr]
 
         raise ValueError(
             f"Unsupported case: The block addr {addr:#x} is not an external function or block. "
