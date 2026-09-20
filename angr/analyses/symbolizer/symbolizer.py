@@ -1689,7 +1689,11 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             sim_successors=new_sim_successors
                             sim_successors.artifacts['irsb_direct_next'] = True
 
-                elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
+                # all_successors includes unsat warning exits, so only stop here for extra feasible successors.
+                elif len(sim_successors.unconstrained_successors) > 1 or (
+                    len(sim_successors.unconstrained_successors) == 1
+                    and len(sim_successors.all_successors) != len(sim_successors.unsat_successors) + 1
+                ):
                     handled_mixed_successors = False
 
                     if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 1:
