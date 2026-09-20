@@ -2090,6 +2090,63 @@ def riscv64g_calculate_fflags_fle_d(state, a1, a2):  # pylint:disable=unused-arg
     return _riscv64g_fflags_fcmp(a1, a2, False)
 
 
+def _riscv64g_calculate_fclass(a1):
+    """RISC-V F/D FCLASS: one class bit in bits 9:0; no FP exception flags.
+
+    Classify raw IEEE-754 fields without floating-point arithmetic so signaling
+    NaNs retain their quiet bit. VEX checks FCLASS.S NaN boxing before this call.
+    """
+    if a1.op == "If":
+        condition, if_true, if_false = a1.args
+        return claripy.If(condition, _riscv64g_calculate_fclass(if_true), _riscv64g_calculate_fclass(if_false))
+    # SMT floating-point NaNs do not retain their IEEE payload or quiet bit.
+    # Recover the original register bits instead of round-tripping via FP.
+    a1 = a1.args[0] if a1.op == "bvToFP" else a1.raw_to_bv()
+    frac_bits = 52 if len(a1) == 64 else 23
+    exp_msb = len(a1) - 2
+
+    sign = a1[len(a1) - 1]
+    exponent = a1[exp_msb:frac_bits]
+    fraction = a1[frac_bits - 1 : 0]
+    exp_zero = exponent == 0
+    exp_ones = exponent == -1
+    frac_zero = fraction == 0
+    negative = sign == 1
+
+    is_zero = claripy.And(exp_zero, frac_zero)
+    is_subnormal = claripy.And(exp_zero, claripy.Not(frac_zero))
+    is_normal = claripy.And(claripy.Not(exp_zero), claripy.Not(exp_ones))
+    is_infinity = claripy.And(exp_ones, frac_zero)
+    is_nan = claripy.And(exp_ones, claripy.Not(frac_zero))
+    is_quiet_nan = claripy.And(is_nan, fraction[frac_bits - 1] == 1)
+    is_signaling_nan = claripy.And(is_nan, fraction[frac_bits - 1] == 0)
+
+    classes = (
+        claripy.And(negative, is_infinity),
+        claripy.And(negative, is_normal),
+        claripy.And(negative, is_subnormal),
+        claripy.And(negative, is_zero),
+        claripy.And(claripy.Not(negative), is_zero),
+        claripy.And(claripy.Not(negative), is_subnormal),
+        claripy.And(claripy.Not(negative), is_normal),
+        claripy.And(claripy.Not(negative), is_infinity),
+        is_signaling_nan,
+        is_quiet_nan,
+    )
+    result = claripy.BVV(0, 64)
+    for bit, condition in enumerate(classes):
+        result |= claripy.If(condition, claripy.BVV(1 << bit, 64), claripy.BVV(0, 64))
+    return result
+
+
+def riscv64g_calculate_fclass_s(state, a1):  # pylint:disable=unused-argument
+    return _riscv64g_calculate_fclass(a1)
+
+
+def riscv64g_calculate_fclass_d(state, a1):  # pylint:disable=unused-argument
+    return _riscv64g_calculate_fclass(a1)
+
+
 #
 # Some helpers
 #
