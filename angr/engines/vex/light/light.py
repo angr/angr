@@ -3357,7 +3357,7 @@ class VEXMixin(SimEngine):
                                 print(entropy)
                                 print(addr)
                                 candidate_vips[(reg_off, size)] = (poss_addrs[0],)
-                            elif off_size_tuple[0] == self.state.globals['cur_vm_reg'] and 1 < abs(addr- self.state.globals['vpc']) < 15:
+                            elif (reg_off, size) == self.state.globals['cur_vm_reg'] and 1 < abs(addr- self.state.globals['vpc']) < 15:
                                 candidate_vips[(reg_off, size)] = (poss_addrs[0],)
 
 
@@ -3426,6 +3426,7 @@ class VEXMixin(SimEngine):
         if len(candidate_vips) > 1:
             # first prioritise the existing vpc reg, by checking if it has inc/dec, if not check others later
             if not found_vip and self.state.globals['cur_vm_reg'] in candidate_vips and \
+                    len(candidate_vips[self.state.globals['cur_vm_reg']]) == 1 and \
                     self._vip_candidate_use_allowed(
                         self.state.globals['cur_vm_reg'], candidate_vips, candidate_use_scores
                     ) and \
