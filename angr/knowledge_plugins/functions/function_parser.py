@@ -15,6 +15,7 @@ from angr.utils.enums_conv import (
     _EDGETYPE_MISSING,
     _PB_TO_FUNCTION_EDGETYPES,
     func_edge_type_from_pb,
+    func_edge_type_to_pb,
 )
 from angr.utils.types import make_type_reference, type_collections_for_lib
 
@@ -52,8 +53,10 @@ class FunctionParser:
     """
 
     @staticmethod
-    def serialize(function):
+    def serialize(function, legacy_layout: bool = False):
         """
+        :param legacy_layout:   Write the per-block / per-edge layout (Function.blocks, graph.edges, endpoints, ...)
+                                that angr wrote before graph_blob existed instead of the FunctionGraph blob.
         :return :
         """
         obj = angr.knowledge_plugins.Function._get_cmsg()
@@ -100,9 +103,94 @@ class FunctionParser:
                 )
 
         # blocks, graph, endpoints, external references and call sites
-        obj.graph_blob = function._graph.to_bytes()
+        if legacy_layout:
+            FunctionParser._serialize_legacy_layout(function, obj)
+        else:
+            obj.graph_blob = function._graph.to_bytes()
 
         return obj
+
+    @staticmethod
+    def _serialize_legacy_layout(function, obj) -> None:
+        ret_sites = set(function.ret_sites)
+        retout_sites = set(function.retout_sites)
+        for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
+            for node in endpoint_nodes:
+                match endpoint_type:
+                    case "call":
+                        ep_types = [primitives_pb2.EndpointType.CALL]
+                    case "return":
+                        # a "return" endpoint is a return site, a retout site, or (rarely) both
+                        ep_types = []
+                        if node in retout_sites:
+                            ep_types.append(primitives_pb2.EndpointType.RETOUT)
+                        if node in ret_sites or not ep_types:
+                            ep_types.append(primitives_pb2.EndpointType.RETURN)
+                    case "transition":
+                        ep_types = [primitives_pb2.EndpointType.TRANSITION]
+                    case _:
+                        continue
+                for ep_type in ep_types:
+                    ep = primitives_pb2.Endpoint()
+                    ep.ea = node.addr
+                    ep.size = node.size
+                    ep.type = ep_type
+                    obj.endpoints.append(ep)
+
+        # local nodes
+        code_nodes = function.code_nodes
+        blocks_list = []
+        for b in code_nodes.values():
+            blocks_list.append(FunctionParser._node_to_block_cmsg(b))
+        obj.blocks.extend(blocks_list)  # pylint:disable=no-member
+
+        # nodes outside of this function; FuncNode, HookNode, and SyscallNode addresses are also recorded in
+        # external_functions for readers that predate Block.kind
+        external_func_addrs = []
+        external_blocks = []
+        for node in function.transition_graph:
+            if code_nodes.get(node.addr) == node:
+                continue
+            external_blocks.append(FunctionParser._node_to_block_cmsg(node))
+            if isinstance(node, (FuncNode, HookNode)):
+                external_func_addrs.append(node.addr)
+
+        TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
+        edges = []
+        for src, dst, data in function.transition_graph.edges(data=True):
+            edge = primitives_pb2.Edge()
+            edge.src_ea = src.addr
+            edge.dst_ea = dst.addr
+            edge.jumpkind = TRANSITION_JK
+            edge.confirmed = 2  # default value
+            for key, value in data.items():
+                if key == "type":
+                    edge.jumpkind = func_edge_type_to_pb(value)
+                elif key == "ins_addr":
+                    if value is not None:
+                        edge.ins_addr = value
+                elif key == "stmt_idx":
+                    if value is not None:
+                        edge.stmt_idx = value
+                elif key == "outside":
+                    edge.is_outside = value
+                elif key == "confirmed":
+                    edge.confirmed = 0 if value is False else 1
+                else:
+                    l.warning('Unexpected edge data type "%s" encountered during serialization.', key)
+            edges.append(edge)
+        obj.graph.edges.extend(edges)  # pylint:disable=no-member
+        obj.external_functions.extend(external_func_addrs)  # pylint:disable=no-member
+        obj.external_blocks.extend(external_blocks)  # pylint:disable=no-member
+
+        for call_site_addr, (call_target_addr, retn_addr) in function._call_sites.items():
+            call_site = function_pb2.CallSite()
+            call_site.ea = call_site_addr
+            if call_target_addr is not None:
+                call_site.target_ea = call_target_addr
+            if retn_addr is not None:
+                call_site.return_ea = retn_addr
+            obj.call_sites.append(call_site)  # pylint:disable=no-member
 
     @staticmethod
     def _node_to_block_cmsg(node) -> primitives_pb2.Block:

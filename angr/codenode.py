@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import weakref
 from typing import TYPE_CHECKING
@@ -7,6 +8,7 @@ from typing import TYPE_CHECKING
 from archinfo.arch_soot import SootMethodDescriptor
 
 import angr
+from angr.errors import SimEngineError, SimMemoryError
 
 if TYPE_CHECKING:
     from . import SimProcedure
@@ -98,19 +100,39 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
     Represents a block of code in a function graph.
     """
 
-    __slots__ = ["bytestr"]
+    __slots__ = ["_bytestr"]
 
     is_hook = False
 
     def __init__(self, addr: int, size, bytestr=None, **kwargs):
         super().__init__(addr, size, **kwargs)
-        self.bytestr = bytestr
+        self._bytestr = bytestr
+
+    @property
+    def bytestr(self) -> bytes | None:
+        """
+        The bytes of the block. Nodes created from a stored function graph carry no bytes; they are read from the
+        owning function's project on first access.
+        """
+        if self._bytestr is None and self._owner is not None:
+            try:
+                project = self._owner.project
+            except ReferenceError:
+                project = None
+            if project is not None and self.size:
+                with contextlib.suppress(SimEngineError, SimMemoryError):
+                    self._bytestr = project.factory.block(self.addr, size=self.size).bytes
+        return self._bytestr
+
+    @bytestr.setter
+    def bytestr(self, v: bytes | None) -> None:
+        self._bytestr = v
 
     def __repr__(self):
         return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
 
     def __getstate__(self) -> tuple:
-        return self.addr, self.size, self.bytestr, self.thumb
+        return self.addr, self.size, self._bytestr, self.thumb
 
     def __setstate__(self, dat: tuple):
         self.__init__(*dat[:-1], thumb=dat[-1])
