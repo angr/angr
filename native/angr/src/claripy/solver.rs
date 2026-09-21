@@ -367,15 +367,20 @@ impl PySolver {
             ));
         };
 
-        // Return only the constraints actually added: trivially-true ones and
-        // duplicates of already-present constraints are filtered out.
+        // Skip exact duplicates of stored (or earlier-in-batch) constraints before
+        // storing, like claripy's ConstraintDeduplicatorMixin: a merge that re-adds
+        // both sides' constraint lists must not double the solver each time.
+        // Return only the constraints actually added.
         let mut seen: std::collections::HashSet<u64> =
             self.inner.constraints()?.iter().map(|c| c.hash()).collect();
         let mut added = Vec::with_capacity(bool_exprs.len());
         for expr in bool_exprs {
             let ast = expr.get().inner.clone();
+            if !seen.insert(ast.hash()) {
+                continue;
+            }
             self.inner.add(&ast)?;
-            if ast.simplify()?.is_true() || !seen.insert(ast.hash()) {
+            if ast.simplify()?.is_true() {
                 continue;
             }
             added.push(expr);
