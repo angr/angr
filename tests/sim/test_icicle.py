@@ -411,6 +411,37 @@ class TestThumb(TestCase):
         assert successors[0].regs.pc.concrete_value == 0xD
         assert successors[0].regs.r2.concrete_value == 0x3
 
+    def test_cortex_m_pcode_arch_mapping(self):  # pylint: disable=protected-access
+        """A pcode Cortex-M arch must map to armv7m, just like ArchARMCortexM does."""
+
+        pcode_cortex_m = archinfo.ArchPcode("ARM:LE:32:Cortex")
+
+        assert IcicleEngine._make_icicle_arch(archinfo.ArchARMCortexM()) == "armv7m"
+        assert IcicleEngine._make_icicle_arch(pcode_cortex_m) == "armv7m"
+        assert IcicleEngine._is_cortex_m(pcode_cortex_m, "armv7m")
+        assert IcicleEngine._is_thumb(pcode_cortex_m, "armv7m", 0x0)
+
+        # A non-Cortex pcode ARM arch must not be mistaken for Cortex-M.
+        assert IcicleEngine._make_icicle_arch(archinfo.ArchPcode("ARM:LE:32:v7")) != "armv7m"
+
+    def test_cortex_m_pcode_thumb_only(self):
+        """Test that the Icicle engine automatically uses thumb mode for a pcode Cortex-M arch."""
+
+        # Raw 16-bit Thumb encodings of: movs r0, #1; movs r1, #2; adds r2, r0, r1
+        shellcode = b"\x01\x20\x02\x21\x42\x18"
+        project = angr.load_shellcode(shellcode, archinfo.ArchPcode("ARM:LE:32:Cortex"))
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.entry_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        successors = engine.process(init_state, num_inst=3)
+        assert len(successors.successors) == 1
+        assert successors[0].regs.pc.concrete_value == 0x7
+        assert successors[0].regs.r2.concrete_value == 0x3
+
     def test_thumb_switching(self):
         """Test that the Icicle engine can handle switching between ARM and Thumb instructions."""
 
