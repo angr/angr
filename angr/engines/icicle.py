@@ -59,7 +59,7 @@ class IcicleEngine(SuccessorsEngine):
         accurate, just a set of heuristics to get the right architecture. When
         adding a new architecture, this function may need to be updated.
         """
-        if isinstance(arch, ArchARMCortexM) or (isinstance(arch, ArchPcode) and arch.pcode_arch == "ARM:LE:32:Cortex"):
+        if isinstance(arch, ArchARMCortexM) or (isinstance(arch, ArchPcode) and arch.pcode_id == "ARM:LE:32:Cortex"):
             return "armv7m"
         if arch.linux_name == "arm":
             return "armv7a" if arch.memory_endness == Endness.LE else "armeb"
