@@ -85,10 +85,13 @@ class TestFunctionRustGraph(unittest.TestCase):
         with self.assertRaises(networkx.NetworkXError):
             func._remove_fakeret(a, b)
 
-        # in-place mutation of the transition graph is written through to the store
+        # the view is read-only; direct graph edits go through the Function API
         c = BlockNode(0x400729, 2)
         func._dirty = False
-        tg.add_edge(a, c, type="transition", outside=False, ins_addr=0x40071F, stmt_idx=-2)
+        with self.assertRaises(networkx.NetworkXError):
+            tg.add_edge(a, c, type="transition", outside=False, ins_addr=0x40071F, stmt_idx=-2)
+        assert not func.dirty and c not in tg
+        func._add_graph_edge(a, c, type="transition", outside=False, ins_addr=0x40071F, stmt_idx=-2)
         assert func.dirty
         assert func._graph.number_of_edges() == 1
         cmsg = func.serialize_to_cmessage()
@@ -98,7 +101,9 @@ class TestFunctionRustGraph(unittest.TestCase):
         assert {(u.addr, v.addr, d["type"]) for u, v, d in loaded.transition_graph.edges(data=True)} == {
             (0x40071D, 0x400729, "transition")
         }
-        tg.remove_node(c)
+        with self.assertRaises(networkx.NetworkXError):
+            tg.remove_node(c)
+        func._remove_graph_node(c)
         assert func._graph.number_of_edges() == 0
         assert c not in func.transition_graph
 
