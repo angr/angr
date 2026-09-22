@@ -97,6 +97,9 @@ def _node_key(node: CodeNode) -> tuple[NodeKind, int, int, bool]:
     return kind, node.addr, 0 if size is None else size, bool(node.thumb)
 
 
+_UNSET = object()
+
+
 def dirty_func(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -659,72 +662,95 @@ class Function(Serializable):
     def _set_edge_outside(self, src: CodeNode, dst: CodeNode, outside: bool) -> None:
         s, d = self._find_node(src), self._find_node(dst)
         if s is None or d is None or not self._graph.has_edge(s, d):
-            raise KeyError((src, dst))
+            raise networkx.NetworkXError(f"The edge {src}-{dst} is not in the graph.")
         self._add_edge(s, d, EdgeKind.TRANSITION, PRESENT_OUTSIDE, outside=outside)
+        self.mark_dirty()
         self._local_transition_graph = None
 
     def _set_confirmed(self, src: int, dst: int, confirmed: bool) -> None:
         self._graph.set_edge_confirmed(src, dst, confirmed)
         if self._tg is not None:
-            self._tg[self._node_obj(src)][self._node_obj(dst)]["confirmed"] = confirmed
+            self._tg._mirror_set_edge_attr(self._node_obj(src), self._node_obj(dst), "confirmed", confirmed)
 
-    # write-through entry points used by TransitionGraph
+    #
+    # Direct graph edits. The networkx views are read-only; these are the equivalents of DiGraph.add_node,
+    # add_edge, remove_node and remove_edge on the transition graph.
+    #
 
-    def _store_add_node(self, node: CodeNode) -> None:
+    def _add_graph_node(self, node: CodeNode) -> None:
+        """
+        Add a node to the transition graph without registering it as a local block (DiGraph.add_node).
+        """
         self._graph_node(node)
         self.mark_dirty()
         self._local_transition_graph = None
 
-    def _store_add_edge(self, src: CodeNode, dst: CodeNode, attrs: dict) -> None:
+    def _add_graph_edge(
+        self,
+        src: CodeNode,
+        dst: CodeNode,
+        type: str | None = None,  # pylint:disable=redefined-builtin
+        outside: bool | None = None,
+        ins_addr: int | None = _UNSET,  # type: ignore[assignment]
+        stmt_idx: int | None = _UNSET,  # type: ignore[assignment]
+        confirmed: bool | None = None,
+    ) -> None:
+        """
+        Add or update an edge of the transition graph (DiGraph.add_edge): only the attributes given are set, the
+        others keep their values. Missing nodes are added to the graph without becoming local blocks.
+        """
         present = 0
         kind = EdgeKind.TRANSITION
         data = {}
-        for key, value in attrs.items():
-            if key == "type":
-                present |= PRESENT_TYPE
-                kind = _EDGE_KINDS[value]
-            elif key == "outside":
-                present |= PRESENT_OUTSIDE
-                data["outside"] = bool(value)
-            elif key == "ins_addr":
-                present |= PRESENT_INS_ADDR
-                data["ins_addr"] = value
-            elif key == "stmt_idx":
-                present |= PRESENT_STMT_IDX
-                data["stmt_idx"] = value
-            elif key == "confirmed":
-                if value is not None:
-                    present |= PRESENT_CONFIRMED
-                    data["confirmed"] = bool(value)
-            else:
-                l.warning('Unexpected edge data key "%s" on the transition graph of %r.', key, self)
-        self._graph.add_edge(self._graph_node(src), self._graph_node(dst), kind, present, **data)
+        if type is not None:
+            present |= PRESENT_TYPE
+            kind = _EDGE_KINDS[type]
+        if outside is not None:
+            present |= PRESENT_OUTSIDE
+            data["outside"] = bool(outside)
+        if ins_addr is not _UNSET:
+            present |= PRESENT_INS_ADDR
+            data["ins_addr"] = ins_addr
+        if stmt_idx is not _UNSET:
+            present |= PRESENT_STMT_IDX
+            data["stmt_idx"] = stmt_idx
+        if confirmed is not None:
+            present |= PRESENT_CONFIRMED
+            data["confirmed"] = bool(confirmed)
+        self._add_edge(self._graph_node(src), self._graph_node(dst), kind, present, **data)
         self.mark_dirty()
         self._local_transition_graph = None
 
-    def _store_remove_node(self, node: CodeNode) -> None:
+    def _remove_graph_node(self, node: CodeNode) -> None:
+        """
+        Remove a node and its edges from the transition graph (DiGraph.remove_node). Block sizes, local-block
+        membership and site flags recorded for the node are kept, as before.
+        """
         idx = self._find_node(node)
-        if idx is not None:
-            self._graph.remove_node(idx)
+        if idx is None or not self._graph.remove_node(idx):
+            raise networkx.NetworkXError(f"The node {node} is not in the graph.")
+        if self._tg is not None:
+            self._tg._mirror_remove_node(self._node_obj(idx))
         self.mark_dirty()
         self._local_transition_graph = None
 
-    def _store_remove_edge(self, src: CodeNode, dst: CodeNode) -> None:
+    def _set_edge_confirmed(self, src: CodeNode, dst: CodeNode, confirmed: bool) -> None:
         s, d = self._find_node(src), self._find_node(dst)
-        if s is not None and d is not None:
-            self._graph.remove_edge(s, d)
+        if s is None or d is None or not self._graph.has_edge(s, d):
+            raise networkx.NetworkXError(f"The edge {src}-{dst} is not in the graph.")
+        self._set_confirmed(s, d, confirmed)
         self.mark_dirty()
         self._local_transition_graph = None
 
     @property
     def transition_graph(self) -> TransitionGraph:
         """
-        The networkx view of the transition graph, materialized on first read. In-place mutations are written
-        through to the underlying store.
+        A read-only networkx view of the transition graph, materialized on first read and kept in sync with the
+        Function's writes. Mutate the graph through the Function API (_transit_to, _call_to, _add_graph_edge, ...).
         """
         tg = self._tg
         if tg is None:
-            tg = TransitionGraph(function=self)
+            tg = TransitionGraph()
             objs = self._node_obj
             tg._mirror_add_nodes(objs(i) for i in self._graph.nodes())
             tg._mirror_add_edges((objs(u), objs(v), d) for u, v, d in self._graph.edges_with_data())
@@ -1098,9 +1124,11 @@ class Function(Serializable):
         self._local_transition_graph = None
         for node in state["_local_blocks"].values():
             self._register(True, node, update_func_block_count=False)
-        tg = self.transition_graph
-        tg.add_nodes_from(state["transition_graph"].nodes())
-        tg.add_edges_from(state["transition_graph"].edges(data=True))
+        old_graph = state["transition_graph"]
+        for node in old_graph.nodes():
+            self._graph_node(node)
+        for src, dst, data in old_graph.edges(data=True):
+            self._add_graph_edge(src, dst, **data)
         for addr, size in state["_block_sizes"].items():
             self._graph.set_block_size(addr, size)
         for node in state["_addr_to_block_node"].values():
@@ -1660,13 +1688,14 @@ class Function(Serializable):
         return None if site is None else site[1]
 
     @property
-    def graph(self) -> networkx.DiGraph[CodeNode]:
+    def graph(self) -> TransitionGraph:
         """
         Get a local transition graph. A local transition graph is a transition graph that only contains nodes that
         belong to the current function. All edges, except for the edges going out from the current function or coming
         from outside the current function, are included.
 
-        The generated graph is cached in self._local_transition_graph.
+        The generated graph is a read-only view cached in self._local_transition_graph; graph_ex() returns a
+        mutable copy.
 
         :return:    A local transition graph.
         :rtype:     networkx.DiGraph
@@ -1676,12 +1705,12 @@ class Function(Serializable):
             return self._local_transition_graph
 
         objs = self._node_obj
-        g = networkx.classes.digraph.DiGraph()
+        g = TransitionGraph()
         startpoint = self._graph.startpoint
         if startpoint is not None:
-            g.add_node(objs(startpoint))
-        g.add_nodes_from(objs(idx) for _, idx in self._graph.local_items())
-        g.add_edges_from((objs(u), objs(v), d) for u, v, d in self._graph.local_edges_with_data())
+            g._mirror_add_node(objs(startpoint))
+        g._mirror_add_nodes(objs(idx) for _, idx in self._graph.local_items())
+        g._mirror_add_edges((objs(u), objs(v), d) for u, v, d in self._graph.local_edges_with_data())
 
         self._local_transition_graph = g
 
@@ -1693,7 +1722,7 @@ class Function(Serializable):
         only contains nodes that belong to the current function. This method allows user to exclude certain types of
         edges together with the nodes that are only reachable through such edges, such as exception edges.
 
-        The generated graph is not cached.
+        The generated graph is not cached; it is a mutable copy that callers may edit.
 
         :param bool exception_edges:    Should exception edges and the nodes that are only reachable through exception
                                         edges be kept.
@@ -1701,14 +1730,11 @@ class Function(Serializable):
         :rtype:                         networkx.DiGraph
         """
 
-        # graph_ex() should not impact any already cached graph
-        old_cached_graph = self._local_transition_graph
         graph = self.graph
-        self._local_transition_graph = old_cached_graph  # restore the cached graph
 
         # fast path
         if exception_edges:
-            return graph
+            return graph.copy()
 
         # BFS on local graph but ignoring certain types of graphs
         g = networkx.classes.digraph.DiGraph()

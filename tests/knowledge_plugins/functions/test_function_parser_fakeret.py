@@ -64,8 +64,8 @@ class TestFunctionParserFakeret(unittest.TestCase):
         # Synthesize the call + fake_return edge pair that CFGFast can
         # leave behind via _add_fakeret_to(confirmed=None).
         call_target = FuncNode(call_dst_addr)
-        func.transition_graph.add_node(call_target)
-        func.transition_graph.add_edge(
+        func._add_graph_node(call_target)
+        func._add_graph_edge(
             local_block,
             call_target,
             type="call",
@@ -73,8 +73,8 @@ class TestFunctionParserFakeret(unittest.TestCase):
             ins_addr=addr + 9,
             stmt_idx=None,
         )
-        func.transition_graph.add_node(ext_block)
-        func.transition_graph.add_edge(
+        func._add_graph_node(ext_block)
+        func._add_graph_edge(
             local_block,
             ext_block,
             type="fake_return",

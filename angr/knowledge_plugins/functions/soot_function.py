@@ -20,6 +20,9 @@ class SootFunction(Function):
     A representation of a Soot function. Soot addresses are SootMethodDescriptors, which the Rust-backed
     FunctionGraph cannot hold, so this class keeps the transition graph and its block maps in networkx and Python
     dicts. The graph methods below are the pre-FunctionGraph implementations of the same methods on Function.
+
+    Unlike Function, its transition_graph and graph are plain mutable networkx graphs: normalize(), copy() and the
+    graph methods below edit them in place, and pysoot is not available to exercise a read-only rewrite of them.
     """
 
     __slots__ = (

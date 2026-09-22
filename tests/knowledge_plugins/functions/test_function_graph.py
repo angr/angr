@@ -101,7 +101,7 @@ class TestFunctionGraph(unittest.TestCase):
         with self.assertRaises(networkx.NetworkXError):
             func._remove_fakeret(b1, b2)
 
-    def test_networkx_writes_go_through_to_the_store(self):
+    def test_networkx_writes_are_rejected_and_the_function_api_edits_the_store(self):
         func = self._new_function()
         b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         func._register_node(True, b0)
@@ -109,21 +109,22 @@ class TestFunctionGraph(unittest.TestCase):
         func._dirty = False
 
         ext = BlockNode(0x600000, 4, bytestr=b"\x00" * 4)
-        view.add_node(ext)
-        view.add_edge(b0, ext, type="transition", outside=True, ins_addr=0x500006, stmt_idx=-2)
+        with self.assertRaises(networkx.NetworkXError):
+            view.add_node(ext)
+        with self.assertRaises(networkx.NetworkXError):
+            view.add_edge(b0, ext, type="transition")
+        assert not func.dirty and ext not in view and func._graph.number_of_edges() == 0
+
+        func._add_graph_node(ext)
+        func._add_graph_edge(b0, ext, type="transition", outside=True, ins_addr=0x500006, stmt_idx=-2)
         assert func.dirty
         assert func._graph.number_of_edges() == 1
-        assert func._graph.edges_with_data()[0][2] == {
-            "type": "transition",
-            "outside": True,
-            "ins_addr": 0x500006,
-            "stmt_idx": -2,
-        }
+        assert view[b0][ext] == {"type": "transition", "outside": True, "ins_addr": 0x500006, "stmt_idx": -2}
         assert ext.successors() == [] and ext.predecessors() == [b0]
 
-        view.remove_edge(b0, ext)
-        assert func._graph.number_of_edges() == 0
-        view.remove_node(ext)
+        func._remove_edge(b0, ext)
+        assert func._graph.number_of_edges() == 0 and not view.has_edge(b0, ext)
+        func._remove_graph_node(ext)
         assert not func._has_node(ext)
         assert set(view.nodes()) == {b0}
 
@@ -132,7 +133,7 @@ class TestFunctionGraph(unittest.TestCase):
         copy.add_node(ext)
         assert not func._has_node(ext)
         assert not isinstance(copy, TransitionGraph)
-        assert isinstance(view.copy(), TransitionGraph) and view.copy()._function is None
+        assert type(view.copy()) is networkx.DiGraph
 
     def test_same_address_different_size_nodes(self):
         # networkx keys nodes by (type, addr, size, thumb); a second, smaller node at a known address only becomes a
