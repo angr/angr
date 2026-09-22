@@ -126,7 +126,7 @@ class TestFunctionGraphStore(unittest.TestCase):
         g, (a, b, c, _) = _sample()
         g.remove_node(c)  # a ghost record that only the local maps keep alive must survive compaction
         data = g.to_bytes()
-        assert isinstance(data, bytes) and data[0] == 1
+        assert isinstance(data, bytes) and data[0] == 2
         h = FunctionGraph.from_bytes(data)
         assert h.func_addr == 0x1000
         assert [h.node(i) for i in h.nodes()] == [g.node(i) for i in g.nodes()]
