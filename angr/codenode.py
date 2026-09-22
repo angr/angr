@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 import weakref
 from typing import TYPE_CHECKING
@@ -8,7 +7,7 @@ from typing import TYPE_CHECKING
 from archinfo.arch_soot import SootMethodDescriptor
 
 import angr
-from angr.errors import SimEngineError, SimMemoryError
+from angr.errors import SimMemoryError
 
 if TYPE_CHECKING:
     from . import SimProcedure
@@ -102,40 +101,73 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
     Represents a block of code in a function graph.
     """
 
-    __slots__ = ["_bytestr"]
+    __slots__ = ["_bytestr", "delta", "manual"]
 
     is_hook = False
 
-    def __init__(self, addr: int, size, bytestr=None, **kwargs):
-        super().__init__(addr, size, **kwargs)
+    def __init__(
+        self,
+        addr: int,
+        size,
+        bytestr: bytes | None = None,
+        thumb: bool = False,
+        manual: bool = False,
+        delta: int | None = None,
+    ):
+        """
+        :param manual:  The node was created by hand or programmatically rather than from lifted code. Only manual
+                        nodes carry their own bytes; those are stored with the function graph. The bytes of every
+                        other node are read from the loader on demand and never stored.
+        :param delta:   The block's bytes live at ``addr + delta``. Defaults to -1 for Thumb nodes (their addr has
+                        bit 0 set) and 0 otherwise. Not part of the node's identity.
+        """
+        super().__init__(addr, size, thumb=thumb)
+        if bytestr is not None and not manual:
+            raise TypeError("BlockNode bytes can only be given for a manual node (manual=True)")
+        self.manual = manual
+        self.delta = (-1 if thumb else 0) if delta is None else delta
         self._bytestr = bytestr
 
     @property
     def bytestr(self) -> bytes | None:
         """
-        The bytes of the block. Nodes created from a stored function graph carry no bytes; they are read from the
-        owning function's project on first access.
+        The bytes of the block: the stored bytes of a manual node, otherwise the raw loader bytes at
+        ``addr + delta`` of the owning function's project (None when the node has no owner or the range is not
+        fully mapped). ``kb.patches`` are deliberately not applied; use ``project.factory.block`` for patched code.
         """
-        if self._bytestr is None and self._owner is not None:
+        if self._bytestr is None and not self.manual:
             owner = self.owner
             project = owner.project if owner is not None else None
-            if project is not None and self.size:
-                with contextlib.suppress(SimEngineError, SimMemoryError, KeyError):
-                    self._bytestr = project.factory.block(self.addr, size=self.size).bytes
+            if project is not None and self.size and isinstance(self.addr, int):
+                loader = project.loader
+                memory = loader.memory_ro_view if loader.memory_ro_view is not None else loader.memory
+                try:
+                    data = memory.load(self.addr + self.delta, self.size)
+                except (KeyError, ValueError, SimMemoryError):
+                    data = None
+                if data is not None and len(data) == self.size:
+                    self._bytestr = bytes(data)
         return self._bytestr
 
     @bytestr.setter
     def bytestr(self, v: bytes | None) -> None:
+        if v is not None and not self.manual:
+            raise TypeError("BlockNode bytes can only be set on a manual node (manual=True)")
         self._bytestr = v
 
     def __repr__(self):
         return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
 
     def __getstate__(self) -> tuple:
-        return self.addr, self.size, self._bytestr, self.thumb
+        return self.addr, self.size, self._bytestr if self.manual else None, self.thumb, self.manual, self.delta
 
     def __setstate__(self, dat: tuple):
-        self.__init__(*dat[:-1], thumb=dat[-1])
+        if len(dat) == 4:  # nodes pickled before manual/delta existed
+            addr, size, _bytestr, thumb = dat
+            self.__init__(addr, size, thumb=thumb)
+            return
+        addr, size, bytestr, thumb, manual, delta = dat
+        self.__init__(addr, size, bytestr=bytestr, thumb=thumb, manual=manual, delta=delta)
 
 
 class SootBlockNode(BlockNode[SootMethodDescriptor]):
@@ -146,7 +178,7 @@ class SootBlockNode(BlockNode[SootMethodDescriptor]):
     __slots__ = ["stmts"]
 
     def __init__(self, addr: SootMethodDescriptor, size, stmts, **kwargs):
-        super().__init__(addr, size, **kwargs)
+        super().__init__(addr, size, manual=True, **kwargs)
         self.stmts = stmts
 
         assert (stmts is None and size == 0) or (size == len(stmts))

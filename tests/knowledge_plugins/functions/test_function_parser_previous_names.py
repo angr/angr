@@ -39,7 +39,7 @@ class TestFunctionParserPreviousNames(unittest.TestCase):
         fm = proj.kb.functions
         func = fm.function(addr=addr, create=True)
         assert func is not None
-        func._register_node(True, BlockNode(addr, 1, bytestr=blob))
+        func._register_node(True, BlockNode(addr, 1, bytestr=blob, manual=True))
         func.name = "original_name"
         func.name = "renamed"  # records "original_name" in previous_names
         self.assertIn("original_name", func.previous_names)

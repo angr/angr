@@ -1058,13 +1058,17 @@ class Disassembly(Analysis):
                             if block.size and block.addr < start:
                                 delta = start - block.addr
                                 block_bytes = block.bytestr[delta:] if block.bytestr else None
-                                blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
+                                blocks[i] = BlockNode(
+                                    block.addr + delta, block.size - delta, block_bytes, manual=block_bytes is not None
+                                )
                         for i, block in enumerate(blocks):
                             real_block_addr = block.addr if not block.thumb else block.addr - 1
                             if block.size and real_block_addr + block.size > end:
                                 delta = real_block_addr + block.size - end
                                 block_bytes = block.bytestr[0:-delta] if block.bytestr else None
-                                blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
+                                blocks[i] = BlockNode(
+                                    block.addr, block.size - delta, block_bytes, manual=block_bytes is not None
+                                )
 
                         for block in blocks:
                             self.parse_block(block)
@@ -1083,6 +1087,7 @@ class Disassembly(Analysis):
                             end - start,
                             thumb=thumb,
                             bytestr=self._block_bytes if len(ranges) == 1 else None,
+                            manual=len(ranges) == 1 and self._block_bytes is not None,
                         )
                     )
 
