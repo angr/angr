@@ -62,7 +62,7 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
         fm = proj.kb.functions
         func = fm.function(addr=addr, create=True)
         assert func is not None
-        func._register_node(True, BlockNode(addr, 14, bytestr=blob[:14]))
+        func._register_node(True, BlockNode(addr, 14, bytestr=blob[:14], manual=True))
 
         cmsg = func.serialize_to_cmessage()
         meta = Function.parse_from_cmessage(

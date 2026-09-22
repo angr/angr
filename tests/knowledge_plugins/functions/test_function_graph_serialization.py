@@ -128,8 +128,8 @@ class TestFunctionGraphSerialization(unittest.TestCase):
 
     def test_block_bytes_are_derived_from_the_loader(self):
         proj = self.proj
-        # a synthetic block at an unmapped address has no bytes after a reload; blocks in mapped memory read theirs
-        # from the loader
+        # a manual node keeps its bytes across a reload; a non-manual node at an unmapped address has none, and a
+        # non-manual node in mapped memory reads the loader's bytes
         synthetic = Function(
             proj.kb.functions,
             0x500000,
@@ -139,13 +139,15 @@ class TestFunctionGraphSerialization(unittest.TestCase):
             is_plt=False,
             returning=True,
         )
-        synthetic._register_node(True, BlockNode(0x500000, 4, bytestr=b"\x90\x90\x90\xc3"))
+        synthetic._register_node(True, BlockNode(0x500000, 4, bytestr=b"\x90\x90\x90\xc3", manual=True))
+        synthetic._register_node(True, BlockNode(0x500004, 4))
         loaded = Function.parse(synthetic.serialize(), function_manager=proj.kb.functions, project=proj)
-        assert loaded.code_nodes[0x500000].bytestr is None
+        assert loaded.code_nodes[0x500000].manual and loaded.code_nodes[0x500000].bytestr == b"\x90\x90\x90\xc3"
+        assert not loaded.code_nodes[0x500004].manual and loaded.code_nodes[0x500004].bytestr is None
         main = proj.kb.functions["main"]
         loaded = Function.parse(main.serialize(), function_manager=proj.kb.functions, project=proj)
         node = loaded.code_nodes[main.addr]
-        assert node.bytestr == proj.factory.block(main.addr, size=node.size).bytes
+        assert not node.manual and node.bytestr == proj.loader.memory.load(main.addr, node.size)
 
     def test_meta_only_load(self):
         proj = self.proj
@@ -192,7 +194,7 @@ class TestFunctionGraphSerialization(unittest.TestCase):
         func = self.proj.kb.functions["main"]
         cmsg = func.serialize_to_cmessage()
         blob = cmsg.graph_blob
-        assert blob[0] == 1  # format version
+        assert blob[0] == 2  # format version
         graph = FunctionGraph.from_bytes(blob)
         assert graph.func_addr == func.addr
         assert graph.local_count() == len(func.block_addrs_set)

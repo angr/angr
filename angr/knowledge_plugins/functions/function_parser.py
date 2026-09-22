@@ -215,7 +215,7 @@ class FunctionParser:
             block.kind = primitives_pb2.CodeNodeKind.FUNC_NODE
         elif isinstance(node, BlockNode):
             block.kind = primitives_pb2.CodeNodeKind.BLOCK_NODE
-            if node.bytestr is not None:
+            if node.manual and node.bytestr is not None:
                 block.bytes = node.bytestr
         else:
             raise TypeError(f"Unsupported node type {type(node)}")
@@ -225,9 +225,10 @@ class FunctionParser:
     def _node_from_block_cmsg(block, project, local: bool):
         match block.kind:
             case primitives_pb2.CodeNodeKind.BLOCK_NODE:
-                # local blocks always carry their bytes; empty bytes on an external block mean "unknown"
-                bytestr = block.bytes if local or block.bytes else None
-                return BlockNode(block.ea, block.size, bytestr=bytestr, thumb=block.thumb)
+                # Messages of the per-block layout carry bytes for every block (angr <= #7235 wrote them for all
+                # lifted blocks), so manual nodes cannot be told apart: the stored bytes are dropped and the node
+                # reads its bytes from the loader.
+                return BlockNode(block.ea, block.size, thumb=block.thumb)
             case primitives_pb2.CodeNodeKind.HOOK_NODE:
                 hooker = project.hooked_by(block.ea) if project is not None and project.is_hooked(block.ea) else None
                 return HookNode(block.ea, block.size, hooker, thumb=block.thumb)
@@ -327,11 +328,11 @@ class FunctionParser:
                 obj.startpoint = (
                     HookNode(cmsg.ea, 0, project.hooked_by(cmsg.ea))
                     if project and project.is_hooked(cmsg.ea)
-                    else BlockNode(cmsg.ea, 1, bytestr=None)
+                    else BlockNode(cmsg.ea, 1)
                 )  # the size is incorrect, but it should probably be fine?
 
             for endpoint in cmsg.endpoints:
-                block = BlockNode(endpoint.ea, endpoint.size, bytestr=None)
+                block = BlockNode(endpoint.ea, endpoint.size)
                 FunctionParser._add_endpoint(obj, block, endpoint.type)
 
             obj.meta_only = True  # can't be serialized again when evicted from the cache

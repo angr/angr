@@ -500,11 +500,9 @@ class CFGBase(Analysis):
             size = hooker.kwargs.get("length", 0)
             return HookNode(addr, size, hooker)
 
-        if cfg_node is not None and byte_string is None:
-            byte_string = cfg_node.byte_string
-
-        if byte_string is not None:
-            return BlockNode(addr, size, thumb=thumb, bytestr=byte_string)  # pylint: disable=no-member
+        # byte_string is accepted for compatibility; block bytes are read from the loader on demand
+        if cfg_node is not None or byte_string is not None:
+            return BlockNode(addr, size, thumb=thumb)
         return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb, backup_state=base_state)
 
     def _node_key_to_snippet(self, node_key: K, jumpkind: str | None = None, base_state=None) -> BlockNode:
