@@ -120,7 +120,7 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
             except ReferenceError:
                 project = None
             if project is not None and self.size:
-                with contextlib.suppress(SimEngineError, SimMemoryError):
+                with contextlib.suppress(SimEngineError, SimMemoryError, KeyError):
                     self._bytestr = project.factory.block(self.addr, size=self.size).bytes
         return self._bytestr
 

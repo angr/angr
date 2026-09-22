@@ -193,6 +193,15 @@ class FunctionParser:
             obj.call_sites.append(call_site)  # pylint:disable=no-member
 
     @staticmethod
+    def local_block_addrs_from_cmsg(cmsg) -> set[int]:
+        """
+        The addresses of the local blocks of a serialized function, without building the Function.
+        """
+        if cmsg.graph_blob:
+            return set(FunctionGraph.local_block_addrs_from_bytes(cmsg.graph_blob))
+        return {b.ea for b in cmsg.blocks}
+
+    @staticmethod
     def _node_to_block_cmsg(node) -> primitives_pb2.Block:
         block = primitives_pb2.Block()
         block.ea = node.addr
