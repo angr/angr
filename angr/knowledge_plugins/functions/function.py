@@ -637,8 +637,8 @@ class Function(Serializable):
         """
         kind, addr, size, thumb = _node_key(node)
         idx, created = self._graph.add_node(kind, addr, size, thumb)
+        node.set_owner(self)
         if created or idx not in self._node_objs:
-            node.set_owner(self)
             self._node_objs[idx] = node
         if self._tg is not None:
             self._tg._mirror_add_node(self._node_objs[idx])
@@ -654,6 +654,21 @@ class Function(Serializable):
             if present & PRESENT_TYPE:
                 attrs["type"] = _EDGE_KIND_NAMES[kind]
             self._tg._mirror_add_edge(self._node_obj(src), self._node_obj(dst), attrs)
+
+    def _node_index(self, node: CodeNode) -> int:
+        idx = self._find_node(node)
+        if idx is None or not self._graph.contains_node(idx):
+            raise networkx.NetworkXError(f"The node {node} is not in the graph.")
+        return idx
+
+    def _successors_of(self, node: CodeNode) -> list[CodeNode]:
+        """
+        The successors of a node in the transition graph, read off the store (CodeNode.successors()).
+        """
+        return self._node_objs_of(self._graph.successors(self._node_index(node)))
+
+    def _predecessors_of(self, node: CodeNode) -> list[CodeNode]:
+        return self._node_objs_of(self._graph.predecessors(self._node_index(node)))
 
     def _has_node(self, node: CodeNode) -> bool:
         idx = self._find_node(node)
@@ -1558,10 +1573,10 @@ class Function(Serializable):
         """
         kind, addr, size, thumb = _node_key(node)
         idx, created, new_local, changed = self._graph.register_node(is_local, kind, addr, size, thumb)
+        node.set_owner(self)
         if not changed:
             return idx
         if created or idx not in self._node_objs:
-            node.set_owner(self)
             self._node_objs[idx] = node
         self.mark_dirty()
         self._local_transition_graph = None

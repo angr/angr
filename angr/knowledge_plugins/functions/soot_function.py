@@ -141,7 +141,7 @@ class SootFunction(Function):
 
         if node not in self.transition_graph:
             self.transition_graph.add_node(node)
-        node._graph = self.transition_graph
+        node.set_owner(self)
         if node.addr not in self or self._block_sizes[node.addr] == 0:
             self._block_sizes[node.addr] = node.size
         if node.addr == self.addr.addr and (self.startpoint is None or not self.startpoint.is_hook):
@@ -770,6 +770,12 @@ class SootFunction(Function):
             ):
                 targets.append(node.addr)
         return targets
+
+    def _successors_of(self, node) -> list:
+        return list(self.transition_graph.successors(node))
+
+    def _predecessors_of(self, node) -> list:
+        return list(self.transition_graph.predecessors(node))
 
     def _remove_edge(self, from_node, to_node) -> None:
         self.transition_graph.remove_edge(from_node, to_node)
