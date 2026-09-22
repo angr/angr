@@ -9,8 +9,8 @@ from sqlalchemy import insert
 from angr.angrdb.models import DbFunction
 from angr.knowledge_plugins import Function, FunctionManager
 from angr.knowledge_plugins.functions.function_manager import SpillingFunctionDict
+from angr.knowledge_plugins.functions.function_parser import FunctionParser
 from angr.protos import function_pb2
-from angr.rustylib.function_graph import FunctionGraph
 
 if TYPE_CHECKING:
     import networkx
@@ -147,10 +147,7 @@ class FunctionManagerSerializer:
                 )
             funcs.set_function_returning(addr, returning)
 
-            if cmsg.graph_blob:
-                block_addrs = set(FunctionGraph.local_block_addrs_from_bytes(cmsg.graph_blob))
-            else:
-                block_addrs = {b.ea for b in cmsg.blocks}
+            block_addrs = FunctionParser.local_block_addrs_from_cmsg(cmsg)
             funcs.set_func_block_count(addr, len(block_addrs))
 
             funcs._func_name_to_addrs[cmsg.name].add(addr)

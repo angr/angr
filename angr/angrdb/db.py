@@ -36,7 +36,9 @@ class AngrDB:
         "objects",
     ]
 
-    VERSION = 1
+    VERSION = 2
+    # version 1 databases store functions in the legacy (per-block/per-edge message) layout, which is still readable
+    COMPATIBLE_VERSIONS = (1, 2)
 
     def __init__(self, project=None, nullpool=False):
         self.project = project
@@ -188,7 +190,7 @@ class AngrDB:
         :rtype:             bool
         """
 
-        return version == self.VERSION
+        return version in self.COMPATIBLE_VERSIONS
 
     def invalidate(self):
         if self.engine is not None:
