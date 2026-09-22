@@ -27,15 +27,17 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     The base class of nodes in a function graph.
     """
 
-    __slots__ = ["_graph", "_hash", "_owner", "addr", "size", "thumb"]
+    __slots__ = ["_hash", "_owner", "addr", "size", "thumb"]
 
-    def __init__(self, addr: K, size: int, graph=None, thumb=False):
+    def __init__(self, addr: K, size: int, thumb=False):
         self.addr = addr
         self.size: int = size
         self.thumb = thumb
-        self._graph = weakref.proxy(graph) if graph is not None else None
-        # the Function whose transition graph this node belongs to; successors()/predecessors() go through it
-        self._owner = None
+        # A weak reference to the Function whose transition graph this node belongs to; successors() and
+        # predecessors() are answered by its graph store. It is weak because the Function keeps strong references to
+        # its node objects: a strong back-reference would make every evicted Function a reference cycle that only
+        # gen-2 GC could reclaim. The owner is not pickled (see __getstate__).
+        self._owner: weakref.ref | None = None
 
         self._hash = None
 
@@ -64,27 +66,27 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
             self._hash = hash((self.addr, self.size))
         return self._hash
 
-    def set_graph(self, graph):
-        self._graph = weakref.proxy(graph)
-
     def set_owner(self, func) -> None:
-        self._owner = weakref.proxy(func)
+        self._owner = weakref.ref(func)
 
-    def _graph_view(self):
-        if self._owner is not None:
-            try:
-                return self._owner.transition_graph
-            except ReferenceError:
-                pass
-        if self._graph is None:
-            raise ValueError("Cannot calculate successors for graphless node")
-        return self._graph
+    @property
+    def owner(self):
+        """
+        The Function this node belongs to, or None if it was never registered with one or that Function is gone.
+        """
+        return None if self._owner is None else self._owner()
+
+    def _require_owner(self):
+        owner = self.owner
+        if owner is None:
+            raise ValueError(f"Cannot calculate successors or predecessors of {self!r}: it belongs to no function")
+        return owner
 
     def successors(self) -> list[CodeNode]:
-        return list(self._graph_view().successors(self))
+        return self._require_owner()._successors_of(self)
 
-    def predecessors(self):
-        return list(self._graph_view().predecessors(self))
+    def predecessors(self) -> list[CodeNode]:
+        return self._require_owner()._predecessors_of(self)
 
     def __getstate__(self) -> tuple:
         return self.addr, self.size
@@ -115,10 +117,8 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         owning function's project on first access.
         """
         if self._bytestr is None and self._owner is not None:
-            try:
-                project = self._owner.project
-            except ReferenceError:
-                project = None
+            owner = self.owner
+            project = owner.project if owner is not None else None
             if project is not None and self.size:
                 with contextlib.suppress(SimEngineError, SimMemoryError, KeyError):
                     self._bytestr = project.factory.block(self.addr, size=self.size).bytes
