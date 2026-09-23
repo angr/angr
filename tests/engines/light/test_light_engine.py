@@ -250,5 +250,39 @@ class TestUnknownAILOperations(TestCase):
         assert engine._handle_expr_UnaryOp(unop) in (None, unop)
 
 
+class TestVectorConversionUnops(TestCase):
+    """
+    A lane-wise VEX conversion spells lane widths in its name, so the widths parsed out of the name
+    are not the operand's and the result's and it must not reach the scalar conversion handler.
+    Each of the four functions named below is one NEON vcvt form.
+    """
+
+    FUNCTIONS = (
+        ("truncate_to_ints", "Iop_F32toI32Sx4_RZ"),
+        ("truncate_to_uints", "Iop_F32toI32Ux4_RZ"),
+        ("ints_to_floats", "Iop_I32StoF32x4_DEP"),
+        ("uints_to_floats", "Iop_I32UtoF32x4_DEP"),
+    )
+
+    def test_a_lane_wise_conversion_does_not_reach_the_scalar_handler(self):
+        proj = angr.Project(os.path.join(bin_location, "tests", "armhf", "vector_conversions"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for name, op in self.FUNCTIONS:
+            with self.subTest(function=name):
+                assert name in cfg.functions, f"fixture no longer contains {name}"
+                func = cfg.functions[name]
+                operations = {o for addr in func.block_addrs_set for o in proj.factory.block(addr).vex.operations}
+                assert op in operations, f"{name} no longer lifts to {op}"
+
+                # Each of these used to die on the same operation: AssertionError out of the
+                # reaching-definitions and propagator conversion handlers, TypeError out of variable
+                # recovery, whose handler asks the state for a top of to_size bits and to_size is None.
+                proj.analyses.ReachingDefinitions(subject=func, observe_all=False)
+                proj.analyses.Propagator(func=func)
+                proj.analyses.XRefs(func=func)
+                proj.analyses.VariableRecoveryFast(func)
+
+
 if __name__ == "__main__":
     main()
