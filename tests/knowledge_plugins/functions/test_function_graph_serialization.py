@@ -9,6 +9,7 @@ import unittest
 
 import angr
 from angr.angrdb import AngrDB
+from angr.angrdb.v1 import AngrDbV1
 from angr.codenode import BlockNode
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.functions.function_parser import FunctionParser
@@ -202,7 +203,7 @@ class TestFunctionGraphSerialization(unittest.TestCase):
         assert graph.startpoint is not None
         assert graph.to_bytes() == blob
         # the per-edge layout is still written on request and loads to the same graph
-        legacy = FunctionParser.serialize(func, legacy_layout=True)
+        legacy = AngrDbV1.serialize_function(func)
         assert not legacy.graph_blob and legacy.blocks and legacy.graph.edges
         loaded = Function.parse_from_cmessage(legacy, function_manager=self.proj.kb.functions, project=self.proj)
         assert function_digest(loaded) == self.digests[func.addr]
