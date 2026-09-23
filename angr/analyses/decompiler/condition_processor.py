@@ -96,7 +96,7 @@ def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int,
         # amazing - we do the easy thing here
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1.value)
     if operand1.bits == operand0.bits:
-        return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, ins_addr=ins_addr))
+        return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
     # extension (or, for a shift amount wider than the value, truncation) is required
     operand1 = ailment.Expr.Convert(ail_manager.next_atom(), operand1.bits, operand0.bits, False, operand1)
     return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
