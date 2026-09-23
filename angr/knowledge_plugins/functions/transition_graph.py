@@ -13,12 +13,9 @@ class ReadOnlyGraphError(networkx.NetworkXError):
     Raised by every mutating operation on a Function graph view.
     """
 
-    def __init__(self, message: str = READ_ONLY_MESSAGE):
-        super().__init__(message)
-
 
 def _read_only(*_args, **_kwargs):
-    raise ReadOnlyGraphError
+    raise ReadOnlyGraphError(READ_ONLY_MESSAGE)
 
 
 class ReadOnlyAttrDict(dict):
@@ -95,7 +92,7 @@ class TransitionGraph(networkx.DiGraph):
         g = networkx.Graph()
         g.graph.update(self.graph)
         g.add_nodes_from(self.nodes(data=True))
-        g.add_edges_from((u, v, d) for u, v, d in self.edges(data=True) if not reciprocal or self.has_edge(v, u))
+        g.add_edges_from((u, v, d) for u, v, d in self.edges(data=True) if not reciprocal or self.has_edge(v, u))  # pylint:disable=arguments-out-of-order
         return g
 
     def reverse(self, copy: bool = True):

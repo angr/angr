@@ -28,7 +28,7 @@ from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimLibrary, SimSyscallLibrary
 from angr.protos import function_pb2
 from angr.rust.utils.demangler import demangle
-from angr.rustylib.function_graph import (
+from angr.rustylib.function_graph import (  # pylint:disable=import-error,no-name-in-module
     PRESENT_CONFIRMED,
     PRESENT_INS_ADDR,
     PRESENT_OUTSIDE,

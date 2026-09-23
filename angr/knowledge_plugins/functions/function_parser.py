@@ -7,7 +7,7 @@ import logging
 import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
 from angr.protos import function_pb2
-from angr.rustylib.function_graph import FunctionGraph
+from angr.rustylib.function_graph import FunctionGraph  # pylint:disable=import-error,no-name-in-module
 from angr.sim_type import SimType, SimTypeFunction
 from angr.utils.types import make_type_reference, type_collections_for_lib
 

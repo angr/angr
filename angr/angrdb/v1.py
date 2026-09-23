@@ -15,9 +15,8 @@ import logging
 from collections import defaultdict
 
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
-from angr.knowledge_plugins.functions.function_parser import FunctionParser
 from angr.protos import function_pb2, primitives_pb2
-from angr.rustylib.function_graph import EndpointKind, SiteKind
+from angr.rustylib.function_graph import EndpointKind, SiteKind  # pylint:disable=import-error,no-name-in-module
 from angr.utils.enums_conv import (
     _EDGETYPE_MISSING,
     _PB_TO_FUNCTION_EDGETYPES,
@@ -39,7 +38,7 @@ class AngrDbV1:
         Serialize a Function with its metadata as FunctionParser.serialize() writes it and its graph in the version-1
         per-block / per-edge layout (no graph_blob).
         """
-        obj = FunctionParser.serialize(function)
+        obj = function.serialize_to_cmessage()
         obj.ClearField("graph_blob")
         AngrDbV1._write_graph(function, obj)
         return obj
@@ -154,7 +153,7 @@ class AngrDbV1:
         return block
 
     @staticmethod
-    def _node_from_block_cmsg(block, project, local: bool):
+    def _node_from_block_cmsg(block, project):
         match block.kind:
             case primitives_pb2.CodeNodeKind.BLOCK_NODE:
                 # Messages of the per-block layout carry bytes for every block (angr <= #7235 wrote them for all
@@ -180,9 +179,7 @@ class AngrDbV1:
         """
         if meta_only:
             for b in cmsg.blocks:
-                obj._register(
-                    True, AngrDbV1._node_from_block_cmsg(b, project, local=True), update_func_block_count=False
-                )
+                obj._register(True, AngrDbV1._node_from_block_cmsg(b, project), update_func_block_count=False)
             if obj.startpoint is None:
                 obj.startpoint = (
                     HookNode(cmsg.ea, 0, project.hooked_by(cmsg.ea))
@@ -201,12 +198,12 @@ class AngrDbV1:
         # nodes
         blocks: dict[int, CodeNode] = {}
         for b in cmsg.blocks:
-            block = AngrDbV1._node_from_block_cmsg(b, project, local=True)
+            block = AngrDbV1._node_from_block_cmsg(b, project)
             blocks[block.addr] = block
 
         external_nodes: dict[int, list[CodeNode]] = defaultdict(list)
         for b in cmsg.external_blocks:
-            external_nodes[b.ea].append(AngrDbV1._node_from_block_cmsg(b, project, local=False))
+            external_nodes[b.ea].append(AngrDbV1._node_from_block_cmsg(b, project))
 
         # addresses of referenced functions that are not inside the current function (readers of old messages only)
         external_func_addrs = set(cmsg.external_functions)
