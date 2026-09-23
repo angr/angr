@@ -15,14 +15,11 @@ import angr
 from angr.angrdb import AngrDB
 from angr.codenode import BlockNode
 from angr.knowledge_plugins.functions.function import Function
-from angr.rustylib.function_graph import FunctionGraph, NodeKind
+from angr.rustylib.function_graph import FunctionGraph
 from tests.common import bin_location
 
 ARMEL_FAUXWARE = os.path.join(bin_location, "tests", "armel", "fauxware")
 FAUXWARE = os.path.join(bin_location, "tests", "x86_64", "fauxware")
-V1_BLOB = bytes.fromhex(
-    "019188020291880206000101009788020400010100010001000700019588020000010002918802009788020102918802009788020102918802069788020400"
-)
 
 
 def _thumb_nodes(kb):
@@ -108,21 +105,16 @@ class TestBlockNodeBytes(unittest.TestCase):
         node2 = proj2.kb.functions[0x500000].code_nodes[0x500000]
         assert node2.manual and node2.bytestr == b"\x90" * 4
 
-    def test_v1_blob_still_loads(self):
-        # a format-1 blob (two Thumb blocks of armel/fauxware and one transition, written by FunctionGraph before
-        # delta/manual existed): nodes get delta from the thumb flag and are not manual
-        g = FunctionGraph.from_bytes(V1_BLOB)
-        assert [g.node(i) for i in g.nodes()] == [
-            (NodeKind.BLOCK, 0x8411, 6, True),
-            (NodeKind.BLOCK, 0x8417, 4, True),
-        ]
-        assert [g.node_extra(i) for i in g.nodes()] == [(-1, False), (-1, False)]
-        assert g.node_bytes(0) is None
-        assert g.edges_with_data() == [(0, 1, {"type": "transition", "outside": False, "ins_addr": 0x8415})]
-        assert g.local_addrs() == [0x8411, 0x8417] and g.startpoint == 0
-        assert g.to_bytes()[0] == 2
-        with self.assertRaises(ValueError):
-            FunctionGraph.from_bytes(b"\x07" + V1_BLOB[1:])
+    def test_only_blob_version_2_is_readable(self):
+        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj.analyses.CFGFast()
+        blob = proj.kb.functions["main"]._graph.to_bytes()
+        assert blob[0] == 2
+        assert FunctionGraph.from_bytes(blob).to_bytes() == blob
+        for version in (0, 1, 3, 7):
+            with self.assertRaises(ValueError) as cm:
+                FunctionGraph.from_bytes(bytes([version]) + blob[1:])
+            assert "version" in str(cm.exception)
 
 
 if __name__ == "__main__":
