@@ -1,8 +1,8 @@
 pub mod ailment;
 pub mod automaton;
 pub mod claripy;
-pub mod fuzzer;
 pub mod function_graph;
+pub mod fuzzer;
 pub mod icicle;
 pub mod segmentlist;
 
