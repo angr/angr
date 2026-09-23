@@ -22,7 +22,10 @@ from angr.calling_conventions import (
     SimCCN32LinuxSyscall,
     SimCCN64,
     SimCCN64LinuxSyscall,
+    SimCCPowerPC,
+    SimCCPowerPC64,
     SimCCRISCV64,
+    SimCCS390X,
     SimCCStdcall,
     SimCCSystemVAMD64,
     SimReferenceArgument,
@@ -34,7 +37,7 @@ from angr.calling_conventions import (
     SimTypeInt,
     default_cc,
 )
-from angr.engines.pcode.cc import SimCCPARISC
+from angr.engines.pcode.cc import SimCCPARISC, SimCCSPARC
 from angr.errors import AngrTypeError
 from angr.sim_type import (
     SimCppClass,
@@ -368,6 +371,34 @@ class TestCallingConvention(TestCase):
         assert self._arg_layout(
             cc, [SimTypePointer(SimTypeChar()), TypeRef("int64_t", SimTypeLongLong()), SimTypeInt()]
         ) == [[SimStackArg(0x4, 4)], [SimStackArg(0x8, 4), SimStackArg(0xC, 4)], [SimStackArg(0x10, 4)]]
+
+    def test_opaque_cpp_class_argument_is_placed_like_an_integer(self):
+        # sim_type invents one of these for a class a demangled C++ name mentions and angr never
+        # saw the definition of: no members, and a size forced to one word.
+        def locs(cc, arch, arg_ty):
+            proto = SimTypeFunction([SimTypeInt(), arg_ty], SimTypeInt()).with_arch(arch)
+            return [loc.get_footprint() for loc in cc.arg_locs(proto)]
+
+        # conventions that inherit SimCC.next_arg rather than overriding it, so the placement
+        # below is the base method's and not an ABI override's
+        for arch, cc_cls in (
+            (archinfo.ArchS390X(), SimCCS390X),
+            (archinfo.ArchPPC32(), SimCCPowerPC),
+            (archinfo.ArchPPC64(), SimCCPowerPC64),
+            (archinfo.ArchMIPS64(), SimCCN64),
+            (archinfo.ArchMIPSN32(), SimCCN32),
+            (archinfo.ArchPcode("sparc:BE:32:default"), SimCCSPARC),
+        ):
+            cc = cc_cls(arch)
+            opaque = SimCppClass(unique_name="Opaque", name="Opaque", members={}, size=32)
+            placed = locs(cc, arch, opaque)
+            assert placed == locs(cc, arch, SimTypeNum(32)), f"{arch.name}: {placed}"
+
+            # a class angr does have the members of is a real aggregate, and a convention that has
+            # not been taught how to lay one out still says so
+            pair = SimStruct({"a": SimTypeInt(), "b": SimTypeInt()}, name="Pair")
+            with self.assertRaises(TypeError):
+                locs(cc, arch, pair)
 
     def _mips_int_arg_locs(self, cc_cls, arch, arg_types):
         proto = SimTypeFunction(arg_types, SimTypeInt()).with_arch(arch)
