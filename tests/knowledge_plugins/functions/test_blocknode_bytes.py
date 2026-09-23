@@ -6,6 +6,7 @@ BlockNode bytes: manual nodes store their bytes, every other node reads them fro
 
 from __future__ import annotations
 
+import gc
 import os
 import pickle
 import tempfile
@@ -32,6 +33,9 @@ class TestBlockNodeBytes(unittest.TestCase):
         proj.analyses.CFGFast()
         thumb_nodes = _thumb_nodes(proj.kb)
         assert thumb_nodes
+        # the tiny cache evicted most functions while collecting; their nodes must still reach the loader
+        gc.collect()
+        assert any(n.owner is None for n in thumb_nodes)
         memory = proj.loader.memory
         for n in thumb_nodes:
             assert n.addr & 1 and n.delta == -1 and not n.manual

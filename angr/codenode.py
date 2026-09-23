@@ -26,7 +26,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     The base class of nodes in a function graph.
     """
 
-    __slots__ = ["_hash", "_owner", "addr", "size", "thumb"]
+    __slots__ = ["_hash", "_owner", "_project", "addr", "size", "thumb"]
 
     def __init__(self, addr: K, size: int, thumb=False):
         self.addr = addr
@@ -37,6 +37,9 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         # its node objects: a strong back-reference would make every evicted Function a reference cycle that only
         # gen-2 GC could reclaim. The owner is not pickled (see __getstate__).
         self._owner: weakref.ref | None = None
+        # The owner's Project, kept separately so that a node can still reach the loader after its Function has been
+        # evicted from the function manager and collected.
+        self._project: weakref.ref | None = None
 
         self._hash = None
 
@@ -67,6 +70,8 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
 
     def set_owner(self, func) -> None:
         self._owner = weakref.ref(func)
+        project = func.project
+        self._project = None if project is None else weakref.ref(project)
 
     @property
     def owner(self):
@@ -74,6 +79,17 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         The Function this node belongs to, or None if it was never registered with one or that Function is gone.
         """
         return None if self._owner is None else self._owner()
+
+    @property
+    def project(self):
+        """
+        The Project of the Function this node was registered with, or None. Unlike ``owner``, it stays available after
+        the Function has been evicted and collected.
+        """
+        owner = self.owner
+        if owner is not None and owner.project is not None:
+            return owner.project
+        return None if self._project is None else self._project()
 
     def _require_owner(self):
         owner = self.owner
@@ -136,8 +152,7 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         fully mapped). ``kb.patches`` are deliberately not applied; use ``project.factory.block`` for patched code.
         """
         if self._bytestr is None and not self.manual:
-            owner = self.owner
-            project = owner.project if owner is not None else None
+            project = self.project
             if project is not None and self.size and isinstance(self.addr, int):
                 loader = project.loader
                 memory = loader.memory_ro_view if loader.memory_ro_view is not None else loader.memory

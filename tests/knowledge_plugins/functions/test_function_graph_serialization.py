@@ -61,6 +61,15 @@ LEGACY_MAIN = bytes.fromhex(
 )
 
 
+def digest_without_stmt_idx(digest: tuple) -> tuple:
+    """
+    A function digest with edge statement indices blanked. Statement indices depend on the lifter (VEX) version, so a
+    graph serialized by one angr build cannot be compared field-for-field against a CFG recovered by another.
+    """
+    nodes, edges, *rest = digest
+    return (nodes, sorted((*e[:9], None, *e[10:]) for e in edges), *rest)
+
+
 def function_digest(func: Function) -> tuple:
     """
     Everything the CFG and the decompiler read off a function's graph, in a comparable form. Unknown ins_addr and
@@ -173,7 +182,10 @@ class TestFunctionGraphSerialization(unittest.TestCase):
             assert not cmsg.graph_blob and cmsg.blocks
             loaded = Function.parse_from_cmessage(cmsg, function_manager=proj.kb.functions, project=proj)
             assert loaded.name == name
-            assert function_digest(loaded) == self.digests[proj.kb.functions[name].addr]
+            # the fixtures were serialized by a specific lifter build; only stmt_idx may differ from today's CFG
+            assert digest_without_stmt_idx(function_digest(loaded)) == digest_without_stmt_idx(
+                self.digests[proj.kb.functions[name].addr]
+            )
             # re-serializing produces the blob layout, and the blob round-trips to the same graph
             reserialized = loaded.serialize_to_cmessage()
             assert reserialized.graph_blob and not reserialized.blocks
