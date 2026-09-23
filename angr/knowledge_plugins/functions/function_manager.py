@@ -1097,7 +1097,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._remove_fakeret(from_node, to_node)
+        self._function_map[function_addr].remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None):  # pylint:disable=unused-argument
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck

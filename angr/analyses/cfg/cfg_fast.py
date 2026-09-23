@@ -3098,7 +3098,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             f._confirm_fakeret(src, dst)
 
                 for src, dst in edges_to_remove:
-                    f._remove_fakeret(src, dst)
+                    f.remove_fakeret(src, dst)
 
                 # Finally, mark endpoints of every single function
                 f.mark_nonreturning_calls_endpoints()

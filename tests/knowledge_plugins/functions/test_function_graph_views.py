@@ -197,18 +197,18 @@ class TestFunctionGraphViews(unittest.TestCase):
         func._add_graph_edge(a, b, type="fake_return", outside=False)
         assert tg[a][b] == {"type": "fake_return", "outside": False}
         assert func.graph is not local and func.graph.has_edge(a, b)
-        func._set_edge_confirmed(a, b, True)
+        func.set_edge_confirmed(a, b, True)
         assert tg[a][b]["confirmed"] is True
         func._set_edge_outside(a, b, True)
         assert tg[a][b]["outside"] is True and not func.graph.has_edge(a, b)
-        func._remove_edge(a, b)
+        func.remove_edge(a, b)
         assert not tg.has_edge(a, b)
         with self.assertRaises(networkx.NetworkXError):
-            func._remove_edge(a, b)
-        func._remove_graph_node(b)
+            func.remove_edge(a, b)
+        func.remove_graph_node(b)
         assert b not in tg
         with self.assertRaises(networkx.NetworkXError):
-            func._remove_graph_node(b)
+            func.remove_graph_node(b)
         # graph_ex returns a mutable copy that does not touch the cached view
         g = func.graph_ex()
         assert type(g) is networkx.DiGraph

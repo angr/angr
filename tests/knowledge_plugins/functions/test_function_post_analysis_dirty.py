@@ -72,7 +72,7 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
         # this through Function._remove_fakeret (@dirty_func); before
         # the fix it was a direct graph mutation that left _dirty
         # untouched.
-        func._remove_fakeret(local_block, ext_block)
+        func.remove_fakeret(local_block, ext_block)
 
         self.assertTrue(
             func._dirty,

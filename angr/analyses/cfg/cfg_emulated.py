@@ -2290,7 +2290,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
                 if call_func.returning is False:
                     # Remove that edge!
-                    func._remove_edge(callsite_block_addr, return_to_addr)
+                    func.remove_edge(callsite_block_addr, return_to_addr)
                     # Remove the edge in CFG
                     nodes = self.model.get_all_nodes(callsite_block_addr)
                     for n in nodes:
