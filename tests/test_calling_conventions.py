@@ -14,6 +14,7 @@ from angr import Project, calling_conventions, claripy, load_shellcode, types
 from angr.calling_conventions import (
     SimArrayArg,
     SimCC,
+    SimCCAArch64,
     SimCCARM,
     SimCCARMHF,
     SimCCARMLinuxSyscall,
@@ -644,6 +645,17 @@ class TestCallingConvention(TestCase):
             ty = types.SimTypeInt(signed=signed).with_arch(p.arch)
             bv = SimCC._standardize_value(arg, ty, state, None)
             assert state.solver.eval(bv) == expected & 0xFFFFFFFF, value
+
+    def test_return_too_wide_for_one_register_names_the_convention(self):
+        # AArch64 declares no OVERFLOW_RETURN_VAL, so a 128-bit return does not fit; the error must name
+        # the convention and the missing attribute.
+        arch = archinfo.arch_from_id("aarch64")
+        cc = SimCCAArch64(arch)
+        with self.assertRaises(AngrTypeError) as caught:
+            cc.return_val(SimTypeNum(128).with_arch(arch))
+        message = str(caught.exception)
+        assert "SimCCAArch64" in message
+        assert "OVERFLOW_RETURN_VAL" in message
 
 
 if __name__ == "__main__":
