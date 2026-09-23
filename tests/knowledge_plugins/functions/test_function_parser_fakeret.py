@@ -56,8 +56,8 @@ class TestFunctionParserFakeret(unittest.TestCase):
         fm = proj.kb.functions
         func = fm.function(addr=addr, create=True)
         assert func is not None
-        local_block = BlockNode(addr, 14, bytestr=blob[:14], manual=True)
-        ext_block = BlockNode(fakeret_dst_addr, 4, bytestr=b"\x00" * 4, manual=True)
+        local_block = BlockNode(addr, 14, bytestr=blob[:14])
+        ext_block = BlockNode(fakeret_dst_addr, 4, bytestr=b"\x00" * 4)
 
         func._register_node(True, local_block)
 

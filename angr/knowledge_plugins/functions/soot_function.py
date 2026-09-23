@@ -165,7 +165,9 @@ class SootFunction(Function):
         for block_addr, block in self._local_blocks.items():
             with contextlib.suppress(SimEngineError, SimMemoryError):
                 yield self.get_block(
-                    block_addr, size=block.size, byte_string=block.bytestr if isinstance(block, BlockNode) else None
+                    block_addr,
+                    size=block.size,
+                    byte_string=block.bytestr(self.project) if isinstance(block, BlockNode) else None,
                 )
 
     @property
@@ -670,7 +672,7 @@ class SootFunction(Function):
 
         for b in self._local_blocks.values():
             # TODO: should I call get_blocks?
-            block = self.get_block(b.addr, size=b.size, byte_string=b.bytestr)
+            block = self.get_block(b.addr, size=b.size, byte_string=b.bytestr(self.project))
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
             if common_insns:
                 blocks.append(b)

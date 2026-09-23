@@ -146,8 +146,8 @@ class AngrDbV1:
             block.kind = primitives_pb2.CodeNodeKind.FUNC_NODE
         elif isinstance(node, BlockNode):
             block.kind = primitives_pb2.CodeNodeKind.BLOCK_NODE
-            if node.manual and node.bytestr is not None:
-                block.bytes = node.bytestr
+            if node.manual_bytes:
+                block.bytes = node._bytestr
         else:
             raise TypeError(f"Unsupported node type {type(node)}")
         return block
@@ -157,8 +157,8 @@ class AngrDbV1:
         match block.kind:
             case primitives_pb2.CodeNodeKind.BLOCK_NODE:
                 # Messages of the per-block layout carry bytes for every block (angr <= #7235 wrote them for all
-                # lifted blocks), so manual nodes cannot be told apart: the stored bytes are dropped and the node
-                # reads its bytes from the loader.
+                # lifted blocks), so user-supplied bytes cannot be told apart: the stored bytes are dropped and the
+                # node reads its bytes from the loader.
                 return BlockNode(block.ea, block.size, thumb=block.thumb)
             case primitives_pb2.CodeNodeKind.HOOK_NODE:
                 hooker = project.hooked_by(block.ea) if project is not None and project.is_hooked(block.ea) else None

@@ -1057,18 +1057,23 @@ class Disassembly(Analysis):
                         for i, block in enumerate(blocks):
                             if block.size and block.addr < start:
                                 delta = start - block.addr
-                                block_bytes = block.bytestr[delta:] if block.bytestr else None
-                                blocks[i] = BlockNode(
-                                    block.addr + delta, block.size - delta, block_bytes, manual=block_bytes is not None
+                                # only user-supplied bytes travel with the trimmed node
+                                block_bytes = (
+                                    block._bytestr[delta:]
+                                    if isinstance(block, BlockNode) and block._bytestr is not None
+                                    else None
                                 )
+                                blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
                         for i, block in enumerate(blocks):
                             real_block_addr = block.addr if not block.thumb else block.addr - 1
                             if block.size and real_block_addr + block.size > end:
                                 delta = real_block_addr + block.size - end
-                                block_bytes = block.bytestr[0:-delta] if block.bytestr else None
-                                blocks[i] = BlockNode(
-                                    block.addr, block.size - delta, block_bytes, manual=block_bytes is not None
+                                block_bytes = (
+                                    block._bytestr[0:-delta]
+                                    if isinstance(block, BlockNode) and block._bytestr is not None
+                                    else None
                                 )
+                                blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
 
                         for block in blocks:
                             self.parse_block(block)
@@ -1087,7 +1092,6 @@ class Disassembly(Analysis):
                             end - start,
                             thumb=thumb,
                             bytestr=self._block_bytes if len(ranges) == 1 else None,
-                            manual=len(ranges) == 1 and self._block_bytes is not None,
                         )
                     )
 
@@ -1167,10 +1171,11 @@ class Disassembly(Analysis):
             else:
                 aligned_block_addr = block.addr
                 cs = self.project.arch.capstone
-            if block.bytestr is None:
+            # user-supplied bytes are disassembled as given; everything else is lifted through the project, which
+            # applies patches and resolves odd (Thumb) addresses on ARM
+            bytestr = block._bytestr if isinstance(block, BlockNode) else None
+            if bytestr is None:
                 bytestr = self.project.factory.block(aligned_block_addr, block.size).bytes
-            else:
-                bytestr = block.bytestr
             self.block_to_insn_addrs[block.addr] = []
             for cs_insn in cs.disasm(bytestr, block.addr):
                 self._add_instruction_to_results(block, CapstoneInsn(cs_insn), bs)

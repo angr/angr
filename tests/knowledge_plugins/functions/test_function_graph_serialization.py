@@ -134,12 +134,12 @@ class TestFunctionGraphSerialization(unittest.TestCase):
             for addr, node in func.code_nodes.items():
                 if isinstance(node, BlockNode):
                     # block bytes are not stored; they are read back from the loader on demand
-                    assert loaded.code_nodes[addr].bytestr == node.bytestr
+                    assert loaded.code_nodes[addr].bytestr(proj) == node.bytestr(proj)
 
     def test_block_bytes_are_derived_from_the_loader(self):
         proj = self.proj
-        # a manual node keeps its bytes across a reload; a non-manual node at an unmapped address has none, and a
-        # non-manual node in mapped memory reads the loader's bytes
+        # a node with user-supplied bytes keeps them across a reload; a node at an unmapped address has none, and a
+        # node in mapped memory reads the loader's bytes
         synthetic = Function(
             proj.kb.functions,
             0x500000,
@@ -149,15 +149,16 @@ class TestFunctionGraphSerialization(unittest.TestCase):
             is_plt=False,
             returning=True,
         )
-        synthetic._register_node(True, BlockNode(0x500000, 4, bytestr=b"\x90\x90\x90\xc3", manual=True))
+        synthetic._register_node(True, BlockNode(0x500000, 4, bytestr=b"\x90\x90\x90\xc3"))
         synthetic._register_node(True, BlockNode(0x500004, 4))
         loaded = Function.parse(synthetic.serialize(), function_manager=proj.kb.functions, project=proj)
-        assert loaded.code_nodes[0x500000].manual and loaded.code_nodes[0x500000].bytestr == b"\x90\x90\x90\xc3"
-        assert not loaded.code_nodes[0x500004].manual and loaded.code_nodes[0x500004].bytestr is None
+        n0, n4 = loaded.code_nodes[0x500000], loaded.code_nodes[0x500004]
+        assert n0.manual_bytes and n0.bytestr(proj) == b"\x90\x90\x90\xc3"
+        assert not n4.manual_bytes and n4.bytestr(proj) is None
         main = proj.kb.functions["main"]
         loaded = Function.parse(main.serialize(), function_manager=proj.kb.functions, project=proj)
         node = loaded.code_nodes[main.addr]
-        assert not node.manual and node.bytestr == proj.loader.memory.load(main.addr, node.size)
+        assert not node.manual_bytes and node.bytestr(proj) == proj.loader.memory.load(main.addr, node.size)
 
     def test_meta_only_load(self):
         proj = self.proj

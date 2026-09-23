@@ -100,10 +100,8 @@ def _node_key(node: CodeNode) -> tuple[NodeKind, int, int, bool]:
 _UNSET = object()
 
 
-def _node_extra(node: CodeNode) -> tuple[int, bool]:
-    if isinstance(node, BlockNode):
-        return node.delta, node.manual
-    return 0, False
+def _node_delta(node: CodeNode) -> int:
+    return node.delta if isinstance(node, BlockNode) else 0
 
 
 def dirty_func(func):
@@ -621,14 +619,8 @@ class Function(Serializable):
             kind, addr, size, thumb = self._graph.node(idx)
             project = self.project
             if kind == NodeKind.BLOCK:
-                delta, manual = self._graph.node_extra(idx)
                 obj = BlockNode(
-                    addr,
-                    size,
-                    bytestr=self._graph.node_bytes(idx) if manual else None,
-                    thumb=thumb,
-                    manual=manual,
-                    delta=delta,
+                    addr, size, bytestr=self._graph.node_bytes(idx), thumb=thumb, delta=self._graph.node_delta(idx)
                 )
             elif kind == NodeKind.FUNC:
                 obj = FuncNode(addr)
@@ -643,8 +635,8 @@ class Function(Serializable):
         return obj
 
     def _store_manual_bytes(self, idx: int, node: CodeNode) -> None:
-        if isinstance(node, BlockNode) and node.manual and node.bytestr is not None:
-            self._graph.set_node_bytes(idx, node.bytestr)
+        if isinstance(node, BlockNode) and node._bytestr is not None:
+            self._graph.set_node_bytes(idx, node._bytestr)
 
     def _node_objs_of(self, idxs: Iterable[int]) -> list[CodeNode]:
         return [self._node_obj(i) for i in idxs]
@@ -654,7 +646,7 @@ class Function(Serializable):
         The store id of a node, inserting it into the graph if necessary (networkx add_edge/add_node semantics).
         """
         kind, addr, size, thumb = _node_key(node)
-        idx, created = self._graph.add_node(kind, addr, size, thumb, *_node_extra(node))
+        idx, created = self._graph.add_node(kind, addr, size, thumb, _node_delta(node))
         node.set_owner(self)
         if created:
             self._store_manual_bytes(idx, node)
@@ -811,8 +803,8 @@ class Function(Serializable):
 
         for block_addr, idx in self._graph.local_items():
             node = self._node_objs.get(idx)
-            # only manual nodes supply their own bytes; the others are lifted from the (patched) project memory
-            bytestr = node.bytestr if isinstance(node, BlockNode) and node.manual else None
+            # only user-supplied bytes are handed over; the other blocks are lifted from the (patched) project memory
+            bytestr = node._bytestr if isinstance(node, BlockNode) else None
             with contextlib.suppress(SimEngineError, SimMemoryError):
                 yield self.get_block(block_addr, size=self._graph.node_size(idx), byte_string=bytestr)
 
@@ -1594,7 +1586,7 @@ class Function(Serializable):
         """
         kind, addr, size, thumb = _node_key(node)
         idx, created, new_local, changed = self._graph.register_node(
-            is_local, kind, addr, size, thumb, *_node_extra(node)
+            is_local, kind, addr, size, thumb, _node_delta(node)
         )
         node.set_owner(self)
         if created:
@@ -1854,9 +1846,7 @@ class Function(Serializable):
 
         for b in self.code_nodes.values():
             # TODO: should I call get_blocks?
-            block = self.get_block(
-                b.addr, size=b.size, byte_string=b.bytestr if isinstance(b, BlockNode) and b.manual else None
-            )
+            block = self.get_block(b.addr, size=b.size, byte_string=b._bytestr if isinstance(b, BlockNode) else None)
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
             if common_insns:
                 blocks.append(b)
