@@ -6,6 +6,7 @@ from cle import AT
 
 import angr
 from angr import claripy
+from angr.engines.failure import is_failure_jumpkind
 
 l = logging.getLogger(name=__name__)
 
@@ -242,10 +243,10 @@ class __libc_start_main(angr.SimProcedure):
         state = blank_state
         for b in blocks:
             irsb = self.project.factory.default_engine.process(state, irsb=b, force_addr=b.addr)
-            if irsb.successors:
-                state = irsb.successors[0]
-            else:
+            succ = next((s for s in irsb.successors if not is_failure_jumpkind(s.history.jumpkind)), None)
+            if succ is None:
                 break
+            state = succ
 
         cc = angr.default_cc(
             self.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
