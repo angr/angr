@@ -365,7 +365,9 @@ class TestCallingConvention(TestCase):
         pair = SimStruct({"x": SimTypeLongLong(), "y": SimTypeLongLong()}, name="Pair")
         big = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong()}, name="Big")
         proto = SimTypeFunction([SimTypeInt(), pair, big, SimTypeInt()], SimTypeInt()).with_arch(proj.arch)
-        addr = proj.loader.find_symbol("_Z9call_theml").rebased_addr
+        symbol = proj.loader.find_symbol("_Z9call_theml")
+        assert symbol is not None
+        addr = symbol.rebased_addr
 
         state = proj.factory.call_state(
             addr, 7, {"x": 11, "y": 22}, {"a": 33, "b": 44, "c": 55}, 9, cc=cc, prototype=proto
@@ -383,6 +385,7 @@ class TestCallingConvention(TestCase):
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
         func = next(f for f in proj.kb.functions.values() if f.name == "_Z8take_big3Big" and not f.is_plt)
+        assert func.prototype is not None
         assert isinstance(func.prototype.args[0], SimCppClass)
         assert len(proj.factory.cc().arg_locs(func.prototype.with_arch(proj.arch))) == 1
         assert proj.analyses.Decompiler(func, cfg=cfg.model).codegen is not None
