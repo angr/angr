@@ -72,6 +72,24 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "switch (" in dec.codegen.text
 
+    def test_rewrite_is_abandoned_when_an_earlier_cluster_took_this_one(self):
+        # NSSCKFWC_Decrypt maps a return code through two comparison clusters over the same variable.
+        # Converting the first removes the comparisons it subsumes and the chain they orphan, which here
+        # takes the second cluster's head, its comparisons and the nodes its cases target. The pass then
+        # read one of those targets back out of the graph and raised, sending the function to the basic
+        # preset.
+        proj, cfg = load_project_with_scoped_cfg(
+            os.path.join(test_location, "i386", "libnssckbi_gcc14.3.0_illumos"), 0x419830
+        )
+
+        dec = proj.analyses.Decompiler(cfg.functions[0x419830], cfg=cfg)
+
+        # pytest sets is_testing, so fail_fast re-raises and this test fails at the call above rather
+        # than on the assertion. Outside a test run the same exception is caught and logged, and the
+        # function is decompiled a second time on the basic preset.
+        assert not dec.errors
+        assert dec.codegen is not None and dec.codegen.text is not None
+
 
 if __name__ == "__main__":
     unittest.main()
