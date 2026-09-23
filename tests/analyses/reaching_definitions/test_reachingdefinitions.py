@@ -213,7 +213,7 @@ class TestReachingDefinitions(TestCase):
         project, main_function, reaching_definition, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
 
         code_block = main_function.get_node(main_function.addr)
-        block = Block(addr=0x43, byte_string=code_block.bytestr, project=project)
+        block = Block(addr=0x43, byte_string=code_block.bytestr(project), project=project)
         statement = block.vex.statements[0]
 
         reaching_definition.insn_observe(0x43, statement, block, state, OP_BEFORE)
@@ -234,7 +234,7 @@ class TestReachingDefinitions(TestCase):
         project, main_function, reaching_definition, state = InsnAndNodeObserveTestingUtils.setup(observation_points)
 
         code_block = main_function.get_node(main_function.addr)
-        block = Block(addr=0x43, byte_string=code_block.bytestr, project=project)
+        block = Block(addr=0x43, byte_string=code_block.bytestr(project), project=project)
         # When observing OP_AFTER an instruction, the statement has to be the last of a block
         # (or preceding an IMark)
         statement = block.vex.statements[-1]

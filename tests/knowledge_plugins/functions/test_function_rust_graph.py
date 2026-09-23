@@ -27,7 +27,7 @@ class TestFunctionRustGraph(unittest.TestCase):
         proj = angr.Project(FAUXWARE)
         func = proj.kb.functions.function(0x40071D, create=True)
         assert func is not None
-        a = BlockNode(0x40071D, 4, bytestr=b"\x90" * 4, manual=True)
+        a = BlockNode(0x40071D, 4, bytestr=b"\x90" * 4)
         b = BlockNode(0x400721, 8)
         callee = FuncNode(0x400600)
         func._transit_to(a, b, ins_addr=0x40071F, stmt_idx=3)

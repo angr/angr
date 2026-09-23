@@ -147,7 +147,7 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
         _assert_graph_equal(self, func, loaded)
         self.assertTrue(all(n.thumb for n in loaded.transition_graph.nodes()))
         self.assertTrue(loaded.startpoint.thumb)
-        self.assertEqual(loaded.get_node(0x8417).bytestr, b1.bytestr)
+        self.assertEqual(loaded.get_node(0x8417).bytestr(proj), b1.bytestr(proj))
 
     def test_retout_site(self):
         proj = self.proj

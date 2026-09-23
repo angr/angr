@@ -26,7 +26,7 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
     The base class of nodes in a function graph.
     """
 
-    __slots__ = ["_hash", "_owner", "_project", "addr", "size", "thumb"]
+    __slots__ = ["_hash", "_owner", "addr", "size", "thumb"]
 
     def __init__(self, addr: K, size: int, thumb=False):
         self.addr = addr
@@ -37,9 +37,6 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         # its node objects: a strong back-reference would make every evicted Function a reference cycle that only
         # gen-2 GC could reclaim. The owner is not pickled (see __getstate__).
         self._owner: weakref.ref | None = None
-        # The owner's Project, kept separately so that a node can still reach the loader after its Function has been
-        # evicted from the function manager and collected.
-        self._project: weakref.ref | None = None
 
         self._hash = None
 
@@ -70,8 +67,6 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
 
     def set_owner(self, func) -> None:
         self._owner = weakref.ref(func)
-        project = func.project
-        self._project = None if project is None else weakref.ref(project)
 
     @property
     def owner(self):
@@ -79,17 +74,6 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         The Function this node belongs to, or None if it was never registered with one or that Function is gone.
         """
         return None if self._owner is None else self._owner()
-
-    @property
-    def project(self):
-        """
-        The Project of the Function this node was registered with, or None. Unlike ``owner``, it stays available after
-        the Function has been evicted and collected.
-        """
-        owner = self.owner
-        if owner is not None and owner.project is not None:
-            return owner.project
-        return None if self._project is None else self._project()
 
     def _require_owner(self):
         owner = self.owner
@@ -117,7 +101,7 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
     Represents a block of code in a function graph.
     """
 
-    __slots__ = ["_bytestr", "delta", "manual"]
+    __slots__ = ["_bytestr", "delta"]
 
     is_hook = False
 
@@ -127,62 +111,64 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         size,
         bytestr: bytes | None = None,
         thumb: bool = False,
-        manual: bool = False,
         delta: int | None = None,
     ):
         """
-        :param manual:  The node was created by hand or programmatically rather than from lifted code. Only manual
-                        nodes carry their own bytes; those are stored with the function graph. The bytes of every
-                        other node are read from the loader on demand and never stored.
+        :param bytestr: The bytes of the block, given only when they do not come from the project (user-specified
+                        code). They are stored with the function graph. Every other node reads its bytes from the
+                        loader through ``bytestr(project)`` and never stores them.
         :param delta:   The block's bytes live at ``addr + delta``. Defaults to -1 for Thumb nodes (their addr has
                         bit 0 set) and 0 otherwise. Not part of the node's identity.
         """
         super().__init__(addr, size, thumb=thumb)
-        if bytestr is not None and not manual:
-            raise TypeError("BlockNode bytes can only be given for a manual node (manual=True)")
-        self.manual = manual
         self.delta = (-1 if thumb else 0) if delta is None else delta
         self._bytestr = bytestr
 
     @property
-    def bytestr(self) -> bytes | None:
+    def manual_bytes(self) -> bool:
         """
-        The bytes of the block: the stored bytes of a manual node, otherwise the raw loader bytes at
-        ``addr + delta`` of the owning function's project (None when the node has no owner or the range is not
-        fully mapped). ``kb.patches`` are deliberately not applied; use ``project.factory.block`` for patched code.
+        True if the node carries user-supplied bytes rather than reading them from the loader.
         """
-        if self._bytestr is None and not self.manual:
-            project = self.project
-            if project is not None and self.size and isinstance(self.addr, int):
-                loader = project.loader
-                memory = loader.memory_ro_view if loader.memory_ro_view is not None else loader.memory
-                try:
-                    data = memory.load(self.addr + self.delta, self.size)
-                except (KeyError, ValueError, SimMemoryError):
-                    data = None
-                if data is not None and len(data) == self.size:
-                    self._bytestr = bytes(data)
-        return self._bytestr
+        return self._bytestr is not None
 
-    @bytestr.setter
-    def bytestr(self, v: bytes | None) -> None:
-        if v is not None and not self.manual:
-            raise TypeError("BlockNode bytes can only be set on a manual node (manual=True)")
-        self._bytestr = v
+    def bytestr(self, project) -> bytes | None:
+        """
+        The bytes of the block: its user-supplied bytes if it has any, otherwise ``size`` raw loader bytes at
+        ``addr + delta`` of ``project`` (None when the range is not fully mapped). Loader bytes are never cached on
+        the node. ``kb.patches`` are deliberately not applied; use ``project.factory.block`` for patched code.
+        """
+        if self._bytestr is not None:
+            return self._bytestr
+        if not isinstance(project, angr.Project):
+            raise TypeError(f"BlockNode.bytestr() expects a Project, not {type(project).__name__}")
+        if not self.size or not isinstance(self.addr, int):
+            return None
+        loader = project.loader
+        memory = loader.memory_ro_view if loader.memory_ro_view is not None else loader.memory
+        try:
+            data = memory.load(self.addr + self.delta, self.size)
+        except (KeyError, ValueError, SimMemoryError):
+            return None
+        if data is None or len(data) != self.size:
+            return None
+        return bytes(data)
 
     def __repr__(self):
         return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
 
     def __getstate__(self) -> tuple:
-        return self.addr, self.size, self._bytestr if self.manual else None, self.thumb, self.manual, self.delta
+        return self.addr, self.size, self._bytestr, self.thumb, self.delta
 
     def __setstate__(self, dat: tuple):
-        if len(dat) == 4:  # nodes pickled before manual/delta existed
+        if len(dat) == 4:  # nodes pickled before delta existed: (addr, size, bytestr, thumb); bytes were loader bytes
             addr, size, _bytestr, thumb = dat
             self.__init__(addr, size, thumb=thumb)
-            return
-        addr, size, bytestr, thumb, manual, delta = dat
-        self.__init__(addr, size, bytestr=bytestr, thumb=thumb, manual=manual, delta=delta)
+        elif len(dat) == 6:  # (addr, size, bytestr, thumb, manual, delta)
+            addr, size, bytestr, thumb, manual, delta = dat
+            self.__init__(addr, size, bytestr=bytestr if manual else None, thumb=thumb, delta=delta)
+        else:
+            addr, size, bytestr, thumb, delta = dat
+            self.__init__(addr, size, bytestr=bytestr, thumb=thumb, delta=delta)
 
 
 class SootBlockNode(BlockNode[SootMethodDescriptor]):
@@ -193,7 +179,7 @@ class SootBlockNode(BlockNode[SootMethodDescriptor]):
     __slots__ = ["stmts"]
 
     def __init__(self, addr: SootMethodDescriptor, size, stmts, **kwargs):
-        super().__init__(addr, size, manual=True, **kwargs)
+        super().__init__(addr, size, **kwargs)
         self.stmts = stmts
 
         assert (stmts is None and size == 0) or (size == len(stmts))

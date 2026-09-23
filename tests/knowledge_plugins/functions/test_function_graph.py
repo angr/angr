@@ -40,9 +40,9 @@ class TestFunctionGraph(unittest.TestCase):
 
     def test_build_read_and_materialize(self):
         func = self._new_function()
-        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8, manual=True)
-        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4, manual=True)
-        b2 = BlockNode(0x50000C, 2, bytestr=b"\x90\xc3", manual=True)
+        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
+        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4)
+        b2 = BlockNode(0x50000C, 2, bytestr=b"\x90\xc3")
         callee = FuncNode(0x400664)
 
         func._transit_to(b0, b1, ins_addr=0x500006, stmt_idx=3)
@@ -80,13 +80,13 @@ class TestFunctionGraph(unittest.TestCase):
 
     def test_view_stays_in_sync_with_function_writes(self):
         func = self._new_function()
-        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8, manual=True)
-        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4, manual=True)
+        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
+        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4)
         func._transit_to(b0, b1)
         view = func.transition_graph
         local = func.graph
 
-        b2 = BlockNode(0x50000C, 2, bytestr=b"\x90\xc3", manual=True)
+        b2 = BlockNode(0x50000C, 2, bytestr=b"\x90\xc3")
         func._fakeret_to(b1, b2, confirmed=None)
         assert view.has_edge(b1, b2)
         assert "confirmed" not in view[b1][b2]
@@ -103,12 +103,12 @@ class TestFunctionGraph(unittest.TestCase):
 
     def test_networkx_writes_are_rejected_and_the_function_api_edits_the_store(self):
         func = self._new_function()
-        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8, manual=True)
+        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         func._register_node(True, b0)
         view = func.transition_graph
         func._dirty = False
 
-        ext = BlockNode(0x600000, 4, bytestr=b"\x00" * 4, manual=True)
+        ext = BlockNode(0x600000, 4, bytestr=b"\x00" * 4)
         with self.assertRaises(networkx.NetworkXError):
             view.add_node(ext)
         with self.assertRaises(networkx.NetworkXError):
@@ -139,22 +139,22 @@ class TestFunctionGraph(unittest.TestCase):
         # networkx keys nodes by (type, addr, size, thumb); a second, smaller node at a known address only becomes a
         # vertex once an edge references it
         func = self._new_function()
-        big = BlockNode(0x500000, 8, bytestr=b"\x90" * 8, manual=True)
-        small = BlockNode(0x500000, 4, bytestr=b"\x90" * 4, manual=True)
+        big = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
+        small = BlockNode(0x500000, 4, bytestr=b"\x90" * 4)
         func._register_node(True, big)
         func._register_node(True, small)
         assert func._graph.number_of_nodes() == 1
         assert set(func.transition_graph.nodes()) == {big}
         assert func.code_nodes[0x500000] is big
         assert func.get_block_size(0x500000) == 8
-        nxt = BlockNode(0x500004, 4, bytestr=b"\x90" * 4, manual=True)
+        nxt = BlockNode(0x500004, 4, bytestr=b"\x90" * 4)
         func._transit_to(small, nxt)
         assert set(func.transition_graph.nodes()) == {big, small, nxt}
         assert func.get_node(0x500000) is big
 
     def test_hook_nodes_survive_round_trip(self):
         func = self._new_function()
-        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8, manual=True)
+        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         hook = HookNode(0x700000, 0, self.proj.hooked_by(0x700000))
         func._call_to(b0, hook, None, stmt_idx=-2, ins_addr=0x500003)
         loaded = Function.parse(func.serialize(), function_manager=self.proj.kb.functions, project=self.proj)
@@ -164,20 +164,20 @@ class TestFunctionGraph(unittest.TestCase):
 
     def test_copy_is_independent(self):
         func = self._new_function()
-        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8, manual=True)
-        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4, manual=True)
+        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
+        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4)
         func._transit_to(b0, b1)
         func._add_return_site(b1)
         clone = func.copy()
         assert function_digest(clone) == function_digest(func)
-        clone._transit_to(b1, BlockNode(0x50000C, 2, bytestr=b"\x90\xc3", manual=True))
+        clone._transit_to(b1, BlockNode(0x50000C, 2, bytestr=b"\x90\xc3"))
         assert clone._graph.number_of_edges() == 2 and func._graph.number_of_edges() == 1
         assert clone.block_addrs_set != func.block_addrs_set
 
     def test_pickle_round_trip_without_objects(self):
         func = self._new_function()
-        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8, manual=True)
-        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4, manual=True)
+        b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
+        b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4)
         func._transit_to(b0, b1, ins_addr=0x500006, stmt_idx=-2)
         func._add_return_site(b1)
         g = pickle.loads(pickle.dumps(func._graph))
