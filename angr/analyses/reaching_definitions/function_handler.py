@@ -12,6 +12,7 @@ from cle.backends import ELF
 from angr import claripy
 from angr.calling_conventions import SimCC, SimReferenceArgument
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.errors import AngrTypeError
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register, SpOffset
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
@@ -618,7 +619,14 @@ class FunctionHandler:
     @staticmethod
     def c_return_as_atoms(state: ReachingDefinitionsState, cc: SimCC, prototype: SimTypeFunction) -> set[Atom]:
         if prototype.returnty is not None and not isinstance(prototype.returnty, SimTypeBottom):
-            retval = cc.return_val(prototype.returnty, perspective_returned=True)
+            try:
+                retval = cc.return_val(prototype.returnty, perspective_returned=True)
+            except AngrTypeError:
+                # the convention has no ABI for returning that type, and says so by raising. That is the same
+                # answer as the None below -- nothing can be said about where the value is -- so treat it the
+                # same way. A recovered prototype can name any type, and letting it out of here loses every
+                # definition in the function that asked.
+                retval = None
             if retval is not None:
                 if isinstance(retval, SimReferenceArgument):
                     # the value is returned through an implicit out-parameter; its footprint is relative to the
