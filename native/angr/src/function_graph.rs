@@ -253,7 +253,7 @@ impl Edge {
         self.present |= other.present;
     }
 
-    fn to_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+    fn to_dict<'py>(self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let d = PyDict::new(py);
         if self.present & PRESENT_TYPE != 0 {
             d.set_item(intern!(py, "type"), self.kind.as_str())?;
@@ -298,7 +298,7 @@ struct Payload {
     node_bytes: Vec<(u32, Vec<u8>)>,
 }
 
-#[pyclass(module = "angr.rustylib.function_graph")]
+#[pyclass(module = "angr.rustylib.function_graph", skip_from_py_object)]
 #[derive(Clone)]
 pub struct FunctionGraph {
     func_addr: u64,
@@ -657,12 +657,11 @@ impl FunctionGraph {
         manual: bool,
     ) -> (u32, bool, bool, bool) {
         let key = (kind, addr, size, thumb);
-        if is_local {
-            if let Some(&idx) = self.local_at.get(&addr) {
-                if self.nodes[idx as usize].key() == key {
-                    return (idx, false, false, false);
-                }
-            }
+        if is_local
+            && let Some(&idx) = self.local_at.get(&addr)
+            && self.nodes[idx as usize].key() == key
+        {
+            return (idx, false, false, false);
         }
         let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta, manual);
         if !self.block_sizes.contains_key(&addr) {
@@ -1059,10 +1058,7 @@ impl FunctionGraph {
             }
         }
 
-        loop {
-            let Some((&end_addr, group)) = end_addresses.iter().find(|(_, v)| v.len() > 1) else {
-                break;
-            };
+        while let Some((&end_addr, group)) = end_addresses.iter().find(|(_, v)| v.len() > 1) {
             let mut all_nodes = group.clone();
             all_nodes.sort_by_key(|&i| self.nodes[i as usize].size);
             let smallest = all_nodes[0];
@@ -1119,12 +1115,11 @@ impl FunctionGraph {
                     .collect();
 
                 for &(d, data) in &succs {
-                    if data.present & PRESENT_INS_ADDR != 0 {
-                        if let Some(ins_addr) = data.ins_addr {
-                            if ins_addr < self.nodes[d as usize].addr {
-                                continue;
-                            }
-                        }
+                    if data.present & PRESENT_INS_ADDR != 0
+                        && let Some(ins_addr) = data.ins_addr
+                        && ins_addr < self.nodes[d as usize].addr
+                    {
+                        continue;
                     }
                     if !self.edges.contains_key(&(smallest, d)) {
                         let target = if d == n { new_node } else { d };
@@ -1133,16 +1128,16 @@ impl FunctionGraph {
                 }
                 self.detach_node(n);
 
-                if let Some(&local) = self.local_at.get(&n_addr) {
-                    if self.nodes[local as usize].size != new_size {
-                        self.local_at.shift_remove(&n_addr);
-                        self.local_at.insert(n_addr, new_node);
-                    }
+                if let Some(&local) = self.local_at.get(&n_addr)
+                    && self.nodes[local as usize].size != new_size
+                {
+                    self.local_at.shift_remove(&n_addr);
+                    self.local_at.insert(n_addr, new_node);
                 }
-                if let Some(&size) = self.block_sizes.get(&n_addr) {
-                    if size != new_size {
-                        self.block_sizes.insert(n_addr, new_size);
-                    }
+                if let Some(&size) = self.block_sizes.get(&n_addr)
+                    && size != new_size
+                {
+                    self.block_sizes.insert(n_addr, new_size);
                 }
                 for &(p, data) in &preds {
                     if !others.contains(&p) {
