@@ -638,6 +638,51 @@ class TestTypes(unittest.TestCase):
         assert set(new_u.members) == {"i", "self"}
         assert cast(SimTypePointer, new_u.members["self"]).pts_to is new_u
 
+    def test_json_roundtrip_keeps_qualifiers(self):
+        # from_json's decode loop assigned field_key twice and the second assignment put "qualifier" back over the
+        # "q" that to_json writes, so every const, volatile and restrict was dropped on the way back in
+        proto = angr.types.parse_defns("int strcmp(const char *a, const char *b);")["strcmp"]
+        back = SimType.from_json(json.loads(json.dumps(proto.to_json())))
+        assert isinstance(back, SimTypeFunction)
+        assert back.c_repr("strcmp") == proto.c_repr("strcmp")
+        assert cast(SimTypePointer, back.args[0]).pts_to.qualifier == ["const"]
+
+        for expr in ("const int", "const int *", "volatile char *", "struct S { const int x; volatile char *p; }"):
+            t = angr.types.parse_type(expr)
+            assert SimType.from_json(t.to_json()).c_repr("v", full=1) == t.c_repr("v", full=1)
+
+        # the other mapping the same loop carries, disposition -> "disp", still round trips
+        for disposition in angr.types.PointerDisposition:
+            ptr = SimTypePointer(SimTypeInt(), disposition=disposition)
+            assert SimType.from_json(ptr.to_json()).disposition == disposition
+
+    def test_simtyperef_json_roundtrip_keeps_qualifier(self):
+        # SimTypeRef.to_json hand-built its dict and never wrote the qualifier, although SimTypeRef.from_json reads
+        # one back. It also read fields as JSON keys, so ("name", "qualifier") raised KeyError and ("name",) came back
+        # without the "_t" that from_json needs
+        ref = SimTypeRef("Node", SimStruct, qualifier=["const"])
+        assert ref.to_json() == {"_t": "_ref", "name": "Node", "ot": "struct", "q": ["const"]}
+        assert SimType.from_json(json.loads(json.dumps(ref.to_json()))).qualifier == ["const"]
+
+        # an unqualified reference, which is what a repeated named struct emits, is unchanged
+        assert SimTypeRef("Node", SimStruct).to_json() == {"_t": "_ref", "name": "Node", "ot": "struct"}
+
+        assert ref.to_json(fields=("name", "qualifier")) == {"_t": "_ref", "name": "Node", "q": ["const"]}
+        assert ref.to_json(fields=("name",)) == {"_t": "_ref", "name": "Node"}
+
+    def test_json_roundtrip_does_not_invent_a_struct_qualifier(self):
+        # from_json decodes a named aggregate once and resolves every later occurrence of the name to that object,
+        # so a qualifier restored onto it would be read as belonging to all of them. Neither argument order may
+        # come back with a const the declaration did not have.
+        for declaration in (
+            "void f(const struct P *src, struct P *dst);",
+            "void f(struct P *dst, const struct P *src);",
+        ):
+            proto = angr.types.parse_defns("struct P { int x; }; " + declaration)["f"]
+            back = SimType.from_json(json.loads(json.dumps(proto.to_json())))
+            assert isinstance(back, SimTypeFunction)
+            assert [cast(SimTypePointer, arg).pts_to.qualifier for arg in back.args] == [None, None]
+
 
 if __name__ == "__main__":
     unittest.main()

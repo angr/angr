@@ -36,6 +36,10 @@ if TYPE_CHECKING:
     from angr.procedures.definitions import SimTypeCollection
 
 
+# The shorter key a serialized type carries for an attribute whose name is abbreviated on the wire.
+_JSON_FIELD_KEYS = {"qualifier": "q", "disposition": "disp"}
+
+
 class SimType:
     """
     SimType exists to track type information for SimProcedures.
@@ -267,11 +271,19 @@ class SimType:
         if "name" in d:
             memo.add(d["name"])
         for field in cls._args:
-            field_key = "q" if field == "qualifier" else field
-            field_key = "disp" if field == "disposition" else field
+            field_key = _JSON_FIELD_KEYS.get(field, field)
             if field_key not in d:
                 continue
             kwargs[field] = d[field_key]
+
+        if (issubclass(cls, SimStruct) and kwargs.get("name")) or (
+            issubclass(cls, SimUnion) and kwargs.get("name") not in (None, _UNION_ANON_NAME)
+        ):
+            # A named aggregate is decoded once and every later occurrence of the name resolves to that one object,
+            # so it cannot hold a qualifier: to_json emits a bare reference for the later occurrences, and a
+            # qualifier kept from the first would be read as belonging to all of them. Carrying one per occurrence
+            # means teaching the encoder's memo to write it on the reference, which is a separate change.
+            kwargs.pop("qualifier", None)
 
         if cls is SimStruct and kwargs.get("name"):
             # construct the struct before decoding its fields so that references back to it resolve to this object
@@ -2749,9 +2761,16 @@ class SimTypeRef(SimType):
         return f'SimTypeRef("{self.name}", {original_type_name})'
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
-        d = {"_t": self._ident, "name": self.name, "ot": self.original_type._ident}
-        if fields is not None:
-            d = {k: d[k] for k in fields}
+        if fields is None:
+            fields = self._args
+
+        d: dict[str, Any] = {"_t": self._ident}
+        for field in fields:
+            if field == "original_type":
+                d["ot"] = self.original_type._ident
+            else:
+                d[_JSON_FIELD_KEYS.get(field, field)] = getattr(self, field)
+
         if "q" in d and not d["q"]:
             d.pop("q")
         return d
