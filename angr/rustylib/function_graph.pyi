@@ -61,8 +61,8 @@ class FunctionGraph:
     Node ids are indices into the node table and stay valid for the lifetime of the graph; ``remove_node`` only
     removes a node from the graph (and its edges), the maps that refer to it are untouched.
 
-    ``to_bytes()`` writes format version 2 (nodes carry ``delta`` and ``manual``, manual nodes their bytes);
-    ``from_bytes()`` also reads version 1, deriving ``delta`` from the thumb flag.
+    ``to_bytes()`` writes blob format version 2 (nodes carry ``delta`` and ``manual``, manual nodes their bytes);
+    ``from_bytes()`` accepts only that version and raises ValueError for any other version byte.
     """
 
     func_addr: int

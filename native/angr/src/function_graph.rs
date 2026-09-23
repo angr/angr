@@ -14,7 +14,6 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 const FORMAT_VERSION: u8 = 2;
-const FORMAT_VERSION_V1: u8 = 1;
 
 /// Which attribute keys the networkx edge-data dict carried. Reproducing the key set exactly keeps
 /// `"outside" in data` style checks in callers behaving as before.
@@ -223,32 +222,6 @@ impl Node {
     }
 }
 
-/// Node record of format version 1 (no delta, no manual flag).
-#[derive(Clone, Copy, Debug, Deserialize)]
-struct NodeV1 {
-    addr: u64,
-    size: u32,
-    kind: NodeKind,
-    thumb: bool,
-    in_graph: bool,
-    flags: u8,
-}
-
-impl From<NodeV1> for Node {
-    fn from(n: NodeV1) -> Node {
-        Node {
-            addr: n.addr,
-            size: n.size,
-            kind: n.kind,
-            thumb: n.thumb,
-            in_graph: n.in_graph,
-            flags: n.flags,
-            delta: if n.thumb { -1 } else { 0 },
-            manual: false,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 struct Edge {
     kind: EdgeKind,
@@ -323,34 +296,6 @@ struct Payload {
     call_sites: Vec<(u64, Option<u64>, Option<u64>)>,
     /// Bytes of manual nodes, by node id.
     node_bytes: Vec<(u32, Vec<u8>)>,
-}
-
-#[derive(Deserialize)]
-struct PayloadV1 {
-    func_addr: u64,
-    nodes: Vec<NodeV1>,
-    edges: Vec<(u32, u32, Edge)>,
-    startpoint: Option<u32>,
-    local_at: Vec<(u64, u32)>,
-    addr_to_block: Vec<(u64, u32)>,
-    block_sizes: Vec<(u64, u32)>,
-    call_sites: Vec<(u64, Option<u64>, Option<u64>)>,
-}
-
-impl From<PayloadV1> for Payload {
-    fn from(p: PayloadV1) -> Payload {
-        Payload {
-            func_addr: p.func_addr,
-            nodes: p.nodes.into_iter().map(Node::from).collect(),
-            edges: p.edges,
-            startpoint: p.startpoint,
-            local_at: p.local_at,
-            addr_to_block: p.addr_to_block,
-            block_sizes: p.block_sizes,
-            call_sites: p.call_sites,
-            node_bytes: Vec::new(),
-        }
-    }
 }
 
 #[pyclass(module = "angr.rustylib.function_graph")]
@@ -598,13 +543,8 @@ impl FunctionGraph {
                     .map_err(|e| PyValueError::new_err(format!("FunctionGraph.from_bytes: {e}")))?;
                 Self::from_payload(payload)
             }
-            Some((&FORMAT_VERSION_V1, rest)) => {
-                let payload: PayloadV1 = postcard::from_bytes(rest)
-                    .map_err(|e| PyValueError::new_err(format!("FunctionGraph.from_bytes: {e}")))?;
-                Self::from_payload(payload.into())
-            }
             Some((v, _)) => Err(PyValueError::new_err(format!(
-                "unsupported FunctionGraph format version {v}"
+                "unsupported FunctionGraph blob format version {v}; only version {FORMAT_VERSION} is readable"
             ))),
             None => Err(PyValueError::new_err("empty FunctionGraph payload")),
         }
