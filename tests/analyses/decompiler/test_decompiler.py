@@ -2577,10 +2577,9 @@ class TestDecompiler(unittest.TestCase):
         assert text.count("goto LABEL_400944;") == 1
         assert set(re.findall(r"goto (\w+);", text)) <= set(re.findall(r"^(\w+):$", text, re.MULTILINE))
 
-    @structuring_algo("sailr")
-    def test_decompiling_ld_linux_switch_case_exits(self, decompiler_options=None):
-        # The failure paths in cases 91 and 47 leave the switch and reach the final return. They must not be rebound
-        # to the intra-case continuation at 0x412704; the two real jumps to that continuation must remain intact.
+        # Exercise a second shape of the same bug. The failure paths in cases 91 and 47 leave the switch and reach
+        # the final return. They must not be rebound to the intra-case continuation at 0x412704; the two real jumps
+        # to that continuation must remain intact.
         bin_path = os.path.join(test_location, "armel", "ld-linux.so.3")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
