@@ -462,7 +462,7 @@ class SootFunction(Function):
         self._local_transition_graph = None
 
     @dirty_func
-    def _remove_fakeret(self, from_node, to_node):
+    def remove_fakeret(self, from_node, to_node):
         self.transition_graph.remove_edge(from_node, to_node)
 
         self._local_transition_graph = None
@@ -777,7 +777,7 @@ class SootFunction(Function):
     def _predecessors_of(self, node) -> list:
         return list(self.transition_graph.predecessors(node))
 
-    def _remove_edge(self, from_node, to_node) -> None:
+    def remove_edge(self, from_node, to_node) -> None:
         self.transition_graph.remove_edge(from_node, to_node)
         self._local_transition_graph = None
 

@@ -96,10 +96,10 @@ class TestFunctionGraph(unittest.TestCase):
         assert view[b1][b2]["confirmed"] is True
         assert 0x50000C in func.block_addrs_set
 
-        func._remove_fakeret(b1, b2)
+        func.remove_fakeret(b1, b2)
         assert not view.has_edge(b1, b2)
         with self.assertRaises(networkx.NetworkXError):
-            func._remove_fakeret(b1, b2)
+            func.remove_fakeret(b1, b2)
 
     def test_networkx_writes_are_rejected_and_the_function_api_edits_the_store(self):
         func = self._new_function()
@@ -122,9 +122,9 @@ class TestFunctionGraph(unittest.TestCase):
         assert view[b0][ext] == {"type": "transition", "outside": True, "ins_addr": 0x500006, "stmt_idx": -2}
         assert ext.successors() == [] and ext.predecessors() == [b0]
 
-        func._remove_edge(b0, ext)
+        func.remove_edge(b0, ext)
         assert func._graph.number_of_edges() == 0 and not view.has_edge(b0, ext)
-        func._remove_graph_node(ext)
+        func.remove_graph_node(ext)
         assert not func._has_node(ext)
         assert set(view.nodes()) == {b0}
 

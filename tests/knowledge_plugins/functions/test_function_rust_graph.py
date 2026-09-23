@@ -24,7 +24,7 @@ TRUE = os.path.join(bin_location, "tests", "x86_64", "true")
 
 class TestFunctionRustGraph(unittest.TestCase):
     def test_materialized_views_and_node_identity(self):
-        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj = angr.Project(FAUXWARE)
         func = proj.kb.functions.function(0x40071D, create=True)
         assert func is not None
         a = BlockNode(0x40071D, 4, bytestr=b"\x90" * 4, manual=True)
@@ -63,7 +63,7 @@ class TestFunctionRustGraph(unittest.TestCase):
         assert func.cyclomatic_complexity == 2 - 3 + 2
 
     def test_writes_keep_the_views_in_sync(self):
-        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj = angr.Project(FAUXWARE)
         func = proj.kb.functions.function(0x40071D, create=True)
         assert func is not None
         a = BlockNode(0x40071D, 4)
@@ -80,10 +80,10 @@ class TestFunctionRustGraph(unittest.TestCase):
         func._confirm_fakeret(a, b)
         assert tg[a][b]["confirmed"] is True
         assert 0x400721 in func.block_addrs_set
-        func._remove_fakeret(a, b)
+        func.remove_fakeret(a, b)
         assert not tg.has_edge(a, b)
         with self.assertRaises(networkx.NetworkXError):
-            func._remove_fakeret(a, b)
+            func.remove_fakeret(a, b)
 
         # the view is read-only; direct graph edits go through the Function API
         c = BlockNode(0x400729, 2)
@@ -103,12 +103,12 @@ class TestFunctionRustGraph(unittest.TestCase):
         }
         with self.assertRaises(networkx.NetworkXError):
             tg.remove_node(c)
-        func._remove_graph_node(c)
+        func.remove_graph_node(c)
         assert func._graph.number_of_edges() == 0
         assert c not in func.transition_graph
 
     def test_copy_pickle_and_clear(self):
-        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj = angr.Project(FAUXWARE)
         cfg = proj.analyses.CFGFast()
         main = cfg.kb.functions.function(name="main")
         assert main is not None
@@ -140,7 +140,7 @@ class TestFunctionRustGraph(unittest.TestCase):
         assert not main.block_addrs_set
 
     def test_hook_nodes_survive_reload(self):
-        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj = angr.Project(FAUXWARE)
         cfg = proj.analyses.CFGFast()
         plt_func = next(f for f in cfg.kb.functions.values() if f.is_plt)
         hook = next(n for n in plt_func.transition_graph.nodes() if isinstance(n, HookNode))
@@ -153,7 +153,7 @@ class TestFunctionRustGraph(unittest.TestCase):
         assert reloaded_hook.sim_procedure is not None
 
     def test_angrdb_round_trip(self):
-        proj = angr.Project(FAUXWARE, auto_load_libs=False)
+        proj = angr.Project(FAUXWARE)
         cfg = proj.analyses.CFGFast()
         before = {addr: _signature(f) for addr, f in cfg.kb.functions.items()}
         with tempfile.TemporaryDirectory() as td:
@@ -165,10 +165,10 @@ class TestFunctionRustGraph(unittest.TestCase):
 
     def test_cfg_with_spilling_matches_cfg_without(self):
         # a tiny cache limit forces almost every function through LMDB during recovery
-        spilled = angr.Project(TRUE, auto_load_libs=False, cache_limits={"functions": 3})
+        spilled = angr.Project(TRUE, cache_limits={"functions": 3})
         cfg_spilled = spilled.analyses.CFGFast()
         assert spilled.kb.functions.spilled_function_count > 0
-        plain = angr.Project(TRUE, auto_load_libs=False, cache_limits={"functions": None})
+        plain = angr.Project(TRUE, cache_limits={"functions": None})
         cfg_plain = plain.analyses.CFGFast()
         assert {n.addr for n in cfg_spilled.graph.nodes()} == {n.addr for n in cfg_plain.graph.nodes()}
         assert set(spilled.kb.functions) == set(plain.kb.functions)

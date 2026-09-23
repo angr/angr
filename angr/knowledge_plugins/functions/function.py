@@ -756,7 +756,7 @@ class Function(Serializable):
         self.mark_dirty()
         self._local_transition_graph = None
 
-    def _remove_graph_node(self, node: CodeNode) -> None:
+    def remove_graph_node(self, node: CodeNode) -> None:
         """
         Remove a node and its edges from the transition graph (DiGraph.remove_node). Block sizes, local-block
         membership and site flags recorded for the node are kept, as before.
@@ -769,7 +769,7 @@ class Function(Serializable):
         self.mark_dirty()
         self._local_transition_graph = None
 
-    def _set_edge_confirmed(self, src: CodeNode, dst: CodeNode, confirmed: bool) -> None:
+    def set_edge_confirmed(self, src: CodeNode, dst: CodeNode, confirmed: bool) -> None:
         s, d = self._find_node(src), self._find_node(dst)
         if s is None or d is None or not self._graph.has_edge(s, d):
             raise networkx.NetworkXError(f"The edge {src}-{dst} is not in the graph.")
@@ -1557,10 +1557,10 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     @dirty_func
-    def _remove_fakeret(self, from_node, to_node):
-        self._remove_edge(from_node, to_node)
+    def remove_fakeret(self, from_node, to_node):
+        self.remove_edge(from_node, to_node)
 
-    def _remove_edge(self, from_node: CodeNode, to_node: CodeNode) -> None:
+    def remove_edge(self, from_node: CodeNode, to_node: CodeNode) -> None:
         s, d = self._find_node(from_node), self._find_node(to_node)
         if s is None or d is None or not self._graph.remove_edge(s, d):
             raise networkx.NetworkXError(f"The edge {from_node}-{to_node} is not in the graph.")
