@@ -37,7 +37,7 @@ class AngrDB:
     ]
 
     VERSION = 2
-    # version 1 databases store functions in the legacy (per-block/per-edge message) layout, which is still readable
+    # version 1 databases store functions in the per-block/per-edge layout read by angr.angrdb.v1.AngrDbV1
     COMPATIBLE_VERSIONS = (1, 2)
 
     def __init__(self, project=None, nullpool=False):

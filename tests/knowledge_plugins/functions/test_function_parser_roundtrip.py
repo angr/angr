@@ -12,9 +12,9 @@ import os
 import unittest
 
 import angr
+from angr.angrdb.v1 import AngrDbV1
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.knowledge_plugins.functions.function import Function
-from angr.knowledge_plugins.functions.function_parser import FunctionParser
 from angr.protos import primitives_pb2
 from tests.common import bin_location
 
@@ -209,7 +209,7 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
         fm._add_outside_transition_to(0x400664, ret, puts_addr, to_function_addr=puts_addr, ins_addr=0x400690)
         fm._add_return_from(0x400664, ret)
 
-        cmsg = FunctionParser.serialize(func, legacy_layout=True)
+        cmsg = AngrDbV1.serialize_function(func)
         assert not cmsg.graph_blob
         legacy_external = [b for b in cmsg.external_blocks if b.kind == primitives_pb2.CodeNodeKind.BLOCK_NODE]
         del cmsg.external_blocks[:]
@@ -240,7 +240,7 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
         fm._add_fakeret_to(0x400664, src2, ext, confirmed=False)
         fm._add_call_to(0x400664, src2, 0x400550, retn_node=src, stmt_idx=-2, ins_addr=0x4006AA, return_to_outside=True)
 
-        cmsg = FunctionParser.serialize(func, legacy_layout=True)
+        cmsg = AngrDbV1.serialize_function(func)
         assert not cmsg.graph_blob and cmsg.blocks and cmsg.graph.edges
         loaded = Function.parse_from_cmessage(cmsg, function_manager=fm, project=proj)
         _assert_graph_equal(self, func, loaded)
