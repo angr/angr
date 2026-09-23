@@ -61,8 +61,8 @@ class FunctionGraph:
     Node ids are indices into the node table and stay valid for the lifetime of the graph; ``remove_node`` only
     removes a node from the graph (and its edges), the maps that refer to it are untouched.
 
-    ``to_bytes()`` writes blob format version 2 (nodes carry ``delta`` and ``manual``, manual nodes their bytes);
-    ``from_bytes()`` accepts only that version and raises ValueError for any other version byte.
+    ``to_bytes()`` writes blob format version 2 (nodes carry ``delta``; user-supplied node bytes are stored in a
+    side table); ``from_bytes()`` accepts only that version and raises ValueError for any other version byte.
     """
 
     func_addr: int
@@ -73,24 +73,22 @@ class FunctionGraph:
     # nodes
     def number_of_nodes(self) -> int: ...
     def number_of_edges(self) -> int: ...
-    def add_node(
-        self, kind: NodeKind, addr: int, size: int, thumb: bool, delta: int = 0, manual: bool = False
-    ) -> tuple[int, bool]:
-        """networkx add_node. Returns (id, created); delta and manual are recorded for a new record only."""
+    def add_node(self, kind: NodeKind, addr: int, size: int, thumb: bool, delta: int = 0) -> tuple[int, bool]:
+        """networkx add_node. Returns (id, created); delta is recorded for a new record only."""
 
     def register_node(
-        self, is_local: bool, kind: NodeKind, addr: int, size: int, thumb: bool, delta: int = 0, manual: bool = False
+        self, is_local: bool, kind: NodeKind, addr: int, size: int, thumb: bool, delta: int = 0
     ) -> tuple[int, bool, bool, bool]:
         """Port of Function._register_node. Returns (id, created, new_local, changed)."""
 
-    def node_extra(self, idx: int) -> tuple[int, bool]:
-        """(delta, manual) of a node id."""
+    def node_delta(self, idx: int) -> int:
+        """delta of a node id: its bytes live at addr + delta."""
 
     def node_bytes(self, idx: int) -> bytes | None:
-        """The stored bytes of a manual node."""
+        """The user-supplied bytes of a node, or None if its bytes come from the loader."""
 
     def set_node_bytes(self, idx: int, data: bytes) -> None:
-        """Store the bytes of a manual node; ValueError for a non-manual node."""
+        """Store user-supplied bytes for a node."""
 
     def find_node(self, kind: NodeKind, addr: int, size: int, thumb: bool) -> int | None: ...
     def contains_node(self, idx: int) -> bool: ...
