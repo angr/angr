@@ -212,8 +212,6 @@ struct Node {
     flags: u8,
     /// `addr + delta` is where the block's bytes live (-1 for Thumb blocks, whose addr has bit 0 set).
     delta: i32,
-    /// The node was created by hand, not from lifted code: its bytes are stored with the graph.
-    manual: bool,
 }
 
 impl Node {
@@ -294,7 +292,7 @@ struct Payload {
     addr_to_block: Vec<(u64, u32)>,
     block_sizes: Vec<(u64, u32)>,
     call_sites: Vec<(u64, Option<u64>, Option<u64>)>,
-    /// Bytes of manual nodes, by node id.
+    /// User-supplied bytes of nodes that do not come from the loader, by node id.
     node_bytes: Vec<(u32, Vec<u8>)>,
 }
 
@@ -322,15 +320,7 @@ impl FunctionGraph {
             .ok_or_else(|| PyKeyError::new_err(format!("no node with id {idx}")))
     }
 
-    fn new_entry(
-        &mut self,
-        kind: NodeKind,
-        addr: u64,
-        size: u32,
-        thumb: bool,
-        delta: i32,
-        manual: bool,
-    ) -> u32 {
+    fn new_entry(&mut self, kind: NodeKind, addr: u64, size: u32, thumb: bool, delta: i32) -> u32 {
         let idx = self.nodes.len() as u32;
         self.nodes.push(Node {
             addr,
@@ -340,7 +330,6 @@ impl FunctionGraph {
             in_graph: false,
             flags: 0,
             delta,
-            manual,
         });
         self.by_key.insert((kind, addr, size, thumb), idx);
         self.out_adj.push(Vec::new());
@@ -348,7 +337,7 @@ impl FunctionGraph {
         idx
     }
 
-    /// Node identity is `(kind, addr, size, thumb)`; `delta` and `manual` are recorded only for a new record.
+    /// Node identity is `(kind, addr, size, thumb)`; `delta` is recorded only for a new record.
     fn find_or_create(
         &mut self,
         kind: NodeKind,
@@ -356,11 +345,10 @@ impl FunctionGraph {
         size: u32,
         thumb: bool,
         delta: i32,
-        manual: bool,
     ) -> (u32, bool) {
         match self.by_key.get(&(kind, addr, size, thumb)) {
             Some(&idx) => (idx, false),
-            None => (self.new_entry(kind, addr, size, thumb, delta, manual), true),
+            None => (self.new_entry(kind, addr, size, thumb, delta), true),
         }
     }
 
@@ -600,7 +588,7 @@ impl FunctionGraph {
     }
 
     /// Insert a node into the graph (networkx `add_node`). Returns `(id, created)`.
-    #[pyo3(signature = (kind, addr, size, thumb, delta=0, manual=false))]
+    #[pyo3(signature = (kind, addr, size, thumb, delta=0))]
     pub fn add_node(
         &mut self,
         kind: NodeKind,
@@ -608,20 +596,18 @@ impl FunctionGraph {
         size: u32,
         thumb: bool,
         delta: i32,
-        manual: bool,
     ) -> (u32, bool) {
-        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta, manual);
+        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta);
         self.nodes[idx as usize].in_graph = true;
         (idx, created)
     }
 
-    /// `(delta, manual)` of a node id.
-    pub fn node_extra(&self, idx: u32) -> PyResult<(i32, bool)> {
-        let n = self.node_ref(idx)?;
-        Ok((n.delta, n.manual))
+    /// `delta` of a node id: its bytes live at `addr + delta`.
+    pub fn node_delta(&self, idx: u32) -> PyResult<i32> {
+        Ok(self.node_ref(idx)?.delta)
     }
 
-    /// The stored bytes of a manual node, or None.
+    /// The user-supplied bytes of a node, or None if its bytes come from the loader.
     pub fn node_bytes<'py>(
         &self,
         py: Python<'py>,
@@ -631,12 +617,9 @@ impl FunctionGraph {
         Ok(self.node_bytes.get(&idx).map(|b| PyBytes::new(py, b)))
     }
 
-    /// Store the bytes of a manual node.
+    /// Store user-supplied bytes for a node.
     pub fn set_node_bytes(&mut self, idx: u32, data: &[u8]) -> PyResult<()> {
-        let n = self.node_ref(idx)?;
-        if !n.manual {
-            return Err(PyValueError::new_err("only manual nodes carry bytes"));
-        }
+        self.node_ref(idx)?;
         self.node_bytes.insert(idx, data.to_vec());
         Ok(())
     }
@@ -644,7 +627,7 @@ impl FunctionGraph {
     /// Port of `Function._register_node`. Returns `(id, created, new_local, changed)`: `created` tells the
     /// caller that the id is fresh and it should keep the incoming CodeNode object as the canonical object for
     /// it; `changed` is False only on the early-return path (an equal local node was already registered).
-    #[pyo3(signature = (is_local, kind, addr, size, thumb, delta=0, manual=false))]
+    #[pyo3(signature = (is_local, kind, addr, size, thumb, delta=0))]
     #[allow(clippy::too_many_arguments)]
     pub fn register_node(
         &mut self,
@@ -654,7 +637,6 @@ impl FunctionGraph {
         size: u32,
         thumb: bool,
         delta: i32,
-        manual: bool,
     ) -> (u32, bool, bool, bool) {
         let key = (kind, addr, size, thumb);
         if is_local
@@ -663,7 +645,7 @@ impl FunctionGraph {
         {
             return (idx, false, false, false);
         }
-        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta, manual);
+        let (idx, created) = self.find_or_create(kind, addr, size, thumb, delta);
         if !self.block_sizes.contains_key(&addr) {
             self.nodes[idx as usize].in_graph = true;
         }
@@ -1069,7 +1051,6 @@ impl FunctionGraph {
                 let n_addr = self.nodes[n as usize].addr;
                 let n_thumb = self.nodes[n as usize].thumb;
                 let n_delta = self.nodes[n as usize].delta;
-                let n_manual = self.nodes[n as usize].manual;
                 let new_size =
                     real(self.nodes[smallest as usize].addr) as i64 - real(n_addr) as i64;
                 if new_size <= 0 {
@@ -1092,7 +1073,6 @@ impl FunctionGraph {
                             new_size,
                             n_thumb,
                             n_delta,
-                            n_manual,
                         );
                         if let Some(b) = self.node_bytes.get(&n) {
                             let cut = b[..b.len().min(new_size as usize)].to_vec();
@@ -1234,9 +1214,9 @@ mod tests {
     #[test]
     fn round_trip_keeps_nodes_edges_and_maps() {
         let mut g = FunctionGraph::new(0x1000);
-        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x1000, 8, false, 0, false);
-        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x1008, 4, false, 0, false);
-        let (f, _) = g.add_node(NodeKind::Func, 0x2000, 0, false, 0, false);
+        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x1000, 8, false, 0);
+        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x1008, 4, false, 0);
+        let (f, _) = g.add_node(NodeKind::Func, 0x2000, 0, false, 0);
         g.add_edge(
             a,
             b,
@@ -1283,8 +1263,8 @@ mod tests {
     #[test]
     fn add_edge_merges_like_networkx() {
         let mut g = FunctionGraph::new(0);
-        let (a, _) = g.add_node(NodeKind::Block, 0, 1, false, 0, false);
-        let (b, _) = g.add_node(NodeKind::Block, 1, 1, false, 0, false);
+        let (a, _) = g.add_node(NodeKind::Block, 0, 1, false, 0);
+        let (b, _) = g.add_node(NodeKind::Block, 1, 1, false, 0);
         g.add_edge(
             a,
             b,
@@ -1318,8 +1298,8 @@ mod tests {
     #[test]
     fn remove_node_keeps_maps() {
         let mut g = FunctionGraph::new(0x10);
-        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x10, 2, false, 0, false);
-        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x12, 2, false, 0, false);
+        let (a, _, _, _) = g.register_node(true, NodeKind::Block, 0x10, 2, false, 0);
+        let (b, _, _, _) = g.register_node(true, NodeKind::Block, 0x12, 2, false, 0);
         g.add_edge(
             a,
             b,
