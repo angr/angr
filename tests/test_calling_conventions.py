@@ -10,8 +10,9 @@ from unittest import TestCase, main
 
 import archinfo
 
-from angr import Project, load_shellcode, types
+from angr import Project, calling_conventions, load_shellcode, types
 from angr.calling_conventions import (
+    SimCC,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
@@ -289,6 +290,61 @@ class TestCallingConvention(TestCase):
             proto = SimTypeFunction([SimTypeInt()], TypeRef("class Base::Type", inner)).with_arch(arch)
             assert not cc.return_in_implicit_outparam(proto.returnty)
             assert len(cc.arg_locs(proto)) == 1
+
+    def _arg_layout(self, cc, arg_types):
+        """What cc does with these arguments: the locations it assigns, or the exception it raises."""
+        proto = SimTypeFunction(arg_types, SimTypeInt()).with_arch(cc.arch)
+        try:
+            return [sorted(loc.get_footprint(), key=repr) for loc in cc.arg_locs(proto)]
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            return f"{type(e).__name__}: {e}"
+
+    def test_next_arg_lays_a_typeref_out_as_the_type_it_names(self):
+        # A TypeRef names a type rather than being one: its size forwards to the type it names,
+        # but an isinstance check against it does not match. A next_arg that sizes its locations
+        # from arg_type.size and then dispatches on the alias reserves room for one type and
+        # describes another, and where the named type has no size it reserves nothing at all and
+        # refine_locs_with_struct_type indexes an empty list. Every next_arg unpacks the alias
+        # first, so this holds for every convention and not only the ones a corpus happened to
+        # reach; a new convention that forgets to unpack fails here.
+        named = [
+            # what ALL_TYPES["fpos_t"] is: an opaque C type, declared with no fields and so no size
+            ("fpos_t", lambda: SimStruct({}, name="fpos_t")),
+            ("int64_t", SimTypeLongLong),
+            ("point_t", lambda: SimStruct({"x": SimTypeInt(), "y": SimTypeInt()}, name="point")),
+            ("quad_t", lambda: SimTypeFixedSizeArray(SimTypeInt(), 4)),
+            ("real_t", SimTypeDouble),
+        ]
+        conventions = [
+            cls
+            for cls in vars(calling_conventions).values()
+            if isinstance(cls, type) and issubclass(cls, SimCC) and cls.ARCH is not None
+        ]
+        # the enumeration itself is the point of this test, so fail loudly if it stops finding them
+        assert len(conventions) > 20, len(conventions)
+        for cls in sorted(conventions, key=lambda c: c.__name__):
+            arch_cls = cls.ARCH
+            assert arch_cls is not None
+            # every concrete Arch defaults endness; only the abstract base takes it positionally
+            cc = cls(arch_cls())  # type: ignore[reportCallIssue]
+            for name, make in named:
+                direct = [SimTypePointer(SimTypeChar()), make(), SimTypeInt()]
+                aliased = [SimTypePointer(SimTypeChar()), TypeRef(name, make()), SimTypeInt()]
+                self.assertEqual(
+                    self._arg_layout(cc, aliased),
+                    self._arg_layout(cc, direct),
+                    f"{cls.__name__} {name}",
+                )
+
+        # and what two of those layouts are, so the comparison above cannot pass by being wrong
+        # on each side at once
+        cc = SimCCMicrosoftCdecl(archinfo.ArchX86())
+        assert self._arg_layout(
+            cc, [SimTypePointer(SimTypeChar()), TypeRef("fpos_t", SimStruct({}, name="fpos_t")), SimTypeInt()]
+        ) == [[SimStackArg(0x4, 4)], [], [SimStackArg(0x8, 4)]]
+        assert self._arg_layout(
+            cc, [SimTypePointer(SimTypeChar()), TypeRef("int64_t", SimTypeLongLong()), SimTypeInt()]
+        ) == [[SimStackArg(0x4, 4)], [SimStackArg(0x8, 4), SimStackArg(0xC, 4)], [SimStackArg(0x10, 4)]]
 
     def _mips_int_arg_locs(self, cc_cls, arch, arg_types):
         proto = SimTypeFunction(arg_types, SimTypeInt()).with_arch(arch)

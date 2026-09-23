@@ -829,6 +829,8 @@ class SimCC:
         return self.RETURN_ADDR
 
     def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
@@ -1404,6 +1406,8 @@ class SimCCCdecl(SimCC):
     ARCH = archinfo.ArchX86
 
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         locs_size = 0
@@ -1473,6 +1477,8 @@ class SimCCMicrosoftFastcall(SimCC):
     ARCH = archinfo.ArchX86
 
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
 
@@ -1555,6 +1561,8 @@ class SimCCMicrosoftAMD64(SimCC):
     STRUCT_RETURN_THRESHOLD = 64
 
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         try:
@@ -1763,6 +1771,8 @@ class SimCCSystemVAMD64(SimCC):
     # https://raw.githubusercontent.com/wiki/hjl-tools/x86-psABI/x86-64-psABI-1.0.pdf
     # section 3.2.3
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, RustSimEnum):
@@ -2029,6 +2039,8 @@ class SimCCGoAMD64(SimCC):
         return [next(session.both_iter) for _ in range(max(1, -(-size // self.arch.bytes)))]
 
     def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, SimTypeArray):
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if arg_type._arch is None:
@@ -2141,6 +2153,8 @@ class SimCCARM(SimCC):
 
     # https://github.com/ARM-software/abi-aa/blob/60a8eb8c55e999d74dac5e368fc9d7e36e38dda4/aapcs32/aapcs32.rst#parameter-passing
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         state = session.getstate()
@@ -2278,6 +2292,8 @@ class SimCCARMHF(SimCCARM):
     EXTRA_ARCHES = (archinfo.ArchARMCortexM,)
 
     def next_arg(self, session: ArgSession, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         state = session.getstate()
@@ -2446,6 +2462,8 @@ class SimCCRISCV64(SimCC):
 
     # https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-cc.adoc
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         # TODO: Implement variable parameter passing
         # EXAMPLE:
         # struct F1 {float a, int b};
@@ -2634,6 +2652,8 @@ class SimCCO32(SimCC):
 
     # http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf Section 3-17
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         state = session.getstate()
