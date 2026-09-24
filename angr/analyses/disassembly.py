@@ -1057,13 +1057,12 @@ class Disassembly(Analysis):
                         for i, block in enumerate(blocks):
                             if block.size and block.addr < start:
                                 delta = start - block.addr
-                                # only user-supplied bytes travel with the trimmed node
                                 block_bytes = (
                                     block._bytestr[delta:]
                                     if isinstance(block, BlockNode) and block._bytestr is not None
                                     else None
                                 )
-                                blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
+                                blocks[i] = BlockNode(block.addr + delta, block.size - delta, bytestr=block_bytes)
                         for i, block in enumerate(blocks):
                             real_block_addr = block.addr if not block.thumb else block.addr - 1
                             if block.size and real_block_addr + block.size > end:
@@ -1073,7 +1072,7 @@ class Disassembly(Analysis):
                                     if isinstance(block, BlockNode) and block._bytestr is not None
                                     else None
                                 )
-                                blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
+                                blocks[i] = BlockNode(block.addr, block.size - delta, bytestr=block_bytes)
 
                         for block in blocks:
                             self.parse_block(block)
