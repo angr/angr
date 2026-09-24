@@ -205,7 +205,13 @@ class SimOS:
                 state.registers.store(reg, val)
 
         if addr is None:
-            state.regs.ip = self.project.entry
+            try:
+                state.regs.ip = self.project.entry
+            except TypeError:
+                # Dalvik and the p-code DATA languages have no program counter to point.
+                # Every other architecture has one, so there the failure is real.
+                if "ip" in state.arch.registers:
+                    raise
 
         thread_name = self.project.loader.main_object.threads[thread_idx] if thread_idx is not None else None
         for reg, val in self.project.loader.main_object.thread_registers(thread_name).items():
@@ -230,7 +236,13 @@ class SimOS:
                 _l.error("What is this register %s I have to translate?", reg)
 
         if addr is not None:
-            state.regs.ip = addr
+            try:
+                state.regs.ip = addr
+            except TypeError:
+                # Dalvik and the p-code DATA languages have no program counter to point.
+                # Every other architecture has one, so there the failure is real.
+                if "ip" in state.arch.registers:
+                    raise
 
         # set up the "root history" node
         state.scratch.ins_addr = addr
