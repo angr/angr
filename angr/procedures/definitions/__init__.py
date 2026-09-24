@@ -1059,6 +1059,7 @@ def load_all_definitions():
     load_type_collections(skip=set())
     if once("load_all_definitions"):
         _load_definitions(_DATA_DEFINITIONS_DIR, py_base_dir=_DEFINITIONS_BASEDIR)
+    load_win32api_definitions()
 
 
 COMMON_LIBRARIES = {
