@@ -1162,22 +1162,16 @@ class Disassembly(Analysis):
             self.raw_result.append(hook)
             self.raw_result_map["hooks"][block.addr] = hook
         elif self.project.arch.capstone_support:
-            # Prefer Capstone first, where we are able to extract a bit more
-            # about the operands
-            if block.thumb:
-                aligned_block_addr = (block.addr >> 1) << 1
-                cs = self.project.arch.capstone_thumb
-            else:
-                aligned_block_addr = block.addr
-                cs = self.project.arch.capstone
-            # user-supplied bytes are disassembled as given; everything else is lifted through the project, which
-            # applies patches and resolves odd (Thumb) addresses on ARM
-            bytestr = block._bytestr if isinstance(block, BlockNode) else None
-            if bytestr is None:
-                bytestr = self.project.factory.block(aligned_block_addr, block.size).bytes
+            # Prefer Capstone first, where we are able to extract a bit more about the operands
+            cs = self.project.arch.capstone_thumb if block.thumb else self.project.arch.capstone
             self.block_to_insn_addrs[block.addr] = []
-            for cs_insn in cs.disasm(bytestr, block.addr):
-                self._add_instruction_to_results(block, CapstoneInsn(cs_insn), bs)
+            # determine the bytes to disassemble. pass in original=False to get the post-patching bytes.
+            # obviously, existing BlockNodes are no longer guaranteed to be valid when the bytes it covers are patched
+            # by the user. It is developer's responsibility to discard BlockNodes that are no longer valid.
+            bytestr = block.bytestr(self.project, original=False)
+            if bytestr is not None:
+                for cs_insn in cs.disasm(bytestr, block.addr):
+                    self._add_instruction_to_results(block, CapstoneInsn(cs_insn), bs)
         elif pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
             # When using the P-code engine, we can fall back on its disassembly
             # in the event that Capstone does not support it

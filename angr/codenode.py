@@ -129,9 +129,13 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         """
         return self._bytestr is not None
 
-    def bytestr(self, project: angr.Project) -> bytes | None:
+    def bytestr(self, project: angr.Project, original: bool = True) -> bytes | None:
         """
         Get the bytes of the block.
+
+        :param project:     The angr Project to use to read the bytes if they are not user-supplied.
+        :param original:    Whether to read the original bytes from the loader (True) or the potentially patched
+                            bytes (False).
         """
         if self._bytestr is not None:
             return self._bytestr
@@ -139,15 +143,25 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
             raise TypeError(f"BlockNode.bytestr() expects a Project, not {type(project).__name__}")
         if not self.size or not isinstance(self.addr, int):
             return None
-        loader = project.loader
-        memory = loader.memory_ro_view if loader.memory_ro_view is not None else loader.memory
+
+        if original or project.kb.patches.has_patches() is False:
+            # go through the loader to read the original bytes
+            loader = project.loader
+            memory = loader.memory_ro_view if loader.memory_ro_view is not None else loader.memory
+            try:
+                data = memory.load(self.addr + self.delta, self.size)
+            except (KeyError, ValueError, SimMemoryError):
+                return None
+            if data is None or len(data) != self.size:
+                return None
+            return bytes(data)
+
+        # go through the project to read the potentially patched bytes
         try:
-            data = memory.load(self.addr + self.delta, self.size)
+            blk = project.factory.block(self.addr + self.delta, size=self.size)
+            return blk.bytes
         except (KeyError, ValueError, SimMemoryError):
             return None
-        if data is None or len(data) != self.size:
-            return None
-        return bytes(data)
 
     def __repr__(self):
         return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
