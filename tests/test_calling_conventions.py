@@ -337,8 +337,24 @@ class TestCallingConvention(TestCase):
         assert spilled[7].get_footprint() == {SimStackArg(0, 8), SimStackArg(8, 8)}
         assert spilled[8] == SimStackArg(0x10, 4)
 
+        # A stack argument starts at its natural alignment even if an earlier spill left NSAA only 8-byte aligned.
+        aligned_spill = locs(*[integer] * 9, SimTypeNum(128))
+        assert aligned_spill[8] == SimStackArg(0, 4)
+        assert aligned_spill[9].get_footprint() == {SimStackArg(0x10, 8), SimStackArg(0x18, 8)}
+
         # A 16-byte integral argument takes a register pair, starting on an even-numbered register.
         assert locs(integer, SimTypeNum(128))[1].get_footprint() == {SimRegArg("x2", 8), SimRegArg("x3", 8)}
+
+        # Wider integral types map to arrays of 128-bit units, and therefore follow the large-composite rule.
+        wide = locs(SimTypeNum(256))[0]
+        assert isinstance(wide, SimReferenceArgument)
+        assert wide.ptr_loc == SimRegArg("x0", 8)
+        assert wide.main_loc.get_footprint() == {
+            SimStackArg(0, 8),
+            SimStackArg(8, 8),
+            SimStackArg(0x10, 8),
+            SimStackArg(0x18, 8),
+        }
 
     def test_aarch64_aggregate_args_reach_the_callsite(self):
         proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
@@ -360,6 +376,25 @@ class TestCallingConvention(TestCase):
         referenced = evaluate(state.regs.x3)
         assert [evaluate(state.memory.load(referenced + 8 * i, 8, endness="Iend_LE")) for i in range(3)] == [33, 44, 55]
         assert evaluate(state.regs.x4) == 9
+
+        # A final aggregate spill still contributes to the caller's stack allocation.
+        spilled_proto = SimTypeFunction([SimTypeInt()] * 7 + [pair], SimTypeInt()).with_arch(proj.arch)
+        spilled_locs = cc.arg_locs(spilled_proto)
+        assert cc.stack_space(spilled_locs) == 16
+        initial_sp = 0x7FFF_0000
+        base_state = proj.factory.blank_state()
+        base_state.regs.sp = initial_sp
+        spilled_state = proj.factory.call_state(
+            addr,
+            *range(7),
+            {"x": 0x1111, "y": 0x2222},
+            base_state=base_state,
+            cc=cc,
+            prototype=spilled_proto,
+        )
+        assert evaluate(spilled_state.regs.sp) == initial_sp - 16
+        assert evaluate(spilled_state.memory.load(initial_sp - 16, 8, endness="Iend_LE")) == 0x1111
+        assert evaluate(spilled_state.memory.load(initial_sp - 8, 8, endness="Iend_LE")) == 0x2222
 
     def test_aarch64_class_by_value_argument(self):
         proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)

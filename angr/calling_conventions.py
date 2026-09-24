@@ -792,8 +792,10 @@ class SimCC:
         """
         out = self.STACKARG_SP_DIFF
         for arg in args:
-            if isinstance(arg, SimStackArg):
-                out = max(out, arg.stack_offset + self.arg_slot_size)
+            footprint = arg.ptr_loc.get_footprint() if isinstance(arg, SimReferenceArgument) else arg.get_footprint()
+            for loc in footprint:
+                if isinstance(loc, SimStackArg):
+                    out = max(out, loc.stack_offset + self.arg_slot_size)
 
         out += self.STACKARG_SP_BUFF
         return out
@@ -2445,9 +2447,12 @@ class SimCCAArch64(SimCC):
         composite = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
         if arg_type.size is None or (not composite and arg_type.size <= self.arch.bits):
             return super().next_arg(session, arg_type)
-        if composite and arg_type.size > 128:
-            # a composite larger than 16 bytes is copied to memory by the caller and replaced by a pointer
+        if arg_type.size > 128:
+            # A composite larger than 16 bytes is copied to memory by the caller and replaced by a pointer. The
+            # AArch64 C mapping treats a wider integral type as an array of 128-bit units, so it follows the same rule.
             return self._reference_arg(session, arg_type)
+        if not composite and not (isinstance(arg_type, SimTypeNum) and arg_type.size == 128):
+            return super().next_arg(session, arg_type)
 
         double_words = self._double_words(arg_type)
         state = session.getstate()
@@ -2458,6 +2463,9 @@ class SimCCAArch64(SimCC):
         except StopIteration:
             session.setstate(state)
             session.int_iter.setstate(len(self.ARG_REGS))
+            alignment = max(self.arch.bytes, arg_type.alignment)
+            stack_offset = session.both_iter.getstate()
+            session.both_iter.setstate((stack_offset + alignment - 1) // alignment * alignment)
             locs = [next(session.both_iter) for _ in range(double_words)]
         return refine_locs_with_struct_type(self.arch, locs, arg_type)
 
