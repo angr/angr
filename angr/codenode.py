@@ -129,6 +129,13 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         """
         return self._bytestr is not None
 
+    @property
+    def raw_bytestr(self) -> bytes | None:
+        """
+        The bytes of the block if they were supplied by the user. Otherwise None.
+        """
+        return self._bytestr
+
     def bytestr(self, project: angr.Project, original: bool = True) -> bytes | None:
         """
         Get the bytes of the block.

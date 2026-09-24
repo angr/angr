@@ -1058,8 +1058,8 @@ class Disassembly(Analysis):
                             if block.size and block.addr < start:
                                 delta = start - block.addr
                                 block_bytes = (
-                                    block._bytestr[delta:]
-                                    if isinstance(block, BlockNode) and block._bytestr is not None
+                                    block.raw_bytestr[delta:]
+                                    if isinstance(block, BlockNode) and block.raw_bytestr is not None
                                     else None
                                 )
                                 blocks[i] = BlockNode(block.addr + delta, block.size - delta, bytestr=block_bytes)
@@ -1068,8 +1068,8 @@ class Disassembly(Analysis):
                             if block.size and real_block_addr + block.size > end:
                                 delta = real_block_addr + block.size - end
                                 block_bytes = (
-                                    block._bytestr[0:-delta]
-                                    if isinstance(block, BlockNode) and block._bytestr is not None
+                                    block.raw_bytestr[0:-delta]
+                                    if isinstance(block, BlockNode) and block.raw_bytestr is not None
                                     else None
                                 )
                                 blocks[i] = BlockNode(block.addr, block.size - delta, bytestr=block_bytes)

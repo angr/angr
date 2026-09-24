@@ -1,11 +1,8 @@
 """
-Version 1 of the angrdb function layout.
+angrDb Version 1 compatibility logic.
 
-Databases written before Function records carried ``graph_blob`` (angr master up to #7235, angrdb version 1) store
-a function's graph as per-block and per-edge protobuf messages: ``Function.blocks``, ``graph.edges``,
-``endpoints``, ``external_blocks``, ``external_functions`` and ``call_sites``. AngrDbV1 reads and writes that
-layout; FunctionParser dispatches to it for records without a blob. It exists so that such databases keep loading
-and is expected to be removed once they are no longer supported.
+angrDb v1 stores function graphs as per-block and per-edge protobuf messages. We will deprecate the v1 compatibility
+logic in about a year's time.
 """
 
 # pylint:disable=no-member,raise-missing-from,protected-access
@@ -33,29 +30,29 @@ l = logging.getLogger(name=__name__)
 
 class AngrDbV1:
     """
-    Reader and writer of the version-1 (per-block / per-edge) function layout. Static methods only.
+    Reader and writer of the angrDb v1-specific data types. Static methods only.
     """
 
     @staticmethod
     def serialize_function(function) -> function_pb2.Function:
         """
-        Serialize a Function with its metadata as FunctionParser.serialize() writes it and its graph in the version-1
-        per-block / per-edge layout (no graph_blob).
+        Serialize a Function with its metadata as FunctionParser.serialize() writes it and its graph in the angrDb v1
+        per-block / per-edge layout.
         """
         obj = function.serialize_to_cmessage()
         obj.ClearField("graph_blob")
-        AngrDbV1._write_graph(function, obj)
+        AngrDbV1.write_graph(function, obj)
         return obj
 
     @staticmethod
     def local_block_addrs(cmsg) -> set[int]:
         """
-        The addresses of the local blocks of a version-1 function record, without building the Function.
+        The addresses of the local blocks of an angrDb v1 function record, without building the Function.
         """
         return {b.ea for b in cmsg.blocks}
 
     @staticmethod
-    def _write_graph(function: Function, obj) -> None:
+    def write_graph(function: Function, obj) -> None:
         ret_sites = set(function.ret_sites)
         retout_sites = set(function.retout_sites)
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
@@ -85,7 +82,7 @@ class AngrDbV1:
         code_nodes = function.code_nodes
         blocks_list = []
         for b in code_nodes.values():
-            blocks_list.append(AngrDbV1._node_to_block_cmsg(b))
+            blocks_list.append(AngrDbV1.node_to_block_cmsg(b))
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
         # nodes outside of this function; FuncNode, HookNode, and SyscallNode addresses are also recorded in
@@ -95,7 +92,7 @@ class AngrDbV1:
         for node in function.transition_graph:
             if code_nodes.get(node.addr) == node:
                 continue
-            external_blocks.append(AngrDbV1._node_to_block_cmsg(node))
+            external_blocks.append(AngrDbV1.node_to_block_cmsg(node))
             if isinstance(node, (FuncNode, HookNode)):
                 external_func_addrs.append(node.addr)
 
@@ -137,7 +134,7 @@ class AngrDbV1:
             obj.call_sites.append(call_site)  # pylint:disable=no-member
 
     @staticmethod
-    def _node_to_block_cmsg(node) -> primitives_pb2.Block:
+    def node_to_block_cmsg(node) -> primitives_pb2.Block:
         block = primitives_pb2.Block()
         block.ea = node.addr
         block.size = node.size
@@ -157,7 +154,7 @@ class AngrDbV1:
         return block
 
     @staticmethod
-    def _node_from_block_cmsg(block, project):
+    def node_from_block_cmsg(block, project):
         match block.kind:
             case primitives_pb2.CodeNodeKind.BLOCK_NODE:
                 # Messages of the per-block layout carry bytes for every block (angr <= #7235 wrote them for all
@@ -183,7 +180,7 @@ class AngrDbV1:
         """
         if meta_only:
             for b in cmsg.blocks:
-                obj._register(True, AngrDbV1._node_from_block_cmsg(b, project), update_func_block_count=False)
+                obj._register(True, AngrDbV1.node_from_block_cmsg(b, project), update_func_block_count=False)
             if obj.startpoint is None:
                 obj.startpoint = (
                     HookNode(cmsg.ea, 0, project.hooked_by(cmsg.ea))
@@ -193,7 +190,7 @@ class AngrDbV1:
 
             for endpoint in cmsg.endpoints:
                 block = BlockNode(endpoint.ea, endpoint.size)
-                AngrDbV1._add_endpoint(obj, block, endpoint.type)
+                AngrDbV1.add_endpoint(obj, block, endpoint.type)
 
             obj.meta_only = True  # can't be serialized again when evicted from the cache
             obj._dirty = False
@@ -202,12 +199,12 @@ class AngrDbV1:
         # nodes
         blocks: dict[int, CodeNode] = {}
         for b in cmsg.blocks:
-            block = AngrDbV1._node_from_block_cmsg(b, project)
+            block = AngrDbV1.node_from_block_cmsg(b, project)
             blocks[block.addr] = block
 
         external_nodes: dict[int, list[CodeNode]] = defaultdict(list)
         for b in cmsg.external_blocks:
-            external_nodes[b.ea].append(AngrDbV1._node_from_block_cmsg(b, project))
+            external_nodes[b.ea].append(AngrDbV1.node_from_block_cmsg(b, project))
 
         # addresses of referenced functions that are not inside the current function (readers of old messages only)
         external_func_addrs = set(cmsg.external_functions)
@@ -216,7 +213,7 @@ class AngrDbV1:
             node = blocks.get(addr)
             if node is not None:
                 return node
-            return AngrDbV1._get_external_node(addr, external_nodes, external_func_addrs, project)
+            return AngrDbV1.get_external_node(addr, external_nodes, external_func_addrs, project)
 
         # edges
         edges = []
@@ -293,7 +290,7 @@ class AngrDbV1:
         for endpoint in cmsg.endpoints:
             if endpoint.ea not in blocks:
                 continue
-            AngrDbV1._add_endpoint(obj, blocks[endpoint.ea], endpoint.type)
+            AngrDbV1.add_endpoint(obj, blocks[endpoint.ea], endpoint.type)
 
         # add leftover nodes: local blocks without edges or only reachable via unconfirmed fake-return edges, and
         # external nodes without edges
@@ -319,7 +316,7 @@ class AngrDbV1:
         return obj
 
     @staticmethod
-    def _add_endpoint(func, block: CodeNode, endpoint_type) -> None:
+    def add_endpoint(func, block: CodeNode, endpoint_type) -> None:
         match endpoint_type:
             case primitives_pb2.EndpointType.CALL:
                 idx = func._register(True, block)
@@ -335,7 +332,7 @@ class AngrDbV1:
                 l.warning("Unsupported EndpointType %s encountered during deserialization.", endpoint_type)
 
     @staticmethod
-    def _get_external_node(
+    def get_external_node(
         addr, external_nodes: dict[int, list[CodeNode]], external_func_addrs: set[int], project
     ) -> CodeNode:
         candidates = external_nodes.get(addr)
@@ -356,7 +353,3 @@ class AngrDbV1:
             f"Unsupported case: The block addr {addr:#x} is not an external function or block. "
             f"This probably indicates a bug in angrdb generation."
         )
-
-    @staticmethod
-    def _get_func(addr):
-        return FuncNode(addr)
