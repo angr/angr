@@ -488,7 +488,7 @@ class Block(Serializable):
 
     @property
     def codenode(self):
-        return BlockNode(self.addr, self.size, bytestr=self.bytes, thumb=self.thumb)
+        return BlockNode(self.addr, self.size, thumb=self.thumb)
 
     @property
     def bytes(self) -> bytes | None:

@@ -3095,13 +3095,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             edges_to_remove.append((src, dst))
                         else:
                             # Mark this edge as confirmed
-                            f._confirm_fakeret(src, dst)
+                            f.confirm_fakeret(src, dst)
 
                 for src, dst in edges_to_remove:
-                    f._remove_fakeret(src, dst)
-
-                # Clear the cache
-                f._local_transition_graph = None
+                    f.remove_fakeret(src, dst)
 
                 # Finally, mark endpoints of every single function
                 f.mark_nonreturning_calls_endpoints()

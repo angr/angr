@@ -38,10 +38,9 @@ from angr.knowledge_plugins.functions.function import Function
 
 
 class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
-    def test_meta_only_load_does_not_populate_local_blocks(self):
-        """Documents the underlying meta_only behavior that the bug
-        depended on: `func.blocks` is empty after a meta-only parse,
-        even though `func.block_addrs` is not."""
+    def test_meta_only_load_populates_block_addrs(self):
+        """A meta-only parse carries the complete local block table: `block_addrs_set`, `block_addrs` and
+        `blocks` all see the function's blocks, and the function stays read-only (meta_only)."""
         blob = bytes.fromhex("ffc8") + b"\x00" * 12
         addr = 0x100077547
 
@@ -63,7 +62,7 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
         fm = proj.kb.functions
         func = fm.function(addr=addr, create=True)
         assert func is not None
-        func._register_node(True, BlockNode(addr, 14, bytestr=blob[:14]))
+        func.register_node(True, BlockNode(addr, 14, bytestr=blob[:14]))
 
         cmsg = func.serialize_to_cmessage()
         meta = Function.parse_from_cmessage(
@@ -73,29 +72,11 @@ class TestDropBadFunctionsSpilledCleanup(unittest.TestCase):
             meta_only=True,
         )
 
-        # block_addrs_set is populated for spilled funcs; this is what
-        # the post-fix cleanup loop in CFGFast.drop_bad_functions iterates.
+        self.assertTrue(meta.meta_only)
         self.assertEqual(set(meta.block_addrs_set), {addr})
-
-        # `Function.blocks` (which iterates `_local_blocks.items()`)
-        # AND `Function.block_addrs` (which reads `_local_blocks.keys()`)
-        # are both empty in meta-only mode. The pre-fix cleanup loop
-        # iterated `func.blocks` and was silently a no-op for spilled
-        # bad functions.
-        self.assertEqual(
-            sum(1 for _ in meta.blocks),
-            0,
-            "Function.blocks must be empty in meta-only mode -- any "
-            "code that needs to iterate a spilled function's blocks "
-            "must use block_addrs_set and look up sizes via the CFG model.",
-        )
-        self.assertEqual(
-            set(meta.block_addrs),
-            set(),
-            "Function.block_addrs (which reads _local_blocks.keys()) "
-            "is also empty in meta-only mode -- callers must use "
-            "block_addrs_set (which reads _local_block_addrs) instead.",
-        )
+        self.assertEqual(set(meta.block_addrs), {addr})
+        self.assertEqual([b.addr for b in meta.blocks], [addr])
+        self.assertEqual(meta.get_block_size(addr), 14)
 
     def test_drop_bad_functions_cleanup_runs_on_spilled_function(self):
         """End-to-end check that drop_bad_functions's cleanup actually

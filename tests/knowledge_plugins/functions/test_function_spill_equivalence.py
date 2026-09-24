@@ -39,7 +39,7 @@ def _func_digest(func) -> dict:
     return {
         "name": func.name,
         "blocks": sorted(func.block_addrs_set),
-        "block_sizes": sorted(func._block_sizes.items()),
+        "block_sizes": sorted((addr, func.get_block_size(addr)) for addr in func.block_addrs_set),
         "nodes": sorted(_node_key(n) for n in graph.nodes()),
         "edges": sorted(
             (_node_key(src), _node_key(dst), tuple(sorted((k, str(v)) for k, v in data.items())))
@@ -53,7 +53,7 @@ def _func_digest(func) -> dict:
         "has_return": func.has_return,
         "returning": func.returning,
         "startpoint": _node_key(func.startpoint) if func.startpoint is not None else None,
-        "call_sites": sorted(func._call_sites.items()),
+        "call_sites": sorted(func.call_sites.items()),
         "is_plt": func.is_plt,
         "is_syscall": func.is_syscall,
         "is_simprocedure": func.is_simprocedure,

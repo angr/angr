@@ -32,6 +32,9 @@ class PatchManager(KnowledgeBasePlugin):
         self._patches: dict[int, Patch] = SortedDict()
         self._patched_entry_state = None
 
+    def has_patches(self) -> bool:
+        return bool(self._patches)
+
     def add_patch(self, addr, new_bytes, comment: str | None = None):
         self._patches[addr] = Patch(addr, new_bytes, comment=comment)
         self._patched_entry_state = None
@@ -88,6 +91,7 @@ class PatchManager(KnowledgeBasePlugin):
     def copy(self):
         o = PatchManager(self._kb)
         o._patches = self._patches.copy()
+        return o
 
     @staticmethod
     def overlap(a0, a1, b0, b1):

@@ -1057,14 +1057,22 @@ class Disassembly(Analysis):
                         for i, block in enumerate(blocks):
                             if block.size and block.addr < start:
                                 delta = start - block.addr
-                                block_bytes = block.bytestr[delta:] if block.bytestr else None
-                                blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
+                                block_bytes = (
+                                    block.raw_bytestr[delta:]
+                                    if isinstance(block, BlockNode) and block.raw_bytestr is not None
+                                    else None
+                                )
+                                blocks[i] = BlockNode(block.addr + delta, block.size - delta, bytestr=block_bytes)
                         for i, block in enumerate(blocks):
                             real_block_addr = block.addr if not block.thumb else block.addr - 1
                             if block.size and real_block_addr + block.size > end:
                                 delta = real_block_addr + block.size - end
-                                block_bytes = block.bytestr[0:-delta] if block.bytestr else None
-                                blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
+                                block_bytes = (
+                                    block.raw_bytestr[0:-delta]
+                                    if isinstance(block, BlockNode) and block.raw_bytestr is not None
+                                    else None
+                                )
+                                blocks[i] = BlockNode(block.addr, block.size - delta, bytestr=block_bytes)
 
                         for block in blocks:
                             self.parse_block(block)
@@ -1077,11 +1085,13 @@ class Disassembly(Analysis):
                 # generated). Simply disassemble the code in the given regions. In the future we may want to handle
                 # this case by automatically running CFG analysis on given ranges.
                 for start, end in ranges:
+                    # on ARM an odd start address denotes Thumb code, as the block lifter would infer
+                    is_thumb = thumb or (self.project.arch.name.startswith("ARM") and start & 1 == 1)
                     self.parse_block(
                         BlockNode(
                             start,
                             end - start,
-                            thumb=thumb,
+                            thumb=is_thumb,
                             bytestr=self._block_bytes if len(ranges) == 1 else None,
                         )
                     )
@@ -1154,21 +1164,16 @@ class Disassembly(Analysis):
             self.raw_result.append(hook)
             self.raw_result_map["hooks"][block.addr] = hook
         elif self.project.arch.capstone_support:
-            # Prefer Capstone first, where we are able to extract a bit more
-            # about the operands
-            if block.thumb:
-                aligned_block_addr = (block.addr >> 1) << 1
-                cs = self.project.arch.capstone_thumb
-            else:
-                aligned_block_addr = block.addr
-                cs = self.project.arch.capstone
-            if block.bytestr is None:
-                bytestr = self.project.factory.block(aligned_block_addr, block.size).bytes
-            else:
-                bytestr = block.bytestr
+            # Prefer Capstone first, where we are able to extract a bit more about the operands
+            cs = self.project.arch.capstone_thumb if block.thumb else self.project.arch.capstone
             self.block_to_insn_addrs[block.addr] = []
-            for cs_insn in cs.disasm(bytestr, block.addr):
-                self._add_instruction_to_results(block, CapstoneInsn(cs_insn), bs)
+            # determine the bytes to disassemble. pass in original=False to get the post-patching bytes.
+            # obviously, existing BlockNodes are no longer guaranteed to be valid when the bytes it covers are patched
+            # by the user. It is developer's responsibility to discard BlockNodes that are no longer valid.
+            bytestr = block.bytestr(self.project, original=False)
+            if bytestr is not None:
+                for cs_insn in cs.disasm(bytestr, block.addr):
+                    self._add_instruction_to_results(block, CapstoneInsn(cs_insn), bs)
         elif pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
             # When using the P-code engine, we can fall back on its disassembly
             # in the event that Capstone does not support it

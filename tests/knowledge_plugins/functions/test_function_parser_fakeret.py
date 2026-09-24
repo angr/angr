@@ -8,13 +8,13 @@ outside=False.
 Before the fix, parse_from_cmessage's call-edge handler trusted the
 saved edge attribute and called _call_to(return_to_outside=False),
 which made _call_to register the destination as a local block via
-_register_node. Each roundtrip added one entry to
+register_node. Each roundtrip added one entry to
 _local_block_addrs.
 
 This shape arises organically when CFGFast calls
 kb.functions._add_fakeret_to(..., confirmed=None) -- the underlying
 Function._fakeret_to(confirmed=None) adds the edge with
-outside=False but does NOT call _register_node for the to_node
+outside=False but does NOT call register_node for the to_node
 (the `if confirmed:` branch is skipped). At save the dst goes to
 cmsg.external_blocks; the edge keeps is_outside=False; the loader
 then disagrees.
@@ -28,6 +28,7 @@ import unittest
 import angr
 from angr.codenode import BlockNode, FuncNode
 from angr.knowledge_plugins.functions.function import Function
+from angr.rustylib.function_graph import FunctionGraph
 
 
 class TestFunctionParserFakeret(unittest.TestCase):
@@ -58,13 +59,13 @@ class TestFunctionParserFakeret(unittest.TestCase):
         local_block = BlockNode(addr, 14, bytestr=blob[:14])
         ext_block = BlockNode(fakeret_dst_addr, 4, bytestr=b"\x00" * 4)
 
-        func._register_node(True, local_block)
+        func.register_node(True, local_block)
 
         # Synthesize the call + fake_return edge pair that CFGFast can
         # leave behind via _add_fakeret_to(confirmed=None).
         call_target = FuncNode(call_dst_addr)
-        func.transition_graph.add_node(call_target)
-        func.transition_graph.add_edge(
+        func.add_graph_node(call_target)
+        func.add_graph_edge(
             local_block,
             call_target,
             type="call",
@@ -72,8 +73,8 @@ class TestFunctionParserFakeret(unittest.TestCase):
             ins_addr=addr + 9,
             stmt_idx=None,
         )
-        func.transition_graph.add_node(ext_block)
-        func.transition_graph.add_edge(
+        func.add_graph_node(ext_block)
+        func.add_graph_edge(
             local_block,
             ext_block,
             type="fake_return",
@@ -83,24 +84,22 @@ class TestFunctionParserFakeret(unittest.TestCase):
             stmt_idx=None,
         )
 
-        pre = set(func._local_block_addrs)
+        pre = set(func.block_addrs_set)
         cmsg = func.serialize_to_cmessage()
 
-        # Sanity: cmsg shape that exposes the bug.
-        self.assertEqual([b.ea for b in cmsg.blocks], [addr])
-        fakeret_edges = [e for e in cmsg.graph.edges if e.dst_ea == fakeret_dst_addr]
+        # Sanity: the shape that exposes the bug survives serialization
+        graph = FunctionGraph.from_bytes(cmsg.graph_blob)
+        self.assertEqual(graph.local_addrs(), [addr])
+        fakeret_edges = [(u, v, d) for u, v, d in graph.edges_with_data() if graph.node_addr(v) == fakeret_dst_addr]
         self.assertEqual(len(fakeret_edges), 1)
-        self.assertFalse(
-            bool(fakeret_edges[0].is_outside),
-            "test setup: edge must have is_outside=False",
-        )
+        self.assertFalse(fakeret_edges[0][2]["outside"], "test setup: edge must have outside=False")
 
         loaded = Function.parse_from_cmessage(
             cmsg,
             function_manager=fm,
             project=proj,
         )
-        post = set(loaded._local_block_addrs)
+        post = set(loaded.block_addrs_set)
         self.assertEqual(
             pre,
             post,
