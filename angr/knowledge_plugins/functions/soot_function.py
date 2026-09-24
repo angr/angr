@@ -66,7 +66,7 @@ class SootFunction(Function):
         self._endpoints = defaultdict(set)
         self.previous_names = []
 
-        self.call_sites = {}
+        self._call_sites = {}
         self.addr = addr
         self._function_manager = function_manager
         self._is_syscall = syscall
@@ -326,14 +326,18 @@ class SootFunction(Function):
         self._retout_sites.add(node)
         self.add_endpoint(node, "return")
 
+    @property
+    def transition_graph(self) -> networkx.DiGraph:
+        return self._transition_graph
+
     @dirty_func
-    def _clear_transition_graph(self):
+    def clear_transition_graph(self):
         self._block_sizes = {}
         self._addr_to_block_node = {}
         self._local_blocks = {}
         self._local_block_addrs = set()
         self.startpoint = None
-        self.transition_graph = networkx.classes.digraph.DiGraph()
+        self._transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
 
         self._ret_sites = set()
@@ -341,10 +345,10 @@ class SootFunction(Function):
         self._callout_sites = set()
         self._retout_sites = set()
         self._endpoints = defaultdict(set)
-        self.call_sites = {}
+        self._call_sites = {}
 
     @dirty_func
-    def _confirm_fakeret(self, src, dst):
+    def confirm_fakeret(self, src, dst):
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
             raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")
 
@@ -360,7 +364,7 @@ class SootFunction(Function):
         self.transition_graph[src][dst]["confirmed"] = True
 
     @dirty_func
-    def _transit_to(
+    def transit_to(
         self,
         from_node: CodeNode,
         to_node,
@@ -407,7 +411,7 @@ class SootFunction(Function):
         self._local_transition_graph = None
 
     @dirty_func
-    def _call_to(
+    def call_to(
         self,
         from_node,
         to_func: FuncNode | HookNode,
@@ -442,14 +446,14 @@ class SootFunction(Function):
             ret_node = self._register_node(
                 return_to_outside is False, ret_node, update_func_block_count=update_func_block_count
             )
-            self._fakeret_to(
+            self.fakeret_to(
                 from_node, ret_node, to_outside=return_to_outside, update_func_block_count=update_func_block_count
             )
 
         self._local_transition_graph = None
 
     @dirty_func
-    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
+    def fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
         from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
         if confirmed:
             to_node = self._register_node(not to_outside, to_node, update_func_block_count=update_func_block_count)
@@ -470,9 +474,7 @@ class SootFunction(Function):
         self._local_transition_graph = None
 
     @dirty_func
-    def _return_from_call(
-        self, from_func: FuncNode | HookNode, to_node, to_outside=False, confirm_fakeret: bool = True
-    ):
+    def return_from_call(self, from_func: FuncNode | HookNode, to_node, to_outside=False, confirm_fakeret: bool = True):
         self.transition_graph.add_edge(from_func, to_node, type="return", outside=to_outside)
         if confirm_fakeret:
             for _, _, data in self.transition_graph.in_edges(to_node, data=True):
@@ -492,7 +494,7 @@ class SootFunction(Function):
             self._addr_to_block_node[node.addr] = node
 
     @dirty_func
-    def _add_return_site(self, return_site: CodeNode):
+    def add_return_site(self, return_site: CodeNode):
         """
         Registers a basic block as a site for control flow to return from this function.
 
@@ -514,7 +516,7 @@ class SootFunction(Function):
         :param call_target_addr:     The address of the target of said call.
         :param retn_addr:            The address that said call will return to.
         """
-        self.call_sites[call_site_addr] = (call_target_addr, retn_addr)
+        self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
 
     @dirty_func
     def add_endpoint(self, endpoint_node, sort):
@@ -593,6 +595,10 @@ class SootFunction(Function):
                         self._callout_sites.add(the_node)
                         self.add_endpoint(the_node, "call")
                         self.mark_dirty()
+
+    @property
+    def call_sites(self):
+        return self._call_sites
 
     def get_call_sites(self) -> Iterable[int]:
         """

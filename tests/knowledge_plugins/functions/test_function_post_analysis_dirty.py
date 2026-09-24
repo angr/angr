@@ -53,8 +53,8 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
         # CFGFast leaves an unconfirmed fake_return edge to an external
         # block when the call's return target is later determined to
         # belong to a non-returning function. Build that exact shape.
-        func._add_graph_node(ext_block)
-        func._add_graph_edge(
+        func.add_graph_node(ext_block)
+        func.add_graph_edge(
             local_block,
             ext_block,
             type="fake_return",

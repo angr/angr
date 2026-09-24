@@ -180,7 +180,7 @@ class AngrDbV1:
         """
         if meta_only:
             for b in cmsg.blocks:
-                obj._register(True, AngrDbV1.node_from_block_cmsg(b, project), update_func_block_count=False)
+                obj.register(True, AngrDbV1.node_from_block_cmsg(b, project), update_func_block_count=False)
             if obj.startpoint is None:
                 obj.startpoint = (
                     HookNode(cmsg.ea, 0, project.hooked_by(cmsg.ea))
@@ -227,7 +227,7 @@ class AngrDbV1:
                 edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
-            # Function._call_to() and Function._return_from_call() always take the callee as a FuncNode
+            # Function.call_to() and Function.return_from_call() always take the callee as a FuncNode
             src = FuncNode(edge_cmsg.src_ea) if edge_type == "return" else resolve(edge_cmsg.src_ea)
             dst = FuncNode(edge_cmsg.dst_ea) if edge_type in ("call", "syscall") else resolve(edge_cmsg.dst_ea)
 
@@ -247,7 +247,7 @@ class AngrDbV1:
 
         for src, dst, edge_type, data in edges:
             if edge_type in ("transition", "exception"):
-                obj._transit_to(
+                obj.transit_to(
                     src,
                     dst,
                     outside=data["outside"],
@@ -257,7 +257,7 @@ class AngrDbV1:
                     update_func_block_count=False,  # we will update the block count at the end of this function
                 )
             elif edge_type in ("call", "syscall"):
-                obj._call_to(
+                obj.call_to(
                     src,
                     dst,
                     None,  # fake-return edges are restored on their own below
@@ -267,7 +267,7 @@ class AngrDbV1:
                     update_func_block_count=False,  # we will update the block count at the end of this function
                 )
             elif edge_type == "return":
-                obj._return_from_call(
+                obj.return_from_call(
                     src,
                     dst,
                     to_outside=data["outside"],
@@ -278,14 +278,14 @@ class AngrDbV1:
             confirmed = data.get("confirmed")
             # _fakeret_to() registers a confirmed destination as a local block unless to_outside is set; the block
             # list decides locality, the stored flag is restored on the edge afterwards
-            obj._fakeret_to(
+            obj.fakeret_to(
                 src,
                 dst,
                 confirmed=confirmed,
                 to_outside=data["outside"] or dst.addr not in blocks,
                 update_func_block_count=False,  # we will update the block count at the end of this function
             )
-            obj._set_edge_outside(src, dst, data["outside"])
+            obj.set_edge_outside(src, dst, data["outside"])
 
         for endpoint in cmsg.endpoints:
             if endpoint.ea not in blocks:
@@ -296,11 +296,11 @@ class AngrDbV1:
         # external nodes without edges
         for block in blocks.values():
             if not obj._graph.is_local(block.addr):
-                obj._register(True, block, update_func_block_count=False)
+                obj.register(True, block, update_func_block_count=False)
         for nodes in external_nodes.values():
             for node in nodes:
-                if not obj._has_node(node):
-                    obj._register(False, node, update_func_block_count=False)
+                if not obj.has_node(node):
+                    obj.register(False, node, update_func_block_count=False)
 
         obj.update_func_block_count()
 
@@ -319,11 +319,11 @@ class AngrDbV1:
     def add_endpoint(func, block: CodeNode, endpoint_type) -> None:
         match endpoint_type:
             case primitives_pb2.EndpointType.CALL:
-                idx = func._register(True, block)
+                idx = func.register(True, block)
                 func._graph.add_site(idx, SiteKind.CALLOUT)
                 func._graph.add_endpoint(idx, EndpointKind.CALL)
             case primitives_pb2.EndpointType.RETURN:
-                func._add_return_site(block)
+                func.add_return_site(block)
             case primitives_pb2.EndpointType.RETOUT:
                 func.add_retout_site(block)
             case primitives_pb2.EndpointType.TRANSITION:

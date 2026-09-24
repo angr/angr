@@ -30,17 +30,17 @@ class TestCodeNodeOwner(unittest.TestCase):
         puts = proj.loader.find_symbol("puts").rebased_addr
         hook = HookNode(puts, 0, proj.hooked_by(puts))
         callee = FuncNode(0x400664)
-        func._transit_to(a, b, ins_addr=0x40071F, stmt_idx=-2)
-        func._call_to(b, callee, None, stmt_idx=-2, ins_addr=0x400725)
-        func._transit_to(b, hook, outside=True, ins_addr=0x400725, stmt_idx=-2)
-        assert func._tg is None
+        func.transit_to(a, b, ins_addr=0x40071F, stmt_idx=-2)
+        func.call_to(b, callee, None, stmt_idx=-2, ins_addr=0x400725)
+        func.transit_to(b, hook, outside=True, ins_addr=0x400725, stmt_idx=-2)
+        assert func._transition_graph is None
 
         assert a.owner is func and b.owner is func and hook.owner is func and callee.owner is func
         assert a.successors() == [b] and a.predecessors() == []
         assert b.predecessors() == [a] and set(b.successors()) == {callee, hook}
         assert callee.successors() == [] and callee.predecessors() == [b]
         assert hook.predecessors() == [b]
-        assert func._tg is None  # no networkx view was materialized
+        assert func._transition_graph is None  # no networkx view was materialized
 
         # an equal but distinct node object registered later also knows its owner
         a2 = BlockNode(0x40071D, 4)
@@ -69,11 +69,11 @@ class TestCodeNodeOwner(unittest.TestCase):
         loaded = angr.knowledge_plugins.Function.parse(
             main.serialize(), function_manager=cfg.kb.functions, project=proj
         )
-        assert loaded._tg is None
+        assert loaded._transition_graph is None
         start = loaded.startpoint
         assert start.owner is loaded
         assert {n.addr for n in start.successors()} == {n.addr for n in main.startpoint.successors()}
-        assert loaded._tg is None
+        assert loaded._transition_graph is None
         assert any(isinstance(n, SyscallNode | HookNode) for f in cfg.kb.functions.values() for n in f.transition_graph)
 
     def test_owner_is_weak_and_not_pickled(self):
@@ -82,7 +82,7 @@ class TestCodeNodeOwner(unittest.TestCase):
         assert func is not None
         a = BlockNode(0x40071D, 4)
         b = BlockNode(0x400721, 8)
-        func._transit_to(a, b)
+        func.transit_to(a, b)
         unpickled = pickle.loads(pickle.dumps(a))
         assert unpickled == a and unpickled.owner is None
         with self.assertRaises(ValueError):

@@ -3095,7 +3095,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             edges_to_remove.append((src, dst))
                         else:
                             # Mark this edge as confirmed
-                            f._confirm_fakeret(src, dst)
+                            f.confirm_fakeret(src, dst)
 
                 for src, dst in edges_to_remove:
                     f.remove_fakeret(src, dst)

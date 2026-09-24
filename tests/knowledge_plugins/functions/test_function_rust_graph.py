@@ -30,9 +30,9 @@ class TestFunctionRustGraph(unittest.TestCase):
         a = BlockNode(0x40071D, 4, bytestr=b"\x90" * 4)
         b = BlockNode(0x400721, 8)
         callee = FuncNode(0x400600)
-        func._transit_to(a, b, ins_addr=0x40071F, stmt_idx=3)
-        func._call_to(b, callee, None, ins_addr=0x400725, stmt_idx=-2)
-        func._add_return_site(b)
+        func.transit_to(a, b, ins_addr=0x40071F, stmt_idx=3)
+        func.call_to(b, callee, None, ins_addr=0x400725, stmt_idx=-2)
+        func.add_return_site(b)
 
         # the objects handed to the function stay the canonical objects
         assert func.get_node(0x40071D) is a
@@ -67,17 +67,17 @@ class TestFunctionRustGraph(unittest.TestCase):
         func = proj.kb.functions.function(0x40071D, create=True)
         assert func is not None
         a = BlockNode(0x40071D, 4)
-        func._register_node(True, a)
+        func.register_node(True, a)
         tg = func.transition_graph
         local = func.graph
 
         # Function API writes update the cached transition graph in place and invalidate the local view
         b = BlockNode(0x400721, 8)
-        func._fakeret_to(a, b)
+        func.fakeret_to(a, b)
         assert func.transition_graph is tg
         assert tg[a][b] == {"type": "fake_return", "outside": False}
         assert func.graph is not local
-        func._confirm_fakeret(a, b)
+        func.confirm_fakeret(a, b)
         assert tg[a][b]["confirmed"] is True
         assert 0x400721 in func.block_addrs_set
         func.remove_fakeret(a, b)
@@ -91,7 +91,7 @@ class TestFunctionRustGraph(unittest.TestCase):
         with self.assertRaises(networkx.NetworkXError):
             tg.add_edge(a, c, type="transition", outside=False, ins_addr=0x40071F, stmt_idx=-2)
         assert not func.dirty and c not in tg
-        func._add_graph_edge(a, c, type="transition", outside=False, ins_addr=0x40071F, stmt_idx=-2)
+        func.add_graph_edge(a, c, type="transition", outside=False, ins_addr=0x40071F, stmt_idx=-2)
         assert func.dirty
         assert func._graph.number_of_edges() == 1
         cmsg = func.serialize_to_cmessage()
@@ -134,7 +134,7 @@ class TestFunctionRustGraph(unittest.TestCase):
         assert unpickled.endpoints_with_type.keys() == main.endpoints_with_type.keys()
         assert unpickled.get_call_sites() == main.get_call_sites()
 
-        main._clear_transition_graph()
+        main.clear_transition_graph()
         assert main.transition_graph.number_of_nodes() == 0
         assert main.startpoint is None
         assert not main.block_addrs_set
