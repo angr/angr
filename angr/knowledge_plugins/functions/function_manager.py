@@ -1005,7 +1005,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
             dst_func.is_syscall = syscall
-        dst_func._register_node(True, node)
+        dst_func.register_node(True, node)
 
     def _add_call_to(
         self,

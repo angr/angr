@@ -104,7 +104,7 @@ class TestFunctionGraph(unittest.TestCase):
     def test_networkx_writes_are_rejected_and_the_function_api_edits_the_store(self):
         func = self._new_function()
         b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
-        func._register_node(True, b0)
+        func.register_node(True, b0)
         view = func.transition_graph
         func._dirty = False
 
@@ -141,8 +141,8 @@ class TestFunctionGraph(unittest.TestCase):
         func = self._new_function()
         big = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         small = BlockNode(0x500000, 4, bytestr=b"\x90" * 4)
-        func._register_node(True, big)
-        func._register_node(True, small)
+        func.register_node(True, big)
+        func.register_node(True, small)
         assert func._graph.number_of_nodes() == 1
         assert set(func.transition_graph.nodes()) == {big}
         assert func.code_nodes[0x500000] is big

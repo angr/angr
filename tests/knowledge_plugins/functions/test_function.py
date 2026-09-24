@@ -158,7 +158,7 @@ class TestLocalTransitionGraphCache(TestCase):
         cached = func.graph  # populate the cache while the function is still empty
 
         node = BlockNode(0x40071D, 4)
-        func._register_node(True, node)
+        func.register_node(True, node)
 
         assert func.get_node(0x40071D) is node
         assert func.graph is not cached

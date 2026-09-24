@@ -191,7 +191,7 @@ class TestFunctionGraphViews(unittest.TestCase):
         assert func is not None
         a = BlockNode(0x40071D, 4)
         b = BlockNode(0x400721, 8)
-        func._register_node(True, a)
+        func.register_node(True, a)
         tg = func.transition_graph
         local = func.graph
         func.add_graph_edge(a, b, type="fake_return", outside=False)

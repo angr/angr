@@ -79,7 +79,7 @@ class FunctionGraph:
     def register_node(
         self, is_local: bool, kind: NodeKind, addr: int, size: int, thumb: bool, delta: int = 0
     ) -> tuple[int, bool, bool, bool]:
-        """Port of Function._register_node. Returns (id, created, new_local, changed)."""
+        """Port of Function.register_node. Returns (id, created, new_local, changed)."""
 
     def node_delta(self, idx: int) -> int:
         """delta of a node id: its bytes live at addr + delta."""

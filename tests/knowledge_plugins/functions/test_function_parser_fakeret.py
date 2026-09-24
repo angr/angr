@@ -8,13 +8,13 @@ outside=False.
 Before the fix, parse_from_cmessage's call-edge handler trusted the
 saved edge attribute and called _call_to(return_to_outside=False),
 which made _call_to register the destination as a local block via
-_register_node. Each roundtrip added one entry to
+register_node. Each roundtrip added one entry to
 _local_block_addrs.
 
 This shape arises organically when CFGFast calls
 kb.functions._add_fakeret_to(..., confirmed=None) -- the underlying
 Function._fakeret_to(confirmed=None) adds the edge with
-outside=False but does NOT call _register_node for the to_node
+outside=False but does NOT call register_node for the to_node
 (the `if confirmed:` branch is skipped). At save the dst goes to
 cmsg.external_blocks; the edge keeps is_outside=False; the loader
 then disagrees.
@@ -59,7 +59,7 @@ class TestFunctionParserFakeret(unittest.TestCase):
         local_block = BlockNode(addr, 14, bytestr=blob[:14])
         ext_block = BlockNode(fakeret_dst_addr, 4, bytestr=b"\x00" * 4)
 
-        func._register_node(True, local_block)
+        func.register_node(True, local_block)
 
         # Synthesize the call + fake_return edge pair that CFGFast can
         # leave behind via _add_fakeret_to(confirmed=None).

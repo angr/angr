@@ -1606,7 +1606,7 @@ class Function(Serializable):
             self._transition_graph._mirror_add_node(self._node_objs[idx])
         return idx
 
-    def _register_node(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> CodeNode:
+    def register_node(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> CodeNode:
         return self._node_obj(self.register(is_local, node, update_func_block_count=update_func_block_count))
 
     @dirty_func

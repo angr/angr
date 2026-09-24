@@ -36,8 +36,8 @@ class SootFunction(Function):
         "_local_blocks",
         "_ret_sites",
         "_retout_sites",
-        "startpoint",
-        "transition_graph",
+        "_startpoint",
+        "_transition_graph",
     )
 
     def __init__(self, function_manager, addr, name=None, syscall=None):
@@ -48,7 +48,7 @@ class SootFunction(Function):
         :param name:            (Optional) The name of the function.
         :param syscall:         (Optional) Whether this function is a syscall or not.
         """
-        self.transition_graph = networkx.DiGraph()
+        self._transition_graph = networkx.DiGraph()
         self._local_transition_graph = None
         # The Shimple CFG is already normalized.
         self.normalized = True
@@ -120,7 +120,7 @@ class SootFunction(Function):
             self.returning = not hooker.NO_RET
 
         # startpoint can always be None if this CFGNode is a syscall node
-        self.startpoint = None
+        self._startpoint = None
 
         self._addr_to_block_node = {}  # map addresses to nodes
         self._block_sizes = {}  # map addresses to block sizes
@@ -135,7 +135,7 @@ class SootFunction(Function):
         # The Shimple CFG is already normalized.
         pass
 
-    def _register_node(self, is_local: bool, node, update_func_block_count: bool = True):  # pylint:disable=unused-argument
+    def register_node(self, is_local: bool, node, update_func_block_count: bool = True):  # pylint:disable=unused-argument
         if is_local and self._local_blocks.get(node.addr) == node:
             return self._local_blocks[node.addr]
 
@@ -301,7 +301,7 @@ class SootFunction(Function):
         :return:        None
         """
 
-        node = self._register_node(True, node)
+        node = self.register_node(True, node)
         self._jumpout_sites.add(node)
         self.add_endpoint(node, "transition")
 
@@ -322,13 +322,21 @@ class SootFunction(Function):
         :return:     None
         """
 
-        node = self._register_node(True, node)
+        node = self.register_node(True, node)
         self._retout_sites.add(node)
         self.add_endpoint(node, "return")
 
     @property
     def transition_graph(self) -> networkx.DiGraph:
         return self._transition_graph
+
+    @property
+    def startpoint(self) -> CodeNode | None:
+        return self._startpoint
+
+    @startpoint.setter
+    def startpoint(self, node: CodeNode | None) -> None:
+        self._startpoint = node
 
     @dirty_func
     def clear_transition_graph(self):
@@ -359,7 +367,7 @@ class SootFunction(Function):
 
         # it's confirmed. register the node if needed
         if "outside" not in data or data["outside"] is False:
-            dst = self._register_node(True, dst)
+            dst = self.register_node(True, dst)
 
         self.transition_graph[src][dst]["confirmed"] = True
 
@@ -387,15 +395,15 @@ class SootFunction(Function):
         """
 
         if outside:
-            from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
+            from_node = self.register_node(True, from_node, update_func_block_count=update_func_block_count)
             if to_node is not None:
-                to_node = self._register_node(False, to_node, update_func_block_count=update_func_block_count)
+                to_node = self.register_node(False, to_node, update_func_block_count=update_func_block_count)
 
             self._jumpout_sites.add(from_node)
         else:
-            from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
+            from_node = self.register_node(True, from_node, update_func_block_count=update_func_block_count)
             if to_node is not None:
-                to_node = self._register_node(True, to_node, update_func_block_count=update_func_block_count)
+                to_node = self.register_node(True, to_node, update_func_block_count=update_func_block_count)
 
         type_ = "transition" if not is_exception else "exception"
         if to_node is not None:
@@ -437,13 +445,13 @@ class SootFunction(Function):
         :type  ins_addr:    int or None
         """
 
-        from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
+        from_node = self.register_node(True, from_node, update_func_block_count=update_func_block_count)
 
         self.transition_graph.add_edge(
             from_node, to_func, type="syscall" if syscall else "call", stmt_idx=stmt_idx, ins_addr=ins_addr
         )
         if ret_node is not None and not syscall:
-            ret_node = self._register_node(
+            ret_node = self.register_node(
                 return_to_outside is False, ret_node, update_func_block_count=update_func_block_count
             )
             self.fakeret_to(
@@ -454,9 +462,9 @@ class SootFunction(Function):
 
     @dirty_func
     def fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
-        from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
+        from_node = self.register_node(True, from_node, update_func_block_count=update_func_block_count)
         if confirmed:
-            to_node = self._register_node(not to_outside, to_node, update_func_block_count=update_func_block_count)
+            to_node = self.register_node(not to_outside, to_node, update_func_block_count=update_func_block_count)
 
         if confirmed is None:
             self.transition_graph.add_edge(from_node, to_node, type="fake_return", outside=to_outside)
@@ -500,7 +508,7 @@ class SootFunction(Function):
 
         :param return_site:     The block node that ends with a return.
         """
-        return_site = self._register_node(True, return_site)
+        return_site = self.register_node(True, return_site)
 
         self._ret_sites.add(return_site)
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
@@ -736,13 +744,13 @@ class SootFunction(Function):
 
     def copy(self):
         func = SootFunction(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
-        func.transition_graph = networkx.DiGraph(self.transition_graph)
+        func._transition_graph = networkx.DiGraph(self.transition_graph)
         func.normalized = self.normalized
         func._ret_sites = self._ret_sites.copy()
         func._jumpout_sites = self._jumpout_sites.copy()
         func._retout_sites = self._retout_sites.copy()
         func._endpoints = self._endpoints.copy()
-        func.call_sites = self.call_sites.copy()
+        func._call_sites = self._call_sites.copy()
         func._project = self._project
         func.previous_names = list(self.previous_names)
         func._is_plt = self.is_plt
