@@ -1085,11 +1085,13 @@ class Disassembly(Analysis):
                 # generated). Simply disassemble the code in the given regions. In the future we may want to handle
                 # this case by automatically running CFG analysis on given ranges.
                 for start, end in ranges:
+                    # on ARM an odd start address denotes Thumb code, as the block lifter would infer
+                    is_thumb = thumb or (self.project.arch.name.startswith("ARM") and start & 1 == 1)
                     self.parse_block(
                         BlockNode(
                             start,
                             end - start,
-                            thumb=thumb,
+                            thumb=is_thumb,
                             bytestr=self._block_bytes if len(ranges) == 1 else None,
                         )
                     )
