@@ -1042,7 +1042,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             # fetched earlier would then be mutated after it was written out
             self.function(addr=to_addr, create=True, syscall=syscall)
         func = self._function_map[function_addr]
-        func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
+        func.add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
         if to_addr is not None:
             dest_func_node = FuncNode(to_addr)

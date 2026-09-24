@@ -61,7 +61,7 @@ def _assert_graph_equal(tc: unittest.TestCase, a: Function, b: Function):
     tc.assertEqual(set(a.callout_sites), set(b.callout_sites))
     tc.assertEqual(a.has_return, b.has_return)
     tc.assertEqual(_node_key(a.startpoint), _node_key(b.startpoint))
-    tc.assertEqual(a._call_sites, b._call_sites)
+    tc.assertEqual(a.call_sites, b.call_sites)
 
 
 class TestFunctionParserRoundtrip(unittest.TestCase):

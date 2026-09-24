@@ -1163,7 +1163,7 @@ class Function(Serializable):
             self._graph.set_block_node_at(node.addr, self._graph_node(node))
         for sort, nodes in state["_endpoints"].items():
             for node in nodes:
-                self._add_endpoint(node, sort)
+                self.add_endpoint(node, sort)
         for key, kind in (
             ("_ret_sites", SiteKind.RET),
             ("_jumpout_sites", SiteKind.JUMPOUT),
@@ -1624,7 +1624,7 @@ class Function(Serializable):
         self._graph.add_endpoint(idx, EndpointKind.RETURN)
 
     @dirty_func
-    def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
+    def add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
         Registers a basic block as calling a function and returning somewhere.
 
@@ -1635,7 +1635,7 @@ class Function(Serializable):
         self._graph.add_call_site(call_site_addr, call_target_addr, retn_addr)
 
     @dirty_func
-    def _add_endpoint(self, endpoint_node, sort):
+    def add_endpoint(self, endpoint_node, sort):
         """
         Registers an endpoint with a type of `sort`. The type can be one of the following:
         - call: calling a function that does not return
@@ -1679,7 +1679,7 @@ class Function(Serializable):
                     self.mark_dirty()
 
     @property
-    def _call_sites(self) -> dict[int, tuple[int | None, int | None]]:
+    def call_sites(self) -> dict[int, tuple[int | None, int | None]]:
         return {addr: (target, ret) for addr, target, ret in self._graph.call_sites()}
 
     def outgoing_function_targets(self) -> list[int]:
