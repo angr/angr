@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Statement
 from angr.code_location import AILCodeLocation
@@ -31,10 +32,10 @@ class VVarUsesCollector(AILBlockViewer):
         self._assignment_dst_varid = None
         self._assignment_src_is_phi = False
 
-    def _handle_expr(self, expr_idx: int, expr, stmt_idx: int, stmt, block: Block | None):
+    def _enter_expr(self, expr_idx: int, expr, stmt_idx: int, stmt, block: Block | None):
         if expr.tags.get("extra_def", False):
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(None)
+        return _ExprContinue(expr)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         dst = stmt.dst

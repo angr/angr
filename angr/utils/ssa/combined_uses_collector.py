@@ -19,6 +19,7 @@ from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import Phi, Tmp, VirtualVariable
 from angr.ailment.statement import Statement
 from angr.code_location import AILCodeLocation
@@ -52,10 +53,10 @@ class VVarAndTmpUsesCollector(AILBlockViewer):
     def reset_tmp_uses_only(self) -> None:
         self.tmp_and_uselocs = defaultdict(set)
 
-    def _handle_expr(self, expr_idx: int, expr, stmt_idx: int, stmt, block: Block | None):
+    def _enter_expr(self, expr_idx: int, expr, stmt_idx: int, stmt, block: Block | None):
         if expr.tags.get("extra_def", False):
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(None)
+        return _ExprContinue(expr)
 
     def _handle_Assignment(self, stmt_idx: int, stmt, block: Block | None):
         # Skip the dst subtree (def, not a use). See ``VVarUsesCollector``
