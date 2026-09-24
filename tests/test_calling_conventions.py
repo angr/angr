@@ -20,7 +20,9 @@ from angr.calling_conventions import (
     SimCCN64,
     SimCCN64LinuxSyscall,
     SimCCRISCV64,
+    SimCCS390X,
     SimCCSystemVAMD64,
+    SimFunctionArgument,
     SimReferenceArgument,
     SimRegArg,
     SimStackArg,
@@ -30,14 +32,18 @@ from angr.calling_conventions import (
     SimTypeInt,
     default_cc,
 )
+from angr.errors import AngrTypeError
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
     SimStructValue,
+    SimTypeArray,
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
+    SimTypeFloat,
     SimTypeLongLong,
+    SimTypeNum,
     SimTypePointer,
     SimTypeRef,
     SimUnion,
@@ -48,6 +54,18 @@ from angr.sim_type import (
 from .common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
+
+
+def struct_fields(loc: SimFunctionArgument | None) -> dict[str, SimFunctionArgument]:
+    """The field locations of an argument the convention laid out as an aggregate."""
+    assert isinstance(loc, SimStructArg)
+    return loc.locs
+
+
+def referenced(loc: SimFunctionArgument | None) -> SimReferenceArgument:
+    """The argument as a by-reference one, asserting the convention passed it that way."""
+    assert isinstance(loc, SimReferenceArgument)
+    return loc
 
 
 class TestCallingConvention(TestCase):
@@ -269,6 +287,138 @@ class TestCallingConvention(TestCase):
         c_float = struct.unpack("<f", struct.pack("<I", c_bits))[0]
         assert abs(c_float - 102.3) < 0.00001
         assert (a3_val >> 32) == 60
+
+    def test_s390x_aggregate_args(self):
+        # Every location here was read off gcc 15.3.0 output for s390x-unknown-linux-gnu.
+        arch = archinfo.arch_from_id("s390x")
+        cc = SimCCS390X(arch)
+
+        def locs(*args):
+            return cc.arg_locs(SimTypeFunction(list(args), SimTypeInt()).with_arch(arch))
+
+        byte = SimStruct({"a": SimTypeChar()}, name="Byte")
+        word = SimStruct({"a": SimTypeInt()}, name="Word")
+        chars = SimStruct({"a": SimTypeChar(), "b": SimTypeChar(), "c": SimTypeChar()}, name="Chars")
+        doubleword = SimStruct({"a": SimTypeLongLong()}, name="DoubleWord")
+        giant = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong()}, name="Giant")
+        single = SimStruct({"a": SimTypeFloat()}, name="Single")
+        nested = SimStruct({"inner": single}, name="Nested")
+        twice = SimStruct({"a": SimTypeDouble()}, name="Twice")
+        either = SimUnion({"a": SimTypeInt(), "b": SimTypeFloat()}, name="Either")
+
+        # An aggregate of 1, 2, 4 or 8 bytes is passed in one general register, right-justified in it:
+        # gcc loads a one-byte struct with `ic %r2` and a four-byte one with `l %r2`.
+        assert struct_fields(locs(byte)[0])["a"] == SimRegArg("r2", 1, 7)
+        assert struct_fields(locs(word)[0])["a"] == SimRegArg("r2", 4, 4)
+        assert struct_fields(locs(doubleword)[0])["a"] == SimRegArg("r2", 8, 0)
+
+        # A record with one member is passed just as that member would be, so a struct holding one
+        # float or double goes in a floating-point register -- and there a short float occupies the
+        # leading bytes, not the trailing ones. A union is not unwrapped this way.
+        assert struct_fields(locs(single)[0])["a"] == SimRegArg("f0", 4, 0)
+        assert struct_fields(struct_fields(locs(nested)[0])["inner"])["a"] == SimRegArg("f0", 4, 0)
+        assert struct_fields(locs(twice)[0])["a"] == SimRegArg("f0", 8, 0)
+        assert locs(either)[0].get_footprint() == {SimRegArg("r2", 4, 4)}
+
+        # The two register files advance independently: a double takes f0 and leaves r2 for the
+        # struct beside it.
+        assert [loc.get_footprint() for loc in locs(twice, word)] == [{SimRegArg("f0", 8, 0)}, {SimRegArg("r2", 4, 4)}]
+
+        # An aggregate of any other size is copied by the caller and passed as a pointer.
+        three = referenced(locs(chars)[0])
+        assert three.ptr_loc == SimRegArg("r2", 8)
+        assert three.main_loc.get_footprint() == {SimStackArg(0, 1), SimStackArg(1, 1), SimStackArg(2, 1)}
+        sixteen = referenced(locs(giant)[0])
+        assert sixteen.ptr_loc == SimRegArg("r2", 8)
+        assert sixteen.main_loc.get_footprint() == {SimStackArg(0, 8), SimStackArg(8, 8)}
+
+        # So is any scalar too wide for a register.
+        assert referenced(locs(SimTypeNum(128))[0]).ptr_loc == SimRegArg("r2", 8)
+
+        # An opaque aggregate -- a C++ class the header parser gave a size and no members -- is
+        # placed by its size, right-justified like any other.
+        assert locs(SimCppClass(name="Opaque8", members={}, size=64))[0] == SimRegArg("r2", 8, 0)
+        assert locs(SimCppClass(name="Opaque4", members={}, size=32))[0] == SimRegArg("r2", 4, 4)
+        assert locs(SimCppClass(name="Opaque1", members={}, size=8))[0] == SimRegArg("r2", 1, 7)
+        opaque_twelve = referenced(locs(SimCppClass(name="Opaque12", members={}, size=96))[0])
+        assert opaque_twelve.ptr_loc == SimRegArg("r2", 8)
+        assert opaque_twelve.main_loc == SimStackArg(0, 12)
+
+        # Out of registers, the value keeps its place in the eight-byte slot: gcc stores a four-byte
+        # struct at 164(%r15) and a struct holding a double at 160(%r15), and spills the pointer of a
+        # by-reference argument to 160(%r15).
+        longs = [SimTypeLongLong()] * 5
+        assert struct_fields(locs(*longs, word)[5])["a"] == SimStackArg(0xA4, 4)
+        assert referenced(locs(*longs, chars)[5]).ptr_loc == SimStackArg(0xA0, 8)
+        assert struct_fields(locs(*([SimTypeDouble()] * 4), twice)[4])["a"] == SimStackArg(0xA0, 8)
+
+    def test_s390x_flexible_array_member_is_still_refused(self):
+        # refine_locs_with_struct_type cannot place an array with no length. Variable recovery, the
+        # calling-convention fact collector and FCP catch TypeError and ValueError around arg_locs,
+        # so this convention refuses such a type the way the base class does rather than asserting.
+        arch = archinfo.arch_from_id("s390x")
+        cc = SimCCS390X(arch)
+        flexible = SimStruct({"n": SimTypeInt(), "d": SimTypeArray(SimTypeInt())}, name="Flexible")
+        proto = SimTypeFunction([flexible], SimTypeInt()).with_arch(arch)
+        with self.assertRaises(TypeError):
+            cc.arg_locs(proto)
+        with self.assertRaises(AngrTypeError):
+            cc.return_val(flexible.with_arch(arch))
+
+    def test_s390x_aggregate_returns(self):
+        arch = archinfo.arch_from_id("s390x")
+        cc = SimCCS390X(arch)
+        word = SimStruct({"a": SimTypeInt()}, name="Word")
+
+        # An aggregate of any size comes back in memory, so there is no size below which this is
+        # false: gcc forwards the hidden pointer even for a one-word struct.
+        assert cc.return_in_implicit_outparam(word) is True
+        assert cc.return_in_implicit_outparam(SimTypeNum(128).with_arch(arch)) is True
+        assert cc.return_in_implicit_outparam(SimTypeInt().with_arch(arch)) is False
+
+        # The caller passes the address of the return area as an implicit first argument in r2 and
+        # the function hands that same address back in r2.
+        returned = referenced(cc.return_val(word))
+        assert returned.ptr_loc == SimRegArg("r2", 8)
+        assert struct_fields(returned.main_loc)["a"] == SimStackArg(0, 4)
+        assert referenced(cc.return_val(word, perspective_returned=True)).ptr_loc == SimRegArg("r2", 8)
+
+        # A scalar too wide for r2 goes back the same way.
+        assert referenced(cc.return_val(SimTypeNum(128).with_arch(arch))).ptr_loc == SimRegArg("r2", 8)
+
+        # The hidden pointer is an argument, so the declared ones shift along one register.
+        proto = SimTypeFunction([SimTypeInt(), SimTypeInt()], word).with_arch(arch)
+        assert cc.arg_locs(proto) == [SimRegArg("r3", 4, 4), SimRegArg("r4", 4, 4)]
+
+        # An array is the same aggregate rule, and SimTypeFixedSizeArray is an alias of
+        # SimTypeArray, so both spellings arrive here.
+        sized = SimTypeArray(SimTypeInt(), 4).with_arch(arch)
+        assert cc.return_in_implicit_outparam(sized) is True
+        sized_returned = referenced(cc.return_val(sized))
+        assert sized_returned.ptr_loc == SimRegArg("r2", 8)
+        assert sized_returned.main_loc.get_footprint() == {SimStackArg(off, 4) for off in (0, 4, 8, 12)}
+
+        # Returning something that fits is unchanged.
+        assert cc.return_val(SimTypeInt().with_arch(arch)) == SimRegArg("r2", 4, 4)
+
+    def test_s390x_aggregate_args_reach_the_callsite(self):
+        proj = Project(os.path.join(test_location, "s390x", "fauxware"), auto_load_libs=False)
+        cc = SimCCS390X(proj.arch)
+        word = SimStruct({"a": SimTypeInt()}, name="Word")
+        giant = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong()}, name="Giant")
+        proto = SimTypeFunction([word, giant, SimTypeInt()], SimTypeInt()).with_arch(proj.arch)
+        entry = proj.loader.find_symbol("main")
+        assert entry is not None
+
+        state = proj.factory.call_state(
+            entry.rebased_addr, {"a": 0x11223344}, {"a": 33, "b": 44}, 9, cc=cc, prototype=proto
+        )
+        evaluate = state.solver.eval
+        # A four-byte aggregate occupies the low word of its register and leaves the rest alone.
+        assert evaluate(state.regs.r2[31:0]) == 0x11223344
+        pointer = evaluate(state.regs.r3)
+        assert [evaluate(state.memory.load(pointer + 8 * i, 8, endness="Iend_BE")) for i in range(2)] == [33, 44]
+        assert evaluate(state.regs.r4[31:0]) == 9
 
     def test_simcc_arg_locs_returnty_unresolved_simtyperef(self):
         func_proto = SimTypeFunction([], SimTypeRef("std::wstring_t", SimCppClass))
