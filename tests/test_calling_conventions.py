@@ -373,6 +373,33 @@ class TestCallingConvention(TestCase):
             [SimStackArg(0x4, 4)],
         ]
 
+    def test_simcc_arg_locs_returnty_none(self):
+        # SimTypeFunction documents returnty=None as void, and SimCC.arg_session accepts it. Rust
+        # decompilation produces such prototypes: when arg0 is a return buffer the return type moves
+        # into arg0 as a reference and returnty is left None. return_in_implicit_outparam must answer
+        # False for it rather than reaching for its size.
+        func_proto = SimTypeFunction([SimTypeInt(), SimTypeInt()], None)
+
+        arch = archinfo.ArchAMD64()
+        cc = SimCCMicrosoftAMD64(arch)
+        assert cc.return_in_implicit_outparam(None) is False
+
+        reg_names = []
+        for loc in cc.arg_locs(func_proto.with_arch(arch)):
+            assert isinstance(loc, SimRegArg)
+            reg_names.append(loc.reg_name)
+        assert reg_names == ["rcx", "rdx"]
+
+        for arch_cls in [archinfo.ArchAMD64, archinfo.ArchX86, archinfo.ArchARM]:
+            proto = func_proto.with_arch(arch_cls())
+            cc_cls = default_cc(arch_cls.name)
+            assert cc_cls is not None
+            arch_cc = cc_cls(arch_cls())
+
+            # It should not raise any exception!
+            arg_locs = list(arch_cc.arg_locs(proto))
+            assert len(arg_locs) == 2
+
 
 if __name__ == "__main__":
     main()
