@@ -1527,6 +1527,7 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
             full_graph_raw,
             bail_on_nonhead_outedges=True,
+            handle_gotos=True,
         )
         if not r:
             if fake_node_default:
@@ -1543,9 +1544,6 @@ class PhoenixStructurer(StructurerBase):
                 if o.addr == node_default.addr and o is not node_default:
                     self._region.remove_node(o, absorbed_into=node_default, absorb_out_edges=True)
 
-        switch_end_addr = self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
-        if switch_end_addr is not None:
-            self._switch_handle_gotos(cases, node_default, switch_end_addr)
         return True
 
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph_raw, full_graph_raw) -> bool:
@@ -1787,13 +1785,7 @@ class PhoenixStructurer(StructurerBase):
             self.switch_case_known_heads.discard(node)
             return False
 
-        if node_default is None:
-            switch_end_addr = node_b_addr
-        else:
-            # we don't know what the end address of this switch-case structure is. let's figure it out
-            switch_end_addr = self._switch_find_switch_end_addr(
-                cases, node_default, {nn.addr for nn in self._region.graph}
-            )
+        if node_default is not None:
             to_remove.add(node_default)
 
         to_remove.add(node_a)  # add node_a
@@ -1808,15 +1800,13 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
             full_graph_raw,
             node_a=node_a,
+            handle_gotos=True,
         )
         if not r:
             return False
 
         # fully structured into a switch-case. remove node from switch_case_known_heads
         self.switch_case_known_heads.remove(node)
-        if switch_end_addr is not None:
-            self._switch_handle_gotos(cases, node_default, switch_end_addr)
-
         return True
 
     def _match_acyclic_switch_cases_address_loaded_from_memory_no_default_node(
@@ -1898,9 +1888,7 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
         )
 
-        # we don't know what the end address of this switch-case structure is. let's figure it out
-        switch_end_addr = self._switch_find_switch_end_addr(cases, None, {nn.addr for nn in self._region.graph})
-        r = self._make_switch_cases_core(
+        return self._make_switch_cases_core(
             node,
             cmp_expr,
             cases,
@@ -1911,15 +1899,8 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
             full_graph_raw,
             node_a=None,
+            handle_gotos=True,
         )
-        if not r:
-            return False
-
-        # fully structured into a switch-case. remove node from switch_case_known_heads
-        if switch_end_addr is not None:
-            self._switch_handle_gotos(cases, None, switch_end_addr)
-
-        return True
 
     def _match_acyclic_switch_cases_address_loaded_from_memory_no_ob_check(
         self, node, graph_raw, full_graph_raw
@@ -1987,8 +1968,6 @@ class PhoenixStructurer(StructurerBase):
         )
 
         assert node_default is None
-        switch_end_addr = self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
-
         r = self._make_switch_cases_core(
             node,
             index_expr,
@@ -2000,15 +1979,13 @@ class PhoenixStructurer(StructurerBase):
             graph_raw,
             full_graph_raw,
             node_a=None,
+            handle_gotos=True,
         )
         if not r:
             return False
 
         # fully structured into a switch-case. remove node from switch_case_known_heads
         self.switch_case_known_heads.remove(node)
-        if switch_end_addr is not None:
-            self._switch_handle_gotos(cases, node_default, switch_end_addr)
-
         return True
 
     def _match_acyclic_switch_cases_address_computed(
@@ -2251,6 +2228,7 @@ class PhoenixStructurer(StructurerBase):
         full_graph: networkx.DiGraph,
         node_a=None,
         bail_on_nonhead_outedges: bool = False,
+        handle_gotos: bool = False,
     ) -> bool:
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
 
@@ -2320,6 +2298,39 @@ class PhoenixStructurer(StructurerBase):
             # there will definitely be dangling nodes after structuring. it's not ready to be structured yet.
             return False
 
+        case_fallthroughs = {}
+
+        def _target_identity(node) -> tuple[int, int | None] | None:
+            if isinstance(node, (Block, MultiNode)) and node.addr is not None:
+                return node.addr, node.idx
+            if (
+                isinstance(node, SequenceNode)
+                and node.nodes
+                and node.addr is not None
+                and isinstance(node.nodes[0], (Block, MultiNode))
+                and node.nodes[0].addr == node.addr
+            ):
+                return node.addr, node.nodes[0].idx
+            return None
+
+        if handle_gotos:
+            for case_idx, case_node in cases.items():
+                entry_node = case_node
+                if entry_node not in full_graph and isinstance(case_node, SequenceNode) and len(case_node.nodes) == 1:
+                    entry_node = case_node.nodes[0]
+                if entry_node not in full_graph:
+                    continue
+                successors = [
+                    dst
+                    for dst in full_graph.successors(entry_node)
+                    if edge_marked is None or not edge_marked(entry_node, dst)
+                ]
+                if len(successors) == 1:
+                    successor = successors[0]
+                    case_fallthroughs[case_idx] = _target_identity(successor) or (successor.addr, None)
+
+        out_dst_succ = None
+        out_dst_succ_fullgraph = None
         if out_edges:
             # sort out_edges
             out_edges_to_head = [edge for edge in out_edges if edge[1] is head]
@@ -2444,6 +2455,20 @@ class PhoenixStructurer(StructurerBase):
         if node_a is not None:
             # remove the last statement in node_a
             remove_last_statements(node_a)
+
+        if handle_gotos:
+            switch_successor = out_dst_succ if out_dst_succ is not None else out_dst_succ_fullgraph
+            if switch_successor is None:
+                successors = list(full_graph.successors(scnode))
+                if len(successors) == 1:
+                    switch_successor = successors[0]
+            self._switch_handle_gotos(
+                cases,
+                node_default,
+                switch_successor.addr if switch_successor is not None else None,
+                case_fallthroughs,
+                switch_end_target=_target_identity(switch_successor) if switch_successor is not None else None,
+            )
 
         return True
 
