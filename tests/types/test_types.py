@@ -442,13 +442,14 @@ class TestTypes(unittest.TestCase):
             assert False, "The expected AngrMissingTypeError was not raised"
 
     def test_simunion_size_bottom_types(self):
+        arch = archinfo.ArchAMD64()
         union_type = SimUnion(
             {"filterType": SimTypeBottom(label="Guid"), "calloutKey": SimTypeBottom(label="Guid")},
             name="<anon>",
             label="None",
         )
-        union_type = union_type.with_arch(archinfo.ArchAMD64())
-        assert union_type.size == 8  # fall back to architecture word size
+        union_type = union_type.with_arch(arch)
+        assert union_type.size == arch.bits  # fall back to architecture word size
 
     def test_widechar_extraction(self):
         proj = angr.load_shellcode(b"\x90\x90\x90\x90", arch="AMD64")
