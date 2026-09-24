@@ -107,18 +107,16 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
 
     def __init__(
         self,
-        addr: int,
-        size,
+        addr: K,
+        size: int,
         bytestr: bytes | None = None,
         thumb: bool = False,
         delta: int | None = None,
     ):
         """
-        :param bytestr: The bytes of the block, given only when they do not come from the project (user-specified
-                        code). They are stored with the function graph. Every other node reads its bytes from the
-                        loader through ``bytestr(project)`` and never stores them.
-        :param delta:   The block's bytes live at ``addr + delta``. Defaults to -1 for Thumb nodes (their addr has
-                        bit 0 set) and 0 otherwise. Not part of the node's identity.
+        :param bytestr: The bytes of the block, given only when the bytes are from user-specified binary code.
+        :param delta:   The block's bytes are at ``addr + delta``. Defaults to -1 for ARM Thumb nodes. Note that delta
+                        is not part of the identity of a BlockNode.
         """
         super().__init__(addr, size, thumb=thumb)
         self.delta = (-1 if thumb else 0) if delta is None else delta
@@ -131,11 +129,9 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         """
         return self._bytestr is not None
 
-    def bytestr(self, project) -> bytes | None:
+    def bytestr(self, project: angr.Project) -> bytes | None:
         """
-        The bytes of the block: its user-supplied bytes if it has any, otherwise ``size`` raw loader bytes at
-        ``addr + delta`` of ``project`` (None when the range is not fully mapped). Loader bytes are never cached on
-        the node. ``kb.patches`` are deliberately not applied; use ``project.factory.block`` for patched code.
+        Get the bytes of the block.
         """
         if self._bytestr is not None:
             return self._bytestr
