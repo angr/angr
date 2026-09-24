@@ -176,15 +176,8 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
         return self.addr, self.size, self._bytestr, self.thumb, self.delta
 
     def __setstate__(self, dat: tuple):
-        if len(dat) == 4:  # nodes pickled before delta existed: (addr, size, bytestr, thumb); bytes were loader bytes
-            addr, size, _bytestr, thumb = dat
-            self.__init__(addr, size, thumb=thumb)
-        elif len(dat) == 6:  # (addr, size, bytestr, thumb, manual, delta)
-            addr, size, bytestr, thumb, manual, delta = dat
-            self.__init__(addr, size, bytestr=bytestr if manual else None, thumb=thumb, delta=delta)
-        else:
-            addr, size, bytestr, thumb, delta = dat
-            self.__init__(addr, size, bytestr=bytestr, thumb=thumb, delta=delta)
+        addr, size, bytestr, thumb, delta = dat
+        self.__init__(addr, size, bytestr=bytestr, thumb=thumb, delta=delta)
 
 
 class SootBlockNode(BlockNode[SootMethodDescriptor]):
