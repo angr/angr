@@ -466,14 +466,7 @@ class CFGBase(Analysis):
         self._model.add_node(new_node.block_id, new_node)
 
     def _to_snippet(
-        self,
-        cfg_node=None,
-        addr=None,
-        size=None,
-        thumb=False,
-        jumpkind=None,
-        base_state=None,
-        byte_string: bytes | None = None,
+        self, cfg_node: CFGNode | None = None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None
     ):
         """
         Convert a CFGNode instance to a CodeNode object.
@@ -500,29 +493,16 @@ class CFGBase(Analysis):
             size = hooker.kwargs.get("length", 0)
             return HookNode(addr, size, hooker)
 
-        # byte_string is accepted for compatibility; block bytes are read from the loader on demand
-        if cfg_node is not None or byte_string is not None:
+        if cfg_node is not None and not cfg_node.is_simprocedure and not cfg_node.is_syscall:
             return BlockNode(addr, size, thumb=thumb)
+        # fall back to using the factory to create a snippet
         return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb, backup_state=base_state)
 
     def _node_key_to_snippet(self, node_key: K, jumpkind: str | None = None, base_state=None) -> BlockNode:
         addr = block_key_to_addr(node_key)
         size = block_key_to_size(node_key)
         thumb = is_arm_arch(self.project.arch) and addr % 2 == 1
-        if not isinstance(addr, int):
-            byte_string = None
-        else:
-            byte_string = (
-                self._fast_memory_load_bytes(addr, size) if not thumb else self._fast_memory_load_bytes(addr - 1, size)
-            )
-        return self._to_snippet(
-            addr=addr,
-            size=size,
-            thumb=thumb,
-            jumpkind=jumpkind,
-            base_state=base_state,
-            byte_string=byte_string,
-        )
+        return self._to_snippet(addr=addr, size=size, thumb=thumb, jumpkind=jumpkind, base_state=base_state)
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
