@@ -10,6 +10,8 @@ import angr
 from angr.errors import SimMemoryError
 
 if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions import Function
+
     from . import SimProcedure
 
 l = logging.getLogger(name=__name__)
@@ -32,11 +34,8 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         self.addr = addr
         self.size: int = size
         self.thumb = thumb
-        # A weak reference to the Function whose transition graph this node belongs to; successors() and
-        # predecessors() are answered by its graph store. It is weak because the Function keeps strong references to
-        # its node objects: a strong back-reference would make every evicted Function a reference cycle that only
-        # gen-2 GC could reclaim. The owner is not pickled (see __getstate__).
-        self._owner: weakref.ref | None = None
+        # A weak reference to the Function that this node belongs to
+        self._owner: weakref.ref[Function] | None = None
 
         self._hash = None
 
@@ -69,13 +68,13 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         self._owner = weakref.ref(func)
 
     @property
-    def owner(self):
+    def owner(self) -> Function | None:
         """
         The Function this node belongs to, or None if it was never registered with one or that Function is gone.
         """
         return None if self._owner is None else self._owner()
 
-    def _require_owner(self):
+    def _require_owner(self) -> Function:
         owner = self.owner
         if owner is None:
             raise ValueError(f"Cannot calculate successors or predecessors of {self!r}: it belongs to no function")
