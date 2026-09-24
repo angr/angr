@@ -149,8 +149,8 @@ class TestFunctionGraphSerialization(unittest.TestCase):
             is_plt=False,
             returning=True,
         )
-        synthetic._register_node(True, BlockNode(0x500000, 4, bytestr=b"\x90\x90\x90\xc3"))
-        synthetic._register_node(True, BlockNode(0x500004, 4))
+        synthetic.register_node(True, BlockNode(0x500000, 4, bytestr=b"\x90\x90\x90\xc3"))
+        synthetic.register_node(True, BlockNode(0x500004, 4))
         loaded = Function.parse(synthetic.serialize(), function_manager=proj.kb.functions, project=proj)
         n0, n4 = loaded.code_nodes[0x500000], loaded.code_nodes[0x500004]
         assert n0.manual_bytes and n0.bytestr(proj) == b"\x90\x90\x90\xc3"

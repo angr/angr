@@ -47,7 +47,7 @@ class TestCodeNodeOwner(unittest.TestCase):
         assert a2.owner is None
         with self.assertRaises(ValueError):
             a2.successors()
-        assert func._register_node(True, a2) is a
+        assert func.register_node(True, a2) is a
         assert a2.owner is func and a2.successors() == [b]
 
         # a node that is not in the graph

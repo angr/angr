@@ -49,7 +49,7 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
         local_block = BlockNode(addr, 14, bytestr=blob[:14])
         ext_block = BlockNode(fakeret_dst_addr, 4, bytestr=b"\x00" * 4)
 
-        func._register_node(True, local_block)
+        func.register_node(True, local_block)
         # CFGFast leaves an unconfirmed fake_return edge to an external
         # block when the call's return target is later determined to
         # belong to a non-returning function. Build that exact shape.
