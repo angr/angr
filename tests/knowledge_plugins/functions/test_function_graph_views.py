@@ -180,7 +180,7 @@ class TestFunctionGraphViews(unittest.TestCase):
         # pickling a Function goes through the store, not the view
         _ = func.transition_graph
         unpickled = pickle.loads(pickle.dumps(func))
-        assert unpickled._tg is None
+        assert unpickled._transition_graph is None
         assert {(u.addr, v.addr) for u, v in unpickled.transition_graph.edges} == {
             (u.addr, v.addr) for u, v in func.transition_graph.edges
         }
@@ -194,12 +194,12 @@ class TestFunctionGraphViews(unittest.TestCase):
         func._register_node(True, a)
         tg = func.transition_graph
         local = func.graph
-        func._add_graph_edge(a, b, type="fake_return", outside=False)
+        func.add_graph_edge(a, b, type="fake_return", outside=False)
         assert tg[a][b] == {"type": "fake_return", "outside": False}
         assert func.graph is not local and func.graph.has_edge(a, b)
         func.set_edge_confirmed(a, b, True)
         assert tg[a][b]["confirmed"] is True
-        func._set_edge_outside(a, b, True)
+        func.set_edge_outside(a, b, True)
         assert tg[a][b]["outside"] is True and not func.graph.has_edge(a, b)
         func.remove_edge(a, b)
         assert not tg.has_edge(a, b)

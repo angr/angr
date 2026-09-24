@@ -1046,7 +1046,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
 
         if to_addr is not None:
             dest_func_node = FuncNode(to_addr)
-            func._call_to(
+            func.call_to(
                 from_node,
                 dest_func_node,
                 retn_node,
@@ -1080,7 +1080,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         if syscall in (True, False):
             src_func.is_syscall = syscall
 
-        src_func._fakeret_to(from_node, to_node, confirmed=confirmed, to_outside=to_outside)
+        src_func.fakeret_to(from_node, to_node, confirmed=confirmed, to_outside=to_outside)
 
         if to_outside and to_function_addr is not None:
             # mark it on the callgraph
@@ -1102,14 +1102,14 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
     def _add_return_from(self, function_addr, from_node, to_node=None):  # pylint:disable=unused-argument
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        self._function_map[function_addr]._add_return_site(from_node)
+        self._function_map[function_addr].add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None, is_exception=False):
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._transit_to(
+        self._function_map[function_addr].transit_to(
             from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx, is_exception=is_exception
         )
 
@@ -1125,7 +1125,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 # we cannot get the snippet, but we should at least tell the function that it's going to jump out here
                 self._function_map[function_addr].add_jumpout_site(from_node)
                 return
-        self._function_map[function_addr]._transit_to(
+        self._function_map[function_addr].transit_to(
             from_node,
             to_node,
             outside=True,
@@ -1151,7 +1151,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             to_node = self._kb._project.factory.snippet(to_node)
         func = self._function_map[function_addr]
         src_funcnode = FuncNode(src_function_addr)
-        func._return_from_call(src_funcnode, to_node, to_outside=to_outside)
+        func.return_from_call(src_funcnode, to_node, to_outside=to_outside)
 
     #
     # Dict methods

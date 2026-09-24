@@ -206,7 +206,7 @@ class Function(Serializable):
         "_prototype_resolved",
         "_prototype_source",
         "_returning",
-        "_tg",
+        "_transition_graph",
         "addr",
         "binary_name",
         "bp_on_stack",
@@ -257,7 +257,7 @@ class Function(Serializable):
         # the graph, block maps, endpoints, sites and call sites all live in the Rust store
         self._graph = FunctionGraph(addr)
         # the networkx view of the store, materialized on first read; None while nobody has read it
-        self._tg: TransitionGraph | None = None
+        self._transition_graph: TransitionGraph | None = None
         # one canonical CodeNode object per store node id, created on demand
         self._node_objs: dict[int, CodeNode] = {}
         self._block_addrs_cache: set[int] | None = None
@@ -652,8 +652,8 @@ class Function(Serializable):
             self._store_manual_bytes(idx, node)
         if created or idx not in self._node_objs:
             self._node_objs[idx] = node
-        if self._tg is not None:
-            self._tg._mirror_add_node(self._node_objs[idx])
+        if self._transition_graph is not None:
+            self._transition_graph._mirror_add_node(self._node_objs[idx])
         return idx
 
     def _find_node(self, node: CodeNode) -> int | None:
@@ -661,11 +661,11 @@ class Function(Serializable):
 
     def _add_edge(self, src: int, dst: int, kind: EdgeKind, present: int, **data) -> None:
         self._graph.add_edge(src, dst, kind, present, **data)
-        if self._tg is not None:
+        if self._transition_graph is not None:
             attrs = dict(data)
             if present & PRESENT_TYPE:
                 attrs["type"] = _EDGE_KIND_NAMES[kind]
-            self._tg._mirror_add_edge(self._node_obj(src), self._node_obj(dst), attrs)
+            self._transition_graph._mirror_add_edge(self._node_obj(src), self._node_obj(dst), attrs)
 
     def _node_index(self, node: CodeNode) -> int:
         idx = self._find_node(node)
@@ -682,11 +682,11 @@ class Function(Serializable):
     def _predecessors_of(self, node: CodeNode) -> list[CodeNode]:
         return self._node_objs_of(self._graph.predecessors(self._node_index(node)))
 
-    def _has_node(self, node: CodeNode) -> bool:
+    def has_node(self, node: CodeNode) -> bool:
         idx = self._find_node(node)
         return idx is not None and self._graph.contains_node(idx)
 
-    def _set_edge_outside(self, src: CodeNode, dst: CodeNode, outside: bool) -> None:
+    def set_edge_outside(self, src: CodeNode, dst: CodeNode, outside: bool) -> None:
         s, d = self._find_node(src), self._find_node(dst)
         if s is None or d is None or not self._graph.has_edge(s, d):
             raise networkx.NetworkXError(f"The edge {src}-{dst} is not in the graph.")
@@ -694,17 +694,19 @@ class Function(Serializable):
         self.mark_dirty()
         self._local_transition_graph = None
 
-    def _set_confirmed(self, src: int, dst: int, confirmed: bool) -> None:
+    def _set_edge_confirmed(self, src: int, dst: int, confirmed: bool) -> None:
         self._graph.set_edge_confirmed(src, dst, confirmed)
-        if self._tg is not None:
-            self._tg._mirror_set_edge_attr(self._node_obj(src), self._node_obj(dst), "confirmed", confirmed)
+        if self._transition_graph is not None:
+            self._transition_graph._mirror_set_edge_attr(
+                self._node_obj(src), self._node_obj(dst), "confirmed", confirmed
+            )
 
     #
     # Direct graph edits. The networkx views are read-only; these are the equivalents of DiGraph.add_node,
     # add_edge, remove_node and remove_edge on the transition graph.
     #
 
-    def _add_graph_node(self, node: CodeNode) -> None:
+    def add_graph_node(self, node: CodeNode) -> None:
         """
         Add a node to the transition graph without registering it as a local block (DiGraph.add_node).
         """
@@ -712,7 +714,7 @@ class Function(Serializable):
         self.mark_dirty()
         self._local_transition_graph = None
 
-    def _add_graph_edge(
+    def add_graph_edge(
         self,
         src: CodeNode,
         dst: CodeNode,
@@ -756,8 +758,8 @@ class Function(Serializable):
         idx = self._find_node(node)
         if idx is None or not self._graph.remove_node(idx):
             raise networkx.NetworkXError(f"The node {node} is not in the graph.")
-        if self._tg is not None:
-            self._tg._mirror_remove_node(self._node_obj(idx))
+        if self._transition_graph is not None:
+            self._transition_graph._mirror_remove_node(self._node_obj(idx))
         self.mark_dirty()
         self._local_transition_graph = None
 
@@ -765,7 +767,7 @@ class Function(Serializable):
         s, d = self._find_node(src), self._find_node(dst)
         if s is None or d is None or not self._graph.has_edge(s, d):
             raise networkx.NetworkXError(f"The edge {src}-{dst} is not in the graph.")
-        self._set_confirmed(s, d, confirmed)
+        self._set_edge_confirmed(s, d, confirmed)
         self.mark_dirty()
         self._local_transition_graph = None
 
@@ -775,13 +777,13 @@ class Function(Serializable):
         A read-only networkx view of the transition graph, materialized on first read and kept in sync with the
         Function's writes. Mutate the graph through the Function API (_transit_to, _call_to, _add_graph_edge, ...).
         """
-        tg = self._tg
+        tg = self._transition_graph
         if tg is None:
             tg = TransitionGraph()
             objs = self._node_obj
             tg._mirror_add_nodes(objs(i) for i in self._graph.nodes())
             tg._mirror_add_edges((objs(u), objs(v), d) for u, v, d in self._graph.edges_with_data())
-            self._tg = tg
+            self._transition_graph = tg
         return tg
 
     @property
@@ -1146,17 +1148,17 @@ class Function(Serializable):
             if k not in graph_keys:
                 setattr(self, k, v)
         self._graph = FunctionGraph(self.addr)
-        self._tg = None
+        self._transition_graph = None
         self._node_objs = {}
         self._block_addrs_cache = None
         self._local_transition_graph = None
         for node in state["_local_blocks"].values():
-            self._register(True, node, update_func_block_count=False)
+            self.register(True, node, update_func_block_count=False)
         old_graph = state["transition_graph"]
         for node in old_graph.nodes():
             self._graph_node(node)
         for src, dst, data in old_graph.edges(data=True):
-            self._add_graph_edge(src, dst, **data)
+            self.add_graph_edge(src, dst, **data)
         for addr, size in state["_block_sizes"].items():
             self._graph.set_block_size(addr, size)
         for node in state["_addr_to_block_node"].values():
@@ -1180,7 +1182,7 @@ class Function(Serializable):
         # the networkx views and node objects are caches. don't pickle them
         d = {k: getattr(self, k) for k in self.__slots__ if k != "__weakref__"}
         d["_local_transition_graph"] = None
-        d["_tg"] = None
+        d["_transition_graph"] = None
         d["_node_objs"] = {}
         d["_block_addrs_cache"] = None
         d["_project"] = None
@@ -1273,7 +1275,7 @@ class Function(Serializable):
         :return:        None
         """
 
-        idx = self._register(True, node)
+        idx = self.register(True, node)
         self._graph.add_site(idx, SiteKind.JUMPOUT)
         self._graph.add_endpoint(idx, EndpointKind.TRANSITION)
 
@@ -1294,7 +1296,7 @@ class Function(Serializable):
         :return:     None
         """
 
-        idx = self._register(True, node)
+        idx = self.register(True, node)
         self._graph.add_site(idx, SiteKind.RETOUT)
         self._graph.add_endpoint(idx, EndpointKind.RETURN)
 
@@ -1410,15 +1412,15 @@ class Function(Serializable):
         self.calling_convention = cc
 
     @dirty_func
-    def _clear_transition_graph(self):
+    def clear_transition_graph(self):
         self._graph = FunctionGraph(self.addr)
-        self._tg = None
+        self._transition_graph = None
         self._node_objs = {}
         self._block_addrs_cache = None
         self._local_transition_graph = None
 
     @dirty_func
-    def _confirm_fakeret(self, src, dst):
+    def confirm_fakeret(self, src, dst):
         s, d = self._find_node(src), self._find_node(dst)
         if s is None or d is None or not self._graph.has_edge(s, d):
             raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")
@@ -1428,12 +1430,12 @@ class Function(Serializable):
 
         # it's confirmed. register the node if needed
         if not self._graph.edge_is_outside(s, d):
-            self._register(True, dst)
+            self.register(True, dst)
 
-        self._set_confirmed(s, d, True)
+        self._set_edge_confirmed(s, d, True)
 
     @dirty_func
-    def _transit_to(
+    def transit_to(
         self,
         from_node: CodeNode,
         to_node,
@@ -1455,10 +1457,10 @@ class Function(Serializable):
         :return: None
         """
 
-        src = self._register(True, from_node, update_func_block_count=update_func_block_count)
+        src = self.register(True, from_node, update_func_block_count=update_func_block_count)
         dst = None
         if to_node is not None:
-            dst = self._register(not outside, to_node, update_func_block_count=update_func_block_count)
+            dst = self.register(not outside, to_node, update_func_block_count=update_func_block_count)
         if outside:
             self._graph.add_site(src, SiteKind.JUMPOUT)
 
@@ -1482,7 +1484,7 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     @dirty_func
-    def _call_to(
+    def call_to(
         self,
         from_node,
         to_func: FuncNode | HookNode,
@@ -1508,7 +1510,7 @@ class Function(Serializable):
         :type  ins_addr:    int or None
         """
 
-        src = self._register(True, from_node, update_func_block_count=update_func_block_count)
+        src = self.register(True, from_node, update_func_block_count=update_func_block_count)
         dst = self._graph_node(to_func)
         self._add_edge(
             src,
@@ -1519,18 +1521,18 @@ class Function(Serializable):
             ins_addr=ins_addr,
         )
         if ret_node is not None and not syscall:
-            self._register(return_to_outside is False, ret_node, update_func_block_count=update_func_block_count)
-            self._fakeret_to(
+            self.register(return_to_outside is False, ret_node, update_func_block_count=update_func_block_count)
+            self.fakeret_to(
                 from_node, ret_node, to_outside=return_to_outside, update_func_block_count=update_func_block_count
             )
 
         self._local_transition_graph = None
 
     @dirty_func
-    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
-        src = self._register(True, from_node, update_func_block_count=update_func_block_count)
+    def fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
+        src = self.register(True, from_node, update_func_block_count=update_func_block_count)
         if confirmed:
-            dst = self._register(not to_outside, to_node, update_func_block_count=update_func_block_count)
+            dst = self.register(not to_outside, to_node, update_func_block_count=update_func_block_count)
         else:
             dst = self._graph_node(to_node)
 
@@ -1556,21 +1558,19 @@ class Function(Serializable):
         s, d = self._find_node(from_node), self._find_node(to_node)
         if s is None or d is None or not self._graph.remove_edge(s, d):
             raise networkx.NetworkXError(f"The edge {from_node}-{to_node} is not in the graph.")
-        if self._tg is not None:
-            self._tg._mirror_remove_edge(self._node_obj(s), self._node_obj(d))
+        if self._transition_graph is not None:
+            self._transition_graph._mirror_remove_edge(self._node_obj(s), self._node_obj(d))
         self._local_transition_graph = None
 
     @dirty_func
-    def _return_from_call(
-        self, from_func: FuncNode | HookNode, to_node, to_outside=False, confirm_fakeret: bool = True
-    ):
+    def return_from_call(self, from_func: FuncNode | HookNode, to_node, to_outside=False, confirm_fakeret: bool = True):
         src = self._graph_node(from_func)
         dst = self._graph_node(to_node)
         self._add_edge(src, dst, EdgeKind.RETURN, PRESENT_TYPE | PRESENT_OUTSIDE, outside=to_outside)
         if confirm_fakeret:
             for pred in self._graph.predecessors(dst):
                 if self._graph.edge_kind(pred, dst) == EdgeKind.FAKE_RETURN:
-                    self._set_confirmed(pred, dst, True)
+                    self._set_edge_confirmed(pred, dst, True)
 
         self._local_transition_graph = None
 
@@ -1579,7 +1579,7 @@ class Function(Serializable):
         if self._function_manager is not None:
             self._function_manager.set_func_block_count(self.addr, self._graph.local_count())
 
-    def _register(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> int:
+    def register(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> int:
         """
         Register a node with the function and return its store id. The first object registered for a fresh id
         becomes the canonical CodeNode object for it.
@@ -1602,21 +1602,21 @@ class Function(Serializable):
                 self._block_addrs_cache.add(addr)
             if update_func_block_count:
                 self.update_func_block_count()
-        if self._tg is not None and self._graph.contains_node(idx):
-            self._tg._mirror_add_node(self._node_objs[idx])
+        if self._transition_graph is not None and self._graph.contains_node(idx):
+            self._transition_graph._mirror_add_node(self._node_objs[idx])
         return idx
 
     def _register_node(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> CodeNode:
-        return self._node_obj(self._register(is_local, node, update_func_block_count=update_func_block_count))
+        return self._node_obj(self.register(is_local, node, update_func_block_count=update_func_block_count))
 
     @dirty_func
-    def _add_return_site(self, return_site: CodeNode):
+    def add_return_site(self, return_site: CodeNode):
         """
         Registers a basic block as a site for control flow to return from this function.
 
         :param return_site:     The block node that ends with a return.
         """
-        idx = self._register(True, return_site)
+        idx = self.register(True, return_site)
 
         self._graph.add_site(idx, SiteKind.RET)
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
@@ -2006,7 +2006,7 @@ class Function(Serializable):
         self._graph.normalize(is_arm_arch(project.arch), branch_ins_addr)
 
         # Clear the caches
-        self._tg = None
+        self._transition_graph = None
         self._local_transition_graph = None
         self._block_addrs_cache = None
 

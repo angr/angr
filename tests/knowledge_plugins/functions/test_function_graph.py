@@ -45,14 +45,14 @@ class TestFunctionGraph(unittest.TestCase):
         b2 = BlockNode(0x50000C, 2, bytestr=b"\x90\xc3")
         callee = FuncNode(0x400664)
 
-        func._transit_to(b0, b1, ins_addr=0x500006, stmt_idx=3)
-        func._call_to(b1, callee, b2, stmt_idx=-2, ins_addr=0x500008)
-        func._add_return_site(b2)
+        func.transit_to(b0, b1, ins_addr=0x500006, stmt_idx=3)
+        func.call_to(b1, callee, b2, stmt_idx=-2, ins_addr=0x500008)
+        func.add_return_site(b2)
 
         # nothing is materialized yet; the store is the source of truth
         g = func._graph
         assert isinstance(g, FunctionGraph)
-        assert func._tg is None
+        assert func._transition_graph is None
         assert g.number_of_nodes() == 4 and g.number_of_edges() == 3 and g.local_count() == 3
         assert func.block_addrs_set == {0x500000, 0x500008, 0x50000C}
         assert func.startpoint is b0
@@ -82,17 +82,17 @@ class TestFunctionGraph(unittest.TestCase):
         func = self._new_function()
         b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4)
-        func._transit_to(b0, b1)
+        func.transit_to(b0, b1)
         view = func.transition_graph
         local = func.graph
 
         b2 = BlockNode(0x50000C, 2, bytestr=b"\x90\xc3")
-        func._fakeret_to(b1, b2, confirmed=None)
+        func.fakeret_to(b1, b2, confirmed=None)
         assert view.has_edge(b1, b2)
         assert "confirmed" not in view[b1][b2]
         assert func.graph is not local  # the local graph cache is invalidated
 
-        func._confirm_fakeret(b1, b2)
+        func.confirm_fakeret(b1, b2)
         assert view[b1][b2]["confirmed"] is True
         assert 0x50000C in func.block_addrs_set
 
@@ -115,8 +115,8 @@ class TestFunctionGraph(unittest.TestCase):
             view.add_edge(b0, ext, type="transition")
         assert not func.dirty and ext not in view and func._graph.number_of_edges() == 0
 
-        func._add_graph_node(ext)
-        func._add_graph_edge(b0, ext, type="transition", outside=True, ins_addr=0x500006, stmt_idx=-2)
+        func.add_graph_node(ext)
+        func.add_graph_edge(b0, ext, type="transition", outside=True, ins_addr=0x500006, stmt_idx=-2)
         assert func.dirty
         assert func._graph.number_of_edges() == 1
         assert view[b0][ext] == {"type": "transition", "outside": True, "ins_addr": 0x500006, "stmt_idx": -2}
@@ -125,13 +125,13 @@ class TestFunctionGraph(unittest.TestCase):
         func.remove_edge(b0, ext)
         assert func._graph.number_of_edges() == 0 and not view.has_edge(b0, ext)
         func.remove_graph_node(ext)
-        assert not func._has_node(ext)
+        assert not func.has_node(ext)
         assert set(view.nodes()) == {b0}
 
         # copies are detached plain graphs
         copy = networkx.DiGraph(view)
         copy.add_node(ext)
-        assert not func._has_node(ext)
+        assert not func.has_node(ext)
         assert not isinstance(copy, TransitionGraph)
         assert type(view.copy()) is networkx.DiGraph
 
@@ -148,7 +148,7 @@ class TestFunctionGraph(unittest.TestCase):
         assert func.code_nodes[0x500000] is big
         assert func.get_block_size(0x500000) == 8
         nxt = BlockNode(0x500004, 4, bytestr=b"\x90" * 4)
-        func._transit_to(small, nxt)
+        func.transit_to(small, nxt)
         assert set(func.transition_graph.nodes()) == {big, small, nxt}
         assert func.get_node(0x500000) is big
 
@@ -156,7 +156,7 @@ class TestFunctionGraph(unittest.TestCase):
         func = self._new_function()
         b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         hook = HookNode(0x700000, 0, self.proj.hooked_by(0x700000))
-        func._call_to(b0, hook, None, stmt_idx=-2, ins_addr=0x500003)
+        func.call_to(b0, hook, None, stmt_idx=-2, ins_addr=0x500003)
         loaded = Function.parse(func.serialize(), function_manager=self.proj.kb.functions, project=self.proj)
         assert function_digest(loaded) == function_digest(func)
         (hook_loaded,) = (n for n in loaded.transition_graph if isinstance(n, HookNode))
@@ -166,11 +166,11 @@ class TestFunctionGraph(unittest.TestCase):
         func = self._new_function()
         b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4)
-        func._transit_to(b0, b1)
-        func._add_return_site(b1)
+        func.transit_to(b0, b1)
+        func.add_return_site(b1)
         clone = func.copy()
         assert function_digest(clone) == function_digest(func)
-        clone._transit_to(b1, BlockNode(0x50000C, 2, bytestr=b"\x90\xc3"))
+        clone.transit_to(b1, BlockNode(0x50000C, 2, bytestr=b"\x90\xc3"))
         assert clone._graph.number_of_edges() == 2 and func._graph.number_of_edges() == 1
         assert clone.block_addrs_set != func.block_addrs_set
 
@@ -178,8 +178,8 @@ class TestFunctionGraph(unittest.TestCase):
         func = self._new_function()
         b0 = BlockNode(0x500000, 8, bytestr=b"\x90" * 8)
         b1 = BlockNode(0x500008, 4, bytestr=b"\x90" * 4)
-        func._transit_to(b0, b1, ins_addr=0x500006, stmt_idx=-2)
-        func._add_return_site(b1)
+        func.transit_to(b0, b1, ins_addr=0x500006, stmt_idx=-2)
+        func.add_return_site(b1)
         g = pickle.loads(pickle.dumps(func._graph))
         assert g.number_of_nodes() == 2 and g.number_of_edges() == 1
         assert g.edge_kind(0, 1) == EdgeKind.TRANSITION
@@ -211,8 +211,8 @@ class TestFunctionGraph(unittest.TestCase):
         big = BlockNode(0x400664, 42, bytestr=None)
         small = BlockNode(0x400680, 14, bytestr=None)
         nxt = BlockNode(0x40068E, 4, bytestr=None)
-        func._transit_to(big, nxt, ins_addr=0x400689, stmt_idx=-2)
-        func._transit_to(small, nxt, ins_addr=0x400689, stmt_idx=-2)
+        func.transit_to(big, nxt, ins_addr=0x400689, stmt_idx=-2)
+        func.transit_to(small, nxt, ins_addr=0x400689, stmt_idx=-2)
         func.normalize()
         assert func.normalized
         assert func.startpoint is not None and func.startpoint.addr == 0x400664 and func.startpoint.size == 28
