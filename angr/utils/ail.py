@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import BinaryOp, Const, Convert, Expression, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error,no-name-in-module
@@ -35,13 +36,12 @@ class HasExprWalker(AILBlockViewer):
         self.exprs_to_check: set[Expression] = exprs_to_check
         self.contains_exprs: bool = False
 
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> None:
+    def _enter_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr in self.exprs_to_check:
             self.contains_exprs = True
-        if not self.contains_exprs:
-            super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        if self.contains_exprs:
+            return _ExprHandled(None)
+        return _ExprContinue(expr)
 
 
 def is_head_controlled_loop_block(block: Block) -> bool:

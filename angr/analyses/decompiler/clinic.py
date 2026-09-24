@@ -4147,23 +4147,21 @@ class Clinic(Analysis, Serializable):
     @staticmethod
     def _collect_externs(ail_graph, kb, variable_map: VariableMap):
         global_vars = kb.dec_variables.global_manager.get_variables()
-        walker = ailment.AILBlockRewriter()
         variables = set()
 
-        def handle_expr(
-            expr_idx: int,
-            expr: ailment.expression.Expression,
-            stmt_idx: int,
-            stmt: ailment.statement.Statement | None,
-            block: ailment.Block | None,
-        ):
-            for v in [
-                variable_map.variable(expr),
-                variable_map.reference_variable(expr),
-            ]:
-                if v and v in global_vars:
-                    variables.add(v)
-            return ailment.AILBlockRewriter._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+        class ExternCollector(ailment.AILBlockRewriter):
+            """Collect references to global variables while rewriting expressions."""
+
+            def _enter_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+                for v in [
+                    variable_map.variable(expr),
+                    variable_map.reference_variable(expr),
+                ]:
+                    if v and v in global_vars:
+                        variables.add(v)
+                return super()._enter_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+        walker = ExternCollector()
 
         def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
             store_var = variable_map.variable(stmt)
@@ -4172,7 +4170,6 @@ class Clinic(Analysis, Serializable):
             return ailment.AILBlockRewriter._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
-        walker._handle_expr = handle_expr
         AILGraphWalker(ail_graph, walker.walk).walk()
         return variables
 

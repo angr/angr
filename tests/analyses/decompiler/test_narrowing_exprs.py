@@ -20,6 +20,19 @@ l = logging.getLogger(__name__)
 
 
 class TestNarrowingExpressions(unittest.TestCase):
+    def test_effective_size_extractor_handles_deep_binary_expressions(self):
+        vvar = VirtualVariable(0, 44, 64, VirtualVariableCategory.REGISTER, oident=16)
+        expr = vvar
+        for idx in range(1, 1501):
+            expr = BinaryOp(idx, "Add", [expr, Const(-idx, 0, 64)], False, bits=64)
+        expr = BinaryOp(1501, "And", [expr, Const(-1501, 0xFF, 64)], False, bits=64)
+        dst = VirtualVariable(1502, 45, 64, VirtualVariableCategory.REGISTER, oident=24)
+
+        walker = EffectiveSizeExtractor()
+        walker.walk_statement(Assignment(1503, dst, expr))
+
+        assert walker.vvar_effective_bits[44][vvar.idx] == (0, 8)
+
     def test_insert_base_is_a_full_width_use(self):
         # the base of an Insert is consumed at full width: every byte outside the inserted range is
         # preserved into the result. EffectiveSizeExtractor used to skip the base entirely, so a vvar

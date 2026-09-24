@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import (
     BinaryOp,
     Call,
@@ -34,15 +35,15 @@ class MemoryAccessFinder(AILBlockViewer):
         super().__init__()
         self.found = False
 
-    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+    def _enter_expr(self, expr_idx, expr, stmt_idx, stmt, block):
         if self.found:
-            return None
+            return _ExprHandled(None)
         if isinstance(expr, (Load, Call, DirtyExpression, MultiStatementExpression, StackBaseOffset)) or (
             isinstance(expr, VirtualVariable) and expr.was_stack
         ):
             self.found = True
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(None)
+        return _ExprContinue(expr)
 
 
 class VVarValueUseCounter(AILBlockViewer):
@@ -54,10 +55,10 @@ class VVarValueUseCounter(AILBlockViewer):
         super().__init__()
         self.counts: defaultdict[int, int] = defaultdict(int)
 
-    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+    def _enter_expr(self, expr_idx, expr, stmt_idx, stmt, block):
         if expr.tags.get("extra_def", False):
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(None)
+        return _ExprContinue(expr)
 
     def _handle_Assignment(self, stmt_idx, stmt, block):
         self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
