@@ -229,13 +229,15 @@ class FlirtAnalysis(Analysis):
 
     def _get_callee_name(
         self,
-        func,
+        func: Function,
         func_addr: int,
         call_addr: int,
         expected_name: str,  # pylint:disable=unused-argument
     ) -> str | None:
-        for block_addr, (call_target, _) in func._call_sites.items():
+        for block_addr, (call_target, _) in func.call_sites.items():
             block = func.get_block(block_addr)
+            if block.size is None:
+                continue
             call_ins_addr = block_branch_ins_addr(block.instruction_addrs, block.addr, block.size, self.project.arch)
             if (
                 call_ins_addr is not None

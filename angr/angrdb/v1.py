@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from angr.codenode import BlockNode, CodeNode, FuncNode, HookNode, SyscallNode
 from angr.protos import function_pb2, primitives_pb2
@@ -23,6 +24,9 @@ from angr.utils.enums_conv import (
     func_edge_type_from_pb,
     func_edge_type_to_pb,
 )
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions import Function
 
 l = logging.getLogger(name=__name__)
 
@@ -51,7 +55,7 @@ class AngrDbV1:
         return {b.ea for b in cmsg.blocks}
 
     @staticmethod
-    def _write_graph(function, obj) -> None:
+    def _write_graph(function: Function, obj) -> None:
         ret_sites = set(function.ret_sites)
         retout_sites = set(function.retout_sites)
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
@@ -123,7 +127,7 @@ class AngrDbV1:
         obj.external_functions.extend(external_func_addrs)  # pylint:disable=no-member
         obj.external_blocks.extend(external_blocks)  # pylint:disable=no-member
 
-        for call_site_addr, (call_target_addr, retn_addr) in function._call_sites.items():
+        for call_site_addr, (call_target_addr, retn_addr) in function.call_sites.items():
             call_site = function_pb2.CallSite()
             call_site.ea = call_site_addr
             if call_target_addr is not None:

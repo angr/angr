@@ -53,7 +53,7 @@ def _func_digest(func) -> dict:
         "has_return": func.has_return,
         "returning": func.returning,
         "startpoint": _node_key(func.startpoint) if func.startpoint is not None else None,
-        "call_sites": sorted(func._call_sites.items()),
+        "call_sites": sorted(func.call_sites.items()),
         "is_plt": func.is_plt,
         "is_syscall": func.is_syscall,
         "is_simprocedure": func.is_simprocedure,

@@ -66,7 +66,7 @@ class SootFunction(Function):
         self._endpoints = defaultdict(set)
         self.previous_names = []
 
-        self._call_sites = {}
+        self.call_sites = {}
         self.addr = addr
         self._function_manager = function_manager
         self._is_syscall = syscall
@@ -303,7 +303,7 @@ class SootFunction(Function):
 
         node = self._register_node(True, node)
         self._jumpout_sites.add(node)
-        self._add_endpoint(node, "transition")
+        self.add_endpoint(node, "transition")
 
     @dirty_func
     def add_retout_site(self, node: CodeNode):
@@ -324,7 +324,7 @@ class SootFunction(Function):
 
         node = self._register_node(True, node)
         self._retout_sites.add(node)
-        self._add_endpoint(node, "return")
+        self.add_endpoint(node, "return")
 
     @dirty_func
     def _clear_transition_graph(self):
@@ -341,7 +341,7 @@ class SootFunction(Function):
         self._callout_sites = set()
         self._retout_sites = set()
         self._endpoints = defaultdict(set)
-        self._call_sites = {}
+        self.call_sites = {}
 
     @dirty_func
     def _confirm_fakeret(self, src, dst):
@@ -401,7 +401,7 @@ class SootFunction(Function):
 
         if outside:
             # this node is an endpoint of the current function
-            self._add_endpoint(from_node, type_)
+            self.add_endpoint(from_node, type_)
 
         # clear the cache
         self._local_transition_graph = None
@@ -503,10 +503,10 @@ class SootFunction(Function):
         self._ret_sites.add(return_site)
         # A return site must be an endpoint of the function - you cannot continue execution of the current function
         # after returning
-        self._add_endpoint(return_site, "return")
+        self.add_endpoint(return_site, "return")
 
     @dirty_func
-    def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
+    def add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
         Registers a basic block as calling a function and returning somewhere.
 
@@ -514,10 +514,10 @@ class SootFunction(Function):
         :param call_target_addr:     The address of the target of said call.
         :param retn_addr:            The address that said call will return to.
         """
-        self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
+        self.call_sites[call_site_addr] = (call_target_addr, retn_addr)
 
     @dirty_func
-    def _add_endpoint(self, endpoint_node, sort):
+    def add_endpoint(self, endpoint_node, sort):
         """
         Registers an endpoint with a type of `sort`. The type can be one of the following:
         - call: calling a function that does not return
@@ -591,7 +591,7 @@ class SootFunction(Function):
                     the_node = self.get_node(src.addr)
                     if the_node is not None:
                         self._callout_sites.add(the_node)
-                        self._add_endpoint(the_node, "call")
+                        self.add_endpoint(the_node, "call")
                         self.mark_dirty()
 
     def get_call_sites(self) -> Iterable[int]:
@@ -600,7 +600,7 @@ class SootFunction(Function):
 
         :return:                    A view of the addresses of the blocks that end in calls.
         """
-        return self._call_sites.keys()
+        return self.call_sites.keys()
 
     def get_call_target(self, callsite_addr):
         """
@@ -610,8 +610,8 @@ class SootFunction(Function):
         :return:                    The target of said call, or None if callsite_addr is not a
                                     callsite.
         """
-        if callsite_addr in self._call_sites:
-            return self._call_sites[callsite_addr][0]
+        if callsite_addr in self.call_sites:
+            return self.call_sites[callsite_addr][0]
         return None
 
     def get_call_return(self, callsite_addr):
@@ -622,8 +622,8 @@ class SootFunction(Function):
         :return:                    The likely return target of said call, or None if callsite_addr
                                     is not a callsite.
         """
-        if callsite_addr in self._call_sites:
-            return self._call_sites[callsite_addr][1]
+        if callsite_addr in self.call_sites:
+            return self.call_sites[callsite_addr][1]
         return None
 
     @property
@@ -736,7 +736,7 @@ class SootFunction(Function):
         func._jumpout_sites = self._jumpout_sites.copy()
         func._retout_sites = self._retout_sites.copy()
         func._endpoints = self._endpoints.copy()
-        func._call_sites = self._call_sites.copy()
+        func.call_sites = self.call_sites.copy()
         func._project = self._project
         func.previous_names = list(self.previous_names)
         func._is_plt = self.is_plt

@@ -1690,7 +1690,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         current_function = self.kb.functions.function(current_function_addr)
                         if current_function is not None:
                             call_site_addr = self._block_id_addr(pe.src_block_id)
-                            current_function._add_call_site(call_site_addr, func.addr, None)
+                            current_function.add_call_site(call_site_addr, func.addr, None)
                         else:
                             l.warning(
                                 "An expected function at %#x is not found. Please report it to Fish.",
@@ -2204,7 +2204,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     continue
                 callsites = caller.transition_graph.predecessors(callee_funcnode)
                 for callsite in callsites:
-                    caller._add_call_site(callsite.addr, callee_func_addr, None)
+                    caller.add_call_site(callsite.addr, callee_func_addr, None)
 
     def _add_additional_edges(self, input_state, sim_successors, cfg_node, successors):
         """

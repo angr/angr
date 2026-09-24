@@ -212,8 +212,8 @@ class TestFunctionManagerLMDB(unittest.TestCase):
         main_func = fm.function(name="main")
         assert main_func is not None
         main_addr = main_func.addr
-        fm[main_addr]._add_call_site(0x4007D3, None, None)
-        call_sites_before = dict(fm[main_addr]._call_sites)
+        fm[main_addr].add_call_site(0x4007D3, None, None)
+        call_sites_before = dict(fm[main_addr].call_sites)
         assert len(call_sites_before) > 1
 
         # Evict main from the cache
@@ -223,7 +223,7 @@ class TestFunctionManagerLMDB(unittest.TestCase):
         assert main_addr in fm._spilled_addrs
 
         loaded = fm[main_addr]
-        assert dict(loaded._call_sites) == call_sites_before
+        assert dict(loaded.call_sites) == call_sites_before
 
     def test_delete_spilled_function(self):
         """Test deleting a spilled function."""
