@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.block_walker import AILBlockRewriter
+from angr.ailment.block_walker import AILBlockRewriter, _ExprHandled
 from angr.ailment.expression import BinaryOp, Convert, Expression, Extract, UnaryOp, VEXCCallExpression
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Statement
@@ -17,10 +17,10 @@ class _CmpFFound(Exception):
 
 
 class _CmpFFinder(AILBlockViewer):
-    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        if expr.op == "CmpF":
+    def _enter_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr, BinaryOp) and expr.op == "CmpF":
             raise _CmpFFound
-        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        return super()._enter_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 _FINDER = _CmpFFinder()
@@ -49,17 +49,17 @@ class _CmpFValueRewriter(AILBlockRewriter):
         super().__init__()
         self._manager = manager
 
-    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
+    def _enter_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if isinstance(expr, VEXCCallExpression):
             # flag thunks are left to the ccall rewriters
-            return expr
+            return _ExprHandled(expr)
         if (isinstance(expr, BinaryOp) and not (expr.floating_point and expr.op != "CmpF")) or isinstance(
             expr, (Convert, Extract, UnaryOp)
         ):
             lowered = lower_cmpf_value(expr, self._manager)
             if lowered is not None:
-                return lowered
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+                return _ExprHandled(lowered)
+        return super()._enter_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class CmpFValueLowering(SequenceOptimizationPass):

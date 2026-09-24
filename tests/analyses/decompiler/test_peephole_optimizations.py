@@ -20,6 +20,7 @@ from angr.ailment.expression import (
     Convert,
     Extract,
     Insert,
+    MultiStatementExpression,
     Register,
     UnaryOp,
     VirtualVariable,
@@ -40,18 +41,115 @@ from angr.analyses.decompiler.peephole_optimizations import (
     EvaluateConstConversions,
     MagicDivisionSimplifier,
     OptimizedDivisionSimplifier,
+    PeepholeOptimizationExprBase,
     RemoveNoopConversions,
     RemoveRedundantShifts,
     SarToSignedDiv,
     SimplifyBitwiseInserts,
 )
-from angr.analyses.decompiler.utils import peephole_optimize_expr
+from angr.analyses.decompiler.utils import peephole_optimize_expr, peephole_optimize_exprs
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestPeepholeOptimizations(unittest.TestCase):
+    def test_deep_binary_expression(self):
+        class IncrementOne(PeepholeOptimizationExprBase):
+            __slots__ = ()
+
+            expr_classes = (Const,)
+
+            def optimize(self, expr, *, stmt_idx=None, block=None, **kwargs):
+                del self, stmt_idx, block, kwargs
+                if expr.value == 1:
+                    return Const(expr.idx, 2, expr.bits, **expr.tags)
+                return None
+
+        expr = Const(0, 1, 32)
+        for idx in range(1, 1501):
+            expr = BinaryOp(idx, "Add", [expr, Const(-idx, 0, 32)], False, bits=32)
+
+        rewritten = peephole_optimize_expr(expr, [IncrementOne(None, None, Manager())])
+
+        for _ in range(1500):
+            assert isinstance(rewritten, BinaryOp)
+            rewritten = rewritten.operands[0]
+        assert isinstance(rewritten, Const)
+        assert rewritten.value == 2
+
+    def test_deep_binary_multi_statement_expression(self):
+        class IncrementOne(PeepholeOptimizationExprBase):
+            __slots__ = ()
+
+            expr_classes = (Const,)
+
+            def optimize(self, expr, *, stmt_idx=None, block=None, **kwargs):
+                del self, stmt_idx, block, kwargs
+                if expr.value == 1:
+                    return Const(expr.idx, 2, expr.bits, **expr.tags)
+                return None
+
+        expr = Const(0, 1, 32)
+        for idx in range(1, 1501):
+            expr = MultiStatementExpression(-idx, [], expr)
+            expr = BinaryOp(idx, "Add", [expr, Const(-idx - 1500, 0, 32)], False, bits=32)
+        expr = MultiStatementExpression(-3001, [], expr)
+
+        rewritten = peephole_optimize_expr(expr, [IncrementOne(None, None, Manager())])
+
+        assert isinstance(rewritten, MultiStatementExpression)
+        rewritten = rewritten.expr
+        for _ in range(1500):
+            assert isinstance(rewritten, BinaryOp)
+            rewritten = rewritten.operands[0]
+            assert isinstance(rewritten, MultiStatementExpression)
+            rewritten = rewritten.expr
+        assert isinstance(rewritten, Const)
+        assert rewritten.value == 2
+
+    def test_deep_binary_expression_block_pass(self):
+        expr = Const(0, 0, 32)
+        for idx in range(1, 1501):
+            expr = BinaryOp(idx, "Add", [expr, Const(-idx, 0, 32)], False, bits=32)
+        block = Block(0x400000, 0, statements=[Assignment(0, Register(1, 0, 32), expr)])
+
+        assert not peephole_optimize_exprs(block, [])
+
+    def test_binary_expression_block_pass_rewrites_const_child(self):
+        class IncrementOne(PeepholeOptimizationExprBase):
+            __slots__ = ()
+
+            expr_classes = (Const,)
+
+            def optimize(self, expr, *, stmt_idx=None, block=None, **kwargs):
+                del self, stmt_idx, block, kwargs
+                if expr.value == 1:
+                    return Const(expr.idx, 2, expr.bits, **expr.tags)
+                return None
+
+        manager = Manager()
+        expr = BinaryOp(
+            manager.next_atom(),
+            "Add",
+            [Const(manager.next_atom(), 1, 32), Const(manager.next_atom(), 0, 32)],
+            False,
+            bits=32,
+        )
+        block = Block(
+            0x400000,
+            0,
+            statements=[Assignment(manager.next_atom(), Register(manager.next_atom(), 0, 32), expr)],
+        )
+
+        assert peephole_optimize_exprs(block, [IncrementOne(None, None, manager)])
+        rewritten_stmt = block.statements[0]
+        assert isinstance(rewritten_stmt, Assignment)
+        rewritten = rewritten_stmt.src
+        assert isinstance(rewritten, BinaryOp)
+        assert isinstance(rewritten.operands[0], Const)
+        assert rewritten.operands[0].value == 2
+
     def test_constant_dereference(self):
         # a = *(A) :=> a = the variable at at A iff
         # - A is a pointer that points to a read-only section.

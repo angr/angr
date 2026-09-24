@@ -528,8 +528,8 @@ class _CasUseCensus(AILBlockViewer):
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
         self.uses[expr.varid] += 1
 
-    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        if expr.op in ("CmpEQ", "CmpNE"):
+    def _enter_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if isinstance(expr, BinaryOp) and expr.op in ("CmpEQ", "CmpNE"):
             a, b = expr.operands
             for side, other in ((a, b), (b, a)):
                 vvar = _strip_converts(side)
@@ -539,7 +539,7 @@ class _CasUseCensus(AILBlockViewer):
                     and _same_operand(other, self.calls[vvar.varid].args[1])
                 ):
                     self.cmp_uses[vvar.varid] += 1
-        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        return super()._enter_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def foldable(self) -> set[int]:
         return {v for v in self.calls if self.uses[v] > 0 and self.uses[v] == self.cmp_uses[v]}
@@ -572,11 +572,10 @@ class _CasFolder(AILBlockRewriter):
             return Assignment(stmt.idx, stmt.dst, src, **stmt.tags)
         return super()._handle_Assignment(stmt_idx, stmt, block)
 
-    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        new_expr = super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
-        cmp = cast(BinaryOp, new_expr if new_expr is not None else expr)
+    def _post_handle_BinaryOp(self, expr, stmt_idx, stmt, block):
+        cmp = expr
         if cmp.op not in ("CmpEQ", "CmpNE"):
-            return new_expr
+            return expr
         a, b = cmp.operands
         for side, other in ((a, b), (b, a)):
             call = _cas_call(side)
@@ -602,7 +601,7 @@ class _CasFolder(AILBlockRewriter):
                 if cmp.op == "CmpEQ":
                     return test
                 return UnaryOp(self._o.manager.next_atom(), "Not", test, bits=1, **cmp.tags)
-        return new_expr
+        return expr
 
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
         new_expr = super()._handle_Call(expr_idx, expr, stmt_idx, stmt, block)
