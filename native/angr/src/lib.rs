@@ -1,7 +1,9 @@
 pub mod ailment;
 pub mod automaton;
 pub mod claripy;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod fuzzer;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod icicle;
 pub mod segmentlist;
 
@@ -27,7 +29,9 @@ fn import_submodule<'py>(
 
 #[pymodule]
 fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    #[cfg(not(target_arch = "wasm32"))]
     import_submodule(m.py(), m, "angr.rustylib", "fuzzer", fuzzer::fuzzer)?;
+    #[cfg(not(target_arch = "wasm32"))]
     import_submodule(m.py(), m, "angr.rustylib", "icicle", icicle::icicle)?;
     import_submodule(
         m.py(),

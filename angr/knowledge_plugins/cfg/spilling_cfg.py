@@ -16,11 +16,11 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Generator, Iterator
 from typing import TYPE_CHECKING, Literal, overload
 
-import lmdb
 import networkx
 from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.protos import cfg_pb2
+from angr.utils.lmdb import lmdb, lmdb_available
 
 from .block_id import BlockID
 from .cfg_node import CFGENode, CFGNode
@@ -36,7 +36,11 @@ l = logging.getLogger(name=__name__)
 
 
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
-USE_SPILLING_CFGNODE_DICT = os.environ.get("USE_SPILLING_CFGNODE_DICT", "True").lower() not in ("0", "false", "no")
+USE_SPILLING_CFGNODE_DICT = lmdb_available and os.environ.get("USE_SPILLING_CFGNODE_DICT", "True").lower() not in (
+    "0",
+    "false",
+    "no",
+)
 
 
 class SpillingCFGNodeDict:
