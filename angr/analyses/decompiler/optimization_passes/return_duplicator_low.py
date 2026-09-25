@@ -9,7 +9,7 @@ import networkx
 from angr.ailment import Block
 from angr.ailment.statement import ConditionalJump
 
-from .optimization_pass import StructuringOptimizationPass
+from .optimization_pass import StructuringOptimizationPass, StructuringOptimizationPassResult
 from .return_duplicator_base import ReturnDuplicatorBase
 
 _l = logging.getLogger(name=__name__)
@@ -164,4 +164,6 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         """
         This analysis is run in a loop in analyze() for a maximum of max_opt_iters times.
         """
-        return self._analyze_core(self.out_graph)
+        if self._analyze_core(self.out_graph):
+            return StructuringOptimizationPassResult.UPDATED
+        return StructuringOptimizationPassResult.STOP
