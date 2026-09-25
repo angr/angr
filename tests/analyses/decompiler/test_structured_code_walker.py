@@ -9,16 +9,23 @@ import unittest
 
 import angr
 from angr.analyses.decompiler.structured_codegen.c import (
+    CConstant,
+    CIfElse,
+    CStatements,
     CStructuredCodeWalker,
     CTypeCast,
     CVectorConvert,
     CVEXCCallExpression,
+    FieldReferenceCleanup,
+    MakeTypecastsImplicit,
+    PointerArithmeticFixer,
     qualifies_for_implicit_cast,
 )
 from angr.analyses.decompiler.structured_codegen.rust import (
     RustStructuredCodeWalker,
     RustVectorConvert,
 )
+from angr.sim_type import SimTypeInt
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -108,6 +115,62 @@ class TestWalkerDescendsIntoCCallOperands(unittest.TestCase):
                 assert not (
                     isinstance(operand, CTypeCast) and qualifies_for_implicit_cast(operand.src_type, operand.dst_type)
                 ), f"redundant cast left in a ccall operand: {operand}"
+
+
+class TestWalkersDescendDeepTrees(unittest.TestCase):
+    """The walkers must not spend interpreter frames per level of the C tree.
+
+    `FieldReferenceCleanup`, `PointerArithmeticFixer` and `MakeTypecastsImplicit` each walk the whole C tree after
+    code generation, and the code generator can hand them a tree hundreds of levels deep -- which it does whenever
+    structuring degrades and a large function's statements come out as a long if-chain. Descending recursively cost
+    two frames a level, so past about 490 levels each of those passes raised RecursionError and the function came back
+    with no code at all.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        # A real code generator: every C node allocates its identity from the one that owns it.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        cls.codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+
+    def _chain(self, depth: int):
+        """`depth` levels of CStatements holding one CIfElse, with an empty CStatements at the bottom."""
+        codegen = self.codegen
+        node = CStatements([], codegen=codegen)
+        for i in range(depth):
+            condition = CConstant(1, SimTypeInt(), codegen=codegen)
+            node = CStatements(
+                [CIfElse([(condition, node)], tags={"ins_addr": 0x1000 + i}, codegen=codegen)],
+                codegen=codegen,
+            )
+        return node
+
+    @staticmethod
+    def _nesting(obj) -> int:
+        """How many CIfElse levels the tree has, counted without recursing."""
+        depth = 0
+        while True:
+            if isinstance(obj, CStatements) and len(obj.statements) == 1:
+                obj = obj.statements[0]
+            elif isinstance(obj, CIfElse):
+                depth += 1
+                obj = obj.condition_and_nodes[0][1]
+            else:
+                return depth
+
+    def test_each_pass_descends_a_tree_deeper_than_the_recursion_limit(self):
+        # The recursive descent cleared 200 of these levels and failed at 250.
+        depth = 2000
+        for pass_cls in (FieldReferenceCleanup, PointerArithmeticFixer, MakeTypecastsImplicit):
+            handled = pass_cls().handle(self._chain(depth))
+            assert self._nesting(handled) == depth, pass_cls.__name__
+
+    def test_a_subclass_that_replaces_handle_still_sees_every_node(self):
+        # _CCollector records in `handle`, so a walk driven on a stack has to route every child back through it.
+        collector = _CCollector()
+        collector.handle(self._chain(3))
+        assert sum(1 for node in collector.visited if isinstance(node, CIfElse)) == 3
 
 
 if __name__ == "__main__":

@@ -3146,6 +3146,38 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             Expr.VirtualVariable: self._handle_VirtualVariable,
         }
 
+        # Every handler that descends into structured children is written twice: `_walk_X` is a generator that yields
+        # the child it wants converted and the keyword arguments to convert it with, and `_handle_X` drives that
+        # generator for a direct caller. `_drive` runs one generator, and the generators of every structured node it
+        # reaches, on a single stack, so the depth of the structured tree costs no interpreter frames. Without this a
+        # structured tree N nodes deep costs 2N frames: a 523-node Sequence/Condition chain needed 489 nested
+        # `_handle` calls and raised RecursionError at CPython's default limit of 1000, which the decompiler then
+        # swallowed and reported as a function that generates no code.
+        #
+        # A subclass that overrides `_handle_X` keeps the recursive descent, because only that method sees every node.
+        self._walkers = {
+            node_cls: walker
+            for node_cls, default, walker in (
+                (CodeNode, CStructuredCodeGenerator._handle_Code, self._walk_Code),
+                (SequenceNode, CStructuredCodeGenerator._handle_Sequence, self._walk_Sequence),
+                (LoopNode, CStructuredCodeGenerator._handle_Loop, self._walk_Loop),
+                (ConditionNode, CStructuredCodeGenerator._handle_Condition, self._walk_Condition),
+                (
+                    CascadingConditionNode,
+                    CStructuredCodeGenerator._handle_CascadingCondition,
+                    self._walk_CascadingCondition,
+                ),
+                (MultiNode, CStructuredCodeGenerator._handle_MultiNode, self._walk_MultiNode),
+                (SwitchCaseNode, CStructuredCodeGenerator._handle_SwitchCase, self._walk_SwitchCase),
+                (
+                    IncompleteSwitchCaseNode,
+                    CStructuredCodeGenerator._handle_IncompleteSwitchCase,
+                    self._walk_IncompleteSwitchCase,
+                ),
+            )
+            if getattr(self._handlers.get(node_cls), "__func__", None) is default
+        }
+
         self._func = func
         self._func_args = func_args
         self._cfg = cfg
@@ -3826,45 +3858,97 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
-        handler: Callable | None = self._handlers.get(_dispatch_key(node), None)
+        key = _dispatch_key(node)
+        handler: Callable | None = self._handlers.get(key, None)
         if handler is not None:
-            # special case for Call
-            converted = (
-                handler(node, is_expr=is_expr)
-                if isinstance(node, Stmt.SideEffectStatement)
-                else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_, ref=ref)
-            )
+            walker = self._walkers.get(key, None)
+            if walker is not None:
+                # A structured node: its whole subtree is converted on one stack rather than the interpreter's.
+                converted = self._drive(walker(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_, ref=ref))
+            else:
+                # special case for Call
+                converted = (
+                    handler(node, is_expr=is_expr)
+                    if isinstance(node, Stmt.SideEffectStatement)
+                    else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_, ref=ref)
+                )
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
         raise UnsupportedNodeTypeError(
             f"Node type {getattr(node, 'kind', None) or type(node).__name__} is not supported yet."
         )
 
+    def _drive(self, walk):
+        """
+        Convert one structured node, and every structured node below it, on a single stack.
+
+        `walk` is a generator from one of the `_walk_` handlers. It yields the child it wants converted and the
+        keyword arguments to convert it with, and is resumed with that child's conversion. A yielded child that has a
+        `_walk_` handler of its own goes on the stack; anything else -- an AIL statement or expression, whose nesting
+        is bounded by the expression itself and is shallow -- is converted through `_handle` as before. The memo in
+        `self.ailexpr2cnode` is read and written exactly where `_handle` reads and writes it, so a node converted once
+        is not converted twice.
+        """
+        assert self.ailexpr2cnode is not None
+        # Each entry is a running handler and the memo key its result belongs under. The first entry's result is
+        # memoised by the `_handle` call that started the walk, so it carries no key of its own.
+        stack: list[tuple[Any, tuple[Any, bool] | None]] = [(walk, None)]
+        converted = None
+        while stack:
+            try:
+                child, child_kwargs = stack[-1][0].send(converted)
+            except StopIteration as walked:
+                memo_key = stack.pop()[1]
+                converted = walked.value
+                if memo_key is not None:
+                    self.ailexpr2cnode[memo_key] = converted
+                continue
+            memo_key = (child, child_kwargs.get("is_expr", True))
+            if memo_key in self.ailexpr2cnode:
+                converted = self.ailexpr2cnode[memo_key]
+                continue
+            walker = self._walkers.get(_dispatch_key(child), None)
+            if walker is None:
+                converted = self._handle(child, **child_kwargs)
+            else:
+                stack.append((walker(child, **child_kwargs), memo_key))
+                converted = None
+        return converted
+
     def _handle_Code(self, node, **kwargs):
-        return self._handle(node.node, is_expr=False)
+        return self._drive(self._walk_Code(node, **kwargs))
+
+    def _walk_Code(self, node, **kwargs):
+        return (yield node.node, {"is_expr": False})
 
     def _handle_Sequence(self, seq, **kwargs):
+        return self._drive(self._walk_Sequence(seq, **kwargs))
+
+    def _walk_Sequence(self, seq, **kwargs):
         lines = []
 
         for node in seq.nodes:
-            lines.append(self._handle(node, is_expr=False))
+            lines.append((yield node, {"is_expr": False}))
 
         return lines[0] if len(lines) == 1 else CStatements(lines, codegen=self, addr=seq.addr)
 
     def _handle_Loop(self, loop_node, **kwargs):
+        return self._drive(self._walk_Loop(loop_node, **kwargs))
+
+    def _walk_Loop(self, loop_node, **kwargs):
         tags = {"ins_addr": loop_node.addr}
 
         if loop_node.sort == "while":
             return CWhileLoop(
                 None if loop_node.condition is None else self._handle(loop_node.condition),
-                None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
+                None if loop_node.sequence_node is None else (yield loop_node.sequence_node, {"is_expr": False}),
                 tags=tags,
                 codegen=self,
             )
         if loop_node.sort == "do-while":
             return CDoWhileLoop(
                 self._handle(loop_node.condition),
-                None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
+                None if loop_node.sequence_node is None else (yield loop_node.sequence_node, {"is_expr": False}),
                 tags=tags,
                 codegen=self,
             )
@@ -3873,7 +3957,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 None if loop_node.initializer is None else self._handle(loop_node.initializer),
                 None if loop_node.condition is None else self._handle(loop_node.condition),
                 None if loop_node.iterator is None else self._handle(loop_node.iterator),
-                None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
+                None if loop_node.sequence_node is None else (yield loop_node.sequence_node, {"is_expr": False}),
                 tags=tags,
                 codegen=self,
             )
@@ -3881,16 +3965,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         raise NotImplementedError
 
     def _handle_Condition(self, condition_node: ConditionNode, **kwargs):
+        return self._drive(self._walk_Condition(condition_node, **kwargs))
+
+    def _walk_Condition(self, condition_node: ConditionNode, **kwargs):
         tags = {"ins_addr": condition_node.addr}
 
-        condition_and_nodes = [
-            (
-                self._handle(condition_node.condition),
-                self._handle(condition_node.true_node, is_expr=False) if condition_node.true_node else None,
-            )
-        ]
+        condition = self._handle(condition_node.condition)
+        true_node = (yield condition_node.true_node, {"is_expr": False}) if condition_node.true_node else None
+        condition_and_nodes = [(condition, true_node)]
 
-        else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
+        else_node = (yield condition_node.false_node, {"is_expr": False}) if condition_node.false_node else None
 
         return CIfElse(
             condition_and_nodes,
@@ -3904,12 +3988,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_CascadingCondition(self, cond_node: CascadingConditionNode, **kwargs):
+        return self._drive(self._walk_CascadingCondition(cond_node, **kwargs))
+
+    def _walk_CascadingCondition(self, cond_node: CascadingConditionNode, **kwargs):
         tags = {"ins_addr": cond_node.addr}
 
-        condition_and_nodes = [
-            (self._handle(cond), self._handle(node, is_expr=False)) for cond, node in cond_node.condition_and_nodes
-        ]
-        else_node = self._handle(cond_node.else_node) if cond_node.else_node is not None else None
+        condition_and_nodes = []
+        for cond, node in cond_node.condition_and_nodes:
+            condition = self._handle(cond)
+            condition_and_nodes.append((condition, (yield node, {"is_expr": False})))
+        else_node = (yield cond_node.else_node, {}) if cond_node.else_node is not None else None
 
         return CIfElse(
             condition_and_nodes,
@@ -3930,10 +4018,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return CBreak(tags=tags, codegen=self)
 
     def _handle_MultiNode(self, node, **kwargs):
+        return self._drive(self._walk_MultiNode(node, **kwargs))
+
+    def _walk_MultiNode(self, node, **kwargs):
         lines = []
 
         for n in node.nodes:
-            r = self._handle(n, is_expr=False)
+            r = yield n, {"is_expr": False}
             lines.append(r)
 
         return lines[0] if len(lines) == 1 else CStatements(lines, codegen=self, addr=node.addr)
@@ -3944,16 +4035,25 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         :param SwitchCaseNode node:
         :return:
         """
+        return self._drive(self._walk_SwitchCase(node, **kwargs))
 
+    def _walk_SwitchCase(self, node, **kwargs):
         switch_expr = self._handle(node.switch_expr)
-        cases = [(idx, self._handle(case, is_expr=False)) for idx, case in node.cases.items()]
-        default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
+        cases = []
+        for idx, case in node.cases.items():
+            cases.append((idx, (yield case, {"is_expr": False})))
+        default = (yield node.default_node, {"is_expr": False}) if node.default_node is not None else None
         tags = {"ins_addr": node.addr}
         return CSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
 
     def _handle_IncompleteSwitchCase(self, node: IncompleteSwitchCaseNode, **kwargs):
-        head = self._handle(node.head, is_expr=False)
-        cases = [(case.addr, self._handle(case, is_expr=False)) for case in node.cases]
+        return self._drive(self._walk_IncompleteSwitchCase(node, **kwargs))
+
+    def _walk_IncompleteSwitchCase(self, node: IncompleteSwitchCaseNode, **kwargs):
+        head = yield node.head, {"is_expr": False}
+        cases = []
+        for case in node.cases:
+            cases.append((case.addr, (yield case, {"is_expr": False})))
         tags = {"ins_addr": node.addr}
         return CIncompleteSwitchCase(head, cases, tags=tags, codegen=self)
 
@@ -4841,44 +4941,134 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return c_serialize.parse_codegen(cmsg, project=project, kb=kb, func=func)
 
 
+# The handlers named here descend into statements rather than into an expression, so how deep they go is the depth of
+# the C tree they are handed. Each is written twice, for the reason `CStructuredCodeGenerator._drive` gives and in the
+# same shape: `_walk_X` is a generator that yields the child it wants handled and is resumed with the result, and
+# `handle_X` drives it for a direct caller. The expression handlers stay recursive, because expression nesting is
+# bounded by the expression.
+_WALKED_HANDLERS = ("CFunction", "CStatements", "CWhileLoop", "CDoWhileLoop", "CForLoop", "CIfElse", "CSwitchCase")
+_walker_names_by_class: dict[type, dict[str, str]] = {}
+
+
+def _walker_names(cls: type) -> dict[str, str]:
+    """Which of `_WALKED_HANDLERS` this walker class descends on a stack, resolved once per class.
+
+    Two things hold a handler back, and both are about a subclass's method being the only one that sees every object.
+    A class that replaces `handle` gets nothing: `ScopeOpsWalker` replaces it to record what it visits, so driving a
+    child's handler directly would stop it being called. A class that overrides one `handle_X` keeps the recursive
+    descent for that one: `LoopVisitor`, `LoopBodyAssignmentCollector` and `LoopBodyControlStatementCollector` each
+    override several, and driving the base handler instead would skip theirs silently.
+
+    Held back costs one interpreter frame a level, `handle_X`'s call into the driver, and the class reaches a shallower
+    tree than it did: measured on a `CStatements`/`CIfElse` chain, `ScopeOpsWalker` and `LoopVisitor` went from
+    clearing 160 levels and failing at 180 to clearing 120 and failing at 140, while everything not held back went
+    from failing at 250 to clearing 2,500. Removing that frame would mean a second, recursive body for each handler
+    here, which is a worse thing to maintain than a documented ceiling.
+    """
+    names = _walker_names_by_class.get(cls)
+    if names is None:
+        names = (
+            {}
+            if cls.handle is not CStructuredCodeWalker.handle
+            else {
+                name: "_walk_" + name
+                for name in _WALKED_HANDLERS
+                if getattr(cls, "handle_" + name) is getattr(CStructuredCodeWalker, "handle_" + name)
+            }
+        )
+        _walker_names_by_class[cls] = names
+    return names
+
+
 class CStructuredCodeWalker:
     def handle(self, obj):
+        name = _walker_names(type(self)).get(type(obj).__name__)
+        if name is not None:
+            return self._drive(getattr(self, name)(obj))
         handler = getattr(self, "handle_" + type(obj).__name__, self.handle_default)
         return handler(obj)
+
+    def _drive(self, walk):
+        """
+        Run one `_walk_` generator, and the generators of every statement it reaches, on a single stack.
+
+        Without this the walk costs two frames per level of the C tree, and the code generator can hand it a tree of
+        any depth: a function whose structuring degraded into a 523-node chain produced a C tree that needed 491
+        nested `handle` calls, 997 Python frames against CPython's default limit of 1000.
+        """
+        stack = [walk]
+        handled = None
+        while stack:
+            try:
+                child = stack[-1].send(handled)
+            except StopIteration as walked:
+                stack.pop()
+                handled = walked.value
+                continue
+            name = _walker_names(type(self)).get(type(child).__name__)
+            if name is None:
+                handled = self.handle(child)
+            else:
+                stack.append(getattr(self, name)(child))
+                handled = None
+        return handled
 
     def handle_default(self, obj):
         return obj
 
     def handle_CFunction(self, obj):
-        obj.statements = self.handle(obj.statements)
+        return self._drive(self._walk_CFunction(obj))
+
+    def _walk_CFunction(self, obj):
+        obj.statements = yield obj.statements
         return obj
 
     def handle_CStatements(self, obj):
-        obj.statements = [self.handle(stmt) for stmt in obj.statements]
+        return self._drive(self._walk_CStatements(obj))
+
+    def _walk_CStatements(self, obj):
+        statements = []
+        for stmt in obj.statements:
+            statements.append((yield stmt))
+        obj.statements = statements
         return obj
 
     def handle_CWhileLoop(self, obj):
-        obj.condition = self.handle(obj.condition)
-        obj.body = self.handle(obj.body)
+        return self._drive(self._walk_CWhileLoop(obj))
+
+    def _walk_CWhileLoop(self, obj):
+        obj.condition = yield obj.condition
+        obj.body = yield obj.body
         return obj
 
     def handle_CDoWhileLoop(self, obj):
-        obj.condition = self.handle(obj.condition)
-        obj.body = self.handle(obj.body)
+        return self._drive(self._walk_CDoWhileLoop(obj))
+
+    def _walk_CDoWhileLoop(self, obj):
+        obj.condition = yield obj.condition
+        obj.body = yield obj.body
         return obj
 
     def handle_CForLoop(self, obj):
-        obj.initializer = self.handle(obj.initializer)
-        obj.condition = self.handle(obj.condition)
-        obj.iterator = self.handle(obj.iterator)
-        obj.body = self.handle(obj.body)
+        return self._drive(self._walk_CForLoop(obj))
+
+    def _walk_CForLoop(self, obj):
+        obj.initializer = yield obj.initializer
+        obj.condition = yield obj.condition
+        obj.iterator = yield obj.iterator
+        obj.body = yield obj.body
         return obj
 
     def handle_CIfElse(self, obj):
-        obj.condition_and_nodes = [
-            (self.handle(condition), self.handle(node)) for condition, node in obj.condition_and_nodes
-        ]
-        obj.else_node = self.handle(obj.else_node)
+        return self._drive(self._walk_CIfElse(obj))
+
+    def _walk_CIfElse(self, obj):
+        condition_and_nodes = []
+        for condition, node in obj.condition_and_nodes:
+            handled_condition = yield condition
+            condition_and_nodes.append((handled_condition, (yield node)))
+        obj.condition_and_nodes = condition_and_nodes
+        obj.else_node = yield obj.else_node
         return obj
 
     def handle_CIfBreak(self, obj):
@@ -4886,9 +5076,15 @@ class CStructuredCodeWalker:
         return obj
 
     def handle_CSwitchCase(self, obj):
-        obj.switch = self.handle(obj.switch)
-        obj.cases = [(case, self.handle(body)) for case, body in obj.cases]
-        obj.default = self.handle(obj.default)
+        return self._drive(self._walk_CSwitchCase(obj))
+
+    def _walk_CSwitchCase(self, obj):
+        obj.switch = yield obj.switch
+        cases = []
+        for case, body in obj.cases:
+            cases.append((case, (yield body)))
+        obj.cases = cases
+        obj.default = yield obj.default
         return obj
 
     def handle_CAssignment(self, obj):

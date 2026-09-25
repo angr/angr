@@ -14,18 +14,21 @@ from types import SimpleNamespace
 import archinfo
 
 import angr
-from angr.ailment import Expr, Stmt
+from angr.ailment import Block, Expr, Stmt
 from angr.analyses.decompiler.structured_codegen.c import (
     CAssignment,
     CExpression,
     CGoto,
+    CIfElse,
     CReturn,
+    CStatements,
     CStructuredCodeGenerator,
     CUnaryOp,
     qualifies_for_simple_cast,
     type_layout_key,
     type_to_c_repr_chunks,
 )
+from angr.analyses.decompiler.structurer_nodes import ConditionNode, SequenceNode
 from angr.calling_conventions import SimComboArg
 from angr.sim_type import (
     SimCppClass,
@@ -461,3 +464,56 @@ class TestTypeLayoutKey(unittest.TestCase):
         forward = [type_layout_key(s) for s in structs]
         backward = [type_layout_key(s) for s in reversed(structs)]
         assert backward[::-1] == forward
+
+
+class TestDeepStructuredTrees(unittest.TestCase):
+    """The code generator must not spend interpreter frames per level of the structured tree.
+
+    When structuring degrades -- which it does whenever the decompiler's first attempt fails and it
+    retries on the basic preset -- a large function can hand the code generator a tree hundreds of
+    nodes deep on one chain. Descending it recursively cost two frames a level, so a tree deeper
+    than about 490 raised RecursionError inside `_handle`. The decompiler swallowed that and
+    reported the function as producing no code at all.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        codegen = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
+
+    @staticmethod
+    def _chain(depth: int):
+        """`depth` levels of SequenceNode(ConditionNode(...)) over one empty AIL block."""
+        node = Block(0x1000, 1)
+        for i in range(depth):
+            node = SequenceNode(0x1000 + i, nodes=[ConditionNode(0x1000 + i, None, Expr.Const(i, 1, 1), node)])
+        return node
+
+    @staticmethod
+    def _nesting(cnode) -> int:
+        """How many CIfElse levels the generated tree has, counted without recursing."""
+        depth = 0
+        while isinstance(cnode, CIfElse):
+            depth += 1
+            cnode = cnode.condition_and_nodes[0][1]
+        return depth
+
+    def test_a_tree_deeper_than_the_recursion_limit_is_generated(self):
+        # Well past CPython's default limit of 1000 frames, however many frames the caller has
+        # already used: the recursive descent cleared 200 of these levels and failed at 250.
+        depth = 2000
+        generated = self.codegen._handle(self._chain(depth), is_expr=False)
+        assert self._nesting(generated) == depth
+
+    def test_a_shared_subtree_is_generated_once(self):
+        # The descent memoises each (node, is_expr) pair, and a walk driven on a stack has to read
+        # and write that memo where the recursive one did: the same subtree twice is one conversion.
+        shared = self._chain(3)
+        generated = self.codegen._handle(SequenceNode(0x2000, nodes=[shared, shared]), is_expr=False)
+        assert isinstance(generated, CStatements)
+        first, second = generated.statements
+        assert first is second
+        assert self._nesting(first) == 3
