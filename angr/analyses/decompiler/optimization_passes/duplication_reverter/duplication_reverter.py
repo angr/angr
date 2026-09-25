@@ -326,8 +326,16 @@ class DuplicationReverter(StructuringOptimizationPass):
                 self.write_graph.add_edge(orig_pred, new_succ)
 
         self.write_graph = self._correct_all_broken_jumps(self.write_graph)
-        # do not change the address of the function entry block
-        entry_blocks = {node for node in self.read_graph.nodes if node.addr == self._func.addr}
+        # do not change the address of the function entry block. Find it in the write graph by location: the
+        # reinsertion above may have replaced the entry with a copy whose jump was retargeted, and a copy with
+        # different statements is no longer equal to the block in the read graph.
+        entry_blocks = {node for node in self.write_graph.nodes if (node.addr, node.idx) == self.entry_node_addr}
+        if len(entry_blocks) != 1:
+            _l.debug(
+                "Expected one entry block at %s after reinsertion, found %d", self.entry_node_addr, len(entry_blocks)
+            )
+            self.write_graph = self.read_graph.copy()
+            return False
         self.write_graph = self._uniquify_addrs(self.write_graph, keep=entry_blocks)
         _l.info("Candidate merge successful on blocks: %s", candidate)
         return True
