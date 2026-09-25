@@ -252,8 +252,9 @@ class TestVex(unittest.TestCase):
         }
         solver = claripy.Solver()
         for width, values in cases.items():
+            handler = s_ccall.riscv64g_calculate_fclass_s if width == 32 else s_ccall.riscv64g_calculate_fclass_d
             for result_bit, value in enumerate(values):
-                result = s_ccall._riscv64g_calculate_fclass(claripy.BVV(value, width))
+                result = handler(None, claripy.BVV(value, width))
                 assert solver.eval(result, 1)[0] == 1 << result_bit
 
         for width, values in cases.items():
@@ -320,11 +321,13 @@ class TestVex(unittest.TestCase):
             assert successor.solver.eval(successor.regs.a0) == expected
 
     def test_reinterp_preserves_symbolic_nan_bits(self):
+        # Exercise the internal VEX operation entry point to isolate bitcast behavior.
         for width in (32, 64):
             project = minimal_project()
             engine = HeavyVEXMixin(project)
             engine.state = SimState(project=project)
             raw = claripy.BVS(f"reinterp_bits_{width}", width)
+            # pylint: disable-next=protected-access
             result = engine._perform_vex_expr_Op(f"Iop_ReinterpF{width}asI{width}", (raw.raw_to_fp(),))
             assert not claripy.Solver().satisfiable(extra_constraints=(result != raw,))
 
@@ -344,11 +347,11 @@ class TestVex(unittest.TestCase):
             if encoding == "539505e0":
                 expected = claripy.If(
                     source[63:32] == 0xFFFFFFFF,
-                    s_ccall._riscv64g_calculate_fclass(source[31:0]),
+                    s_ccall.riscv64g_calculate_fclass_s(None, source[31:0]),
                     claripy.BVV(1 << 9, 64),
                 )
             else:
-                expected = s_ccall._riscv64g_calculate_fclass(source)
+                expected = s_ccall.riscv64g_calculate_fclass_d(None, source)
             assert not successor.solver.satisfiable(extra_constraints=(successor.regs.a0 != expected,))
             for value, bit in cases:
                 assert successor.solver.satisfiable(extra_constraints=(source == value,))

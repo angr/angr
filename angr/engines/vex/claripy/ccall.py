@@ -2090,7 +2090,7 @@ def riscv64g_calculate_fflags_fle_d(state, a1, a2):  # pylint:disable=unused-arg
     return _riscv64g_fflags_fcmp(a1, a2, False)
 
 
-def _riscv64g_calculate_fclass(a1):
+def _riscv64g_calculate_fclass(a1) -> claripy.ast.bv.BV:
     """RISC-V F/D FCLASS: one class bit in bits 9:0; no FP exception flags.
 
     Classify raw IEEE-754 fields without floating-point arithmetic so signaling
