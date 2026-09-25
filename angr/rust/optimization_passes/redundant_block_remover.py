@@ -53,6 +53,7 @@ class RedundantBlockRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
                         or (
                             isinstance(stmt, Assignment)
                             and isinstance(stmt.dst, VirtualVariable)
+                            and bool(uses[stmt.dst.varid])
                             and all(
                                 codeloc.block_addr == block.addr and codeloc.block_idx == block.idx
                                 for vvar, codeloc in uses[stmt.dst.varid]
