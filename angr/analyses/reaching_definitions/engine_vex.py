@@ -402,16 +402,19 @@ class SimEngineRDVEX(
         bits: int = expr.result_size(self.tyenv)
         size: int = bits // self.arch.byte_width
 
-        reg_atom = Register(expr.offset, size, self.arch)
         try:
             values: MultiValues = self.state.registers.load(expr.offset, size=size)
         except SimMemoryMissingError:
-            top = self.state.top(size * self.arch.byte_width)
-            # annotate it
-            top = self.state.annotate_with_def(top, Definition(reg_atom, self._external_codeloc()))
-            values = MultiValues(top)
-            # write it to registers
-            self.state.kill_and_add_definition(reg_atom, values, override_codeloc=self._external_codeloc())
+            # Define only the bytes that are missing. Redefining the whole register would clobber a narrower definition
+            # that is already in place.
+            for stride_start, stride_size in self._undefined_register_strides(expr.offset, size):
+                stride_atom = Register(stride_start, stride_size, self.arch)
+                top = self.state.top(stride_size * self.arch.byte_width)
+                top = self.state.annotate_with_def(top, Definition(stride_atom, self._external_codeloc()))
+                self.state.kill_and_add_definition(
+                    stride_atom, MultiValues(top), override_codeloc=self._external_codeloc()
+                )
+            values = self.state.registers.load(expr.offset, size=size)
 
         current_defs: Iterable[Definition[Atom]] | None = None
         for vs in values.values():
@@ -422,9 +425,27 @@ class SimEngineRDVEX(
                     current_defs = chain(current_defs, self.state.extract_defs(v))
 
         assert current_defs is not None
-        self.state.add_register_use_by_defs(current_defs)
+        # A read that covers bytes written by a narrower definition uses that definition too.
+        # libVEX 3.27.1 lifts byte-register reads as a full-width GET plus a narrowing (e.g.,`mov dl, [m]; test dl, dl`
+        # reads dl through `GET:I64(rdx)``). As such, the stored one byte should carry its own definition, but the
+        # composed 8-byte value should not carry the definition of the one byte's.
+        piece_defs = self.state.live_definitions.get_register_definitions(expr.offset, size)
+        self.state.add_register_use_by_defs(chain(current_defs, piece_defs))
 
         return values
+
+    def _undefined_register_strides(self, offset: int, size: int) -> list[tuple[int, int]]:
+        """Contiguous strides of bytes defined in [offset, offset + size) that no definition covers."""
+        strides: list[tuple[int, int]] = []
+        for byte_off in range(offset, offset + size):
+            try:
+                self.state.registers.load(byte_off, size=1)
+            except SimMemoryMissingError:
+                if strides and strides[-1][0] + strides[-1][1] == byte_off:
+                    strides[-1] = (strides[-1][0], strides[-1][1] + 1)
+                else:
+                    strides.append((byte_off, 1))
+        return strides
 
     def _handle_expr_GetI(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         return MultiValues(self.state.top(expr.result_size(self.tyenv)))
