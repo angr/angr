@@ -39,6 +39,81 @@ fn wrap_z3_cached<'c>(
 }
 
 impl PySolver {
+    /// Wrap a solver derived from `like` in `like`'s Python class, so a branch, blank copy,
+    /// split or merge of a SolverReplacement (or any other subclass) stays an instance of it.
+    fn wrap_like<'py>(
+        like: &Bound<'py, Self>,
+        solver: PySolver,
+    ) -> Result<Bound<'py, PySolver>, ClaripyError> {
+        let py = like.py();
+        macro_rules! as_subclass {
+            ($sub:ident) => {
+                if like.is_instance_of::<$sub>() {
+                    let init = PyClassInitializer::from(solver).add_subclass($sub);
+                    return Ok(Bound::new(py, init)?.into_super());
+                }
+            };
+        }
+        as_subclass!(PyConcreteSolver);
+        as_subclass!(PyZ3Solver);
+        as_subclass!(PyCachelessSolver);
+        as_subclass!(PyVSASolver);
+        as_subclass!(PyHybridSolver);
+        as_subclass!(PyReplacementSolver);
+        as_subclass!(PyCompositeSolver);
+        Ok(Bound::new(py, solver)?)
+    }
+
+    fn blank_copy_solver(&self) -> Result<PySolver, ClaripyError> {
+        Ok(PySolver {
+            inner: match &self.inner {
+                DynSolver::Concrete(..) => {
+                    DynSolver::Concrete(ConcreteSolver::new(&GLOBAL_CONTEXT))
+                }
+                DynSolver::Z3(..) => DynSolver::Z3(wrap_z3_cached(Z3Solver::new_with_options(
+                    &GLOBAL_CONTEXT,
+                    self.timeout,
+                    self.unsat_core,
+                ))),
+                DynSolver::Z3Cacheless(..) => DynSolver::Z3Cacheless(wrap_solver(
+                    Z3Solver::new_with_options(&GLOBAL_CONTEXT, self.timeout, self.unsat_core),
+                )),
+                DynSolver::Vsa(..) => DynSolver::Vsa(wrap_solver(VSASolver::new(&GLOBAL_CONTEXT))),
+                DynSolver::Hybrid(..) => {
+                    DynSolver::Hybrid(wrap_solver(HybridSolver::new_with_options(
+                        &GLOBAL_CONTEXT,
+                        wrap_solver(VSASolver::new(&GLOBAL_CONTEXT)),
+                        wrap_z3_cached(Z3Solver::new_with_options(
+                            &GLOBAL_CONTEXT,
+                            self.timeout,
+                            self.unsat_core,
+                        )),
+                        self.inner.approximate_first(),
+                    )))
+                }
+                DynSolver::Replacement(..) => {
+                    DynSolver::Replacement(ReplacementSolver::new_with_options(
+                        wrap_z3_cached(Z3Solver::new_with_options(
+                            &GLOBAL_CONTEXT,
+                            self.timeout,
+                            self.unsat_core,
+                        )),
+                        self.inner.auto_replace(),
+                    ))
+                }
+                DynSolver::Composite(..) => DynSolver::Composite(CompositeSolver::new(
+                    &GLOBAL_CONTEXT,
+                    wrap_z3_cached(Z3Solver::new_with_options(
+                        &GLOBAL_CONTEXT,
+                        self.timeout,
+                        self.unsat_core,
+                    )),
+                )),
+            },
+            timeout: self.timeout,
+            unsat_core: self.unsat_core,
+        })
+    }
     /// Extract the `exact` Python kwarg into an `Option<bool>`.
     fn extract_exact(exact: Option<Bound<PyAny>>) -> Option<bool> {
         exact.and_then(|e| e.extract::<bool>().ok())
@@ -101,57 +176,6 @@ impl PySolver {
         }))
     }
 
-    fn blank_copy(&self) -> Result<PySolver, ClaripyError> {
-        Ok(PySolver {
-            inner: match &self.inner {
-                DynSolver::Concrete(..) => {
-                    DynSolver::Concrete(ConcreteSolver::new(&GLOBAL_CONTEXT))
-                }
-                DynSolver::Z3(..) => DynSolver::Z3(wrap_z3_cached(Z3Solver::new_with_options(
-                    &GLOBAL_CONTEXT,
-                    self.timeout,
-                    self.unsat_core,
-                ))),
-                DynSolver::Z3Cacheless(..) => DynSolver::Z3Cacheless(wrap_solver(
-                    Z3Solver::new_with_options(&GLOBAL_CONTEXT, self.timeout, self.unsat_core),
-                )),
-                DynSolver::Vsa(..) => DynSolver::Vsa(wrap_solver(VSASolver::new(&GLOBAL_CONTEXT))),
-                DynSolver::Hybrid(..) => {
-                    DynSolver::Hybrid(wrap_solver(HybridSolver::new_with_options(
-                        &GLOBAL_CONTEXT,
-                        wrap_solver(VSASolver::new(&GLOBAL_CONTEXT)),
-                        wrap_z3_cached(Z3Solver::new_with_options(
-                            &GLOBAL_CONTEXT,
-                            self.timeout,
-                            self.unsat_core,
-                        )),
-                        self.inner.approximate_first(),
-                    )))
-                }
-                DynSolver::Replacement(..) => {
-                    DynSolver::Replacement(ReplacementSolver::new_with_options(
-                        wrap_z3_cached(Z3Solver::new_with_options(
-                            &GLOBAL_CONTEXT,
-                            self.timeout,
-                            self.unsat_core,
-                        )),
-                        self.inner.auto_replace(),
-                    ))
-                }
-                DynSolver::Composite(..) => DynSolver::Composite(CompositeSolver::new(
-                    &GLOBAL_CONTEXT,
-                    wrap_z3_cached(Z3Solver::new_with_options(
-                        &GLOBAL_CONTEXT,
-                        self.timeout,
-                        self.unsat_core,
-                    )),
-                )),
-            },
-            timeout: self.timeout,
-            unsat_core: self.unsat_core,
-        })
-    }
-
     #[getter]
     fn constraints<'py>(&self, py: Python<'py>) -> Result<Vec<Bound<'py, Bool>>, ClaripyError> {
         self.inner
@@ -171,11 +195,28 @@ impl PySolver {
             .collect())
     }
 
+    fn blank_copy<'py>(slf: &Bound<'py, Self>) -> Result<Bound<'py, PySolver>, ClaripyError> {
+        let solver = slf.borrow().blank_copy_solver()?;
+        Self::wrap_like(slf, solver)
+    }
+
+    fn branch<'py>(slf: &Bound<'py, Self>) -> Result<Bound<'py, PySolver>, ClaripyError> {
+        let this = slf.borrow();
+        let solver = PySolver {
+            inner: this.inner.clone(),
+            timeout: this.timeout,
+            unsat_core: this.unsat_core,
+        };
+        drop(this);
+        Self::wrap_like(slf, solver)
+    }
+
     /// Split into one solver per independent (variable-connected) constraint
     /// group, like claripy's `constrained_frontend.split()`. Each returned
     /// solver is a blank copy of this one holding one group's constraints.
-    fn split<'py>(&mut self, py: Python<'py>) -> Result<Vec<Bound<'py, PySolver>>, ClaripyError> {
-        let constraints = self.inner.constraints()?;
+    fn split<'py>(slf: &Bound<'py, Self>) -> Result<Vec<Bound<'py, PySolver>>, ClaripyError> {
+        let this = slf.borrow();
+        let constraints = this.inner.constraints()?;
 
         // Group constraints by shared variables (transitively).
         let mut groups: Vec<(BTreeSet<InternedString>, Vec<AstRef<'static>>)> = Vec::new();
@@ -198,88 +239,26 @@ impl PySolver {
         groups
             .into_iter()
             .map(|(_, group_constraints)| {
-                let mut solver = self.inner.clone();
+                let mut solver = this.inner.clone();
                 solver.clear()?;
                 for constraint in &group_constraints {
                     solver.add(constraint)?;
                 }
-                Bound::new(
-                    py,
+                Self::wrap_like(
+                    slf,
                     PySolver {
                         inner: solver,
-                        timeout: self.timeout,
-                        unsat_core: self.unsat_core,
+                        timeout: this.timeout,
+                        unsat_core: this.unsat_core,
                     },
                 )
-                .map_err(ClaripyError::from)
             })
             .collect()
     }
 
-    fn branch<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PySolver>, ClaripyError> {
-        match &self.inner {
-            DynSolver::Concrete(concrete_solver) => Ok(Bound::new(
-                py,
-                PySolver {
-                    inner: DynSolver::Concrete(concrete_solver.clone()),
-                    timeout: self.timeout,
-                    unsat_core: self.unsat_core,
-                },
-            )?),
-            DynSolver::Z3(z3_solver) => Ok(Bound::new(
-                py,
-                PySolver {
-                    inner: DynSolver::Z3(z3_solver.clone()),
-                    timeout: self.timeout,
-                    unsat_core: self.unsat_core,
-                },
-            )?),
-            DynSolver::Z3Cacheless(z3_solver) => Ok(Bound::new(
-                py,
-                PySolver {
-                    inner: DynSolver::Z3Cacheless(z3_solver.clone()),
-                    timeout: self.timeout,
-                    unsat_core: self.unsat_core,
-                },
-            )?),
-            DynSolver::Vsa(vsasolver) => Ok(Bound::new(
-                py,
-                PySolver {
-                    inner: DynSolver::Vsa(vsasolver.clone()),
-                    timeout: self.timeout,
-                    unsat_core: self.unsat_core,
-                },
-            )?),
-            DynSolver::Hybrid(hybrid_solver) => Ok(Bound::new(
-                py,
-                PySolver {
-                    inner: DynSolver::Hybrid(hybrid_solver.clone()),
-                    timeout: self.timeout,
-                    unsat_core: self.unsat_core,
-                },
-            )?),
-            DynSolver::Replacement(replacement_solver) => Ok(Bound::new(
-                py,
-                PySolver {
-                    inner: DynSolver::Replacement(replacement_solver.clone()),
-                    timeout: self.timeout,
-                    unsat_core: self.unsat_core,
-                },
-            )?),
-            DynSolver::Composite(composite_solver) => Ok(Bound::new(
-                py,
-                PySolver {
-                    inner: DynSolver::Composite(composite_solver.clone()),
-                    timeout: self.timeout,
-                    unsat_core: self.unsat_core,
-                },
-            )?),
-        }
-    }
-
     #[pyo3(signature = (others, merge_conditions, common_ancestor = None))]
     fn merge<'py>(
-        &mut self,
+        slf: &Bound<'py, Self>,
         py: Python<'py>,
         others: Vec<Bound<'py, PySolver>>,
         merge_conditions: Vec<Bound<'py, Bool>>,
@@ -287,7 +266,7 @@ impl PySolver {
     ) -> Result<(bool, Bound<'py, PySolver>), ClaripyError> {
         let merged = if let Some(ancestor) = &common_ancestor {
             // Branch from common ancestor
-            let merged_bound = ancestor.borrow().branch(py)?;
+            let merged_bound = PySolver::branch(ancestor)?;
 
             // Add Or(*merge_conditions)
             let or_args: Vec<Bound<PyAny>> =
@@ -299,14 +278,13 @@ impl PySolver {
             merged_bound
         } else {
             // Create a blank copy
-            let merged_solver = self.blank_copy()?;
-            let merged_bound = Bound::new(py, merged_solver)?;
+            let merged_bound = PySolver::blank_copy(slf)?;
 
             // Build options: for each solver and merge condition, create And(condition, *constraints)
             let mut options = Vec::new();
 
             // Process self first
-            let self_constraints = self.constraints(py)?;
+            let self_constraints = slf.borrow().constraints(py)?;
             let mut self_and_args: Vec<Bound<PyAny>> = vec![merge_conditions[0].clone().into_any()];
             self_and_args.extend(self_constraints.into_iter().map(|c| c.into_any()));
             let self_and_expr = and(py, self_and_args)?;
@@ -331,7 +309,7 @@ impl PySolver {
 
         Ok((
             matches!(
-                self.inner,
+                slf.borrow().inner,
                 DynSolver::Z3(..)
                     | DynSolver::Z3Cacheless(..)
                     | DynSolver::Hybrid(..)
