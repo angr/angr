@@ -4,7 +4,7 @@ import logging
 import operator
 from collections import OrderedDict, defaultdict
 from collections.abc import Callable, Generator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import networkx
 
@@ -1032,7 +1032,11 @@ class ConditionProcessor:
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.Const):
-            var = claripy.BVV(condition.value, condition.bits)
+            if isinstance(condition.value, float) and condition.bits in (32, 64):
+                sort = claripy.FSORT_FLOAT if condition.bits == 32 else claripy.FSORT_DOUBLE
+                var = claripy.FPV(condition.value, sort).raw_to_bv()
+            else:
+                var = claripy.BVV(cast(int | bytes | str, condition.value), condition.bits)
             if condition.idx is not None:
                 # we do not want to lose track of this constant when it has idx
                 var = var.annotate(AILExprIdAnnotation())
