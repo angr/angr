@@ -4,7 +4,9 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import itertools
 import os
+import re
 import unittest
 from unittest import mock
 
@@ -14,19 +16,25 @@ from angr.ailment.block import Block
 from angr.ailment.expression import (
     Const,
     DirtyExpression,
+    Expression,
     Insert,
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import CAS, DirtyStatement, Jump, Store, WeakAssignment
-from angr.analyses.decompiler.structured_codegen.rust import RustExpression, RustStructuredCodeGenerator
+from angr.ailment.statement import CAS, DirtyStatement, Jump, Return, Store, WeakAssignment
+from angr.analyses.decompiler.structured_codegen.rust import (
+    RustExpression,
+    RustReturn,
+    RustStructuredCodeGenerator,
+)
 from angr.analyses.decompiler.structurer_nodes import (
     IncompleteSwitchCaseHeadStatement,
     IncompleteSwitchCaseNode,
     SequenceNode,
 )
+from angr.calling_conventions import SimComboArg
 from angr.rust.sim_type import RustSimTypeInt, RustSimTypeStrRef
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimTypeBottom, SimTypeFunction, SimTypeLongLong, SimTypeNum
 from tests.common import bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -206,6 +214,104 @@ class TestRustCodegenHandlers(unittest.TestCase):
         assert PLACEHOLDER not in text
         # the bit-insertions that used to be dropped are rendered now
         assert "_INSERT(" in text
+
+
+class TestRustMultiRegisterReturn(unittest.TestCase):
+    """A return value the calling convention splits across registers has to reach the Rust in one piece."""
+
+    # _handle memoizes on the AIL node, so every node any test builds needs an idx of its own
+    _idx = itertools.count(1)
+
+    @classmethod
+    def setUpClass(cls):
+        # any binary will do: we only need a constructed Rust code generator to drive the handler with
+        proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, show_progressbar=False)
+        dec = proj.analyses.Decompiler(proj.kb.functions["main"], cfg=cfg.model, flavor="rust")
+        assert isinstance(dec.codegen, RustStructuredCodeGenerator)
+        cls.codegen = dec.codegen
+
+    def setUp(self):
+        self._original_prototype = self.codegen._func.prototype
+
+    def tearDown(self):
+        self.codegen._func.prototype = self._original_prototype
+
+    def _set_returnty(self, returnty) -> None:
+        self.codegen._func.prototype = SimTypeFunction([], returnty)
+
+    def _render_return(self, *pieces: Expression) -> str:
+        stmt = Return(next(self._idx), list(pieces))
+        rendered = self.codegen._handle(stmt, is_expr=False)
+        assert isinstance(rendered, RustReturn)
+        return _render(rendered).strip()
+
+    def _const(self, value: int, bits: int) -> Const:
+        return Const(next(self._idx), value, bits, type=SimTypeNum(bits, signed=False))
+
+    def test_no_return_expression_is_a_bare_return(self):
+        assert self._render_return() == "return;"
+
+    def test_one_return_expression_is_unchanged(self):
+        assert self._render_return(self._const(1, 64)) == "return 1;"
+
+    def test_two_registers_are_concatenated_most_significant_first(self):
+        self._set_returnty(SimTypeNum(128, signed=True))
+        assert self._render_return(self._const(1, 64), self._const(2, 64)) == "return CONCAT(2, 1);"
+
+    def test_more_than_two_pieces_are_all_placed(self):
+        self._set_returnty(SimTypeNum(96, signed=True))
+        assert (
+            self._render_return(self._const(1, 32), self._const(2, 32), self._const(3, 32))
+            == "return CONCAT(3, CONCAT(2, 1));"
+        )
+
+    def test_a_fat_pointer_return_type_keeps_the_old_conservative_behaviour(self):
+        # a &str is a pointer beside a length, not a scalar with a high and a low half
+        self._set_returnty(RustSimTypeStrRef())
+        with self.assertLogs("angr.analyses.decompiler.structured_codegen.rust", level="WARNING"):
+            assert self._render_return(self._const(1, 64), self._const(2, 64)) == "return 1;"
+
+    def test_a_return_type_that_does_not_account_for_every_piece_keeps_the_old_behaviour(self):
+        self._set_returnty(SimTypeLongLong(signed=False))
+        with self.assertLogs("angr.analyses.decompiler.structured_codegen.rust", level="WARNING"):
+            assert self._render_return(self._const(1, 64), self._const(2, 64)) == "return 1;"
+
+    def test_a_missing_prototype_keeps_the_old_behaviour(self):
+        self.codegen._func.prototype = None
+        with self.assertLogs("angr.analyses.decompiler.structured_codegen.rust", level="WARNING"):
+            assert self._render_return(self._const(1, 64), self._const(2, 64)) == "return 1;"
+
+
+class TestRustMultiRegisterReturnEndToEnd(unittest.TestCase):
+    """The two-word value a Rust function returns in rax:rdx has to survive into the Rust."""
+
+    def test_a_two_word_rust_return_keeps_its_high_half(self):
+        # std::path::Path::file_stem is recovered with a 128-bit return type, so every return gets two
+        # expressions. All five used to render as rax alone: 0, v9, v10, v17, v9.
+        bin_path = os.path.join(test_location, "x86_64", "rust_hello_world")
+        func_addr = 0x4245A0
+        proj, cfg = load_project_with_scoped_cfg(bin_path, func_addr)
+        dec = proj.analyses.Decompiler(func_addr, cfg=cfg.model, flavor="rust")
+        assert dec.codegen is not None
+        print_decompilation_result(dec)
+
+        func = proj.kb.functions[func_addr]
+        prototype = func.prototype
+        assert prototype is not None and prototype.returnty is not None
+        assert prototype.returnty.size == 128
+        cc = func.calling_convention
+        assert cc is not None
+        return_val = cc.return_val(prototype.returnty)
+        assert isinstance(return_val, SimComboArg)
+        assert len(return_val.locations) == 2
+
+        # every return carries the second location's value instead of dropping it
+        text = dec.codegen.text or ""
+        returns = [line.strip() for line in text.splitlines() if line.strip().startswith("return ")]
+        assert len(returns) == 5
+        for line in returns:
+            assert re.match(r"^return CONCAT\(.+, .+\);$", line), line
 
 
 class TestRustStoreWidth(unittest.TestCase):
