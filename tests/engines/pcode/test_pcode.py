@@ -255,6 +255,22 @@ class TestPcodeEngine(TestCase):
         assert other_engine is not proj.factory.default_engine  # the factory really did hand out a second engine
         assert other_lifter is main_lifter
 
+    def test_arch_without_program_counter(self):
+        """
+        Test state construction on an architecture whose sleigh language declares no program counter
+        register, so there is no register for the instruction pointer to live in.
+        """
+        arch = archinfo.ArchPcode("Dalvik:LE:32:DEX_Nougat")
+
+        # The project only gives the states their architecture; nothing is lifted or decoded from its bytes.
+        p = angr.load_shellcode(
+            b"\x00" * 4, arch=arch, start_offset=0x1000, load_address=0x1000, engine=angr.engines.UberEnginePcode
+        )
+
+        for state in (p.factory.blank_state(), p.factory.blank_state(addr=0x1002), p.factory.entry_state()):
+            assert repr(state) == "<SimState @ ?>"
+            assert state.history.successor_ip is None
+
 
 if __name__ == "__main__":
     main()

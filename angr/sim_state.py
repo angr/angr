@@ -296,6 +296,12 @@ class SimState[IPTypeConc, IPTypeSym](PluginHub[SimStatePlugin]):
                 ip_str = repr(addr)
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
+        except TypeError:
+            # the architecture has no program counter register; on one that has it,
+            # the failure is real and stands.
+            if "ip" in self.arch.registers:
+                raise
+            ip_str = "?"
 
         return f"<SimState @ {ip_str}>"
 

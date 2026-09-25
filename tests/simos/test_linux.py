@@ -33,6 +33,17 @@ class TestSimLinuxStateBlank(unittest.TestCase):
 
         assert set(state.memory._pages) == set(range((sp - 0x20 * 0x1000) // 0x1000, sp // 0x1000))
 
+    def test_a_bad_address_still_raises(self):
+        """
+        state_blank() tolerates the instruction pointer store failing, because an architecture with
+        no program counter register has nowhere to put it. x86-64 has one, so a store that fails
+        here is the caller's mistake and must not be swallowed.
+        """
+        project = angr.Project(self.binary, auto_load_libs=False)
+
+        with self.assertRaises(TypeError):
+            project.factory.blank_state(addr=object())
+
     def test_stack_is_not_pre_grown_past_address_zero(self):
         project = angr.Project(self.binary, auto_load_libs=False)
 
