@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeGuard
 
 import capstone
 import networkx
+from cle import SymbolType
 
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
@@ -39,7 +40,7 @@ from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
 from angr.analyses.stack_pointer_tracker import OffsetVal, Register
-from angr.analyses.typehoon import Typehoon
+from angr.analyses.typehoon import Typehoon, typevars
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
 from angr.calling_conventions import (
@@ -78,6 +79,7 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypePointer,
     SimTypeShort,
+    TypeRef,
 )
 from angr.sim_variable import (
     SimComboRegisterVariable,
@@ -119,6 +121,7 @@ from .semantic_naming import SemanticNamingOrchestrator
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .stackarg_offset_manager import StackArgOffsetManager
+from .struct_union import pointer_to_layout, union_pointer_struct_types
 from .variable_map import VariableMap
 
 if TYPE_CHECKING:
@@ -2699,6 +2702,9 @@ class Clinic(Analysis, Serializable):
         tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
+        # seed known global object boundaries so that variable recovery can group accesses that fall inside the same
+        # global object (e.g. struct members) instead of splitting them apart.
+        self._seed_global_variables(tmp_kb)
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -2729,6 +2735,15 @@ class Clinic(Analysis, Serializable):
                 if arg_i < len(self.function.prototype.args):
                     for tv in vr.var_to_typevars[variable]:
                         groundtruth[tv] = self.function.prototype.args[arg_i]
+        else:
+            # a union struct that callers pushed into this function is not this function's own earlier guess: pin it,
+            # provided it still covers the layout this function's own accesses established, so that the fields other
+            # functions saw reach every value derived from the argument
+            for arg_i, (_, variable) in arg_vvars.items():
+                pushed = self._pushed_union_for_argument(arg_i)
+                if pushed is not None:
+                    for tv in vr.var_to_typevars[variable]:
+                        groundtruth[tv] = pushed
 
         # get maximum sizes of each stack variable, regardless of its original type
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
@@ -2794,6 +2809,13 @@ class Clinic(Analysis, Serializable):
                     },
                 )
                 self.typehoon = tp
+                # remember the layouts this function's own accesses give its arguments before any union or pin can
+                # rewrite them; they are the only evidence later unions may build on
+                self._record_own_argument_layouts(arg_vvars, var_manager)
+                # progressively unify partial struct layouts recovered for the same value across multiple callees, pin
+                # the combined type onto the caller-side value, and back-propagate it to the involved callees.
+                self._unify_callee_argument_structs(vr, var_manager, arg_vvars)
+                self._register_referenced_union_structs(var_manager, vr)
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
                     raise
@@ -2852,6 +2874,621 @@ class Clinic(Analysis, Serializable):
 
         return tmp_kb
 
+    @staticmethod
+    def _pointee_struct(ty) -> SimStruct | None:
+        """Return the struct a pointer points to (resolving TypeRefs), or None if it is not a pointer-to-struct."""
+        if not isinstance(ty, SimTypePointer):
+            return None
+        pts_to = ty.pts_to
+        seen = set()
+        while isinstance(pts_to, TypeRef) and id(pts_to) not in seen:
+            seen.add(id(pts_to))
+            pts_to = pts_to.ty
+        return pts_to if isinstance(pts_to, SimStruct) else None
+
+    @staticmethod
+    def _struct_of(ty) -> SimStruct | None:
+        """Return the struct a (possibly TypeRef-wrapped) type denotes by value, or None."""
+        seen = set()
+        while isinstance(ty, TypeRef) and id(ty) not in seen:
+            seen.add(id(ty))
+            ty = ty.ty
+        return ty if isinstance(ty, SimStruct) else None
+
+    def _global_object_view(self, variable, current) -> bool:
+        """
+        Whether ``current`` is this function's view of a global *object* (accessed by value): a struct, or a scalar
+        narrower than the object, which is then the member at offset 0 (a function that only touches the first
+        member sees the whole object as that scalar).
+        """
+        if current is None or isinstance(current, SimTypePointer):
+            return False
+        if self._struct_of(current) is not None:
+            return True
+        size = getattr(variable, "size", None)
+        try:
+            width = current.size // self.project.arch.byte_width if current.size else None
+        except Exception:  # pylint:disable=broad-except
+            return False
+        return width is not None and size is not None and size > width
+
+    @staticmethod
+    def _real_field_count(struct: SimStruct) -> int:
+        """Number of fields that are not padding. ``SimStruct.offsets`` counts padding entries too, which must not be
+        mistaken for evidence of a struct."""
+        return sum(1 for name in struct.fields if not name.startswith("padding_"))
+
+    @staticmethod
+    def _struct_layout_signature(struct: SimStruct) -> tuple | None:
+        """A name-independent signature of a struct's field layout, used to deduplicate identical layouts."""
+        try:
+            offsets = struct.offsets
+            sig = tuple(
+                sorted(
+                    (offset, fld_ty.c_repr() if hasattr(fld_ty, "c_repr") else repr(fld_ty))
+                    for fld_name, fld_ty in struct.fields.items()
+                    if not fld_name.startswith("padding_") and (offset := offsets.get(fld_name)) is not None
+                )
+            )
+        except Exception:  # pylint:disable=broad-except
+            return None
+        return sig or None
+
+    @property
+    def _own_arg_layouts(self) -> dict[tuple[int, int], SimType]:
+        """
+        Session-lifetime table of the argument types each decompiled function's *own* accesses imply, keyed by
+        (function address, argument index). Kept on the types store next to the union-struct registry (deliberately
+        not serialized). This is the only layout evidence argument-struct unions build on: reading a callee's current
+        prototype instead would feed an earlier union back into the next one, and contamination would compound across
+        functions.
+        """
+        table = getattr(self.kb.types, "_own_arg_layouts", None)
+        if table is None:
+            table = {}
+            self.kb.types._own_arg_layouts = table  # pylint:disable=protected-access
+        return table
+
+    @property
+    def _own_local_layouts(self) -> dict[tuple[int, int], list[SimType]]:
+        """
+        Session-lifetime table of the layouts a caller's own accesses give each local value it passes to callees,
+        keyed by (function address, SSA value id). Recorded the first time the value is unioned; later decompilations
+        of the same function see the local typed by the unions its callees carry and could no longer tell the
+        caller's own fields apart, so they reuse the record.
+        """
+        table = getattr(self.kb.types, "_own_local_layouts", None)
+        if table is None:
+            table = {}
+            self.kb.types._own_local_layouts = table  # pylint:disable=protected-access
+        return table
+
+    @property
+    def _pushed_arg_unions(self) -> dict[tuple[int, int], SimTypePointer]:
+        """
+        Session-lifetime table of the union structs back-propagated into functions' arguments, keyed by (function
+        address, argument index). The prototype itself is recomputed at the start of every decompilation, so this is
+        what lets a pushed union survive until the function is decompiled again.
+        """
+        table = getattr(self.kb.types, "_pushed_arg_unions", None)
+        if table is None:
+            table = {}
+            self.kb.types._pushed_arg_unions = table  # pylint:disable=protected-access
+        return table
+
+    def _pushed_union_for_argument(self, arg_idx: int) -> SimTypePointer | None:
+        """The union callers pushed into this function's argument, if it still covers the function's own layout."""
+        pushed = self._pushed_arg_unions.get((self.function.addr, arg_idx))
+        if pushed is None:
+            return None
+        union_struct = self._pointee_struct(pushed)
+        if union_struct is None or not self._is_minted_union_type(pushed):
+            return None
+        own_struct = self._pointee_struct(self._own_arg_layouts.get((self.function.addr, arg_idx)))
+        if own_struct is not None and not self._layout_covers(union_struct, own_struct):
+            return None
+        return pushed
+
+    def _global_manager(self):
+        return self.kb.dec_variables["global"]
+
+    @property
+    def _global_union_contributors(self) -> dict[int, set[tuple[int, int]]]:
+        """
+        Session-lifetime record of every (callee, argument) that ever received a global's content, keyed by the
+        global's address. Each function's Typehoon rewrites the global's stored type with its own view, so the union
+        is recomputed in every function that touches the global, from the views recorded for it, and pushed back to
+        all of these callees so they stay consistent.
+        """
+        table = getattr(self.kb.types, "_global_union_contributors", None)
+        if table is None:
+            table = {}
+            self.kb.types._global_union_contributors = table  # pylint:disable=protected-access
+        return table
+
+    @staticmethod
+    def _is_global_variable(variable) -> bool:
+        return isinstance(variable, SimMemoryVariable) and not isinstance(variable, SimStackVariable)
+
+    def _global_content_observations(self, observations) -> dict:
+        """
+        Observations keyed by the *content* of a global rather than by the global itself: an argument that is a load
+        from a global pointer carries the type variable ``base.load.<ptr bits>@0``, while variable recovery maps the
+        global variable to ``base``. Return a map from the base type variable to those observations.
+        """
+        out: dict = {}
+        bits = self.project.arch.bits
+        for tv, obs in observations.items():
+            if not isinstance(tv, typevars.DerivedTypeVariable) or len(tv.labels) != 2:
+                continue
+            load, field = tv.labels
+            if (
+                isinstance(load, typevars.Load)
+                and isinstance(field, typevars.HasField)
+                and field.offset == 0
+                and field.bits == bits
+            ):
+                out.setdefault(tv.type_var, []).extend(obs)
+        return out
+
+    def _minted_union_struct_names(self) -> set[str]:
+        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        return set(registry.values())
+
+    @property
+    def _union_struct_evidence(self) -> dict[str, list[SimType]]:
+        """
+        Session-lifetime provenance of every minted union struct: the direct layouts (recorded own-argument layouts
+        and callers' own accesses) it was built from, keyed by the struct's canonical name. When a later union meets
+        a minted struct, it expands it into these layouts instead of trusting or discarding it, so unions stay
+        transitive across callers while never taking an earlier union itself as evidence.
+        """
+        table = getattr(self.kb.types, "_union_struct_evidence", None)
+        if table is None:
+            table = {}
+            self.kb.types._union_struct_evidence = table  # pylint:disable=protected-access
+        return table
+
+    def _expand_union_evidence(self, ty) -> list[SimType]:
+        """The direct layouts behind a minted union struct type (empty when the struct has no recorded provenance)."""
+        struct = self._pointee_struct(ty)
+        if struct is None:
+            inner = ty.ty if isinstance(ty, TypeRef) else ty
+            struct = inner if isinstance(inner, SimStruct) else None
+        if struct is None:
+            return []
+        return list(self._union_struct_evidence.get(struct._name, ()))  # pylint:disable=protected-access
+
+    def _is_minted_union_type(self, ty) -> bool:
+        """Whether a (pointer-to-)struct type is one of the union structs minted by this decompiler session."""
+        struct = self._pointee_struct(ty)
+        if struct is None:
+            inner = ty.ty if isinstance(ty, TypeRef) else ty
+            struct = inner if isinstance(inner, SimStruct) else None
+        return struct is not None and struct._name in self._minted_union_struct_names()  # pylint:disable=protected-access
+
+    def _record_own_argument_layouts(self, arg_vvars, var_manager) -> None:
+        """
+        Record, for each argument, the type this function's own accesses gave it. An argument whose type was pinned to
+        a struct pointer through the prototype (a back-propagated union or a call-site constraint) carries no evidence
+        of its own, so an earlier record for it is kept and nothing new is written.
+        """
+        if not arg_vvars:
+            return
+        proto = self.function.prototype
+        pinned = proto is not None and self.function.is_prototype_groundtruth
+        for arg_idx, (_, variable) in arg_vvars.items():
+            if pinned and arg_idx < len(proto.args) and self._pointee_struct(proto.args[arg_idx]) is not None:
+                continue
+            if self._pushed_union_for_argument(arg_idx) is not None:
+                continue
+            ty = var_manager.get_variable_type(variable)
+            if ty is None or self._is_minted_union_type(ty):
+                continue
+            self._own_arg_layouts[(self.function.addr, arg_idx)] = ty
+
+    def _contributor_evidence(self, callee_addr: int, arg_idx: int, observed: SimType) -> list[SimType]:
+        """
+        The layouts a callee argument contributes to a union: the callee's own recorded layout when there is one,
+        otherwise the type observed at the call site, expanded into its provenance when it is itself a union struct.
+        """
+        own = self._own_arg_layouts.get((callee_addr, arg_idx))
+        if own is not None:
+            return [own]
+        if self._is_minted_union_type(observed):
+            return self._expand_union_evidence(observed)
+        return [observed]
+
+    def _caller_evidence(self, variable, current, arg_vvars, contaminated: set[int]) -> list[SimType]:
+        """
+        The layouts the caller's own accesses give a value. For the caller's own arguments this is the recorded own
+        layout. For a local already typed as a union struct it is that struct's provenance. For any other local it is
+        the inferred type minus any field that a union struct among the callee prototypes already carried, because
+        Typehoon copies callee prototype layouts into the locals passed to them.
+        """
+        if arg_vvars:
+            for arg_idx, (_, arg_var) in arg_vvars.items():
+                if arg_var is variable:
+                    own = self._own_arg_layouts.get((self.function.addr, arg_idx))
+                    return [own] if own is not None else []
+        if not isinstance(current, SimTypePointer):
+            return []
+        if self._is_minted_union_type(current):
+            return self._expand_union_evidence(current)
+        struct = self._pointee_struct(current)
+        if struct is None or not contaminated:
+            return [current]
+        offsets = struct.offsets
+        kept: dict[int, SimType] = {}
+        for fld_name, fld_ty in struct.fields.items():
+            if fld_name.startswith("padding_"):
+                continue
+            offset = offsets.get(fld_name)
+            if offset is None or offset in contaminated:
+                continue
+            kept[offset] = fld_ty
+        if not kept:
+            return []
+        return [pointer_to_layout(kept, self.project.arch)]
+
+    def _sanitize_union_struct_fields(self, union_struct: SimStruct) -> None:
+        """
+        Replace pointer-to-struct fields with ``void *`` unless they point to a struct minted by union
+        canonicalization. Field types are copied from callee prototype structs, whose nested struct references carry
+        per-function type names (struct_0, struct_1, ...); importing those into another function's output collides
+        with that function's own per-function names.
+        """
+        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        minted_names = set(registry.values())
+        for fld_name, fld_ty in list(union_struct.fields.items()):
+            nested = self._pointee_struct(fld_ty)
+            if nested is not None and nested._name not in minted_names:  # pylint:disable=protected-access
+                union_struct.fields[fld_name] = SimTypePointer(SimTypeBottom(label="void")).with_arch(self.project.arch)
+
+    def _canonicalize_union_struct(self, union_struct: SimStruct) -> TypeRef:
+        """
+        Return a project-wide canonical TypeRef for the given struct layout: reuse a previously-unioned struct with an
+        identical layout if one exists, otherwise register the given struct under a fresh unique name. This keeps
+        repeated unions of the same layout (across values, functions, and re-decompilations) from proliferating
+        duplicate typedefs. Only structs minted by this canonicalization are candidates for reuse — reusing
+        translator- or user-named structs by structural equality risks name collisions with per-function type names.
+        """
+        # session-lifetime registry of layouts we minted, kept on the types store (deliberately not serialized)
+        registry: dict[tuple, str] | None = getattr(self.kb.types, "_union_struct_layouts", None)
+        if registry is None:
+            registry = {}
+            self.kb.types._union_struct_layouts = registry  # pylint:disable=protected-access
+
+        signature = self._struct_layout_signature(union_struct)
+        if signature is not None and signature in registry:
+            existing_name = registry[signature]
+            if existing_name in self.kb.types:
+                existing = self.kb.types.get_own(existing_name)
+                if isinstance(existing.ty, SimStruct):
+                    return existing
+
+        # deterministic naming: kb.types.unique_type_name() falls back to random names once the fruit pool is
+        # exhausted, which would make decompilation output non-deterministic on binaries with many unioned structs
+        ctr = len(registry)
+        while f"ustruct_{ctr}" in self.kb.types:
+            ctr += 1
+        name = f"ustruct_{ctr}"
+        union_struct._name = name  # pylint:disable=protected-access
+        ref = TypeRef(name, union_struct).with_arch(self.project.arch)
+        self.kb.types[name] = ref
+        if signature is not None:
+            registry[signature] = name
+        return ref
+
+    def _register_referenced_union_structs(self, var_manager, vr=None) -> None:
+        """
+        Ensure canonical union structs referenced by this function's variable types or prototype are present in the
+        per-function type store, which the code generator emits typedefs from. Union structs are registered in the
+        project-wide ``kb.types`` when minted; without this, a function whose variables reference one (e.g. through a
+        back-propagated callee prototype) would use the type name without ever declaring it.
+        """
+        registry: dict[tuple, str] = getattr(self.kb.types, "_union_struct_layouts", None) or {}
+        minted_names = set(registry.values())
+        if not minted_names:
+            return
+        worklist: list = list(var_manager.variable_to_types.values())
+        if vr is not None:
+            global_manager = self._global_manager()
+            worklist += [global_manager.get_variable_type(v) for v in vr.var_to_typevars if self._is_global_variable(v)]
+        if self.function.prototype is not None:
+            worklist += list(self.function.prototype.args or ())
+            worklist.append(self.function.prototype.returnty)
+        # expression types come straight from the Typehoon solution (e.g. the type of a value stored into a field), so
+        # every solved type is a candidate as well
+        if self.typehoon is not None and self.typehoon.simtypes_solution:
+            worklist += list(self.typehoon.simtypes_solution.values())
+        # casts at call sites carry the callees' argument types, which may name union structs too
+        callgraph = self.kb.functions.callgraph
+        if self.function.addr in callgraph:
+            for callee_addr in callgraph.successors(self.function.addr):
+                if self.kb.functions.contains_addr(callee_addr):
+                    callee_proto = self.kb.functions.get_by_addr(callee_addr).prototype
+                    if callee_proto is not None:
+                        worklist += list(callee_proto.args or ())
+        # walk field types transitively: a union struct referenced only as the type of another struct's field still
+        # shows up in the output (e.g. as a cast on a field store) and needs its typedef
+        seen: set[int] = set()
+        while worklist:
+            ty = worklist.pop()
+            if ty is None:
+                continue
+            struct = self._pointee_struct(ty)
+            if struct is None:
+                inner = ty.ty if isinstance(ty, TypeRef) else ty
+                struct = inner if isinstance(inner, SimStruct) else None
+            if struct is None or id(struct) in seen:
+                continue
+            seen.add(id(struct))
+            name = struct._name  # pylint:disable=protected-access
+            if name in minted_names and name not in var_manager.types and name in self.kb.types:
+                var_manager.types[name] = self.kb.types.get_own(name)
+            worklist.extend(struct.fields.values())
+
+    @staticmethod
+    def _layouts_consistent(structs: list[SimStruct]) -> bool:
+        """
+        Whether several layouts describe the same object: at every offset that more than one layout populates the
+        fields must have the same size, and no field may start inside another layout's field.
+        """
+        spans: dict[int, int] = {}
+        for struct in structs:
+            offsets = struct.offsets
+            for name, fld_ty in struct.fields.items():
+                if name.startswith("padding_"):
+                    continue
+                offset = offsets.get(name)
+                if offset is None:
+                    continue
+                try:
+                    size = fld_ty.size // 8 if fld_ty.size else 1
+                except Exception:  # pylint:disable=broad-except
+                    size = 1
+                if offset in spans:
+                    if spans[offset] != size:
+                        return False
+                    continue
+                for other_off, other_size in spans.items():
+                    if other_off < offset < other_off + other_size or offset < other_off < offset + size:
+                        return False
+                spans[offset] = size
+        return True
+
+    def _union_of_evidence(self, candidates: list[SimType]) -> tuple[TypeRef, SimStruct] | None:
+        """Union candidate layouts into a canonical union struct, or None when the evidence does not make a struct."""
+        union = union_pointer_struct_types(candidates, self.project.arch)
+        union_struct = self._pointee_struct(union)
+        if union_struct is None:
+            return None
+        # only synthesize a struct when there is genuine multi-field evidence; a single field at one offset is just
+        # a scalar pointer (e.g. a char*), and turning it into a struct would clobber better scalar-pointer types.
+        if self._real_field_count(union_struct) < 2:
+            return None
+        # drop nested references to per-function-named structs: carrying e.g. a callee-local "struct_1 *" field
+        # into the caller collides with the caller's own per-function type names
+        self._sanitize_union_struct_fields(union_struct)
+        # reuse a project-wide canonical struct for this layout (or register a fresh one) so identical unions
+        # across values, functions, and re-decompilations share a single typedef
+        canonical_ref = self._canonicalize_union_struct(union_struct)
+        # remember what the struct was built from; a later union that meets it expands it into these layouts
+        provenance = self._union_struct_evidence.setdefault(canonical_ref.name, [])
+        known = {id(x) for x in provenance}
+        for layout in candidates:
+            if id(layout) not in known and not self._is_minted_union_type(layout):
+                provenance.append(layout)
+                known.add(id(layout))
+        return canonical_ref, union_struct
+
+    def _unify_callee_argument_structs(self, vr, var_manager, arg_vvars=None) -> None:
+        """
+        Progressively unify partial struct layouts recovered for the same caller value across multiple callees.
+
+        For each caller value that is passed as a pointer argument to one or more callees, union the layouts the
+        callees' own accesses imply (plus the layout the caller's own accesses imply) into a single struct, pin it onto
+        the caller value, and back-propagate the combined struct to the involved callees so subsequent decompilations
+        stay consistent and become progressively more complete. Only direct evidence is unioned: a struct minted by an
+        earlier union is never an input to the next one, so contamination cannot compound across functions.
+
+        Observations are grouped by the SSA value that reached the call site. Each value gets its own union and its
+        own back-propagation; the caller variable, which variable recovery may have shared between several values, is
+        only pinned when those per-value unions agree with each other.
+        """
+        # even a function that passes no pointer to any callee may touch a global whose layout other functions have
+        # already assembled, so there is no early exit on an empty observation set
+        observations = getattr(vr, "arg_struct_observations", None) or {}
+        arch = self.project.arch
+        global_content = self._global_content_observations(observations)
+        for variable, tvs in vr.var_to_typevars.items():
+            is_global = self._is_global_variable(variable)
+            groups: dict = {}
+            for tv in tvs:
+                observed_here = list(observations.get(tv, ()))
+                if is_global:
+                    # the value passed to callees is the global's content; every call site loads the same object
+                    observed_here += [(a, i, t, ("global", variable.addr)) for a, i, t, _ in global_content.get(tv, ())]
+                for callee_addr, arg_idx, simtype, value_id in observed_here:
+                    key = value_id if value_id is not None else ("tv", tv)
+                    group = groups.setdefault(key, {"observed": [], "contributors": [], "contaminated": set()})
+                    group["contributors"].append((callee_addr, arg_idx))
+                    if self._is_minted_union_type(simtype):
+                        # fields a previous union pushed into this callee are not evidence, and Typehoon has copied
+                        # them into the caller's local as well; remember them so the caller's own type can be cleaned
+                        pushed = self._pointee_struct(simtype)
+                        group["contaminated"].update(
+                            off for name, off in pushed.offsets.items() if not name.startswith("padding_")
+                        )
+                    group["observed"].extend(self._contributor_evidence(callee_addr, arg_idx, simtype))
+            type_manager = self._global_manager() if is_global else var_manager
+            current = type_manager.get_variable_type(variable)
+            # a global struct accessed by value: every function sees the members it touches; union the views the
+            # same way as for a pointer, with the object itself as the layout
+            by_value = (
+                is_global and self._pointee_struct(current) is None and self._global_object_view(variable, current)
+            )
+            if by_value:
+                current = SimTypePointer(self._struct_of(current) or current).with_arch(arch)
+            if is_global and (("global", variable.addr) in self._own_local_layouts or by_value):
+                # a global that took part in a union before: this function's view joins the recorded ones even when
+                # it passes the global to no callee, and the result goes back to every callee that ever received it
+                group = groups.setdefault(
+                    ("global", variable.addr), {"observed": [], "contributors": [], "contaminated": set()}
+                )
+                group["contributors"] += sorted(self._global_union_contributors.get(variable.addr, ()))
+            if not groups:
+                continue
+            unions: list[tuple[TypeRef, SimStruct, list[tuple[int, int]]]] = []
+            for key, group in groups.items():
+                candidates = list(group["observed"])
+                # include the layout the caller's own accesses imply so caller-side fields are preserved in the union
+                caller_evidence = self._caller_evidence(variable, current, arg_vvars, group["contaminated"])
+                if isinstance(key, int) or is_global:
+                    # keep the layouts seen for this value on earlier decompilations: once the local is typed by the
+                    # unions its callees carry, the caller's own fields can no longer be told apart from them. For a
+                    # global the record also keeps the callee-side views, since every function that touches the
+                    # global recomputes its union from this record alone.
+                    record_key = ("global", variable.addr) if is_global else (self.function.addr, key)
+                    recorded = self._own_local_layouts.setdefault(record_key, [])
+                    known = {id(x) for x in recorded}
+                    for layout in (caller_evidence + candidates) if is_global else caller_evidence:
+                        if id(layout) not in known:
+                            recorded.append(layout)
+                            known.add(id(layout))
+                    caller_evidence = list(recorded) if not is_global else []
+                    if is_global:
+                        candidates = list(recorded)
+                candidates.extend(caller_evidence)
+                if not candidates:
+                    continue
+                result = self._union_of_evidence(candidates)
+                if result is None:
+                    continue
+                canonical_ref, union_struct = result
+                unions.append((canonical_ref, union_struct, group["contributors"]))
+            if not unions:
+                continue
+
+            # each value's union goes back to the callees that saw that value
+            for canonical_ref, _, contributors in unions:
+                if is_global:
+                    self._global_union_contributors.setdefault(variable.addr, set()).update(contributors)
+                self._propagate_arg_struct_to_callees(contributors, SimTypePointer(canonical_ref).with_arch(arch))
+
+            # pin the caller variable only when every value it carried agrees on the layout
+            if len(unions) == 1:
+                canonical_ref, union_struct, _ = unions[0]
+            else:
+                if not self._layouts_consistent([us for _, us, _ in unions]):
+                    continue
+                result = self._union_of_evidence([SimTypePointer(us).with_arch(arch) for _, us, _ in unions])
+                if result is None:
+                    continue
+                canonical_ref, union_struct = result
+            union_ptr = SimTypePointer(canonical_ref).with_arch(arch)
+
+            # skip when what we have is already at least as detailed: either strictly more fields, or the same layout
+            # already canonicalized (equal field count under the canonical name)
+            current_struct = self._pointee_struct(current)
+            if current_struct is not None and (
+                self._real_field_count(current_struct) > self._real_field_count(union_struct)
+                or (
+                    self._real_field_count(current_struct) == self._real_field_count(union_struct)
+                    and current_struct._name == canonical_ref.name  # pylint:disable=protected-access
+                )
+            ):
+                continue
+
+            type_manager.set_variable_type(variable, canonical_ref if by_value else union_ptr, all_unified=True)
+
+    @staticmethod
+    def _layout_covers(big: SimStruct, small: SimStruct) -> bool:
+        """Whether every non-padding field of ``small`` exists in ``big`` at the same offset with at least its size."""
+
+        def sizes(struct: SimStruct) -> dict[int, int]:
+            offsets = struct.offsets
+            out: dict[int, int] = {}
+            for name, fld_ty in struct.fields.items():
+                if name.startswith("padding_") or offsets.get(name) is None:
+                    continue
+                try:
+                    out[offsets[name]] = fld_ty.size // 8 if fld_ty.size else 1
+                except Exception:  # pylint:disable=broad-except
+                    out[offsets[name]] = 1
+            return out
+
+        big_sizes = sizes(big)
+        return all(offset in big_sizes and big_sizes[offset] >= size for offset, size in sizes(small).items())
+
+    def _propagate_arg_struct_to_callees(self, contributors: list[tuple[int, int]], union_ptr: SimTypePointer) -> None:
+        """
+        Upgrade callee prototype argument types to the unioned struct. A callee's argument is only rewritten when the
+        union covers the layout the callee's own accesses imply: a union that lost one of the callee's fields (an
+        overlapping caller-side field, a different value) would otherwise be pinned onto the callee as ground truth
+        and take that field away from it.
+        """
+        union_struct = self._pointee_struct(union_ptr)
+        if union_struct is None:
+            return
+        for callee_addr, arg_idx in set(contributors):
+            if not self.kb.functions.contains_addr(callee_addr):
+                continue
+            callee = self.kb.functions.get_by_addr(callee_addr)
+            proto = callee.prototype
+            if proto is None or arg_idx >= len(proto.args):
+                continue
+            # never rewrite library, PLT, SimProcedure, signature-matched, or user-specified prototypes: a rewritten
+            # library prototype (e.g. strcmp) becomes ground truth for every later caller and spreads the struct to
+            # every string passed to it
+            if not callee.prototype_refinable:
+                continue
+            # never take a field away from the callee: the union must cover what its own accesses established
+            own_struct = self._pointee_struct(self._own_arg_layouts.get((callee_addr, arg_idx)))
+            if own_struct is not None and not self._layout_covers(union_struct, own_struct):
+                continue
+            # skip when the callee already has strictly more detail, or the exact same canonical struct; an
+            # equal-count layout under a different name is still rewritten so all contributors share one typedef
+            existing_struct = self._pointee_struct(proto.args[arg_idx])
+            if existing_struct is not None and (
+                self._real_field_count(existing_struct) > self._real_field_count(union_struct)
+                or (
+                    self._real_field_count(existing_struct) == self._real_field_count(union_struct)
+                    and existing_struct._name == union_struct._name  # pylint:disable=protected-access
+                )
+            ):
+                continue
+            self._pushed_arg_unions[(callee_addr, arg_idx)] = union_ptr
+            new_args = list(proto.args)
+            new_args[arg_idx] = union_ptr
+            callee.prototype = SimTypeFunction(
+                new_args, proto.returnty, arg_names=proto.arg_names, variadic=proto.variadic
+            ).with_arch(self.project.arch)
+
+    def _seed_global_variables(self, var_kb) -> None:
+        """
+        Seed the global variable manager of ``var_kb`` with the boundaries of known global data objects, so that
+        variable recovery groups accesses landing inside the same object (e.g. struct members) instead of creating one
+        synthetic global per accessed address.
+
+        Boundaries are taken from the object symbols of the main loaded object. Previously-inferred types are not copied
+        here; they are supplied to type inference as ground truth in :meth:`_recover_and_link_variables`.
+        """
+        global_manager = var_kb.variables["global"]
+
+        for symbol in self.project.loader.main_object.symbols:
+            if symbol.type != SymbolType.TYPE_OBJECT or not symbol.size:
+                continue
+            addr = symbol.rebased_addr
+            if global_manager.get_global_variables(addr):
+                continue
+            variable = SimMemoryVariable(
+                addr, symbol.size, name=symbol.name, ident=global_manager.next_variable_ident("global")
+            )
+            variable.renamed = True
+            global_manager.set_variable("global", addr, variable)
+
     def _set_expr_variable(self, expr, variable, offset) -> None:
         self.variable_map.set_variable(expr, variable, offset)
 
@@ -2891,7 +3528,10 @@ class Clinic(Analysis, Serializable):
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
                             var = _pick_var(variables)
-                            self._set_store_variable(stmt, var, 0)
+                            # the store may target a member in the middle of a wider global object (e.g. a struct
+                            # field); record the offset within the object so the field access renders correctly.
+                            field_offset = stmt.addr.value - var.addr if var.addr is not None else 0
+                            self._set_store_variable(stmt, var, field_offset)
                     else:
                         self._link_variables_on_expr(
                             variable_manager, global_variables, block, stmt_idx, stmt, stmt.addr
@@ -3106,7 +3746,10 @@ class Clinic(Analysis, Serializable):
                             global_vars = {global_var}
                 if global_vars:
                     global_var = _pick_var(global_vars)
-                    self._set_reference_variable(expr, global_var, 0)
+                    # the constant may point into the middle of a wider global object (e.g. a struct member); record the
+                    # offset within the object so that the code generator can emit the correct field/element access.
+                    field_offset = expr.value_int - global_var.addr if global_var.addr is not None else 0
+                    self._set_reference_variable(expr, global_var, field_offset)
                 else:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
