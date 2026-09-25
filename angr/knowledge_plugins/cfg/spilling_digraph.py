@@ -30,9 +30,122 @@ from .block_id import BlockID
 from .types import CFG_ADDR_TYPES, K
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
 
 l = logging.getLogger(__name__)
+
+
+class KeyFlagSet:
+    """
+    A set-like view over a shared ``{key: bitmask}`` dict, where this view owns a single bit.
+
+    Multiple spilling containers (the CFG node dict and the two adjacency dicts) track their spilled keys in one
+    shared dict; a key that is spilled by all of them costs a single dict entry instead of one set-table entry per
+    container. This is a memory optimization for the permanently-resident per-node bookkeeping of large CFGs.
+    """
+
+    __slots__ = ("_count", "bit", "flags")
+
+    def __init__(self, flags: dict[K, int] | None = None, bit: int = 1):
+        self.flags: dict[K, int] = {} if flags is None else flags
+        self.bit: int = bit
+        self._count: int = 0
+        if self.flags:
+            for v in self.flags.values():
+                if v & bit:
+                    self._count += 1
+
+    def add(self, key: K) -> None:
+        v = self.flags.get(key, 0)
+        if not v & self.bit:
+            self.flags[key] = v | self.bit
+            self._count += 1
+
+    def discard(self, key: K) -> None:
+        v = self.flags.get(key)
+        if v is None or not v & self.bit:
+            return
+        v &= ~self.bit
+        if v:
+            self.flags[key] = v
+        else:
+            del self.flags[key]
+        self._count -= 1
+
+    def clear(self) -> None:
+        if self._count:
+            bit = self.bit
+            flags = self.flags
+            for k in [k for k, v in flags.items() if v & bit]:
+                v = flags[k] & ~bit
+                if v:
+                    flags[k] = v
+                else:
+                    del flags[k]
+        self._count = 0
+
+    def __contains__(self, key: object) -> bool:
+        return bool(self.flags.get(key, 0) & self.bit)
+
+    def __iter__(self) -> Iterator[K]:
+        bit = self.bit
+        return (k for k, v in self.flags.items() if v & bit)
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __bool__(self) -> bool:
+        return self._count > 0
+
+
+class _SharedEmptyNodeAttrs(dict):
+    """
+    A shared, always-empty node-attribute dict. networkx stores one attribute dict per node; CFG graphs never carry
+    per-node attributes, so all nodes share a single immutable instance instead of paying for one empty dict each.
+    Mutation raises so that any accidental use of node attributes fails loudly instead of silently corrupting all
+    nodes.
+    """
+
+    __slots__ = ()
+
+    _ERR = "node attribute dicts of SpillingDiGraph are shared and immutable; store data on the CFGNode instead"
+
+    def __setitem__(self, key, value):
+        raise TypeError(self._ERR)
+
+    def __delitem__(self, key):
+        raise TypeError(self._ERR)
+
+    def update(self, *args, **kwargs):  # pylint:disable=arguments-differ
+        if (args and args[0]) or kwargs:
+            raise TypeError(self._ERR)
+
+    def setdefault(self, *args, **kwargs):  # pylint:disable=arguments-differ
+        raise TypeError(self._ERR)
+
+    def pop(self, *args, **kwargs):  # pylint:disable=arguments-differ
+        raise TypeError(self._ERR)
+
+    def popitem(self):
+        raise TypeError(self._ERR)
+
+    def clear(self):
+        pass
+
+    def copy(self):
+        return self
+
+    def __reduce__(self):
+        return (_shared_empty_node_attrs, ())
+
+
+_SHARED_EMPTY_NODE_ATTRS = _SharedEmptyNodeAttrs()
+
+
+def _shared_empty_node_attrs() -> _SharedEmptyNodeAttrs:
+    return _SHARED_EMPTY_NODE_ATTRS
 
 
 class DirtyDict[DK, DV](UserDict[DK, DV]):
@@ -77,12 +190,15 @@ class SpillingAdjDict(MutableMapping):
     ):
         self.addr_type: CFG_ADDR_TYPES = addr_type
         self._data: dict[K, DirtyDict[K, dict]] = {}
-        self._spilled_keys: set[K] = set()
+        self._spilled_keys: KeyFlagSet = KeyFlagSet()
 
         self._cache_limit: int = cache_limit
         self._db_batch_size: int = db_batch_size
 
         self.rtdb: RuntimeDb | None = rtdb
+        # optional callable that maps a block key to its canonical (interned) object, so that all containers of a
+        # spilling CFG share a single resident copy of each key
+        self.intern_key: Callable[[K], K] | None = None
 
         self._lru_order: OrderedDict[K, None] = OrderedDict()
 
@@ -112,6 +228,8 @@ class SpillingAdjDict(MutableMapping):
         raise KeyError(key)
 
     def __setitem__(self, key: K, value: DirtyDict[K, dict]) -> None:
+        if self.intern_key is not None:
+            key = self.intern_key(key)
         self._data[key] = value
         self._on_entry_stored(key)
 
@@ -359,6 +477,8 @@ class SpillingAdjDict(MutableMapping):
             offset += proto_len
 
             edge_data = SpillingAdjDict._deserialize_edge_data(proto_bytes)
+            if self.intern_key is not None:
+                dst_key = self.intern_key(dst_key)
             inner_dict[dst_key] = edge_data
         inner_dict.dirty = False
 
@@ -411,6 +531,8 @@ class SpillingAdjDict(MutableMapping):
 
                 inner_dict = self._deserialize_inner_dict(value)
 
+            if self.intern_key is not None:
+                key = self.intern_key(key)
             self._spilled_keys.discard(key)
             self._data[key] = inner_dict
             self._on_entry_stored(key)
@@ -447,6 +569,16 @@ class SpillingAdjDict(MutableMapping):
         with self._db_store_lock:
             self._evict_n(len(self._data))
 
+    def set_spill_flags(self, flags: dict[K, int], bit: int) -> None:
+        """
+        Re-home this container's spilled-key tracking onto a shared flags dict (see :class:`KeyFlagSet`),
+        migrating any currently-tracked spilled keys.
+        """
+        new_set = KeyFlagSet(flags, bit)
+        for key in self._spilled_keys:
+            new_set.add(key)
+        self._spilled_keys = new_set
+
     #
     #  Pickling
     #
@@ -471,7 +603,8 @@ class SpillingAdjDict(MutableMapping):
             # entries restored from a pickle have no LMDB backing store behind them; mark them dirty so that
             # they will be written out if they are ever evicted again (after an rtdb is re-attached)
             inner_dict.dirty = True
-        self._spilled_keys = set()
+        self._spilled_keys = KeyFlagSet()
+        self.intern_key = None
         self.rtdb = None
         self._lru_order = OrderedDict()
         self._edgesdb = None
@@ -532,6 +665,14 @@ class SpillingDiGraph(networkx.DiGraph):
     _pred: SpillingAdjDict
     _node: dict
 
+    # canonical-key mapper shared with the adjacency dicts; None until set_intern_key() is called.
+    # class-level default so that adjlist_outer_dict_factory() works during networkx's __init__.
+    _intern_key_fn: Callable[[K], K] | None = None
+
+    # CFG graphs never carry per-node attributes: all nodes share a single immutable empty attr dict instead of
+    # paying for one empty dict per node
+    node_attr_dict_factory = staticmethod(_shared_empty_node_attrs)
+
     def __init__(
         self,
         rtdb: RuntimeDb | None = None,
@@ -547,11 +688,21 @@ class SpillingDiGraph(networkx.DiGraph):
         super().__init__(**attr)
 
     def adjlist_outer_dict_factory(self) -> SpillingAdjDict:  # type:ignore
-        return SpillingAdjDict(self.addr_type, self._rtdb, self._edge_cache_limit, self._edge_db_batch_size)
+        d = SpillingAdjDict(self.addr_type, self._rtdb, self._edge_cache_limit, self._edge_db_batch_size)
+        d.intern_key = self._intern_key_fn
+        return d
 
     @staticmethod
     def adjlist_inner_dict_factory() -> DirtyDict:  # type:ignore
         return DirtyDict(dirty=True)
+
+    def set_intern_key(self, intern_key: Callable[[K], K] | None) -> None:
+        """Set the canonical-key mapper on this graph and its adjacency containers."""
+        self._intern_key_fn = intern_key
+        if isinstance(self._adj, SpillingAdjDict):
+            self._adj.intern_key = intern_key
+        if isinstance(self._pred, SpillingAdjDict):
+            self._pred.intern_key = intern_key
 
     @property
     def addr_type(self) -> CFG_ADDR_TYPES:

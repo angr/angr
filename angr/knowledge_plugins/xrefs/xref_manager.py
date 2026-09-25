@@ -8,6 +8,7 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import xrefs_pb2
 from angr.serializable import Serializable
 
+from .spilling_xref import SpillingXrefDict, SpillingXrefDstIndex
 from .xref import XRef, XRefType
 
 l = logging.getLogger(name=__name__)
@@ -38,18 +39,44 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
     def __init__(self, kb):
         super().__init__(kb=kb)
 
-        self.xrefs_by_ins_addr = XrefDict()
-        self.xrefs_by_dst = XrefDict()
+        rtdb = kb.rtdb if kb is not None else None
+        if kb is not None and getattr(kb, "_project", None) is not None:
+            self._xrefs_cache_limit = kb._project.get_xrefs_cache_limit()
+        else:
+            self._xrefs_cache_limit = None
+
+        # xrefs_by_ins_addr is the single owner of all XRef objects; xrefs_by_dst only records the
+        # referencing instruction addresses so that evicting an owner entry actually frees its XRefs.
+        self.xrefs_by_ins_addr, self.xrefs_by_dst = self._new_indexes(rtdb)
+
+    def _new_indexes(self, rtdb) -> tuple[SpillingXrefDict, SpillingXrefDstIndex]:
+        owner = SpillingXrefDict(rtdb, cache_limit=self._xrefs_cache_limit, db_name="xrefs_by_ins")
+        dst_index = SpillingXrefDstIndex(rtdb, owner=owner, cache_limit=self._xrefs_cache_limit)
+        return owner, dst_index
+
+    def set_kb(self, kb):
+        super().set_kb(kb)
+        # re-attach the RuntimeDb after unpickling so that xref spilling works again
+        rtdb = kb.rtdb
+        self.xrefs_by_ins_addr.set_rtdb(rtdb)
+        self.xrefs_by_dst.set_rtdb(rtdb)
+        self.xrefs_by_dst.set_owner(self.xrefs_by_ins_addr)
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # the dst index does not pickle its owner reference; re-attach it
+        self.xrefs_by_dst.set_owner(self.xrefs_by_ins_addr)
 
     def copy(self):
         xm = XRefManager(self._kb)
         xm.xrefs_by_ins_addr = self.xrefs_by_ins_addr.copy()
         xm.xrefs_by_dst = self.xrefs_by_dst.copy()
+        xm.xrefs_by_dst.set_owner(xm.xrefs_by_ins_addr)
         return xm
 
     def clear(self):
-        self.xrefs_by_ins_addr = XrefDict()
-        self.xrefs_by_dst = XrefDict()
+        rtdb = self._kb.rtdb if self._kb is not None else None
+        self.xrefs_by_ins_addr, self.xrefs_by_dst = self._new_indexes(rtdb)
 
     def add_xref(self, xref):
         to_remove = set()
@@ -64,12 +91,11 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
 
         d0 = self.xrefs_by_ins_addr[xref.ins_addr]
         d0.add(xref)
-        d1 = self.xrefs_by_dst[xref.dst]
-        d1.add(xref)
+        self.xrefs_by_dst.add_ref(xref.dst, xref.ins_addr)
 
         for ex in to_remove:
+            # the dst-index entry stays: the replacing xref has the same (ins_addr, dst)
             d0.discard(ex)
-            d1.discard(ex)
 
     def add_xrefs(self, xrefs):
         for xref in xrefs:
@@ -112,14 +138,24 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
     def _get_cmsg(cls):
         return xrefs_pb2.XRefs()
 
+    def _lookup_cfg_model(self):
+        """Find the CFG model whose memory_data map describes the xref targets (for serialization)."""
+        if self._kb is not None and "CFGFast" in self._kb.cfgs:
+            return self._kb.cfgs["CFGFast"]
+        return None
+
     def serialize_to_cmessage(self):
         # pylint:disable=no-member
         cmsg = self._get_cmsg()
+        cfg_model = self._lookup_cfg_model()
         # references
         refs = []
         for ref_set in self.xrefs_by_ins_addr.values():
             for ref in ref_set:
-                refs.append(ref.serialize_to_cmessage())
+                md = None
+                if cfg_model is not None and isinstance(ref.dst, int):
+                    md = cfg_model.memory_data.get(ref.dst)
+                refs.append(ref.serialize_to_cmessage(memory_data=md))
         cmsg.xrefs.extend(refs)
         return cmsg
 
@@ -134,8 +170,6 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
                 l.warning("Unknown address of the referenced data item. Ignore the reference at %#x.", xref_pb2.ea)
                 continue
             xref = XRef.parse_from_cmessage(xref_pb2, bits=bits)
-            if cfg_model is not None and isinstance(xref.dst, int):
-                xref.memory_data = cfg_model.memory_data.get(xref.dst, None)
             model.add_xref(xref)
 
         return model
