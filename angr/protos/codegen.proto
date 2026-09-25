@@ -74,6 +74,17 @@ enum CConstructKind {
     CCK_VEX_CCALL_EXPRESSION = 33;
     CCK_DIRTY_EXPRESSION = 34;
     CCK_VECTOR_CONVERT = 35;
+    // Rust-flavor-only nodes. Every other kind above is shared: it names the C class and its Rust counterpart, and
+    // Codegen.flavor selects which family a node table belongs to.
+    CCK_RUST_LET = 36;
+    CCK_RUST_IF_LET = 37;
+    CCK_RUST_PATTERN_MATCH = 38;
+    CCK_RUST_STRUCT = 39;
+    CCK_RUST_ENUM = 40;
+    CCK_RUST_ARRAY = 41;
+    CCK_RUST_STRING_LITERAL = 42;
+    CCK_RUST_FUNCTION_LIKE_MACRO = 43;
+    CCK_RUST_INFINITE_LOOP = 44;
 }
 
 // =====================================================================================================================
@@ -351,6 +362,121 @@ message CVectorConvertMsg {
 }
 
 // =====================================================================================================================
+// Rust-flavor node payloads. Rust nodes reuse the messages above wherever the payload matches; these cover the
+// classes whose payload differs and the Rust-only node types.
+// =====================================================================================================================
+
+// An enum variant bound by a pattern (angr.rust.sim_type.EnumVariant).
+message RustEnumVariantMsg {
+    string name = 1;
+    repeated RustEnumVariantField fields = 2;
+    optional int64 discriminant = 3;
+    optional uint32 discriminant_size = 4;
+}
+
+message RustEnumVariantField {
+    uint32 type_ref = 1;                          // index+1 into Codegen.type_pool
+    optional string name = 2;
+}
+
+// RustFunctionCall: CFunctionCallMsg plus the Rust-only call state.
+message RustFunctionCallMsg {
+    oneof callee_target {
+        int64 callee_target_int = 1;
+        string callee_target_str = 2;
+        uint32 callee_target_expr_id = 3;
+    }
+    optional uint64 callee_func_addr = 4;
+    repeated uint32 args_ids = 5;
+    bool returning = 6;
+    uint32 ret_expr_id = 7;
+    uint32 receiver_id = 8;
+    bool is_expr = 9;
+    uint32 callsite_prototype_ref = 10;           // index+1 into Codegen.type_pool
+    // show_demangled_name / show_disambiguated_name live in Codegen.node_config, as for CFunctionCall.
+}
+
+// RustLabel: CLabelMsg plus the source location the Rust renderer prints.
+message RustLabelMsg {
+    string name = 1;
+    optional uint64 ins_addr = 2;
+    optional uint32 block_idx = 3;
+}
+
+// RustLet (ailment-coupled): the bound variant is looked up in the VariableMap by the Let's idx.
+message RustLetMsg {
+    bytes let_expr = 1;                           // ailment Let.to_bytes()
+}
+
+// A pattern: an enum variant plus the expressions its fields are bound to.
+message RustPatternMsg {
+    RustEnumVariantMsg variant = 1;
+    repeated uint32 bound_ids = 2;
+}
+
+message RustIfLetMsg {
+    RustPatternMsg pattern = 1;
+    uint32 scrutinee_id = 2;
+    uint32 true_node_id = 3;
+    uint32 false_node_id = 4;
+}
+
+message RustPatternMatchArm {
+    RustPatternMsg pattern = 1;
+    uint32 body_id = 2;
+}
+
+message RustPatternMatchMsg {
+    uint32 scrutinee_id = 1;
+    repeated RustPatternMatchArm arms = 2;
+    uint32 default_id = 3;
+}
+
+message RustStructFieldEntry {
+    int64 offset = 1;
+    uint32 value_id = 2;
+}
+
+message RustStructNameEntry {
+    int64 offset = 1;
+    string name = 2;
+}
+
+message RustStructMsg {
+    optional string name = 1;
+    repeated RustStructFieldEntry fields = 2;      // offset -> RustExpression, insertion-ordered
+    repeated RustStructNameEntry field_names = 3;  // offset -> field name
+    bool has_field_names = 4;
+}
+
+message RustEnumMsg {
+    optional string name = 1;
+    repeated uint32 fields_ids = 2;
+}
+
+message RustArrayMsg {
+    repeated uint32 elements_ids = 1;
+}
+
+message RustStringLiteralMsg {
+    bytes data = 1;
+    bool data_is_str = 2;                          // data was a str, not bytes
+}
+
+// RustFunctionLikeMacro. ``args`` are ailment expressions: the renderer lowers them through the live codegen.
+message RustFunctionLikeMacroMsg {
+    string name = 1;
+    repeated bytes args = 2;                       // ailment Expression.to_bytes()
+    repeated string delimiter = 3;
+    bool is_expr = 4;
+    uint32 returnty_ref = 5;                       // index+1 into Codegen.type_pool
+}
+
+message RustInfiniteLoopMsg {
+    uint32 body_id = 1;
+}
+
+// =====================================================================================================================
 // Polymorphic CConstruct wrapper
 // =====================================================================================================================
 
@@ -399,6 +525,17 @@ message CConstructNode {
         CVEXCCallExpressionMsg cvex_ccall = 132;
         CDirtyExpressionMsg cdirty_expr = 133;
         CVectorConvertMsg cvector_convert = 134;
+        RustFunctionCallMsg rust_funcall = 135;
+        RustLabelMsg rust_label = 136;
+        RustLetMsg rust_let = 137;
+        RustIfLetMsg rust_if_let = 138;
+        RustPatternMatchMsg rust_pattern_match = 139;
+        RustStructMsg rust_struct = 140;
+        RustEnumMsg rust_enum = 141;
+        RustArrayMsg rust_array = 142;
+        RustStringLiteralMsg rust_string_literal = 143;
+        RustFunctionLikeMacroMsg rust_macro = 144;
+        RustInfiniteLoopMsg rust_infinite_loop = 145;
     }
 }
 
@@ -440,7 +577,7 @@ message AstToPosEntry {
 
 // map_addr_to_label: dict[tuple[int, int | None], CLabel]
 message AddrToLabelEntry {
-    int64 addr = 1;
+    optional int64 addr = 1;                      // absent means None (Rust labels may have no address)
     optional int32 idx = 2;                       // tuple's second element (block_idx); absent means None
     uint32 label_id = 3;                          // CLabel node_id
 }
