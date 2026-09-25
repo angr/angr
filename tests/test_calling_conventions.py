@@ -12,7 +12,9 @@ import archinfo
 
 from angr import Project, calling_conventions, load_shellcode, types
 from angr.calling_conventions import (
+    SimArrayArg,
     SimCC,
+    SimCCCdecl,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
@@ -21,6 +23,7 @@ from angr.calling_conventions import (
     SimCCN64,
     SimCCN64LinuxSyscall,
     SimCCRISCV64,
+    SimCCStdcall,
     SimCCSystemVAMD64,
     SimReferenceArgument,
     SimRegArg,
@@ -37,6 +40,7 @@ from angr.sim_type import (
     SimCppClass,
     SimStruct,
     SimStructValue,
+    SimTypeArray,
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
@@ -425,6 +429,57 @@ class TestCallingConvention(TestCase):
             n32 = self._mips_int_arg_locs(SimCCN32LinuxSyscall, archinfo.ArchMIPSN32(endness), args)
             n64 = self._mips_int_arg_locs(SimCCN64LinuxSyscall, archinfo.ArchMIPS64(endness), args)
             assert n32 == n64, f"{endness}: n32 {n32} != n64 {n64}"
+
+    def test_x86_cdecl_array_and_union_return(self):
+        arch = archinfo.arch_from_id("x86")
+        conventions = (SimCCCdecl(arch), SimCCMicrosoftCdecl(arch), SimCCStdcall(arch))
+
+        exact = SimTypeArray(SimTypeInt(), 2).with_arch(arch)
+        large = SimTypeArray(SimTypeInt(), 8).with_arch(arch)
+        pair = SimStruct({"a": SimTypeInt(), "b": SimTypeInt()}, name="pair").with_arch(arch)
+        big = SimStruct({f"f{i}": SimTypeInt() for i in range(8)}, name="big8").with_arch(arch)
+        union = SimUnion({"i": SimTypeInt(), "p": SimTypePointer(SimTypeChar())}, name="u").with_arch(arch)
+
+        # Microsoft cdecl and stdcall return an eight-byte array in EAX:EDX, like an equal-sized struct.
+        for cc in conventions[1:]:
+            exact_ret = cc.return_val(exact)
+            pair_ret = cc.return_val(pair)
+            assert isinstance(exact_ret, SimArrayArg)
+            assert pair_ret is not None
+            assert set(exact_ret.get_footprint()) == set(pair_ret.get_footprint())
+            assert cc.return_in_implicit_outparam(exact) is False
+
+        # Every convention uses its existing struct rule for a larger array, including reserving the
+        # hidden return pointer before placing the declared arguments.
+        for cc in conventions:
+            large_ret = cc.return_val(large)
+            big_ret = cc.return_val(big)
+            assert isinstance(large_ret, SimReferenceArgument)
+            assert isinstance(big_ret, SimReferenceArgument)
+            assert large_ret.ptr_loc == big_ret.ptr_loc == SimStackArg(0, 4)
+            assert cc.return_in_implicit_outparam(large) is True
+
+            array_proto = SimTypeFunction([SimTypeInt(), SimTypeInt()], large).with_arch(arch)
+            struct_proto = SimTypeFunction([SimTypeInt(), SimTypeInt()], big).with_arch(arch)
+            assert [list(loc.get_footprint()) for loc in cc.arg_locs(array_proto)] == [
+                list(loc.get_footprint()) for loc in cc.arg_locs(struct_proto)
+            ]
+
+            # A union is placed like its widest member, as the layout helper already does.
+            union_ret = cc.return_val(union)
+            int_ret = cc.return_val(SimTypeInt().with_arch(arch))
+            assert union_ret is not None
+            assert int_ret is not None
+            assert set(union_ret.get_footprint()) == set(int_ret.get_footprint())
+
+            # Arrays without a concrete layout stay on the named aggregate-refusal path instead of
+            # reaching the layout helper with a zero or unknown size.
+            incomplete = SimTypeArray(SimTypeChar(), None).with_arch(arch)
+            unsized = SimTypeArray(SimTypeBottom(), 2).with_arch(arch)
+            for unrepresentable in incomplete, unsized:
+                with self.assertRaises(AngrTypeError):
+                    cc.return_val(unrepresentable)
+                assert cc.return_in_implicit_outparam(unrepresentable) is False
 
     def test_microsoft_fastcall_aggregate_return(self):
         # Regression test: __fastcall changes how arguments are passed, not how values are returned.

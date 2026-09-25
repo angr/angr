@@ -1454,7 +1454,7 @@ class SimCCCdecl(SimCC):
     def return_val(self, ty, perspective_returned=False):
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
-        if not isinstance(ty, SimStruct):
+        if not self._returns_aggregate_by_value(ty):
             return super().return_val(ty, perspective_returned)
 
         if ty.size > self.STRUCT_RETURN_THRESHOLD:
@@ -1468,10 +1468,18 @@ class SimCCCdecl(SimCC):
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
 
+    @staticmethod
+    def _returns_aggregate_by_value(ty) -> bool:
+        # SimCC refuses these aggregate kinds so that each convention supplies its own ABI layout.
+        # An incomplete array or an array of unsized elements has no ABI layout.
+        if isinstance(ty, SimTypeArray):
+            return ty.length is not None and ty.size is not None
+        return isinstance(ty, (SimStruct, SimUnion))
+
     def return_in_implicit_outparam(self, ty):
         if isinstance(ty, SimTypeBottom):
             return False
-        return isinstance(ty, SimStruct) and ty.size > self.STRUCT_RETURN_THRESHOLD
+        return self._returns_aggregate_by_value(ty) and ty.size > self.STRUCT_RETURN_THRESHOLD
 
 
 class SimCCMicrosoftCdecl(SimCCCdecl):
