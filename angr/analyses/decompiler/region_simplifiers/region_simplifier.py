@@ -185,8 +185,8 @@ class RegionSimplifier(Analysis):
 
             if isinstance(definition, ailment.Stmt.SideEffectStatement):
                 # clear the existing variable since we no longer write to this variable after expression folding.
-                # deep_copy the ret_expr so it gets a fresh .idx; otherwise clearing its VariableMap entry (which is
-                # idx-keyed) would also clear the variable of the original ret_expr, which shares the same .idx.
+                # deep_copy the ret_expr so it gets a fresh .idx; otherwise clearing its occurrence-specific
+                # VariableMap entry would also clear the original ret_expr, whose occurrence key shares the same .idx.
                 definition = definition.copy()
                 if definition.ret_expr is not None:
                     definition.ret_expr = definition.ret_expr.deep_copy(self.ail_manager)
