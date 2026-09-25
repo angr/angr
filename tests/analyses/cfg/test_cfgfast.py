@@ -1195,6 +1195,20 @@ class TestCfgfast(unittest.TestCase):
         assert node_1 is None  # this overlapping node is currently removed, but maybe we want to keep it?
         # assert node_1.instruction_addrs == [0x21514B690C, 0x21514B690E, 0x21514B690F]
 
+    def test_arm_nodes_inserted_by_an_edge_stay_indexed(self):
+        # a node reaches the graph through add_node() or through add_edge(), and get_any_node() has to answer for
+        # it either way. the windowed region holds no call edge, which is what makes
+        # _remove_redundant_overlapping_blocks dereference that lookup instead of skipping past it
+        path = os.path.join(test_location, "armel", "dbus-cleanup-sockets_stripped")
+        whole = angr.Project(path, auto_load_libs=False).analyses.CFGFast()
+        windowed = angr.Project(path, auto_load_libs=False).analyses.CFGFast(regions=[(0x1025E, 0x10288)])
+
+        for cfg in (whole, windowed):
+            node_addrs = {node.addr for node in cfg.model.nodes() if isinstance(node.addr, int)}
+            assert node_addrs, "CFGFast returned an empty CFG"
+            for addr in node_addrs:
+                assert cfg.model.get_any_node(addr) is not None, f"no CFG node at {addr:#x} in the index"
+
 
 if __name__ == "__main__":
     unittest.main()
