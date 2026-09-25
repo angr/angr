@@ -1,4 +1,4 @@
-# pylint:disable=unused-argument,arguments-differ
+# pylint:disable=unused-argument,arguments-differ,no-self-use
 from __future__ import annotations
 
 import logging
@@ -24,19 +24,19 @@ class IfSimplifier(SequenceWalker):
 
     def __init__(self, node):
         handlers = {
-            SequenceNode: self._handle_sequencenode,
-            CodeNode: self._handle_codenode,
-            MultiNode: self._handle_multinode,
-            LoopNode: self._handle_loopnode,
-            ConditionNode: self._handle_conditionnode,
-            CascadingConditionNode: self._handle_cascadingconditionnode,
+            SequenceNode: self._walk_sequencenode,
+            CodeNode: self._walk_codenode,
+            MultiNode: self._walk_multinode,
+            LoopNode: self._walk_loopnode,
+            ConditionNode: self._walk_conditionnode,
+            CascadingConditionNode: self._walk_cascadingconditionnode,
             ailment.Block: self._handle_block,
         }
 
         super().__init__(handlers)
         self.walk(node)
 
-    def _handle_sequencenode(self, node, successor=None, **kwargs):
+    def _walk_sequencenode(self, node, successor=None, **kwargs):
         """
 
         :param SequenceNode node:
@@ -44,18 +44,18 @@ class IfSimplifier(SequenceWalker):
         """
 
         for n0, n1 in zip(node.nodes, [*node.nodes[1:], successor]):
-            self._handle(n0, successor=n1)
+            yield n0, {"successor": n1}
 
-    def _handle_codenode(self, node, successor=None, **kwargs):
+    def _walk_codenode(self, node, successor=None, **kwargs):
         """
 
         :param CodeNode node:
         :return:
         """
 
-        self._handle(node.node, successor=successor)
+        yield node.node, {"successor": successor}
 
-    def _handle_conditionnode(self, node, successor=None, **kwargs):
+    def _walk_conditionnode(self, node, successor=None, **kwargs):
         """
 
         :param ConditionNode node:
@@ -64,17 +64,17 @@ class IfSimplifier(SequenceWalker):
         """
 
         if node.true_node is not None:
-            self._handle(node.true_node, successor=successor)
+            yield node.true_node, {"successor": successor}
         if node.false_node is not None:
-            self._handle(node.false_node, successor=successor)
+            yield node.false_node, {"successor": successor}
 
-    def _handle_cascadingconditionnode(self, node: CascadingConditionNode, successor=None, **kwargs):
+    def _walk_cascadingconditionnode(self, node: CascadingConditionNode, successor=None, **kwargs):
         for _, child_node in node.condition_and_nodes:
-            self._handle(child_node, successor=successor)
+            yield child_node, {"successor": successor}
         if node.else_node is not None:
-            self._handle(node.else_node, successor=successor)
+            yield node.else_node, {"successor": successor}
 
-    def _handle_loopnode(self, node, successor=None, **kwargs):
+    def _walk_loopnode(self, node, successor=None, **kwargs):
         """
 
         :param LoopNode node:
@@ -82,9 +82,9 @@ class IfSimplifier(SequenceWalker):
         :return:
         """
 
-        self._handle(node.sequence_node, successor=successor)
+        yield node.sequence_node, {"successor": successor}
 
-    def _handle_multinode(self, node, successor=None, **kwargs):
+    def _walk_multinode(self, node, successor=None, **kwargs):
         """
 
         :param MultiNode node:
@@ -92,9 +92,9 @@ class IfSimplifier(SequenceWalker):
         """
 
         for n0, n1 in zip(node.nodes, [*node.nodes[1:], successor]):
-            self._handle(n0, successor=n1)
+            yield n0, {"successor": n1}
 
-    def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use
+    def _handle_block(self, block, successor=None, **kwargs):
         """
         Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards.
 
