@@ -51,6 +51,18 @@ class TestConditionProcessor(TestCase):
         cmp = BinaryOp(5, "CmpEQ", [_vvar(6, 32, 16), _vvar(7, 64, 24)], False, bits=1)
         assert cp.claripy_ast_from_ail_condition(cmp) is not None
 
+    def test_one_bit_arithmetic_operands_stay_bitvectors(self):
+        # a 1-bit second operand converted to a claripy Bool, which the arithmetic operation widened to
+        # If(bool, 1, 0); nothing maps If back to AIL, so the conversion raised and the function decompiled empty
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        operand0 = Convert(0, 8, 1, False, _vvar(1, 8, 16))
+        operand1 = Convert(2, 8, 1, False, _vvar(3, 8, 24))
+        add = BinaryOp(4, "Add", [operand0, operand1], False, bits=1)
+        ast = cp.claripy_ast_from_ail_condition(add)
+        assert [arg.op for arg in ast.args] == ["BVS", "BVS"]
+        assert str(cp.convert_claripy_bool_ast(ast)) == f"({operand0} Add {operand1})"
+
     def test_signed_comparisons_map_to_signed_claripy_operations(self):
         arch = archinfo.ArchAMD64()
         cp = ConditionProcessor(arch, ailment.Manager())
