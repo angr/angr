@@ -1365,12 +1365,16 @@ class VariableManagerInternal(Serializable):
                 congruence_classes[v] = canon_partition
 
         if interference is not None:
-            # unify variables based on phi nodes
+            # unify variables based on phi nodes. a phi's sub-variables are whatever the merged values
+            # named, which is not always a variable of this function: make_phi_node() absorbs the
+            # variables of a later merge into an existing phi, so a register phi can hold a global, and
+            # a global belongs to the global manager rather than to any congruence class here.
             for v, subvs in self._phi_variables.items():
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                     continue
                 for subv in subvs:
-                    unify(subv, v)
+                    if subv in congruence_classes:
+                        unify(subv, v)
 
             # unify stack variables at the same offsets only if their corresponding vvars do not interfere
             stack_vars_by_offset: dict[int, set[SimStackVariable]] = defaultdict(set)
