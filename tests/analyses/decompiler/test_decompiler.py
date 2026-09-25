@@ -41,6 +41,7 @@ from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescr
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.calling_conventions import default_cc
+from angr.codenode import FuncNode
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.sim_type import (
@@ -6236,6 +6237,31 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"do\s*\{\s*\}\s*while", text) is None
         # the pread call addresses the recovered buffer by name (earlier args may contain parens)
         assert re.search(rf"pread\(.*?\b{name}\b", text) is not None
+
+    def test_decompiling_a_caller_after_the_callee_is_removed(self, decompiler_options=None):
+        # clear_region_for_reflow removes every function intersecting the region from the knowledge
+        # base, but it does not rewrite the transition graphs of their callers, so a caller keeps a
+        # FuncNode naming a function that is gone. CFG recovery leaves the same state behind:
+        # CFGBase.make_functions removes dummy PLT stubs and empty functions, and CFGFast removes
+        # absorbed FDE starts, removed and shrunk nodes and functions that jump into data.
+        # FunctionManager.rebuild_callgraph already guards the lookup; decompiling the caller must
+        # not raise either.
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True)
+
+        caller = cfg.functions["main"]
+        callee = cfg.functions["authenticate"]
+        assert any(isinstance(node, FuncNode) and node.addr == callee.addr for node in caller.transition_graph)
+
+        cfg.model.clear_region_for_reflow(callee.addr, size=callee.size, kb=proj.kb)
+        assert not proj.kb.functions.contains_addr(callee.addr)
+        # the call edge outlives the callee, which is the state the decompiler has to survive
+        assert any(isinstance(node, FuncNode) and node.addr == callee.addr for node in caller.transition_graph)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(caller, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text, f"Failed to decompile function {caller!r}."
+        print_decompilation_result(dec)
 
 
 if __name__ == "__main__":
