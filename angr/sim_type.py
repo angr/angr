@@ -2067,8 +2067,8 @@ class SimUnion(NamedTypeMixin, SimType):
             ty.size for ty in self.members.values() if not isinstance(ty, (SimTypeBottom, SimTypeRef))
         ]
         member_sizes: list[int] = [s for s in all_member_sizes if s is not None]
-        # fall back to word size in case all members are SimTypeBottom
-        max_size = max(member_sizes) if member_sizes else self._arch.bytes
+        # fall back to word size when no member has a concrete size
+        max_size = max(member_sizes) if member_sizes else self._arch.bits
 
         self._size_memo.remove(id(self))
         if not self._size_memo:

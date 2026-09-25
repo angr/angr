@@ -34,11 +34,13 @@ from angr.sim_type import (
     SimCppClass,
     SimStruct,
     SimStructValue,
+    SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
     SimTypeLongLong,
     SimTypePointer,
     SimTypeRef,
+    SimUnion,
     TypeRef,
     parse_file,
 )
@@ -81,6 +83,21 @@ class TestCallingConvention(TestCase):
 
         # It should not raise any exception!
         cc.arg_locs(proto)
+
+    def test_arg_locs_union_without_sized_members(self):
+        arch = archinfo.ArchX86()
+        cc = SimCCMicrosoftCdecl(arch)
+        unions = (
+            SimUnion({}, name="empty"),
+            SimUnion({"member": SimTypeBottom()}, name="bottom"),
+            SimUnion({"member": SimTypeRef("opaque", SimStruct)}, name="reference"),
+        )
+
+        for union in unions:
+            union = union.with_arch(arch)
+            assert union.size == arch.bits
+            proto = SimTypeFunction([union], SimTypeInt()).with_arch(arch)
+            assert len(cc.arg_locs(proto)) == 1
 
     def test_microsoft_fastcall_large_arg(self):
         # Regression test: a >DWORD argument (e.g. __int64/double) landing on a register position
