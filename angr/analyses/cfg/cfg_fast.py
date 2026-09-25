@@ -31,8 +31,10 @@ from angr.analyses.forward_analysis import ForwardAnalysis
 from angr.codenode import FuncNode, HookNode
 from angr.errors import (
     AngrCFGError,
+    AngrError,
     AngrSkipJobNotice,
     SimEngineError,
+    SimError,
     SimIRSBNoDecodeError,
     SimMemoryError,
     SimTranslationError,
@@ -6993,7 +6995,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 blocks_ahead.append(self._lift(callsite_cfgnode.addr).vex)
                 hooker.project = self.project
                 hooker.arch = self.project.arch
-                return hooker.dynamic_returns(blocks_ahead)
+                try:
+                    return hooker.dynamic_returns(blocks_ahead)
+                except (AngrError, SimError, claripy.ClaripyError):
+                    # fall through to the callee's own flag, as for a hook that does not decide dynamically
+                    l.warning("%s failed to determine whether it returns.", hooker.display_name, exc_info=True)
 
         if callee_func is not None:
             return callee_func.returning
