@@ -45,6 +45,21 @@ if TYPE_CHECKING:
 _l = logging.getLogger(__name__)
 
 
+def _conditional_jump_is_redundant(stmt: ailment.Stmt.ConditionalJump, next_addr: int | None) -> bool:
+    """Whether a conditional jump has one target left and that target is ``next_addr``.
+
+    The rewrites below leave a conditional jump with a single target once its other
+    branch falls through to the next node. Structuring can reach the same statement
+    again with that surviving target now next in the sequence, and then the jump
+    decides nothing.
+    """
+    if stmt.true_target is None:
+        return isinstance(stmt.false_target, ailment.Expr.Const) and stmt.false_target.value == next_addr
+    if stmt.false_target is None:
+        return isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == next_addr
+    return False
+
+
 class StructurerBase(Analysis):
     """
     The base class for analysis passes that structures a region.
@@ -330,7 +345,9 @@ class StructurerBase(Analysis):
                     elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
                         assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
-                        if (
+                        if _conditional_jump_is_redundant(jump_stmt, next_node.addr):
+                            this_node.statements = this_node.statements[:-1]
+                        elif (
                             isinstance(jump_stmt.true_target, ailment.Expr.Const)
                             and jump_stmt.true_target.value == next_node.addr
                         ):
@@ -394,7 +411,9 @@ class StructurerBase(Analysis):
                     elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
                         assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
-                        if (
+                        if _conditional_jump_is_redundant(jump_stmt, next_node.addr):
+                            this_node.statements = this_node.statements[:-1]
+                        elif (
                             isinstance(jump_stmt.true_target, ailment.Expr.Const)
                             and jump_stmt.true_target.value == next_node.addr
                         ):
@@ -1005,7 +1024,11 @@ class StructurerBase(Analysis):
                 last_node.statements = last_node.statements[:-1]
             elif isinstance(last_node.statements[-1], ailment.Stmt.ConditionalJump):
                 last_stmt = last_node.statements[-1]
-                if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == node_1.addr:
+                if _conditional_jump_is_redundant(last_stmt, node_1.addr):
+                    last_node.statements = last_node.statements[:-1]
+                elif (
+                    isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == node_1.addr
+                ):
                     new_stmt = ailment.Stmt.ConditionalJump(
                         last_stmt.idx,
                         ailment.Expr.UnaryOp(self.ail_manager.next_atom(), "Not", last_stmt.condition),
