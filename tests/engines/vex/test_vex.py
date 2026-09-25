@@ -223,6 +223,182 @@ class TestVex(unittest.TestCase):
         assert s.satisfiable(extra_constraints=(flag_z == 0,))
         assert s.satisfiable(extra_constraints=(flag_z == 1,))
 
+    def test_riscv_fclass_ccalls(self):
+        cases = {
+            32: (
+                0xFF800000,
+                0xBF800000,
+                0x80000001,
+                0x80000000,
+                0x00000000,
+                0x00000001,
+                0x3F800000,
+                0x7F800000,
+                0x7F800001,
+                0x7FC00000,
+            ),
+            64: (
+                0xFFF0000000000000,
+                0xBFF0000000000000,
+                0x8000000000000001,
+                0x8000000000000000,
+                0x0000000000000000,
+                0x0000000000000001,
+                0x3FF0000000000000,
+                0x7FF0000000000000,
+                0x7FF0000000000001,
+                0x7FF8000000000000,
+            ),
+        }
+        solver = claripy.Solver()
+        for width, values in cases.items():
+            handler = s_ccall.riscv64g_calculate_fclass_s if width == 32 else s_ccall.riscv64g_calculate_fclass_d
+            for result_bit, value in enumerate(values):
+                result = handler(None, claripy.BVV(value, width))
+                assert solver.eval(result, 1)[0] == 1 << result_bit
+
+        for width, values in cases.items():
+            handler = s_ccall.riscv64g_calculate_fclass_s if width == 32 else s_ccall.riscv64g_calculate_fclass_d
+            value = claripy.BVS(f"riscv_fclass_value_{width}", width)
+            result = handler(None, value.raw_to_fp())
+            assert len(result) == 64
+            for result_bit, concrete in enumerate(values):
+                assert solver.satisfiable(extra_constraints=(value == concrete,))
+                assert not solver.satisfiable(extra_constraints=(value == concrete, result != 1 << result_bit))
+
+    def test_riscv_fclass_symbolic_partition(self):
+        # Independently express IEEE-754 classes as unsigned encoding intervals.
+        # The implementation instead splits exponent and fraction fields.
+        for width, min_normal, infinity, quiet_nan in (
+            (32, 0x00800000, 0x7F800000, 0x7FC00000),
+            (64, 0x0010000000000000, 0x7FF0000000000000, 0x7FF8000000000000),
+        ):
+            value = claripy.BVS(f"riscv_fclass_partition_{width}", width)
+            sign = 1 << (width - 1)
+            magnitude = value & (sign - 1)
+            negative = value.UGE(sign)
+            zero = magnitude == 0
+            subnormal = claripy.And(magnitude.UGT(0), magnitude.ULT(min_normal))
+            normal = claripy.And(magnitude.UGE(min_normal), magnitude.ULT(infinity))
+            infinite = magnitude == infinity
+            signaling = claripy.And(magnitude.UGT(infinity), magnitude.ULT(quiet_nan))
+            quiet = magnitude.UGE(quiet_nan)
+            predicates = (
+                claripy.And(negative, infinite),
+                claripy.And(negative, normal),
+                claripy.And(negative, subnormal),
+                claripy.And(negative, zero),
+                claripy.And(claripy.Not(negative), zero),
+                claripy.And(claripy.Not(negative), subnormal),
+                claripy.And(claripy.Not(negative), normal),
+                claripy.And(claripy.Not(negative), infinite),
+                signaling,
+                quiet,
+            )
+            handler = s_ccall.riscv64g_calculate_fclass_s if width == 32 else s_ccall.riscv64g_calculate_fclass_d
+            result = handler(None, value.raw_to_fp())
+            solver = claripy.Solver()
+            assert not solver.satisfiable(extra_constraints=(result == 0,))
+            assert not solver.satisfiable(extra_constraints=((result & (result - 1)) != 0,))
+            assert not solver.satisfiable(extra_constraints=(result[63:10] != 0,))
+            for bit, predicate in enumerate(predicates):
+                assert solver.satisfiable(extra_constraints=(predicate,))
+                assert not solver.satisfiable(extra_constraints=(predicate, result != 1 << bit))
+
+    def test_riscv_fclass_execution(self):
+        cases = (
+            (bytes.fromhex("539505e0"), "f11", 0xFFFFFFFF3F800000, 1 << 6),
+            (bytes.fromhex("539505e0"), "f11", 0x000000003F800000, 1 << 9),
+            (bytes.fromhex("539505e2"), "f11", 0xFFF0000000000000, 1 << 0),
+        )
+        for instruction, source_register, source, expected in cases:
+            project = load_shellcode(instruction, arch="riscv64", load_address=0x1000)
+            state = project.factory.blank_state(addr=0x1000)
+            setattr(state.regs, source_register, source)
+            successors = state.step(num_inst=1)
+            assert len(successors.flat_successors) == 1
+            successor = successors.flat_successors[0]
+            assert successor.solver.eval(successor.regs.a0) == expected
+
+    def test_reinterp_preserves_symbolic_nan_bits(self):
+        # Exercise the internal VEX operation entry point to isolate bitcast behavior.
+        for width in (32, 64):
+            project = minimal_project()
+            engine = HeavyVEXMixin(project)
+            engine.state = SimState(project=project)
+            raw = claripy.BVS(f"reinterp_bits_{width}", width)
+            # pylint: disable-next=protected-access
+            result = engine._perform_vex_expr_Op(f"Iop_ReinterpF{width}asI{width}", (raw.raw_to_fp(),))
+            assert not claripy.Solver().satisfiable(extra_constraints=(result != raw,))
+
+    def test_riscv_fclass_symbolic_execution(self):
+        for encoding, cases in (
+            ("539505e0", ((0xFFFFFFFF7F800001, 8), (0xFFFFFFFF7FC00000, 9), (0x000000003F800000, 9))),
+            ("539505e2", ((0x7FF0000000000001, 8), (0x7FF8000000000000, 9), (0xFFF0000000000000, 0))),
+        ):
+            project = load_shellcode(bytes.fromhex(encoding), arch="riscv64", load_address=0x1000)
+            state = project.factory.blank_state(addr=0x1000)
+            source = claripy.BVS("fclass_source", 64)
+            state.regs.f11 = source
+            successors = state.step(num_inst=1)
+            assert len(successors.flat_successors) == 1
+            successor = successors.flat_successors[0]
+            assert not successor.solver.constraints
+            if encoding == "539505e0":
+                expected = claripy.If(
+                    source[63:32] == 0xFFFFFFFF,
+                    s_ccall.riscv64g_calculate_fclass_s(None, source[31:0]),
+                    claripy.BVV(1 << 9, 64),
+                )
+            else:
+                expected = s_ccall.riscv64g_calculate_fclass_d(None, source)
+            assert not successor.solver.satisfiable(extra_constraints=(successor.regs.a0 != expected,))
+            for value, bit in cases:
+                assert successor.solver.satisfiable(extra_constraints=(source == value,))
+                assert not successor.solver.satisfiable(
+                    extra_constraints=(source == value, successor.regs.a0 != 1 << bit)
+                )
+
+    def test_riscv_fclass_execution_boundaries(self):
+        for width, encoding, min_normal, infinity, quiet_nan in (
+            (32, "539505e0", 0x00800000, 0x7F800000, 0x7FC00000),
+            (64, "539505e2", 0x0010000000000000, 0x7FF0000000000000, 0x7FF8000000000000),
+        ):
+            project = load_shellcode(bytes.fromhex(encoding), arch="riscv64", load_address=0x1000)
+            # FCLASS must not write FCSR (even for sNaN); only rd and PC change.
+            allowed_writes = {project.arch.registers["a0"][0], project.arch.ip_offset}
+            block = project.factory.block(0x1000, num_inst=1).vex
+            assert all(stmt.offset in allowed_writes for stmt in block.statements if isinstance(stmt, pyvex.stmt.Put))
+            magnitudes = (
+                (0, 4, 3),
+                (1, 5, 2),
+                (min_normal - 1, 5, 2),
+                (min_normal, 6, 1),
+                (infinity - 1, 6, 1),
+                (infinity, 7, 0),
+                (infinity + 1, 8, 8),
+                (quiet_nan - 1, 8, 8),
+                (quiet_nan, 9, 9),
+                ((1 << (width - 1)) - 1, 9, 9),
+            )
+            for magnitude, positive_bit, negative_bit in magnitudes:
+                for sign, bit in ((0, positive_bit), (1, negative_bit)):
+                    raw = magnitude | (sign << (width - 1))
+                    inputs = [(raw, 1 << bit)]
+                    if width == 32:
+                        inputs = [(raw | (0xFFFFFFFF << 32), 1 << bit)]
+                        # Every possible missing upper box bit must yield qNaN.
+                        inputs += [(raw | ((0xFFFFFFFF ^ (1 << i)) << 32), 1 << 9) for i in range(32)]
+                    for source, expected in inputs:
+                        with self.subTest(width=width, source=hex(source)):
+                            state = project.factory.blank_state(addr=0x1000)
+                            state.regs.f11 = source
+                            successors = state.step(num_inst=1)
+                            assert len(successors.flat_successors) == 1
+                            successor = successors.flat_successors[0]
+                            assert successor.solver.eval(successor.regs.a0) == expected
+                            assert successor.solver.eval(successor.regs.f11) == source
+
     def test_some_vector_ops(self):
         p = load_shellcode(b"\xc3", arch="AMD64")
         s = SimState(project=p)

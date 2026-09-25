@@ -1109,6 +1109,10 @@ class SimIROp:
 
     def _op_fgeneric_Reinterp(self, args):
         if self._to_type == "I":
+            # Reinterpreting a register bitcast must retain NaN payload bits;
+            # SMT's FP-to-IEEE conversion leaves a NaN encoding unspecified.
+            if args[0].op == "bvToFP":
+                return args[0].args[0]
             return args[0].raw_to_bv()
         if self._to_type == "F":
             return args[0].raw_to_fp()
