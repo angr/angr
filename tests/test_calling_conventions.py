@@ -12,6 +12,7 @@ import archinfo
 
 from angr import Project, load_shellcode, types
 from angr.calling_conventions import (
+    SimArrayArg,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
@@ -30,6 +31,7 @@ from angr.calling_conventions import (
     SimTypeInt,
     default_cc,
 )
+from angr.errors import AngrTypeError
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -372,6 +374,63 @@ class TestCallingConvention(TestCase):
             [SimRegArg("edx", 4)],
             [SimStackArg(0x4, 4)],
         ]
+
+    def test_microsoft_amd64_array_return(self):
+        # Regression test: an array is an aggregate, and the Microsoft x64 convention returns one the
+        # way it returns a struct of the same size. Only return_val said otherwise, so a caller of a
+        # function whose recovered return type was an array decompiled to nothing. The sizes are the
+        # ones type inference produced on a real Windows x86-64 binary: unsigned int[2] and [4].
+        arch = archinfo.ArchAMD64()
+        cc = SimCCMicrosoftAMD64(arch)
+
+        small = SimTypeFixedSizeArray(SimTypeInt(), 2).with_arch(arch)
+        large = SimTypeFixedSizeArray(SimTypeInt(), 4).with_arch(arch)
+        small_struct = SimStruct({"a": SimTypeInt(), "b": SimTypeInt()}, name="two").with_arch(arch)
+        large_struct = SimStruct({f"f{i}": SimTypeInt() for i in range(4)}, name="four").with_arch(arch)
+
+        # Eight bytes come back in RAX, one element per half -- the same two locations a struct of
+        # the same layout gets. Compared as locations, not as footprints: SimStructArg.get_footprint
+        # coalesces a register's pieces into one span and SimArrayArg.get_footprint does not, so the
+        # footprints differ for identical placements.
+        small_ret = cc.return_val(small)
+        small_struct_ret = cc.return_val(small_struct)
+        assert isinstance(small_ret, SimArrayArg)
+        assert isinstance(small_struct_ret, SimStructArg)
+        assert small_ret.locs == [SimRegArg("rax", 4, 0), SimRegArg("rax", 4, 4)]
+        assert small_ret.locs == list(small_struct_ret.locs.values())
+        assert cc.return_in_implicit_outparam(small) is False
+
+        # Sixteen bytes do not fit, so the caller passes a hidden pointer in RCX and the callee
+        # returns it in RAX. Both are the struct's answer for the same size.
+        large_ret = cc.return_val(large)
+        returned = cc.return_val(large, perspective_returned=True)
+        large_struct_ret = cc.return_val(large_struct)
+        assert isinstance(large_ret, SimReferenceArgument)
+        assert isinstance(returned, SimReferenceArgument)
+        assert isinstance(large_struct_ret, SimReferenceArgument)
+        assert large_ret.ptr_loc == SimRegArg("rcx", 8)
+        assert returned.ptr_loc == SimRegArg("rax", 8)
+        assert set(large_ret.get_footprint()) == set(large_struct_ret.get_footprint())
+        assert cc.return_in_implicit_outparam(large) is True
+
+        # return_in_implicit_outparam already answered True for the array before this change, so
+        # arg_locs was shifting the declared arguments along for a return value return_val refused
+        # to place. The two now agree: the hidden pointer takes RCX and the arguments follow it.
+        proto = SimTypeFunction([SimTypeInt(), SimTypeInt()], large).with_arch(arch)
+        assert [list(loc.get_footprint()) for loc in cc.arg_locs(proto)] == [
+            [SimRegArg("rdx", 4)],
+            [SimRegArg("r8", 4)],
+        ]
+
+        # An array with no size has no layout to give, and the base class's refusal is the answer.
+        # SimTypeArray.size is 0 rather than None for a length-less array and that 0 propagates
+        # outwards, so a sized array holding an unsized one is refused as well.
+        unsized = SimTypeFixedSizeArray(SimTypeInt(), None).with_arch(arch)
+        nested = SimTypeFixedSizeArray(unsized, 2).with_arch(arch)
+        assert (unsized.size, nested.size) == (0, 0)
+        for ty in (unsized, nested):
+            with self.assertRaises(AngrTypeError):
+                cc.return_val(ty)
 
 
 if __name__ == "__main__":
