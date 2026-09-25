@@ -2748,6 +2748,13 @@ class SimTypeRef(SimType):
         original_type_name = self.original_type.__name__.split(".")[-1]
         return f'SimTypeRef("{self.name}", {original_type_name})'
 
+    def copy(self) -> SimTypeRef:
+        # a shallow copy carries the arch and the size set_size() may have written, neither of
+        # which is a constructor argument; only the qualifier list must not be shared
+        cp = copy.copy(self)
+        cp.qualifier = None if self.qualifier is None else list(self.qualifier)
+        return cp
+
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         d = {"_t": self._ident, "name": self.name, "ot": self.original_type._ident}
         if fields is not None:
@@ -4122,7 +4129,10 @@ def _decl_to_type(
             return r
         r = _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
         if quals:
-            r = r.copy()
+            # The qualifier goes on a copy, because r may be a type shared through extra_types
+            # or ALL_TYPES and writing to it would qualify every other use of that name. TypeRef
+            # refuses copy() on purpose, so point a fresh reference at the same type instead.
+            r = TypeRef(r.name, r.type) if isinstance(r, TypeRef) else r.copy()
             r.qualifier = list(quals)
         return r
 

@@ -441,6 +441,40 @@ class TestTypes(unittest.TestCase):
         else:
             assert False, "The expected AngrMissingTypeError was not raised"
 
+    def test_simtyperef_copy(self):
+        t = SimTypeRef("Foo", SimStruct, qualifier=["volatile"])
+        t.set_size(64)
+        cp = t.copy()
+
+        assert cp is not t
+        assert cp.name == "Foo"
+        assert cp.original_type is SimStruct
+        assert cp.qualifier == ["volatile"]
+        assert cp.size == 64
+
+    def test_qualified_reference_to_predefined_simtyperef(self):
+        predefined = {"Foo": SimTypeRef("Foo", SimStruct)}
+        t = angr.types.parse_type("const Foo *", predefined_types=predefined)
+
+        assert isinstance(t, SimTypePointer)
+        assert isinstance(t.pts_to, SimTypeRef)
+        assert t.pts_to.name == "Foo"
+        assert t.pts_to.original_type is SimStruct
+        assert t.pts_to.qualifier == ["const"]
+        # the qualifier goes on a copy, so the type the caller handed us is untouched
+        assert predefined["Foo"].qualifier is None
+
+    def test_qualified_reference_to_predefined_typeref(self):
+        predefined = {"my_t": TypeRef("my_t", SimTypeInt())}
+        t = angr.types.parse_type("const my_t *", predefined_types=predefined)
+
+        assert isinstance(t, SimTypePointer)
+        assert isinstance(t.pts_to, TypeRef)
+        assert t.pts_to.name == "my_t"
+        assert t.pts_to.type is predefined["my_t"].type
+        assert t.pts_to.qualifier == ["const"]
+        assert predefined["my_t"].qualifier is None
+
     def test_simunion_size_bottom_types(self):
         arch = archinfo.ArchAMD64()
         union_type = SimUnion(
