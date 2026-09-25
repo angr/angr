@@ -218,8 +218,8 @@ class SimType:
 
         :param type_collection: Resolve type references against this collection.
         :param memo:            Names of types that are being loaded from the type collection (recursion guard).
-        :param decoded:         Named structs decoded so far in this document. to_json() emits a reference for every
-                                repeated occurrence of a named struct, which is resolved here.
+        :param decoded:         Named aggregates decoded so far in this document. to_json() emits a reference for every
+                                repeated occurrence of a named aggregate, which is resolved here.
         """
         if memo is None:
             memo = set()
@@ -407,6 +407,18 @@ class NamedTypeMixin:
             n = self.name.split(splitter)
             return n[-1]
         raise NotImplementedError(f"Unsupported language {lang}.")
+
+
+def type_memo_key(ty: SimStruct | SimUnion) -> str:
+    """
+    The key under which an aggregate is memoized while walking a type recursively.
+
+    Every anonymous struct and union is called "<anon>", so keying on the name alone collapses distinct ones
+    onto one slot. Key those by identity instead, which is what ``dereference_simtype`` already does.
+    """
+    if ty.name is None or ty.name == "<anon>" or (isinstance(ty, SimStruct) and ty.anonymous):
+        return f"<anon>#{id(ty)}"
+    return ty.name
 
 
 class SimTypeBottom(SimType):
@@ -1763,11 +1775,17 @@ class SimStruct(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
-        if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
-        if not self.anonymous:
-            memo[self.name] = SimTypeRef(self.name, self.__class__)
-        d = super().to_json(fields=fields, memo=memo)
+        key = type_memo_key(self)
+        if key in memo:
+            return memo[key].to_json(fields=fields, memo=memo)
+        memo[key] = SimTypeRef(self.name, self.__class__)
+        try:
+            d = super().to_json(fields=fields, memo=memo)
+        finally:
+            # An anonymous name cannot identify this struct to a later reference, so its entry is only good
+            # for the traversal below it. Leaving it in would answer a sibling "<anon>" with this struct.
+            if key != self.name:
+                memo.pop(key)
         if d["pack"] is False:
             d.pop("pack")
         if d["align"] is None:
@@ -1793,13 +1811,14 @@ class SimStruct(NamedTypeMixin, SimType):
         return SimStructValue(self, values=values)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(SimStruct, memo[self.name])
+        key = type_memo_key(self)
+        if key in memo:
+            return cast(SimStruct, memo[key])
 
         out = SimStruct({}, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         out._def_order = self._def_order
-        memo[self.name] = out
+        memo[key] = out
 
         out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
         out.fixup_bitfield_offsets(arch)
@@ -2045,11 +2064,17 @@ class SimUnion(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
-        if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
-        if self.name != _UNION_ANON_NAME:
-            memo[self.name] = SimTypeRef(self.name, self.__class__)
-        d = super().to_json(fields=fields, memo=memo)
+        key = type_memo_key(self)
+        if key in memo:
+            return memo[key].to_json(fields=fields, memo=memo)
+        memo[key] = SimTypeRef(self.name, self.__class__)
+        try:
+            d = super().to_json(fields=fields, memo=memo)
+        finally:
+            # as in SimStruct.to_json: "<anon>" cannot identify this union to a later reference, so the
+            # entry is only good for the traversal below it.
+            if key != self.name:
+                memo.pop(key)
         if "q" in d and not d["q"]:
             d.pop("q")
         return d
@@ -2566,8 +2591,9 @@ class SimCppClass(SimStruct):
             ty.store(state, addr + offset, value[field])
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]) -> SimCppClass:
-        if self.name in memo:
-            return cast(SimCppClass, memo[self.name])
+        key = type_memo_key(self)
+        if key in memo:
+            return cast(SimCppClass, memo[key])
 
         out = SimCppClass(
             unique_name=self.unique_name,
@@ -2581,7 +2607,7 @@ class SimCppClass(SimStruct):
         )
         out._arch = arch
         out._def_order = self._def_order
-        memo[self.name] = out
+        memo[key] = out
 
         out.members = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.members.items())
         out.function_members = (
