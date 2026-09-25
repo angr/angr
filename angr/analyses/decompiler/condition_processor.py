@@ -102,6 +102,17 @@ def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int,
     return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
 
 
+def _shift_with_unified_size(
+    op, conv: Callable, operand0, operand1, ins_addr: int, ail_manager: Manager, *, signed: bool = False
+):
+    if isinstance(operand1, ailment.Expr.Const) or operand1.bits <= operand0.bits:
+        return _op_with_unified_size(op, conv, operand0, operand1, ins_addr, ail_manager)
+    # Keep the full shift count and the original result width.
+    operand0_wide = ailment.Expr.Convert(ail_manager.next_atom(), operand0.bits, operand1.bits, signed, operand0)
+    result = op(conv(operand0_wide, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
+    return claripy.Extract(operand0.bits - 1, 0, result)
+
+
 def _dummy_bvs(condition, condition_mapping, name_suffix="", must_bool=False):
     if must_bool:
         var = claripy.BoolS(f"ailexpr_{condition!r}{name_suffix}", explicit_name=True)
@@ -192,14 +203,14 @@ _ail2claripy_op_mapping = {
     "Or": lambda expr, conv, _, ia, *args: (
         conv(expr.operands[0], nobool=True, ins_addr=ia) | conv(expr.operands[1], nobool=True, ins_addr=ia)
     ),
-    "Shr": lambda expr, conv, _, ia, am: _op_with_unified_size(
+    "Shr": lambda expr, conv, _, ia, am: _shift_with_unified_size(
         claripy.LShR, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "Shl": lambda expr, conv, _, ia, am: _op_with_unified_size(
+    "Shl": lambda expr, conv, _, ia, am: _shift_with_unified_size(
         operator.lshift, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "Sar": lambda expr, conv, _, ia, am: _op_with_unified_size(
-        operator.rshift, conv, expr.operands[0], expr.operands[1], ia, am
+    "Sar": lambda expr, conv, _, ia, am: _shift_with_unified_size(
+        operator.rshift, conv, expr.operands[0], expr.operands[1], ia, am, signed=True
     ),
     "Concat": lambda expr, conv, _, ia, *args: claripy.Concat(
         *[conv(operand, ins_addr=ia) for operand in expr.operands]
@@ -1023,11 +1034,11 @@ class ConditionProcessor:
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
             if condition.to_bits == 1 and not nobool:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {var_.hash()})"
+                name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {condition.is_signed}, {var_.hash()})"
                 var = claripy.BoolS(name, explicit_name=True)
             else:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
-                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {var_.hash()})"
+                name = f"ailexpr_Conv({condition.from_bits}->{condition.to_bits}, {condition.is_signed}, {var_.hash()})"
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
