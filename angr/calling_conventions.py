@@ -132,6 +132,15 @@ class AllocHelper:
         raise TypeError(type(val))
 
 
+def opaque_cpp_class(ty: SimType) -> bool:
+    """Whether ``ty`` is a C++ class whose definition angr never saw.
+
+    ``sim_type`` builds one of these from a demangled name it cannot resolve: no members, and a
+    size forced to one word. There is no layout to lay out.
+    """
+    return isinstance(ty, SimCppClass) and not ty.fields and bool(ty.size)
+
+
 def refine_locs_with_struct_type(
     arch: archinfo.Arch,
     locs: list,
@@ -831,6 +840,9 @@ class SimCC:
     def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        if opaque_cpp_class(arg_type):
+            assert arg_type.size is not None
+            arg_type = SimTypeNum(arg_type.size, signed=False)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise TypeError(
                 f"{self} doesn't know how to store aggregate type {type(arg_type)}. Consider overriding next_arg to "
@@ -1839,9 +1851,7 @@ class SimCCSystemVAMD64(SimCC):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
-        if isinstance(ty, SimCppClass) and not ty.fields and ty.size:
-            # this is an opaque C++ class (likely unresolved); we cannot lay it out. so we must treat it as a native
-            # integer.
+        if opaque_cpp_class(ty):
             return ["INTEGER"]
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
