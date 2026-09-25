@@ -2534,7 +2534,8 @@ class SimCCRISCV64(SimCC):
         session.both_iter.setstate(aligned_offset)
 
         size_bits = arg_type.size
-        n_slots = (size_bits + self.arch.bits - 1) // self.arch.bits
+        # one slot for a type with no computable size, as in _classify
+        n_slots = 1 if size_bits is None else (size_bits + self.arch.bits - 1) // self.arch.bits
         locs = [next(session.both_iter) for _ in range(n_slots)]
         return refine_locs_with_struct_type(self.arch, locs, arg_type)
 
@@ -2573,6 +2574,10 @@ class SimCCRISCV64(SimCC):
             return ["FLOAT"]
 
         size_bits = arg_type.size
+        if size_bits is None:
+            # treat a type with no computable size, BOT included, as one XLEN integer
+            return ["INTEGER"]
+
         # > 2 * _XLEN (Bytes)
         # REFERENCE from psABI:
         # Scalars wider than 2 * XLEN bits are passed by reference

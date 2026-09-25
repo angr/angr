@@ -270,6 +270,36 @@ class TestCallingConvention(TestCase):
         assert abs(c_float - 102.3) < 0.00001
         assert (a3_val >> 32) == 60
 
+    def test_riscv64_unsized_argument_takes_one_integer_slot(self):
+        # Type inference produces BOT for an argument it cannot size, and the convention has to
+        # lay one out anyway: SimCC.next_arg treats BOT as an int, and SimCCSystemVAMD64 and
+        # SimCCO32 each classify it as one INTEGER chunk. SimCCRISCV64 instead read ``.size`` and
+        # compared it with ``2 * arch.bits``, raising "'>' not supported between instances of
+        # 'NoneType' and 'int'" -- which ReachingDefinitions raised through
+        # initialize_all_function_arguments and the decompiler swallowed, losing the function.
+        arch = archinfo.ArchRISCV64()
+        cc = SimCCRISCV64(arch)
+
+        def slots(prototype):
+            out = []
+            for loc in cc.arg_locs(prototype.with_arch(arch)):
+                if isinstance(loc, SimRegArg):
+                    out.append(("reg", loc.reg_name))
+                elif isinstance(loc, SimStackArg):
+                    out.append(("stack", loc.stack_offset))
+                else:
+                    out.append(loc)
+            return out
+
+        # Nine arguments, so the ninth is past a0-a7 and goes through _allocate_on_stack: that
+        # method read the size the same way, so guarding only _classify moves the error there.
+        nine = SimTypeFunction([SimTypeBottom()] * 9, SimTypeInt())
+        assert slots(nine) == [("reg", f"a{i}") for i in range(8)] + [("stack", 0)]
+
+        # An unsized argument takes exactly one slot, so the arguments after it do not shift.
+        mixed = SimTypeFunction([SimTypeInt(), SimTypeBottom(), SimTypeInt()], SimTypeInt())
+        assert slots(mixed) == [("reg", "a0"), ("reg", "a1"), ("reg", "a2")]
+
     def test_simcc_arg_locs_returnty_unresolved_simtyperef(self):
         func_proto = SimTypeFunction([], SimTypeRef("std::wstring_t", SimCppClass))
 
