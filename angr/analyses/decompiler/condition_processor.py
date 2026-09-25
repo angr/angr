@@ -258,6 +258,15 @@ _ail2claripy_op_mapping = {
 #
 
 
+class _WalkResult:
+    """A finished structured-tree walker's result, on its way back to the loop that drove it."""
+
+    __slots__ = ("result",)
+
+    def __init__(self, result):
+        self.result = result
+
+
 class ConditionProcessor:
     """
     Convert between claripy AST and AIL expressions. Also calculates reaching conditions of all nodes on a graph.
@@ -596,12 +605,69 @@ class ConditionProcessor:
         statement due to the existence of branching statements (like, If-then-else). All methods using
         get_last_statement() should switch to get_last_statements() and properly handle multiple last statements.
         """
+        return cls._walk_structured_tree(cls._last_statement, block)
+
+    @classmethod
+    def get_last_statements(
+        cls, block
+    ) -> list[ailment.Stmt.Statement | ConditionalBreakNode | BreakNode | ContinueNode | None]:
+        return cls._walk_structured_tree(cls._last_statements, block)
+
+    @staticmethod
+    def _walk_structured_tree(walk: Callable[[Any], Generator[Any, Any, Any]], block):
+        """Run one of the walkers below over a structured tree, on an explicit stack.
+
+        The walkers are the recursive bodies these two methods used to have, with ``yield child``
+        where each recursive call was. This drives a yielded child on a generator of its own and
+        sends its value back in, or throws ``EmptyBlockNotice`` in at the yield when the child
+        raised one, so each body keeps the control flow it had while the nesting lives in ``stack``
+        instead of on the interpreter's.
+        """
+
+        def framed(node):
+            """Hand a finished walker's result back as a yield rather than as a return.
+
+            ``yield from`` forwards every child the walker asks for to the loop below and returns
+            what the loop sends in, so the walker itself is untouched. The wrapper exists so the
+            loop never reads ``StopIteration.value``: astroid resolves that attribute to a class
+            of its own and then cannot infer what either of these methods returns.
+            """
+            yield _WalkResult((yield from walk(node)))
+
+        stack = [framed(block)]
+        value: Any = None
+        notice: EmptyBlockNotice | None = None
+        try:
+            while stack:
+                try:
+                    sent = stack[-1].throw(notice) if notice is not None else stack[-1].send(value)
+                except EmptyBlockNotice as raised:
+                    stack.pop().close()
+                    value, notice = None, raised
+                    continue
+                if isinstance(sent, _WalkResult):
+                    stack.pop().close()
+                    value, notice = sent.result, None
+                    continue
+                stack.append(framed(sent))
+                value, notice = None, None
+        finally:
+            # only ever non-empty when a walker raised something other than EmptyBlockNotice
+            for abandoned in stack:
+                abandoned.close()
+        if notice is not None:
+            raise notice
+        return value
+
+    @classmethod
+    def _last_statement(cls, block) -> Generator[Any, Any, Any]:
+        """:meth:`get_last_statement`'s body, yielding each child instead of recursing into it."""
         if type(block) is SequenceNode:
             if block.nodes:
-                return cls.get_last_statement(block.nodes[-1])
+                return (yield block.nodes[-1])
             raise EmptyBlockNotice
         if type(block) is CodeNode:
-            return cls.get_last_statement(block.node)
+            return (yield block.node)
         if type(block) is ailment.Block:
             if not block.statements:
                 raise EmptyBlockNotice
@@ -614,31 +680,31 @@ class ConditionProcessor:
             # get the last node
             for the_block in reversed(block.nodes):
                 try:
-                    return cls.get_last_statement(the_block)
+                    return (yield the_block)
                 except EmptyBlockNotice:
                     continue
             raise EmptyBlockNotice
         if type(block) is LoopNode:
-            return cls.get_last_statement(block.sequence_node)
+            return (yield block.sequence_node)
         if type(block) is ConditionalBreakNode:
             return None
         if type(block) is ConditionNode:
             s = None
             if block.true_node:
                 try:
-                    s = cls.get_last_statement(block.true_node)
+                    s = yield block.true_node
                 except EmptyBlockNotice:
                     s = None
             if s is None and block.false_node:
-                s = cls.get_last_statement(block.false_node)
+                s = yield block.false_node
             return s
         if type(block) is CascadingConditionNode:
             s = None
             if block.else_node is not None:
-                s = cls.get_last_statement(block.else_node)
+                s = yield block.else_node
             else:
                 for _, node in reversed(block.condition_and_nodes):
-                    s = cls.get_last_statement(node)
+                    s = yield node
                     if s is not None:
                         break
             return s
@@ -657,13 +723,12 @@ class ConditionProcessor:
         raise NotImplementedError
 
     @classmethod
-    def get_last_statements(
-        cls, block
-    ) -> list[ailment.Stmt.Statement | ConditionalBreakNode | BreakNode | ContinueNode | None]:
+    def _last_statements(cls, block) -> Generator[Any, Any, Any]:
+        """:meth:`get_last_statements`'s body, yielding each child instead of recursing into it."""
         if type(block) is SequenceNode:
             for last_node in reversed(block.nodes):
                 try:
-                    return cls.get_last_statements(last_node)
+                    return (yield last_node)
                 except EmptyBlockNotice:
                     # the node is empty. try the next one
                     continue
@@ -671,7 +736,7 @@ class ConditionProcessor:
             raise EmptyBlockNotice
 
         if type(block) is CodeNode:
-            return cls.get_last_statements(block.node)
+            return (yield block.node)
         if type(block) is ailment.Block:
             if not block.statements:
                 raise EmptyBlockNotice
@@ -684,28 +749,28 @@ class ConditionProcessor:
             # get the last node
             for the_block in reversed(block.nodes):
                 try:
-                    return cls.get_last_statements(the_block)
+                    return (yield the_block)
                 except EmptyBlockNotice:
                     continue
             raise EmptyBlockNotice
         if type(block) is LoopNode:
             if block.sequence_node is None:
                 raise EmptyBlockNotice
-            return cls.get_last_statements(block.sequence_node)
+            return (yield block.sequence_node)
         if type(block) is ConditionalBreakNode:
             return [block]
         if type(block) is ConditionNode:
             s = []
             if block.true_node:
                 try:
-                    last_stmts = cls.get_last_statements(block.true_node)
+                    last_stmts = yield block.true_node
                     s.extend(last_stmts)
                 except EmptyBlockNotice:
                     pass
             else:
                 s.append(None)
             if block.false_node:
-                last_stmts = cls.get_last_statements(block.false_node)
+                last_stmts = yield block.false_node
                 s.extend(last_stmts)
             else:
                 s.append(None)
@@ -714,14 +779,14 @@ class ConditionProcessor:
             s = []
             if block.else_node is not None:
                 try:
-                    last_stmts = cls.get_last_statements(block.else_node)
+                    last_stmts = yield block.else_node
                     s.extend(last_stmts)
                 except EmptyBlockNotice:
                     pass
             else:
                 s.append(None)
             for _, node in block.condition_and_nodes:
-                last_stmts = cls.get_last_statements(node)
+                last_stmts = yield node
                 s.extend(last_stmts)
             return s
         if type(block) is BreakNode:
@@ -731,16 +796,16 @@ class ConditionProcessor:
         if type(block) is SwitchCaseNode:
             s = []
             for case in block.cases.values():
-                s.extend(cls.get_last_statements(case))
+                s.extend((yield case))
             if block.default_node is not None:
-                s.extend(cls.get_last_statements(block.default_node))
+                s.extend((yield block.default_node))
             else:
                 s.append(None)
             return s
         if type(block) is IncompleteSwitchCaseNode:
             s = []
             for case in block.cases:
-                s.extend(cls.get_last_statements(case))
+                s.extend((yield case))
             return s
         if isinstance(block, RegionOverlay):
             # normally this should not happen. however, we have test cases that trigger this case.
