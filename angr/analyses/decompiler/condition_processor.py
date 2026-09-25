@@ -94,7 +94,10 @@ def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int,
     # ensure operand1 is of the same size as operand0
     if isinstance(operand1, ailment.Expr.Const):
         # amazing - we do the easy thing here
-        return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1.value)
+        operand1_value = operand1.value
+        if isinstance(operand1_value, float):
+            operand1_value = claripy.FPV(operand1_value, claripy.fp.FSort.from_size(operand1.bits)).raw_to_bv()
+        return op(conv(operand0, nobool=True, ins_addr=ins_addr), operand1_value)
     if operand1.bits == operand0.bits:
         return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
     # extension (or, for a shift amount wider than the value, truncation) is required

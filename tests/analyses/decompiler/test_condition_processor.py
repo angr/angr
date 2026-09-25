@@ -7,7 +7,7 @@ from unittest import TestCase
 
 import archinfo
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
@@ -62,6 +62,41 @@ class TestConditionProcessor(TestCase):
         ast = cp.claripy_ast_from_ail_condition(add)
         assert [arg.op for arg in ast.args] == ["BVS", "BVS"]
         assert str(cp.convert_claripy_bool_ast(ast)) == f"({operand0} Add {operand1})"
+
+    def test_float_constant_arithmetic_uses_its_bit_pattern(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+
+        for index, (ail_op, claripy_op, value) in enumerate(
+            (("Add", "__add__", 32768.0), ("Sub", "__sub__", 4.4e-323), ("Mul", "__mul__", 32768.0))
+        ):
+            with self.subTest(ail_op=ail_op):
+                expr = BinaryOp(
+                    index * 5,
+                    ail_op,
+                    [
+                        _vvar(index * 5 + 1, 64, 16),
+                        Const(index * 5 + 2, value, 64),  # pyright: ignore[reportArgumentType]
+                    ],
+                    False,
+                    bits=64,
+                )
+                ast = cp.claripy_ast_from_ail_condition(expr)
+                expected = claripy.FPV(value, claripy.FSORT_DOUBLE).raw_to_bv()
+
+                assert ast.op == claripy_op
+                assert claripy.is_true(ast.args[1] == expected)
+
+                integer_ast = cp.claripy_ast_from_ail_condition(
+                    BinaryOp(
+                        index * 5 + 3,
+                        ail_op,
+                        [_vvar(index * 5 + 4, 64, 24), Const(index * 5 + 5, 3, 64)],
+                        False,
+                        bits=64,
+                    )
+                )
+                assert integer_ast.op == claripy_op
+                assert integer_ast.args[1].concrete_value == 3
 
     def test_signed_comparisons_map_to_signed_claripy_operations(self):
         arch = archinfo.ArchAMD64()
