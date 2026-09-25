@@ -357,12 +357,14 @@ class SimRegArg(SimFunctionArgument):
 
     def refine(self, size, arch=None, offset=None, is_fp=None):
         passed_offset_none = offset is None
+        if is_fp is None:
+            is_fp = self.is_fp
         if offset is None:
             if arch is None:
                 raise ValueError("Need to specify either offset or arch in order to refine a register argument")
-            offset = 0 if arch.register_endness == "Iend_LE" else self.size - size
-        if is_fp is None:
-            is_fp = self.is_fp
+            # VEX addresses a narrow float at its register's own offset, so only an integer
+            # register keeps a narrow value in the low-order bytes of a big-endian register.
+            offset = 0 if is_fp or arch.register_endness == "Iend_LE" else self.size - size
         return SimRegArg(self.reg_name, size, self.reg_offset + offset, is_fp, clear_entire_reg=passed_offset_none)
 
     def sse_extend(self):

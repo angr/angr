@@ -10,9 +10,10 @@ from unittest import TestCase, main
 
 import archinfo
 
-from angr import Project, calling_conventions, load_shellcode, types
+from angr import Project, calling_conventions, claripy, load_shellcode, types
 from angr.calling_conventions import (
     SimCC,
+    SimCCARMHF,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
@@ -21,6 +22,7 @@ from angr.calling_conventions import (
     SimCCN64,
     SimCCN64LinuxSyscall,
     SimCCRISCV64,
+    SimCCS390X,
     SimCCSystemVAMD64,
     SimReferenceArgument,
     SimRegArg,
@@ -38,6 +40,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeChar,
     SimTypeDouble,
+    SimTypeFloat,
     SimTypeLongLong,
     SimTypePointer,
     SimTypeRef,
@@ -393,6 +396,70 @@ class TestCallingConvention(TestCase):
             n32 = self._mips_int_arg_locs(SimCCN32LinuxSyscall, archinfo.ArchMIPSN32(endness), args)
             n64 = self._mips_int_arg_locs(SimCCN64LinuxSyscall, archinfo.ArchMIPS64(endness), args)
             assert n32 == n64, f"{endness}: n32 {n32} != n64 {n64}"
+
+    def _s390x_arg_locs(self, arg_types):
+        arch = archinfo.ArchS390X()
+        proto = SimTypeFunction(arg_types, SimTypeInt()).with_arch(arch)
+        locs = []
+        for loc in SimCCS390X(arch).arg_locs(proto):
+            if isinstance(loc, SimRegArg):
+                locs.append(("reg", loc.reg_name, loc.reg_offset, loc.size))
+            else:
+                assert isinstance(loc, SimStackArg)
+                locs.append(("stack", loc.stack_offset, loc.size))
+        return locs
+
+    def test_s390x_passes_a_narrow_float_at_its_register_base(self):
+        # z/Architecture keeps a short BFP value in bits 0-31 of the FPR, the half VEX addresses at
+        # the register's own offset: `le %f0,0(%r1)` lifts to PUT(offset=64) = Ity_F32 and f0 starts
+        # at 64. So a four-byte float belongs at f0 offset 0, not in the register's trailing half.
+        assert self._s390x_arg_locs([SimTypeFloat()]) == [("reg", "f0", 0, 4)]
+        assert self._s390x_arg_locs([SimTypeDouble()]) == [("reg", "f0", 0, 8)]
+
+        # The control, so this cannot be read as "big-endian never right-justifies": a narrow
+        # integer does live in the low-order bytes, and VEX agrees -- `l %r2,0(%r1)` lifts to
+        # PUT(offset=596) = Ity_I32 where r2 starts at 592.
+        assert self._s390x_arg_locs([SimTypeInt()]) == [("reg", "r2", 4, 4)]
+        assert self._s390x_arg_locs([SimTypeLongLong()]) == [("reg", "r2", 0, 8)]
+
+        # Floats past f0/f2/f4/f6 spill to 8-byte slots after the 160-byte register save area, and
+        # there the ABI does right-justify them: gcc reads sum_floats' fifth float in
+        # tests/s390x/manyfloatsum with `aeb %f0,164(%r15)`.
+        assert self._s390x_arg_locs([SimTypeFloat()] * 5)[4] == ("stack", 0xA4, 4)
+
+    def test_s390x_float_arguments_reach_the_callee(self):
+        # sum_floats adds nineteen floats: the first four arrive in f0/f2/f4/f6 and the rest on the
+        # stack. Putting the register four in the wrong half of their registers loses exactly those
+        # four, and the callee answers 165.0 instead of 171.0.
+        #
+        # The sum is read out of f0 rather than through the calling convention because SimCCS390X
+        # declares no FP_RETURN_VAL and so reports a float return in r2.
+        proj = Project(os.path.join(test_location, "s390x", "manyfloatsum"), auto_load_libs=False)
+        sum_floats = proj.loader.main_object.get_symbol("sum_floats")
+        assert sum_floats is not None
+        proto = SimTypeFunction([SimTypeFloat()] * 19, SimTypeFloat())
+        caller = proj.factory.callable(sum_floats.rebased_addr, prototype=proto)
+        caller(*range(19))
+        result_state = caller.result_state
+        assert result_state is not None
+        returned = result_state.registers.load(proj.arch.registers["f0"][0], size=4)
+        expected = claripy.FPV(float(sum(range(19))), claripy.FSORT_FLOAT)
+        assert (returned.raw_to_fp() == expected).is_true()
+
+    def test_armhf_big_endian_returns_a_float_in_its_own_register(self):
+        # return_val refines FP_RETURN_VAL through the same narrowing as an argument, so a
+        # big-endian convention that declares one is on this line too. cle builds
+        # ArchARMHF("Iend_BE") for a big-endian hard-float ELF. s0 is four bytes, and
+        # SimCCARMHF.FP_RETURN_VAL declares 32, so right-justifying put a float at s0+28 and
+        # a double at s0+24 -- both past the end of the register they name.
+        be = archinfo.ArchARMHF(archinfo.Endness.BE)
+        assert SimCCARMHF(be).return_val(SimTypeFloat().with_arch(be)) == SimRegArg("s0", 4, 0)
+        assert SimCCARMHF(be).return_val(SimTypeDouble().with_arch(be)) == SimRegArg("s0", 8, 0)
+
+        # Little-endian ARMHF already answered 0 and does not move.
+        le = archinfo.ArchARMHF(archinfo.Endness.LE)
+        assert SimCCARMHF(le).return_val(SimTypeFloat().with_arch(le)) == SimRegArg("s0", 4, 0)
+        assert SimCCARMHF(le).return_val(SimTypeDouble().with_arch(le)) == SimRegArg("s0", 8, 0)
 
     def test_microsoft_fastcall_aggregate_return(self):
         # Regression test: __fastcall changes how arguments are passed, not how values are returned.
