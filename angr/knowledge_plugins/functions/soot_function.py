@@ -1,4 +1,4 @@
-# pylint:disable=super-init-not-called
+# pylint:disable=super-init-not-called,protected-access
 from __future__ import annotations
 
 import contextlib
@@ -32,7 +32,6 @@ class SootFunction(Function):
         "_ret_sites",
         "_retout_sites",
         "_startpoint",
-        "_transition_graph",
     )
 
     def __init__(self, function_manager, addr, name=None, syscall=None):

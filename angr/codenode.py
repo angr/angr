@@ -81,10 +81,10 @@ class CodeNode[K: (int, SootMethodDescriptor)]:
         return owner
 
     def successors(self) -> list[CodeNode]:
-        return self._require_owner()._successors_of(self)
+        return self._require_owner()._successors_of(self)  # pylint:disable=protected-access
 
     def predecessors(self) -> list[CodeNode]:
-        return self._require_owner()._predecessors_of(self)
+        return self._require_owner()._predecessors_of(self)  # pylint:disable=protected-access
 
     def __getstate__(self) -> tuple:
         return self.addr, self.size

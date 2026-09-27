@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use,protected-access
+# pylint:disable=missing-class-docstring,no-self-use,protected-access,no-member
 """
 A version-1 angrdb (functions in the per-block / per-edge layout, no graph_blob) loads through AngrDbV1 and yields
 the same functions as the live knowledge base.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use,protected-access
+# pylint:disable=missing-class-docstring,no-self-use,protected-access,import-error,no-member
 from __future__ import annotations
 
 import os

@@ -85,7 +85,7 @@ class TestFunctionGraphViews(unittest.TestCase):
             assert next(iter(networkx.dfs_preorder_nodes(view, start))) is start
             assert set(networkx.bfs_tree(view, start).nodes) <= set(nodes)
             dominators = networkx.immediate_dominators(view, start)
-            assert start not in dominators and all(dominators[n] in view for n in dominators)
+            assert start not in dominators and all(dom in view for dom in dominators.values())
             assert all(
                 dominators[n] is start for n in view.successors(start) if n in dominators and view.in_degree(n) == 1
             )

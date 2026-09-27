@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring
+# pylint: disable=missing-class-docstring,import-error
 """Regression test for serialize/parse round-trip non-idempotence
 when a Function has a fake_return edge whose destination is external
 but whose edge attribute outside=False.

@@ -14,7 +14,7 @@ from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
 from angr.knowledge_plugins.functions.transition_graph import TransitionGraph
-from angr.rustylib.function_graph import EdgeKind, FunctionGraph, SiteKind
+from angr.rustylib.function_graph import EdgeKind, FunctionGraph, SiteKind  # pylint:disable=import-error
 from tests.common import bin_location
 
 from .test_function_graph_serialization import function_digest

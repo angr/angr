@@ -17,7 +17,7 @@ import angr
 from angr.angrdb import AngrDB
 from angr.codenode import BlockNode
 from angr.knowledge_plugins.functions.function import Function
-from angr.rustylib.function_graph import FunctionGraph
+from angr.rustylib.function_graph import FunctionGraph  # pylint:disable=import-error
 from tests.common import bin_location
 
 ARMEL_FAUXWARE = os.path.join(bin_location, "tests", "armel", "fauxware")

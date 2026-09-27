@@ -1,4 +1,4 @@
-# pylint:disable=too-many-boolean-expressions
+# pylint:disable=too-many-boolean-expressions,protected-access
 from __future__ import annotations
 
 import contextlib

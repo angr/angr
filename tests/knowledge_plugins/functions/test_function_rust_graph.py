@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,protected-access
 """Function graph storage: the transition graph lives in a Rust FunctionGraph and networkx views are materialized
 on demand."""
 
