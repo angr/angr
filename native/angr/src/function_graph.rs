@@ -1,9 +1,9 @@
 //! Packed storage for the transition graph of a `Function`.
 //!
-//! Exposed as `angr.rustylib.function_graph.FunctionGraph`. Node ids are indices into the node table and are
-//! stable for the lifetime of the graph: `remove_node` only clears graph membership (and edges), so the id
-//! maps (`local_at`, `addr_to_block`, ...) keep pointing at the same records, exactly like the old Python dicts
-//! kept pointing at node objects that had left the networkx graph.
+//! Exposed as `angr.rustylib.function_graph.FunctionGraph`.
+//! Node ids are indices into the node table. Node IDs are stable for the lifetime of the graph.
+//! `remove_node` only clears graph membership (and edges), so the ID maps (`local_at`, `addr_to_block`, ...)
+//! keep pointing at the same records.
 
 use indexmap::IndexMap;
 use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
@@ -15,8 +15,7 @@ use serde::{Deserialize, Serialize};
 
 const FORMAT_VERSION: u8 = 2;
 
-/// Which attribute keys the networkx edge-data dict carried. Reproducing the key set exactly keeps
-/// `"outside" in data` style checks in callers behaving as before.
+/// Function graph edge attributes.
 pub const PRESENT_TYPE: u8 = 1;
 pub const PRESENT_OUTSIDE: u8 = 2;
 pub const PRESENT_INS_ADDR: u8 = 4;
@@ -210,7 +209,7 @@ struct Node {
     thumb: bool,
     in_graph: bool,
     flags: u8,
-    /// `addr + delta` is where the block's bytes live (-1 for Thumb blocks, whose addr has bit 0 set).
+    /// `addr + delta` is where the block's bytes live (-1 for Thumb blocks, 0 for other blocks).
     delta: i32,
 }
 
@@ -231,7 +230,7 @@ struct Edge {
 }
 
 impl Edge {
-    /// networkx `add_edge` semantics: keys given in the call overwrite, the rest survive.
+    /// Prefer the keys that the other edge containers.
     fn merge(&mut self, other: &Edge) {
         if other.present & PRESENT_TYPE != 0 {
             self.kind = other.kind;
@@ -271,7 +270,6 @@ impl Edge {
         Ok(d)
     }
 
-    /// Edges the local (intra-function) graph keeps: non-outside transitions, exceptions and fake returns.
     fn is_local(&self) -> bool {
         self.present & PRESENT_TYPE != 0
             && matches!(
@@ -292,7 +290,7 @@ struct Payload {
     addr_to_block: Vec<(u64, u32)>,
     block_sizes: Vec<(u64, u32)>,
     call_sites: Vec<(u64, Option<u64>, Option<u64>)>,
-    /// User-supplied bytes of nodes that do not come from the loader, by node id.
+    /// User-supplied bytes for blocks; indexed by node ID.
     node_bytes: Vec<(u32, Vec<u8>)>,
 }
 
@@ -337,7 +335,7 @@ impl FunctionGraph {
         idx
     }
 
-    /// Node identity is `(kind, addr, size, thumb)`; `delta` is recorded only for a new record.
+    /// Node identity is `(kind, addr, size, thumb)`; `delta` is recorded only.
     fn find_or_create(
         &mut self,
         kind: NodeKind,
@@ -414,7 +412,6 @@ impl FunctionGraph {
     }
 
     fn to_payload(&self) -> Payload {
-        // keep graph members plus every record a map or flag still refers to; renumber densely
         let mut keep = vec![false; self.nodes.len()];
         for (i, n) in self.nodes.iter().enumerate() {
             keep[i] = n.in_graph || n.flags != 0;
@@ -701,7 +698,7 @@ impl FunctionGraph {
         Ok(self.node_ref(idx)?.kind)
     }
 
-    /// Ids of all graph members, in insertion order.
+    /// IDs of all graph members, in insertion order.
     pub fn nodes(&self) -> Vec<u32> {
         self.graph_nodes().collect()
     }
@@ -714,8 +711,7 @@ impl FunctionGraph {
 
     // --- edges ---------------------------------------------------------------------------------
 
-    /// networkx `add_edge(u, v, **data)`: `present` says which keys were given. Missing nodes are added to the
-    /// graph. Returns True if the edge is new.
+    /// Missing nodes are added to the graph. Returns True if the edge is new.
     #[pyo3(signature = (src, dst, kind, present, outside=false, ins_addr=None, stmt_idx=None, confirmed=false))]
     #[allow(clippy::too_many_arguments)]
     pub fn add_edge(
@@ -870,8 +866,6 @@ impl FunctionGraph {
         Ok(self.in_adj[idx as usize].len())
     }
 
-    /// Addresses of callees and jump-out targets: FuncNode/HookNode/SyscallNode members (other than the start
-    /// node of a hooked function) plus targets of outside transition edges. This is what the call graph needs.
     pub fn outgoing_function_targets(&self) -> Vec<(u64, bool)> {
         let mut out = Vec::new();
         for idx in self.graph_nodes() {

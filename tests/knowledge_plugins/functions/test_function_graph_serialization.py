@@ -19,7 +19,7 @@ from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
-# fauxware "authenticate" and "main" serialized by angr 24737f3a2 (graph_format 0: per-block/per-edge messages)
+# fauxware "authenticate" and "main" serialized to angrdb v1
 LEGACY_AUTHENTICATE = bytes.fromhex(
     "08e48c8002123308e48c8002202a2a2a554889e54883ec2048897de8488975e0c645f800488b15c9092000488b45e04889d64889c7e8c2fe"
     "ffff120d088e8d800220042a0485c07507121008928d800220072a07b801000000eb52121f08998d800220162a16488b45e8be0000000048"

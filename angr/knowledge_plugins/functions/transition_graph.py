@@ -20,8 +20,8 @@ def _read_only(*_args, **_kwargs):
 
 class ReadOnlyAttrDict(dict):
     """
-    The attribute dictionary of a node, an edge or the graph of a Function graph view. Reads like a dict; every write
-    raises ReadOnlyGraphError. Copies (``copy()``, ``dict(d)``, pickling, ``copy.deepcopy``) are plain dicts.
+    The attribute dictionary of a node, an edge or the graph of a Function graph view. every write
+    raises ReadOnlyGraphError. Copies (copy(), dict(d), pickling, and copy.deepcopy) become plain dicts.
     """
 
     __slots__ = ()
@@ -56,12 +56,10 @@ def _plain_digraph(graph_attrs: dict, nodes: list, edges: list) -> networkx.DiGr
 
 class TransitionGraph(networkx.DiGraph):
     """
-    A read-only networkx DiGraph over the nodes and edges of a Function's transition graph (``transition_graph``) or
-    its local part (``graph``). The owning Function keeps it in sync with its store; nothing else can write it:
-    every mutating method raises ReadOnlyGraphError, attribute dictionaries are ReadOnlyAttrDicts, and
-    ``networkx.is_frozen()`` is True. ``copy()``, ``reverse()``, ``to_directed()``, ``to_undirected()``,
-    ``subgraph(...).copy()``, ``networkx.DiGraph(view)``, pickling and deep-copying all produce ordinary mutable
-    networkx graphs that are detached from the Function.
+    A read-only DiGraph for the transition graph or local transition graph of a function.
+    The owning Function keeps this DiGraph in sync with the actual store.
+    All copying operations will convert this TransitionGraph into a plain networkx.DiGraph instance, in which
+    case the original Function owner no longer keeps the copied instance in sync.
     """
 
     frozen = True
@@ -73,8 +71,6 @@ class TransitionGraph(networkx.DiGraph):
             raise TypeError("TransitionGraph views are built by Function; use networkx.DiGraph(view) for a copy")
         super().__init__(None, **attr)
         self.graph = ReadOnlyAttrDict(self.graph)
-
-    # networkx detaches copies through self.__class__() followed by add_*; produce plain graphs instead
 
     def copy(self, as_view: bool = False):
         if as_view:

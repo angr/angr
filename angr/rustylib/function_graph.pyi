@@ -55,14 +55,16 @@ class EndpointKind:
 
 class FunctionGraph:
     """
-    Packed storage for the transition graph of a Function: a node table, an edge table with the networkx edge
-    attributes, the local-block/block-size/block-node maps, endpoint and site flags, call sites and the startpoint.
+    Packed storage for the transition graph of a Function:
+    - A node table
+    - An edge table with edge attributes
+    - Local-block/block-size/block-node maps
+    - Block endpoint and site flags
+    - call sites
+    - startpoint
 
-    Node ids are indices into the node table and stay valid for the lifetime of the graph; ``remove_node`` only
-    removes a node from the graph (and its edges), the maps that refer to it are untouched.
-
-    ``to_bytes()`` writes blob format version 2 (nodes carry ``delta``; user-supplied node bytes are stored in a
-    side table); ``from_bytes()`` accepts only that version and raises ValueError for any other version byte.
+    Node IDs are indices into the node table and are valid for the lifetime of the graph; remove_node only
+    removes a node from the graph (and its edges), while the maps that refer to it are untouched.
     """
 
     func_addr: int
@@ -70,11 +72,10 @@ class FunctionGraph:
 
     def __init__(self, func_addr: int) -> None: ...
     def copy(self) -> FunctionGraph: ...
-    # nodes
     def number_of_nodes(self) -> int: ...
     def number_of_edges(self) -> int: ...
     def add_node(self, kind: NodeKind, addr: int, size: int, thumb: bool, delta: int = 0) -> tuple[int, bool]:
-        """networkx add_node. Returns (id, created); delta is recorded for a new record only."""
+        """networkx add_node. Returns (id, created)."""
 
     def register_node(
         self, is_local: bool, kind: NodeKind, addr: int, size: int, thumb: bool, delta: int = 0
@@ -82,25 +83,24 @@ class FunctionGraph:
         """Port of Function.register_node. Returns (id, created, new_local, changed)."""
 
     def node_delta(self, idx: int) -> int:
-        """delta of a node id: its bytes live at addr + delta."""
+        """delta of a node ID. The bytes of the block are at (addr + delta)."""
 
     def node_bytes(self, idx: int) -> bytes | None:
         """The user-supplied bytes of a node, or None if its bytes come from the loader."""
 
     def set_node_bytes(self, idx: int, data: bytes) -> None:
-        """Store user-supplied bytes for a node."""
+        """Set user-supplied bytes for a node."""
 
     def find_node(self, kind: NodeKind, addr: int, size: int, thumb: bool) -> int | None: ...
     def contains_node(self, idx: int) -> bool: ...
     def node(self, idx: int) -> tuple[NodeKind, int, int, bool]:
-        """(kind, addr, size, thumb) of a node id."""
+        """(kind, addr, size, thumb) of a node ID."""
 
     def node_addr(self, idx: int) -> int: ...
     def node_size(self, idx: int) -> int: ...
     def node_kind(self, idx: int) -> NodeKind: ...
     def nodes(self) -> list[int]: ...
     def remove_node(self, idx: int) -> bool: ...
-    # edges
     def add_edge(
         self,
         src: int,
@@ -112,7 +112,9 @@ class FunctionGraph:
         stmt_idx: int | None = None,
         confirmed: bool = False,
     ) -> bool:
-        """networkx add_edge(u, v, **data); ``present`` is a PRESENT_* mask of the given keys. Returns True if new."""
+        """Adds a new edge. ``present`` is a PRESENT_* mask of the given keys. Returns True if the edge
+        is new.
+        """
 
     def remove_edge(self, src: int, dst: int) -> bool: ...
     def has_edge(self, src: int, dst: int) -> bool: ...
@@ -134,7 +136,6 @@ class FunctionGraph:
     def outgoing_function_targets(self) -> list[tuple[int, bool]]:
         """(addr, is_call) of callees and outside-transition targets."""
 
-    # local blocks, block sizes
     def local_at(self, addr: int) -> int | None: ...
     def set_local_at(self, addr: int, idx: int) -> None: ...
     def is_local(self, addr: int) -> bool: ...
@@ -147,7 +148,6 @@ class FunctionGraph:
     def block_size(self, addr: int) -> int | None: ...
     def set_block_size(self, addr: int, size: int) -> None: ...
     def has_block_size(self, addr: int) -> bool: ...
-    # sites and endpoints
     def add_site(self, idx: int, kind: SiteKind) -> None: ...
     def has_site(self, idx: int, kind: SiteKind) -> bool: ...
     def sites(self, kind: SiteKind) -> list[int]: ...
@@ -155,16 +155,13 @@ class FunctionGraph:
     def has_endpoint(self, idx: int, kind: EndpointKind) -> bool: ...
     def endpoints(self, kind: EndpointKind) -> list[int]: ...
     def has_any_endpoint(self) -> bool: ...
-    # call sites
     def add_call_site(self, addr: int, target: int | None, ret: int | None) -> None: ...
     def call_site(self, addr: int) -> tuple[int | None, int | None] | None: ...
     def call_sites(self) -> list[tuple[int, int | None, int | None]]: ...
     def call_site_addrs(self) -> list[int]: ...
-    # normalization
     def normalize(self, is_arm: bool, branch_ins_addr: Callable[[int, int], int | None]) -> None:
         """Split overlapping blocks that share an end address (Function.normalize)."""
 
-    # serialization
     def to_bytes(self) -> bytes: ...
     @classmethod
     def from_bytes(cls, data: bytes) -> FunctionGraph: ...

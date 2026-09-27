@@ -2,8 +2,7 @@
 # pylint: disable=missing-class-docstring
 """Regression test for serialize/parse round-trip non-idempotence
 when a Function has a fake_return edge whose destination is external
-(in cmsg.external_blocks at save time) but whose edge attribute
-outside=False.
+but whose edge attribute outside=False.
 
 Before the fix, parse_from_cmessage's call-edge handler trusted the
 saved edge attribute and called _call_to(return_to_outside=False),
@@ -12,12 +11,11 @@ register_node. Each roundtrip added one entry to
 _local_block_addrs.
 
 This shape arises organically when CFGFast calls
-kb.functions._add_fakeret_to(..., confirmed=None) -- the underlying
+kb.functions._add_fakeret_to(..., confirmed=None), where the underlying
 Function._fakeret_to(confirmed=None) adds the edge with
-outside=False but does NOT call register_node for the to_node
-(the `if confirmed:` branch is skipped). At save the dst goes to
-cmsg.external_blocks; the edge keeps is_outside=False; the loader
-then disagrees.
+outside=False but does NOT call register_node for the to_node. At save
+the dst goes to cmsg.external_blocks; the edge keeps is_outside=False;
+the loader then disagrees.
 """
 
 from __future__ import annotations
@@ -87,7 +85,6 @@ class TestFunctionParserFakeret(unittest.TestCase):
         pre = set(func.block_addrs_set)
         cmsg = func.serialize_to_cmessage()
 
-        # Sanity: the shape that exposes the bug survives serialization
         graph = FunctionGraph.from_bytes(cmsg.graph_blob)
         self.assertEqual(graph.local_addrs(), [addr])
         fakeret_edges = [(u, v, d) for u, v, d in graph.edges_with_data() if graph.node_addr(v) == fakeret_dst_addr]
