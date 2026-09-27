@@ -92,7 +92,6 @@ class FunctionParser:
                     f"Cannot convert from_signature {function.from_signature} into a SignatureSource enum."
                 )
 
-        # blocks, graph, endpoints, external references and call sites
         obj.graph_blob = function._graph.to_bytes()
 
         return obj
@@ -100,7 +99,7 @@ class FunctionParser:
     @staticmethod
     def local_block_addrs_from_cmsg(cmsg) -> set[int]:
         """
-        The addresses of the local blocks of a serialized function, without building the Function.
+        Get the addresses of the local blocks of a serialized function without building the Function object.
         """
         if cmsg.graph_blob:
             return set(FunctionGraph.local_block_addrs_from_bytes(cmsg.graph_blob))
@@ -180,7 +179,7 @@ class FunctionParser:
             obj._dirty = False
             return obj
 
-        # no blob: a version-1 angrdb record (per-block / per-edge layout)
+        # Fall back to angrDb V1 legacy function record.
         from angr.angrdb.v1 import AngrDbV1  # pylint:disable=import-outside-toplevel
 
         return AngrDbV1.parse_function(cmsg, obj, project, meta_only)

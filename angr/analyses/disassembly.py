@@ -1085,7 +1085,6 @@ class Disassembly(Analysis):
                 # generated). Simply disassemble the code in the given regions. In the future we may want to handle
                 # this case by automatically running CFG analysis on given ranges.
                 for start, end in ranges:
-                    # on ARM an odd start address denotes Thumb code, as the block lifter would infer
                     is_thumb = thumb or (self.project.arch.name.startswith("ARM") and start & 1 == 1)
                     self.parse_block(
                         BlockNode(
@@ -1164,7 +1163,6 @@ class Disassembly(Analysis):
             self.raw_result.append(hook)
             self.raw_result_map["hooks"][block.addr] = hook
         elif self.project.arch.capstone_support:
-            # Prefer Capstone first, where we are able to extract a bit more about the operands
             cs = self.project.arch.capstone_thumb if block.thumb else self.project.arch.capstone
             self.block_to_insn_addrs[block.addr] = []
             # determine the bytes to disassemble. pass in original=False to get the post-patching bytes.

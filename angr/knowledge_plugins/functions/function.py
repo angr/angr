@@ -93,7 +93,7 @@ def _node_key(node: CodeNode) -> tuple[NodeKind, int, int, bool]:
         else:
             raise TypeError(f"{node!r} is not a CodeNode")
     size = node.size
-    # hook nodes built from CFGNodes may carry size=None
+    # hook nodes that are built from CFGNodes may have size=None
     return kind, node.addr, 0 if size is None else size, bool(node.thumb)
 
 
@@ -254,11 +254,10 @@ class Function(Serializable):
         :param bool returning:  If this function returns.
         :param bool alignment:  If this function acts as an alignment filler. Such functions usually only contain nops.
         """
-        # the graph, block maps, endpoints, sites and call sites all live in the Rust store
         self._graph = FunctionGraph(addr)
-        # the networkx view of the store, materialized on first read; None while nobody has read it
+        # the networkx view of the store, created on-demand
         self._transition_graph: TransitionGraph | None = None
-        # one canonical CodeNode object per store node id, created on demand
+        # CodeNode objects, created on demand
         self._node_objs: dict[int, CodeNode] = {}
         self._block_addrs_cache: set[int] | None = None
         self._local_transition_graph = None
@@ -612,7 +611,7 @@ class Function(Serializable):
 
     def _node_obj(self, idx: int) -> CodeNode:
         """
-        The canonical CodeNode object for a store node id, created on demand.
+        Get a CodeNode object for a given node ID.
         """
         obj = self._node_objs.get(idx)
         if obj is None:
@@ -643,7 +642,7 @@ class Function(Serializable):
 
     def _graph_node(self, node: CodeNode) -> int:
         """
-        The store id of a node, inserting it into the graph if necessary (networkx add_edge/add_node semantics).
+        Add a node to the graph if necessary. Return the ID of the node.
         """
         kind, addr, size, thumb = _node_key(node)
         idx, created = self._graph.add_node(kind, addr, size, thumb, _node_delta(node))
@@ -675,7 +674,7 @@ class Function(Serializable):
 
     def _successors_of(self, node: CodeNode) -> list[CodeNode]:
         """
-        The successors of a node in the transition graph, read off the store (CodeNode.successors()).
+        The successors of a node in the transition graph.
         """
         return self._node_objs_of(self._graph.successors(self._node_index(node)))
 
@@ -701,14 +700,14 @@ class Function(Serializable):
                 self._node_obj(src), self._node_obj(dst), "confirmed", confirmed
             )
 
+    # Direct graph edits.
     #
-    # Direct graph edits. The networkx views are read-only; these are the equivalents of DiGraph.add_node,
-    # add_edge, remove_node and remove_edge on the transition graph.
-    #
+    # The networkx views are read-only. The methods below are the equivalents of
+    # DiGraph.add_node, add_edge, remove_node, and remove_edge on the transition graph.
 
     def add_graph_node(self, node: CodeNode) -> None:
         """
-        Add a node to the transition graph without registering it as a local block (DiGraph.add_node).
+        Add a node to the transition graph without registering it as a local block.
         """
         self._graph_node(node)
         self.mark_dirty()
@@ -725,8 +724,7 @@ class Function(Serializable):
         confirmed: bool | None = None,
     ) -> None:
         """
-        Add or update an edge of the transition graph (DiGraph.add_edge): only the attributes given are set, the
-        others keep their values. Missing nodes are added to the graph without becoming local blocks.
+        Add or update an edge of the transition graph.
         """
         present = 0
         kind = EdgeKind.TRANSITION
@@ -752,8 +750,7 @@ class Function(Serializable):
 
     def remove_graph_node(self, node: CodeNode) -> None:
         """
-        Remove a node and its edges from the transition graph (DiGraph.remove_node). Block sizes, local-block
-        membership and site flags recorded for the node are kept, as before.
+        Remove a node and its edges from the transition graph.
         """
         idx = self._find_node(node)
         if idx is None or not self._graph.remove_node(idx):
@@ -774,8 +771,8 @@ class Function(Serializable):
     @property
     def transition_graph(self) -> TransitionGraph:
         """
-        A read-only networkx view of the transition graph, materialized on first read and kept in sync with the
-        Function's writes. Mutate the graph through the Function API (_transit_to, _call_to, _add_graph_edge, ...).
+        A read-only networkx view of the transition graph, created on-demand and kept in sync with the
+        Function's updates.
         """
         tg = self._transition_graph
         if tg is None:
@@ -805,7 +802,7 @@ class Function(Serializable):
 
         for block_addr, idx in self._graph.local_items():
             node = self._node_objs.get(idx)
-            # only user-supplied bytes are handed over; the other blocks are lifted from the (patched) project memory
+            # bytestr is only set for user-supplied bytes
             bytestr = node._bytestr if isinstance(node, BlockNode) else None
             with contextlib.suppress(SimEngineError, SimMemoryError):
                 yield self.get_block(block_addr, size=self._graph.node_size(idx), byte_string=bytestr)
@@ -1127,7 +1124,7 @@ class Function(Serializable):
 
     def _set_legacy_state(self, state: dict) -> None:
         """
-        Restore a Function pickled before the graph moved into the Rust store.
+        Restore legacy Function pickling result (before we migrate FunctionGraph into Rust).
         """
         graph_keys = {
             "transition_graph",
@@ -1581,8 +1578,8 @@ class Function(Serializable):
 
     def register(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> int:
         """
-        Register a node with the function and return its store id. The first object registered for a fresh id
-        becomes the canonical CodeNode object for it.
+        Register a node with the function and return its ID. The first object that is registered
+        for a fresh ID becomes the ID's canonical CodeNode object.
         """
         kind, addr, size, thumb = _node_key(node)
         idx, created, new_local, changed = self._graph.register_node(
@@ -1684,8 +1681,7 @@ class Function(Serializable):
 
     def outgoing_function_targets(self) -> list[int]:
         """
-        Addresses of the functions this function calls or jumps out to: callee nodes plus the targets of outside
-        transition edges. This is what the call graph is built from.
+        Addresses of the functions this function calls or jumps out to.
         """
         return [addr for addr, _ in self._graph.outgoing_function_targets()]
 
@@ -1726,11 +1722,9 @@ class Function(Serializable):
         belong to the current function. All edges, except for the edges going out from the current function or coming
         from outside the current function, are included.
 
-        The generated graph is a read-only view cached in self._local_transition_graph; graph_ex() returns a
-        mutable copy.
+        The generated graph is a read-only view cached in self._local_transition_graph.
 
         :return:    A local transition graph.
-        :rtype:     networkx.DiGraph
         """
 
         if self._local_transition_graph is not None:
@@ -1751,15 +1745,14 @@ class Function(Serializable):
     def graph_ex(self, exception_edges=True) -> networkx.DiGraph[CodeNode]:
         """
         Get a local transition graph with a custom configuration. A local transition graph is a transition graph that
-        only contains nodes that belong to the current function. This method allows user to exclude certain types of
-        edges together with the nodes that are only reachable through such edges, such as exception edges.
+        only contains nodes that belong to the current function. This method allows user to include certain types of
+        edges and nodes, such as exception edges.
 
-        The generated graph is not cached; it is a mutable copy that callers may edit.
+        The generated graph is not cached. It is a mutable copy.
 
         :param bool exception_edges:    Should exception edges and the nodes that are only reachable through exception
                                         edges be kept.
         :return:                        A local transition graph with a special configuration.
-        :rtype:                         networkx.DiGraph
         """
 
         graph = self.graph

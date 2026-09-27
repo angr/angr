@@ -17,12 +17,7 @@ from .function import Function, FunctionInfo, dirty_func
 
 class SootFunction(Function):
     """
-    A representation of a Soot function. Soot addresses are SootMethodDescriptors, which the Rust-backed
-    FunctionGraph cannot hold, so this class keeps the transition graph and its block maps in networkx and Python
-    dicts. The graph methods below are the pre-FunctionGraph implementations of the same methods on Function.
-
-    Unlike Function, its transition_graph and graph are plain mutable networkx graphs: normalize(), copy() and the
-    graph methods below edit them in place, and pysoot is not available to exercise a read-only rewrite of them.
+    A representation of a Soot function.
     """
 
     __slots__ = (
@@ -158,8 +153,6 @@ class SootFunction(Function):
     def blocks(self):
         """
         An iterator of all local blocks in the current function.
-
-        :return: angr.lifter.Block instances.
         """
 
         for block_addr, block in self._local_blocks.items():
@@ -309,17 +302,6 @@ class SootFunction(Function):
     def add_retout_site(self, node: CodeNode):
         """
         Add a custom retout site.
-
-        Retout (returning to outside of the function) sites are very rare. It mostly occurs during CFG recovery when we
-        incorrectly identify the beginning of a function in the first iteration, and then correctly identify that
-        function later in the same iteration (function alignments can lead to this bizarre case). We will mark all edges
-        going out of the header of that function as a outside edge, because all successors now belong to the
-        incorrectly-identified function. This identification error will be fixed in the second iteration of CFG
-        recovery. However, we still want to keep track of jumpouts/retouts during the first iteration so other logic in
-        CFG recovery still work.
-
-        :param node: The address of the basic block that control flow leaves the current function after a call.
-        :return:     None
         """
 
         node = self.register_node(True, node)
@@ -384,13 +366,10 @@ class SootFunction(Function):
     ):
         """
         Registers an edge between basic blocks in this function's transition graph.
-        Arguments are CodeNode objects.
 
-        :param from_node            The address of the basic block that control
-                                    flow leaves during this transition.
-        :param to_node              The address of the basic block that control
-                                    flow enters during this transition.
-        :param bool outside:        If this is a transition to another function, e.g. tail call optimization
+        :param from_node            The address of the basic block that begins this transition.
+        :param to_node              The address of the basic block that ends this transition.
+        :param bool outside:        If this is a transition to another function.
         :return: None
         """
 
@@ -412,7 +391,6 @@ class SootFunction(Function):
             )
 
         if outside:
-            # this node is an endpoint of the current function
             self.add_endpoint(from_node, type_)
 
         # clear the cache
@@ -434,15 +412,11 @@ class SootFunction(Function):
         Registers an edge between the caller basic block and callee function.
 
         :param from_addr:   The basic block that control flow leaves during the transition.
-        :type  from_addr:   angr.knowledge.CodeNode
         :param to_func:     The function that we are calling, represented as a FuncNode.
         :param ret_node     The basic block that control flow should return to after the
                             function call.
-        :type  to_func:     angr.knowledge.CodeNode or None
         :param stmt_idx:    Statement ID of this call.
-        :type  stmt_idx:    int, str or None
         :param ins_addr:    Instruction address of this call.
-        :type  ins_addr:    int or None
         """
 
         from_node = self.register_node(True, from_node, update_func_block_count=update_func_block_count)
@@ -511,8 +485,6 @@ class SootFunction(Function):
         return_site = self.register_node(True, return_site)
 
         self._ret_sites.add(return_site)
-        # A return site must be an endpoint of the function - you cannot continue execution of the current function
-        # after returning
         self.add_endpoint(return_site, "return")
 
     @dirty_func

@@ -86,7 +86,7 @@ class AngrDbV1:
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
         # nodes outside of this function; FuncNode, HookNode, and SyscallNode addresses are also recorded in
-        # external_functions for readers that predate Block.kind
+        # external_functions for readers before Block.kind
         external_func_addrs = []
         external_blocks = []
         for node in function.transition_graph:
@@ -157,9 +157,6 @@ class AngrDbV1:
     def node_from_block_cmsg(block, project):
         match block.kind:
             case primitives_pb2.CodeNodeKind.BLOCK_NODE:
-                # Messages of the per-block layout carry bytes for every block (angr <= #7235 wrote them for all
-                # lifted blocks), so user-supplied bytes cannot be told apart: the stored bytes are dropped and the
-                # node reads its bytes from the loader.
                 return BlockNode(block.ea, block.size, thumb=block.thumb)
             case primitives_pb2.CodeNodeKind.HOOK_NODE:
                 hooker = project.hooked_by(block.ea) if project is not None and project.is_hooked(block.ea) else None
@@ -175,8 +172,7 @@ class AngrDbV1:
     @staticmethod
     def parse_function(cmsg, obj, project, meta_only: bool):
         """
-        Rebuild the graph of `obj` (a Function whose metadata is already set) from the per-block / per-edge layout
-        of `cmsg`.
+        Rebuild the graph of `obj` from the per-block / per-edge layout of `cmsg`.
         """
         if meta_only:
             for b in cmsg.blocks:
@@ -206,7 +202,6 @@ class AngrDbV1:
         for b in cmsg.external_blocks:
             external_nodes[b.ea].append(AngrDbV1.node_from_block_cmsg(b, project))
 
-        # addresses of referenced functions that are not inside the current function (readers of old messages only)
         external_func_addrs = set(cmsg.external_functions)
 
         def resolve(addr: int) -> CodeNode:
@@ -227,7 +222,6 @@ class AngrDbV1:
                 edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
-            # Function.call_to() and Function.return_from_call() always take the callee as a FuncNode
             src = FuncNode(edge_cmsg.src_ea) if edge_type == "return" else resolve(edge_cmsg.src_ea)
             dst = FuncNode(edge_cmsg.dst_ea) if edge_type in ("call", "syscall") else resolve(edge_cmsg.dst_ea)
 
@@ -276,8 +270,6 @@ class AngrDbV1:
 
         for src, dst, data in fake_return_edges:
             confirmed = data.get("confirmed")
-            # _fakeret_to() registers a confirmed destination as a local block unless to_outside is set; the block
-            # list decides locality, the stored flag is restored on the edge afterwards
             obj.fakeret_to(
                 src,
                 dst,
@@ -292,8 +284,6 @@ class AngrDbV1:
                 continue
             AngrDbV1.add_endpoint(obj, blocks[endpoint.ea], endpoint.type)
 
-        # add leftover nodes: local blocks without edges or only reachable via unconfirmed fake-return edges, and
-        # external nodes without edges
         for block in blocks.values():
             if not obj._graph.is_local(block.addr):
                 obj.register(True, block, update_func_block_count=False)
@@ -337,13 +327,11 @@ class AngrDbV1:
     ) -> CodeNode:
         candidates = external_nodes.get(addr)
         if candidates:
-            # a FuncNode only ever coexists at the same address with a Block/Hook/SyscallNode that is the real target
             for node in candidates:
                 if not isinstance(node, FuncNode):
                     return node
             return candidates[0]
 
-        # messages written before Block.kind existed only record the addresses of external functions
         if addr in external_func_addrs:
             if project is not None and project.is_hooked(addr):
                 return HookNode(addr, 0, project.hooked_by(addr))

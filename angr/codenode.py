@@ -124,14 +124,14 @@ class BlockNode[K: (int, SootMethodDescriptor)](CodeNode[K]):
     @property
     def manual_bytes(self) -> bool:
         """
-        True if the node carries user-supplied bytes rather than reading them from the loader.
+        True if the node has user-supplied bytes rather than reading bytes from the loader.
         """
         return self._bytestr is not None
 
     @property
     def raw_bytestr(self) -> bytes | None:
         """
-        The bytes of the block if they were supplied by the user. Otherwise None.
+        The bytes of the block if they were supplied by the user. None otherwise.
         """
         return self._bytestr
 
