@@ -15,12 +15,25 @@ shared function with the differing constants lifted into parameters.
 
 from __future__ import annotations
 
+from .search import (
+    TemplateColumn,
+    TemplateMatch,
+    find_template_occurrences,
+    search,
+    template_leaves,
+    tokenize_for_templates,
+    verify,
+)
+from .template import TEMPLATE_TOKENIZER, Fit, match_shape, parse_shape, shape_of
+
 __all__ = [
+    "TEMPLATE_TOKENIZER",
     "AILCanonicalizer",
     "AlignParams",
     "Alignment",
     "DedupResult",
     "ExactCore",
+    "Fit",
     "FuzzyPattern",
     "FuzzyPatternFinder",
     "Interval",
@@ -29,15 +42,25 @@ __all__ = [
     "PatternDeduplicator",
     "PatternOccurrence",
     "Region",
+    "TemplateColumn",
+    "TemplateMatch",
     "TokenLoc",
     "TokenStream",
     "discover",
     "find_exact_cores",
+    "find_template_occurrences",
     "linearize",
+    "match_shape",
     "materialize",
+    "parse_shape",
+    "search",
     "select_disjoint",
+    "shape_of",
     "snap",
+    "template_leaves",
     "tokenize",
+    "tokenize_for_templates",
+    "verify",
 ]
 
 from .align import Alignment, AlignParams, Interval, PatternCluster, discover, select_disjoint
