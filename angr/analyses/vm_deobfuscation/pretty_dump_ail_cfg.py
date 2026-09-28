@@ -380,7 +380,11 @@ class PrettyVariableObj(PrettyBlockCodeObj):
 # Output Linear AIL
 #
 
-def pretty_dump_ail_cfg(ail_cfg, proj, output="ail_cfg.pickle"):
+def pretty_dump_ail_cfg(ail_cfg, proj, output=None):
+    # No CWD-relative default: unset means the project's artifacts directory.
+    if output is None:
+        from angr.utils.pushan_artifacts import store_for
+        output = store_for(proj).path("ail_cfg.pickle")
     str_cfg = nx.DiGraph()
     str_cfg.name = ail_cfg.name
     proj_cfg = proj.kb.cfgs.get_most_accurate()
