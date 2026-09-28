@@ -6,6 +6,7 @@ from typing import Any
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr import claripy
 import time
+from angr.utils.debug_trap import debug_trap
 def cur_time():
     return time.perf_counter_ns() / 1000000
 class EvalTopMergerMixin(MemoryMixin):
@@ -134,16 +135,16 @@ class EvalTopMergerMixin(MemoryMixin):
 
         if merge_kind != "loop":
             print("EvalTopMerger: VPC register merge is not at a loop merge point")
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (eval_top_merger_mixin.py:137)")
 
         return latest_value
 
     def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, all_states=None, page_addr=None, offset=None, size=None, **kwargs):
         if len(all_states) != len(values):
             print("We have a problem!")
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (eval_top_merger_mixin.py:144)")
         if len(values) > 2:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (eval_top_merger_mixin.py:146)")
         value0 = values[0][0]
         value1 = values[1][0]
         state0 = all_states[0]
