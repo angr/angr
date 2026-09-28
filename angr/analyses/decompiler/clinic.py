@@ -349,6 +349,18 @@ def _is_function_entry_fallthrough_block(graph: networkx.DiGraph, function_addr:
     return True
 
 
+class _BinOpCounter(AILBlockViewer):
+    """Counts the binary operations in a block."""
+
+    def __init__(self):
+        super().__init__()
+        self.count = 0
+
+    def _handle_BinaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.count += 1
+        super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class Clinic(Analysis, Serializable):
     """
     A Clinic deals with AILments: it lifts a function to AIL and runs the decompiler's simplification pipeline on it.
@@ -367,6 +379,17 @@ class Clinic(Analysis, Serializable):
     """
 
     _ail_manager: ailment.Manager
+
+    #: lift a block with cross-insn-opt only when it contains at least this many bytes
+    CROSS_INSN_OPT_MIN_BLOCK_SIZE = 99
+    #: ...and only in functions with at least this many such blocks
+    CROSS_INSN_OPT_MIN_LARGE_BLOCK_COUNT = 400
+    #: ...and it has fewer BinOps than this in total
+    CROSS_INSN_OPT_MAX_BINOP_COUNT = 3
+    #: ...and only when the block contains this many consecutive repeating byte strides
+    CROSS_INSN_OPT_MIN_STRIDE_REPEATS = 30
+    #: longest byte stride when looking for repeating patterns
+    CROSS_INSN_OPT_MAX_STRIDE = 4
 
     def __init__(
         self,
@@ -483,11 +506,17 @@ class Clinic(Analysis, Serializable):
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
         self._typehoon_cls = typehoon_cls
-        # Heuristic: if the function is larger than M, all blocks greater than N bytes will enable cross-instruction
-        # optimization in VEX. this heuristic is for higher decompilation speed.
-        self._cross_insn_opt_min_block_size = 99  # N
-        self._cross_insn_opt_min_large_block_count = 40  # M
+        # Heuristic: if the function has at least M large blocks (defined as larger than N bytes), we will
+        # lift these blocks with cross-insn-opt in VEX.
+        # Further, we restrict cross-insn-opt to blocks with fewer than K binops to limit decompilation quality
+        # regression.
+        self._cross_insn_opt_min_block_size = self.CROSS_INSN_OPT_MIN_BLOCK_SIZE  # N
+        self._cross_insn_opt_min_large_block_count = self.CROSS_INSN_OPT_MIN_LARGE_BLOCK_COUNT  # M
+        self._cross_insn_opt_max_binop_count = self.CROSS_INSN_OPT_MAX_BINOP_COUNT  # K
+        self._cross_insn_opt_min_stride_repeats = self.CROSS_INSN_OPT_MIN_STRIDE_REPEATS
         self._cross_insn_opt_for_large_blocks = False
+        # (block addr, block size) of all blocks lifted with cross-insn-opt=True
+        self._block_cross_insn_opt: set[tuple[int, int]] = set()
 
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
@@ -1565,8 +1594,8 @@ class Clinic(Analysis, Serializable):
         :return: None
         """
 
-        def _cross_insn_opt_callback(block_addr, block_size) -> bool:  # pylint: disable=unused-argument
-            return self._cross_insn_opt_for_large_blocks and block_size >= self._cross_insn_opt_min_block_size
+        def _cross_insn_opt_callback(block_addr, block_size) -> bool:
+            return self.block_lifted_with_cross_insn_opt(block_addr, block_size)
 
         regs = {self.project.arch.sp_offset}
         initial_reg_values = {
@@ -1595,6 +1624,42 @@ class Clinic(Analysis, Serializable):
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
+
+    def block_lifted_with_cross_insn_opt(self, block_addr: int, block_size: int) -> bool:
+        return (block_addr, block_size) in self._block_cross_insn_opt
+
+    def _block_is_filler_like(self, addr: int, size: int) -> bool:
+        """Whether the block's bytes repeat some stride at least ``CROSS_INSN_OPT_MIN_STRIDE_REPEATS`` times in
+        a row. Repeated one-instruction fillers are what cross-instruction folding pays off on."""
+        try:
+            data = self.project.loader.memory.load(addr, size)
+        except KeyError:
+            return False
+        return (
+            self.repeating_stride_run(data, self.CROSS_INSN_OPT_MAX_STRIDE) >= self._cross_insn_opt_min_stride_repeats
+        )
+
+    @staticmethod
+    def repeating_stride_run(data: bytes, max_stride: int) -> int:
+        """The longest run of consecutive repetitions of up to ``max_stride`` bytes in ``data``."""
+        n = len(data)
+        best = 1 if n else 0
+        for stride in range(1, min(max_stride, n // 2) + 1):
+            run = 1
+            for i in range(stride, n - stride + 1, stride):
+                if data[i : i + stride] == data[i - stride : i]:
+                    run += 1
+                    best = max(best, run)
+                else:
+                    run = 1
+        return best
+
+    @staticmethod
+    def binop_count(block: ailment.Block) -> int:
+        """The number of binary operations across all statements of ``block``."""
+        counter = _BinOpCounter()
+        counter.walk(block)
+        return counter.count
 
     @timethis
     def _convert_all(self):
@@ -1650,11 +1715,19 @@ class Clinic(Analysis, Serializable):
         if block_node.size == 0:
             return ailment.Block(block_node.addr, 0, statements=[])
 
-        cross_insn_opt = False
-        if self._cross_insn_opt_for_large_blocks and block_node.size >= self._cross_insn_opt_min_block_size:
-            cross_insn_opt = True
+        cross_insn_opt = (
+            self._cross_insn_opt_for_large_blocks
+            and block_node.size >= self._cross_insn_opt_min_block_size
+            and self._block_is_filler_like(block_node.addr, block_node.size)
+        )
         block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=cross_insn_opt)
         converted = self._convert_vex(block)
+        if cross_insn_opt and self.binop_count(converted) > self._cross_insn_opt_max_binop_count:
+            cross_insn_opt = False
+            block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
+            converted = self._convert_vex(block)
+        if cross_insn_opt:
+            self._block_cross_insn_opt.add((block_node.addr, block_node.size))
 
         # architecture-specific setup
         if block.addr == self.function.addr and self.project.arch.name in {"X86", "AMD64"}:

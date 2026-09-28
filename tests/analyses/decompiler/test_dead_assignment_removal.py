@@ -4,18 +4,24 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import os
 import time
 import unittest
+from unittest import mock
 
 import archinfo
 
 import angr
 from angr.ailment.block import Block
-from angr.ailment.expression import Call, Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Call, Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.ail_simplifier import AILSimplifier
+from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel, populate_model
-from tests.common import print_decompilation_result
+from tests.common import bin_location, print_decompilation_result
+
+test_location = os.path.join(bin_location, "tests")
 
 BLOCK_ADDR = 0x400000
 BLOCK_KEY = (BLOCK_ADDR, None)
@@ -131,6 +137,109 @@ class TestPackerFillerDecompilation(unittest.TestCase):
         assert dec.clinic._cross_insn_opt_for_large_blocks is True
         assert dec.codegen is not None and dec.codegen.text is not None
         assert elapsed < 60.0, f"decompiling {block_count} blocks of filler took {elapsed:.1f}s"
+
+
+def _nested(manager, depth):
+    x = VirtualVariable(manager.next_atom(), 1, 64, VirtualVariableCategory.REGISTER, oident=16)
+    expr = x
+    for i in range(depth):
+        expr = BinaryOp(manager.next_atom(), "Add", [expr, Const(manager.next_atom(), i, 64)], False)
+    return expr
+
+
+class TestBinOpCap(unittest.TestCase):
+    def test_counts_the_whole_block(self):
+        manager = Manager()
+        y = VirtualVariable(manager.next_atom(), 2, 64, VirtualVariableCategory.REGISTER, oident=24)
+        block = Block(
+            0x1000,
+            1,
+            statements=[
+                Assignment(manager.next_atom(), y, _nested(manager, 2)),
+                Assignment(manager.next_atom(), y, _nested(manager, 5)),
+                Assignment(manager.next_atom(), y, _nested(manager, 1)),
+            ],
+        )
+        assert Clinic.binop_count(block) == 8
+
+    def test_defaults(self):
+        assert Clinic.CROSS_INSN_OPT_MIN_LARGE_BLOCK_COUNT == 400
+        assert Clinic.CROSS_INSN_OPT_MAX_BINOP_COUNT == 3
+        assert Clinic.CROSS_INSN_OPT_MIN_BLOCK_SIZE == 99
+        assert Clinic.CROSS_INSN_OPT_MIN_STRIDE_REPEATS == 30
+
+
+class TestRepeatingStrides(unittest.TestCase):
+    def test_a_one_byte_filler(self):
+        assert Clinic.repeating_stride_run(b"\x91" * 40, 16) == 40
+
+    def test_a_three_byte_stride(self):
+        data = b"\x48\x87\xc0" * 35 + b"\xc3"
+        assert Clinic.repeating_stride_run(data, 16) == 35
+
+    def test_real_code_repeats_little(self):
+        data = bytes(range(7, 200)) + bytes(range(3, 90))
+        assert Clinic.repeating_stride_run(data, 16) <= 2
+
+    def test_empty_and_short(self):
+        assert Clinic.repeating_stride_run(b"", 16) == 0
+        assert Clinic.repeating_stride_run(b"\x90", 16) == 1
+
+
+class TestLiftingBookkeeping(unittest.TestCase):
+    def setUp(self):
+        self._saved = (
+            Clinic.CROSS_INSN_OPT_MIN_LARGE_BLOCK_COUNT,
+            Clinic.CROSS_INSN_OPT_MIN_BLOCK_SIZE,
+            Clinic.CROSS_INSN_OPT_MAX_BINOP_COUNT,
+            Clinic.CROSS_INSN_OPT_MIN_STRIDE_REPEATS,
+        )
+        Clinic.CROSS_INSN_OPT_MIN_LARGE_BLOCK_COUNT = 1
+        Clinic.CROSS_INSN_OPT_MIN_BLOCK_SIZE = 1
+        Clinic.CROSS_INSN_OPT_MAX_BINOP_COUNT = 1000
+        Clinic.CROSS_INSN_OPT_MIN_STRIDE_REPEATS = 1
+
+    def tearDown(self):
+        (
+            Clinic.CROSS_INSN_OPT_MIN_LARGE_BLOCK_COUNT,
+            Clinic.CROSS_INSN_OPT_MIN_BLOCK_SIZE,
+            Clinic.CROSS_INSN_OPT_MAX_BINOP_COUNT,
+            Clinic.CROSS_INSN_OPT_MIN_STRIDE_REPEATS,
+        ) = self._saved
+
+    def test_every_block_is_recorded_and_the_cap_is_honoured(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "cat_gcc17.0.0_O2"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = cfg.functions[0x4023C0]  # main
+        victim = max((n for n in func.graph.nodes() if n.size > 0), key=lambda n: n.size)
+        real_count = Clinic.binop_count
+
+        def count(block):
+            return 10_000 if block.addr == victim.addr else real_count(block)
+
+        with mock.patch.object(Clinic, "binop_count", staticmethod(count)):
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.clinic is not None
+        clinic = dec.clinic
+        assert clinic._cross_insn_opt_for_large_blocks is True
+
+        folded = clinic._block_cross_insn_opt
+        sizes = {(n.addr, n.size) for n in func.graph.nodes() if n.size > 0}
+        assert (victim.addr, victim.size) not in folded, "the block over the cap was lifted plain"
+        assert folded == sizes - {(victim.addr, victim.size)}, "every other block stayed folded"
+        for addr, size in sizes:
+            assert clinic.block_lifted_with_cross_insn_opt(addr, size) == ((addr, size) in folded)
+        assert clinic.block_lifted_with_cross_insn_opt(0xDEAD, 16) is False, "an unknown block is lifted plain"
+
+    def test_real_code_is_never_folded_under_the_stride_gate(self):
+        Clinic.CROSS_INSN_OPT_MIN_STRIDE_REPEATS = 30
+        proj = angr.Project(os.path.join(test_location, "x86_64", "cat_gcc17.0.0_O2"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = cfg.functions[0x4023C0]  # main
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.clinic is not None
+        assert dec.clinic._cross_insn_opt_for_large_blocks is True, "the function-level heuristic did engage"
+        assert not dec.clinic._block_cross_insn_opt, "but no block of real code repeats a stride"
 
 
 if __name__ == "__main__":
