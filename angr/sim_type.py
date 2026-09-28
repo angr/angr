@@ -1793,13 +1793,14 @@ class SimStruct(NamedTypeMixin, SimType):
         return SimStructValue(self, values=values)
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]):
-        if self.name in memo:
-            return cast(SimStruct, memo[self.name])
+        key = f"<anon struct {id(self)}>" if self.anonymous else self.name
+        if key in memo:
+            return cast(SimStruct, memo[key])
 
-        out = SimStruct({}, name=self.name, pack=self._pack, align=self._align)
+        out = SimStruct({}, name=self.name, pack=self._pack, align=self._align, anonymous=self.anonymous)
         out._arch = arch
         out._def_order = self._def_order
-        memo[self.name] = out
+        memo[key] = out
 
         out.fields = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.fields.items())
         out.fixup_bitfield_offsets(arch)
@@ -1924,7 +1925,9 @@ class SimStruct(NamedTypeMixin, SimType):
         )
 
     def copy(self):
-        return SimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
+        return SimStruct(
+            dict(self.fields), name=self.name, pack=self._pack, align=self._align, anonymous=self.anonymous
+        )
 
     def __eq__(self, other, avoid: dict[str, set[int]] | None = None):
         if not isinstance(other, SimStruct):
@@ -2566,8 +2569,9 @@ class SimCppClass(SimStruct):
             ty.store(state, addr + offset, value[field])
 
     def _with_arch(self, arch, *, memo: dict[str, SimType]) -> SimCppClass:
-        if self.name in memo:
-            return cast(SimCppClass, memo[self.name])
+        key = f"<anon struct {id(self)}>" if self.anonymous else self.name
+        if key in memo:
+            return cast(SimCppClass, memo[key])
 
         out = SimCppClass(
             unique_name=self.unique_name,
@@ -2578,10 +2582,11 @@ class SimCppClass(SimStruct):
             pack=self._pack,
             align=self._align,
             size=self._size,
+            anonymous=self.anonymous,
         )
         out._arch = arch
         out._def_order = self._def_order
-        memo[self.name] = out
+        memo[key] = out
 
         out.members = OrderedDict((k, v.with_arch(arch, memo=memo)) for k, v in self.members.items())
         out.function_members = (

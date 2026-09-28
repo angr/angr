@@ -638,6 +638,35 @@ class TestTypes(unittest.TestCase):
         assert set(new_u.members) == {"i", "self"}
         assert cast(SimTypePointer, new_u.members["self"]).pts_to is new_u
 
+    def test_with_arch_keeps_anonymous_structs_distinct(self):
+        # anonymous structs may share a name, so with_arch() must memoize them by identity: keying by name made the
+        # first one answer for the second, which turned the first one into its own descendant
+        s1 = SimStruct({"a": SimTypeInt()}, name="same_name", anonymous=True)
+        s2 = SimStruct({"b": SimTypeChar()}, name="same_name", anonymous=True)
+        outer = SimStruct({"s1": s1, "s2": SimUnion({"inner": s2})}, name="holder")
+
+        archified = cast(SimStruct, outer.with_arch(archinfo.ArchAMD64()))
+        a1 = archified.fields["s1"]
+        a2 = cast(SimUnion, archified.fields["s2"]).members["inner"]
+        assert isinstance(a1, SimStruct)
+        assert isinstance(a2, SimStruct)
+        assert a1 is not a2
+        assert a1.anonymous and a2.anonymous
+        assert set(a1.fields) == {"a"}
+        assert set(a2.fields) == {"b"}
+
+    def test_serialize_win32_variant_with_arch(self):
+        # issue #7270: VARIANT holds three distinct structs named "_Anonymous_e__Struct". with_arch() used to merge
+        # them into one, creating a cycle through no pointer that made to_json() recurse forever
+        angr.procedures.definitions.load_win32_type_collections()
+        variant = angr.SIM_TYPE_COLLECTIONS["win32"].get("VARIANT").with_arch(archinfo.ArchAMD64())
+        assert isinstance(variant, SimStruct)
+
+        d = variant.to_json()  # shall not raise
+        back = SimType.from_json(d).with_arch(archinfo.ArchAMD64())
+        assert isinstance(back, SimStruct)
+        assert back.size == variant.size
+
 
 if __name__ == "__main__":
     unittest.main()
