@@ -1690,7 +1690,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         current_function = self.kb.functions.function(current_function_addr)
                         if current_function is not None:
                             call_site_addr = self._block_id_addr(pe.src_block_id)
-                            current_function._call_sites[call_site_addr] = (func.addr, None)
+                            current_function.add_call_site(call_site_addr, func.addr, None)
                         else:
                             l.warning(
                                 "An expected function at %#x is not found. Please report it to Fish.",
@@ -2097,7 +2097,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if src_node_key is None:
             if dst_node is None:
                 raise ValueError("Either src_node_key or dst_node_key must be specified.")
-            self.kb.functions.function(dst_node.function_address, create=True)._register_node(True, dst_codenode)
+            self.kb.functions.function(dst_node.function_address, create=True).register_node(True, dst_codenode)
             return
 
         src_node = self._graph_get_node(src_node_key, terminator_for_nonexistent_node=True)
@@ -2204,7 +2204,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     continue
                 callsites = caller.transition_graph.predecessors(callee_funcnode)
                 for callsite in callsites:
-                    caller._add_call_site(callsite.addr, callee_func_addr, None)
+                    caller.add_call_site(callsite.addr, callee_func_addr, None)
 
     def _add_additional_edges(self, input_state, sim_successors, cfg_node, successors):
         """
@@ -2290,7 +2290,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
                 if call_func.returning is False:
                     # Remove that edge!
-                    graph.remove_edge(call_func_addr, return_to_addr)
+                    func.remove_edge(callsite_block_addr, return_to_addr)
                     # Remove the edge in CFG
                     nodes = self.model.get_all_nodes(callsite_block_addr)
                     for n in nodes:

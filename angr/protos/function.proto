@@ -42,4 +42,6 @@ message Function {
     repeated string previous_names = 27; // Previous names of this function
     uint32          prototype_source = 28; // did we guess this prototype?
     repeated CallSite call_sites = 29; // Call sites within this function
+    bytes           graph_blob = 30; // FunctionGraph.to_bytes(): blocks, graph, endpoints, external_functions,
+                                     // external_blocks and call_sites are empty when this is set
 }

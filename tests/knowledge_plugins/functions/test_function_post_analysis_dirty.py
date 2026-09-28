@@ -49,12 +49,12 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
         local_block = BlockNode(addr, 14, bytestr=blob[:14])
         ext_block = BlockNode(fakeret_dst_addr, 4, bytestr=b"\x00" * 4)
 
-        func._register_node(True, local_block)
+        func.register_node(True, local_block)
         # CFGFast leaves an unconfirmed fake_return edge to an external
         # block when the call's return target is later determined to
         # belong to a non-returning function. Build that exact shape.
-        func.transition_graph.add_node(ext_block)
-        func.transition_graph.add_edge(
+        func.add_graph_node(ext_block)
+        func.add_graph_edge(
             local_block,
             ext_block,
             type="fake_return",
@@ -72,7 +72,7 @@ class TestFunctionPostAnalysisDirty(unittest.TestCase):
         # this through Function._remove_fakeret (@dirty_func); before
         # the fix it was a direct graph mutation that left _dirty
         # untouched.
-        func._remove_fakeret(local_block, ext_block)
+        func.remove_fakeret(local_block, ext_block)
 
         self.assertTrue(
             func._dirty,

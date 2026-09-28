@@ -19,7 +19,7 @@ from archinfo.arch_soot import SootMethodDescriptor
 from cachetools import LRUCache
 from sortedcontainers import SortedDict, SortedItemsView, SortedKeysView, SortedList, SortedValuesView
 
-from angr.codenode import FuncNode, HookNode
+from angr.codenode import FuncNode
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.protos import function_pb2
@@ -1005,7 +1005,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         dst_func = self._function_map[function_addr]
         if syscall in (True, False):
             dst_func.is_syscall = syscall
-        dst_func._register_node(True, node)
+        dst_func.register_node(True, node)
 
     def _add_call_to(
         self,
@@ -1042,11 +1042,11 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             # fetched earlier would then be mutated after it was written out
             self.function(addr=to_addr, create=True, syscall=syscall)
         func = self._function_map[function_addr]
-        func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
+        func.add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
         if to_addr is not None:
             dest_func_node = FuncNode(to_addr)
-            func._call_to(
+            func.call_to(
                 from_node,
                 dest_func_node,
                 retn_node,
@@ -1080,7 +1080,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         if syscall in (True, False):
             src_func.is_syscall = syscall
 
-        src_func._fakeret_to(from_node, to_node, confirmed=confirmed, to_outside=to_outside)
+        src_func.fakeret_to(from_node, to_node, confirmed=confirmed, to_outside=to_outside)
 
         if to_outside and to_function_addr is not None:
             # mark it on the callgraph
@@ -1097,19 +1097,19 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             from_node = self._kb._project.factory.snippet(from_node)
         if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._remove_fakeret(from_node, to_node)
+        self._function_map[function_addr].remove_fakeret(from_node, to_node)
 
     def _add_return_from(self, function_addr, from_node, to_node=None):  # pylint:disable=unused-argument
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
-        self._function_map[function_addr]._add_return_site(from_node)
+        self._function_map[function_addr].add_return_site(from_node)
 
     def _add_transition_to(self, function_addr, from_node, to_node, ins_addr=None, stmt_idx=None, is_exception=False):
         if isinstance(from_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             from_node = self._kb._project.factory.snippet(from_node)
         if isinstance(to_node, self.address_types):  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
-        self._function_map[function_addr]._transit_to(
+        self._function_map[function_addr].transit_to(
             from_node, to_node, ins_addr=ins_addr, stmt_idx=stmt_idx, is_exception=is_exception
         )
 
@@ -1125,7 +1125,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
                 # we cannot get the snippet, but we should at least tell the function that it's going to jump out here
                 self._function_map[function_addr].add_jumpout_site(from_node)
                 return
-        self._function_map[function_addr]._transit_to(
+        self._function_map[function_addr].transit_to(
             from_node,
             to_node,
             outside=True,
@@ -1151,7 +1151,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             to_node = self._kb._project.factory.snippet(to_node)
         func = self._function_map[function_addr]
         src_funcnode = FuncNode(src_function_addr)
-        func._return_from_call(src_funcnode, to_node, to_outside=to_outside)
+        func.return_from_call(src_funcnode, to_node, to_outside=to_outside)
 
     #
     # Dict methods
@@ -1447,21 +1447,9 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
             self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
             if func.block_addrs_set:
-                for node in func.transition_graph:
-                    if isinstance(node, HookNode) and node.addr == func.addr:
-                        # the start node of a hooked function, not a callee
-                        continue
-                    if isinstance(node, (HookNode, FuncNode)) and self.contains_addr(node.addr):
-                        self.callgraph.add_edge(func.addr, node.addr)
-                    else:
-                        inedges = func.transition_graph.in_edges(node, data=True)
-                        for _, _, data in inedges:
-                            if (
-                                data.get("type") == "transition"
-                                and data.get("outside") is True
-                                and self.contains_addr(node.addr)
-                            ):
-                                self.callgraph.add_edge(func.addr, node.addr)
+                for target in func.outgoing_function_targets():
+                    if self.contains_addr(target):
+                        self.callgraph.add_edge(func.addr, target)
 
     #
     # Non-returning function cache

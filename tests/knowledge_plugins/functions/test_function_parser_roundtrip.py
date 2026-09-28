@@ -12,6 +12,7 @@ import os
 import unittest
 
 import angr
+from angr.angrdb.v1 import AngrDbV1
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.knowledge_plugins.functions.function import Function
 from angr.protos import primitives_pb2
@@ -48,8 +49,8 @@ def _assert_graph_equal(tc: unittest.TestCase, a: Function, b: Function):
     tc.assertEqual(_edges(a), _edges(b))
     tc.assertEqual(a.block_addrs_set, b.block_addrs_set)
     tc.assertEqual(
-        {addr: a._block_sizes[addr] for addr in a.block_addrs_set},
-        {addr: b._block_sizes[addr] for addr in b.block_addrs_set},
+        {addr: a.get_block_size(addr) for addr in a.block_addrs_set},
+        {addr: b.get_block_size(addr) for addr in b.block_addrs_set},
     )
     tc.assertEqual(
         {k: set(v) for k, v in a.endpoints_with_type.items()}, {k: set(v) for k, v in b.endpoints_with_type.items()}
@@ -60,7 +61,7 @@ def _assert_graph_equal(tc: unittest.TestCase, a: Function, b: Function):
     tc.assertEqual(set(a.callout_sites), set(b.callout_sites))
     tc.assertEqual(a.has_return, b.has_return)
     tc.assertEqual(_node_key(a.startpoint), _node_key(b.startpoint))
-    tc.assertEqual(a._call_sites, b._call_sites)
+    tc.assertEqual(a.call_sites, b.call_sites)
 
 
 class TestFunctionParserRoundtrip(unittest.TestCase):
@@ -146,7 +147,7 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
         _assert_graph_equal(self, func, loaded)
         self.assertTrue(all(n.thumb for n in loaded.transition_graph.nodes()))
         self.assertTrue(loaded.startpoint.thumb)
-        self.assertEqual(loaded.get_node(0x8417).bytestr, b1.bytestr)
+        self.assertEqual(loaded.get_node(0x8417).bytestr(proj), b1.bytestr(proj))
 
     def test_retout_site(self):
         proj = self.proj
@@ -208,7 +209,8 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
         fm._add_outside_transition_to(0x400664, ret, puts_addr, to_function_addr=puts_addr, ins_addr=0x400690)
         fm._add_return_from(0x400664, ret)
 
-        cmsg = func.serialize_to_cmessage()
+        cmsg = AngrDbV1.serialize_function(func)
+        assert not cmsg.graph_blob
         legacy_external = [b for b in cmsg.external_blocks if b.kind == primitives_pb2.CodeNodeKind.BLOCK_NODE]
         del cmsg.external_blocks[:]
         cmsg.external_blocks.extend(legacy_external)
@@ -219,6 +221,33 @@ class TestFunctionParserRoundtrip(unittest.TestCase):
 
         loaded = Function.parse_from_cmessage(cmsg, function_manager=fm, project=proj)
         _assert_graph_equal(self, func, loaded)
+
+    def test_per_edge_layout_round_trips(self):
+        # the per-block/per-edge layout (written by angr before graph_blob existed) stays lossless
+        proj = self.proj
+        fm = proj.kb.functions
+        puts_addr = proj.loader.find_symbol("puts").rebased_addr
+        func = fm.function(addr=0x400664, create=True)
+        src = proj.factory.snippet(0x400664)
+        ret = proj.factory.snippet(0x40068E)
+        fm._add_call_to(0x400664, src, 0x400550, retn_node=ret, stmt_idx=-2, ins_addr=0x400689)
+        fm._add_fakeret_to(0x400664, src, ret, confirmed=True)
+        fm._add_outside_transition_to(0x400664, ret, puts_addr, to_function_addr=puts_addr, ins_addr=0x400690)
+        fm._add_return_from(0x400664, ret)
+        src2 = proj.factory.snippet(0x400699)
+        ext = proj.factory.snippet(0x4006AF)
+        fm._add_node(0x400664, src2)
+        fm._add_fakeret_to(0x400664, src2, ext, confirmed=False)
+        fm._add_call_to(0x400664, src2, 0x400550, retn_node=src, stmt_idx=-2, ins_addr=0x4006AA, return_to_outside=True)
+
+        cmsg = AngrDbV1.serialize_function(func)
+        assert not cmsg.graph_blob and cmsg.blocks and cmsg.graph.edges
+        loaded = Function.parse_from_cmessage(cmsg, function_manager=fm, project=proj)
+        _assert_graph_equal(self, func, loaded)
+        meta = Function.parse_from_cmessage(cmsg, function_manager=fm, project=proj, meta_only=True)
+        self.assertEqual(meta.block_addrs_set, func.block_addrs_set)
+        self.assertEqual(set(meta.retout_sites), set(func.retout_sites))
+        self.assertEqual(set(meta.ret_sites), set(func.ret_sites))
 
 
 if __name__ == "__main__":
