@@ -1,4 +1,5 @@
 import ipdb
+import hashlib
 import networkx
 from functools import wraps
 import time
@@ -7,6 +8,8 @@ import tracemalloc
 import angr
 from angr.procedures.definitions import msvcr as msvcr_defs
 from angr.utils.graph import as_networkx
+from angr.utils.debug_trap import debug_trap
+from angr.errors import AngrRuntimeError
 from angr.analyses.cfg.vm_cfg_model import VMCFGModel
 import logging
 import pyvex
@@ -17,7 +20,6 @@ import copy
 import os
 import pickle
 
-from pathlib import Path
 
 from collections import defaultdict, OrderedDict, Counter
 from angr.code_location import CodeLocation, ExternalCodeLocation
@@ -53,6 +55,7 @@ from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...utils.constants import DEFAULT_STATEMENT
 
 from .pretty_dump_ail_cfg import pretty_dump_ail_cfg
+from angr.utils.pushan_artifacts import store_for as artifact_store_for
 to_break = False
 #logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
@@ -96,7 +99,7 @@ class AndingSimSolver(SimSolver):
             elif len(cons) == 1:
                 to_add.append(cons[0])
             elif len(cons) > 2:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (vm_deobfuscation.py:101)")
         to_add.extend(general_constraints)
         # one add() call: the Rust solver rebuilds its dedup set from every stored constraint per
         # call, so adding one constraint at a time is quadratic in the constraint count
@@ -380,7 +383,7 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                     return to_return
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 if state_split_cond.args[0].startswith("mba_state_split_cond_1096_-1") or state_split_cond.args[0].startswith("mba_state_split_cond_1092_-1") or  state_split_cond.args[0].startswith("mba_state_split_cond_1094_-1"):
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (vm_deobfuscation.py:385)")
                 # if state_split_cond.args[0].startswith('mba_state_split_cond_1012') or state_split_cond.args[0].startswith('mba_state_split_cond_1016') and  state_split_cond.args[0].startswith('mba_state_split_cond_1014'):
                 self.state.globals['last_added_state_split_cond'] = state_split_cond
                 self.state.globals['last_state_split_cond_block_id'] = self.state.globals["cur_block_id"]
@@ -412,7 +415,7 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
 
                             elif addr.op == "__sub__":
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (vm_deobfuscation.py:417)")
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
 
                     elif len(addr.args) == 3:
@@ -421,24 +424,21 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1] + addr.args[2], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
                             elif addr.op == "__sub__":
                                 print("Not implemented")
-                                import ipdb;
-                                ipdb.set_trace()
+                                debug_trap("unexpected state (vm_deobfuscation.py:426)")
                                 #self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
                         elif addr.args[1].depth == 1:
                             if addr.op == "__add__":
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[2],claripy.If(state_split_cond, conc_addrs[0] - addr.args[1], conc_addrs[1] - addr.args[1]))
                             elif addr.op == "__sub__":
                                 print("Not implemented")
-                                import ipdb;
-                                ipdb.set_trace()
+                                debug_trap("unexpected state (vm_deobfuscation.py:434)")
                                 # self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr.args[1], conc_addrs[1] + addr.args[1]))
                         elif addr.args[2].depth == 1:
                             if addr.op == "__add__":
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[1],claripy.If(state_split_cond, conc_addrs[0] - addr.args[2], conc_addrs[1] - addr.args[2]))
                             elif addr.op == "__sub__":
                                 print("Not implemented")
-                                import ipdb;
-                                ipdb.set_trace()
+                                debug_trap("unexpected state (vm_deobfuscation.py:442)")
 
                 ## Do replacement for all registers and temps just to be safe....... although the mba can still be on stack...... will deal with it later.
                 ## That should not be a problem since we try to evaluate every address above, so it should be resolved
@@ -522,7 +522,7 @@ def activate_save_vm_vpc(state):
             for end_addr in vm_end_addrs:
                 state.globals['cur_rm_bps'].append(state.inspect.b('instruction', when=BP_AFTER, instruction=end_addr, action=remove_breakpoints))
         else:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (vm_deobfuscation.py:527)")
         state.globals['add_offset'] = 0
 
 #This is for execryptor
@@ -531,7 +531,7 @@ def save_vpc_at_loc(state):
     expr_val = state.partial_symbolic_constraint_solver.eval_upto(state.regs.esi, 2)
     if len(expr_val) > 1:
         l.debug("More than one VIP, gonna add both values and create a new one")
-        import ipdb;ipdb.set_trace()
+        debug_trap("unexpected state (vm_deobfuscation.py:536)")
         expr_val = expr_val[0]
     else:
         expr_val = expr_val[0]
@@ -735,12 +735,12 @@ class VMDeobfuscation(Analysis):
                  constant_prop_func_replacements=None, semantic_verf_hooks=None, decomp_start_end_node_str=None,
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
-                 deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
+                 deobfuscation_start_addr=None, deobfuscation_end_addr=None, vm_function_extent=None, vm_entry_sites=None, vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
                  ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=5.00, use_mem_vpc_finder=False, hook_other_functions=False,
                  remove_vmp_semantically_same_branch=False, use_ctf_vpc_finder=False,
-                 enable_pre_decompilation_vex_simplifications=False):
+                 enable_pre_decompilation_vex_simplifications=False, artifacts_dir=None):
 
         self.project.vm_deobfuscation = True
         # the Windows targets reach msvcrt through imports with no declarations
@@ -754,10 +754,14 @@ class VMDeobfuscation(Analysis):
         self.vsp_reg = vsp_reg
         self.start_addr = start_addr
         self.verification_state = verification_state
-        self.constant_prop_func_replacements = constant_prop_func_replacements
+        # documented as optional: normalize so the iteration sites below work at the default
+        self.constant_prop_func_replacements = constant_prop_func_replacements or []
+        semantic_verf_hooks = semantic_verf_hooks or []
         self.start_deobfuscation_immediately = start_deobfuscation_immediately
         self.deobfuscation_start_addr = deobfuscation_start_addr
         self.deobfuscation_end_addr = deobfuscation_end_addr
+        self.vm_function_extent = vm_function_extent
+        self.vm_entry_sites = vm_entry_sites
         self.vpc_loc = vpc_loc
         self.vpc_mem_loc = vpc_mem_loc
         self.draw_graph_flag = False
@@ -773,7 +777,9 @@ class VMDeobfuscation(Analysis):
         self.project.byte_code_regions=byte_code_regions
         self.project.min_entropy_threshold = min_entropy_threshold
         self.project.start_deobfuscation_immediately = start_deobfuscation_immediately
-        self.project_dir = Path(self.project.filename).resolve().parent
+        # Diagnostics go where the caller asked (arg > $PUSHAN_ARTIFACTS_DIR > CWD), never
+        # next to the analyzed binary. Every artifact write below goes through this store.
+        self.artifacts = artifact_store_for(self.project, artifacts_dir)
         self.hook_other_functions = hook_other_functions
         self.remove_vmp_semantically_same_branch = remove_vmp_semantically_same_branch
         self.enable_pre_decompilation_vex_simplifications = (
@@ -787,7 +793,7 @@ class VMDeobfuscation(Analysis):
         THEMIDA = True
 
         if only_verification_test:
-            pickled_file_name = self.project_dir / "themida_simplification_cfg"
+            pickled_file_name = self.artifacts.path("themida_simplification_cfg")
             new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
 
@@ -843,20 +849,23 @@ class VMDeobfuscation(Analysis):
 
 
         proj=self.project
-        start_state_copy = start_state.copy()
-        cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy,
-                                              cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts,
-                                              unroll_same_vpc_loop=unroll_same_vpc_loop)
+        cfg = self._checkpoint_load("data_sens_cfg")
+        if cfg is None:
+            start_state_copy = start_state.copy()
+            cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy,
+                                                  cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts,
+                                                  unroll_same_vpc_loop=unroll_same_vpc_loop)
+            self._checkpoint_save(cfg, "data_sens_cfg")
 
-        with open('./total_node_count','w') as f:
+        with self.artifacts.open('total_node_count', 'w') as f:
             f.write(str(len(list(cfg.graph.nodes()))))
 
         import pickle
-        pickled_file_name = self.project_dir / "rep_movsb_addr_pickle"
+        pickled_file_name = self.artifacts.path("rep_movsb_addr_pickle")
         with open(pickled_file_name, 'wb') as f:
             pickle.dump(self.project.rep_movsb_addr, f)
 
-        pickled_file_name = self.project_dir / "same_branch_points"
+        pickled_file_name = self.artifacts.path("same_branch_points")
         with open(pickled_file_name, 'wb') as f:
             pickle.dump(self.project.semantically_same_branch_points, f)
 
@@ -868,7 +877,7 @@ class VMDeobfuscation(Analysis):
             node.final_states = None
 
         # self.draw_graph_flag =True
-        # self.draw_graph(cfg, self.project_dir / "input.svg")
+        # self.draw_graph(cfg, self.artifacts.path("input.svg"))
         # self.draw_graph_flag = False
 
         # removing path terminators, cause...............they causing problems
@@ -878,7 +887,7 @@ class VMDeobfuscation(Analysis):
         start_state_copy = start_state.copy()
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
 
-        pickled_file_name = self.project_dir / "data_sens_cfg"
+        pickled_file_name = self.artifacts.path("data_sens_cfg")
         cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
 
         self.project.kb.cfgs.cfgs = {}
@@ -897,7 +906,7 @@ class VMDeobfuscation(Analysis):
         cfg = self.remove_vmp_semantic_same_branches(cfg)
 
         self.draw_graph_flag =True
-        self.draw_graph(cfg, self.project_dir / "input.svg")
+        self.draw_graph(cfg, self.artifacts.path("input.svg"))
         self.draw_graph_flag = False
         new_cfg=cfg
         cfg = None
@@ -907,15 +916,26 @@ class VMDeobfuscation(Analysis):
         fixed_point = False
         if max_symbolizer_iterations is None:
             max_symbolizer_iterations = 100
+        # Resuming past the symbolizer skips both the bounded loop below and the unbounded
+        # symbolizer call that follows it; range(0) is how the loop is skipped.
+        # NOT enabled by default: resuming here produces a graph that later trips
+        # reaching-definitions with "'NoneType' object has no attribute 'addr'", so the
+        # symbolizer's own output is saved but only replayed when explicitly requested.
+        _resume_full_cfg = (
+            self._checkpoint_load("initial_full_cfg")
+            if os.environ.get("PUSHAN_CHECKPOINT_SYMBOLIZER") else None
+        )
+        if _resume_full_cfg is not None:
+            max_symbolizer_iterations = 0
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
             proj.merger_top_dict_debug = {}
             if themida_split_branches:
                 to_split_nodes = self.split_redundant_branch_themida(new_cfg)
                 new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
-            self.draw_graph(new_cfg, self.project_dir / f"{symb_iter}after_all_split.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{symb_iter}after_all_split.svg"))
 
-            pickled_file_name = self.project_dir / f"pickled_{symb_iter}_all_symbolic_expr_location"
+            pickled_file_name = self.artifacts.path(f"pickled_{symb_iter}_all_symbolic_expr_location")
             with open(pickled_file_name, 'wb') as f:
                 pickle.dump(all_symbolic_expr_locations, f)
 
@@ -932,11 +952,11 @@ class VMDeobfuscation(Analysis):
                                                                   constant_prop_level=constant_prop_level)[1]
 
             import pickle
-            pickled_file_name = self.project_dir / f"symbolizer_z3_time_prof_iter_{symb_iter}"
+            pickled_file_name = self.artifacts.path(f"symbolizer_z3_time_prof_iter_{symb_iter}")
             with open(pickled_file_name, 'wb') as f:
                 pickle.dump(self.project.symbolizer_solve_times, f)
 
-            pickled_file_name = self.project_dir / f"merge_state_to_symb{symb_iter}"
+            pickled_file_name = self.artifacts.path(f"merge_state_to_symb{symb_iter}")
             with open(pickled_file_name, 'wb') as f:
                 pickle.dump(self.project.to_symbolize, f)
 
@@ -945,7 +965,7 @@ class VMDeobfuscation(Analysis):
 
             self.merge_symbolic_expr_locations(all_symbolic_expr_locations, symbolic_expr_locations)
 
-            pickled_file_name = self.project_dir / f"pickled_{symb_iter}_all_symbolic_expr_location"
+            pickled_file_name = self.artifacts.path(f"pickled_{symb_iter}_all_symbolic_expr_location")
             with open(pickled_file_name, 'wb') as f:
                 pickle.dump(all_symbolic_expr_locations, f)
 
@@ -972,7 +992,7 @@ class VMDeobfuscation(Analysis):
                                                                   remove_insts=remove_insts,
                                                                 unroll_same_vpc_loop=unroll_same_vpc_loop)
             import pickle
-            pickled_file_name = self.project_dir / f"rep_movsb_addr_pickle_{symb_iter}"
+            pickled_file_name = self.artifacts.path(f"rep_movsb_addr_pickle_{symb_iter}")
             with open(pickled_file_name, 'wb') as f:
                 pickle.dump(self.project.rep_movsb_addr, f)
 
@@ -989,13 +1009,13 @@ class VMDeobfuscation(Analysis):
             start_state_copy = start_state.copy()
             new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, start_state_copy)
 
-            pickled_file_name = self.project_dir / f"{symb_iter}_symbolizer_cfg_pickle"
+            pickled_file_name = self.artifacts.path(f"{symb_iter}_symbolizer_cfg_pickle")
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
             new_cfg = self.remove_vmp_semantic_same_branches(new_cfg)
 
             self.draw_graph_flag=True
-            self.draw_graph(new_cfg, self.project_dir / f"{symb_iter}symb_result.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{symb_iter}symb_result.svg"))
             self.draw_graph_flag=False
 
             fixed_point = len(new_cfg.nodes()) == prev_node_count
@@ -1012,7 +1032,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph_flag = True
 
-        self.draw_graph(new_cfg, self.project_dir / "after_all_symb_and_split.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("after_all_symb_and_split.svg"))
 
         # Leaving this commented out left the flag set for the next ~90 lines, so every
         # intermediate debug svg inside the simplification loops got rendered: 86s of
@@ -1020,7 +1040,7 @@ class VMDeobfuscation(Analysis):
         self.draw_graph_flag = False
 
         import pickle
-        pickled_file_name = self.project_dir / "pickled_load_addr_mba_to_jump_addr_mapping"
+        pickled_file_name = self.artifacts.path("pickled_load_addr_mba_to_jump_addr_mapping")
         with open(pickled_file_name,'wb') as load_addr_mba_to_jump_addr_mapping:
             pickle.dump(self.project.load_addr_mba_to_jump_addr_mapping, load_addr_mba_to_jump_addr_mapping)
 
@@ -1029,15 +1049,20 @@ class VMDeobfuscation(Analysis):
         gc.collect()
         self.project.to_symbolize = defaultdict(dict)
         ## This is constant propgation along with finding non-constants
-        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=symbolizer_start_state, prev_symbolic_expr_locations=None,
-                                     prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True, constant_prop_level=constant_prop_level)
+        if _resume_full_cfg is None:
+            new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=symbolizer_start_state, prev_symbolic_expr_locations=None,
+                                         prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True, constant_prop_level=constant_prop_level)
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
         for node in new_cfg.graph.nodes():
             node.input_state = None
             node.final_states = None
 
-        pickled_file_name = self.project_dir / "initial_full_cfg"
+        if _resume_full_cfg is not None:
+            new_cfg = _resume_full_cfg
+        else:
+            self._checkpoint_save(new_cfg, "initial_full_cfg")
+        pickled_file_name = self.artifacts.path("initial_full_cfg")
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         self.inst_count(new_cfg)
 
@@ -1049,27 +1074,27 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
         import gc
         gc.collect()
-        self.draw_graph(new_cfg, self.project_dir / "full_cp_result.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("full_cp_result.svg"))
 
         # This stores all the returns that are actually calls for later adjusting the stack args location in callsite_maker.py
         # calls_as_rets is used later during decompilation to adjust stack argument offset for cdcel because the ret has different offsets compared to a normal call
         new_cfg, calls_as_rets = self.replace_jumpkinds(new_cfg)
 
         import pickle
-        pickled_file_name = self.project_dir / "calls_as_rets"
+        pickled_file_name = self.artifacts.path("calls_as_rets")
         with open(pickled_file_name,'wb') as calls_as_rets_pickle:
             pickle.dump(calls_as_rets, calls_as_rets_pickle)
 
         # this is a simplification pass to remove all push x, ret to x type of jumpsh
         new_cfg = self.remove_push_ret(new_cfg, proj, start_addr=start_addr, start_state=None, decomp_function_addresses=decomp_function_addresses)
-        self.draw_graph(new_cfg, self.project_dir / "remove_push_ret.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("remove_push_ret.svg"))
 
 
         # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
         new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
-        self.draw_graph(new_cfg, self.project_dir / "remove_useless_jump.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("remove_useless_jump.svg"))
 
-        pickled_file_name = self.project_dir / "mid_way_cfg"
+        pickled_file_name = self.artifacts.path("mid_way_cfg")
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
         print("start")
@@ -1077,12 +1102,12 @@ class VMDeobfuscation(Analysis):
             self._pass_changed = False
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
             new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
-            self.draw_graph(new_cfg, self.project_dir / f"dae_{i}_result.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"dae_{i}_result.svg"))
 
             new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
 
             new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}block_arithmetic_simplifications.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}block_arithmetic_simplifications.svg"))
 
             new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None, skip_call_ret=skip_call_ret)
 
@@ -1101,88 +1126,88 @@ class VMDeobfuscation(Analysis):
             to_break = True
             self._pass_changed = False
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}whole_cfg_deadassignment_elimination.svg"))
             if self._converged():
                 break
 
         self.draw_graph_flag = True
-        self.draw_graph(new_cfg, self.project_dir / "mid_graph_result")
+        self.draw_graph(new_cfg, self.artifacts.path("mid_graph_result"))
         self.draw_graph_flag = False
 
         for i in range(4):
             self._pass_changed = False
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"dae_{i}_result.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"dae_{i}_result.svg"))
             if self._converged():
                 break
 
 
         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
-        self.draw_graph(new_cfg, self.project_dir / "debug_2_result.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("debug_2_result.svg"))
 
         for i in range(2):
             self._pass_changed = False
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}whole_cfg_deadassignment_elimination.svg"))
             if self._converged():
                 break
         for i in range(2):
             self._pass_changed = False
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"dae_{i}_result.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"dae_{i}_result.svg"))
             if self._converged():
                 break
 
-        self.draw_graph(new_cfg, self.project_dir / "debug_1_result.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("debug_1_result.svg"))
         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        self.draw_graph(new_cfg, self.project_dir / "redun_store_load.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("redun_store_load.svg"))
 
 
-        pickled_file_name = self.project_dir / "before_get_put"
+        pickled_file_name = self.artifacts.path("before_get_put")
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
         for i in range(8):
             self._pass_changed = False
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}whole_cfg_deadassignment_elimination.svg"))
 
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"dae_cake_{i}_result.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"dae_cake_{i}_result.svg"))
 
             new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}_block_arithmetic_simplifications.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}_block_arithmetic_simplifications.svg"))
 
 
             new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}remove_redun_get_put.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}remove_redun_get_put.svg"))
 
             if self._converged():
                 break
 
-        pickled_file_name = self.project_dir / "after_get_put"
+        pickled_file_name = self.artifacts.path("after_get_put")
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
 
         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
-        self.draw_graph(new_cfg, self.project_dir / "redun_store_load.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("redun_store_load.svg"))
 
         for i in range(3):
             self._pass_changed = False
             new_cfg = self.remove_redundant_Get_Put(new_cfg, proj, start_state=start_state)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}remove_redun_get_put.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}remove_redun_get_put.svg"))
 
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"{i}whole_cfg_deadassignment_elimination.svg"))
 
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-            self.draw_graph(new_cfg, self.project_dir / f"dae_{i}_result.svg")
+            self.draw_graph(new_cfg, self.artifacts.path(f"dae_{i}_result.svg"))
 
             new_cfg = self.remove_useless_jump_instructions(new_cfg, keep_sp_changes_dae=keep_sp_changes_dae)
 
             if self._converged():
                 break
 
-        pickled_file_name = self.project_dir / "pickled_final_cfg"
+        pickled_file_name = self.artifacts.path("pickled_final_cfg")
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
         # pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_final_cfg"
@@ -1197,10 +1222,10 @@ class VMDeobfuscation(Analysis):
             for i in range(35):
                 self._pass_changed = False
                 new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-                self.draw_graph(new_cfg, self.project_dir / f"{i}whole_cfg_deadassignment_elimination.svg")
+                self.draw_graph(new_cfg, self.artifacts.path(f"{i}whole_cfg_deadassignment_elimination.svg"))
 
                 new_cfg = self._eliminate_dead_assignments(new_cfg, proj,  keep_sp_changes_dae=keep_sp_changes_dae)
-                self.draw_graph(new_cfg, self.project_dir / f"dae_cake_{i}_result.svg")
+                self.draw_graph(new_cfg, self.artifacts.path(f"dae_cake_{i}_result.svg"))
 
                 # new_cfg = self.block_arithmetic_simplifications_using_dep_graph(new_cfg, proj)
                 # self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
@@ -1216,11 +1241,11 @@ class VMDeobfuscation(Analysis):
                 if self._converged():
                     break
 
-            pickled_file_name = self.project_dir / "pickled_beyond_final_cfg"
+            pickled_file_name = self.artifacts.path("pickled_beyond_final_cfg")
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
 
-            self.draw_graph(new_cfg,self.project_dir / "before_beyond.svg")
+            self.draw_graph(new_cfg,self.artifacts.path("before_beyond.svg"))
 
             new_cfg = self.CAS_to_mov_simplification(new_cfg, proj)
 
@@ -1241,15 +1266,15 @@ class VMDeobfuscation(Analysis):
 
                 new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, start_state=None, skip_call_ret=skip_call_ret)
 
-                self.draw_graph(new_cfg, self.project_dir / f"{i}block_arithmetic_simplifications_using_dep_graph.svg")
+                self.draw_graph(new_cfg, self.artifacts.path(f"{i}block_arithmetic_simplifications_using_dep_graph.svg"))
 
                 if self._converged():
                     break
 
-            pickled_file_name = self.project_dir / "themida_simplification_cfg"
+            pickled_file_name = self.artifacts.path("themida_simplification_cfg")
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
-        # pickled_file_name = self.project_dir / "themida_simplification_cfg"
+        # pickled_file_name = self.artifacts.path("themida_simplification_cfg")
         # new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
         if self.enable_pre_decompilation_vex_simplifications:
@@ -1269,13 +1294,13 @@ class VMDeobfuscation(Analysis):
         # with open(pickled_file_name,'rb') as load_addr_mba_to_jump_addr_mapping_pickle:
         #     self.project.load_addr_mba_to_jump_addr_mapping = pickle.load(load_addr_mba_to_jump_addr_mapping_pickle)
 
-        pickled_file_name = self.project_dir / "calls_as_rets"
+        pickled_file_name = self.artifacts.path("calls_as_rets")
         with open(pickled_file_name, 'rb') as calls_as_rets_pickle:
             calls_as_rets = pickle.load(calls_as_rets_pickle)
 
         self.draw_graph_flag = True
 
-        self.draw_graph(new_cfg, self.project_dir /  "final_result.svg", without_insts=False, super_graph_only=False)
+        self.draw_graph(new_cfg, self.artifacts.path("final_result.svg"), without_insts=False, super_graph_only=False)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
@@ -1286,7 +1311,7 @@ class VMDeobfuscation(Analysis):
         # verification_state_copy = verification_state.copy()
         # # self.draw_png_graph(new_cfg, os.path.join(folder_name,  "final_result.png"))
         # self.perform_semantic_verification(new_cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
-        self.draw_graph(new_cfg, self.project_dir /  "final_result_enc_addr.svg")
+        self.draw_graph(new_cfg, self.artifacts.path("final_result_enc_addr.svg"))
 
         self.log_timing_results()
 
@@ -1688,8 +1713,7 @@ class VMDeobfuscation(Analysis):
                             if not edge_to_remove_node:
                                 for succ in succs:
                                     if succ.addr == stmt.dst.value:
-                                        import ipdb;
-                                        ipdb.set_trace()
+                                        debug_trap("unexpected state (vm_deobfuscation.py:1695)")
                                 continue
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
                             nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
@@ -1811,7 +1835,7 @@ class VMDeobfuscation(Analysis):
                     if isinstance(stmt, pyvex.stmt.IMark):
                         count+=1
 
-        with open('inst_count.txt', 'w') as f:
+        with self.artifacts.open('inst_count.txt', 'w') as f:
             f.write(str(count))
 
     def log_timing_results(self):
@@ -1820,14 +1844,14 @@ class VMDeobfuscation(Analysis):
         import time
 
         timestr = time.strftime("%Y%m%d_%H%M%S")
-        log_file_name = './logs/total_time_' + timestr + ".log"
+        log_file_name = self.artifacts.path('logs/total_time_' + timestr + ".log")
 
         with open(log_file_name, 'w') as f:
             for key, value in total_time.items():
                 f.write(str(key)+": " + str(value) + "\n")
 
         timestr = time.strftime("%Y%m%d_%H%M%S")
-        log_file_name = './logs/time_distribution_' + timestr + ".log"
+        log_file_name = self.artifacts.path('logs/time_distribution_' + timestr + ".log")
         with open(log_file_name, 'w') as f:
             for key, value in time_distribution.items():
                 f.write(str(key)+": " + str(value) + "\n")
@@ -2002,7 +2026,7 @@ class VMDeobfuscation(Analysis):
             new_stmts = []
             for stmt in node.irsb.statements:
                 if not str(stmt).startswith("If"):
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (vm_deobfuscation.py:2009)")
                     new_stmts.append(stmt)
 
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
@@ -2086,6 +2110,70 @@ class VMDeobfuscation(Analysis):
 
         return cfg
 
+    #
+    # Phase checkpoints
+    #
+    # The pipeline is a chain of cfg -> cfg transforms whose early phases dominate the runtime
+    # (the data-sensitive CFG and the symbolizer are tens of minutes each). The dump side of
+    # pickle_dump_load_cfg already existed at every phase boundary but the matching loads were
+    # commented out, so a re-run always recomputed everything. These turn the dumps into real
+    # resume points. Opt in with $PUSHAN_CHECKPOINT_DIR; unset means nothing changes.
+    #
+
+    def _checkpoint_fingerprint(self):
+        """Inputs that change what a phase computes.
+
+        A checkpoint is only valid for the parameters it was produced under. Resuming a CFG
+        built with different start/end addresses silently returns the wrong graph, which is
+        indistinguishable from a correct run -- so the fingerprint goes in the filename.
+        """
+        parts = (
+            self.start_addr,
+            self.vm_start_addr,
+            tuple(sorted(self.deobfuscation_end_addr)) if isinstance(self.deobfuscation_end_addr, (list, tuple, set)) else self.deobfuscation_end_addr,
+            self.deobfuscation_start_addr,
+            tuple(self.vm_function_extent) if self.vm_function_extent else None,
+            tuple(sorted(self.vm_entry_sites)) if self.vm_entry_sites else None,
+            tuple(tuple(r) for r in (getattr(self.project, "byte_code_regions", None) or ())),
+        )
+        return hashlib.sha1(repr(parts).encode()).hexdigest()[:12]
+
+    def _checkpoint_path(self, name):
+        directory = os.environ.get("PUSHAN_CHECKPOINT_DIR")
+        if not directory:
+            return None
+        os.makedirs(directory, exist_ok=True)
+        return os.path.join(directory, f"{name}.{self._checkpoint_fingerprint()}.pickle")
+
+    def _checkpoint_load(self, name):
+        """The cfg saved for `name`, or None to compute it."""
+        path = self._checkpoint_path(name)
+        if not path or not os.path.exists(path) or os.path.getsize(path) == 0:
+            return None
+        try:
+            cfg = self.pickle_dump_load_cfg(None, path, "load")
+        except Exception:
+            l.warning("checkpoint %r is unreadable; recomputing", name, exc_info=True)
+            return None
+        if cfg is None:
+            return None
+        l.warning("checkpoint: resumed %r from %s (%d nodes)", name, path, cfg.graph.number_of_nodes())
+        return cfg
+
+    def _checkpoint_save(self, cfg, name):
+        path = self._checkpoint_path(name)
+        if not path or cfg is None:
+            return cfg
+        try:
+            tmp = path + ".part"
+            with open(tmp, "wb") as fp:
+                pickle.dump(cfg, fp)
+            os.replace(tmp, path)          # never leave a half-written checkpoint behind
+            l.warning("checkpoint: saved %r (%d nodes)", name, cfg.graph.number_of_nodes())
+        except Exception:
+            l.warning("checkpoint: could not save %r", name, exc_info=True)
+        return cfg
+
     def pickle_dump_load_cfg(self, cfg, pickled_file_name, dump_or_load=None,):
         if dump_or_load is None:
             return
@@ -2104,21 +2192,26 @@ class VMDeobfuscation(Analysis):
                 # import ipdb;ipdb.set_trace()
             return cfg
         elif dump_or_load == "load":
-            try:
-                with open(pickled_file_name, "rb") as final_cfg_pickle:
-                    new_cfg = pickle.load(final_cfg_pickle)
-            except:
-                print("error while loading")
-                import ipdb;ipdb.set_trace()
-            # since the hash is not same after loading from pickle
-            for node in new_cfg.nodes():
-                node.block_id._hash = None
+            # A bare except here used to swallow the real unpickling error and then die on an
+            # unbound `new_cfg`, hiding the cause. Let the original exception out.
+            with open(pickled_file_name, "rb") as final_cfg_pickle:
+                new_cfg = pickle.load(final_cfg_pickle)
+            # since the hash is not same after loading from pickle.
+            # A checkpoint may hold either a CFG model (.nodes()) or the analysis object that
+            # owns one (.graph.nodes()); accept both.
+            nodes = new_cfg.nodes() if hasattr(new_cfg, "nodes") else new_cfg.graph.nodes()
+            for node in nodes:
+                if getattr(node, "block_id", None) is not None:
+                    node.block_id._hash = None
             return new_cfg
 
     @logtime
     def try_decompilation(self, new_cfg, decomp_start_end_node_str=None, decomp_function_addresses=None, decomp_function_prototypes=None,
                           semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}, allow_global_dead_ass_elim=False,
                           ail_propagator_init_values=None):
+        # Both are documented as optional but are membership-tested throughout this method.
+        decomp_function_addresses = decomp_function_addresses if decomp_function_addresses is not None else {}
+        decomp_function_prototypes = decomp_function_prototypes if decomp_function_prototypes is not None else {}
         visited_nodes = {}
         if decomp_start_end_node_str is not None:
             traversal_start_node = decomp_start_end_node_str[0][0]
@@ -2129,6 +2222,7 @@ class VMDeobfuscation(Analysis):
         end_node_block_ids = []
         node_stack = []
         start_node= None
+        roots = []
         for cur_node in new_cfg.nodes():
             # If the decomp start end node str is provided then use that
             if decomp_start_end_node_str is not None:
@@ -2139,10 +2233,28 @@ class VMDeobfuscation(Analysis):
                     end_node_block_ids.append(cur_node.block_id)
             else:
                 if new_cfg.graph.in_degree(cur_node) == 0:
-                    start_node = cur_node
+                    roots.append(cur_node)
                     node_stack.append(cur_node)
                 elif new_cfg.graph.out_degree(cur_node) == 0:
                     end_node_block_ids.append(cur_node.block_id)
+
+        if decomp_start_end_node_str is None and roots:
+            # The decompiled function is emitted from its startpoint, so whichever root happened
+            # to come last in iteration order used to decide what survives -- every other
+            # component was silently dropped. Prefer the entry the caller asked for.
+            start_node = next((n for n in roots if n.addr == self.vm_start_addr), None)
+            if start_node is None:
+                start_node = next((n for n in roots if n.addr == self.start_addr), None)
+            if start_node is None:
+                start_node = roots[0]
+            if len(roots) > 1:
+                l.warning(
+                    "Deobfuscated graph has %d entry nodes (%s); decompiling from %#x. Blocks in "
+                    "the other components will not appear in the output.",
+                    len(roots),
+                    ", ".join(hex(n.addr) for n in roots[:8]),
+                    start_node.addr,
+                )
         VM_1_func = Function(self.project.kb.functions, self.convert_addr_to_int(start_node.addr, start_node.block_id), 'VM_1', None, is_simprocedure=False)
         #set the calling convention
         VM_1_func.calling_convention = self.project.factory.cc()
@@ -2229,6 +2341,17 @@ class VMDeobfuscation(Analysis):
                     succ_func.is_simprocedure = True
                     sim_proc_succ = new_cfg.get_successors(succ)
 
+                    if not sim_proc_succ:
+                        # The hooked callee has no successor in the graph, so nothing returns
+                        # from it (a non-returning stub, or exploration stopped here). There is
+                        # no return site to wire up.
+                        succ_func.returning = False
+                        debug_trap(
+                            "hooked callee has no successor; treating the call as non-returning",
+                            callee=hex(succ_func.addr),
+                        )
+                        continue
+
                     #special check for exit() loops, which we ignore
                     if sim_proc_succ[0] is succ and succ_func.name == "exit":
                         continue
@@ -2311,6 +2434,19 @@ class VMDeobfuscation(Analysis):
 
         # self.create_virtualized_func_svg(VM_1_func, decomp_function_addresses)
 
+        # A silently truncated VM_1 is the worst failure mode here: the decompiler happily emits
+        # a short, plausible function. Say how much of the deobfuscated graph actually made it.
+        _cfg_nodes = new_cfg.graph.number_of_nodes()
+        _visited = len(visited_nodes)
+        l.info("VM_1: visited %d of %d deobfuscated CFG nodes (%d end nodes)",
+               _visited, _cfg_nodes, len(end_node_block_ids))
+        if _cfg_nodes and _visited * 4 < _cfg_nodes:
+            l.warning(
+                "VM_1 covers only %d of %d deobfuscated CFG nodes; the decompiled output will be "
+                "missing most of the devirtualized code. Check the traversal start node (%#x) and "
+                "the %d end nodes.",
+                _visited, _cfg_nodes, start_node.addr, len(end_node_block_ids),
+            )
         self.project.new_block_id_embed_dict = new_block_id_embed_dict
 
         # The nodes of the virtualized function live at synthetic addresses with no bytes behind
@@ -2321,18 +2457,43 @@ class VMDeobfuscation(Analysis):
             if node_irsb is not None:
                 self.project.synthetic_irsbs[node.addr] = node_irsb
 
+        # Optional: hand the deobfuscated graph off to another angr version, or to a later run
+        # of this one, so decompilation experiments do not repeat the whole deobfuscation.
+        dump_path = getattr(self.project, "vm_deob_dump_path", None)
+        if dump_path:
+            from .deobf_writer import dump_decompilation_input
+            dump_decompilation_input(VM_1_func, self.project, dump_path,
+                                     calls_as_rets=calls_as_rets,
+                                     allow_global_dead_ass_elim=allow_global_dead_ass_elim,
+                                     ail_propagator_init_values=ail_propagator_init_values,
+                                     vm_deobfuscation=True)
+            if getattr(self.project, "vm_deob_dump_only", False):
+                l.info("vm_deob_dump_only is set; skipping decompilation")
+                return
+
+        # Decompiler swallows its own exceptions unless fail_fast is set, surfacing a failure only
+        # as codegen=None. PUSHAN_DECOMP_FAIL_FAST=1 re-raises the underlying error instead.
+        _fail_fast = os.environ.get("PUSHAN_DECOMP_FAIL_FAST", "").lower() in {"1", "true", "yes", "y"}
         dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim,
                                                ail_propagator_init_values=ail_propagator_init_values,
-                                               vm_deobfuscation=True)
+                                               vm_deobfuscation=True,
+                                               fail_fast=_fail_fast)
 
-        # import ipdb;ipdb.set_trace()
+        if dec.codegen is None:
+            raise AngrRuntimeError(
+                f"decompilation of the deobfuscated function at {VM_1_func.addr:#x} produced no "
+                f"output (errors: {getattr(dec, 'errors', None)}); "
+                f"re-run with PUSHAN_DECOMP_FAIL_FAST=1 for the underlying exception"
+            )
+        # Stays in the CWD on purpose: run_fast_eval.sh copies it out of the directory it
+        # launched the target in. Do not route this through self.artifacts.
         with open("last_decomp_result.c", "w") as f:
             f.write(dec.codegen.text)
 
-        pretty_dump_ail_cfg(dec.clinic.cc_graph, self.project)
+        pretty_dump_ail_cfg(dec.clinic.cc_graph, self.project, output=self.artifacts.path("ail_cfg.pickle"))
 
         import pickle
-        pickled_file_name = self.project_dir / "raw_ail_pickle.pickle"
+        pickled_file_name = self.artifacts.path("raw_ail_pickle.pickle")
         with open(pickled_file_name, 'wb') as f:
             pickle.dump(dec.clinic.cc_graph, f)
 
@@ -2412,7 +2573,7 @@ class VMDeobfuscation(Analysis):
             if node.is_simprocedure:
                 graphviz_node.attr["label"] = node.name
             elif node.addr in decomp_function_addresses:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (vm_deobfuscation.py:2431)")
                 graphviz_node.attr["label"] = decomp_function_addresses[node.addr][1]
             else:
                 graphviz_node.attr["label"] = ""
@@ -2455,7 +2616,7 @@ class VMDeobfuscation(Analysis):
 
             elif old_node.irsb.jumpkind == "Ijk_Call":
                 if len(successors) > 1:
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (vm_deobfuscation.py:2474)")
                 elif len(successors) == 1 and not successors[0].is_simprocedure and successors[0].addr not in decomp_function_addresses:
                     new_jumpkind = "Ijk_Boring"
 
@@ -2502,7 +2663,7 @@ class VMDeobfuscation(Analysis):
                     new_statements = new_statements + [cmp_stmt, new_exit_stmt]
                     new_next = pyvex.expr.Const(U32(false_addr_enc))
                 else:
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (vm_deobfuscation.py:2521)")
 
                 old_node.irsb.tyenv.types.append('Ity_I1')
 
@@ -2516,7 +2677,7 @@ class VMDeobfuscation(Analysis):
                     elif succ.addr == old_node.irsb.next.con.value and succ.block_id == old_node.irsb.next.con.block_id:
                         false_addr_block_id = succ.block_id
                     else:
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (vm_deobfuscation.py:2535)")
 
                 true_addr_int = self.convert_addr_to_int(orig_exit_stmt.dst.value, true_addr_block_id)
 
@@ -2861,10 +3022,13 @@ class VMDeobfuscation(Analysis):
                                                start_deobfuscation_immediately=self.start_deobfuscation_immediately,
                                                deobfuscation_start_addr=self.deobfuscation_start_addr,
                                                deobfuscation_end_addr = self.deobfuscation_end_addr,
+                                               vm_function_extent=self.vm_function_extent,
+                                               vm_entry_sites=self.vm_entry_sites,
                                                nodes_to_prune=self.nodes_to_prune,
                                                unroll_same_vpc_loop=unroll_same_vpc_loop,
                                                hook_other_functions=self.hook_other_functions,
-                                               remove_vmp_semantically_same_branch=self.remove_vmp_semantically_same_branch
+                                               remove_vmp_semantically_same_branch=self.remove_vmp_semantically_same_branch,
+                                               artifacts_dir=self.artifacts.dir
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations = None
@@ -2877,6 +3041,8 @@ class VMDeobfuscation(Analysis):
     @skip_if_unchanged
     def remove_push_ret(self, cfg, proj, start_addr, start_state=None,options=None, decomp_function_addresses=None):
         # this pass is to simplify push x, retn to x kind of jumps
+        # documented as optional, but membership-tested below
+        decomp_function_addresses = decomp_function_addresses if decomp_function_addresses is not None else {}
         for node in cfg.graph.nodes():
             # this is to replace any indirect jumps to a simprocedure with a direct jump, should I do this for all jumps/calls?
             if not node.is_simprocedure and isinstance(node.irsb.next, pyvex.expr.RdTmp) and len(list(cfg.graph.successors(node))) == 1:
@@ -3220,7 +3386,7 @@ class VMDeobfuscation(Analysis):
             if node in new_model.graph.nodes():
                 if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1:
                     if node.addr == 0x1401f1572 and node.block_id.vm_vpc == 10737664954:
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (vm_deobfuscation.py:3241)")
                     if skip_call_ret and node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
                         continue
                     succ = list(new_model.graph.successors(node))[0]
@@ -3338,7 +3504,16 @@ class VMDeobfuscation(Analysis):
                     # Matching the successors with the correct block_id
                     succs = cfg.get_successors(node)
                     if len(succs) > 2:
-                        raise Exception("Greater than 2 successors!")
+                        # A VM-VPC-context-sensitive CFG can hold several nodes for one block
+                        # address, so a conditional exit legitimately sees more than two
+                        # successors. The matching below is by address and the block_id_for_next
+                        # fallback already has a >2 branch, so degrade instead of aborting the
+                        # whole analysis.
+                        debug_trap(
+                            "conditional exit has more than two successors",
+                            node=hex(node.addr),
+                            successors=[hex(s.addr) for s in succs],
+                        )
                     branch_block_id = None
                     for succ in succs:
                         if succ.addr == poss_exit_stmt.dst.value:
@@ -3447,7 +3622,7 @@ class VMDeobfuscation(Analysis):
                 print(node)
                 print(final_state.posix.dumps(1))
         print("Done")
-        import ipdb;ipdb.set_trace()
+        debug_trap("unexpected state (vm_deobfuscation.py:3477)")
         if semantic_verf_hooks:
             for symbol_addr, proc in semantic_verf_hooks:
                 if isinstance(symbol_addr, str):
@@ -3562,7 +3737,16 @@ class VMDeobfuscation(Analysis):
                 else:
                     uses = rd.all_uses.get_uses(d)
 
-                if isinstance(d.atom, atoms.Register) and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Put):
+                # Same guard as remove_redundant_store_load: stmt_idx may be the
+                # DEFAULT_STATEMENT sentinel (-2) or index another block's IRSB.
+                if (
+                    isinstance(d.atom, atoms.Register)
+                    and d.codeloc.stmt_idx is not None
+                    and d.codeloc.stmt_idx >= 0
+                    and getattr(d.codeloc, "block_addr", None) == node.addr
+                    and d.codeloc.stmt_idx < len(node.irsb.statements)
+                    and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Put)
+                ):
                     for use in uses:
                         if use.stmt_idx is None:
                             # this is a sim procedure function use
@@ -4868,7 +5052,17 @@ class VMDeobfuscation(Analysis):
             for d in all_defs:
                 if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                     continue
-                if d.codeloc.stmt_idx and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.CAS):
+                # all_definitions spans the whole subject graph, so a definition's stmt_idx
+                # indexes its own block's IRSB, not this node's. DEFAULT_STATEMENT (-2) is a
+                # sentinel for the block's default exit rather than a real index, and negative
+                # values pass a "< len" test but raise on access.
+                if (
+                    d.codeloc.stmt_idx is not None
+                    and d.codeloc.stmt_idx >= 0
+                    and getattr(d.codeloc, "block_addr", None) == node.addr
+                    and d.codeloc.stmt_idx < len(node.irsb.statements)
+                    and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.CAS)
+                ):
                     continue
                 uses = rd.all_uses.get_uses(d)
 
@@ -4882,7 +5076,7 @@ class VMDeobfuscation(Analysis):
                         if isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.CAS):
                             continue
                         if use.sim_procedure:
-                            import ipdb;ipdb.set_trace()
+                            debug_trap("unexpected state (vm_deobfuscation.py:4912)")
 
                         if len(rd.all_uses.get_uses_by_location(use)) == 1:
                             replacement = self._try_make_redundant_store_load_replacement(
@@ -4992,6 +5186,17 @@ class VMDeobfuscation(Analysis):
         rd.model.liveness.def_to_liveness = None
         rd.model.liveness.loc_to_defs = None
         all_live_defs = list(rd.observed_results.values())
+        if not all_live_defs:
+            # No observation point produced a result: the graph has no leaf node to observe at
+            # (every node has a successor, e.g. a single self-looping block). There is nothing
+            # whose liveness we could compute, so leave the graph as it is rather than indexing
+            # an empty list.
+            debug_trap(
+                "whole-CFG DAE: no live definitions observed, skipping",
+                nodes=len(dsa_new_model.graph.nodes()),
+                observation_points=len(leaf_nodes_list),
+            )
+            return dsa_new_model
         merged_live_defs, merge_occured= all_live_defs[0].merge(*[live_definitions for live_definitions in all_live_defs[1:]])
 
         # live_defs = rd.one_result
@@ -5230,8 +5435,7 @@ class VMDeobfuscation(Analysis):
                             stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
                             if isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                                     str(node.irsb.statements[d.codeloc.stmt_idx]) == "STle(t464) = t120":
-                                import ipdb;
-                                ipdb.set_trace()
+                                debug_trap("unexpected state (vm_deobfuscation.py:5271)")
                             try:
                                 vs: 'MultiValues' = live_defs.stack.load(stack_addr, size=d.atom.size,
                                                                                  endness=d.atom.endness)
@@ -5318,12 +5522,20 @@ class VMDeobfuscation(Analysis):
                                 for succ in succs:
                                     #double check
                                     if succ.addr == stmt.dst.value:
-                                        import ipdb;ipdb.set_trace()
+                                        debug_trap("unexpected state (vm_deobfuscation.py:5359)")
                                 continue
 
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
                             self._note_change()
-                            nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
+                            _before = dsa_new_model.graph.number_of_nodes()
+                            _pruned = remove_path(dsa_new_model, start_node)
+                            if len(_pruned) > 8:
+                                l.warning(
+                                    "DAE: constant guard at %#x removed edge -> %#x and pruned %d of %d "
+                                    "nodes as unreachable from %#x",
+                                    node.addr, edge_to_remove_node.addr, len(_pruned), _before, start_node.addr,
+                                )
+                            nodes_to_remove = nodes_to_remove.union(_pruned)
                         continue
                     elif stmt.guard.con.value == 1:
                         # Remove the edge that is no longer required
@@ -5334,7 +5546,15 @@ class VMDeobfuscation(Analysis):
                                     edge_to_remove_node = succ
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
                             self._note_change()
-                            nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
+                            _before = dsa_new_model.graph.number_of_nodes()
+                            _pruned = remove_path(dsa_new_model, start_node)
+                            if len(_pruned) > 8:
+                                l.warning(
+                                    "DAE: constant guard at %#x removed edge -> %#x and pruned %d of %d "
+                                    "nodes as unreachable from %#x",
+                                    node.addr, edge_to_remove_node.addr, len(_pruned), _before, start_node.addr,
+                                )
+                            nodes_to_remove = nodes_to_remove.union(_pruned)
                         # else:
                         #     print("Hmmmmm")
                         #     import ipdb;ipdb.set_trace()
@@ -5859,7 +6079,7 @@ class VMDeobfuscation(Analysis):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
                 result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, track_consts=False, observation_points=[('node', node.addr, OP_AFTER)], dep_graph=DepGraph())
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (vm_deobfuscation.py:5900)")
                 ## create stmt dependency graph
                 stmt_graph = StatementGraph()
                 cur_ins_addr = None
@@ -6086,7 +6306,7 @@ class VMDeobfuscation(Analysis):
                                 new_simpl_stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add" + cur_stmt.data.op[-2:],
                                                                                 [pyvex.expr.RdTmp(tmp_to_keep),
                                                                                  pyvex.expr.Const(cur_stmt_const_class(((const_0+const_1)&(1<<64)-1)))]))
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (vm_deobfuscation.py:6127)")
                                 tmp_codeloc = IndSensitiveCodeLocation(successor.codeloc.block_addr,
                                                                        successor.codeloc.stmt_idx,
                                                                        ins_addr=cur_stmt_node.codeloc.ins_addr,
@@ -6181,7 +6401,7 @@ class VMDeobfuscation(Analysis):
                                                    jumpkind=node.irsb.jumpkind,
                                                    size=node.irsb.size)
                 if len(simplified_statements) != len(node.irsb.statements):
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (vm_deobfuscation.py:6222)")
                 # if simp_flag == 1:
                 #     import ipdb;ipdb.set_trace()
                 #     pass
@@ -6409,10 +6629,13 @@ class VMDeobfuscation(Analysis):
                                         start_deobfuscation_immediately=self.start_deobfuscation_immediately,
                                         deobfuscation_start_addr=self.deobfuscation_start_addr,
                                         deobfuscation_end_addr=self.deobfuscation_end_addr,
+                                        vm_function_extent=self.vm_function_extent,
+                                        vm_entry_sites=self.vm_entry_sites,
                                         nodes_to_prune=self.nodes_to_prune,
                                         unroll_same_vpc_loop=unroll_same_vpc_loop,
                                         hook_other_functions=self.hook_other_functions,
-                                        remove_vmp_semantically_same_branch=self.remove_vmp_semantically_same_branch
+                                        remove_vmp_semantically_same_branch=self.remove_vmp_semantically_same_branch,
+                                        artifacts_dir=self.artifacts.dir
                                         # enable_advanced_backward_slicing=True
                                         )
         self.release_memory(cfg, proj)
@@ -6511,7 +6734,7 @@ class VMDeobfuscation(Analysis):
             if not node.is_simprocedure:
                 new_stmts = node.irsb.statements
                 if node.addr == 0x44e41b:
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (vm_deobfuscation.py:6552)")
                 # for stmt, repl_pair in value.items():
                 #     for old, new in repl_pair.items():
                 #         ## This is for the next expression
