@@ -21,7 +21,7 @@ round-trip is the acceptance test).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 from angr.ailment.expression import (
@@ -47,6 +47,7 @@ from angr.ailment.statement import (
 
 from .dsl import (
     PAny,
+    PAnyStmt,
     PAssign,
     PatternExpr,
     PatternStmt,
@@ -67,6 +68,8 @@ from .pattern import KnownPattern, PatternParam
 
 if TYPE_CHECKING:
     import networkx
+
+    from angr.ailment import Block
 
     from .pattern import TypeRef
 
@@ -603,7 +606,6 @@ class PatternGenerator:
         if len(blocks) < 2:
             raise PatternGenerationError("multi-block generation expected >= 2 blocks")
 
-        selected = set(blocks)
         # per-block non-label statements
         block_stmts = {b: [s for s in b.statements if not isinstance(s, Label)] for b in blocks}
 
@@ -619,28 +621,7 @@ class PatternGenerator:
         for k, vid in enumerate(sorted(defs)):
             capture_of.setdefault(vid, f"_t{k}")
 
-        # entry = the unique selected block with no selected predecessor
-        entries = [b for b in blocks if not any(p in selected for p in self.ail_graph.predecessors(b))]
-        if len(entries) != 1:
-            raise PatternGenerationError(f"selection has {len(entries)} entry blocks; need exactly one")
-        entry = entries[0]
-
-        label_of = {b: f"b{i}" for i, b in enumerate(sorted(blocks, key=lambda x: (x.addr, x.idx or -1)))}
-        pblocks: dict[str, PBlockPat] = {}
-        edges: list[tuple[str, str]] = []
-        ext = 0
-        for b in blocks:
-            lbl = label_of[b]
-            seq = PStmtSeq(tuple(self._gen_stmt(s, capture_of, const_promote) for s in block_stmts[b]))
-            pblocks[lbl] = PBlockPat(lbl, seq)
-            for succ in self.ail_graph.successors(b):
-                if succ in selected:
-                    edges.append((lbl, label_of[succ]))
-                else:
-                    edges.append((lbl, f"OUT{ext}"))
-                    ext += 1
-
-        pattern = PGraphPat(blocks=pblocks, edges=edges, entry=label_of[entry])
+        pattern = self._graph_pattern(blocks, block_stmts, capture_of, const_promote, self._gen_stmt)
         return self._finish(
             pattern,
             call_name,
@@ -655,6 +636,150 @@ class PatternGenerator:
             binary_guard,
             default_enabled,
         )
+
+    def _graph_pattern(
+        self,
+        blocks: list[Block],
+        block_stmts: dict[Block, list[Statement]],
+        capture_of: dict[int, str],
+        const_promote: set[int],
+        render: Callable[[Statement, dict[int, str], set[int]], PatternStmt],
+    ) -> PGraphPat:
+        """The PGraphPat of ``blocks``: one labeled block each, internal edges between
+        them, and an OUT label for every edge that leaves the selection."""
+        assert self.ail_graph is not None
+        selected = set(blocks)
+        # entry = the unique selected block with no selected predecessor
+        entries = [b for b in blocks if not any(p in selected for p in self.ail_graph.predecessors(b))]
+        if len(entries) != 1:
+            raise PatternGenerationError(f"selection has {len(entries)} entry blocks; need exactly one")
+        entry = entries[0]
+
+        label_of = {b: f"b{i}" for i, b in enumerate(sorted(blocks, key=lambda x: (x.addr, x.idx or -1)))}
+        pblocks: dict[str, PBlockPat] = {}
+        edges: list[tuple[str, str]] = []
+        ext = 0
+        for b in blocks:
+            lbl = label_of[b]
+            seq = PStmtSeq(tuple(render(s, capture_of, const_promote) for s in block_stmts[b]))
+            pblocks[lbl] = PBlockPat(lbl, seq)
+            for succ in self.ail_graph.successors(b):
+                if succ in selected:
+                    edges.append((lbl, label_of[succ]))
+                else:
+                    edges.append((lbl, f"OUT{ext}"))
+                    ext += 1
+        return PGraphPat(blocks=pblocks, edges=edges, entry=label_of[entry])
+
+    #
+    # fuzzy templates
+    #
+
+    def generate_fuzzy(
+        self,
+        start_offset: int,
+        end_offset: int,
+        call_name: str,
+        *,
+        name: str | None = None,
+        display_name: str | None = None,
+        returnty: TypeRef | None = None,
+        param_types: Sequence[TypeRef | None] | None = None,
+    ) -> KnownPattern:
+        """A pattern for the fuzzy matcher from the statements the selection covers.
+
+        Unlike :meth:`generate`, this asks nothing of the user beyond the span: every
+        whole statement inside it becomes a leaf, a statement the DSL cannot express
+        becomes a :class:`PAnyStmt` rather than an error, and the call's parameters
+        are the variables the statements read without defining, in the order they
+        are first read. Constants stay exact; the editor is where they are loosened.
+        """
+        if start_offset >= end_offset:
+            raise PatternGenerationError("empty selection")
+        if self.ail_graph is None:
+            raise PatternGenerationError("fuzzy generation needs the AIL graph")
+        # Selection by instruction address rather than by text span. A variable's C node is
+        # shared between its declaration and every use, so a span computed from nodes
+        # stretches back to the declaration list; the instruction addresses on the
+        # statement and expression chunks do not have that problem.
+        ins_addrs = self._body_ins_addrs(start_offset, end_offset)
+        if not ins_addrs:
+            raise PatternGenerationError("the selection covers no statement")
+        # the same order the fuzzy matcher's stream uses, so a linear fallback lines up with it
+        from angr.analyses.fuzzy_patterns.tokenizer import linearize  # pylint:disable=import-outside-toplevel
+
+        entry = next(b for b in self.ail_graph if not any(True for _ in self.ail_graph.predecessors(b)))
+        blocks = []
+        block_stmts: dict[Block, list[Statement]] = {}
+        for b in linearize(self.ail_graph, entry):
+            chosen = [s for s in b.statements if not isinstance(s, Label) and s.tags.get("ins_addr") in ins_addrs]
+            if chosen:
+                blocks.append(b)
+                block_stmts[b] = chosen
+        stmts = [s for b in blocks for s in block_stmts[b]]
+        if not stmts:
+            raise PatternGenerationError("the selection covers no statement")
+        capture_of, arg_varids = self._auto_captures(stmts)
+        pattern: PatternStmt | PGraphPat
+        if len(blocks) >= 2:
+            try:
+                pattern = self._graph_pattern(blocks, block_stmts, capture_of, set(), self._gen_stmt_lenient)
+            except PatternGenerationError:
+                # not a single-entry region: keep the statements, lose the edges. The
+                # fuzzy matcher aligns a flat sequence with gaps anyway.
+                pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))
+        else:
+            pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))
+        return self._finish(
+            pattern,
+            call_name,
+            capture_of,
+            arg_varids,
+            name,
+            display_name,
+            returnty,
+            param_types,
+            None,
+            None,
+            None,
+            True,
+        )
+
+    def _body_ins_addrs(self, start: int, end: int) -> set[int]:
+        """Instruction addresses of the statement and expression chunks inside the span."""
+        addrs: set[int] = set()
+        for pos, elem in self.codegen.map_pos_to_node.items():
+            if pos < end and start < pos + elem.length:
+                ins = (getattr(elem.obj, "tags", None) or {}).get("ins_addr")
+                if ins is not None:
+                    addrs.add(ins)
+        return addrs
+
+    def _gen_stmt_lenient(self, stmt: Statement, capture_of: dict[int, str], const_promote: set[int]) -> PatternStmt:
+        """Like :meth:`_gen_stmt`, with a wildcard statement for what the DSL cannot say."""
+        try:
+            return self._gen_stmt(stmt, capture_of, const_promote)
+        except PatternGenerationError:
+            return PAnyStmt()
+
+    def _auto_captures(self, stmts: list[Statement]) -> tuple[dict[int, str], list[int]]:
+        """Captures for a selection with no argument list: the inputs, in first-read order."""
+        defs: set[int] = set()
+        uses: set[int] = set()
+        for s in stmts:
+            defs |= _stmt_defs(s)
+            uses |= _stmt_uses(s)
+        inputs = uses - defs
+        arg_varids: list[int] = []
+        for s in stmts:
+            for _, root in _iter_stmt_subexprs(s):
+                for vid in self._leaf_vvar_ids(root):
+                    if vid in inputs and vid not in arg_varids:
+                        arg_varids.append(vid)
+        capture_of = self._build_captures(list(inputs), arg_varids)
+        for k, vid in enumerate(sorted(defs)):
+            capture_of.setdefault(vid, f"_t{k}")
+        return capture_of, arg_varids
 
     def _selected_ins_addrs(self, start: int, end: int) -> set[int]:
         addrs: set[int] = set()
