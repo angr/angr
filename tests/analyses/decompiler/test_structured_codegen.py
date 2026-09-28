@@ -181,9 +181,12 @@ class TestRightShiftRendering(unittest.TestCase):
                 cfg = project.analyses.CFGFast(normalize=True)
                 source = cfg.kb.functions[f"signed_status{width}"]
                 prototype = SimTypeFunction([], type_class(signed=True)).with_arch(project.arch)
+                assert isinstance(prototype, SimTypeFunction)
                 source.prototype = prototype
                 source.calling_convention = project.factory.cc()
-                result = project.analyses.Decompiler(cfg.kb.functions[f"logical{width}"], cfg=cfg.model, fail_fast=True)
+                result = project.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(
+                    cfg.kb.functions[f"logical{width}"], cfg=cfg.model
+                )
                 assert result.codegen is not None and result.codegen.text is not None
                 text = result.codegen.text
                 cast = type_class(signed=False).c_repr()
