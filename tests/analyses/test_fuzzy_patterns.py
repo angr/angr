@@ -9,6 +9,7 @@ from unittest import TestCase
 import networkx
 
 import angr
+from angr.ailment.statement import Label
 from angr.analyses.fuzzy_patterns import (
     AILCanonicalizer,
     AlignParams,
@@ -26,6 +27,7 @@ from angr.analyses.fuzzy_patterns.align import (
     find_seeds,
     refine_candidates,
 )
+from angr.utils.ail import is_phi_assignment
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")
@@ -346,7 +348,10 @@ class TestFuzzyPatternFinder(TestCase):
         assert dec.ail_graph is not None
 
         finder = proj.analyses.FuzzyPatternFinder(func, dec.ail_graph)
-        assert len(finder.stream) == sum(len(b.statements) for b in dec.ail_graph)
+        # labels and phis are not statements an idiom is made of; the stream skips them
+        assert len(finder.stream) == sum(
+            1 for b in dec.ail_graph for s in b.statements if not isinstance(s, Label) and not is_phi_assignment(s)
+        )
         for pattern in finder.patterns:
             assert len(pattern.occurrences) >= 2
             for occ in pattern.occurrences:

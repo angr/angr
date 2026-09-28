@@ -120,8 +120,8 @@ class FuzzyPatternFinder(Analysis):
         min_core_support: int = 2,
         max_depth: int = 5,
         const_mode: str = "abstract",
-        skip_labels: bool = False,
-        skip_phis: bool = False,
+        skip_labels: bool = True,
+        skip_phis: bool = True,
         resolve_calls: bool = True,
         entry: Block | None = None,
     ):
