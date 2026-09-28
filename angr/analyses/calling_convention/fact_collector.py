@@ -563,6 +563,12 @@ class FactCollector(Analysis):
         init_state.bp_value = init_state.sp_value
 
         traversed = set()
+        # Nodes already sitting in the queue. `traversed` is only updated when a node is popped,
+        # so without this a block with many predecessors is enqueued once per predecessor and
+        # every duplicate carries its own FactCollectorState copy; all but the first are then
+        # thrown away at pop. Graphs with heavy fan-in (a devirtualized VM whose handlers all
+        # return to one dispatcher) make that O(edges) large copies instead of O(blocks).
+        enqueued = set()
         # the last element marks a tail call
         queue: list[
             tuple[
@@ -662,8 +668,12 @@ class FactCollector(Analysis):
                             ret_succ = succ
                     elif edge_type == "transition" and not outside:
                         if succ not in traversed:
+                            # successor_added keeps its old meaning (this node is not an
+                            # endpoint); only the enqueue itself is deduplicated.
                             successor_added = True
-                            queue.append((depth + 1, state.copy(), succ, None, False))
+                            if succ not in enqueued:
+                                enqueued.add(succ)
+                                queue.append((depth + 1, state.copy(), succ, None, False))
                     elif edge_type in {"call", "syscall"} or (edge_type == "transition" and outside):
                         # a call or a tail-call
                         # note that it's ok to traverse a called function multiple times
