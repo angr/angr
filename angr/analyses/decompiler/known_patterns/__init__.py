@@ -15,7 +15,9 @@ from .context import PatternContext
 from .ctype_tables import ALL_CTYPE_TEMPLATES, CTYPE_PREDICATES
 from .dsl import (
     PITE,
+    LeafStmt,
     PAny,
+    PAnyStmt,
     PAssign,
     PBinOp,
     PBlockPat,
@@ -37,6 +39,8 @@ from .dsl import (
     PStore,
     PUnaryOp,
     PVVar,
+    has_fuzzy_nodes,
+    iter_stmt_patterns,
 )
 from .finder import KnownPatternFinder, KnownPatternMatch, OutlineResult, UnsupportedOutlineError
 from .gating import (
@@ -227,8 +231,10 @@ __all__ = [
     "KnownPatternFinder",
     "KnownPatternMatch",
     "KnownPatternTemplate",
+    "LeafStmt",
     "OutlineResult",
     "PAny",
+    "PAnyStmt",
     "PAssign",
     "PBinOp",
     "PBlockPat",
@@ -263,6 +269,8 @@ __all__ = [
     "any_of",
     "corroborated_by",
     "exact_div_magic",
+    "has_fuzzy_nodes",
+    "iter_stmt_patterns",
     "make_std_vector_size_exactdiv_template",
     "make_std_vector_size_template",
     "make_template",

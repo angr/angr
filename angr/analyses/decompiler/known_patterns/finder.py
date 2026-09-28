@@ -61,6 +61,8 @@ from .dsl import (
     PStmtSeq,
     expr_anchor_key,
     expr_const_operands,
+    has_fuzzy_nodes,
+    pattern_anchor_key,
     pattern_index_keys,
     stmt_anchor_key,
     stmt_pattern_anchor_key,
@@ -327,10 +329,22 @@ class KnownPatternFinder(Analysis):
                 if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
             ]
 
+        self._patterns = self._drop_fuzzy_patterns(self._patterns)
         self._index_patterns()
         self.matches: list[KnownPatternMatch] = []
         self._srda_model = None
         self._analyze()
+
+    @staticmethod
+    def _drop_fuzzy_patterns(patterns: list[KnownPattern]) -> list[KnownPattern]:
+        """Leave out patterns only the fuzzy matcher can honor, loudly."""
+        kept = []
+        for pattern in patterns:
+            if has_fuzzy_nodes(pattern.pattern):
+                _l.warning("Pattern %s has optional statements; only the fuzzy matcher can apply it.", pattern.name)
+                continue
+            kept.append(pattern)
+        return kept
 
     @staticmethod
     def _fallback_ail_manager(ail_graph: networkx.DiGraph) -> AILManager:
