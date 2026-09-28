@@ -71,6 +71,7 @@ from .dsl import (
 )
 from .finder import _iter_expr_children, _iter_stmt_subexprs, _stmt_defs, _stmt_uses
 from .pattern import KnownPattern, PatternParam
+from .symbols import symbol_name_at
 
 if TYPE_CHECKING:
     import networkx
@@ -339,6 +340,10 @@ class PatternGenerator:
                 # named, so that the outliner can hand each occurrence's own string to the call
                 self._wildcards += 1
                 return PAny(name=f"_s{self._wildcards}")
+            symbol = self._symbol_of(expr)
+            if symbol is not None:
+                # the portable spelling: the same global lives elsewhere in every other build
+                return PConst(symbol=symbol)
             return PConst(value=expr.value)
         if isinstance(expr, Load):
             return PLoad(addr=self._gen_expr(expr.addr, capture_of, const_promote, fuzzy=fuzzy), size=expr.size)
@@ -381,6 +386,11 @@ class PatternGenerator:
         func = functions.get_by_addr(target.value)
         names = {n for n in (func.name, func.demangled_name) if n}
         return frozenset(names)
+
+    def _symbol_of(self, const: Const) -> str | None:
+        if not isinstance(const.value, int):
+            return None
+        return symbol_name_at(self.codegen.project.loader, const.value)
 
     def _is_string_pointer(self, const: Const) -> bool:
         cfg = self.codegen._cfg

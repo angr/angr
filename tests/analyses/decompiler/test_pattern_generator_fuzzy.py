@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import dataclasses
 import os
 import re
 import unittest
@@ -92,7 +93,7 @@ class TestGenerateFuzzy(unittest.TestCase):
         assert isinstance(puts, PCallStmt) and puts.call.names == {"puts"} and puts.call.args == (PAny(name="_s1"),)
         assert isinstance(fflush, PCallStmt) and fflush.call.names == {"fflush"}
         (stdout,) = fflush.call.args
-        assert isinstance(stdout, PLoad) and isinstance(stdout.addr, PConst) and stdout.addr.value is not None
+        assert isinstance(stdout, PLoad) and stdout.addr == PConst(symbol="stdout"), "a global by name, not address"
         assert isinstance(ret, PReturn) and ret.values == (PConst(value=0xFFFFFFFF),)
         assert pattern.params == ()
 
@@ -100,6 +101,45 @@ class TestGenerateFuzzy(unittest.TestCase):
         _, matches = find_template_occurrences(pattern, self.dec.ail_graph, entry, kb=self.kb)
         verified = [m for m in matches if m.verified]
         assert len(verified) >= 8, "every error exit of doit spells the idiom"
+
+    def test_a_symbolic_global_matches_in_another_binary(self):
+        """fflush(stdout) lifted from 1after909 verifies in about_time, where stdout lives at
+        another address; the same leaf with the address pinned does not."""
+        m = re.search(r"fflush\(stdout\);\n", self.gen.text)
+        assert m is not None
+        pattern = self.gen.generate_fuzzy(m.start(), m.end(), "flush_out")
+        (leaf,) = pattern.pattern.stmts
+        assert isinstance(leaf, PCallStmt) and leaf.call.args[0] == PLoad(PConst(symbol="stdout"), size=8)
+        pinned = dataclasses.replace(
+            leaf, call=dataclasses.replace(leaf.call, args=(PLoad(PConst(value=0x603848), size=8),))
+        )
+
+        proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "about_time"), auto_load_libs=False)
+        assert proj.loader.find_symbol("stdout").rebased_addr != 0x603848
+        cfg = proj.analyses.CFG(normalize=True)
+        callers = [
+            f
+            for f in proj.kb.functions.values()
+            if not f.is_simprocedure
+            and not f.is_plt
+            and any(
+                proj.kb.functions.get_by_addr(c).name == "fflush"
+                for c in cfg.functions.callgraph.successors(f.addr)
+                if proj.kb.functions.contains_addr(c)
+            )
+        ]
+        assert callers, "about_time calls fflush somewhere"
+        symbolic = pinned_hits = 0
+        for func in callers:
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+            assert dec.ail_graph is not None
+            entry = next(b for b in dec.ail_graph if b.addr == func.addr)
+            _, hits = find_template_occurrences(PStmtSeq((leaf,)), dec.ail_graph, entry, kb=proj.kb)
+            symbolic += sum(1 for h in hits if h.verified)
+            _, hits = find_template_occurrences(PStmtSeq((pinned,)), dec.ail_graph, entry, kb=proj.kb)
+            pinned_hits += sum(1 for h in hits if h.verified)
+        assert symbolic > 0, "the symbolic pattern must find fflush(stdout) in the other binary"
+        assert pinned_hits == 0, "an address pinned in 1after909 means nothing in about_time"
 
     def test_the_whole_function_lifts_calls_and_returns(self):
         """A span over the whole function covers calls and returns, which have patterns of their own."""
