@@ -345,10 +345,11 @@ class _WcscpyBlockBuilder:
         """
         copies = []
         for stmt in statements:
-            if isinstance(stmt, SideEffectStatement) and simplifier.is_inlined_wcsncpy(stmt):
-                dst, str_const, count = stmt.expr.args
+            if simplifier._is_inlined_wide_copy(stmt):
+                dst, str_const = stmt.expr.args[:2]
                 assert isinstance(dst, StackBaseOffset)
-                copies.append((dst.offset, self.project.kb.custom_strings[str_const.value_int], count.value_int * 2))
+                text = self.project.kb.custom_strings[str_const.value_int]
+                copies.append((dst.offset, text, len(simplifier._copied_bytes(stmt))))
         return copies
 
 
@@ -406,6 +407,7 @@ def test_wcscpy_keeps_terminator():
 
     assert builder.wide_copies(simplifier, statements) == [(-108, APPDATA_PATH, 62)]
     assert len(statements) == 1
+    assert simplifier.is_inlined_wcscpy(statements[0])
 
 
 def test_wcscpy_wide_string_check_returns_all_bytes():
@@ -440,7 +442,39 @@ def test_wcscpy_consolidation_keeps_terminator_of_second_call():
     second = _inlined_wcsncpy(simplifier, 10, 4, b"C\x00", count=Const(11, 2, 64))
 
     (merged,) = simplifier._consolidate_wcscpy_calls([first, second])
+    assert simplifier.is_inlined_wcscpy(merged)
     assert simplifier._copied_bytes(merged) == b"A\x00B\x00C\x00\x00\x00"
     # nothing is appended after a terminator
     third = _inlined_wcsncpy(simplifier, 20, 10, b"D\x00")
     assert simplifier._consolidate_wcscpy_calls([merged, third]) is None
+
+
+def test_wcscpy_keeps_bytes_after_terminator():
+    builder = _WcscpyBlockBuilder()
+    builder.write_bytes(-108, "abc".encode("utf-16le") + b"\x00" * 4)
+    simplifier, statements = builder.run()
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, "abc".encode("utf-16le"), 8)]
+    assert simplifier.is_inlined_wcscpy(statements[0])
+    assert [stmt.dst.stack_offset for stmt in statements[1:]] == [-100, -99]
+
+
+def test_wcscpy_padded_copy_stays_wcsncpy():
+    # wcscpy would only write one of the two null characters
+    simplifier = _simplifier(InlinedWcscpySimplifier)
+    call = simplifier._make_wide_copy_call(StackBaseOffset(0, 64, 0), b"A\x00\x00\x00\x00\x00", {})
+
+    assert call.target == "wcsncpy"
+    assert call.args[2].value_int == 3
+
+
+def test_wcscpy_consolidation_merges_into_trailing_wcscpy():
+    simplifier = _simplifier(InlinedWcscpySimplifier)
+    first = _inlined_wcsncpy(simplifier, 0, 0, b"A\x00B\x00")
+    second = _inlined_wcsncpy(simplifier, 10, 4, b"C\x00", count=Const(11, 2, 64))
+    (wcscpy_stmt,) = simplifier._consolidate_wcscpy_calls([first, second])
+    later = _inlined_wcsncpy(simplifier, 20, -4, b"Z\x00Y\x00")
+
+    (merged,) = simplifier._consolidate_wcscpy_calls([later, wcscpy_stmt])
+    assert simplifier.is_inlined_wcscpy(merged)
+    assert simplifier._copied_bytes(merged) == b"Z\x00Y\x00A\x00B\x00C\x00\x00\x00"
