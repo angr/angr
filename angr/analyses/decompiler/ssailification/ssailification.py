@@ -166,6 +166,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             def_to_udef,
             extern_defs,
             incomplete_defs=incomplete_defs,
+            provisional_call_return_defs=traversal.provisional_call_return_defs,
+            used_provisional_call_return_defs=traversal.used_provisional_call_return_defs,
             vvar_id_start=next(phi_id_ctr),
             stackvars=self._ssa_stackvars,
             fail_fast=self._fail_fast,
