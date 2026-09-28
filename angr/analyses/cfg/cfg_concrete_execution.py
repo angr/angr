@@ -37,6 +37,7 @@ from angr.knowledge_plugins.cfg.block_id import BlockID
 from .cfg_job_base import CFGJobBase
 from .cfg_vm_deobfuscation import CFGVMDeobfuscation, StorageState, DataSensitiveEngine
 from .cfg_emulated import CFGEmulated
+from angr.utils.debug_trap import debug_trap
 
 
 l = logging.getLogger(name=__name__)
@@ -1034,7 +1035,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         print(sim_successors.successors[0].globals['cur_block_id'])
 
         if len(sim_successors.successors) > 1:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (cfg_concrete_execution.py:1037)")
 
         node.final_states = sim_successors.successors
         #self._node_iterations[block_key] += 1

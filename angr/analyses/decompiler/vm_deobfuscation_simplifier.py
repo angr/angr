@@ -16,6 +16,7 @@ from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, OP_BEFORE
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
 from .peephole_optimizations.base import PeepholeOptimizationExprBase
+from angr.utils.debug_trap import debug_trap
 
 l = logging.getLogger(name=__name__)
 
@@ -235,6 +236,7 @@ class VMDeobfuscationSimplifierMixin:
         directory = os.environ.get("CLINIC_STAGE_DUMP")
         if not directory:
             return
+        os.makedirs(directory, exist_ok=True)
         with open(f"{directory}/vm_{idx:02d}_{name.lstrip('_')}.txt", "w") as fp:
             fp.write(f"nodes={ail_graph.number_of_nodes()} edges={ail_graph.number_of_edges()}\n")
             for block in sorted(ail_graph.nodes(), key=lambda b: (b.addr, b.idx or 0)):
@@ -283,7 +285,7 @@ class VMDeobfuscationSimplifierMixin:
                         isinstance(prev_stmt.src.operands[0], Expr.Const) and \
                         prev_stmt.src.operands[1].likes(stmt.src.operands[1]):
                         new_stmt = Stmt.Assignment(src=prev_stmt.src.operands[0], dst=stmt.dst, idx=stmt.idx, **stmt.tags)
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (vm_deobfuscation_simplifier.py:286)")
 
                 elif isinstance(stmt, Stmt.Assignment) and isinstance(stmt.dst, Expr.Tmp) and \
                         isinstance(prev_stmt, Stmt.Assignment) and isinstance(prev_stmt.dst, Expr.Tmp) and \
@@ -294,7 +296,7 @@ class VMDeobfuscationSimplifierMixin:
                         isinstance(prev_stmt.src.operands[0], Expr.Const) and \
                         prev_stmt.src.operands[1].likes(stmt.src.operands[1]):
                         new_stmt = Stmt.Assignment(src=prev_stmt.src.operands[0], dst=stmt.dst, idx=stmt.idx, **stmt.tags)
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (vm_deobfuscation_simplifier.py:297)")
 
                 new_stmts.append(new_stmt)
                 if new_stmt != stmt:
@@ -809,8 +811,7 @@ class VMDeobfuscationSimplifierMixin:
                                             break
 
                                     if not global_store_def:
-                                        import ipdb;
-                                        ipdb.set_trace()
+                                        debug_trap("unexpected state (vm_deobfuscation_simplifier.py:812)")
 
                                     uses = list(rd.model.all_uses.get_uses(global_store_def))
                                     #make sure there are no other uses for this atom before removing the branches
@@ -864,7 +865,7 @@ class VMDeobfuscationSimplifierMixin:
                                                            ailment.expression.Const) and \
                                                 l_succ.statements[1].condition.operands[1].value == 0:
                                             print("please implement")
-                                            import ipdb;ipdb.set_trace()
+                                            debug_trap("unexpected state (vm_deobfuscation_simplifier.py:867)")
 
                     elif len(list(ail_graph.successors(r_succ))) == 2 and len(list(ail_graph.successors(l_succ))) == 1:
                         if list(ail_graph.successors(l_succ))[0] == r_succ:
@@ -895,7 +896,7 @@ class VMDeobfuscationSimplifierMixin:
                                             break
 
                                     if not global_store_def:
-                                        import ipdb;ipdb.set_trace()
+                                        debug_trap("unexpected state (vm_deobfuscation_simplifier.py:898)")
 
                                     uses = list(rd.model.all_uses.get_uses(global_store_def))
                                     #make sure there are no other uses for this atom before removing the branches

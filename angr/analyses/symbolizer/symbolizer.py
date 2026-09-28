@@ -27,11 +27,13 @@ from .. import register_analysis
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation, VMStackVariableAnnotation
 from ..forward_analysis.visitors.graph import GraphVisitor
+from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
 from ...storage import SimMemoryObject
 
 import time
+from angr.utils.debug_trap import debug_trap
 
 debug=False
 l = logging.getLogger(name=__name__)
@@ -239,7 +241,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 const_class = pyvex.const.ty_to_const_class(expr_type)
                 if len(simp_result.args) > 2:
                     print("Hmmm possible need to simplify the expr")
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (symbolizer.py:243)")
                 if isinstance(expr, DataSensitiveRdTmp):
                     if const_class == pyvex.const.U64:
                         const_class = DataSensitiveU64
@@ -374,8 +376,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 for idx, loaded_value in enumerate(loaded_values[:-1]):
                     final_cond = claripy.If(switch_case_var == idx, loaded_value, final_cond)
 
-                import ipdb;
-                ipdb.set_trace()
+                debug_trap("unexpected state (symbolizer.py:378)")
 
                 return final_cond
 
@@ -480,7 +481,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
 
                             elif addr.op == "__sub__":
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (symbolizer.py:484)")
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
 
                         else:
@@ -499,22 +500,19 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1] + addr.args[2], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
                             elif addr.op == "__sub__":
                                 print("Not implemented")
-                                import ipdb;
-                                ipdb.set_trace()
+                                debug_trap("unexpected state (symbolizer.py:503)")
                         elif addr.args[1].depth == 1:
                             if addr.op == "__add__":
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[2],claripy.If(state_split_cond, conc_addrs[0] - addr.args[1], conc_addrs[1] - addr.args[1]))
                             elif addr.op == "__sub__":
                                 print("Not implemented")
-                                import ipdb;
-                                ipdb.set_trace()
+                                debug_trap("unexpected state (symbolizer.py:510)")
                         elif addr.args[2].depth == 1:
                             if addr.op == "__add__":
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] + addr.args[1],claripy.If(state_split_cond, conc_addrs[0] - addr.args[2], conc_addrs[1] - addr.args[2]))
                             elif addr.op == "__sub__":
                                 print("Not implemented")
-                                import ipdb;
-                                ipdb.set_trace()
+                                debug_trap("unexpected state (symbolizer.py:517)")
 
                 ## Do replacement for all registers and temps just to be safe....... although the mba can still be on stack...... will deal with it later.
                 ## That should not be a problem since we try to evaluate every address above, so it should be resolved
@@ -595,7 +593,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
                 diff = solns[0][0] - solns[0][1]
 
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (symbolizer.py:599)")
 
                 if diff > 0:
                     return True, mba_split_cond + diff
@@ -609,16 +607,21 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
     def _handle_vex_defaultexit(self, expr, jumpkind):
         super()._handle_vex_defaultexit(expr, jumpkind)
         # if blockid is None then it's probably some weird VEX instruction and we are still in the same block most likely
+        # block_id only exists on pushan's data-sensitive pyvex subclasses. An IRSB that never went
+        # through convert_to_data_sensitive_irsb -- a block lifted straight from the binary, e.g. a
+        # node the symbolizer added itself -- carries plain pyvex constants, so read it defensively
+        # rather than raising AttributeError deep inside the engine.
         if isinstance(expr, pyvex.expr.RdTmp):
-            if expr.block_id:
+            if getattr(expr, "block_id", None):
                 self.state.globals['cur_block_id'] = expr.block_id
         else:
-            if expr.con.block_id:
-                self.state.globals['cur_block_id'] = expr.con.block_id
+            con = getattr(expr, "con", None)
+            if getattr(con, "block_id", None):
+                self.state.globals['cur_block_id'] = con.block_id
 
     def _handle_vex_stmt_Exit(self, stmt):
         super()._handle_vex_stmt_Exit(stmt)
-        if stmt.dst.block_id:
+        if getattr(stmt.dst, "block_id", None):
             self.state.globals['cur_block_id'] = stmt.dst.block_id
 
 
@@ -842,7 +845,7 @@ class PropagatorVEXState(PropagatorState):
 
         ## If it is not the same as the previous replacement then it is not a constant and should not be replaced
         elif self._replacements[codeloc][old].con.value != new.con.value:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (symbolizer.py:846)")
             self._replacements[codeloc][old] = self.top(new.size())
 
     def _merge_replacements(self, replacements_0, replacements_1):
@@ -1137,6 +1140,72 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         """
         return {v.block_id for _, v in back_edges}
 
+    def _adopt_recomputed_successors(self, node, successors):
+        """Add graph edges for successors the symbolizer resolved but the graph does not have.
+
+        Only *adds*; the stale edges stay, so a wrong adoption cannot disconnect anything that
+        used to be reachable. Nodes are created lazily and reuse an existing node at the same
+        address when one is present.
+        """
+        existing = {s.addr: s for s in self._graph.successors(node)}
+        by_addr = None
+        added = []
+        for succ in successors:
+            if succ.addr in existing:
+                continue
+            if by_addr is None:
+                by_addr = {}
+                for n in self._graph.nodes():
+                    by_addr.setdefault(n.addr, n)
+            target = by_addr.get(succ.addr)
+            if target is None:
+                # Lift the block once and give the node everything downstream reads off it:
+                # size, irsb and instruction_addrs. Leaving any of these unset surfaces far away
+                # as an AttributeError inside an engine or a simplification pass.
+                try:
+                    blk = self.project.factory.block(succ.addr)
+                    size = blk.size
+                    irsb = blk.vex
+                    ins_addrs = list(blk.instruction_addrs)
+                except Exception:
+                    l.warning("symbolizer: cannot lift adopted successor %#x; skipping", succ.addr)
+                    continue
+                # CFGENode needs a real CFG model (it reaches through it to the project);
+                # borrow the one the node we are extending already belongs to.
+                cfg_model = getattr(node, "_cfg_model", None) or getattr(self, "model", None)
+                target = CFGENode(
+                    succ.addr,
+                    size,
+                    cfg_model,
+                    vm_vpc=succ.globals.get("cur_vm_vpc", None),
+                    block_id=succ.globals.get("cur_block_id", None),
+                    function_address=succ.addr,
+                    irsb=irsb,
+                    instruction_addrs=ins_addrs,
+                )
+            # Edges in this graph carry a jumpkind; code such as replace_jumpkinds reads it
+            # unconditionally, so an edge added without one raises KeyError far from here.
+            jk = getattr(getattr(succ, "history", None), "jumpkind", None) or "Ijk_Boring"
+            self._graph.add_edge(node, target, jumpkind=jk)
+            # The traversal keeps its own sorted order; a node the graph gained mid-run is not
+            # in it, and binary_insert would raise KeyError on the missing index. Slot it in
+            # right after the current node so it is visited next.
+            visitor = getattr(self, "_graph_visitor", None)
+            if visitor is not None and getattr(visitor, "_node_to_index", None) is not None:
+                if target not in visitor._node_to_index:
+                    idx = visitor._node_to_index.get(node)
+                    pos = len(visitor._sorted_nodes) if idx is None else idx + 1
+                    visitor._sorted_nodes.insert(pos, target)
+                    for _i, _n in enumerate(visitor._sorted_nodes):
+                        visitor._node_to_index[_n] = _i
+            added.append(target)
+        if added:
+            l.warning(
+                "symbolizer: adopted %d recomputed successor(s) of %#x that the graph lacked: %s",
+                len(added), node.addr, [hex(t.addr) for t in added],
+            )
+        return added
+
     def _get_and_update_input_state(self, node):
         """
         Get the input abstract state for this node, and remove it from the state map.
@@ -1237,12 +1306,12 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
         if node.block_id in self._prev_input_states and len(list(self.graph.predecessors(node))) > 1 and len(concrete_states) == 1:
             if len(self._prev_input_states[node.block_id]) > 1:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (symbolizer.py:1241)")
             # right now we assume only one concrete state
             changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id][0])
         elif node.block_id in self._prev_input_states and len(concrete_states) == 1 and concrete_states[0].globals['same_sp_merged']:
             if len(self._prev_input_states[node.block_id]) > 1:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (symbolizer.py:1246)")
             concrete_states[0].globals['same_sp_merged'] = False
             # right now we assume only one concrete state
             changed = self.compare_concrete_states(concrete_states[0], self._prev_input_states[node.block_id][0])
@@ -1327,7 +1396,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
             for succ in sim_successors.all_successors:
                 for block_id, (same_ip, split_block_id) in self.project.split_same_ips_block_addrs.items():
                     if block_id == node.block_id:
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (symbolizer.py:1331)")
                         del succ.globals["skip_same_ip_constant_prop"]
 
             if node.is_simprocedure and node.name == "read":
@@ -1421,7 +1490,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     #         split_same_ip_state = False
 
                     if node.block_id in self.project.split_same_ips_block_addrs:
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (symbolizer.py:1425)")
                         split_same_ip_state = True
                         new_states = []
                         cur_addr_mba = None
@@ -1484,7 +1553,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             uncon_succ.scratch.target = uncon_succ.regs.ip
                         else:
                             l.debug("TOP ip and more than one successor..... create more than once successors")
-                            import ipdb;ipdb.set_trace()
+                            debug_trap("unexpected state (symbolizer.py:1488)")
 
                     # if it's till symbolic try to eval with the partial constraint solver
                     #if uncon_succ.solver.symbolic(poss_target):
@@ -1522,7 +1591,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                 state_var_ast.append(ast)
                             elif isinstance(ast.args[0], str) and ast.args[0].startswith('switch_case_table') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
                                 state_var_ast.append(ast)
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (symbolizer.py:1526)")
 
                         # if len(state_var_ast) != 1:
                         #     import ipdb;ipdb.set_trace()
@@ -1543,10 +1612,10 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                 # possible jump targets due to the way the switch case variable is constructed with the if-else-then.
                                 # the default case ends up in too many of the batch eval solns
                             except:
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (symbolizer.py:1547)")
 
                             if len(solns) > 2:
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (symbolizer.py:1550)")
 
                             cur_addr_mba = None
                             for addr_mba in self.project.load_addr_mba_to_jump_addr_mapping.keys():
@@ -1601,8 +1670,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                             new_state.globals['cur_block_id'] = node_succ.block_id
                                     except:
                                         l.debug("failed to set cur block id")
-                                        import ipdb;
-                                        ipdb.set_trace()
+                                        debug_trap("unexpected state (symbolizer.py:1605)")
 
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
@@ -1740,7 +1808,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                     if not handled_mixed_successors:
                         l.debug("More than one unconstrained successor?!")
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (symbolizer.py:1744)")
 
                 if not split_same_ip_state:
                     for succ in sim_successors.all_successors:
@@ -1782,8 +1850,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                                                                                   successor.scratch.source)
                                     except SimUnsatError:
                                         print("Hmmmmmmmmmmm")
-                                        import ipdb;
-                                        ipdb.set_trace()
+                                        debug_trap("unexpected state (symbolizer.py:1786)")
                                 else:
                                     # this is so that we do not keep the newly discovered from previous iter of symbolizer, since in the first iteration it's still Unsat(for loops)
                                     # we will keep these branches once the guards become TOP after n iterations
@@ -1832,7 +1899,20 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         break_flag = False
 
             if break_flag and len(list(self._graph.successors(node))) != 0:
-                import ipdb;ipdb.set_trace()
+                # None of the recomputed successors matches a graph successor.
+                #
+                # This is how a VM's exit back to native code used to be lost. The VM leaves
+                # through a `ret` in interpreter code that is shared between VM-internal returns
+                # and the final exit. The CFG phase resolves that `ret` first, with weaker
+                # constant propagation, and records an edge back into the protector section; the
+                # symbolizer later computes the real target -- the protected function's own
+                # continuation -- but the graph was treated as authoritative, so the continuation
+                # was never enqueued and everything after the VM vanished from the output.
+                #
+                # Measured on this driver: every target with a genuinely missing post-VM region
+                # hits this, and the one target that never hits it recovers all of its calls.
+                # Trust the symbolizer here and add the edge it computed.
+                self._adopt_recomputed_successors(node, symbolic_sim_successors.all_successors)
 
             # If we don't do this it won't free the memory..... prolly due to cyclic references
             conc_state.globals['abstract_state'] = None
@@ -1871,7 +1951,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         merged_state_collection = []
         for addr, states in all_successors.items():
             if len(states) > 2:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (symbolizer.py:1882)")
 
             elif len(states) == 2:
                 if states[0].solver.eval_one(states[0].regs.sp) == states[1].solver.eval_one(states[1].regs.sp) and not split_same_ip_state:
