@@ -319,16 +319,23 @@ class _WcscpyBlockBuilder:
             self.statements.append(Assignment(self.manager.next_atom(), dst, update))
             base = dst
 
+    def store_bytes(self, offset: int, data: bytes):
+        for i, byte in enumerate(data):
+            addr = StackBaseOffset(self.manager.next_atom(), 64, offset + i)
+            self.statements.append(
+                Store(self.manager.next_atom(), addr, Const(self.manager.next_atom(), byte, 8), 1, "Iend_LE")
+            )
+
     def call(self, name: str, *args):
         self.statements.append(
             SideEffectStatement(self.manager.next_atom(), Call(self.manager.next_atom(), name, args=list(args)))
         )
 
-    def run(self):
+    def run(self, simplifier_cls=InlinedWcscpySimplifierLate):
         block = Block(0, 1, self.statements)
         graph = networkx.DiGraph()
         graph.add_node(block)
-        simplifier = InlinedWcscpySimplifierLate(
+        simplifier = simplifier_cls(
             self.func,
             self.manager,
             graph=graph,
@@ -491,3 +498,70 @@ def test_wcscpy_destination_is_lowest_stack_variable():
     assert isinstance(dst, UnaryOp) and dst.op == "Reference" and dst.tags.get("extra_def", False)
     assert dst.operand.varid == vvars[0].varid
     assert stmt.tags["extra_defs"] == [vvars[0].varid]
+
+
+def test_wcscpy_early_folds_stack_stores():
+    builder = _WcscpyBlockBuilder()
+    builder.store_bytes(-108, APPDATA_PATH + b"\x00\x00")
+    simplifier, statements = builder.run(InlinedWcscpySimplifier)
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, APPDATA_PATH, 62)]
+    (stmt,) = statements
+    assert simplifier.is_inlined_wcscpy(stmt)
+    # stack variable recovery turns the stack offset into a variable later
+    assert isinstance(stmt.expr.args[0], StackBaseOffset)
+
+
+def test_wcscpy_early_folds_prefix_before_unknown_store():
+    builder = _WcscpyBlockBuilder()
+    builder.store_bytes(-108, APPDATA_PATH)
+    unknown = VirtualVariable(builder.manager.next_atom(), 100, 32, VirtualVariableCategory.REGISTER, oident=0)
+    builder.statements.append(
+        Store(builder.manager.next_atom(), StackBaseOffset(builder.manager.next_atom(), 64, -48), unknown, 4, "Iend_LE")
+    )
+    builder.store_bytes(-44, b"\xe0\xe1")
+    simplifier, statements = builder.run(InlinedWcscpySimplifier)
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, APPDATA_PATH, 60)]
+    assert len(statements) == 4
+
+
+def test_wcscpy_early_stride_starts_at_later_statement():
+    # stores in descending address order: the lowest one is written last
+    builder = _WcscpyBlockBuilder()
+    data = "abcd".encode("utf-16le")
+    for offset in range(6, -1, -2):
+        builder.store_bytes(-108 + offset, data[offset : offset + 2])
+    simplifier, statements = builder.run(InlinedWcscpySimplifier)
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, data, 8)]
+
+
+def test_wcscpy_early_writes_to_start_of_stride():
+    builder = _WcscpyBlockBuilder()
+    builder.store_bytes(-120, b"A")
+    builder.store_bytes(-108, "abcd".encode("utf-16le"))
+    simplifier, statements = builder.run(InlinedWcscpySimplifier)
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, "abcd".encode("utf-16le"), 8)]
+    assert isinstance(statements[0], Store) and statements[0].addr.offset == -120
+
+
+def test_wcscpy_early_does_not_hoist_stores_across_barriers():
+    data = "abcd".encode("utf-16le")
+    pointer = VirtualVariable(0, 100, 64, VirtualVariableCategory.REGISTER, oident=0)
+    for barrier in ("call", "store"):
+        builder = _WcscpyBlockBuilder()
+        builder.store_bytes(-108, data[:4])
+        if barrier == "call":
+            builder.call("consume", StackBaseOffset(builder.manager.next_atom(), 64, -108))
+        else:
+            # may alias the stack buffer
+            builder.statements.append(
+                Store(builder.manager.next_atom(), pointer, Const(builder.manager.next_atom(), 0x41, 8), 1, "Iend_LE")
+            )
+        builder.store_bytes(-104, data[4:])
+        simplifier, statements = builder.run(InlinedWcscpySimplifier)
+
+        assert builder.wide_copies(simplifier, statements) == [(-108, data[:4], 4), (-104, data[4:], 4)]
+        assert len(statements) == 3

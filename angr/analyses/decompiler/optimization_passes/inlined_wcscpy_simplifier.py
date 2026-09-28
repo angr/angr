@@ -334,12 +334,12 @@ class InlinedWcscpySimplifier(OptimizationPass):
         address, and consolidates adjacent entries within each group.
         """
         # Collect all candidate statements with their base/offset. Candidates separated by a statement that may read
-        # or clobber memory are never merged, so each group only spans one barrier-free segment.
+        # or clobber memory, or by a write through a different base that may alias, are never merged, so each group
+        # only spans one barrier-free segment.
         candidates = []  # list of (stmt_index, base, offset, store_size, stmt)
         segments = {}  # stmt_index -> segment id
         segment = 0
         for i, stmt in enumerate(statements):
-            segments[i] = segment
             if self._is_inlined_wide_copy(stmt):
                 assert isinstance(stmt, SideEffectStatement) and stmt.expr.args is not None
                 base, off = self._parse_addr(stmt.expr.args[0])
@@ -364,6 +364,9 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     candidates.append((i, base, off, stmt.dst.size, stmt))
             elif not self._is_unrelated_stmt(stmt):
                 segment += 1
+            if len(candidates) >= 2 and candidates[-1][0] == i and not candidates[-2][1].likes(candidates[-1][1]):
+                segment += 1
+            segments[i] = segment
 
         if not candidates:
             return None
@@ -564,6 +567,10 @@ class InlinedWcscpySimplifier(OptimizationPass):
         ):
             expected_type = "stack"
             expected_store_varid = None
+        elif isinstance(starting_stmt, Store) and isinstance(starting_stmt.addr, StackBaseOffset):
+            # stack stores before stack variables are recovered
+            expected_type = "stack_store"
+            expected_store_varid = None
         elif isinstance(starting_stmt, Store):
             if isinstance(starting_stmt.addr, VirtualVariable):
                 expected_store_varid = starting_stmt.addr.varid
@@ -601,8 +608,12 @@ class InlinedWcscpySimplifier(OptimizationPass):
                     if isinstance(stmt.src, Const) and stmt.src.is_int
                     else None
                 )
-            elif expected_type == "store" and isinstance(stmt, Store):
-                if isinstance(stmt.addr, VirtualVariable) and stmt.addr.varid == expected_store_varid:
+            elif expected_type in {"store", "stack_store"} and isinstance(stmt, Store):
+                if expected_type == "stack_store":
+                    if not isinstance(stmt.addr, StackBaseOffset):
+                        break
+                    offset = stmt.addr.offset
+                elif isinstance(stmt.addr, VirtualVariable) and stmt.addr.varid == expected_store_varid:
                     offset = 0
                 elif (
                     isinstance(stmt.addr, BinaryOp)
