@@ -317,6 +317,9 @@ class SPropagator:
                     (vvar.was_reg or vvar.was_parameter)
                     and sum(vvar_useloc_to_count.values()) <= 2
                     and isinstance(stmt.src, Load)
+                    # a tmp is block-local, so an expression that names one cannot be propagated to a use
+                    # in another block; the global-variable Load branch below checks the same thing
+                    and not has_tmp_expr(stmt.src)
                 ):
                     # do we want to propagate this Load expression if it's used for less than twice?
                     # it's often seen in the following pattern, where propagation will be beneficial:

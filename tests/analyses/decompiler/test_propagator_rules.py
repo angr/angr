@@ -7,10 +7,22 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import os
 import unittest
 
+import networkx
+
 import angr
+from angr import ailment
+from angr.ailment.block import Block
+from angr.ailment.expression import BinaryOp, Const, Load, Tmp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Jump, Return
+from angr.analyses.s_propagator import SPropagator
+from angr.knowledge_plugins.functions import Function
 from tests.common import WORKER, bin_location, load_project_with_scoped_cfg, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
+
+# the two blocks of the hand-built graph in the tmp-propagation tests below
+BLOCK_A = 0x401000
+BLOCK_B = 0x401010
 
 
 class TestPropagatorRules(unittest.TestCase):
@@ -71,6 +83,90 @@ class TestPropagatorRules(unittest.TestCase):
         # this is because we were trying to propagate Reference(vvar_780) to vvar_780 (16-byte) in a statement of
         # `vvar_781 = Reference(vvar_780)`, where both vvar_780 and vvar_781 are defined at the same statement.
         assert dec.codegen is not None and dec.codegen.text is not None
+
+    @staticmethod
+    def _load_propagated_across_two_blocks(tmp_address: bool) -> SPropagator:
+        """
+        Run SPropagator over two blocks where a register is defined by a Load in the first one and
+        used once in the second one. With ``tmp_address`` the Load reads through a tmp computed in
+        the first block, which is what a p-code effective-address calculation looks like.
+        """
+        proj = angr.Project(os.path.join(test_location, "i386", "fauxware"), auto_load_libs=False)
+        bits = proj.arch.bits
+
+        def vvar(varid: int, vvar_bits: int = 32) -> VirtualVariable:
+            return VirtualVariable(varid, varid, vvar_bits, VirtualVariableCategory.REGISTER, oident=16)
+
+        addr = Tmp(90, 0, bits) if tmp_address else Const(90, 0x500000, bits)
+        block_a = Block(
+            BLOCK_A,
+            8,
+            statements=[
+                # tmp 0 holds the address, and is defined in this block only
+                Assignment(
+                    0, Tmp(91, 0, bits), BinaryOp(92, "Add", [vvar(10, bits), vvar(11, bits)]), ins_addr=BLOCK_A
+                ),
+                Assignment(
+                    1,
+                    vvar(1),
+                    Load(93, addr, 4, proj.arch.memory_endness, ins_addr=BLOCK_A + 4),
+                    ins_addr=BLOCK_A + 4,
+                ),
+                Jump(2, Const(94, BLOCK_B, bits), ins_addr=BLOCK_A + 8),
+            ],
+            idx=None,
+        )
+        block_b = Block(
+            BLOCK_B,
+            8,
+            statements=[
+                Assignment(0, vvar(2), BinaryOp(95, "Add", [vvar(1), Const(96, 1, 32)]), ins_addr=BLOCK_B),
+                Return(1, [vvar(2)], ins_addr=BLOCK_B + 4),
+            ],
+            idx=None,
+        )
+        graph = networkx.DiGraph()
+        graph.add_edge(block_a, block_b)
+        return SPropagator(
+            proj,
+            Function(proj.kb.functions, BLOCK_A),
+            ail_manager=ailment.Manager(),
+            func_graph=graph,
+            only_consts=False,
+        )
+
+    @staticmethod
+    def _replacements_in(prop: SPropagator, block_addr: int) -> dict:
+        return {
+            (loc, expr): value
+            for loc, reps in prop.replacements.items()
+            if loc.block_addr == block_addr
+            for expr, value in reps.items()
+        }
+
+    def test_spropagator_keeps_a_tmp_bearing_load_inside_its_own_block(self):
+        # A tmp is block-local. The rule that propagates a Load used at most twice replaced the
+        # register at every use location, including use locations in other blocks, so the receiving
+        # block named a tmp that nothing in it defines. The next SPropagator run over that block
+        # raised `KeyError: <Tmp N>` indexing tmp_deflocs[block_loc][tmp_atom]; the decompiler's
+        # resilience swallowed it and the function produced no C at all. On a p-code architecture the
+        # effective address of a memory read is computed into a unique, so Load(addr=tmp) is the
+        # ordinary shape there and this cost whole functions.
+        prop = self._load_propagated_across_two_blocks(tmp_address=True)
+        landed = self._replacements_in(prop, BLOCK_B)
+        assert all(not isinstance(getattr(value, "addr", None), Tmp) for value in landed.values()), (
+            f"a tmp-bearing Load reached another block: {landed}"
+        )
+
+    def test_spropagator_still_propagates_a_load_without_a_tmp_address(self):
+        # a Load whose address holds no tmp is still propagated into the other block. This does not
+        # prove the changed rule is the one that propagated it -- the global-variable rule below it
+        # reaches the same statement -- so it pins the behaviour, not the rule.
+        prop = self._load_propagated_across_two_blocks(tmp_address=False)
+        landed = self._replacements_in(prop, BLOCK_B)
+        assert any(isinstance(value, Load) for value in landed.values()), (
+            f"the Load was not propagated at all: {landed}"
+        )
 
 
 if __name__ == "__main__":
