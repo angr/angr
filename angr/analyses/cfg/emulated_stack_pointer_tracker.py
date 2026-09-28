@@ -45,6 +45,7 @@ from angr.knowledge_plugins.cfg.block_id import BlockID
 from .cfg_job_base import CFGJobBase
 from .cfg_vm_deobfuscation import CFGVMDeobfuscation
 from .cfg_emulated import CFGEmulated
+from angr.utils.debug_trap import debug_trap
 
 
 l = logging.getLogger(name=__name__)
@@ -69,13 +70,13 @@ class SpTrackerEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineU
         if self.state.regs.sp.depth > 2:
             self.state.regs.sp = self.state.solver.simplify(self.state.regs.sp)
             if self.state.regs.sp.depth > 2:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (emulated_stack_pointer_tracker.py:72)")
 
         if ins_addr not in abstract_state.sp_tracker_dict:
             abstract_state.sp_tracker_dict[ins_addr] = defaultdict(dict)
 
 
-        import ipdb;ipdb.set_trace()
+        debug_trap("unexpected state (emulated_stack_pointer_tracker.py:78)")
         sp_offset = self.state.arch.registers['sp']
         abstract_state.sp_tracker_dict[ins_addr]['post'][sp_offset] = self.state.regs.sp
 
@@ -86,12 +87,12 @@ class SpTrackerEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineU
         if self.state.regs.sp.depth > 2:
             self.state.regs.sp = self.state.solver.simplify(self.state.regs.sp)
             if self.state.regs.sp.depth > 2:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (emulated_stack_pointer_tracker.py:89)")
 
         if ins_addr not in abstract_state.sp_tracker_dict:
             abstract_state.sp_tracker_dict[ins_addr] = defaultdict(dict)
 
-        import ipdb;ipdb.set_trace()
+        debug_trap("unexpected state (emulated_stack_pointer_tracker.py:94)")
         sp_offset = self.state.arch.registers['sp']
         abstract_state.sp_tracker_dict[ins_addr]['pre'][sp_offset] = self.state.regs.sp
 
@@ -1181,7 +1182,7 @@ class EmulatedStackPointerTracker(ForwardAnalysis, CFGBase):    # pylint: disabl
         print(sim_successors.successors[0].globals['cur_block_id'])
 
         if len(sim_successors.successors) > 1:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (emulated_stack_pointer_tracker.py:1184)")
 
         node.final_states = sim_successors.successors
         #self._node_iterations[block_key] += 1

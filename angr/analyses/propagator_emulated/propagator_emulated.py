@@ -28,6 +28,7 @@ from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotat
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
+from angr.utils.debug_trap import debug_trap
 
 
 debug=False
@@ -56,13 +57,13 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         return r
 
     def _handle_vex_expr_Triop(self, expr: pyvex.expr.Unop):
-        import ipdb;ipdb.set_trace()
+        debug_trap("unexpected state (propagator_emulated.py:59)")
         r = super()._handle_vex_expr_Triop(expr)
         # print(expr.op, r)
         return r
 
     def _handle_vex_expr_Qop(self, expr: pyvex.expr.Unop):
-        import ipdb;ipdb.set_trace()
+        debug_trap("unexpected state (propagator_emulated.py:65)")
         r = super()._handle_vex_expr_Qop(expr)
         # print(expr.op, r)
         return r
@@ -211,7 +212,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
             const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
             if len(simp_result.args) > 2:
                 print("Hmmm possible need to simplify the expr")
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (propagator_emulated.py:214)")
             if isinstance(expr, DataSensitiveRdTmp):
                 if const_class == pyvex.const.U64:
                     const_class = DataSensitiveU64
@@ -229,7 +230,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
         #simplified_addr = self.state.solver.simplify(addr[0])
         #simplified_addr=self.state.solver.simplify(addr[0])
         if self.state.globals["cur_block_id"].vm_vpc == 5368833174 and self.state.scratch.ins_addr == 0x140042D7D:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (propagator_emulated.py:232)")
 
         simplified_addr = addr[0]
         # if PropagatorState.is_top(addr[0]):
@@ -367,10 +368,9 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
             if len(conc_addrs) == 1 or len(conc_addrs) > 2:
                 print("Hmmmm")
-                import ipdb;
-                ipdb.set_trace()
+                debug_trap("unexpected state (propagator_emulated.py:370)")
             else:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (propagator_emulated.py:373)")
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr[0], claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1]))
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(result[0], claripy.If(state_split_cond, loaded_values[0], loaded_values[1]))
@@ -502,7 +502,7 @@ class PropagatorState:
         #     return PropagatorState._tops[bits]
         r = claripy.BVS("TOP", bits, explicit_name=True)
         if r.args[0] == "TOP_6274_32":
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (propagator_emulated.py:505)")
 
         # PropagatorState._tops[bits] = r
         return r
@@ -622,7 +622,7 @@ class PropagatorVEXState(PropagatorState):
                 merged_replacements, _ = self._merge_replacements(merged_replacements, state._replacements)
 
         if merged_concrete_state is None:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (propagator_emulated.py:625)")
 
         return PropagatorVEXState(arch=self.arch, concrete_states=merged_concrete_states, replacements=merged_replacements), None
 
@@ -646,7 +646,7 @@ class PropagatorVEXState(PropagatorState):
 
         ## If it is not the same as the previous replacement then it is not a constant and should not be replaced
         elif self._replacements[codeloc][old].con.value != new.con.value:
-            import ipdb;ipdb.set_trace()
+            debug_trap("unexpected state (propagator_emulated.py:649)")
             self._replacements[codeloc][old] = self.top(new.size())
 
     def _merge_replacements(self, replacements_0, replacements_1):
@@ -1031,10 +1031,10 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                 # This eval result is not added to repalcements even though unsafe replacements is turned on number of solns must be only one
                                 solns = sim_successors.unconstrained_successors[0].partial_symbolic_constraint_solver._solver.batch_eval([sim_successors.unconstrained_successors[0].regs.ip, state_var_ast], 5)
                             except:
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (propagator_emulated.py:1034)")
 
                             if len(solns) > 2:
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (propagator_emulated.py:1037)")
 
                             for soln_pair in solns:
                                 new_state = sim_successors.unconstrained_successors[0].copy()
@@ -1057,13 +1057,12 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                             new_state.globals['cur_block_id'] = node_succ.block_id
                                     except:
                                         print("failed to set cur block id")
-                                        import ipdb;
-                                        ipdb.set_trace()
+                                        debug_trap("unexpected state (propagator_emulated.py:1060)")
 
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
-                            import ipdb;ipdb.set_trace()
+                            debug_trap("unexpected state (propagator_emulated.py:1066)")
                             new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                             new_sim_successors.artifacts = sim_successors.artifacts
                             new_sim_successors.engine = sim_successors.engine
@@ -1146,7 +1145,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
                 elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
                     print("More than one unconstrained successor?!")
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (propagator_emulated.py:1149)")
 
 
                 for succ in sim_successors.all_successors:
@@ -1186,8 +1185,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                                                   successor.scratch.source)
                                     except SimUnsatError:
                                         print("Hmmmmmmmmmmm")
-                                        import ipdb;
-                                        ipdb.set_trace()
+                                        debug_trap("unexpected state (propagator_emulated.py:1189)")
                                 else:
                                     symbolic_sim_successors.add_successor(successor, successor.scratch.target,
                                                                           successor.scratch.guard,
@@ -1229,7 +1227,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         merged_state_collection = []
         for addr, states in all_successors.items():
             if len(states) > 2:
-                import ipdb;ipdb.set_trace()
+                debug_trap("unexpected state (propagator_emulated.py:1232)")
 
             elif len(states) == 2:
                 if states[0].solver.eval_one(states[0].regs.sp) == states[1].solver.eval_one(states[1].regs.sp):
@@ -1280,7 +1278,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                     if len(changed_pages) != 0:
                         return True
                     else:
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (propagator_emulated.py:1283)")
 
 
         return changed
