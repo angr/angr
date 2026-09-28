@@ -11,8 +11,8 @@ import networkx
 
 import angr
 from angr.ailment import Block
-from angr.ailment.expression import Register
-from angr.ailment.statement import Jump, Return
+from angr.ailment.expression import Const, Register
+from angr.ailment.statement import ConditionalJump, Jump, Return
 from angr.analyses.decompiler.region_identifier import RegionIdentifier
 from tests.common import bin_location
 
@@ -20,6 +20,36 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestRegionIdentifier(unittest.TestCase):
+    def test_supergraph_merges_conditional_branch_after_call(self):
+        for edge_type in ("fake_return", "transition"):
+            with self.subTest(edge_type=edge_type):
+                head = Block(0x400000, 5, statements=[])
+                left = Block(0x40000F, 1, statements=[Return(0, [])])
+                right = Block(0x400010, 1, statements=[Return(0, [])])
+                branch = Block(
+                    0x400005,
+                    10,
+                    statements=[
+                        ConditionalJump(0, Register(1, 8, 1), Const(2, left.addr, 32), Const(3, right.addr, 32))
+                    ],
+                )
+                graph = networkx.DiGraph()
+                graph.add_edge(head, branch, type=edge_type)
+                graph.add_edge(branch, left, type="transition")
+                graph.add_edge(branch, right, type="transition")
+                identifier = object.__new__(RegionIdentifier)
+                identifier.entry_node_addr = (head.addr, None)
+                identifier._make_supergraph(graph)  # pylint:disable=protected-access
+
+                if edge_type == "fake_return":
+                    assert len(graph) == 3
+                    merged = next(node for node in graph if node.addr == head.addr)
+                    assert merged.nodes == [head, branch]
+                    assert set(graph.successors(merged)) == {left, right}
+                else:
+                    assert set(graph) == {head, branch, left, right}
+                    assert graph.has_edge(head, branch)
+
     def test_supergraph_preserves_dispatch_address_after_call(self):
         for edge_type in ("fake_return", "transition"):
             for indirect in (False, True):

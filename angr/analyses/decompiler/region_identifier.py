@@ -254,10 +254,11 @@ class RegionIdentifier(Analysis):
                 type_ = graph.edges[src, dst].get("type", None)
                 merged_node = None
                 if type_ == "fake_return":
+                    # Keep address-keyed switch heads, but still fold ordinary post-call conditions into their callers.
                     if (
                         graph.out_degree(src) == 1
                         and graph.in_degree(dst) == 1
-                        and not self._block_ends_with_indirect_jump_or_call(dst)
+                        and not self._block_ends_with_indirect_jump_or_call(dst, include_conditional=False)
                     ):
                         merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
                 elif type_ == "call":
@@ -1149,14 +1150,14 @@ class RegionIdentifier(Analysis):
         return out_edges
 
     @staticmethod
-    def _block_ends_with_indirect_jump_or_call(node: TNode) -> bool:
-        """Check if the last statement of a node is an indirect jump or a call."""
+    def _block_ends_with_indirect_jump_or_call(node: TNode, *, include_conditional: bool = True) -> bool:
+        """Check for an indirect jump or, when requested, a conditional jump."""
         last_block = node.nodes[-1] if isinstance(node, MultiNode) else node
         if isinstance(last_block, Block) and last_block.statements:
             last_stmt = last_block.statements[-1]
             if isinstance(last_stmt, Jump) and not isinstance(last_stmt.target, Const):
                 return True
-            if isinstance(last_stmt, ConditionalJump):
+            if include_conditional and isinstance(last_stmt, ConditionalJump):
                 return True
         return False
 
