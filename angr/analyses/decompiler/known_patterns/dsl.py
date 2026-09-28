@@ -135,6 +135,9 @@ class MatchCtx:
     # load or a call may well have done. The answer is used to identify an
     # idiom, never to move or re-evaluate anything.
     def_fn: Callable[[int], Expression | None] | None = None
+    # the address a symbol has in the binary being matched, or None if it has none.
+    # A pattern that names a symbol is portable across binaries only through this.
+    symbol_addr_fn: Callable[[str], int | None] | None = None
 
 
 def _unwrap_leaf(expr: Expression, state: MatchState, ctx: MatchCtx) -> tuple[Expression, MatchState]:
@@ -257,6 +260,9 @@ class PConst(PatternExpr):
     #: set is known: the finder indexes patterns by the constants they accept, so
     #: a pattern is only tried where one of its constants occurs.
     values: frozenset[int] | None = None
+    #: the address of this symbol in the binary being matched, resolved through
+    #: ``MatchCtx.symbol_addr_fn``; the portable spelling of a global's address
+    symbol: str | None = None
 
     def __post_init__(self):
         if self.values is not None and not isinstance(self.values, frozenset):
@@ -268,6 +274,10 @@ class PConst(PatternExpr):
             return None
         if self.value is not None and expr.value != self.value:
             return None
+        if self.symbol is not None:
+            addr = ctx.symbol_addr_fn(self.symbol) if ctx.symbol_addr_fn is not None else None
+            if addr is None or expr.value != addr:
+                return None
         if self.values is not None and expr.value not in self.values:
             return None
         if self.pred is not None and not self.pred(expr.value):

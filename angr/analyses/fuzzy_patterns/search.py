@@ -26,6 +26,7 @@ from angr.ailment.expression import Call, Const
 from angr.analyses.decompiler.known_patterns import dsl
 from angr.analyses.decompiler.known_patterns.dsl import MatchCtx, MatchState, iter_stmt_patterns
 from angr.analyses.decompiler.known_patterns.pattern import KnownPattern
+from angr.analyses.decompiler.known_patterns.symbols import symbol_addr
 
 from .align import AlignParams, Interval
 from .template import TEMPLATE_TOKENIZER, Fit, ShapeTree, match_shape, parse_shape, shape_of
@@ -363,7 +364,10 @@ def verify(
     """
     # a lifted pattern has had its conversions dropped, so its leaves must step over them
     ctx = ctx or MatchCtx(
-        skip_conversions=True, skip_conversions_at_leaves=True, call_target_fn=_callee_names_fn(stream.kb)
+        skip_conversions=True,
+        skip_conversions_at_leaves=True,
+        call_target_fn=_callee_names_fn(stream.kb),
+        symbol_addr_fn=_symbol_addr_fn(stream.kb),
     )
     leaves = template_leaves(pattern)
     blocks = {(b.addr, b.idx): b for b in stream.blocks}
@@ -406,6 +410,15 @@ def _callee_names_fn(kb: KnowledgeBase | None) -> Callable[[Call], frozenset[str
             names = frozenset(n for n in ((func.name, func.demangled_name) if func is not None else ()) if n)
             cache[addr] = names
         return names
+
+    return resolve
+
+
+def _symbol_addr_fn(kb: KnowledgeBase | None) -> Callable[[str], int | None]:
+    """Where a named symbol lives in this binary."""
+
+    def resolve(name: str) -> int | None:
+        return symbol_addr(kb._project.loader, name) if kb is not None else None
 
     return resolve
 

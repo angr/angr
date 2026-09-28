@@ -330,6 +330,8 @@ def describe(node: dsl.PatternNode) -> str:
     if isinstance(node, dsl.PVVar):
         return _named("var", node.name) + (f":{node.bits}" if node.bits is not None else "")
     if isinstance(node, dsl.PConst):
+        if node.symbol is not None:
+            return _named(f"&{node.symbol}", node.name)
         if node.value is not None:
             return _named(f"const {node.value:#x}" if node.value >= 0 else f"const {node.value}", node.name)
         return _named("const *", node.name)
