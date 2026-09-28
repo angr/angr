@@ -44,6 +44,7 @@ NODE_CLASSES: dict[str, type[dsl.PatternNode]] = {
         dsl.PCallStmt,
         dsl.PCondJump,
         dsl.PAnyStmt,
+        dsl.PReturn,
         dsl.PStmtSeq,
         dsl.PBlockPat,
         dsl.PGraphPat,

@@ -35,7 +35,7 @@ from angr.ailment.expression import (
     VirtualVariable,
     VirtualVariableCategory,
 )
-from angr.ailment.statement import Assignment, ConditionalJump, SideEffectStatement, Statement, Store
+from angr.ailment.statement import Assignment, ConditionalJump, Return, SideEffectStatement, Statement, Store
 
 # ops for which operand order is irrelevant; commutative matching tries both orders
 COMMUTATIVE_OPS = frozenset({"Add", "Mul", "And", "Or", "Xor", "CmpEQ", "CmpNE"})
@@ -944,6 +944,35 @@ class PAnyStmt(PatternStmt):
 
 
 @dataclass(frozen=True)
+class PReturn(PatternStmt):
+    """Matches a Return. ``values`` constrains the returned expressions, one pattern
+    each; None matches a return of any arity."""
+
+    values: tuple[PatternExpr, ...] | None = None
+    optional: bool = field(default=False, kw_only=True)
+    weight: float = field(default=1.0, kw_only=True)
+
+    def __post_init__(self):
+        if self.values is not None and not isinstance(self.values, tuple):
+            object.__setattr__(self, "values", tuple(self.values))
+
+    def match(self, stmt: Statement, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        if not isinstance(stmt, Return):
+            return None
+        if self.values is None:
+            return state
+        exprs = stmt.ret_exprs or ()
+        if len(exprs) != len(self.values):
+            return None
+        st: MatchState | None = state
+        for pat, expr in zip(self.values, exprs):
+            st = pat.match(expr, st, ctx)
+            if st is None:
+                return None
+        return st
+
+
+@dataclass(frozen=True)
 class PStmtSeq(PatternStmt):
     """Matches a group of statements within one block. When ``ordered`` (the
     default), the statement patterns must match in order; with ``allow_gaps``,
@@ -1016,7 +1045,7 @@ class PGraphPat(PatternNode):
 
 #: The statement patterns that stand for one concrete statement, and so are the
 #: ones a fuzzy occurrence can score, skip or weight.
-LeafStmt = PAssign | PStore | PCallStmt | PCondJump | PAnyStmt
+LeafStmt = PAssign | PStore | PCallStmt | PCondJump | PReturn | PAnyStmt
 
 
 def iter_stmt_patterns(node: PatternNode) -> Iterator[LeafStmt]:
@@ -1029,7 +1058,7 @@ def iter_stmt_patterns(node: PatternNode) -> Iterator[LeafStmt]:
     elif isinstance(node, PStmtSeq):
         for stmt in node.stmts:
             yield from iter_stmt_patterns(stmt)
-    elif isinstance(node, (PAssign, PStore, PCallStmt, PCondJump, PAnyStmt)):
+    elif isinstance(node, (PAssign, PStore, PCallStmt, PCondJump, PReturn, PAnyStmt)):
         yield node
     elif isinstance(node, PatternStmt):
         raise TypeError(f"{type(node).__name__} is not a leaf statement pattern")

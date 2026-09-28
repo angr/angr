@@ -65,7 +65,7 @@ class PatternEditor:
             if isinstance(node, (dsl.PGraphPat, dsl.PBlockPat, dsl.PStmtSeq)):
                 for child_path, child in self.children(path):
                     walk(child_path, child)
-            elif isinstance(node, (dsl.PAssign, dsl.PStore, dsl.PCallStmt, dsl.PCondJump, dsl.PAnyStmt)):
+            elif isinstance(node, (dsl.PAssign, dsl.PStore, dsl.PCallStmt, dsl.PCondJump, dsl.PReturn, dsl.PAnyStmt)):
                 out.append((path, node))
 
         walk((), self.pattern.pattern)
@@ -291,6 +291,8 @@ def describe(node: dsl.PatternNode) -> str:
         return "call statement"
     if isinstance(node, dsl.PCondJump):
         return "if"
+    if isinstance(node, dsl.PReturn):
+        return "return" if node.values is not None else "return *"
     if isinstance(node, dsl.PStmtSeq):
         return f"sequence of {len(node.stmts)}"
     if isinstance(node, dsl.PBlockPat):

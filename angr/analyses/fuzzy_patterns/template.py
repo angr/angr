@@ -110,6 +110,8 @@ def shape_of(node: dsl.PatternNode) -> str | None:
             return f"SE({call})"
         dst = _expr_shape(node.dst, 1)
         return None if dst is None else f"Asn({dst},{call})"
+    if isinstance(node, dsl.PReturn):
+        return None if node.values is None else _join(f"Ret{len(node.values)}", node.values, 1)
     # PCondJump carries no branch directions, PAnyStmt nothing at all
     return None
 
@@ -172,6 +174,14 @@ def match_shape(node: dsl.PatternNode, tree: ShapeTree) -> Fit:
         return _fit_children(ok, (node.addr, node.value), children, 1)
     if isinstance(node, dsl.PCondJump):
         return _fit_children(head.startswith("CJ"), (node.condition,), children, 1)
+    if isinstance(node, dsl.PReturn):
+        if not head.startswith("Ret"):
+            return Fit.NONE
+        return (
+            Fit.EXACT
+            if node.values is None
+            else _fit_children(head == f"Ret{len(node.values)}", node.values, children, 1)
+        )
     if isinstance(node, dsl.PCallStmt):
         if head == "SE":
             return Fit.NONE if node.dst is not None else _fit_children(True, (node.call,), children, 1)
@@ -228,9 +238,12 @@ def _fit_expr(node: dsl.PatternExpr, tree: ShapeTree, depth: int) -> Fit:
         return _fit_children(ok, (node.operand, dsl.PAny()), children, depth)
     if isinstance(node, dsl.PCall):
         m = _CALL_HEAD.match(head)
-        if m is None or (node.names and m.group(1) not in node.names):
+        if m is None or (node.args is not None and len(node.args) != int(m.group(2))):
             return Fit.NONE
-        return Fit.EXACT if node.args is None or len(node.args) == int(m.group(2)) else Fit.NONE
+        if not node.names or m.group(1) in node.names:
+            return Fit.EXACT
+        # a stream tokenized without a knowledge base names no callee
+        return Fit.KLASS if m.group(1).startswith("@") or m.group(1) == "*" else Fit.NONE
     if isinstance(node, dsl.PCallResult):
         # the call's result is read: a variable, or the call where it is consumed in place
         if head.startswith("V") and not children:

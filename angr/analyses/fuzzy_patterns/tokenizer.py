@@ -92,6 +92,8 @@ class TokenStream:
     shape_vocab: list[str] = field(default_factory=list)
     klass_vocab: list[str] = field(default_factory=list)
     klass_of_shape: list[int] = field(default_factory=list)
+    #: the knowledge base the callee names were resolved against, for a verifier to reuse
+    kb: KnowledgeBase | None = None
 
     def __len__(self) -> int:
         return len(self.shape_ids)
@@ -275,7 +277,8 @@ class AILCanonicalizer:
         if isinstance(s, st.Label):
             return "L"
         if isinstance(s, st.Return):
-            return f"Ret{len(s.ret_exprs) if s.ret_exprs else 0}"
+            exprs = s.ret_exprs or ()
+            return f"Ret{len(exprs)}({','.join(self._expr(e, d) for e in exprs)})" if exprs else "Ret0"
         if isinstance(s, st.SideEffectStatement):
             return f"SE({self._expr(s.expr, d)})"
         if isinstance(s, st.CAS):
@@ -422,5 +425,6 @@ def tokenize(
         klass_ids=klass_ids,
         shape_vocab=shape_vocab,
         klass_vocab=klass_vocab,
+        kb=kb,
         klass_of_shape=klass_of_shape,
     )
