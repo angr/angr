@@ -140,11 +140,18 @@ class ReturnDeduplicator(OptimizationPass):
                 continue
 
             # find the true and false child of the if-stmt
+            # A ConditionalJump may carry an unresolved (None) target, or a target that is not a
+            # constant; there is no address to match against then, so skip it rather than
+            # dereferencing .value.
+            true_target = getattr(if_stmt.true_target, "value", None)
+            false_target = getattr(if_stmt.false_target, "value", None)
+            if true_target is None or false_target is None:
+                continue
             true_child, false_child = None, None
             for child in children:
-                if isinstance(if_stmt.true_target, Const) and child.addr == if_stmt.true_target.value:
+                if child.addr == true_target:
                     true_child = child
-                elif isinstance(if_stmt.false_target, Const) and child.addr == if_stmt.false_target.value:
+                elif child.addr == false_target:
                     false_child = child
             # children must exist
             if (

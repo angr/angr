@@ -120,7 +120,10 @@ class CFGManager(KnowledgeBasePlugin):
         rtdb = kb.rtdb
         for cfg_model in self.cfgs.values():
             cfg_model._cfg_manager = self  # pylint:disable=protected-access
-            if cfg_model.graph is not None:
+            # Not every model's graph is a SpillingDiGraph -- the VM-deobfuscation analyses build
+            # models over a plain networkx.DiGraph, which has no spilling to re-attach. Without
+            # this guard, unpickling any such model raises AttributeError from inside pickle.load.
+            if cfg_model.graph is not None and hasattr(cfg_model.graph, "set_rtdb"):
                 cfg_model.graph.set_rtdb(rtdb)
 
 
