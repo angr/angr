@@ -28,6 +28,7 @@ from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
 from ...exploration_techniques.explorer import Explorer
 from ...exploration_techniques.lengthlimiter import LengthLimiter
+from angr.utils.debug_trap import debug_trap
 from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimValueError, SimSolverModeError, \
     SimFastPathError, SimIRSBError, AngrExitError, SimEmptyCallStackError, SimUnsatError
 from ...sim_state import SimState
@@ -39,6 +40,7 @@ from ..forward_analysis import ForwardAnalysis
 from ..forward_analysis.visitors.graph import GraphVisitor
 from .cfg_base import CFGBase
 from .vm_cfg_model import VMCFGModel
+from angr.utils.pushan_artifacts import store_for as artifact_store_for
 from angr.knowledge_plugins.cfg.block_id import BlockID
 from .cfg_job_base import CFGJobBase
 
@@ -368,10 +370,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None,
                  deobfuscation_end_addr=None,
+                 vm_function_extent=None,
+                 vm_entry_sites=None,
                  nodes_to_prune=[],
                  unroll_same_vpc_loop=False,
                  hook_other_functions=False,
                  remove_vmp_semantically_same_branch=False,
+                 artifacts_dir=None,
                  ):
         """
         All parameters are optional.
@@ -420,14 +425,23 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                     from each start before pausing the recovery procedure.
         :param state_add_options:                   State options that will be added to the initial state.
         :param state_remove_options:                State options that will be removed from the initial state.
+        :param artifacts_dir:                       Directory for this run's diagnostic artifacts. Falls
+                                                    back to $PUSHAN_ARTIFACTS_DIR, then the CWD.
         """
         ### This is a temporary solution for overlapping blocks, by using the block size from CFGFast
         self.cfg_fast_graph = cfg_fast_graph
         # these are the instructions to remove cause they cause problems
-        self.remove_insts = remove_insts
+        self.remove_insts = remove_insts if remove_insts is not None else []
         self.start_deobfuscation_immediately = start_deobfuscation_immediately
         self.deobfuscation_start_addr = deobfuscation_start_addr
+        # deobfuscation_start_addr is matched against *block* addresses; warn if it never hits
+        self._deobfuscation_start_hit = False
+        self._vpc_escape_reported = False
         self.deobfuscation_end_addr = deobfuscation_end_addr
+        # The protected function's own [start, end). Control re-entering it is the
+        # structural signal that the VM has handed back to native code.
+        self.vm_function_extent = vm_function_extent
+        self.vm_entry_sites = set(vm_entry_sites or ())
         ##If an existing graph is being passed that needs to be analysed
         graph_visitor = None
         self._graph = None
@@ -436,6 +450,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self.nodes_to_prune = nodes_to_prune
         self.hook_other_functions = hook_other_functions
         self.remove_vmp_semantically_same_branch = remove_vmp_semantically_same_branch
+        # Diagnostics land where the driver asked; see angr/utils/pushan_artifacts.py.
+        self.artifacts = artifact_store_for(self.project, artifacts_dir)
 
         #global counter used to unroll control flow flattened areas and loops within the same vpc
         self.loop_counter=1
@@ -1439,12 +1455,70 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 self.kb.functions.function(new_path_wrapper.func_addr, create=True)
                 break
 
+    def _vpc_escaped_byte_code(self, vpc: int) -> bool:
+        """True if the VM program counter is in no declared byte-code region and no loaded object."""
+        regions = getattr(self.project, "byte_code_regions", None)
+        if not regions:
+            return False
+        if any(start <= vpc <= end for start, end in regions):
+            return False
+        return self.project.loader.find_object_containing(vpc) is None
+
+    def _vm_mode_should_end(self, addr, job) -> bool:
+        """True when control has left the VM and re-entered the protected function's own body.
+
+        An explicit ``deobfuscation_end_addr`` still wins. Otherwise the boundary is derived:
+        VMProtect interleaves the VM entry and its handlers into ``.text`` as well as the
+        protector section, so "left .vmp0" is not an exit signal -- measured on one function,
+        4290 of 4507 VM blocks were in ``.text`` and only 217 in ``.vmp0``. What does separate
+        them cleanly is the protected function's own address range: the interpreter never
+        executes inside it, and the function's own blocks never carry a virtual program counter
+        (18 in-extent blocks, all VPC-less, against 4507 out-of-extent blocks, all with a VPC).
+        """
+        if self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
+            return True
+        if not self.vm_function_extent:
+            return False
+        lo, hi = self.vm_function_extent
+        if not lo <= addr < hi:
+            return False
+        if addr in self.vm_entry_sites:
+            return False          # the jump *into* the VM is in-extent too
+        # A block still carrying a virtual program counter is VM code, even when it happens to
+        # lie inside the protected function's range -- VMProtect interleaves handler blocks
+        # into .text, some of them within the function's own extent. Treating those as an exit
+        # switches out of VM mode mid-interpretation, which merges states that must stay
+        # distinct and makes the symbolizer fail to concretize. Only a VPC-less in-extent block
+        # means control has genuinely come back to the function body.
+        if getattr(job.block_id, "vm_vpc", None) is not None:
+            if not getattr(self, "_inextent_vpc_logged", None):
+                self._inextent_vpc_logged = set()
+            if addr not in self._inextent_vpc_logged:
+                self._inextent_vpc_logged.add(addr)
+                l.warning("in-extent block %#x still carries VPC %s -- not an exit", addr, job.block_id.vm_vpc)
+            return False
+        if not job.state.globals.get("start_deobfuscation", False):
+            return False
+        # ...and only after interpretation actually began: the entry prologue is VPC-less too.
+        return bool(job.state.globals.get("vm_vpc_seen", False))
+
     def _post_analysis(self):
         """
         Post-CFG-construction.
 
         :return: None
         """
+        if (
+            self.deobfuscation_start_addr
+            and not self._deobfuscation_start_hit
+            and not self.start_deobfuscation_immediately
+        ):
+            l.warning(
+                "deobfuscation_start_addr %#x was never reached, so VM deobfuscation never started. "
+                "It is compared against basic-block addresses: pass the address a block *starts* at "
+                "(e.g. the target of the jump into the VM), not an address inside one.",
+                self.deobfuscation_start_addr,
+            )
 
         self._make_completed_functions()
         new_changes = self._iteratively_analyze_function_features()
@@ -1631,6 +1705,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             prev_vpc = succ.globals.get("cur_vm_vpc", None)
             prev_source = succ.globals.get("ctf_cur_vpc_source", None)
             succ.globals["cur_vm_vpc"] = value
+            if value is not None:
+                # The VM entry prologue runs before any VPC exists, and on some functions
+                # that prologue is interleaved into the function's own address range
+                # (measured: 28 such blocks for init_alloc_helper, 58 for sub_275a4).
+                # Those blocks are in-extent and VPC-less, so without this the exit test
+                # fires during the prologue and truncates the analysis to ~50 blocks.
+                succ.globals["vm_vpc_seen"] = True
             succ.globals["vpc"] = value
             succ.globals["ctf_cur_vpc_source"] = source_id
             succ.globals["ctf_cur_vpc_kind"] = "fd_read_pos"
@@ -1765,6 +1846,25 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Job List: "+str(self._job_info_queue))
         if block_id.vm_vpc:
             l.debug("Data offset: "+str(hex(block_id.vm_vpc)))
+            # Record that interpretation actually began on this path, whatever established the
+            # VPC (VIP finder, CTF finder, explicit vpc_loc). The exit test needs this because
+            # the VM entry prologue is VPC-less and, on some functions, lies inside the
+            # protected function's own extent.
+            job.state.globals["vm_vpc_seen"] = True
+            if self._vpc_escaped_byte_code(block_id.vm_vpc):
+                # The virtual program counter left every declared byte-code region and is not
+                # backed by the loader either, so there is nothing left to interpret on this
+                # path: the VM has exited, or VPC tracking latched onto the wrong value. Either
+                # way, continuing decodes unmapped memory as byte code forever.
+                if not self._vpc_escape_reported:
+                    self._vpc_escape_reported = True
+                    l.warning(
+                        "VM program counter %#x is outside every byte_code_regions entry and "
+                        "outside the loaded image; abandoning this path. If the VM really does "
+                        "interpret byte code there, add that range to byte_code_regions.",
+                        block_id.vm_vpc,
+                    )
+                raise AngrSkipJobNotice()
 
 
         # Get a SimSuccessors out of current job
@@ -1836,7 +1936,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     if ins.mnemonic == 'sub' and ins.op_str.startswith('rsp, 0x') and not ins.op_str.startswith(
                             'rsp, 0x140') and addr not in [0x16B9BAE6310]:
                         self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
-                        with open('./runtime_hooked_addrs', 'a') as fp:
+                        with self.artifacts.open('runtime_hooked_addrs', 'a') as fp:
                             fp.write(hex(addr)+"\n")
         # if not (0x07FF74DB5F000 <= addr <= 0x07FF74DB5F000+0x4000) and addr != 0x7ff74daea200:
         #     import ipdb;ipdb.set_trace()
@@ -1903,6 +2003,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self.saved_call_stack = job.call_stack_copy()
 
         if self.deobfuscation_start_addr and addr == self.deobfuscation_start_addr:
+            self._deobfuscation_start_hit = True
             for succ in sim_successors.all_successors:
                 succ.globals['call_stack_context_sensitivity_on'] = False
                 succ.globals['start_deobfuscation'] = True
@@ -1914,7 +2015,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # job.vm_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
             # block_id = job.block_id
 
-        if self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
+        if self._vm_mode_should_end(addr, job):
+            if not getattr(self, "_vm_exit_logged", None):
+                self._vm_exit_logged = set()
+            if addr not in self._vm_exit_logged:
+                self._vm_exit_logged.add(addr)
+                l.warning("VM EXIT fired at %#x (extent=%s, vpc_seen=%s)", addr,
+                          self.vm_function_extent, job.state.globals.get("vm_vpc_seen"))
             for succ in sim_successors.all_successors:
                 # temporary hack to get the nodes to merge at the end of the function
                 succ.globals['call_stack_context_sensitivity_on'] = True
@@ -1952,7 +2059,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if split_same_ip_state:
                     try:
                         sim_successors.all_successors[0].partial_symbolic_constraint_solver.eval_one(sim_successors.all_successors[0].regs.ip)
-                        import ipdb;ipdb.set_trace()
+                        debug_trap("unexpected state (cfg_vm_deobfuscation.py:1994)")
                         #check if it evaluates to one address only, if it does, we need to split the state
                     except:
                         # if evaluates to two address, the states are anyway going to split
@@ -2023,7 +2130,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 # This eval result is not added to repalcements even though unsafe replacements is turned on number of solns must be only one
                                 solns = sim_successors.unconstrained_successors[0].partial_symbolic_constraint_solver._solver.batch_eval([sim_successors.unconstrained_successors[0].regs.ip, state_var_ast], 5)
                             except:
-                                import ipdb;ipdb.set_trace()
+                                debug_trap("unexpected state (cfg_vm_deobfuscation.py:2065)")
 
                             # if len(solns) > 2:
                             #     import ipdb;ipdb.set_trace()
@@ -2079,12 +2186,18 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
-                            with open('./unconstrained_ip_variables', 'a') as f:
+                            with self.artifacts.open('unconstrained_ip_variables', 'a') as f:
+                                f.write(f"at={addr:#x} vpc={block_id.vm_vpc} ip=")
                                 for var in sim_successors.all_successors[0].regs.ip.variables:
                                     f.write(var)
                                     f.write(", ")
 
                                 f.write("\n")
+                            # This is where a VM's exit back to native code is lost: the final
+                            # indirect jump's target stays symbolic, so no successor edge is
+                            # added and the native continuation is never explored.
+                            l.warning("UNRESOLVED IP at %#x (vpc=%s): %s", addr, block_id.vm_vpc,
+                                      sorted(sim_successors.all_successors[0].regs.ip.variables))
                             print("The VIP/some reg has probably become symbolic, or we have reached last node")
 
                         if len(new_states) != 0:
@@ -2104,9 +2217,20 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             sim_successors=new_sim_successors
                             sim_successors.artifacts['irsb_direct_next'] = True
 
-            elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
-                print("More than one unconstrained successor?!")
-                import ipdb;ipdb.set_trace()
+            # all_successors includes unsat warning exits, so only treat this as "extra feasible
+            # successors" once those are discounted. Same correction as the symbolizer's copy of
+            # this test (data-sensitive-cfg db3f015d6), which was fixed there but not here.
+            elif len(sim_successors.unconstrained_successors) > 1 or (
+                len(sim_successors.unconstrained_successors) == 1
+                and len(sim_successors.all_successors) != len(sim_successors.unsat_successors) + 1
+            ):
+                debug_trap(
+                    "more than one unconstrained successor",
+                    addr=hex(addr),
+                    unconstrained=len(sim_successors.unconstrained_successors),
+                    all_succ=len(sim_successors.all_successors),
+                    unsat=len(sim_successors.unsat_successors),
+                )
 
             #l.debug("All possible successors: " + str(sim_successors.all_successors))
         if job.block_id.vm_vpc is not None or self.start_deobfuscation_immediately or job.state.globals['start_deobfuscation']:
@@ -2205,8 +2329,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                                               successor.scratch.source)
                                 except SimUnsatError:
                                     print("Hmmmmmmmmmmm")
-                                    import ipdb;
-                                    ipdb.set_trace()
+                                    debug_trap("unexpected state (cfg_vm_deobfuscation.py:2258)")
                             else:
                                 # we try to simplify the symbolic guard using asolver with no constraints to check if it's a constant.... like an mba obfuscated constant
                                 try:
@@ -3376,7 +3499,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         self.project.simos.is_syscall_addr(ip_int):
                     successors.append(suc)
                 else:
-                    import ipdb;ipdb.set_trace()
+                    debug_trap("unexpected state (cfg_vm_deobfuscation.py:3429)")
                     l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
                             i + 1,
                             len(old_successors),
