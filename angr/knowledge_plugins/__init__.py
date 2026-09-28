@@ -8,6 +8,7 @@ from .custom_strings import CustomStrings
 from .data import Data
 from .debug_variables import DebugVariableManager
 from .functions import Function, FunctionManager
+from .fuzzy_patterns import FuzzyPatterns, StoredPattern
 from .indirect_jumps import IndirectJumps
 from .key_definitions import KeyDefinitionManager
 from .labels import Labels
@@ -34,6 +35,7 @@ __all__ = (
     "DebugVariableManager",
     "Function",
     "FunctionManager",
+    "FuzzyPatterns",
     "IndirectJumps",
     "KeyDefinitionManager",
     "KnowledgeBasePlugin",
@@ -42,6 +44,7 @@ __all__ = (
     "PatchManager",
     "PropagationManager",
     "RuntimeDb",
+    "StoredPattern",
     "StructuredCodeManager",
     "TypesStore",
     "VariableManager",
