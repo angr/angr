@@ -1229,9 +1229,22 @@ class PhoenixStructurer(StructurerBase):
                     outgoing_edges = []
                     # note that because we have determined that the loop is a while loop, outgoing_edges do not contain
                     # edges that go from the loop head to the successor.
+                    #
+                    # Also note that an edge into the loop head is a continue edge only if the loop head
+                    # dominates the source node of the edge. incorrectly marking edges whose source node the loop head
+                    # does not dominate will cause loss of nodes (e.g., if the edge is the only way entering this loop,
+                    # marking it as a continue edge will cause the loop body to be un-enterable -- is this even a word?)
+                    dominance_intervals = None
+                    if loop_head is not self._region.head:
+                        idoms = networkx.immediate_dominators(graph, self._region.head)
+                        dominance_intervals = compute_dominance_intervals(idoms, self._region.head)
                     for node in list(networkx.descendants(graph, loop_head)):
                         succs = list(fullgraph.successors(node))
                         if loop_head in succs:
+                            if dominance_intervals is not None and not dominates_by_intervals(
+                                dominance_intervals, loop_head, node
+                            ):
+                                return False, None
                             continue_edges.append((node, loop_head))
                         outside_succs = [succ for succ in succs if succ not in graph]
                         for outside_succ in outside_succs:

@@ -114,6 +114,39 @@ class TestPhoenixGotoSuccessors(unittest.TestCase):
         assert "break;" in text
         assert text.count("goto ") <= 5
 
+    def test_bzip2_o2_handle_compress_nested_loop_heads(self):
+        # handle_compress is a while(1) whose body jump-threads "s->state = 1" straight into the state-1 branch, so
+        # the region has a second loop head in the middle of the outer loop. cyclic refinement of that inner head
+        # used every node reachable from it as the loop body, which took the outer head's entry edge for a continue
+        # edge and virtualized it; the main path then dangled and the function lost its return and call blocks.
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "decbench_bzip2_O2_noinline")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x406600, expand_call_tree=False, run_ccc=False, window=0x200
+        )
+        func = proj.kb.functions.get_by_addr(0x406600)
+        assert func.name.startswith("handle_compress")
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert not dec.structuring_failures
+
+        covered = set()
+        for element in dec.codegen.map_pos_to_addr.values():
+            tags = getattr(element.obj, "tags", None)
+            if tags and tags.get("ins_addr") is not None:
+                covered.add(tags["ins_addr"])
+        # the return block and the copy_output_until_stop call block that the inner loop head starts with
+        assert 0x40668D in covered
+        assert 0x40662D in covered
+
+        text = dec.codegen.text
+        assert "copy_output_until_stop" in text
+        assert "copy_input_until_stop" in text
+        assert text.count("while (1)") >= 1
+        # the goto into the jump-threaded state-2 branch plus at most two into the shared return block
+        assert text.count("goto ") <= 3
+
 
 if __name__ == "__main__":
     unittest.main()
