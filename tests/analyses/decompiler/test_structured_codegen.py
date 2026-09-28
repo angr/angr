@@ -7,12 +7,8 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import itertools
 import os
 import re
-import shutil
-import subprocess
-import tempfile
 import time
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 
 import archinfo
@@ -173,52 +169,28 @@ class TestRightShiftRendering(unittest.TestCase):
         expression = CBinaryOp("Shr", lhs, rhs, codegen=self.codegen)
         assert expression.c_repr() == "(unsigned int)(status()) >> (amount & 31)"
 
-    def test_generated_logical_shift_boundary_values(self):
-        compiler = shutil.which("cc")
-        if compiler is None:
-            self.skipTest("A C compiler is required for the synthetic generated-expression check")
-        for type_class, width, limits in (
-            (SimTypeInt, 32, ("INT_MIN", "INT_MAX")),
-            (SimTypeLongLong, 64, ("LLONG_MIN", "LLONG_MAX")),
+    def test_decompile_signed_call_logical_shift(self):
+        for directory, type_class, width in (
+            ("i386", SimTypeInt, 32),
+            ("x86_64/decompiler", SimTypeLongLong, 64),
         ):
             with self.subTest(width=width):
-                value_type = type_class(signed=True).with_arch(self.codegen.project.arch)
-                alias = TypeRef("status_t", value_type)
-                lhs = _RenderedExpression("status()", alias, codegen=self.codegen)
-                rhs = _RenderedExpression(str(width - 1), value_type, codegen=self.codegen)
-                expression = CBinaryOp("Shr", lhs, rhs, codegen=self.codegen).c_repr()
-                # Only this synthetic harness and the generated expression are compiled; no input binary is run.
-                source = f"""
-#include <limits.h>
-#include <stddef.h>
-typedef {value_type.c_repr()} status_t;
-_Static_assert(sizeof(status_t) * CHAR_BIT == {width}, "unexpected host integer width");
-static status_t value;
-static unsigned calls;
-static status_t status(void) {{ ++calls; return value; }}
-int main(void) {{
-    const status_t inputs[] = {{ {limits[0]}, {limits[0]} + 1, -1, 0, 1, {limits[1]} }};
-    for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {{
-        value = inputs[i];
-        calls = 0;
-        unsigned long long actual = {expression};
-        if (actual != (unsigned)(value < 0) || calls != 1)
-            return 1;
-    }}
-    return 0;
-}}
-"""
-                with tempfile.TemporaryDirectory() as directory:
-                    executable = Path(directory) / "check-shift.exe"
-                    subprocess.run(
-                        [compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-x", "c", "-", "-o", str(executable)],
-                        input=source,
-                        text=True,
-                        capture_output=True,
-                        check=True,
-                        timeout=30,
-                    )
-                    subprocess.run([str(executable)], capture_output=True, check=True, timeout=10)
+                project = angr.Project(
+                    os.path.join(test_location, directory, "right_shift_signed_calls"), auto_load_libs=False
+                )
+                cfg = project.analyses.CFGFast(normalize=True)
+                source = cfg.kb.functions[f"signed_status{width}"]
+                prototype = SimTypeFunction([], type_class(signed=True)).with_arch(project.arch)
+                source.prototype = prototype
+                source.calling_convention = project.factory.cc()
+                result = project.analyses.Decompiler(cfg.kb.functions[f"logical{width}"], cfg=cfg.model, fail_fast=True)
+                assert result.codegen is not None and result.codegen.text is not None
+                text = result.codegen.text
+                cast = type_class(signed=False).c_repr()
+                assert f"({cast})(signed_status{width}()) >> {width - 1}" in text
+                assert text.count(f"signed_status{width}(") == 1
+                assert source.prototype == prototype
+                assert not result.structuring_failures
 
 
 class TestStoreWidth(unittest.TestCase):
