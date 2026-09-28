@@ -143,7 +143,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
             and isinstance(stmt.src, Const)
             and isinstance(stmt.src.value, int)
         ):
-            dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
+            dst = self._stack_vvar_ref(stmt.dst)
             value_size = stmt.src.size
             value = stmt.src.value
         elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
@@ -169,14 +169,13 @@ class InlinedWcscpySimplifier(OptimizationPass):
         found = self._find_wide_string_stride(statements, stmt_idx, all_constant_stores)
         if found is not None:
             stride, s = found
+            _, first_sidx, _ = stride[0]
+            first_stmt = statements[first_sidx]
             for _, sidx, _ in stride:
                 if sidx != stmt_idx:
                     statements[sidx] = None
-            first_offset, first_sidx, _ = stride[0]
-            if isinstance(stmt, Assignment):
-                dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, first_offset)
-            else:
-                dst = statements[first_sidx].addr if first_sidx != stmt_idx else stmt.addr
+            # the lowest stack variable is now defined by the call
+            dst = self._stack_vvar_ref(first_stmt.dst) if isinstance(first_stmt, Assignment) else first_stmt.addr
             return self._make_wcsncpy_call(stmt, dst, s)
 
         return None
@@ -278,8 +277,35 @@ class InlinedWcscpySimplifier(OptimizationPass):
         return text + b"\x00" * (size - len(text))
 
     def _make_wcsncpy_call(self, stmt, dst, s):
-        call = self._make_wide_copy_call(dst, s, stmt.tags)
-        return SideEffectStatement(self.manager.next_atom(), call, **stmt.tags)
+        tags = self._tags_with_extra_defs(stmt.tags, dst)
+        call = self._make_wide_copy_call(dst, s, tags)
+        return SideEffectStatement(self.manager.next_atom(), call, **tags)
+
+    def _stack_vvar_ref(self, vvar: VirtualVariable) -> UnaryOp:
+        """
+        Build a pointer to a stack variable whose definition is replaced by a string copy.
+        """
+        return UnaryOp(self.manager.next_atom(), "Reference", vvar, bits=self.project.arch.bits, extra_def=True)
+
+    @staticmethod
+    def _extra_def_vvar(dst: Expression) -> VirtualVariable | None:
+        """
+        The stack variable that a string copy to `dst` defines, if any.
+        """
+        if dst.tags.get("extra_def", False):
+            assert isinstance(dst, UnaryOp) and dst.op == "Reference"
+            assert isinstance(dst.operand, VirtualVariable)
+            return dst.operand
+        return None
+
+    def _tags_with_extra_defs(self, tags, dst: Expression) -> TagDict:
+        tags = TagDict(tags)
+        vvar = self._extra_def_vvar(dst)
+        if vvar is not None:
+            tags["extra_defs"] = [vvar.varid]
+        else:
+            tags.pop("extra_defs", None)
+        return tags
 
     def _make_wide_copy_call(self, dst, data: bytes, tags) -> Call:
         """
@@ -514,15 +540,8 @@ class InlinedWcscpySimplifier(OptimizationPass):
                         new_str = s_last + s
 
             if new_str is not None:
-                tags = TagDict(stmt.tags)
                 dst = last_stmt.expr.args[0]
-                if dst.tags.get("extra_def", False):
-                    assert isinstance(dst, UnaryOp)
-                    assert dst.op == "Reference"
-                    assert isinstance(dst.operand, VirtualVariable)
-                    tags["extra_defs"] = [dst.operand.varid]
-                else:
-                    tags.pop("extra_defs", None)
+                tags = self._tags_with_extra_defs(stmt.tags, dst)
                 call = self._make_wide_copy_call(dst, new_str, tags)
                 return [
                     SideEffectStatement(

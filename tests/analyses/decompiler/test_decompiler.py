@@ -4386,6 +4386,8 @@ class TestDecompiler(unittest.TestCase):
         assert "IoDriverObjectType" in d.codegen.text
         assert "wcsncpy(" in d.codegen.text
         assert "ObMakeTemporaryObject" in d.codegen.text
+        # the destination of the inlined wcsncpy is a stack variable, not a raw stack offset
+        assert re.search(r'wcsncpy\(v\d+, L"ObMakeTemporaryObject", 21\);', d.codegen.text) is not None
         # ensure the stack canary is removed
         assert "_security_check_cookie" not in d.codegen.text
         assert " ^ " not in d.codegen.text

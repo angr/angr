@@ -347,9 +347,9 @@ class _WcscpyBlockBuilder:
         for stmt in statements:
             if simplifier._is_inlined_wide_copy(stmt):
                 dst, str_const = stmt.expr.args[:2]
-                assert isinstance(dst, StackBaseOffset)
+                _, offset = simplifier._parse_addr(dst)
                 text = self.project.kb.custom_strings[str_const.value_int]
-                copies.append((dst.offset, text, len(simplifier._copied_bytes(stmt))))
+                copies.append((offset, text, len(simplifier._copied_bytes(stmt))))
         return copies
 
 
@@ -478,3 +478,16 @@ def test_wcscpy_consolidation_merges_into_trailing_wcscpy():
     (merged,) = simplifier._consolidate_wcscpy_calls([later, wcscpy_stmt])
     assert simplifier.is_inlined_wcscpy(merged)
     assert simplifier._copied_bytes(merged) == b"Z\x00Y\x00A\x00B\x00C\x00\x00\x00"
+
+
+def test_wcscpy_destination_is_lowest_stack_variable():
+    builder = _WcscpyBlockBuilder()
+    vvars = builder.write_bytes(-108, APPDATA_PATH + b"\x00\x00")
+    _, statements = builder.run()
+
+    (stmt,) = statements
+    dst = stmt.expr.args[0]
+    # the call now defines the variable whose assignment it replaced
+    assert isinstance(dst, UnaryOp) and dst.op == "Reference" and dst.tags.get("extra_def", False)
+    assert dst.operand.varid == vvars[0].varid
+    assert stmt.tags["extra_defs"] == [vvars[0].varid]
