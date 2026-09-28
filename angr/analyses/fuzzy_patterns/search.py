@@ -350,7 +350,8 @@ def verify(
     capture name does not hold. A required leaf that fails leaves the match
     unverified; an optional one is merely noted on its column.
     """
-    ctx = ctx or MatchCtx()
+    # a lifted pattern has had its conversions dropped, so its leaves must step over them
+    ctx = ctx or MatchCtx(skip_conversions=True, skip_conversions_at_leaves=True)
     leaves = template_leaves(pattern)
     blocks = {(b.addr, b.idx): b for b in stream.blocks}
     state = MatchState()

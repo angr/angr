@@ -31,6 +31,10 @@ TEMPLATE_TOKENIZER: dict = {
     "keep_sizes": True,
     "const_mode": "abstract",
     "skip_conversions": True,
+    # labels and phis are never pattern statements (the exact matcher steps over them
+    # too); left in the stream, each one is a gap every template has to pay for
+    "skip_labels": True,
+    "skip_phis": True,
 }
 
 _MAX_DEPTH = TEMPLATE_TOKENIZER["max_depth"]

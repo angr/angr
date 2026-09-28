@@ -214,6 +214,22 @@ class TestVerifyOnARealFunction(unittest.TestCase):
         assert m.similarity == 1.0
         assert m.verified is True
 
+    def test_long_windows_find_themselves_verified(self):
+        """Labels and phis are not pattern statements and conversions are dropped by the
+        generator; a lifted window of any length must still match its own statements."""
+        from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+
+        stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
+        blocks = {(b.addr, b.idx): b for b in stream.blocks}
+        for start, length in ((20, 30), (50, 60), (100, 100)):
+            stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs[start : start + length]]
+            template = self.gen.generate_fuzzy_from_statements(stmts, "w")
+            hits = [m for m in search(template, stream) if m.interval.start <= start < m.interval.end]
+            assert hits, f"window [{start},{start + length}) not found at its origin"
+            verify(hits[0], template, stream)
+            assert hits[0].similarity == 1.0, (start, length, hits[0].similarity)
+            assert hits[0].verified is True, [c for c in hits[0].columns if c.verified is False][:3]
+
     def test_a_wrong_constant_is_found_but_refused(self):
         from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
 

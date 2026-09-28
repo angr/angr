@@ -93,6 +93,12 @@ class MatchCtx:
     ptr_bits: int | None = None
     # match structural nodes through interposed Convert wrappers
     skip_conversions: bool = True
+    #: also step over Convert wrappers right above a variable or constant leaf. The
+    #: exact library keeps this off: its patterns spell out the conversions they
+    #: expect. A pattern lifted from a selection has had them dropped, since the
+    #: generator mirrors the structural nodes' skipping, so it needs the leaves to
+    #: skip as well or it cannot match the statements it came from.
+    skip_conversions_at_leaves: bool = False
     # when a structural node meets a VirtualVariable, chase its unique non-phi
     # same-block definition; returns (stmt_idx, def_src_expr) or None
     chase_fn: Callable[[int], tuple[int, Expression] | None] | None = None
@@ -129,6 +135,14 @@ class MatchCtx:
     # load or a call may well have done. The answer is used to identify an
     # idiom, never to move or re-evaluate anything.
     def_fn: Callable[[int], Expression | None] | None = None
+
+
+def _unwrap_leaf(expr: Expression, state: MatchState, ctx: MatchCtx) -> tuple[Expression, MatchState]:
+    """Step over Convert wrappers above a leaf when the context asks for it."""
+    while ctx.skip_conversions_at_leaves and isinstance(expr, Convert):
+        state = replace(state, skipped_converts=(*state.skipped_converts, expr))
+        expr = expr.operand
+    return expr, state
 
 
 class PatternNode:
@@ -219,6 +233,7 @@ class PVVar(PatternExpr):
     categories: frozenset[VirtualVariableCategory] | None = None
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        expr, state = _unwrap_leaf(expr, state, ctx)
         if not isinstance(expr, VirtualVariable):
             return None
         if self.bits is not None and expr.bits != self.bits:
@@ -247,6 +262,7 @@ class PConst(PatternExpr):
             object.__setattr__(self, "values", frozenset(self.values))
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        expr, state = _unwrap_leaf(expr, state, ctx)
         if not isinstance(expr, Const) or not isinstance(expr.value, int):
             return None
         if self.value is not None and expr.value != self.value:

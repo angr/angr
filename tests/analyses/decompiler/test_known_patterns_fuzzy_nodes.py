@@ -7,7 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import logging
 import unittest
 
-from angr.ailment.expression import Const, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Const, Convert, VirtualVariable, VirtualVariableCategory
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Store
 from angr.analyses.decompiler.known_patterns import (
@@ -18,9 +18,11 @@ from angr.analyses.decompiler.known_patterns import (
     PAssign,
     PBlockPat,
     PCondJump,
+    PConst,
     PGraphPat,
     PStmtSeq,
     PStore,
+    PVVar,
     has_fuzzy_nodes,
     iter_stmt_patterns,
 )
@@ -87,6 +89,19 @@ class TestFuzzyStatementNodes(unittest.TestCase):
 
         assert kept == [exact]
         assert "optional statements" in logs.output[0]
+
+    def test_leaves_step_over_conversions_only_when_asked(self):
+        manager = Manager()
+        wrapped = Convert(manager.next_atom(), 32, 64, True, _vvar(manager, 1))
+        assert PVVar().match(wrapped, MatchState(), MatchCtx()) is None, "the exact library spells conversions out"
+        state = PVVar(name="x").match(wrapped, MatchState(), MatchCtx(skip_conversions_at_leaves=True))
+        assert state is not None
+        assert isinstance(state.bindings["x"], VirtualVariable)
+        assert PConst(value=5).match(
+            Convert(manager.next_atom(), 8, 32, False, Const(manager.next_atom(), 5, 8)),
+            MatchState(),
+            MatchCtx(skip_conversions_at_leaves=True),
+        )
 
     def test_a_sequence_led_by_a_wildcard_statement_is_tried_everywhere(self):
         assert stmt_pattern_anchor_key(PStmtSeq((PAnyStmt(), PAssign(PAny(), PAny())))) is None
