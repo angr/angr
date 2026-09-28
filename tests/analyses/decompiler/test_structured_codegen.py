@@ -17,6 +17,7 @@ import angr
 from angr.ailment import Expr, Stmt
 from angr.analyses.decompiler.structured_codegen.c import (
     CAssignment,
+    CBinaryOp,
     CExpression,
     CGoto,
     CReturn,
@@ -39,6 +40,7 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypePointer,
     SimUnion,
+    TypeRef,
     parse_cpp_file,
 )
 from tests.common import WORKER, bin_location, print_decompilation_result
@@ -126,6 +128,72 @@ class TestGotoRendering(unittest.TestCase):
         chunks = CGoto(0x400000, None, codegen=self.codegen).c_repr_chunks()
 
         self.assertEqual("".join(text for text, _ in chunks), "goto LABEL_0x400000;\n")
+
+
+class TestRightShiftRendering(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        project = angr.load_shellcode(b"\xc3", arch="x86")
+        cfg = project.analyses.CFGFast(normalize=True)
+        codegen = project.analyses.Decompiler(0, cfg=cfg.model).codegen
+        assert isinstance(codegen, CStructuredCodeGenerator)
+        cls.codegen = codegen
+
+    def test_shift_signedness_is_local_to_the_operand(self):
+        for type_class, width in ((SimTypeInt, 32), (SimTypeLongLong, 64)):
+            for signed in (False, True):
+                for op in ("Shr", "Sar"):
+                    for alias in (False, True):
+                        with self.subTest(width=width, signed=signed, op=op, alias=alias):
+                            value_type = type_class(signed=signed).with_arch(self.codegen.project.arch)
+                            if alias:
+                                value_type = TypeRef("status_t", value_type)
+                            lhs = _RenderedExpression("status()", value_type, codegen=self.codegen)
+                            rhs = _RenderedExpression(str(width - 1), value_type, codegen=self.codegen)
+                            expression = CBinaryOp(op, lhs, rhs, codegen=self.codegen)
+                            desired_signed = op == "Sar"
+                            if signed != desired_signed:
+                                cast = type_class(signed=desired_signed).c_repr()
+                                expected = f"({cast})(status()) >> {width - 1}"
+                            else:
+                                expected = f"status() >> {width - 1}"
+                            assert expression.c_repr() == expected
+                            assert lhs.type is value_type
+
+    def test_cast_preserves_shift_count_parentheses(self):
+        value_type = SimTypeInt(signed=True).with_arch(self.codegen.project.arch)
+        lhs = _RenderedExpression("status()", value_type, codegen=self.codegen)
+        amount = _RenderedExpression("amount", value_type, codegen=self.codegen)
+        mask = _RenderedExpression("31", value_type, codegen=self.codegen)
+        rhs = CBinaryOp("And", amount, mask, codegen=self.codegen)
+        expression = CBinaryOp("Shr", lhs, rhs, codegen=self.codegen)
+        assert expression.c_repr() == "(unsigned int)(status()) >> (amount & 31)"
+
+    def test_decompile_signed_call_logical_shift(self):
+        for directory, type_class, width in (
+            ("i386", SimTypeInt, 32),
+            ("x86_64/decompiler", SimTypeLongLong, 64),
+        ):
+            with self.subTest(width=width):
+                project = angr.Project(
+                    os.path.join(test_location, directory, "right_shift_signed_calls"), auto_load_libs=False
+                )
+                cfg = project.analyses.CFGFast(normalize=True)
+                source = cfg.kb.functions[f"signed_status{width}"]
+                prototype = SimTypeFunction([], type_class(signed=True)).with_arch(project.arch)
+                assert isinstance(prototype, SimTypeFunction)
+                source.prototype = prototype
+                source.calling_convention = project.factory.cc()
+                result = project.analyses[angr.analyses.Decompiler].prep(fail_fast=True)(
+                    cfg.kb.functions[f"logical{width}"], cfg=cfg.model
+                )
+                assert result.codegen is not None and result.codegen.text is not None
+                text = result.codegen.text
+                cast = type_class(signed=False).c_repr()
+                assert f"({cast})(signed_status{width}()) >> {width - 1}" in text
+                assert text.count(f"signed_status{width}(") == 1
+                assert source.prototype == prototype
+                assert not result.structuring_failures
 
 
 class TestStoreWidth(unittest.TestCase):

@@ -2475,27 +2475,27 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" | ")
 
     def _c_repr_chunks_shr(self):
-        yield from self._c_repr_chunks(" >> ")
+        yield from self._c_repr_chunks_right_shift(signed=False)
 
     def _c_repr_chunks_shl(self):
         yield from self._c_repr_chunks(" << ")
 
     def _c_repr_chunks_sar(self):
-        # Sar is an arithmetic (signed) right shift, but it renders as the C `>>` operator, which only performs an
-        # arithmetic shift when its left operand is signed. If the left operand renders as an unsigned integer, emit
-        # an explicit signed cast; otherwise `>>` would be a logical shift and silently drop the sign bit. The cast is
-        # emitted here at render time because the earlier typecast-collapsing passes treat same-size signed/unsigned
-        # integer casts as redundant and would strip a cast added during code generation.
-        lhs_ty = self.lhs.type
+        yield from self._c_repr_chunks_right_shift(signed=True)
+
+    def _c_repr_chunks_right_shift(self, signed: bool):
+        # C's >> uses the left operand's signedness. Cast at render time so same-width cast collapsing cannot
+        # erase the distinction between AIL's logical Shr and arithmetic Sar.
+        lhs_ty = unpack_typeref(self.lhs.type)
         if (
             isinstance(lhs_ty, (SimTypeInt, SimTypeChar, SimTypeNum))
-            and getattr(lhs_ty, "signed", None) is False
+            and getattr(lhs_ty, "signed", None) is (not signed)
             and lhs_ty.size is not None
         ):
-            signed_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=True)
+            cast_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=signed)
             paren = CClosingObject("(")
             yield "(", paren
-            yield f"{signed_ty.c_repr(name=None)}", signed_ty
+            yield f"{cast_ty.c_repr(name=None)}", cast_ty
             yield ")", paren
             yield "(", paren
             yield from self._try_c_repr_chunks(self.lhs)
