@@ -60,7 +60,8 @@ from .dsl import (
     PGraphPat,
     PStmtSeq,
     expr_anchor_key,
-    pattern_anchor_key,
+    expr_const_operands,
+    pattern_index_keys,
     stmt_anchor_key,
     stmt_pattern_anchor_key,
 )
@@ -367,6 +368,8 @@ class KnownPatternFinder(Analysis):
         ignores every pattern a gate opens.
         """
         self._expr_patterns_by_key: dict[tuple[str, str | None], list[KnownPattern]] = defaultdict(list)
+        # (kind, op, constant operand) -> patterns that need that literal constant among the operands
+        self._expr_patterns_by_const: dict[tuple[str, str | None, int], list[KnownPattern]] = defaultdict(list)
         self._expr_patterns_any: list[KnownPattern] = []
         self._stmt_patterns: list[KnownPattern] = []
         self._stmt_patterns_by_key: dict[tuple, list[KnownPattern]] = defaultdict(list)
@@ -386,11 +389,15 @@ class KnownPatternFinder(Analysis):
                 continue
             if not isinstance(p.pattern, PatternExpr):
                 continue
-            pkey = pattern_anchor_key(p.pattern)
-            if pkey is None:
+            pkeys = pattern_index_keys(p.pattern)
+            if pkeys is None:
                 self._expr_patterns_any.append(p)
-            else:
-                self._expr_patterns_by_key[pkey].append(p)
+                continue
+            for kind, op, const in pkeys:
+                if const is None:
+                    self._expr_patterns_by_key[(kind, op)].append(p)
+                else:
+                    self._expr_patterns_by_const[(kind, op, const)].append(p)
 
     def _stmt_candidates(self, key) -> list[KnownPattern]:
         """Ordered statement patterns worth anchoring at a statement with this key.
@@ -412,15 +419,25 @@ class KnownPatternFinder(Analysis):
                 out += self._stmt_patterns_by_key.get((kind, (sub[0], None)), [])
         return out
 
-    def _expr_candidates(self, key: tuple[str, str | None]) -> list[KnownPattern]:
+    def _expr_candidates(self, key: tuple[str, str | None], consts: tuple[int, ...] = ()) -> list[KnownPattern]:
         """Patterns worth trying at an expression with this anchor key: those
         that discriminate on it, those that discriminate on its kind but not its
-        op, and those that discriminate on nothing."""
-        return (
+        op, those that additionally need one of ``consts`` (the expression's
+        literal operands) and those that discriminate on nothing."""
+        out = (
             self._expr_patterns_any
             + self._expr_patterns_by_key.get(key, [])
             + (self._expr_patterns_by_key.get((key[0], None), []) if key[1] is not None else [])
         )
+        if consts and self._expr_patterns_by_const:
+            seen: set[int] = set()
+            for c in consts:
+                for k in ((key[0], key[1], c), (key[0], None, c)):
+                    for p in self._expr_patterns_by_const.get(k, ()):
+                        if id(p) not in seen:
+                            seen.add(id(p))
+                            out.append(p)
+        return out
 
     #
     # matching
@@ -719,7 +736,7 @@ class KnownPatternFinder(Analysis):
                         yield m
             # expression-level patterns
             for path, expr in _iter_stmt_subexprs(stmt, uses_only=True):
-                for pattern in self._expr_candidates(expr_anchor_key(expr)):
+                for pattern in self._expr_candidates(expr_anchor_key(expr), expr_const_operands(expr)):
                     m = self._try_match(pattern, block, stmt_idx, expr, path)
                     if m is not None:
                         yield m

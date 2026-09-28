@@ -237,11 +237,21 @@ class PConst(PatternExpr):
     pred: Callable[[int], bool] | None = None
     bits: int | None = None
     name: str | None = None
+    #: an enumerable set of acceptable values. Prefer this over ``pred`` when the
+    #: set is known: the finder indexes patterns by the constants they accept, so
+    #: a pattern is only tried where one of its constants occurs.
+    values: frozenset[int] | None = None
+
+    def __post_init__(self):
+        if self.values is not None and not isinstance(self.values, frozenset):
+            object.__setattr__(self, "values", frozenset(self.values))
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
         if not isinstance(expr, Const) or not isinstance(expr.value, int):
             return None
         if self.value is not None and expr.value != self.value:
+            return None
+        if self.values is not None and expr.value not in self.values:
             return None
         if self.pred is not None and not self.pred(expr.value):
             return None
@@ -1017,6 +1027,73 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
     if isinstance(node, PGraphPat):
         return pattern_anchor_key(node.blocks[node.entry].stmts)
     return None
+
+
+IndexKey = tuple[str, str | None, int | None]
+
+
+def _const_values(node: PatternExpr) -> frozenset[int] | None:
+    """The literal values a PConst operand accepts, or None if not enumerable."""
+    if not isinstance(node, PConst):
+        return None
+    if node.value is not None:
+        return frozenset((node.value,))
+    return node.values
+
+
+def pattern_index_keys(node: PatternNode) -> list[IndexKey] | None:
+    """Every ``(ail kind, op or None, constant operand or None)`` an occurrence of
+    ``node`` can start with; None when the root is not discriminating.
+
+    Finer than :func:`pattern_anchor_key` in three ways. A set-valued op is
+    expanded into one key per op rather than dropped to "any op". A PChoice is
+    the union of its alternatives' keys, not "anywhere" unless one alternative
+    truly is. And a binary op with a PConst operand whose values are enumerable
+    (``value`` or ``values``) carries each such value as a third component: a
+    PConst only matches a literal Const, so a ``Mul(x, magic)`` pattern need not
+    be tried at a multiply by any other constant. The generated
+    ``std::vector<T>::size`` family is a thousand such patterns keyed on
+    ``Mul``, and without this every multiply in a function tried all of them.
+    """
+    if isinstance(node, PChoice):
+        out: list[IndexKey] = []
+        for alt in node.alternatives:
+            keys = pattern_index_keys(alt)
+            if keys is None:
+                return None
+            out.extend(k for k in keys if k not in out)
+        return out
+    if isinstance(node, (PBinOp, PUnaryOp)):
+        kind = "BinaryOp" if isinstance(node, PBinOp) else "UnaryOp"
+        ops: list[str | None] = [node.op] if isinstance(node.op, str) else sorted(node.op)
+        consts: frozenset[int] | None = None
+        if isinstance(node, PBinOp):
+            for operand in node.operands:
+                consts = _const_values(operand)
+                if consts is not None:
+                    break
+        if consts is None:
+            return [(kind, op, None) for op in ops]
+        return [(kind, op, c) for op in ops for c in sorted(consts)]
+    if isinstance(node, PStmtSeq):
+        return pattern_index_keys(node.stmts[0]) if node.stmts else None
+    if isinstance(node, PGraphPat):
+        return pattern_index_keys(node.blocks[node.entry].stmts)
+    key = pattern_anchor_key(node)
+    return None if key is None else [(key[0], key[1], None)]
+
+
+def expr_const_operands(expr: Expression) -> tuple[int, ...]:
+    """The literal constants among a binary op's operands (through Converts), for the index lookup."""
+    if not isinstance(expr, BinaryOp):
+        return ()
+    out = []
+    for operand in expr.operands:
+        while isinstance(operand, Convert):
+            operand = operand.operand
+        if isinstance(operand, Const) and isinstance(operand.value, int):
+            out.append(operand.value)
+    return tuple(out)
 
 
 StmtKey = tuple[str, tuple[str, str | None] | None]
