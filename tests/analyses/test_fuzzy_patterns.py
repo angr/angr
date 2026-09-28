@@ -6,6 +6,8 @@ import random
 import unittest
 from unittest import TestCase
 
+import networkx
+
 import angr
 from angr.analyses.fuzzy_patterns import (
     AILCanonicalizer,
@@ -14,6 +16,7 @@ from angr.analyses.fuzzy_patterns import (
     discover,
     find_exact_cores,
     select_disjoint,
+    snap,
     tokenize,
 )
 from angr.analyses.fuzzy_patterns.align import (
@@ -206,6 +209,69 @@ class TestExactCores(TestCase):
         ids, _ = _ids("ABCDEFGH" + "IJKLMNOP")
         occs = [Interval(0, 8), Interval(8, 16)]
         assert not find_exact_cores(ids, occs, min_len=4)
+
+
+class TestSingleEntrySubrun(TestCase):
+    """A run of blocks with one jumped into from outside: the largest sub-run avoiding it."""
+
+    @staticmethod
+    def _graph():
+        from angr.ailment import Block  # pylint:disable=import-outside-toplevel
+        from angr.ailment.expression import Const  # pylint:disable=import-outside-toplevel
+        from angr.ailment.manager import Manager  # pylint:disable=import-outside-toplevel
+        from angr.ailment.statement import Jump  # pylint:disable=import-outside-toplevel
+
+        manager = Manager()
+
+        def block(addr, target):
+            return Block(addr, 1, statements=[Jump(manager.next_atom(), Const(manager.next_atom(), target, 64))])
+
+        entry = block(0x1000, 0x2000)
+        chain = [block(0x2000 + 0x100 * i, 0x2100 + 0x100 * i) for i in range(6)]
+        exit_ = block(0x2600, 0x2700)
+        intruder = block(0x3000, 0x2300)  # jumps into the middle of the chain
+        graph = networkx.DiGraph()
+        graph.add_edge(entry, chain[0])
+        graph.add_edge(entry, intruder)
+        for a, b in zip(chain, chain[1:]):
+            graph.add_edge(a, b)
+        graph.add_edge(chain[-1], exit_)
+        graph.add_edge(intruder, chain[3])
+        return graph, entry, chain
+
+    def test_largest_subrun_excludes_the_block_jumped_into(self):
+        from angr.analyses.fuzzy_patterns.region import (
+            largest_single_entry_subrun,  # pylint:disable=import-outside-toplevel
+        )
+
+        graph, entry, chain = self._graph()
+        stream = tokenize(graph, entry)
+        start = stream.block_span[chain[0].addr, None][0]
+        end = stream.block_span[chain[5].addr, None][1]
+        whole = snap(stream, graph, Interval(start, end), entry_loc=(entry.addr, None))
+        assert not whole.outlinable and "entered from outside" in whole.reason
+
+        best = largest_single_entry_subrun(stream, graph, Interval(start, end), entry_loc=(entry.addr, None))
+        assert best is not None and best.outlinable
+        # blocks 0..2 (three of them) end where the intruder comes in; blocks 3..5 start at it and
+        # are entered from the intruder, so the run before the intruder is the largest
+        assert best.block_locs == [(b.addr, None) for b in chain[:3]]
+
+    def test_min_ratio_can_refuse_a_small_subrun(self):
+        from angr.analyses.fuzzy_patterns.region import (
+            largest_single_entry_subrun,  # pylint:disable=import-outside-toplevel
+        )
+
+        graph, entry, chain = self._graph()
+        stream = tokenize(graph, entry)
+        start = stream.block_span[chain[0].addr, None][0]
+        end = stream.block_span[chain[5].addr, None][1]
+        assert (
+            largest_single_entry_subrun(
+                graph=graph, stream=stream, interval=Interval(start, end), entry_loc=(entry.addr, None), min_ratio=0.9
+            )
+            is None
+        )
 
 
 class TestTokenizer(TestCase):

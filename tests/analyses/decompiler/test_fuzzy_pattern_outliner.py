@@ -114,7 +114,8 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
             vvar_id_start=0x10000,
         )
         assert pass_.out_graph is not None
-        names = [name for name, _ in pass_.outlined]
+        names = [name for name, _, _ in pass_.outlined]
+        assert all(coverage == 1.0 for _, _, coverage in pass_.outlined)
         assert names and set(names) == {"my_idiom"}, names
         assert graph_problems(pass_.out_graph, func.addr) == []
 

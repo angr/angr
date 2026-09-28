@@ -9,7 +9,7 @@ from angr.analyses.decompiler.known_patterns.pattern import resolve_typeref
 from angr.analyses.decompiler.utils import copy_graph
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.fuzzy_patterns.dedup import _restore, _snapshot, graph_problems, normalize_call_width
-from angr.analyses.fuzzy_patterns.region import materialize, snap
+from angr.analyses.fuzzy_patterns.region import largest_single_entry_subrun, materialize, snap
 from angr.analyses.fuzzy_patterns.search import search, tokenize_for_templates, verify
 from angr.analyses.outliner import Outliner
 from angr.sim_type import SimTypeFunction, parse_type
@@ -51,11 +51,15 @@ class FuzzyPatternOutliner(OptimizationPass):
     MAX_AUTO_BLOCKS = 3
     #: ...or smaller than this fraction of it
     MIN_AUTO_RATIO = 0.5
+    #: a single-entry sub-run of an occurrence must cover this share of its tokens to be
+    #: outlined under the pattern's name
+    MIN_SUBRUN_RATIO = 0.5
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
-        #: (pattern name, block location of the call) for every occurrence outlined
-        self.outlined: list[tuple[str, tuple[int, int | None]]] = []
+        #: (pattern name, block location of the call, share of the occurrence's tokens covered)
+        #: for every occurrence outlined; the share is below 1 when only a sub-run could be
+        self.outlined: list[tuple[str, tuple[int, int | None], float]] = []
         #: (pattern name, reason) for every occurrence that was found but not outlined
         self.skipped: list[tuple[str, str]] = []
         self.analyze()
@@ -106,18 +110,29 @@ class FuzzyPatternOutliner(OptimizationPass):
 
     def _outline(self, graph: networkx.DiGraph[Block], stream: TokenStream, stored: StoredPattern, match) -> bool:
         pattern = stored.pattern
-        region = snap(stream, graph, match.interval, entry_loc=(self._func.addr, None))
+        entry_loc = (self._func.addr, None)
+        region = snap(stream, graph, match.interval, entry_loc=entry_loc)
         # A run of tokens is not always a single-entry region: reverse post-order interleaves
         # blocks from different parts of the CFG, so one copy of an idiom can still be jumped
-        # into from elsewhere. When that is the only objection, hand the Outliner the start
-        # alone and let it derive the frontier from dominance and liveness, as a hand-written
-        # outlining call would; the size checks below catch a frontier that ran away.
+        # into from elsewhere. Then the largest single-entry sub-run of its blocks is what can
+        # carry the pattern's name, if it covers enough of the occurrence. Failing that, hand
+        # the Outliner the start alone and let it derive the frontier from dominance and
+        # liveness, as a hand-written outlining call would; the size checks below catch a
+        # frontier that ran away.
         auto = False
+        coverage = 1.0
         if not region.outlinable:
             if "entered from outside" not in region.reason:
                 self.skipped.append((pattern.name, region.reason))
                 return False
-            auto = True
+            subrun = largest_single_entry_subrun(
+                stream, graph, match.interval, entry_loc=entry_loc, min_ratio=self.MIN_SUBRUN_RATIO
+            )
+            if subrun is not None:
+                region = subrun
+                coverage = len(subrun.interval) / max(1, len(match.interval))
+            else:
+                auto = True
 
         snapshot = _snapshot(graph)
         saved_vvar_id = self.vvar_id_start
@@ -167,7 +182,7 @@ class FuzzyPatternOutliner(OptimizationPass):
         call = self._rename_call(graph, src_loc, pattern.call_name)
         if call is not None:
             self._declare_prototype(call, stored, match, outliner.child_graph)
-        self.outlined.append((pattern.name, src_loc))
+        self.outlined.append((pattern.name, src_loc, coverage))
         return True
 
     @staticmethod

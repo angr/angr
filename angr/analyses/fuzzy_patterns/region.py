@@ -116,6 +116,43 @@ def snap(
     return region
 
 
+def largest_single_entry_subrun(
+    stream: TokenStream,
+    graph: networkx.DiGraph[Block],
+    interval: Interval,
+    *,
+    entry_loc: Address | None = None,
+    min_ratio: float = 0.0,
+) -> Region | None:
+    """The largest outlinable region inside ``interval``, made of whole consecutive blocks of
+    it, or None.
+
+    A run of tokens is not always a single-entry region: reverse post-order interleaves
+    blocks from different parts of the CFG, so one copy of an idiom can still be jumped
+    into from elsewhere. Some consecutive sub-run of its blocks usually is single-entry,
+    and the largest one is what can be outlined under the pattern's name. ``min_ratio``
+    is the smallest share of the interval's tokens the sub-run must cover to count.
+    """
+    block_locs = stream.block_locs_in(interval.start, interval.end)
+    if len(block_locs) < 2:
+        return None
+    best: Region | None = None
+    floor = int(min_ratio * len(interval))
+    for i, first in enumerate(block_locs):
+        lo = max(interval.start, stream.block_span[first][0])
+        for j in range(len(block_locs) - 1, i - 1, -1):
+            hi = min(interval.end, stream.block_span[block_locs[j]][1])
+            if hi - lo <= 0 or hi - lo < floor or (best is not None and hi - lo <= len(best.interval)):
+                break  # shorter sub-runs from this start cannot beat what we have
+            if i == 0 and j == len(block_locs) - 1:
+                continue  # the whole interval; the caller already tried it
+            region = snap(stream, graph, Interval(lo, hi), entry_loc=entry_loc)
+            if region.outlinable:
+                best = region
+                break
+    return best
+
+
 def fallback_idx_alloc(graph: networkx.DiGraph[Block]) -> Callable[[], int]:
     """An AIL index allocator for a caller without a Manager: seeded past every index
     already in ``graph``, since a rebuilt statement must not reuse one an existing
