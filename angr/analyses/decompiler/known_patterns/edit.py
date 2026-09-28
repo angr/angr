@@ -115,7 +115,7 @@ class PatternEditor:
         node = self.node_at(path)
         if not isinstance(node, dsl.PConst):
             raise TypeError(f"{type(node).__name__} is not a constant")
-        self.replace_node(path, dataclasses.replace(node, value=value, bits=bits, pred=None))
+        self.replace_node(path, dataclasses.replace(node, value=value, bits=bits, pred=None, values=None))
 
     def set_vvar(self, path: NodePath, bits: int | None, categories: frozenset | None) -> None:
         node = self.node_at(path)
@@ -145,7 +145,7 @@ class PatternEditor:
 
         def walk(path: NodePath) -> None:
             for child_path, child in self.children(path):
-                if isinstance(child, dsl.PConst) and child.value is not None:
+                if isinstance(child, dsl.PConst) and (child.value is not None or child.values is not None):
                     paths.append(child_path)
                 walk(child_path)
 
@@ -155,7 +155,7 @@ class PatternEditor:
         root = self.pattern.pattern
         for path in paths:
             node = self.node_at(path)
-            root = _rebuild(root, path, dataclasses.replace(node, value=None, pred=None))
+            root = _rebuild(root, path, dataclasses.replace(node, value=None, pred=None, values=None))
         self._commit(dataclasses.replace(self.pattern, pattern=root))
         return len(paths)
 

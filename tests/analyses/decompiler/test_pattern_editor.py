@@ -138,6 +138,16 @@ class TestEdits(unittest.TestCase):
         with self.assertRaises(KeyError):
             ed.set_param_type("nope", "int")
 
+    def test_loosening_clears_an_enumerated_value_set_too(self):
+        ed = PatternEditor(_pattern())
+        path = ("stmts", 0, "src", "operands", 1)
+        ed.replace_node(path, PConst(values=frozenset({3, 5})))
+        assert ed.loosen_constants() == 3
+        assert ed.node_at(path) == PConst()
+        ed.replace_node(path, PConst(values=frozenset({3, 5})))
+        ed.set_const(path, 9)
+        assert ed.node_at(path) == PConst(value=9)
+
     def test_loosen_constants_is_one_undoable_sweep(self):
         ed = PatternEditor(_pattern())
         assert ed.loosen_constants() == 3, "8, and the two choice alternatives"
