@@ -755,6 +755,37 @@ class PatternGenerator:
                     addrs.add(ins)
         return addrs
 
+    def generate_fuzzy_from_statements(
+        self,
+        stmts: Sequence[Statement],
+        call_name: str,
+        *,
+        name: str | None = None,
+        display_name: str | None = None,
+        returnty: TypeRef | None = None,
+        param_types: Sequence[TypeRef | None] | None = None,
+    ) -> KnownPattern:
+        """:meth:`generate_fuzzy` for a caller that already holds the statements, in order."""
+        if not stmts:
+            raise PatternGenerationError("no statements")
+        stmts = [s for s in stmts if not isinstance(s, Label)]
+        capture_of, arg_varids = self._auto_captures(stmts)
+        pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))
+        return self._finish(
+            pattern,
+            call_name,
+            capture_of,
+            arg_varids,
+            name,
+            display_name,
+            returnty,
+            param_types,
+            None,
+            None,
+            None,
+            True,
+        )
+
     def _gen_stmt_lenient(self, stmt: Statement, capture_of: dict[int, str], const_promote: set[int]) -> PatternStmt:
         """Like :meth:`_gen_stmt`, with a wildcard statement for what the DSL cannot say."""
         try:

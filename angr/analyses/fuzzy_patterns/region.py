@@ -116,6 +116,27 @@ def snap(
     return region
 
 
+def fallback_idx_alloc(graph: networkx.DiGraph[Block]) -> Callable[[], int]:
+    """An AIL index allocator for a caller without a Manager: seeded past every index
+    already in ``graph``, since a rebuilt statement must not reuse one an existing
+    expression holds."""
+    from angr.analyses.decompiler.known_patterns.finder import _iter_stmt_subexprs
+
+    highest = -1
+    for block in graph:
+        for stmt in block.statements:
+            highest = max(highest, stmt.idx or 0)
+            for _, expr in _iter_stmt_subexprs(stmt):
+                highest = max(highest, expr.idx or 0)
+    counter = [highest]
+
+    def alloc() -> int:
+        counter[0] += 1
+        return counter[0]
+
+    return alloc
+
+
 def materialize(
     graph: networkx.DiGraph[Block],
     stream: TokenStream,
@@ -123,6 +144,7 @@ def materialize(
     block_addr_alloc: Callable[[], int],
     *,
     split_tail: bool = True,
+    idx_alloc: Callable[[], int] | None = None,
 ) -> tuple[Address, set[Address]]:
     """Split the boundary blocks in place so ``region`` becomes block-aligned.
 
@@ -132,6 +154,9 @@ def materialize(
     frontier: the tail boundary is then chosen by liveness, not by the interval.
     """
     from angr.analyses.decompiler.known_patterns.block_split import split_ail_block
+
+    if idx_alloc is None:
+        idx_alloc = fallback_idx_alloc(graph)
 
     nodes = {(b.addr, b.idx): b for b in graph}
     first_loc, last_loc = region.block_locs[0], region.block_locs[-1]
@@ -150,7 +175,9 @@ def materialize(
         stmts = list(block.statements)
         mid_stmts = stmts[head_stmt:tail_stmt] if split_tail else stmts[head_stmt:]
         post_stmts = stmts[tail_stmt:] if split_tail else []
-        _pre, mid, post = split_ail_block(graph, block, stmts[:head_stmt], mid_stmts, post_stmts, block_addr_alloc)
+        _pre, mid, post = split_ail_block(
+            graph, block, stmts[:head_stmt], mid_stmts, post_stmts, block_addr_alloc, idx_alloc
+        )
         src_loc = (mid.addr, mid.idx)
         if post is not None:
             frontier.add((post.addr, post.idx))
@@ -159,13 +186,17 @@ def materialize(
     if region.head_split > 0:
         block = nodes[first_loc]
         stmts = list(block.statements)
-        _pre, mid, _post = split_ail_block(graph, block, stmts[:head_stmt], stmts[head_stmt:], [], block_addr_alloc)
+        _pre, mid, _post = split_ail_block(
+            graph, block, stmts[:head_stmt], stmts[head_stmt:], [], block_addr_alloc, idx_alloc
+        )
         src_loc = (mid.addr, mid.idx)
 
     if tail_split > 0:
         block = nodes[last_loc]
         stmts = list(block.statements)
-        _pre, _mid, post = split_ail_block(graph, block, [], stmts[:tail_stmt], stmts[tail_stmt:], block_addr_alloc)
+        _pre, _mid, post = split_ail_block(
+            graph, block, [], stmts[:tail_stmt], stmts[tail_stmt:], block_addr_alloc, idx_alloc
+        )
         if post is not None:
             frontier.discard(last_loc)
             frontier.add((post.addr, post.idx))

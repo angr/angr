@@ -22,6 +22,7 @@ from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .eager_std_string_eval import EagerStdStringEvalPass
 from .expr_op_swapper import ExprOpSwapper
 from .flip_boolean_cmp import FlipBooleanCmp
+from .fuzzy_pattern_outliner import FuzzyPatternOutliner
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
 from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
 from .inlined_strcpy_simplifier import InlinedStrcpySimplifier, InlinedStrcpySimplifierLate
@@ -100,6 +101,7 @@ ALL_OPTIMIZATION_PASSES = [
     RegisterSaveAreaSimplifierAdvanced,
     InlinedStrlenSimplifier,
     KnownPatternOutliner,
+    FuzzyPatternOutliner,
     StaticVVarRewriter,
     EagerStdStringEvalPass,
 ]
@@ -159,6 +161,7 @@ __all__ = (
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
     "FlipBooleanCmp",
+    "FuzzyPatternOutliner",
     "ITEExprConverter",
     "ITERegionConverter",
     "InlinedMemcpySimplifier",
