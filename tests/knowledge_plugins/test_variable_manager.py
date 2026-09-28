@@ -9,9 +9,12 @@ import pickle
 import unittest
 from unittest import mock
 
+import networkx
+
 import angr
 from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
 from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -119,6 +122,36 @@ class TestVariableManager(unittest.TestCase):
             for name in func_names:
                 dec2 = p2.analyses.Decompiler(name, cfg=cfg2.model)
                 assert dec2.codegen is not None and dec2.codegen.text == texts[name]
+
+    def test_unify_variables_with_a_global_phi_subvariable(self):
+        """
+        make_phi_node() absorbs the variables of a later merge into the phi it already made for that
+        block, so a phi over registers can end up holding a global variable. A global belongs to the
+        global manager, never to a function's variable list, so unify_variables() has no congruence
+        class for it and must leave it alone rather than index it.
+        """
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        varman = p.kb.variables.get_function_manager(0x400000)
+
+        first = SimRegisterVariable(16, 8, ident=varman.next_variable_ident("register"))
+        second = SimRegisterVariable(16, 8, ident=varman.next_variable_ident("register"))
+        for variable in (first, second):
+            varman.add_variable("register", variable.reg, variable)
+
+        global_manager = p.kb.variables["global"]
+        glob = SimMemoryVariable(0xBA3B648F, 4, ident=global_manager.next_variable_ident("global"))
+        global_manager.set_variable("global", glob.addr, glob)
+
+        phi = varman.make_phi_node(0x400100, first, second)
+        assert isinstance(phi, SimRegisterVariable)
+        assert varman.make_phi_node(0x400100, first, glob) is phi
+        assert glob in varman.get_phi_subvariables(phi)
+        assert glob not in varman.get_variables()
+
+        varman.unify_variables(interference=networkx.Graph())
+
+        assert varman.unified_variable(glob) is None
+        assert varman.unified_variable(first) is not None
 
 
 if __name__ == "__main__":

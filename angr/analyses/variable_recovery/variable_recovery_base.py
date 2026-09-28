@@ -162,8 +162,9 @@ class VariableRecoveryBase(Analysis):
                     self._dominance_frontiers[(d.addr, d.idx)].add((b0.addr, b0.idx))
 
     def _post_analysis(self):
-        # remove temporary variables (stack variables created by _ensure_variable_existence() that are 1-byte long,
-        # never accessed, and overlap with other stack variables at the same offset)
+        # replace temporary variables (stack variables created by _ensure_variable_existence() that are 1-byte long,
+        # never accessed, and overlap with other stack variables at the same offset) with the variable that denotes
+        # the same slot, so that whatever refers to the temporary refers to that variable instead
         varman = self.variable_manager[self.function.addr]
         stack_vars = varman.get_variables("stack")
         stack_vars_by_offset = defaultdict(list)
@@ -178,8 +179,10 @@ class VariableRecoveryBase(Analysis):
             single_byte_var = single_byte_vars[0]
 
             if not varman.get_variable_accesses(single_byte_var):
-                # remove this variable
-                varman._variables.discard(single_byte_var)
+                replacement = min(
+                    (v for v in var_list if v is not single_byte_var), key=lambda v: (v.size, v.ident or "")
+                )
+                varman.replace_variable(single_byte_var, replacement)
 
 
 class VariableRecoveryStateBase:

@@ -8,6 +8,7 @@ import os
 import unittest
 from typing import Any
 
+import networkx
 import pyvex
 
 import angr
@@ -16,6 +17,8 @@ from angr.analyses.typehoon.typevars import AddN, DerivedTypeVariable, SubN, Typ
 from angr.analyses.variable_recovery.engine_ail import SimEngineVRAIL
 from angr.analyses.variable_recovery.engine_base import RichR
 from angr.analyses.variable_recovery.engine_vex import SimEngineVRVEX
+from angr.analyses.variable_recovery.variable_recovery_base import VariableRecoveryBase
+from angr.code_location import CodeLocation
 from angr.knowledge_plugins.variables import VariableType
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, print_decompilation_result
@@ -487,6 +490,50 @@ class TestVariableRecovery(unittest.TestCase):
         assert "int *" in code or "int*" in code, f"Expected a1 to be typed as an int pointer, but got:\n{code}"
         # It should NOT be char* - the format string should override that
         assert "char *a1" not in code and "char* a1" not in code, f"a1 should not be typed as char*, but got:\n{code}"
+
+    def test_a_superseded_stack_temporary_stays_out_of_the_decompilation(self):
+        """
+        `copy_internal` takes the address of a stack slot at bp-0x630 that variable recovery first
+        knows as a one-byte temporary and later recovers as a larger variable at the same offset. No
+        SimVariable repr belongs in the C.
+        """
+        project = angr.Project(os.path.join(test_location, "x86_64", "mv_-O2"), auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        dec = project.analyses.Decompiler(cfg.functions["copy_internal"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        self.assertNotRegex(dec.codegen.text, r"<0x[0-9a-f]+\[\w+\]\|")
+
+    def test_post_analysis_replaces_a_superseded_stack_temporary(self):
+        """
+        The phi shape of what the test above covers end to end: a phi holding the superseded temporary
+        makes unify_variables() index a variable the function no longer has. A phi's sub-variables are
+        the variables whose values were merged, so they need not live at the phi's own offset.
+        """
+        project = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        func = project.kb.functions.function(addr=0x400000, create=True)
+        assert func is not None
+        varman = project.kb.variables.get_function_manager(func.addr)
+
+        temporary = SimStackVariable(-8, 1, base="bp", ident=varman.next_variable_ident("stack"))
+        recovered = SimStackVariable(-8, 8, base="bp", ident=varman.next_variable_ident("stack"))
+        merged_with = SimStackVariable(-12, 1, base="bp", ident=varman.next_variable_ident("stack"))
+        for variable in (temporary, recovered, merged_with):
+            varman.add_variable("stack", variable.offset, variable)
+
+        # the slot whose address was taken, as SSA-form AIL spells it
+        atom = ailment.Expr.VirtualVariable(None, 1, 64, ailment.Expr.VirtualVariableCategory.STACK, oident=-8)
+        varman.record_variable(CodeLocation(0x400010, 0, ins_addr=0x400010), temporary, None, atom=atom)
+        varman.make_phi_node(0x400020, temporary, merged_with)
+
+        recovery: Any = object.__new__(VariableRecoveryBase)
+        recovery.variable_manager = project.kb.variables
+        recovery.function = func
+        recovery._post_analysis()  # pylint:disable=protected-access
+
+        self.assertNotIn(temporary, varman.get_variables())
+        self.assertEqual(varman.find_variables_by_atom(0x400010, 0, atom), {(recovered, None)})
+        varman.unify_variables(interference=networkx.Graph())
 
 
 class TestPointerOffsetLabels(unittest.TestCase):
