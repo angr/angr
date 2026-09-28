@@ -32,6 +32,7 @@ from angr.utils.constants import DEFAULT_STATEMENT
 
 from .constant_value_manager import ConstantValueManager
 from .resolver import IndirectJumpResolver
+from .return_value import get_x86_return_range
 
 try:
     from angr.engines import pcode
@@ -851,6 +852,9 @@ class JumpTableResolver(IndirectJumpResolver):
 
     Progressively larger program slices will be analyzed to determine jump table location and size. If the size of the
     table cannot be determined, a *guess* will be made based on how many entries in the table *appear* valid.
+
+    As a fallback, a small closed x86 leaf may supply a Boolean AL return range through ReachingDefinitions.
+    This does not cross the call with the backward slice or treat a declared return type as a value-range proof.
     """
 
     def __init__(self, project, resolve_calls: bool = True):
@@ -951,8 +955,36 @@ class JumpTableResolver(IndirectJumpResolver):
                 stop_at_calls=True,
                 cross_insn_opt=True,
             )
-            return self._resolve(
+            r, targets = self._resolve(
                 cfg, addr, func, b, cv_manager, potential_call_table=True, func_graph_complete=func_graph_complete
+            )
+            if r:
+                return r, targets
+
+        bounds = self._get_return_range(cfg, addr) if jumpkind == "Ijk_Boring" and func_graph_complete else None
+        if bounds is not None:
+            b = Blade(
+                cfg.graph,
+                addr,
+                -1,
+                cfg=cfg,
+                project=self.project,
+                ignore_sp=False,
+                ignore_bp=False,
+                max_level=1,
+                base_state=self.base_state,
+                stop_at_calls=True,
+                cross_insn_opt=True,
+            )
+            return self._resolve(
+                cfg,
+                addr,
+                func,
+                b,
+                cv_manager,
+                potential_call_table=potential_call_table,
+                func_graph_complete=func_graph_complete,
+                return_range=bounds,
             )
 
         return False, None
@@ -960,6 +992,29 @@ class JumpTableResolver(IndirectJumpResolver):
     #
     # Private methods
     #
+
+    def _get_return_range(self, cfg, addr: int) -> tuple[int, int] | None:
+        if self.project.arch.name != "X86" or self.base_state is not None:
+            return None
+        node = cfg.model.get_any_node(addr)
+        incoming = list(cfg.graph.in_edges(node, data=True)) if node is not None else []
+        if len(incoming) != 1 or incoming[0][2].get("jumpkind") != "Ijk_FakeRet":
+            return None
+        predecessor = incoming[0][0]
+        if not predecessor.size or predecessor.addr + predecessor.size != addr:
+            return None
+        call = self.project.factory.block(predecessor.addr, size=predecessor.size)
+        if call.vex.jumpkind != "Ijk_Call" or not isinstance(call.vex.next, pyvex.expr.Const):
+            return None
+        callee = cfg.kb.functions.get(call.vex.next.con.value)
+        if callee is None:
+            return None
+        bounds = get_x86_return_range(self.project, callee, cfg.kb)
+        if bounds is None or not 0 <= bounds[0] <= bounds[1] <= 1:
+            l.debug("No Boolean return summary for callee %#x at dispatch %#x", callee.addr, addr)
+            return None
+        l.debug("Retrying %#x with AL return range %s from %#x", addr, bounds, callee.addr)
+        return bounds
 
     def _resolve(
         self,
@@ -970,6 +1025,7 @@ class JumpTableResolver(IndirectJumpResolver):
         cv_manager: ConstantValueManager | None,
         potential_call_table: bool = False,
         func_graph_complete: bool = True,
+        return_range: tuple[int, int] | None = None,
     ) -> tuple[bool, Sequence[int] | None]:
         """
         Internal method for resolving jump tables.
@@ -1123,6 +1179,10 @@ class JumpTableResolver(IndirectJumpResolver):
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
             start_state = self._initial_state(block_addr, cfg, func_addr)
+            if return_range is not None and block_addr == addr:
+                start_state.regs.al = claripy.SI(
+                    bits=8, stride=1, lower_bound=return_range[0], upper_bound=return_range[1]
+                )
 
             # instrument specified store/put/load statements
             self._instrument_statements(start_state, stmts_to_instrument, regs_to_initialize)
@@ -1184,6 +1244,7 @@ class JumpTableResolver(IndirectJumpResolver):
                         transformations,
                         potential_call_table,
                         unbounded_jumptable,
+                        allow_singleton=return_range is not None,
                     )
                     if ret is None:
                         # Try the next state
@@ -1928,6 +1989,7 @@ class JumpTableResolver(IndirectJumpResolver):
         transformations: dict[tuple[int, int], AddressTransformation],
         potential_call_table: bool = False,
         unbounded_jumptable: bool = False,
+        allow_singleton: bool = False,
     ):
         """
         Try loading all jump targets from a jump table or a vtable.
@@ -2023,7 +2085,12 @@ class JumpTableResolver(IndirectJumpResolver):
         # while the read statement reads a word size at a time.
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
         # the current function) and vtables (where each entry is a function).
-        if stride < load_size:
+        if allow_singleton and jumptable_addr.cardinality == 1:
+            # A constant return summary selects one entry, not a byte-sized fraction of an entry.
+            stride = load_size
+            total_cases = 1
+            sort = "jumptable"
+        elif stride < load_size:
             stride = load_size
             total_cases = jumptable_addr.cardinality // load_size
             sort = "vtable"  # it's probably a vtable!
