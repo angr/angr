@@ -12,8 +12,13 @@ import networkx
 import angr
 from angr.ailment import Manager
 from angr.ailment.block import Block
-from angr.ailment.expression import Const
+from angr.ailment.expression import Const, Register
 from angr.ailment.statement import Jump
+from angr.analyses.decompiler.structurer_nodes import (
+    IncompleteSwitchCaseHeadStatement,
+    MultiNode,
+    SequenceNode,
+)
 from angr.analyses.decompiler.structuring.phoenix import PhoenixStructurer
 from angr.analyses.decompiler.utils import sequence_to_blocks
 from tests.common import bin_location, complete_calling_conventions_for, print_decompilation_result
@@ -50,12 +55,12 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
         return Block(addr, 1, statements=[Jump(m.next_atom(), Const(m.next_atom(), addr + 1, 64), ins_addr=addr)])
 
     @staticmethod
-    def _refine(graph, head):
+    def _refine(graph, head, whitelist_edges=()):
         """Run the candidate selection, recording the edge it would virtualize instead of performing it."""
         structurer = object.__new__(PhoenixStructurer)
         structurer._improve_algorithm = False
         structurer._edge_virtualization_hints = []
-        structurer.whitelist_edges = set()
+        structurer.whitelist_edges = set(whitelist_edges)
         structurer._region = _Region()
         structurer._parent_region = None  # the root region
         chosen = []
@@ -114,6 +119,56 @@ class TestPhoenixLastResortIsolation(unittest.TestCase):
 
         assert progressed
         assert chosen == [(a, b)]
+
+    @staticmethod
+    def _switch_head_block(m, addr, case_target_addrs):
+        case_addrs = [(None, value, target, None, target) for value, target in enumerate(case_target_addrs)]
+        head = IncompleteSwitchCaseHeadStatement(
+            m.next_atom(),
+            Register(m.next_atom(), 16, 32),
+            case_addrs,
+            ins_addr=addr,
+        )
+        return Block(addr, 1, statements=[head])
+
+    def _switch_head_race_graph(self, m, wrap_head):
+        region_head = self._block(m, 0x100)
+        switch_head = self._switch_head_block(m, 0x200, [0x400])
+        if wrap_head:
+            switch_head = SequenceNode(0x200, nodes=[MultiNode(nodes=[self._block(m, 0x200)]), switch_head])
+        other, target = self._block(m, 0x300), self._block(m, 0x400)
+        graph = networkx.DiGraph()
+        graph.add_edge(region_head, switch_head)
+        graph.add_edge(region_head, other)
+        graph.add_edge(switch_head, target)
+        graph.add_edge(other, target)
+        return graph, region_head, switch_head, other, target
+
+    def test_switch_head_out_edge_is_not_picked_while_another_edge_exists(self):
+        m = Manager()
+        graph, region_head, _, other, target = self._switch_head_race_graph(m, wrap_head=False)
+
+        progressed, chosen = self._refine(graph, region_head)
+
+        assert progressed
+        assert chosen == [(other, target)]
+
+    def test_switch_head_wrapped_in_a_sequence_node_is_still_recognized(self):
+        m = Manager()
+        graph, region_head, _, other, target = self._switch_head_race_graph(m, wrap_head=True)
+
+        progressed, chosen = self._refine(graph, region_head)
+
+        assert progressed
+        assert chosen == [(other, target)]
+
+    def test_switch_head_out_edge_is_picked_when_nothing_else_is_left(self):
+        m = Manager()
+        graph, region_head, switch_head, other, target = self._switch_head_race_graph(m, wrap_head=False)
+        progressed, chosen = self._refine(graph, region_head, whitelist_edges={(other.addr, target.addr)})
+
+        assert progressed
+        assert chosen == [(switch_head, target)]
 
     def test_bbbq_rust_root_region_structures_completely(self):
         """

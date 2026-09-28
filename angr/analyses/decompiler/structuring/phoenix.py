@@ -3213,6 +3213,21 @@ class PhoenixStructurer(StructurerBase):
                             return left, edge_cond_left, right, edge_cond_left_right, else_node
         return None
 
+    @staticmethod
+    def _ends_with_incomplete_switch_head(node) -> bool:
+        """
+        Whether node ends with an incomplete switch-case head statement.
+        """
+        while isinstance(node, (SequenceNode, MultiNode)):
+            if not node.nodes:
+                return False
+            node = node.nodes[-1]
+        return (
+            isinstance(node, Block)
+            and bool(node.statements)
+            and isinstance(node.statements[-1], IncompleteSwitchCaseHeadStatement)
+        )
+
     def _last_resort_refinement(self, head, graph_raw: networkx.DiGraph, full_graph_raw: networkx.DiGraph) -> bool:
         if self._improve_algorithm:
             while self._edge_virtualization_hints:
@@ -3228,6 +3243,8 @@ class PhoenixStructurer(StructurerBase):
         # (src_addr, dst_addr)
         secondary_edges = []  # likewise, edges in this list are ordered by a tuple of (src_addr, dst_addr)
         other_edges = []
+        # out-edges of incomplete switch-case heads. we must preserve them.
+        switch_head_edges = set()
 
         full_graph = full_graph_raw.filtered()
         graph = graph_raw.filtered()
@@ -3240,18 +3257,11 @@ class PhoenixStructurer(StructurerBase):
         # acyclic_graph is read-only here (edges, in_degree, has_edge, iteration), so use a zero-copy overlay view
         # instead of materializing the whole region graph on every last-resort attempt.
         acyclic_graph = full_graph if graph_is_dag else self._graph_helper.to_acyclic_by_order(full_graph)
+        switch_head_cache: dict[Any, bool] = {}
         for src, dst in acyclic_graph.edges:
             if src is dst:
                 continue
             if src not in graph:
-                continue
-            if (
-                isinstance(src, Block)
-                and src.statements
-                and isinstance(src.statements[-1], IncompleteSwitchCaseHeadStatement)
-            ):
-                # this is a head of an incomplete switch-case construct (that we will definitely be structuring later),
-                # so we do not want to remove any edges going out of this block
                 continue
             if dst in graph and graph.in_degree[dst] == 1 and dst is not head:
                 # dst would be left with no way in, and no schema can reattach an isolated node
@@ -3261,6 +3271,13 @@ class PhoenixStructurer(StructurerBase):
                 # a region successor whose only entry is this edge: virtualizing it would orphan the successor in
                 # the enclosing region (see _refine_cyclic_core)
                 continue
+            if src in switch_head_cache:
+                src_is_switch_head = switch_head_cache[src]
+            else:
+                src_is_switch_head = self._ends_with_incomplete_switch_head(src)
+                switch_head_cache[src] = src_is_switch_head
+            if src_is_switch_head:
+                switch_head_edges.add((src, dst))
             src_dominates_dst = dominates_by_intervals(dominance_intervals, src, dst)
             if not src_dominates_dst and not dominates_by_intervals(dominance_intervals, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
@@ -3296,7 +3313,10 @@ class PhoenixStructurer(StructurerBase):
                 node_seq[nn] = max_seq + i
 
         if all_edges_wo_dominance:
-            all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
+            preferred = [edge for edge in all_edges_wo_dominance if edge not in switch_head_edges]
+            all_edges_wo_dominance = self._order_virtualizable_edges(
+                full_graph, preferred or all_edges_wo_dominance, node_seq
+            )
             # virtualize the first edge
             src, dst = all_edges_wo_dominance[0]
             if not self._virtualize_edge(src, dst):
@@ -3305,7 +3325,8 @@ class PhoenixStructurer(StructurerBase):
             return True
 
         if secondary_edges:
-            secondary_edges = self._order_virtualizable_edges(full_graph, secondary_edges, node_seq)
+            preferred = [edge for edge in secondary_edges if edge not in switch_head_edges]
+            secondary_edges = self._order_virtualizable_edges(full_graph, preferred or secondary_edges, node_seq)
             # virtualize the first edge
             src, dst = secondary_edges[0]
             if not self._virtualize_edge(src, dst):
@@ -3325,15 +3346,17 @@ class PhoenixStructurer(StructurerBase):
             for src, dst in full_graph.edges:
                 if src is dst or acyclic_graph.has_edge(src, dst) or src not in graph:
                     continue
-                if (
-                    isinstance(src, Block)
-                    and src.statements
-                    and isinstance(src.statements[-1], IncompleteSwitchCaseHeadStatement)
-                ):
-                    continue
+                if src in switch_head_cache:
+                    src_is_switch_head = switch_head_cache[src]
+                else:
+                    src_is_switch_head = self._ends_with_incomplete_switch_head(src)
+                    switch_head_cache[src] = src_is_switch_head
+                if src_is_switch_head:
+                    switch_head_edges.add((src, dst))
                 cycle_edges.append((src, dst))
             if cycle_edges:
-                cycle_edges = sorted(cycle_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
+                preferred = [edge for edge in cycle_edges if edge not in switch_head_edges]
+                cycle_edges = sorted(preferred or cycle_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
                 src, dst = cycle_edges[0]
                 if not self._virtualize_edge(src, dst):
                     return self._on_virtualize_edge_failure(src, dst)
