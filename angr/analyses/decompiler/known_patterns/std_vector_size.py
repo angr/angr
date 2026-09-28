@@ -148,7 +148,7 @@ def _make_vector_div_template(
             # Convert itself needs no pattern node; structural matching skips
             # Convert wrappers.)
             magics = {exact_div_magic(elt_size, b)[1] for b in (ctx.bits, 32, 16, 8)}
-            pattern = PBinOp("Mul", (scaled, PConst(pred=magics.__contains__)))
+            pattern = PBinOp("Mul", (scaled, PConst(values=frozenset(magics))))
         return KnownPattern(
             name=name,
             display_name=call_name,
