@@ -901,26 +901,44 @@ def _parse_cifelse(pb, ctx):
     return obj
 
 
+_UINT64_RANGE = 1 << 64
+_INT64_MAX = (1 << 63) - 1
+
+
 def _ser_cswitch(node, pb, ctx):
     pb.cswitch.switch_id = ctx.serialize(node.switch)
     for case_ids, stmts in node.cases:
         entry = pb.cswitch.cases.add()
-        if isinstance(case_ids, tuple):
-            entry.case_ids.extend(case_ids)
-        else:
-            entry.case_ids.append(case_ids)
+        labels = case_ids if isinstance(case_ids, tuple) else (case_ids,)
+        # A label taken from a comparison constant is the constant's unsigned value, so `case -2:` on a
+        # 64-bit switch arrives as 0xfffffffffffffffe and an int64 field cannot hold it. Store the
+        # two's-complement pattern, and say which labels to widen back only when one of them needs it, so a
+        # switch whose labels all fit writes exactly the bytes it always has.
+        unsigned = [label > _INT64_MAX for label in labels]
+        for label, label_unsigned in zip(labels, unsigned):
+            entry.case_ids.append(label - _UINT64_RANGE if label_unsigned else label)
+        if any(unsigned):
+            entry.case_ids_unsigned.extend(unsigned)
         entry.statements_id = ctx.serialize(stmts)
     if node.default is not None:
         pb.cswitch.default_id = ctx.serialize(node.default)
+
+
+def _parse_case_ids(entry):
+    """One entry's case labels, widening back the ones ``_ser_cswitch`` stored as negative patterns."""
+    unsigned = entry.case_ids_unsigned
+    case_ids = [
+        case_id + _UINT64_RANGE if idx < len(unsigned) and unsigned[idx] else case_id
+        for idx, case_id in enumerate(entry.case_ids)
+    ]
+    return tuple(case_ids) if len(case_ids) > 1 else case_ids[0]
 
 
 def _parse_cswitch(pb, ctx):
     obj = CSwitchCase.__new__(CSwitchCase)
     body = pb.cswitch
     obj.switch = ctx.resolve(body.switch_id)
-    obj.cases = [
-        (tuple(e.case_ids) if len(e.case_ids) > 1 else e.case_ids[0], ctx.resolve(e.statements_id)) for e in body.cases
-    ]
+    obj.cases = [(_parse_case_ids(e), ctx.resolve(e.statements_id)) for e in body.cases]
     obj.default = ctx.resolve(body.default_id) if body.HasField("default_id") else None
     return obj
 
