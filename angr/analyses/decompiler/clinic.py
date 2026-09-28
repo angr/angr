@@ -68,7 +68,7 @@ from angr.calling_conventions import (
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.enums import Flavors
-from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
+from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, AngrRuntimeError, SimTranslationError
 from angr.go.sim_type import GoSimType
 from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
@@ -1180,6 +1180,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         directory = os.environ.get("CLINIC_STAGE_DUMP")
         if not directory:
             return
+        os.makedirs(directory, exist_ok=True)
         with open(f"{directory}/stage_{int(stage):02d}_{stage.name}.txt", "w") as fp:
             fp.write(f"nodes={self._ail_graph.number_of_nodes()} edges={self._ail_graph.number_of_edges()}\n")
             for block in sorted(self._ail_graph.nodes(), key=lambda b: (b.addr, b.idx or 0)):
@@ -1461,14 +1462,9 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # Get the variable manager for this function
         var_manager = self.kb.dec_variables[self.function.addr]
 
-        # Find the entry node
-        entry_node: ailment.Block | None = None
-        for node in self._ail_graph:
-            if (node.addr, node.idx) == self.entry_node_addr:
-                entry_node = node
-                break
-
-        assert entry_node is not None
+        # Find the entry node. A bare assert here fires when a graph-rewriting pass has
+        # changed the entry block's idx; _entry_block falls back to the address and the root.
+        entry_node: ailment.Block = self._entry_block(self._ail_graph)
 
         # Run all semantic naming patterns via the orchestrator
         orchestrator = SemanticNamingOrchestrator(
@@ -2917,7 +2913,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         ssailification = self.project.analyses[Ssailification].prep(fail_fast=self._fail_fast)(
             self.function,
             ail_graph,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             ail_manager=self._ail_manager,
             ssa_stackvars=False,
             func_args=func_args,
@@ -2929,6 +2925,34 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         assert ssailification.out_graph is not None
         return ssailification.out_graph
 
+    def _entry_block(self, ail_graph: networkx.DiGraph):
+        """The graph's entry block.
+
+        Passes that rewrite the graph (pushan's VM-deobfuscation simplifications in particular)
+        can replace the entry block with one carrying a different ``idx``, or drop it entirely.
+        A bare ``next(iter(...))`` then raises StopIteration far from the cause, so fall back to
+        an address-only match and then to the unique node with no predecessors.
+        """
+        addr, idx = self.entry_node_addr
+        for bb in ail_graph:
+            if (bb.addr, bb.idx) == (addr, idx):
+                return bb
+        by_addr = [bb for bb in ail_graph if bb.addr == addr]
+        if len(by_addr) == 1:
+            return by_addr[0]
+        if by_addr:
+            best = min(by_addr, key=lambda bb: (bb.idx is None, bb.idx or 0))
+            l.warning("Entry block %#x has no idx %s; using idx %s.", addr, idx, best.idx)
+            return best
+        roots = [bb for bb in ail_graph if ail_graph.in_degree(bb) == 0]
+        if len(roots) == 1:
+            l.warning("Entry block %#x is gone from the graph; using the unique root %#x.", addr, roots[0].addr)
+            return roots[0]
+        raise AngrRuntimeError(
+            f"cannot find the entry block {addr:#x} (idx {idx}) in a graph of "
+            f"{len(ail_graph)} nodes with {len(roots)} roots"
+        )
+
     @timethis
     def _transform_to_ssa_level1(
         self, ail_graph: networkx.DiGraph, func_args: set[ailment.Expr.VirtualVariable]
@@ -2936,7 +2960,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         ssailification = self.project.analyses[Ssailification].prep(fail_fast=self._fail_fast)(
             self.function,
             ail_graph,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             ail_manager=self._ail_manager,
             ssa_tmps=True,
             ssa_stackvars=True,
@@ -2972,7 +2996,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
             ail_graph,
             self._ail_manager,
             fail_fast=self._fail_fast,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             vvar_id_start=self.vvar_id_start,
             arg_vvars=[arg_vvar for arg_vvar, _ in arg_vvars.values()],
         )
@@ -3869,7 +3893,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         liveness = self.project.analyses[SLivenessAnalysis].prep()(
             self.function,
             func_graph=ail_graph,
-            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            entry=self._entry_block(ail_graph),
             arg_vvars=[vvar for vvar, _ in arg_vvars.values()],
         )
         if arg_vvars is not None:
@@ -4637,6 +4661,10 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         self._fold_bool_ites(ail_graph)
 
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
+        # This rewrite re-lifts the instruction from the binary, so it needs real bytes behind the
+        # address. Blocks synthesized by the VM deobfuscator live at addresses no object covers.
+        if self.project.loader.find_object_containing(ite_ins_addr) is None:
+            return None
         ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
         ite_insn_size = ite_insn_only_block.size
         assert ite_insn_size is not None
