@@ -2244,8 +2244,9 @@ class AILSimplifier(Analysis):
                     and stmt.dst.varid not in self._avoid_vvar_ids
                     and not stmt.dst.was_combo_reg
                 ):
-                    # the call's return value is dead, but the statement stays for the registers the call clobbers
-                    # (clobber_defs); keep the call without the assignment
+                    # the call's return value is dead, but the statement must stay for the registers that the call
+                    # clobbers.
+                    # keep the call without the assignment
                     if isinstance(stmt.src, (Call, FunctionLikeMacro)):
                         stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
                         simplified = True

@@ -438,15 +438,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         clobber_locs = self.state.register_blackout.get(full_offset)
         def_as = None
         if clobber_locs:
-            # the register was clobbered by one call per incoming path; each call defines it. Definitions that
-            # reach along paths without a clobbering call stay in play, so a merge point still gets its phi.
+            # define the clobbered registers
             def_as = set(defs)
             for loc in sorted(
                 clobber_locs, key=lambda loc: (loc.addr, -1 if loc.block_idx is None else loc.block_idx, loc.stmt_idx)
             ):
-                cdef = self._clobber_def(loc, full_offset, full_size)
-                self.perform_def("reg", cdef, full_offset, full_size, offset, size, loc)
-                def_as.add(cdef)
+                clobber_def = self._clobber_def(loc, full_offset, full_size)
+                self.perform_def("reg", clobber_def, full_offset, full_size, offset, size, loc)
+                def_as.add(clobber_def)
             for suboff in range(full_offset, full_offset + full_size):
                 self.state.register_blackout.pop(suboff, None)
         elif not defs:

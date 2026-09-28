@@ -158,12 +158,11 @@ class SimEngineSSARewriting(
             orig_idx = self.stmt_idx - count if self.stmt_idx >= pos + count else self.stmt_idx
             clobber_defs = self.clobber_defs_by_loc.get((self.block.addr, self.block.idx, orig_idx), ())
         if clobber_defs and result is None:
-            # the statement is otherwise unchanged, but it must carry the clobber definitions
             result = stmt.copy()
         clobber_tag: list[int] = []
-        for cdef in clobber_defs:
-            # materialize the vvars this call defines for the registers it clobbers; later reads resolve to them
-            vvar = self._expr_to_vvar(cdef, True)
+        # create the vvars that this call clobbers
+        for clobber_def in clobber_defs:
+            vvar = self._expr_to_vvar(clobber_def, True)
             clobber_tag += [vvar.varid, vvar.reg_offset, vvar.bits]
         for rstmt in result if isinstance(result, tuple) else [result] if isinstance(result, Statement) else []:
             if self._extra_defs:
