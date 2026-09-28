@@ -22,6 +22,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from angr.ailment.expression import Call, Const
 from angr.analyses.decompiler.known_patterns import dsl
 from angr.analyses.decompiler.known_patterns.dsl import MatchCtx, MatchState, iter_stmt_patterns
 from angr.analyses.decompiler.known_patterns.pattern import KnownPattern
@@ -31,6 +32,8 @@ from .template import TEMPLATE_TOKENIZER, Fit, ShapeTree, match_shape, parse_sha
 from .tokenizer import TokenStream, tokenize
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import networkx
 
     from angr.ailment import Block
@@ -192,6 +195,10 @@ def _candidates(leaves: list[_Leaf], stream: TokenStream, params: AlignParams) -
     return [d for d, _ in ranked[: params.max_candidates]]
 
 
+def _is_glue(shape: str) -> bool:
+    return shape in ("Jf", "Jb", "J?")
+
+
 def _align(
     leaves: list[_Leaf], stream: TokenStream, scorer: _Scorer, lo: int, hi: int, params: AlignParams
 ) -> tuple[float, list[TemplateColumn]] | None:
@@ -206,6 +213,9 @@ def _align(
     if n == 0 or width <= 0:
         return None
     ids = stream.shape_ids
+    # an unconditional jump is control glue between blocks, not a statement an
+    # occurrence has to account for: skipping one costs nothing
+    glue = [_is_glue(stream.shapes[lo + j]) for j in range(width)]
 
     # dp[state][i][j], j in 0..width; column 0 is "before the window"
     m = [[_NEG] * (width + 1) for _ in range(n + 1)]
@@ -242,9 +252,10 @@ def _align(
                 m[i][j] = best + s
                 back[0, i, j] = src
             # skip token j between placed leaves (Y): only inside the template
-            best, src = m[i][j - 1] + params.gap_open, (0, i, j - 1)
-            if y[i][j - 1] + params.gap_extend > best:
-                best, src = y[i][j - 1] + params.gap_extend, (2, i, j - 1)
+            tok_open, tok_ext = (0.0, 0.0) if glue[j - 1] else (params.gap_open, params.gap_extend)
+            best, src = m[i][j - 1] + tok_open, (0, i, j - 1)
+            if y[i][j - 1] + tok_ext > best:
+                best, src = y[i][j - 1] + tok_ext, (2, i, j - 1)
             if best > _NEG:
                 y[i][j] = best
                 back[2, i, j] = src
@@ -351,7 +362,9 @@ def verify(
     unverified; an optional one is merely noted on its column.
     """
     # a lifted pattern has had its conversions dropped, so its leaves must step over them
-    ctx = ctx or MatchCtx(skip_conversions=True, skip_conversions_at_leaves=True)
+    ctx = ctx or MatchCtx(
+        skip_conversions=True, skip_conversions_at_leaves=True, call_target_fn=_callee_names_fn(stream.kb)
+    )
     leaves = template_leaves(pattern)
     blocks = {(b.addr, b.idx): b for b in stream.blocks}
     state = MatchState()
@@ -374,6 +387,27 @@ def verify(
     match.verified = ok
     match.captures = dict(state.bindings)
     return match
+
+
+def _callee_names_fn(kb: KnowledgeBase | None) -> Callable[[Call], frozenset[str]]:
+    """Every name a call's callee is known by, as the exact finder resolves them."""
+    cache: dict[int, frozenset[str]] = {}
+
+    def resolve(call: Call) -> frozenset[str]:
+        target = call.target
+        if isinstance(target, str):
+            return frozenset((target,))
+        if kb is None or not isinstance(target, Const) or not isinstance(target.value, int):
+            return frozenset()
+        addr = target.value
+        names = cache.get(addr)
+        if names is None:
+            func = kb.functions.get_by_addr(addr) if kb.functions.contains_addr(addr) else None
+            names = frozenset(n for n in ((func.name, func.demangled_name) if func is not None else ()) if n)
+            cache[addr] = names
+        return names
+
+    return resolve
 
 
 def find_template_occurrences(

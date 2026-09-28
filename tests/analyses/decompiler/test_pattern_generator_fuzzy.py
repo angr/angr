@@ -5,11 +5,21 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 
 import angr
 from angr.ailment.statement import Assignment, Store
-from angr.analyses.decompiler.known_patterns import PAnyStmt, PGraphPat, PStmtSeq, iter_stmt_patterns
+from angr.analyses.decompiler.known_patterns import (
+    PAny,
+    PCallStmt,
+    PConst,
+    PGraphPat,
+    PLoad,
+    PReturn,
+    PStmtSeq,
+    iter_stmt_patterns,
+)
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
 from angr.analyses.fuzzy_patterns.search import find_template_occurrences
 from tests.common import bin_location
@@ -70,12 +80,34 @@ class TestGenerateFuzzy(unittest.TestCase):
         _stream, matches = find_template_occurrences(pattern, self.dec.ail_graph, entry, kb=self.kb)
         assert any(m.similarity == 1.0 and m.verified for m in matches), "the source of the pattern must match it"
 
-    def test_unsupported_statements_become_wildcards_not_errors(self):
-        """A span over the whole function covers calls and returns the DSL cannot spell."""
+    def test_puts_fflush_return_lifts_to_two_calls_and_a_return(self):
+        """The error-exit idiom of doit: the string argument and the inputs are wildcards, the
+        global stream pointer and the returned constant are kept, and nothing becomes a parameter."""
+        m = re.search(r'puts\("String is empty."\);\n +fflush\(stdout\);\n +return 0xffffffff;\n', self.gen.text)
+        assert m is not None
+        pattern = self.gen.generate_fuzzy(m.start(), m.end(), "PatternErrorsOut")
+
+        assert isinstance(pattern.pattern, PStmtSeq)
+        puts, fflush, ret = pattern.pattern.stmts
+        assert isinstance(puts, PCallStmt) and puts.call.names == {"puts"} and puts.call.args == (PAny(),)
+        assert isinstance(fflush, PCallStmt) and fflush.call.names == {"fflush"}
+        (stdout,) = fflush.call.args
+        assert isinstance(stdout, PLoad) and isinstance(stdout.addr, PConst) and stdout.addr.value is not None
+        assert isinstance(ret, PReturn) and ret.values == (PConst(value=0xFFFFFFFF),)
+        assert pattern.params == ()
+
+        entry = next(b for b in self.dec.ail_graph if b.addr == self.func.addr)
+        _, matches = find_template_occurrences(pattern, self.dec.ail_graph, entry, kb=self.kb)
+        verified = [m for m in matches if m.verified]
+        assert len(verified) >= 8, "every error exit of doit spells the idiom"
+
+    def test_the_whole_function_lifts_calls_and_returns(self):
+        """A span over the whole function covers calls and returns, which have patterns of their own."""
         pattern = self.gen.generate_fuzzy(0, len(self.gen.text), "whole")
         leaves = list(iter_stmt_patterns(pattern.pattern))
-        assert any(isinstance(leaf, PAnyStmt) for leaf in leaves)
-        assert isinstance(pattern.pattern, (PGraphPat, PStmtSeq))
+        assert any(isinstance(leaf, PCallStmt) for leaf in leaves)
+        assert any(isinstance(leaf, PReturn) for leaf in leaves)
+        assert isinstance(pattern.pattern, PStmtSeq)
         assert len(leaves) > 20, "the whole function is in there"
 
     def test_empty_and_expression_only_selections_are_refused(self):

@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from angr.ailment.expression import (
     BinaryOp,
+    Call,
     Const,
     Convert,
     Expression,
@@ -38,12 +39,14 @@ from angr.ailment.expression import (
 from angr.ailment.statement import (
     Assignment,
     ConditionalJump,
+    Jump,
     Label,
     Return,
     SideEffectStatement,
     Statement,
     Store,
 )
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
 from .dsl import (
     PAny,
@@ -53,11 +56,14 @@ from .dsl import (
     PatternStmt,
     PBinOp,
     PBlockPat,
+    PCall,
+    PCallStmt,
     PCondJump,
     PConst,
     PGraphPat,
     PLoad,
     PPhi,
+    PReturn,
     PStmtSeq,
     PStore,
     PUnaryOp,
@@ -72,6 +78,19 @@ if TYPE_CHECKING:
     from angr.ailment import Block
 
     from .pattern import TypeRef
+
+
+def _stmt_ins_addrs(stmt: Statement) -> set[int]:
+    """The instruction addresses a statement and its subexpressions carry."""
+    addrs: set[int] = set()
+    ins = stmt.tags.get("ins_addr")
+    if ins is not None:
+        addrs.add(ins)
+    for _, expr in _iter_stmt_subexprs(stmt):
+        ins = expr.tags.get("ins_addr") if expr.tags else None
+        if ins is not None:
+            addrs.add(ins)
+    return addrs
 
 
 class PatternGenerationError(Exception):
@@ -298,49 +317,105 @@ class PatternGenerator:
     # AIL -> DSL recursion
     #
 
-    def _gen_expr(self, expr: Expression, capture_of: dict[int, str], const_promote: set[int]) -> PatternExpr:
+    def _gen_expr(
+        self, expr: Expression, capture_of: dict[int, str], const_promote: set[int], *, fuzzy: bool = False
+    ) -> PatternExpr:
+        """The pattern of ``expr``. In fuzzy mode a variable the selection does not
+        capture and a constant that points at a string are wildcards: neither is part
+        of what makes the selection an idiom."""
         if isinstance(expr, (Convert, Reinterpret)):
             # mirror the matcher, which skips conversions by default
-            return self._gen_expr(expr.operand, capture_of, const_promote)
+            return self._gen_expr(expr.operand, capture_of, const_promote, fuzzy=fuzzy)
         if isinstance(expr, VirtualVariable):
             nm = capture_of.get(expr.varid)
+            if fuzzy and nm is None:
+                return PAny()
             return PVVar(name=nm)
         if isinstance(expr, Const):
             if id(expr) in const_promote:
                 return PConst(name=self._extra_name_of(expr))
+            if fuzzy and self._is_string_pointer(expr):
+                return PAny()
             return PConst(value=expr.value)
         if isinstance(expr, Load):
-            return PLoad(addr=self._gen_expr(expr.addr, capture_of, const_promote), size=expr.size)
+            return PLoad(addr=self._gen_expr(expr.addr, capture_of, const_promote, fuzzy=fuzzy), size=expr.size)
         if isinstance(expr, BinaryOp):
             return PBinOp(
                 expr.op,
                 (
-                    self._gen_expr(expr.operands[0], capture_of, const_promote),
-                    self._gen_expr(expr.operands[1], capture_of, const_promote),
+                    self._gen_expr(expr.operands[0], capture_of, const_promote, fuzzy=fuzzy),
+                    self._gen_expr(expr.operands[1], capture_of, const_promote, fuzzy=fuzzy),
                 ),
             )
         if isinstance(expr, UnaryOp):
-            return PUnaryOp(expr.op, self._gen_expr(expr.operand, capture_of, const_promote))
+            return PUnaryOp(expr.op, self._gen_expr(expr.operand, capture_of, const_promote, fuzzy=fuzzy))
+        if isinstance(expr, Call):
+            call = self._gen_call(expr, capture_of, const_promote, fuzzy=fuzzy)
+            return call if call is not None else PAny()
         if isinstance(expr, Phi):
             return PPhi()
         return PAny()
 
-    def _gen_stmt(self, stmt: Statement, capture_of: dict[int, str], const_promote: set[int]) -> PatternStmt:
+    def _gen_call(
+        self, call: Call, capture_of: dict[int, str], const_promote: set[int], *, fuzzy: bool = False
+    ) -> PCall | None:
+        """The PCall of ``call``, or None when the callee has no name to match by."""
+        names = self._callee_names(call)
+        if not names:
+            return None
+        args = tuple(self._gen_expr(a, capture_of, const_promote, fuzzy=fuzzy) for a in (call.args or ()))
+        return PCall(names, args=args)
+
+    def _callee_names(self, call: Call) -> frozenset[str]:
+        target = call.target
+        if isinstance(target, str):
+            return frozenset((target,))
+        if not isinstance(target, Const) or not isinstance(target.value, int):
+            return frozenset()
+        functions = self.codegen.kb.functions
+        if not functions.contains_addr(target.value):
+            return frozenset()
+        func = functions.get_by_addr(target.value)
+        names = {n for n in (func.name, func.demangled_name) if n}
+        return frozenset(names)
+
+    def _is_string_pointer(self, const: Const) -> bool:
+        cfg = self.codegen._cfg
+        if cfg is None or not isinstance(const.value, int):
+            return False
+        md = cfg.memory_data.get(const.value)
+        return md is not None and md.sort == MemoryDataSort.String
+
+    def _gen_stmt(
+        self, stmt: Statement, capture_of: dict[int, str], const_promote: set[int], *, fuzzy: bool = False
+    ) -> PatternStmt:
         if isinstance(stmt, Assignment):
+            if isinstance(stmt.src, Call):
+                call = self._gen_call(stmt.src, capture_of, const_promote, fuzzy=fuzzy)
+                if call is None:
+                    raise PatternGenerationError("a call with no named callee has no pattern")
+                return PCallStmt(call, dst=self._gen_expr(stmt.dst, capture_of, const_promote, fuzzy=fuzzy))
             return PAssign(
-                self._gen_expr(stmt.dst, capture_of, const_promote),
-                self._gen_expr(stmt.src, capture_of, const_promote),
+                self._gen_expr(stmt.dst, capture_of, const_promote, fuzzy=fuzzy),
+                self._gen_expr(stmt.src, capture_of, const_promote, fuzzy=fuzzy),
             )
         if isinstance(stmt, Store):
             return PStore(
-                self._gen_expr(stmt.addr, capture_of, const_promote),
-                self._gen_expr(stmt.data, capture_of, const_promote),
+                self._gen_expr(stmt.addr, capture_of, const_promote, fuzzy=fuzzy),
+                self._gen_expr(stmt.data, capture_of, const_promote, fuzzy=fuzzy),
                 size=stmt.size,
             )
         if isinstance(stmt, ConditionalJump):
-            return PCondJump(self._gen_expr(stmt.condition, capture_of, const_promote))
+            return PCondJump(self._gen_expr(stmt.condition, capture_of, const_promote, fuzzy=fuzzy))
+        if isinstance(stmt, Return):
+            return PReturn(
+                tuple(self._gen_expr(e, capture_of, const_promote, fuzzy=fuzzy) for e in (stmt.ret_exprs or ()))
+            )
         if isinstance(stmt, SideEffectStatement):
-            # not directly representable; fall back to a wildcard sequence element
+            if isinstance(stmt.expr, Call):
+                call = self._gen_call(stmt.expr, capture_of, const_promote, fuzzy=fuzzy)
+                if call is not None:
+                    return PCallStmt(call)
             raise PatternGenerationError("side-effect statements are not supported in generated patterns")
         raise PatternGenerationError(f"unsupported statement type {type(stmt).__name__}")
 
@@ -705,31 +780,24 @@ class PatternGenerator:
         ins_addrs = self._body_ins_addrs(start_offset, end_offset)
         if not ins_addrs:
             raise PatternGenerationError("the selection covers no statement")
-        # the same order the fuzzy matcher's stream uses, so a linear fallback lines up with it
+        # the same order the fuzzy matcher's stream uses, so the sequence lines up with it
         from angr.analyses.fuzzy_patterns.tokenizer import linearize  # pylint:disable=import-outside-toplevel
 
         entry = next(b for b in self.ail_graph if not any(True for _ in self.ail_graph.predecessors(b)))
-        blocks = []
-        block_stmts: dict[Block, list[Statement]] = {}
-        for b in linearize(self.ail_graph, entry):
-            chosen = [s for s in b.statements if not isinstance(s, Label) and s.tags.get("ins_addr") in ins_addrs]
-            if chosen:
-                blocks.append(b)
-                block_stmts[b] = chosen
-        stmts = [s for b in blocks for s in block_stmts[b]]
+        # A statement is selected when it or any of its subexpressions carries a selected
+        # instruction address: a propagated constant keeps the address of the instruction
+        # that produced it, which is what the text chunk maps to.
+        stmts = [
+            s
+            for b in linearize(self.ail_graph, entry)
+            for s in b.statements
+            if not isinstance(s, (Label, Jump)) and _stmt_ins_addrs(s) & ins_addrs
+        ]
         if not stmts:
             raise PatternGenerationError("the selection covers no statement")
         capture_of, arg_varids = self._auto_captures(stmts)
-        pattern: PatternStmt | PGraphPat
-        if len(blocks) >= 2:
-            try:
-                pattern = self._graph_pattern(blocks, block_stmts, capture_of, set(), self._gen_stmt_lenient)
-            except PatternGenerationError:
-                # not a single-entry region: keep the statements, lose the edges. The
-                # fuzzy matcher aligns a flat sequence with gaps anyway.
-                pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))
-        else:
-            pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))
+        # the fuzzy matcher aligns a flat sequence with gaps; block edges would add nothing
+        pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))
         return self._finish(
             pattern,
             call_name,
@@ -787,30 +855,21 @@ class PatternGenerator:
         )
 
     def _gen_stmt_lenient(self, stmt: Statement, capture_of: dict[int, str], const_promote: set[int]) -> PatternStmt:
-        """Like :meth:`_gen_stmt`, with a wildcard statement for what the DSL cannot say."""
+        """:meth:`_gen_stmt` in fuzzy mode, with a wildcard statement for what the DSL cannot say."""
         try:
-            return self._gen_stmt(stmt, capture_of, const_promote)
+            return self._gen_stmt(stmt, capture_of, const_promote, fuzzy=True)
         except PatternGenerationError:
             return PAnyStmt()
 
     def _auto_captures(self, stmts: list[Statement]) -> tuple[dict[int, str], list[int]]:
-        """Captures for a selection with no argument list: the inputs, in first-read order."""
+        """Captures for a fuzzy selection: only the variables it defines, so that a later
+        use binds to the same one. The inputs are left to the wildcards and the outliner
+        derives the call's arguments from liveness."""
         defs: set[int] = set()
-        uses: set[int] = set()
         for s in stmts:
             defs |= _stmt_defs(s)
-            uses |= _stmt_uses(s)
-        inputs = uses - defs
-        arg_varids: list[int] = []
-        for s in stmts:
-            for _, root in _iter_stmt_subexprs(s):
-                for vid in self._leaf_vvar_ids(root):
-                    if vid in inputs and vid not in arg_varids:
-                        arg_varids.append(vid)
-        capture_of = self._build_captures(list(inputs), arg_varids)
-        for k, vid in enumerate(sorted(defs)):
-            capture_of.setdefault(vid, f"_t{k}")
-        return capture_of, arg_varids
+        capture_of = {vid: f"_t{k}" for k, vid in enumerate(sorted(defs))}
+        return capture_of, []
 
     def _selected_ins_addrs(self, start: int, end: int) -> set[int]:
         addrs: set[int] = set()
