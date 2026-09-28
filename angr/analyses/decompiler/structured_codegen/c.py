@@ -4373,7 +4373,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_bits(expr.bits, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
-        return CRegister(expr, tags=expr.tags, codegen=self)
+        # CRegister carries the register's *name*: CRegisterMsg.reg is a protobuf string and
+        # _parse_cregister reads one back, so a CRegister holding the AIL expression cannot be
+        # serialized at all, and the decompilation cache holding it is dropped with it. The
+        # virtual-variable path in _handle_VirtualVariable names its register the same way.
+        reg_name = self.project.arch.translate_register_name(expr.reg_offset, expr.size)
+        return CRegister(reg_name or f"reg{expr.reg_offset}", tags=expr.tags, codegen=self)
 
     #: The libc functions that return ``&errno``. ``errno`` is a macro that
     #: dereferences one of them, so it never survives into a binary as a symbol;
