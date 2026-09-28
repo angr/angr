@@ -72,6 +72,29 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
         assert dec.codegen is not None and baseline.codegen is not None
         assert "my_idiom(" not in dec.codegen.text
 
+    def test_similarity_alone_can_be_enough(self):
+        """A constant the copy does not share fails verification; with require_verified off
+        the pass goes by similarity and outlines it anyway."""
+        from dataclasses import replace  # pylint:disable=import-outside-toplevel
+
+        from angr.analyses.decompiler.known_patterns import PAssign, PConst  # pylint:disable=import-outside-toplevel
+
+        proj, cfg, func = _load()
+        pattern, _ = _lift_a_pattern(proj, cfg, func, "my_idiom")
+        stmts = list(pattern.pattern.stmts)
+        i = next(i for i, leaf in enumerate(stmts) if isinstance(leaf, PAssign) and isinstance(leaf.src, PConst))
+        stmts[i] = replace(stmts[i], src=PConst(value=stmts[i].src.value + 0x7777))
+        wrong = replace(pattern, pattern=replace(pattern.pattern, stmts=tuple(stmts)))
+
+        strict, lenient = _load(), _load()
+        strict[0].kb.fuzzy_patterns.add(wrong, min_similarity=0.9)
+        lenient[0].kb.fuzzy_patterns.add(wrong, min_similarity=0.9, require_verified=False)
+        strict_text = strict[0].analyses.Decompiler(strict[2], cfg=strict[1].model).codegen.text
+        lenient_text = lenient[0].analyses.Decompiler(lenient[2], cfg=lenient[1].model).codegen.text
+
+        assert "my_idiom(" not in strict_text
+        assert "my_idiom(" in lenient_text
+
     def test_the_pass_reports_what_it_did(self):
         proj, cfg, func = _load()
         pattern, dec = _lift_a_pattern(proj, cfg, func, "my_idiom")

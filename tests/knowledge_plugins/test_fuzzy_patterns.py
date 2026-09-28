@@ -102,7 +102,7 @@ class TestFuzzyPatternsAngrDB(unittest.TestCase):
     def test_roundtrip(self):
         proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
         kb = proj.kb
-        kb.fuzzy_patterns.add(_pattern("first"), min_similarity=0.5, origin_func=0x400580)
+        kb.fuzzy_patterns.add(_pattern("first"), min_similarity=0.5, origin_func=0x400580, require_verified=False)
         kb.fuzzy_patterns.add(_pattern("second"), enabled=False)
 
         with tempfile.TemporaryDirectory() as td:
@@ -115,6 +115,8 @@ class TestFuzzyPatternsAngrDB(unittest.TestCase):
             assert first.pattern == _pattern("first")
             assert first.min_similarity == 0.5
             assert first.origin_func == 0x400580
+            assert first.require_verified is False
+            assert kb2.fuzzy_patterns.get("second").require_verified is True
             assert kb2.fuzzy_patterns.get("second").enabled is False
 
             kb.fuzzy_patterns.remove("second")

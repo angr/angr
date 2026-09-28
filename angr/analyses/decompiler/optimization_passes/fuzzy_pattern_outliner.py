@@ -91,7 +91,7 @@ class FuzzyPatternOutliner(OptimizationPass):
                 if key in tried or match.similarity < entry.min_similarity:
                     continue
                 verify(match, entry.pattern, stream)
-                if not match.verified:
+                if entry.require_verified and not match.verified:
                     continue
                 rank = (match.similarity, len(match))
                 if best is None or rank > best[0]:

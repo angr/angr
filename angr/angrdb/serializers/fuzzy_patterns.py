@@ -24,6 +24,7 @@ class FuzzyPatternsSerializer:
                     enabled=stored.enabled,
                     min_similarity=stored.min_similarity,
                     origin_func=stored.origin_func,
+                    require_verified=stored.require_verified,
                     created_at=stored.created_at,
                     pattern=json.dumps(stored.to_dict()["pattern"]),
                 )
@@ -40,6 +41,9 @@ class FuzzyPatternsSerializer:
                         "enabled": db_pattern.enabled,
                         "min_similarity": db_pattern.min_similarity,
                         "origin_func": db_pattern.origin_func,
+                        "require_verified": True
+                        if db_pattern.require_verified is None
+                        else db_pattern.require_verified,
                         "created_at": db_pattern.created_at,
                     }
                 )

@@ -269,6 +269,7 @@ class DbFuzzyPattern(Base):
     enabled = Column(Boolean)
     min_similarity = Column(Float)
     origin_func = Column(Integer)
+    require_verified = Column(Boolean, default=True)
     created_at = Column(Float)
     pattern = Column(TEXT)
 

@@ -30,6 +30,9 @@ class StoredPattern:
     min_similarity: float = 0.8
     #: address of the function the pattern was lifted from, if any
     origin_func: int | None = None
+    #: outline only occurrences that pass the pattern's structural match (constants,
+    #: captures); off, similarity alone decides, as it does for discovered patterns
+    require_verified: bool = True
     created_at: float = field(default_factory=time.time)
 
     @property
@@ -47,6 +50,7 @@ class StoredPattern:
             "enabled": self.enabled,
             "min_similarity": self.min_similarity,
             "origin_func": self.origin_func,
+            "require_verified": self.require_verified,
             "created_at": self.created_at,
         }
 
@@ -61,6 +65,7 @@ class StoredPattern:
             enabled=bool(data.get("enabled", True)),
             min_similarity=float(data.get("min_similarity", 0.8)),
             origin_func=data.get("origin_func"),
+            require_verified=bool(data.get("require_verified", True)),
             created_at=float(data.get("created_at", 0.0)),
         )
 
@@ -96,6 +101,7 @@ class FuzzyPatterns(KnowledgeBasePlugin):
         enabled: bool = True,
         min_similarity: float = 0.8,
         origin_func: int | None = None,
+        require_verified: bool = True,
         replace: bool = False,
     ) -> StoredPattern:
         """Store ``pattern``. Refuses a name or call name already taken unless ``replace``."""
@@ -105,7 +111,13 @@ class FuzzyPatterns(KnowledgeBasePlugin):
             clash = self.by_call_name(pattern.call_name)
             if clash is not None:
                 raise ValueError(f"call name {pattern.call_name!r} is already used by pattern {clash.name!r}")
-        stored = StoredPattern(pattern, enabled=enabled, min_similarity=min_similarity, origin_func=origin_func)
+        stored = StoredPattern(
+            pattern,
+            enabled=enabled,
+            min_similarity=min_similarity,
+            origin_func=origin_func,
+            require_verified=require_verified,
+        )
         self._patterns[pattern.name] = stored
         return stored
 
