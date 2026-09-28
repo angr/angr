@@ -47,6 +47,10 @@ class FuzzyPatternOutliner(OptimizationPass):
     DESCRIPTION = __doc__.strip() if __doc__ else ""
 
     MAX_ROUNDS = 32
+    #: with a derived frontier, reject a callee larger than this many times the region
+    MAX_AUTO_BLOCKS = 3
+    #: ...or smaller than this fraction of it
+    MIN_AUTO_RATIO = 0.5
 
     def __init__(self, func, manager, **kwargs):
         super().__init__(func, manager, **kwargs)
@@ -103,15 +107,23 @@ class FuzzyPatternOutliner(OptimizationPass):
     def _outline(self, graph: networkx.DiGraph[Block], stream: TokenStream, stored: StoredPattern, match) -> bool:
         pattern = stored.pattern
         region = snap(stream, graph, match.interval, entry_loc=(self._func.addr, None))
+        # A run of tokens is not always a single-entry region: reverse post-order interleaves
+        # blocks from different parts of the CFG, so one copy of an idiom can still be jumped
+        # into from elsewhere. When that is the only objection, hand the Outliner the start
+        # alone and let it derive the frontier from dominance and liveness, as a hand-written
+        # outlining call would; the size checks below catch a frontier that ran away.
+        auto = False
         if not region.outlinable:
-            self.skipped.append((pattern.name, region.reason))
-            return False
+            if "entered from outside" not in region.reason:
+                self.skipped.append((pattern.name, region.reason))
+                return False
+            auto = True
 
         snapshot = _snapshot(graph)
         saved_vvar_id = self.vvar_id_start
         try:
             src_loc, frontier = materialize(
-                graph, stream, region, self.new_block_addr, split_tail=True, idx_alloc=self.manager.next_atom
+                graph, stream, region, self.new_block_addr, split_tail=not auto, idx_alloc=self.manager.next_atom
             )
             # taken after materialize, which allocates its split blocks the same way
             block_addr_start = self.new_block_addr()
@@ -119,7 +131,8 @@ class FuzzyPatternOutliner(OptimizationPass):
                 self._func,
                 graph,
                 src_loc=src_loc,
-                frontier=frontier,
+                frontier=None if auto else frontier,
+                min_step=2 if auto else 1,
                 vvar_id_start=max(self.vvar_id_start, 1),
                 block_addr_start=block_addr_start,
             )
@@ -132,8 +145,13 @@ class FuzzyPatternOutliner(OptimizationPass):
         self._new_block_addrs.add(outliner.block_addr_start)
 
         reason = None
+        n_region = max(1, len(region.block_locs))
         if outliner.child_graph is None or len(outliner.child_graph) == 0:
             reason = "outliner produced an empty callee"
+        elif auto and len(outliner.child_graph) > self.MAX_AUTO_BLOCKS * n_region:
+            reason = f"derived frontier ran away: {len(outliner.child_graph)} blocks for a {n_region}-block region"
+        elif auto and len(outliner.child_graph) < self.MIN_AUTO_RATIO * n_region:
+            reason = f"derived frontier too small: {len(outliner.child_graph)} blocks for a {n_region}-block region"
         else:
             normalize_call_width(graph, src_loc)
             problems = graph_problems(graph, self._func.addr)
