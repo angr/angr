@@ -148,6 +148,20 @@ class TestEdits(unittest.TestCase):
         ed.set_const(path, 9)
         assert ed.node_at(path) == PConst(value=9)
 
+    def test_a_constant_can_be_pinned_to_a_symbol(self):
+        ed = PatternEditor(_pattern())
+        path = ("stmts", 0, "src", "operands", 1)
+        ed.set_const(path, None, symbol="stdout")
+        assert ed.node_at(path) == PConst(symbol="stdout")
+        assert describe(ed.node_at(path)) == "&stdout"
+        # a symbol is already portable: loosening leaves it alone
+        assert ed.loosen_constants() == 2
+        assert ed.node_at(path) == PConst(symbol="stdout")
+        ed.set_const(path, 8)
+        assert ed.node_at(path) == PConst(value=8)
+        with self.assertRaises(ValueError):
+            ed.set_const(path, 8, symbol="stdout")
+
     def test_loosen_constants_is_one_undoable_sweep(self):
         ed = PatternEditor(_pattern())
         assert ed.loosen_constants() == 3, "8, and the two choice alternatives"

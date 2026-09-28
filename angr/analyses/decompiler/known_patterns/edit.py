@@ -111,11 +111,19 @@ class PatternEditor:
         bits = node.bits if isinstance(node, (dsl.PVVar, dsl.PConst, dsl.PPhi, dsl.PAny)) else None
         self.replace_node(path, dsl.PAny(name=name, bits=bits))
 
-    def set_const(self, path: NodePath, value: int | None, bits: int | None = None) -> None:
+    def set_const(
+        self, path: NodePath, value: int | None, bits: int | None = None, *, symbol: str | None = None
+    ) -> None:
+        """Pin a constant to a value, or to a symbol's address in whatever binary is matched.
+        One or the other: a symbol names the value, so giving both is refused."""
         node = self.node_at(path)
         if not isinstance(node, dsl.PConst):
             raise TypeError(f"{type(node).__name__} is not a constant")
-        self.replace_node(path, dataclasses.replace(node, value=value, bits=bits, pred=None, values=None))
+        if value is not None and symbol is not None:
+            raise ValueError("a constant is pinned to a value or to a symbol, not both")
+        self.replace_node(
+            path, dataclasses.replace(node, value=value, bits=bits, symbol=symbol, pred=None, values=None)
+        )
 
     def set_vvar(self, path: NodePath, bits: int | None, categories: frozenset | None) -> None:
         node = self.node_at(path)
