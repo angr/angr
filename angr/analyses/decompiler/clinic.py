@@ -1403,7 +1403,9 @@ class Clinic(Analysis, Serializable):
             ):
                 # tail jumps
                 target_func = self.kb.functions.get_by_addr(node.addr)
-            elif isinstance(node, FuncNode):
+            elif isinstance(node, FuncNode) and self.kb.functions.contains_addr(node.addr):
+                # removing a function does not rewrite its callers' transition graphs, so a FuncNode
+                # outlives the function it names
                 target_func = self.kb.functions.get_by_addr(node.addr)
             else:
                 # TODO: Enable call-site analysis for indirect calls
