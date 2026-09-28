@@ -902,26 +902,43 @@ def _parse_cifelse(pb, ctx):
     return obj
 
 
+_UINT64_RANGE = 1 << 64
+
+
 def _ser_cswitch(node, pb, ctx):
     pb.cswitch.switch_id = ctx.serialize(node.switch)
     for case_ids, stmts in node.cases:
         entry = pb.cswitch.cases.add()
-        if isinstance(case_ids, tuple):
-            entry.case_ids.extend(case_ids)
-        else:
-            entry.case_ids.append(case_ids)
+        labels = case_ids if isinstance(case_ids, tuple) else (case_ids,)
+        # A label taken from a comparison constant is the constant's unsigned value, so `case -2:` on a
+        # 64-bit switch arrives as 0xfffffffffffffffe, while a label from elsewhere can be a small negative
+        # number. Store the raw 64-bit value either way, and say which labels to read back as negative only
+        # when one of them is, so a switch with no negative label writes exactly the bytes it always has.
+        signed = [label < 0 for label in labels]
+        for label, label_signed in zip(labels, signed):
+            entry.case_ids.append(label + _UINT64_RANGE if label_signed else label)
+        if any(signed):
+            entry.case_ids_signed.extend(signed)
         entry.statements_id = ctx.serialize(stmts)
     if node.default is not None:
         pb.cswitch.default_id = ctx.serialize(node.default)
+
+
+def _parse_case_ids(entry):
+    """One entry's case labels, giving back the sign of the ones ``_ser_cswitch`` stored as raw patterns."""
+    signed = entry.case_ids_signed
+    case_ids = [
+        case_id - _UINT64_RANGE if idx < len(signed) and signed[idx] else case_id
+        for idx, case_id in enumerate(entry.case_ids)
+    ]
+    return tuple(case_ids) if len(case_ids) > 1 else case_ids[0]
 
 
 def _parse_cswitch(pb, ctx):
     obj = CSwitchCase.__new__(CSwitchCase)
     body = pb.cswitch
     obj.switch = ctx.resolve(body.switch_id)
-    obj.cases = [
-        (tuple(e.case_ids) if len(e.case_ids) > 1 else e.case_ids[0], ctx.resolve(e.statements_id)) for e in body.cases
-    ]
+    obj.cases = [(_parse_case_ids(e), ctx.resolve(e.statements_id)) for e in body.cases]
     obj.default = ctx.resolve(body.default_id) if body.HasField("default_id") else None
     return obj
 
