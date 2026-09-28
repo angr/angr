@@ -328,14 +328,18 @@ class PCodeIRSBConverter(Converter):
         if space_name == "unique":
             offset = self._remap_temp(varnode.offset, varnode.size, is_write)
             if offset is None:
-                # this might be a partial access of an existing temporary variable
+                # This is a partial access of an existing temporary variable: its parent is the
+                # tracked write whose bytes cover the whole read. Where several do, take the one
+                # with the closest base.
                 unique_offset = None
-                for delta in range(0, -8, -1):
-                    if varnode.offset + delta in self._unique_tracker:
-                        unique_offset = varnode.offset + delta
-                        break
+                for base, (_, base_size) in self._unique_tracker.items():
+                    if (
+                        base <= varnode.offset
+                        and varnode.offset + varnode.size <= base + base_size
+                        and (unique_offset is None or base > unique_offset)
+                    ):
+                        unique_offset = base
                 assert unique_offset is not None, "Cannot find the source unique variable"
-                # TODO: Check size
                 ori_tmp_idx, ori_tmp_size = self._unique_tracker[unique_offset]
                 # Index the parent by its remapped index, not by its unique-space address: the defining
                 # write went through _remap_temp, so a Tmp built from the raw offset names nothing.
