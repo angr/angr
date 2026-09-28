@@ -1600,12 +1600,23 @@ class SimCCMicrosoftAMD64(SimCC):
                 chosen = SimTypePointer(SimTypeBottom()).with_arch(self.arch)
             return self.return_val(chosen, perspective_returned=perspective_returned)
 
-        if not isinstance(ty, SimStruct):
+        # An array is an aggregate too, and it goes where a struct of its size goes: into RAX below
+        # the threshold, through the hidden out-parameter above it. return_in_implicit_outparam
+        # answers on ty.size alone, so it already agrees with this for an array.
+        #
+        # An array whose size is not a positive number of bits has no layout to give, and the base
+        # class's refusal is the right answer for it. Testing the size covers all three ways of
+        # getting there at once, because SimTypeArray.size is 0 for a length-less array and
+        # propagates through nesting: no length, no element size, or an unsized array inside one.
+        sized_array = isinstance(ty, SimTypeArray) and bool(ty.size)
+        if not isinstance(ty, SimStruct) and not sized_array:
             return super().return_val(ty, perspective_returned)
 
-        if ty.size > self.STRUCT_RETURN_THRESHOLD:
+        size = ty.size
+        assert size is not None
+        if size > self.STRUCT_RETURN_THRESHOLD:
             # TODO this code is duplicated a ton of places. how should it be a function?
-            byte_size = ty.size // self.arch.byte_width
+            byte_size = size // self.arch.byte_width
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
             if perspective_returned:
