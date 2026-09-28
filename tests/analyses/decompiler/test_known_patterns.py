@@ -19,6 +19,7 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
+    Convert,
     Load,
     Phi,
     StackBaseOffset,
@@ -295,6 +296,44 @@ class TestKnownPatternsDsl(TestCase):
         assert _VECSIZE.match(size_expr(v, v), MatchState(), MatchCtx()) is not None
         # unification: _M_finish and _M_start must be loaded off the same vvar
         assert _VECSIZE.match(size_expr(v, other), MatchState(), MatchCtx()) is None
+
+
+class TestDefinitionChasing(TestCase):
+    """Chasing a virtual variable to its definition, and stopping."""
+
+    @staticmethod
+    def _looping_byte():
+        """The two definitions a byte carried round a loop in a stack slot gets.
+
+        The one-byte slot holds the low byte of an eight-byte register, and the
+        register is reloaded from the slot through the loop header, so the slot
+        resolves to a Convert of the register and the register to a Convert of
+        the slot. Both answers are right; following them in turn is what has to
+        stop.
+        """
+        slot = VirtualVariable(None, 347, 8, VirtualVariableCategory.REGISTER)
+        reg = VirtualVariable(None, 78, 64, VirtualVariableCategory.REGISTER)
+        remote = {
+            slot.varid: Convert(None, 64, 8, False, reg),
+            reg.varid: Convert(None, 8, 64, False, slot),
+        }
+        return slot, MatchCtx(remote_chase_fn=remote.get)
+
+    def test_a_definition_cycle_declines_rather_than_running_away(self):
+        slot, ctx = self._looping_byte()
+        pattern = PBinOp("Add", (PVVar(), PVVar()))
+        # before the chase kept a record of what it had already resolved this
+        # raised RecursionError, which the decompiler caught and paid for by
+        # redoing the whole function on the basic preset
+        assert pattern.match(slot, MatchState(), ctx) is None
+
+    def test_a_definition_that_does_not_loop_is_still_chased(self):
+        a = VirtualVariable(None, 11, 64, VirtualVariableCategory.REGISTER)
+        b = VirtualVariable(None, 12, 64, VirtualVariableCategory.REGISTER)
+        use = VirtualVariable(None, 10, 64, VirtualVariableCategory.REGISTER)
+        remote = {use.varid: BinaryOp(None, "Add", [a, b], False, bits=64)}
+        ctx = MatchCtx(remote_chase_fn=remote.get)
+        assert PBinOp("Add", (PVVar(), PVVar())).match(use, MatchState(), ctx) is not None
 
 
 class TestPCall(TestCase):
