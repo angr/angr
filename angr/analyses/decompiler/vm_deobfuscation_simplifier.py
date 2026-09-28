@@ -17,6 +17,10 @@ from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .block_simplifier import BlockSimplifier
 from .peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.utils.debug_trap import debug_trap
+from .optimization_passes.duplicate_branch_merger import (
+    DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
+    merge_duplicate_branches,
+)
 
 l = logging.getLogger(name=__name__)
 
@@ -71,6 +75,9 @@ class VMDeobfuscationSimplifierMixin:
     #: How many un-reference / stack-SSA / simplify rounds to run after the transforms. Each one
     #: resolves a further level of indirection through a VM's emulated operand stack.
     VM_DEOBF_SSA_ROUNDS = 6
+
+    #: Cap on how many statements a duplicated if/else arm may hold before it is merged.
+    VM_DEOBF_MAX_DUPLICATED_STMTS = DEFAULT_MAX_DUPLICATED_BRANCH_STMTS
 
     #: (transform name, whether to re-simplify the function afterwards), in pushan's order
     VM_DEOBF_TRANSFORMS = (
@@ -1227,51 +1234,18 @@ class VMDeobfuscationSimplifierMixin:
 
 
     def remove_same_branches(self, ail_graph):
-        # this pass removes the branches that are semantically the same, keeping only one of them and remove the conditional check as well
-        new_blocks = {}
+        """Collapse if/else constructs whose two arms compute the same thing.
 
-        nodes_to_remove = set()
-        for node in ail_graph.nodes():
-            succs = list(ail_graph.successors(node))
-            if len(succs) == 2:
-                succ_0 = succs[0]
-                succ_1 = succs[1]
-
-                is_same = True
-                if len(succ_0.statements) == len(succ_1.statements):
-                    for i in range(1,len(succ_0.statements)): # skip the label
-                        if not succ_0.statements[i].likes(succ_1.statements[i]):
-                            is_same = False
-                else:
-                    is_same = False
-
-                if is_same:
-                    if len(list(ail_graph.successors(succ_0))) == 1 and len(list(ail_graph.successors(succ_1))) == 1 \
-                            and list(ail_graph.successors(succ_0))[0] == list(ail_graph.successors(succ_1))[0]:
-                        nodes_to_remove.add(succ_1)
-                        if isinstance(node.statements[-1], ailment.statement.ConditionalJump):
-                            new_stmts = node.statements[::]
-                            new_stmts = new_stmts[:-1]
-                            target_addr = ailment.Expr.Const(None, succ_0.addr, node.statements[-1].true_target.bits)
-                            new_stmts.append(ailment.statement.Jump(None, target_addr, **node.statements[-1].tags))
-                            #node.statements = new_stmts
-
-                            new_block = node.copy()
-                            new_block.statements = new_stmts
-                            new_blocks[node] = new_block
-
-        for node in nodes_to_remove:
-            ail_graph.remove_node(node)
-
-        #rebuild graph
-        def _handler(node):
-            return new_blocks.get(node, None)
-
-        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
-
+        Superseded by optimization_passes.duplicate_branch_merger, which this now delegates to.
+        The original compared the two arms with an exact ``likes()``; this pass runs after SSA,
+        where identical arms necessarily assign to different virtual variables, so it could never
+        match and was dead code. The shared implementation compares modulo destination renaming
+        and repairs the phis at the join. It also fixes a latent bug here: the old comparison
+        started at statement index 1 "to skip the label" without checking that index 0 *was* a
+        label, so two unlabelled arms differing only in their first statement compared as equal.
+        """
+        merge_duplicate_branches(ail_graph, self.VM_DEOBF_MAX_DUPLICATED_STMTS)
         return ail_graph
-
-
 
     def _remove_cyclic_def_use(self, ail_graph):
         # This is an experimental dead assignment elimination for constant addr stores that are in a loop and

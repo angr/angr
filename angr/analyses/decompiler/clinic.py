@@ -131,6 +131,7 @@ from .ireg_resolver import IRegisterResolver
 from .notes import DecompilationNote
 from .optimization_passes import (
     CONDENSING_OPTS,
+    DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
     DUPLICATING_OPTS,
     OptimizationPassStage,
     StackCanarySimplifier,
@@ -481,6 +482,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         save_unoptimized_graph: bool = False,
         known_patterns: str | tuple[str, ...] | None = None,
         recognize_known_patterns: bool = True,
+        max_duplicated_branch_stmts: int = DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
         calls_as_rets=None,
         allow_global_dead_ass_elim: bool = False,
         ail_propagator_init_values=None,
@@ -627,6 +629,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
         # the user's KnownPattern force-enable selection; consumed by the KnownPatternOutliner optimization pass
         self._known_patterns = known_patterns
         self._recognize_known_patterns = recognize_known_patterns
+        self._max_duplicated_branch_stmts = max_duplicated_branch_stmts
 
         self._new_block_addrs: set[int] = set()
 
@@ -2834,6 +2837,7 @@ class Clinic(VMDeobfuscationSimplifierMixin, Analysis, Serializable):
                 static_buffers=self.static_buffers,
                 known_patterns=self._known_patterns,
                 recognize_known_patterns=self._recognize_known_patterns,
+                max_duplicated_branch_stmts=self._max_duplicated_branch_stmts,
                 **kwargs,
             )
             if a.out_graph:

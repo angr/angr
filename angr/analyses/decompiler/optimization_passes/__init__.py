@@ -11,6 +11,11 @@ from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .call_stmt_rewriter import CallStatementRewriter
 from .cmpf_value_lowering import CmpFValueLowering
 from .code_motion import CodeMotionOptimization
+from .duplicate_branch_merger import (
+    DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
+    DuplicateBranchMerger,
+    merge_duplicate_branches,
+)
 from .condition_constprop import ConditionConstantPropagation
 from .const_derefs import ConstantDereferencesSimplifier
 from .const_prop_reverter import ConstPropOptReverter
@@ -90,6 +95,7 @@ ALL_OPTIMIZATION_PASSES = [
     ReturnDuplicatorLow,
     ReturnDeduplicator,
     CodeMotionOptimization,
+    DuplicateBranchMerger,
     CrossJumpReverter,
     FlipBooleanCmp,
     # Simplify string transformation loops before other inlined string/memory operations use simplified output
@@ -168,6 +174,9 @@ __all__ = (
     "CallStatementRewriter",
     "CmpFValueLowering",
     "CodeMotionOptimization",
+    "DEFAULT_MAX_DUPLICATED_BRANCH_STMTS",
+    "DuplicateBranchMerger",
+    "merge_duplicate_branches",
     "ConditionConstantPropagation",
     "ConstPropOptReverter",
     "ConstantDereferencesSimplifier",

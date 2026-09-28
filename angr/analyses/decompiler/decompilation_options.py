@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 
+from .optimization_passes.duplicate_branch_merger import DEFAULT_MAX_DUPLICATED_BRANCH_STMTS
 from .structuring import structurer_class_from_name
 from .structuring.phoenix import MultiStmtExprMode
 
@@ -452,6 +453,20 @@ options = [
         default_value=None,
         clears_cache=True,
         convert=parse_known_patterns,
+    ),
+    O(
+        "Maximum statements in a merged duplicate if/else branch",
+        "Obfuscators emit opaque predicates whose two arms compute exactly the same thing. When both arms of an "
+        "if/else hold at most this many side-effect-free statements and compute the same values, the decompiler "
+        "keeps one arm and drops the other. Raising the limit merges larger duplicated arms; set to 0 to disable "
+        f"the merge entirely. Defaults to {DEFAULT_MAX_DUPLICATED_BRANCH_STMTS}.",
+        int,
+        "clinic",
+        "max_duplicated_branch_stmts",
+        category="General",
+        default_value=DEFAULT_MAX_DUPLICATED_BRANCH_STMTS,
+        value_range=(0, 1000),
+        clears_cache=True,
     ),
 ]
 
