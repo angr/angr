@@ -651,17 +651,18 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         # kill caller-saved registers; the call becomes their definition
         call_loc = self._acodeloc()
+        clobbered_by = frozenset((call_loc,))
         for reg_name in call_clobbered_regs(cc, target, self.arch):
             reg_offset, _ = self.arch.registers[reg_name]
             base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch)
             self.state.live_registers.pop(base_off, None)
             for suboff in range(base_off, base_off + base_size):
-                self.state.register_blackout[suboff] = {call_loc}
+                self.state.register_blackout[suboff] = clobbered_by
                 self.state.register_defs.pop(suboff, None)
         for reg in cc.arch.vex_cc_regs or []:
             self.state.live_registers.pop(reg.vex_offset, None)
             for suboff in range(reg.vex_offset, reg.vex_offset + reg.size):
-                self.state.register_blackout[suboff] = {call_loc}
+                self.state.register_blackout[suboff] = clobbered_by
                 self.state.register_defs.pop(suboff, None)
 
         return set()
