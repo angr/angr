@@ -70,21 +70,24 @@ class FuzzyPatternOutliner(OptimizationPass):
             if entry is None:
                 break
             stream = tokenize_for_templates(graph, entry, kb=self.kb)
-            hit = self._best_hit(stream, stored, tried)
-            if hit is None:
+            # a failed outline restores the graph, so the stream and the ranking stay good:
+            # work down the list until one succeeds, and only then tokenize and search again
+            outlined = False
+            for pattern, match in self._ranked_hits(stream, stored, tried):
+                tried.add((pattern.name, stream.addr_range(match.interval.start, match.interval.end)))
+                if self._outline(graph, stream, pattern, match):
+                    outlined = changed = True
+                    break
+            if not outlined:
                 break
-            pattern, match = hit
-            tried.add((pattern.name, stream.addr_range(match.interval.start, match.interval.end)))
-            if self._outline(graph, stream, pattern, match):
-                changed = True
         if changed:
             self.out_graph = graph
 
-    def _best_hit(
+    def _ranked_hits(
         self, stream: TokenStream, stored: list[StoredPattern], tried: set
-    ) -> tuple[StoredPattern, TemplateMatch] | None:
-        """The most similar untried occurrence of any enabled pattern, longest on ties."""
-        best = None
+    ) -> list[tuple[StoredPattern, TemplateMatch]]:
+        """Every untried occurrence of any enabled pattern, most similar first, longest on ties."""
+        hits: list[tuple[tuple[float, int], StoredPattern, TemplateMatch]] = []
         for entry in stored:
             for match in search(entry.pattern, stream):
                 key = (entry.name, stream.addr_range(match.interval.start, match.interval.end))
@@ -93,10 +96,9 @@ class FuzzyPatternOutliner(OptimizationPass):
                 verify(match, entry.pattern, stream)
                 if entry.require_verified and not match.verified:
                     continue
-                rank = (match.similarity, len(match))
-                if best is None or rank > best[0]:
-                    best = (rank, entry, match)
-        return None if best is None else (best[1], best[2])
+                hits.append(((match.similarity, len(match)), entry, match))
+        hits.sort(key=lambda h: h[0], reverse=True)
+        return [(entry, match) for _, entry, match in hits]
 
     def _outline(self, graph: networkx.DiGraph[Block], stream: TokenStream, stored: StoredPattern, match) -> bool:
         pattern = stored.pattern

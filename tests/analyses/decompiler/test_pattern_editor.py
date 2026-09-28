@@ -166,6 +166,23 @@ class TestEdits(unittest.TestCase):
         assert ed.undo()
         assert ed.node_at(("src",)) == deep
 
+    def test_cut_depth_does_not_name_a_cut_subtree(self):
+        """A named wildcard in place of a subtree would bind the subtree to a parameter that
+        binds a variable elsewhere, and the pattern would never verify again."""
+        deep = PBinOp("Add", (PVVar(name="a0"), PConst(value=1)), name="a0")
+        for _ in range(5):
+            deep = PBinOp("Add", (deep, PConst(value=1)))
+        pattern = KnownPattern(
+            name="d", display_name="d", call_name="d", pattern=PAssign(PVVar(name="a0"), deep), params=()
+        )
+        ed = PatternEditor(pattern)
+        ed.cut_depth(3)
+        node = ed.node_at(("src",))
+        for _ in range(2):
+            node = node.operands[0]
+        assert node.operands[0] == PAny(), "an inner node loses its name when cut"
+        assert ed.node_at(("dst",)) == PVVar(name="a0")
+
     def test_loosen_interior_captures_keeps_parameters(self):
         ed = PatternEditor(_pattern())
         assert ed.loosen_interior_captures() == 0, "this pattern names no interior value"

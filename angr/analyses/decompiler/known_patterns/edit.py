@@ -183,7 +183,10 @@ class PatternEditor:
         root = self.pattern.pattern
         for path in cuts:
             node = self.node_at(path)
-            name = node.name if isinstance(node, _NAMED) else None
+            # a leaf keeps its capture name: the wildcard still binds the same thing. An
+            # inner node must not: a named wildcard binds the whole subtree, and a
+            # parameter's other uses bind the variable, so the two could never unify
+            name = node.name if isinstance(node, (dsl.PVVar, dsl.PConst, dsl.PAny)) else None
             root = _rebuild(root, path, dsl.PAny(name=name))
         self._commit(dataclasses.replace(self.pattern, pattern=root))
         return len(cuts)
