@@ -550,6 +550,15 @@ class TestTypeTranslator(unittest.TestCase):
         assert isinstance(restored, SimStruct)
         assert restored.offsets == {"field_0": 0, "field_1": 1, "field_2": 2}
 
+    def test_zero_sized_homogeneous_struct_is_not_specialized(self):
+        typehoon = Typehoon.__new__(Typehoon)
+
+        empty_cpp_struct = Struct(fields={}, name="Empty", is_cppclass=True)
+        for field in (empty_cpp_struct, Array(Int8(), count=0)):
+            with self.subTest(field=field):
+                struct = Struct(fields={0: field, 4: field})
+                assert typehoon._specialize_struct(struct) is None
+
     def test_standard_width_simtypenum_round_trip(self):
         arch = archinfo.arch_from_id("amd64")
         tx = TypeTranslator(arch)

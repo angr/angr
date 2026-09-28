@@ -320,6 +320,8 @@ class Typehoon(Analysis):
                     alignment = field0.size
                 except NotImplementedError:
                     alignment = 1
+                if alignment <= 0:
+                    return None
                 if all(off % alignment == 0 for off in offsets):
                     # yeah!
                     max_offset = offsets[-1]
