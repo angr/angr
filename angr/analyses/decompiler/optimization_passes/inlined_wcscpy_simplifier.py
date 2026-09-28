@@ -2,21 +2,80 @@
 from __future__ import annotations
 
 import string
+from collections import defaultdict
 
 from archinfo import Endness
 
-from angr.ailment import BinaryOp
-from angr.ailment.expression import Call, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
+from angr.ailment import AILBlockViewer, BinaryOp
+from angr.ailment.expression import (
+    Call,
+    Const,
+    DirtyExpression,
+    Expression,
+    Load,
+    MultiStatementExpression,
+    Register,
+    StackBaseOffset,
+    UnaryOp,
+    VirtualVariable,
+)
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.ailment.tagged_object import TagDict
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
+from angr.utils.ssa import phi_assignment_get_src
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 ASCII_PRINTABLES = {ord(x) for x in string.printable if ord(x) >= 0x20}
 ASCII_DIGITS = {ord(x) for x in string.digits}
+
+
+class _MemoryAccessFinder(AILBlockViewer):
+    """
+    Determines if a statement may read memory, reference the stack, or have side effects.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.found = False
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if self.found:
+            return None
+        if isinstance(expr, (Load, Call, DirtyExpression, MultiStatementExpression, StackBaseOffset)) or (
+            isinstance(expr, VirtualVariable) and expr.was_stack
+        ):
+            self.found = True
+            return None
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class _VVarValueUseCounter(AILBlockViewer):
+    """
+    Counts value uses of virtual variables. Taking the address of a virtual variable is not a value use.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.counts: defaultdict[int, int] = defaultdict(int)
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.tags.get("extra_def", False):
+            return None
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Assignment(self, stmt_idx, stmt, block):
+        self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+
+    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+            return None
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        self.counts[expr.varid] += 1
 
 
 class InlinedWcscpySimplifier(OptimizationPass):
@@ -33,6 +92,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._vvar_value_uses: dict[int, int] | None = None
         self.analyze()
 
     def _check(self):
@@ -94,42 +154,95 @@ class InlinedWcscpySimplifier(OptimizationPass):
             return None
 
         r, s = self.is_integer_likely_a_wide_string(value, value_size, self.project.arch.memory_endness, min_length=2)
-        if r:
+        if r and self._stmts_removable(statements, [stmt_idx]):
             assert s is not None
             return self._make_wcsncpy_call(stmt, dst, s)
 
         # scan forward to find all consecutive constant stores
         all_constant_stores = self._collect_constant_stores(statements, stmt_idx)
-        if all_constant_stores:
-            offsets = sorted(all_constant_stores.keys())
-            next_offset = min(offsets)
-            stride = []
-            for offset in offsets:
-                if next_offset is not None and offset != next_offset:
-                    next_offset = None
-                    stride = []
-                sidx, v = all_constant_stores[offset]
-                if v is not None:
-                    stride.append((offset, sidx, v))
-                    next_offset = offset + v.size
-                else:
-                    next_offset = None
-                    stride = []
-
-            if stride:
-                integer, size = self._stride_to_int(stride)
-                r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=2)
-                if r:
-                    assert s is not None
-                    # remove all involved statements whose indices are greater than the current one
-                    for _, sidx, _ in reversed(stride):
-                        if sidx <= stmt_idx:
-                            continue
-                        statements[sidx] = None
-
-                    return self._make_wcsncpy_call(stmt, dst, s)
+        found = self._find_wide_string_stride(statements, stmt_idx, all_constant_stores)
+        if found is not None:
+            stride, s = found
+            for _, sidx, _ in stride:
+                if sidx != stmt_idx:
+                    statements[sidx] = None
+            first_offset, first_sidx, _ = stride[0]
+            if isinstance(stmt, Assignment):
+                dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, first_offset)
+            else:
+                dst = statements[first_sidx].addr if first_sidx != stmt_idx else stmt.addr
+            return self._make_wcsncpy_call(stmt, dst, s)
 
         return None
+
+    def _find_wide_string_stride(self, statements, stmt_idx, all_constant_stores):
+        """
+        Find the longest valid wide string made of contiguous constant writes that include the write at stmt_idx.
+        """
+        pieces = sorted((off, sidx, v) for off, (sidx, v) in all_constant_stores.items() if v is not None)
+        start = next((i for i, (_, sidx, _) in enumerate(pieces) if sidx == stmt_idx), None)
+        if start is None:
+            return None
+        lo = start
+        while lo > 0 and pieces[lo - 1][0] + pieces[lo - 1][2].size == pieces[lo][0]:
+            lo -= 1
+        hi = start
+        while hi + 1 < len(pieces) and pieces[hi][0] + pieces[hi][2].size == pieces[hi + 1][0]:
+            hi += 1
+
+        # the write at stmt_idx is replaced, so it must be part of the stride
+        for end in range(hi, start - 1, -1):
+            stride = pieces[lo : end + 1]
+            integer, size = self._stride_to_int(stride)
+            if size % 2 != 0:
+                continue
+            r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=2)
+            if r and self._stmts_removable(statements, [sidx for _, sidx, _ in stride]):
+                assert s is not None
+                return stride, s
+        return None
+
+    def _stmts_removable(self, statements, stmt_indices) -> bool:
+        """
+        Statements are removable if the virtual variables they define are not used by value anywhere else.
+        """
+        defined = [
+            statements[i].dst.varid
+            for i in stmt_indices
+            if isinstance(statements[i], Assignment) and isinstance(statements[i].dst, VirtualVariable)
+        ]
+        if not defined:
+            return True
+        local_counter = _VVarValueUseCounter()
+        for i in stmt_indices:
+            local_counter.walk_statement(statements[i])
+        all_uses = self._value_use_counts()
+        return all(all_uses.get(varid, 0) == local_counter.counts.get(varid, 0) for varid in defined)
+
+    def _value_use_counts(self) -> dict[int, int]:
+        if self._vvar_value_uses is None:
+            # uses by a phi only count if the phi variable itself is used, since dead phis are removed later
+            counter = _VVarValueUseCounter()
+            phi_srcs: dict[int, list[int]] = {}
+            for block in self._graph:
+                for stmt in block.statements:
+                    phi = phi_assignment_get_src(stmt)
+                    if phi is not None:
+                        assert isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+                        phi_srcs[stmt.dst.varid] = [vvar.varid for _, vvar in phi.src_and_vvars if vvar is not None]
+                    else:
+                        counter.walk_statement(stmt, block=block)
+            counts = counter.counts
+            worklist = [varid for varid in phi_srcs if counts[varid] > 0]
+            live = set(worklist)
+            while worklist:
+                for src_varid in phi_srcs.get(worklist.pop(), []):
+                    counts[src_varid] += 1
+                    if src_varid in phi_srcs and src_varid not in live:
+                        live.add(src_varid)
+                        worklist.append(src_varid)
+            self._vvar_value_uses = dict(counts)
+        return self._vvar_value_uses
 
     def _make_wcsncpy_call(self, stmt, dst, s):
         str_id = self.kb.custom_strings.allocate(s)
@@ -170,9 +283,13 @@ class InlinedWcscpySimplifier(OptimizationPass):
         Collects all wcsncpy calls, constant stores, and constant stack assignments in the block, groups them by base
         address, and consolidates adjacent entries within each group.
         """
-        # Collect all candidate statements with their base/offset
+        # Collect all candidate statements with their base/offset. Candidates separated by a statement that may read
+        # or clobber memory are never merged, so each group only spans one barrier-free segment.
         candidates = []  # list of (stmt_index, base, offset, store_size, stmt)
+        segments = {}  # stmt_index -> segment id
+        segment = 0
         for i, stmt in enumerate(statements):
+            segments[i] = segment
             if isinstance(stmt, SideEffectStatement) and self.is_inlined_wcsncpy(stmt):
                 assert stmt.expr.args is not None and len(stmt.expr.args) >= 3
                 base, off = self._parse_addr(stmt.expr.args[0])
@@ -195,6 +312,8 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 base, off = self._parse_addr(stmt.dst)
                 if off is not None:
                     candidates.append((i, base, off, stmt.dst.size, stmt))
+            elif not self._is_unrelated_stmt(stmt):
+                segment += 1
 
         if not candidates:
             return None
@@ -208,18 +327,18 @@ class InlinedWcscpySimplifier(OptimizationPass):
 
         # Group candidates by base
         groups: dict[int, list] = {}
-        base_map = {}
+        base_map: dict[int, tuple[int, Expression]] = {}
         for entry in candidates:
-            _idx, base, off, sz, stmt = entry
+            idx, base, off, sz, stmt = entry
             # Find matching group
             matched_group = None
-            for gid, gbase in base_map.items():
-                if base.likes(gbase):
+            for gid, (gsegment, gbase) in base_map.items():
+                if gsegment == segments[idx] and base.likes(gbase):
                     matched_group = gid
                     break
             if matched_group is None:
-                matched_group = id(base)
-                base_map[matched_group] = base
+                matched_group = len(base_map)
+                base_map[matched_group] = segments[idx], base
                 groups[matched_group] = []
             groups[matched_group].append(entry)
 
@@ -260,6 +379,8 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 for i in range(len(working) - 1):
                     idx0, _base0, _off0, sz0, stmt0 = working[i]
                     idx1, _base1, _off1, sz1, stmt1 = working[i + 1]
+                    if not self._stmts_removable(statements, [idx0, idx1]):
+                        continue
                     merged = self._optimize_pair(stmt0, stmt1)
                     if merged is not None and len(merged) == 1:
                         merged_stmt = merged[0]
@@ -456,9 +577,10 @@ class InlinedWcscpySimplifier(OptimizationPass):
         else:
             return r
 
-        for idx, stmt in enumerate(statements):
-            if idx < starting_stmt_idx:
-                continue
+        # stop at the first statement that may read or clobber the buffer, since writes after it cannot be hoisted
+        covered = set()
+        for idx in range(starting_stmt_idx, len(statements)):
+            stmt = statements[idx]
             if stmt is None:
                 continue
             if (
@@ -469,6 +591,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 and isinstance(stmt.dst.stack_offset, int)
             ):
                 offset = stmt.dst.stack_offset
+                size = stmt.dst.size
                 value = (
                     ail_const_to_be(stmt.src, self.project.arch.memory_endness)
                     if isinstance(stmt.src, Const) and stmt.src.is_int
@@ -487,19 +610,40 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 ):
                     offset = stmt.addr.operands[1].value_int
                 else:
-                    offset = None
+                    break
+                size = stmt.size
                 value = (
                     ail_const_to_be(stmt.data, self.project.arch.memory_endness)
                     if isinstance(stmt.data, Const) and stmt.data.is_int
                     else None
                 )
-            else:
+            elif self._is_unrelated_stmt(stmt):
                 continue
+            else:
+                break
 
-            if offset is not None:
-                r[offset] = idx, value
+            written = range(offset, offset + size)
+            if any(o in covered for o in written):
+                break
+            r[offset] = idx, value
+            if value is None:
+                break
+            covered.update(written)
 
         return r
+
+    @staticmethod
+    def _is_unrelated_stmt(stmt) -> bool:
+        """
+        Whether a statement neither reads nor writes memory.
+        """
+        if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, (VirtualVariable, Register))):
+            return False
+        if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
+            return False
+        finder = _MemoryAccessFinder()
+        finder.walk_expression(stmt.src)
+        return not finder.found
 
     @staticmethod
     def _stride_to_int(stride):

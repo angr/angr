@@ -1,20 +1,27 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
+import networkx
+
 import angr
+from angr.ailment import Block
 from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
     Insert,
     StackBaseOffset,
+    UnaryOp,
     VirtualVariable,
     VirtualVariableCategory,
 )
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
 from angr.analyses.decompiler.optimization_passes.inlined_strcpy_simplifier import InlinedStrcpySimplifier
-from angr.analyses.decompiler.optimization_passes.inlined_wcscpy_simplifier import InlinedWcscpySimplifier
+from angr.analyses.decompiler.optimization_passes.inlined_wcscpy_simplifier import (
+    InlinedWcscpySimplifier,
+    InlinedWcscpySimplifierLate,
+)
 from angr.analyses.decompiler.variable_map import variable_map_of
 
 
@@ -24,6 +31,7 @@ def _simplifier(cls):
     simplifier = object.__new__(cls)
     simplifier._func = func  # pyright: ignore[reportAttributeAccessIssue]
     simplifier.manager = Manager()
+    simplifier._vvar_value_uses = {}  # pyright: ignore[reportAttributeAccessIssue]
     return simplifier
 
 
@@ -268,3 +276,123 @@ def test_wcscpy_wide_string_predicates_reject_floats():
     assert not InlinedWcscpySimplifier.even_offsets_are_zero([0.0, 65.0])
     assert not InlinedWcscpySimplifier.odd_offsets_are_zero([65.0, 0.0])
     assert InlinedWcscpySimplifier.is_integer_likely_a_wide_string(1.0, 4, "Iend_LE") == (False, None)
+
+
+class _WcscpyBlockBuilder:
+    """
+    Builds a single AIL block of stack writes and runs InlinedWcscpySimplifierLate on it.
+    """
+
+    def __init__(self):
+        self.project = angr.load_shellcode(b"\x90", arch="AMD64")
+        self.func = self.project.kb.functions.function(addr=0, name="dummy", create=True)
+        self.manager = Manager()
+        self.statements = []
+        self._varid = 0
+
+    def vvar(self, offset: int, bits: int = 8):
+        self._varid += 1
+        return VirtualVariable(
+            self.manager.next_atom(), self._varid, bits, VirtualVariableCategory.STACK, oident=offset
+        )
+
+    def write_bytes(self, offset: int, data: bytes):
+        vvars = []
+        for i, byte in enumerate(data):
+            dst = self.vvar(offset + i)
+            self.statements.append(Assignment(self.manager.next_atom(), dst, Const(self.manager.next_atom(), byte, 8)))
+            vvars.append(dst)
+        return vvars
+
+    def insert_bytes(self, offset: int, data: bytes):
+        base = self.vvar(offset, bits=len(data) * 8)
+        for i, byte in enumerate(data):
+            dst = self.vvar(offset, bits=len(data) * 8)
+            update = Insert(
+                self.manager.next_atom(),
+                base,
+                Const(self.manager.next_atom(), i, 64),
+                Const(self.manager.next_atom(), byte, 8),
+                "Iend_LE",
+            )
+            self.statements.append(Assignment(self.manager.next_atom(), dst, update))
+            base = dst
+
+    def call(self, name: str, *args):
+        self.statements.append(
+            SideEffectStatement(self.manager.next_atom(), Call(self.manager.next_atom(), name, args=list(args)))
+        )
+
+    def run(self):
+        block = Block(0, 1, self.statements)
+        graph = networkx.DiGraph()
+        graph.add_node(block)
+        simplifier = InlinedWcscpySimplifierLate(
+            self.func,
+            self.manager,
+            graph=graph,
+            blocks_by_addr={0: {block}},
+            blocks_by_addr_and_idx={(0, None): block},
+        )
+        out_graph = simplifier.out_graph if simplifier.out_graph is not None else graph
+        (out_block,) = out_graph.nodes
+        return simplifier, out_block.statements
+
+    def wide_copies(self, simplifier, statements):
+        """
+        Return (dst stack offset, string bytes, number of bytes written) of each inlined wide string copy.
+        """
+        copies = []
+        for stmt in statements:
+            if isinstance(stmt, SideEffectStatement) and simplifier.is_inlined_wcsncpy(stmt):
+                dst, str_const, count = stmt.expr.args
+                assert isinstance(dst, StackBaseOffset)
+                copies.append((dst.offset, self.project.kb.custom_strings[str_const.value_int], count.value_int * 2))
+        return copies
+
+
+APPDATA_PATH = r"%AppData%\Thunderbird\Profiles".encode("utf-16le")
+
+
+def test_wcscpy_folds_valid_prefix_before_partial_updates():
+    # issue 7285: constant Insert updates after the path used to discard the whole path
+    builder = _WcscpyBlockBuilder()
+    builder.write_bytes(-108, APPDATA_PATH)
+    builder.insert_bytes(-48, b"\x00\x00\xde\xdf")
+    builder.insert_bytes(-44, b"\xe0\xe1\xe2\xe3")
+    simplifier, statements = builder.run()
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, APPDATA_PATH, 60)]
+    # the partial updates are preserved
+    assert sum(isinstance(stmt, Assignment) and isinstance(stmt.src, Insert) for stmt in statements) == 8
+
+
+def test_wcscpy_writes_to_start_of_stride():
+    builder = _WcscpyBlockBuilder()
+    builder.write_bytes(-120, b"A")
+    builder.write_bytes(-108, "abcd".encode("utf-16le"))
+    simplifier, statements = builder.run()
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, "abcd".encode("utf-16le"), 8)]
+    assert isinstance(statements[0], Assignment) and statements[0].dst.stack_offset == -120
+
+
+def test_wcscpy_does_not_hoist_writes_across_calls():
+    builder = _WcscpyBlockBuilder()
+    data = "abcd".encode("utf-16le")
+    vvars = builder.write_bytes(-108, data[:4])
+    builder.call("consume", UnaryOp(builder.manager.next_atom(), "Reference", vvars[0], bits=64))
+    builder.write_bytes(-104, data[4:])
+    simplifier, statements = builder.run()
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, data[:4], 4), (-104, data[4:], 4)]
+    assert isinstance(statements[1], SideEffectStatement) and statements[1].expr.target == "consume"
+
+
+def test_wcscpy_keeps_writes_whose_values_are_used():
+    builder = _WcscpyBlockBuilder()
+    vvars = builder.write_bytes(-108, "abcd".encode("utf-16le"))
+    builder.call("consume", vvars[2])
+    _, statements = builder.run()
+
+    assert [stmt.dst.stack_offset for stmt in statements[:3]] == [-108, -107, -106]
