@@ -147,6 +147,34 @@ class TestEdits(unittest.TestCase):
         assert ed.undo()
         assert ed.node_at(("stmts", 0, "src", "operands", 1)) == PConst(value=8)
 
+    def test_cut_depth_wildcards_deep_subtrees(self):
+        deep = PVVar(name="x")
+        for _ in range(6):
+            deep = PBinOp("Add", (deep, PConst(value=1)))
+        pattern = KnownPattern(name="d", display_name="d", call_name="d", pattern=PAssign(PVVar(), deep), params=())
+        ed = PatternEditor(pattern)
+
+        assert ed.cut_depth(3) > 0
+        node = ed.node_at(("src",))
+        for _ in range(2):
+            assert isinstance(node, PBinOp)
+            node = node.operands[0]
+        # depth three is the last level the tokenizer renders; everything under it is cut
+        assert isinstance(node, PBinOp)
+        assert node.operands == (PAny(), PAny())
+        assert ed.cut_depth(3) == 0
+        assert ed.undo()
+        assert ed.node_at(("src",)) == deep
+
+    def test_loosen_interior_captures_keeps_parameters(self):
+        ed = PatternEditor(_pattern())
+        assert ed.loosen_interior_captures() == 0, "this pattern names no interior value"
+        ed.replace_node(("stmts", 0, "dst"), PVVar(name="_t0"))
+        ed.replace_node(("stmts", 1, "value", "addr"), PVVar(name="_t0"))
+        assert ed.loosen_interior_captures() == 2
+        assert ed.node_at(("stmts", 0, "dst")) == PVVar()
+        assert ed.node_at(("stmts", 0, "src", "operands", 0)) == PVVar(name="a0"), "parameters keep their names"
+
     def test_edits_round_trip_through_json(self):
         ed = PatternEditor(_pattern())
         ed.set_leaf_mode(("stmts", 1), "optional")

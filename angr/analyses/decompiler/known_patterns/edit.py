@@ -159,6 +159,63 @@ class PatternEditor:
         self._commit(dataclasses.replace(self.pattern, pattern=root))
         return len(paths)
 
+    def cut_depth(self, max_depth: int = 5) -> int:
+        """Replace every expression deeper than ``max_depth`` below its statement by a
+        wildcard, as one undoable edit. Shape search is cut at that depth, so anything below
+        it never affects where an occurrence is found; it only bites at verification, where
+        two copies of an idiom that differ in how they spell a deep subexpression part ways.
+        Returns how many subtrees were cut."""
+        cuts: list[NodePath] = []
+
+        def walk(path: NodePath, depth: int) -> None:
+            for child_path, child in self.children(path):
+                if isinstance(child, dsl.PatternExpr):
+                    if depth + 1 > max_depth and not isinstance(child, dsl.PAny):
+                        cuts.append(child_path)
+                        continue
+                    walk(child_path, depth + 1)
+                else:
+                    walk(child_path, 0)
+
+        walk((), 0)
+        if not cuts:
+            return 0
+        root = self.pattern.pattern
+        for path in cuts:
+            node = self.node_at(path)
+            name = node.name if isinstance(node, _NAMED) else None
+            root = _rebuild(root, path, dsl.PAny(name=name))
+        self._commit(dataclasses.replace(self.pattern, pattern=root))
+        return len(cuts)
+
+    def loosen_interior_captures(self) -> int:
+        """Drop the names of interior captures (the ``_t*`` ones the generator gives values
+        defined inside the selection), as one undoable edit. A name ties every use to one
+        variable; a copy that routes the same value through another register then fails
+        to verify. Parameters keep their names. Returns how many captures were loosened."""
+        params = {p.capture for p in self.pattern.params}
+        paths: list[NodePath] = []
+
+        def walk(path: NodePath) -> None:
+            for child_path, child in self.children(path):
+                if (
+                    isinstance(child, _NAMED)
+                    and child.name
+                    and child.name not in params
+                    and child.name.startswith("_t")
+                ):
+                    paths.append(child_path)
+                walk(child_path)
+
+        walk(())
+        if not paths:
+            return 0
+        root = self.pattern.pattern
+        for path in paths:
+            root = _rebuild(root, path, dataclasses.replace(self.node_at(path), name=None))
+        self._commit(dataclasses.replace(self.pattern, pattern=root))
+        return len(paths)
+
     def set_call_name(self, call_name: str) -> None:
         self._commit(dataclasses.replace(self.pattern, call_name=call_name))
 
