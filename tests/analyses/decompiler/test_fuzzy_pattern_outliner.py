@@ -68,6 +68,8 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
 
         calls = re.findall(r'return PatternErrorsOut\("([^"]*)"\);', text)
         assert len(calls) == 8, calls
+        stats = proj2.kb.fuzzy_patterns.stats(func2.addr, pattern.name)
+        assert stats is not None and stats.outlined == 8 and stats.matches >= 8
         assert "Empty title" in calls and "Cannot open document." in calls
         assert text.count("PatternErrorsOut(") == 8
         assert graph_problems(dec2.ail_graph, func2.addr) == []

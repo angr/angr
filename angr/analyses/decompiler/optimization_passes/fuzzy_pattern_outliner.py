@@ -12,6 +12,7 @@ from angr.analyses.fuzzy_patterns.dedup import _restore, _snapshot, graph_proble
 from angr.analyses.fuzzy_patterns.region import largest_single_entry_subrun, materialize, snap
 from angr.analyses.fuzzy_patterns.search import search, tokenize_for_templates, verify
 from angr.analyses.outliner import Outliner
+from angr.knowledge_plugins.fuzzy_patterns import PatternStats
 from angr.sim_type import SimTypeFunction, parse_type
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -65,12 +66,18 @@ class FuzzyPatternOutliner(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        return bool(self.kb.fuzzy_patterns.enabled_patterns()), None
+        if not self.kb.fuzzy_patterns.enabled_patterns():
+            # nothing searched for, so nothing is known about this function any more
+            self.kb.fuzzy_patterns.record_stats(self._func.addr, {})
+            return False, None
+        return True, None
 
     def _analyze(self, cache=None):
         stored = self.kb.fuzzy_patterns.enabled_patterns()
         graph = copy_graph(self._graph)
         changed = False
+        stats = {entry.name: PatternStats() for entry in stored}
+        first_round = True
         # an occurrence is identified by what it covers, so one that fails is not retried
         tried: set[tuple[str, tuple[int | None, int | None]]] = set()
         for _ in range(self.MAX_ROUNDS):
@@ -81,13 +88,21 @@ class FuzzyPatternOutliner(OptimizationPass):
             # a failed outline restores the graph, so the stream and the ranking stay good:
             # work down the list until one succeeds, and only then tokenize and search again
             outlined = False
-            for pattern, match in self._ranked_hits(stream, stored, tried):
+            hits = self._ranked_hits(stream, stored, tried)
+            if first_round:
+                # later rounds search a graph already rewritten; the first one saw the function as it was
+                for entry, _ in hits:
+                    stats[entry.name].matches += 1
+                first_round = False
+            for pattern, match in hits:
                 tried.add((pattern.name, stream.addr_range(match.interval.start, match.interval.end)))
                 if self._outline(graph, stream, pattern, match):
+                    stats[pattern.name].outlined += 1
                     outlined = changed = True
                     break
             if not outlined:
                 break
+        self.kb.fuzzy_patterns.record_stats(self._func.addr, stats)
         if changed:
             self.out_graph = graph
 

@@ -21,6 +21,16 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class PatternStats:
+    """What the outliner pass saw of one pattern in one function when it last ran there."""
+
+    #: verified occurrences found before anything was outlined
+    matches: int = 0
+    #: occurrences outlined into calls
+    outlined: int = 0
+
+
+@dataclass
 class StoredPattern:
     """One fuzzy pattern and its application settings."""
 
@@ -76,11 +86,23 @@ class FuzzyPatterns(KnowledgeBasePlugin):
     def __init__(self, kb: KnowledgeBase):
         super().__init__(kb)
         self._patterns: dict[str, StoredPattern] = {}
+        # function address -> pattern name -> stats; runtime only, never persisted
+        self._stats: dict[int, dict[str, PatternStats]] = {}
 
     def copy(self) -> FuzzyPatterns:
         o = FuzzyPatterns(self._kb)
         o._patterns = dict(self._patterns)
+        o._stats = {addr: dict(per) for addr, per in self._stats.items()}
         return o
+
+    def record_stats(self, func_addr: int, stats: dict[str, PatternStats]) -> None:
+        """Replace what is known about ``func_addr``: the outliner pass saw exactly these patterns."""
+        self._stats[func_addr] = dict(stats)
+
+    def stats(self, func_addr: int, name: str) -> PatternStats | None:
+        """The outliner pass's numbers for a pattern in a function, or None if it did not
+        search for that pattern there when it last ran."""
+        return self._stats.get(func_addr, {}).get(name)
 
     def __len__(self) -> int:
         return len(self._patterns)
@@ -126,6 +148,8 @@ class FuzzyPatterns(KnowledgeBasePlugin):
         self._patterns[stored.name] = stored
 
     def remove(self, name: str) -> bool:
+        for per in self._stats.values():
+            per.pop(name, None)
         return self._patterns.pop(name, None) is not None
 
     def set_enabled(self, name: str, enabled: bool) -> None:
