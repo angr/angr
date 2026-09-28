@@ -1258,6 +1258,22 @@ class VariableManagerInternal(Serializable):
         self.types.clear()
         self.variable_to_types.clear()
 
+    def same_offset_stack_vvarids(self) -> set[int]:
+        """
+        Return the IDs of vvars backing stack variables that share their offset with another stack variable. These are
+        the only vvars whose interference unify_variables() consults.
+        """
+        vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
+        for v in chain(self.get_variables(), self._phi_variables):
+            if isinstance(v, SimStackVariable):
+                vars_by_offset[v.offset].append(v)
+        vvar_ids: set[int] = set()
+        for vs in vars_by_offset.values():
+            if len(vs) > 1:
+                for v in vs:
+                    vvar_ids |= self._variable_to_vvarids[v]
+        return vvar_ids
+
     def _variables_interfere(self, interference: networkx.Graph[int], v0: SimVariable, v1: SimVariable) -> bool:
         vvar_ids_0 = self._variable_to_vvarids[v0]
         vvar_ids_1 = self._variable_to_vvarids[v1]

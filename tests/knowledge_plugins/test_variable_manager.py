@@ -10,8 +10,11 @@ import unittest
 from unittest import mock
 
 import angr
+from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+from angr.code_location import CodeLocation
 from angr.knowledge_plugins.variables import variable_manager as variable_manager_mod
 from angr.knowledge_plugins.variables.spilling_vardict import SpillingVariableInternalDict
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -119,6 +122,26 @@ class TestVariableManager(unittest.TestCase):
             for name in func_names:
                 dec2 = p2.analyses.Decompiler(name, cfg=cfg2.model)
                 assert dec2.codegen is not None and dec2.codegen.text == texts[name]
+
+    def test_same_offset_stack_vvarids(self):
+        p = angr.load_shellcode(b"\x90", arch="AMD64")
+        vmi = p.kb.variables.get_function_manager(0x400000)
+
+        def record(var, varid: int, category: VirtualVariableCategory, oident):
+            atom = VirtualVariable(varid, varid, 64, category, oident=oident)
+            vmi.record_variable(CodeLocation(0x400000, varid, ins_addr=0x400000 + varid), var, 0, atom=atom)
+
+        record(SimStackVariable(-8, 8, ident="is_0"), 1, VirtualVariableCategory.STACK, -8)
+        record(SimStackVariable(-8, 8, ident="is_1"), 2, VirtualVariableCategory.STACK, -8)
+        record(SimStackVariable(-16, 8, ident="is_2"), 3, VirtualVariableCategory.STACK, -16)
+        record(SimRegisterVariable(16, 8, ident="ir_0"), 4, VirtualVariableCategory.REGISTER, 16)
+        record(SimRegisterVariable(16, 8, ident="ir_1"), 5, VirtualVariableCategory.REGISTER, 16)
+        # only stack variables that share an offset are candidates for unification
+        assert vmi.same_offset_stack_vvarids() == {1, 2}
+
+        # a phi variable counts as one more variable at its offset
+        vmi.make_phi_node(0x400000, SimStackVariable(-16, 8, ident="is_2"), SimStackVariable(-16, 8, ident="is_3"))
+        assert vmi.same_offset_stack_vvarids() == {1, 2, 3}
 
 
 if __name__ == "__main__":

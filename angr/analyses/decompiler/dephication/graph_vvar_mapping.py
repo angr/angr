@@ -71,6 +71,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
     def _collect_and_remap(self) -> dict[int, int]:
         # collect phi assignments
         phi_to_srcvarid = self._collect_phi_assignments()
+        if not phi_to_srcvarid:
+            # nothing to coalesce; skip liveness and the interference graph
+            return {}
 
         # compute liveness
         liveness = self.project.analyses.SLiveness(
