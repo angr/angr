@@ -145,13 +145,32 @@ class PatternExpr(PatternNode):
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
         raise NotImplementedError
 
-    def _prepare(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> tuple[Expression, MatchState] | None:
+    @staticmethod
+    def _prepare(expr: Expression, state: MatchState, ctx: MatchCtx) -> tuple[Expression, MatchState] | None:
         """Common preamble for structural nodes: skip Convert wrappers and chase
-        vvar definitions when enabled."""
-        while ctx.skip_conversions and isinstance(expr, Convert):
-            state = replace(state, skipped_converts=(*state.skipped_converts, expr))
-            expr = expr.operand
-        if isinstance(expr, VirtualVariable) and (ctx.chase_fn is not None or ctx.remote_chase_fn is not None):
+        vvar definitions when enabled.
+
+        The chase is a loop, and it remembers which virtual variables it has
+        already resolved. Two definitions can resolve into each other: a byte
+        kept in a stack slot and reloaded through a loop-header phi gives
+        ``v = Conv(64->8, w)`` and ``w = Conv(8->64, v)``, and both answers are
+        correct. Each one on its own also terminates -- ``_resolve_remote_def``
+        bounds its own depth and never hands back a bare vvar -- but that is not
+        enough here, because this method strips the Convert and asks again, so
+        composing the two walks in a circle. A variable that comes back has
+        nothing further to reach, and the node declines, which is what it
+        already does when a definition cannot be chased at all.
+        """
+        chased_varids: set[int] = set()
+        while True:
+            while ctx.skip_conversions and isinstance(expr, Convert):
+                state = replace(state, skipped_converts=(*state.skipped_converts, expr))
+                expr = expr.operand
+            if not isinstance(expr, VirtualVariable) or (ctx.chase_fn is None and ctx.remote_chase_fn is None):
+                return expr, state
+            if expr.varid in chased_varids:
+                return None
+            chased_varids.add(expr.varid)
             chased = ctx.chase_fn(expr.varid) if ctx.chase_fn is not None else None
             if chased is not None:
                 stmt_idx, def_expr = chased
@@ -160,15 +179,16 @@ class PatternExpr(PatternNode):
                     consumed_stmt_idxs=state.consumed_stmt_idxs | {stmt_idx},
                     chased_defs=(*state.chased_defs, (expr.varid, stmt_idx)),
                 )
-                return self._prepare(def_expr, state, ctx)
+                expr = def_expr
+                continue
             if ctx.remote_chase_fn is not None:
                 remote = ctx.remote_chase_fn(expr.varid)
                 if remote is not None and remote.bits == expr.bits:
                     if all(varid != expr.varid for varid, _ in state.remote_defs):
                         state = replace(state, remote_defs=(*state.remote_defs, (expr.varid, remote)))
-                    return self._prepare(remote, state, ctx)
+                    expr = remote
+                    continue
             return None
-        return expr, state
 
     @staticmethod
     def _bind_if_named(name: str | None, expr: Expression, state: MatchState) -> MatchState | None:
