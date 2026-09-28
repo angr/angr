@@ -230,6 +230,25 @@ class TestVerifyOnARealFunction(unittest.TestCase):
             assert hits[0].similarity == 1.0, (start, length, hits[0].similarity)
             assert hits[0].verified is True, [c for c in hits[0].columns if c.verified is False][:3]
 
+    def test_fully_loosened_windows_still_verify_against_their_source(self):
+        """Every loosening the editor offers must keep a pattern matching the statements it
+        came from; each one has failed that at some point."""
+        from angr.analyses.decompiler.known_patterns.edit import PatternEditor  # pylint:disable=import-outside-toplevel
+        from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+
+        stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
+        blocks = {(b.addr, b.idx): b for b in stream.blocks}
+        for start in range(0, len(stream) - 40, 40):
+            stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs[start : start + 40]]
+            editor = PatternEditor(self.gen.generate_fuzzy_from_statements(stmts, "w"))
+            editor.loosen_constants()
+            editor.cut_depth()
+            editor.loosen_interior_captures()
+            hits = [m for m in search(editor.pattern, stream) if m.interval.start <= start < m.interval.end]
+            assert hits, f"window [{start},{start + 40}) not found at its origin after loosening"
+            verify(hits[0], editor.pattern, stream)
+            assert hits[0].verified is True, (start, [c for c in hits[0].columns if c.verified is False][:3])
+
     def test_a_wrong_constant_is_found_but_refused(self):
         from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
 

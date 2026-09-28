@@ -103,6 +103,17 @@ class TestFuzzyStatementNodes(unittest.TestCase):
             MatchCtx(skip_conversions_at_leaves=True),
         )
 
+    def test_a_named_wildcard_binds_what_a_variable_would(self):
+        """cut_depth turns a deep named variable into a named wildcard; it must bind the same
+        thing the variable binds elsewhere, or the two uses can never unify."""
+        manager = Manager()
+        var = _vvar(manager, 1)
+        wrapped = Convert(manager.next_atom(), 32, 64, True, var)
+        ctx = MatchCtx(skip_conversions_at_leaves=True)
+        state = PVVar(name="x").match(var, MatchState(), ctx)
+        assert state is not None
+        assert PAny(name="x").match(wrapped, state, ctx) is not None
+
     def test_a_sequence_led_by_a_wildcard_statement_is_tried_everywhere(self):
         assert stmt_pattern_anchor_key(PStmtSeq((PAnyStmt(), PAssign(PAny(), PAny())))) is None
 

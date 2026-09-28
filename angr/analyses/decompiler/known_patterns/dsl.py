@@ -219,6 +219,7 @@ class PAny(PatternExpr):
     bits: int | None = None
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        expr, state = _unwrap_leaf(expr, state, ctx)
         if self.bits is not None and getattr(expr, "bits", None) != self.bits:
             return None
         return self._bind_if_named(self.name, expr, state)
