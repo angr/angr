@@ -32,9 +32,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from angr.ailment import Block
-from angr.ailment.block_walker import AILBlockRewriter, AILBlockViewer
+from angr.ailment.block_walker import AILBlockRewriter, AILBlockViewer, AILBlockWalker
 from angr.ailment.expression import Call, Const, Phi, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Statement
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.outliner import Outliner
 
@@ -68,6 +68,10 @@ class OutlinedRegion:
     child_args: list[VirtualVariable]
     consts: list[int] = field(default_factory=list)
     const_bits: list[int] = field(default_factory=list)
+    #: indices into ``consts`` that are block addresses, meaningless across copies
+    jump_target_consts: set[int] = field(default_factory=set)
+    #: indices into ``consts`` that name a callee, which copies must agree on
+    call_target_consts: set[int] = field(default_factory=set)
     shape: tuple[str, ...] = ()
     auto_frontier: bool = False
 
@@ -110,33 +114,96 @@ class DedupResult:
         return sum(r.statements for r in self.outlined)
 
 
-class _ConstCollector(AILBlockViewer):
-    """Collects Const values and widths in deterministic walk order."""
+class _ConstRole:
+    """Tells a jump target and a call target apart from a value while a walker descends.
+
+    Identity is no use here: a Rust-backed AIL object hands out a fresh Python
+    wrapper on every attribute access. The walk path is: a constant directly under
+    a Jump, or in target position directly under a ConditionalJump, is a block
+    address; one the Call handler walks at index -1 is the callee.
+    """
 
     def __init__(self):
-        super().__init__()
+        self._depth = 0
+
+    def _enter(self) -> None:
+        self._depth += 1
+
+    def _leave(self) -> None:
+        self._depth -= 1
+
+    def _role(self, expr_idx: int, stmt: Statement | None) -> str | None:
+        # a statement's own -1 slot is a side-effect statement's return expression
+        if expr_idx == -1 and self._depth >= 2:
+            return "call"
+        if self._depth == 1 and isinstance(stmt, Jump):
+            return "jump"
+        if self._depth == 1 and isinstance(stmt, ConditionalJump) and expr_idx in (1, 2):
+            return "jump"
+        return None
+
+
+class _ConstCollector(AILBlockViewer, _ConstRole):
+    """Collects Const values and widths in deterministic walk order.
+
+    A jump target is a block address, not a value: two copies of an idiom differ
+    in theirs without meaning anything by it, so those indices are reported in
+    ``jump_targets`` and ignored when bodies are compared. A call target is what
+    the body does, so it is reported in ``call_targets`` and must agree.
+    """
+
+    def __init__(self):
+        AILBlockViewer.__init__(self)
+        _ConstRole.__init__(self)
         self.values: list[int] = []
         self.widths: list[int] = []
+        self.jump_targets: set[int] = set()
+        self.call_targets: set[int] = set()
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        self._enter()
+        try:
+            return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+        finally:
+            self._leave()
 
     def _handle_Const(self, expr_idx, expr, stmt_idx, stmt, block):
+        idx = len(self.values)
+        role = self._role(expr_idx, stmt)
+        if role == "jump":
+            self.jump_targets.add(idx)
+        elif role == "call":
+            self.call_targets.add(idx)
         self.values.append(expr.value)
         self.widths.append(expr.bits)
 
 
-class _ConstLifter(AILBlockRewriter):
-    """Replaces selected Consts (by walk-order index) with parameter vvars."""
+class _ConstLifter(AILBlockRewriter, _ConstRole):
+    """Replaces selected Consts (by walk-order index) with parameter vvars. The
+    indices are counted the way :class:`_ConstCollector` counts them; a jump or
+    call target is never replaced, whatever the request says."""
 
     def __init__(self, replacements: dict[int, VirtualVariable]):
-        super().__init__(update_block=False)
+        AILBlockRewriter.__init__(self, update_block=False)
+        _ConstRole.__init__(self)
         self._replacements = replacements
         self.counter = 0
         self.replaced = 0
+
+    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
+        # one pass, not the rewriter's re-walk to a fixed point: a re-walked call
+        # would count its target twice and the indices would drift from the collector's
+        self._enter()
+        try:
+            return AILBlockWalker._handle_expr(self, expr_idx, expr, stmt_idx, stmt, block)
+        finally:
+            self._leave()
 
     def _handle_Const(self, expr_idx, expr, stmt_idx, stmt, block):
         idx = self.counter
         self.counter += 1
         repl = self._replacements.get(idx)
-        if repl is None:
+        if repl is None or self._role(expr_idx, stmt) is not None:
             return expr
         self.replaced += 1
         return repl.copy()
@@ -297,12 +364,13 @@ def callee_shape(graph: networkx.DiGraph[Block]) -> tuple[str, ...]:
     return tuple(out)
 
 
-def callee_consts(graph: networkx.DiGraph[Block]) -> tuple[list[int], list[int]]:
-    """Const values and widths of a callee body, ordered as in :func:`callee_shape`."""
+def callee_consts(graph: networkx.DiGraph[Block]) -> tuple[list[int], list[int], set[int], set[int]]:
+    """Const values and widths of a callee body, ordered as in :func:`callee_shape`,
+    with the indices that are jump targets and those that are call targets."""
     collector = _ConstCollector()
     for block in _canonical_blocks(graph):
         collector.walk(block)
-    return collector.values, collector.widths
+    return collector.values, collector.widths, collector.jump_targets, collector.call_targets
 
 
 def canonical_arg_order(graph: networkx.DiGraph[Block], args: list[VirtualVariable]) -> list[VirtualVariable]:
@@ -407,20 +475,21 @@ class PatternDeduplicator(Analysis):
                     for iv in core.occurrences:
                         targets.append(((pi, ci), iv))
 
-        # regions must be disjoint: each outline rewrites the graph
+        # largest first: each outline rewrites the graph, so overlapping regions are
+        # settled in favor of the one that saves more, but only once it has succeeded
         targets.sort(key=lambda t: (-len(t[1]), t[1].start))
-        chosen: list[tuple[tuple, Interval]] = []
-        for key, iv in targets:
-            if not any(iv.overlaps(other) for _, other in chosen):
-                chosen.append((key, iv))
-        chosen.sort(key=lambda t: t[1].start)
-        return chosen
+        return targets
 
     def _outline_all(self, graph: networkx.DiGraph[Block], patterns: list[FuzzyPattern]) -> None:
         entry = _entry_block(graph)
         entry_loc = (entry.addr, entry.idx) if entry is not None else None
 
+        taken: list[Interval] = []
         for key, interval in self._targets(patterns):
+            if any(interval.overlaps(other) for other in taken):
+                # a larger region that was outlined owns these tokens; one that failed
+                # released them, so a smaller pattern underneath still gets its turn
+                continue
             region = snap(self.stream, graph, interval, entry_loc=entry_loc)
 
             # A contiguous token range is not automatically a single-entry
@@ -492,7 +561,8 @@ class PatternDeduplicator(Analysis):
                     self.result.skipped.append((interval, f"would break SSA: {problems[0]}"))
                     continue
 
-            values, widths = callee_consts(child_graph)
+            taken.append(interval)
+            values, widths, jump_targets, call_targets = callee_consts(child_graph)
             self.result.outlined.append(
                 OutlinedRegion(
                     group_key=key,
@@ -504,6 +574,8 @@ class PatternDeduplicator(Analysis):
                     child_args=canonical_arg_order(child_graph, list(outliner.child_funcargs)),
                     consts=values,
                     const_bits=widths,
+                    jump_target_consts=jump_targets,
+                    call_target_consts=call_targets,
                     shape=callee_shape(child_graph),
                     auto_frontier=auto,
                 )
@@ -526,7 +598,11 @@ class PatternDeduplicator(Analysis):
                 _l.warning("fuzzy dedup: shape-equal callees disagree on constant count; not merging")
                 continue
 
-            lifted = [i for i in range(len(members[0].consts)) if len({m.consts[i] for m in members}) > 1]
+            differing = [i for i in range(len(members[0].consts)) if len({m.consts[i] for m in members}) > 1]
+            if any(i in members[0].call_target_consts for i in differing):
+                # same shape, different callees: not one function
+                continue
+            lifted = [i for i in differing if i not in members[0].jump_target_consts]
             name = f"{self.name_prefix}_{idx}"
             if not self._apply_merge(graph, members, lifted, name):
                 continue
@@ -540,6 +616,24 @@ class PatternDeduplicator(Analysis):
         name: str,
     ) -> bool:
         rep = members[0]
+        # everything below edits the representative and the callsites in place; a
+        # member whose callsite cannot be rewritten must leave no trace of the attempt
+        undo = (
+            _snapshot(rep.child_graph),
+            _snapshot(graph),
+            list(rep.child_args),
+            rep.child_func.name,
+            self.const_param_stack_base,
+        )
+
+        def rollback() -> bool:
+            _restore(rep.child_graph, undo[0])
+            _restore(graph, undo[1])
+            rep.child_args = undo[2]
+            rep.child_func.name = undo[3]
+            self.const_param_stack_base = undo[4]
+            return False
+
         extra_params: list[VirtualVariable] = []
         replacements: dict[int, VirtualVariable] = {}
         # lifted constants have no calling-convention home, so give them
@@ -572,7 +666,7 @@ class PatternDeduplicator(Analysis):
                     lifter.replaced,
                     name,
                 )
-                return False
+                return rollback()
 
         rep.child_args = rep.child_args + extra_params
         rep.child_func.name = name
@@ -580,7 +674,7 @@ class PatternDeduplicator(Analysis):
         for member in members:
             extra_args = [Const(None, member.consts[i], _const_bits(member, i)) for i in lifted]
             if not self._rewrite_call(graph, member, name, extra_args):
-                return False
+                return rollback()
         return True
 
     def _rewrite_call(
@@ -595,9 +689,13 @@ class PatternDeduplicator(Analysis):
             _l.warning("fuzzy dedup: call block %s vanished", member.call_loc)
             return False
         for i, stmt in enumerate(block.statements):
-            if not isinstance(stmt, Assignment) or not isinstance(stmt.src, Call):
+            # a closed region's callsite returns the call rather than assigning it
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
+                call = stmt.src
+            elif isinstance(stmt, Return) and len(stmt.ret_exprs or ()) == 1 and isinstance(stmt.ret_exprs[0], Call):
+                call = stmt.ret_exprs[0]
+            else:
                 continue
-            call = stmt.src
             args = list(call.args or [])
             order = {v.varid: k for k, v in enumerate(member.child_args)}
             args.sort(key=lambda a: order.get(getattr(a, "varid", -1), len(order)))
@@ -608,7 +706,10 @@ class PatternDeduplicator(Analysis):
                 bits=call.bits,
                 **call.tags,
             )
-            block.statements[i] = Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags)
+            if isinstance(stmt, Assignment):
+                block.statements[i] = Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags)
+            else:
+                block.statements[i] = Return(stmt.idx, [new_call], **stmt.tags)
             return True
         _l.warning("fuzzy dedup: no call statement at %s", member.call_loc)
         return False

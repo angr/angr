@@ -432,3 +432,88 @@ class TestFuzzyPatternFinder(TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDeduplicateDoit(TestCase):
+    """The error-exit idiom of 1after909's doit, puts(msg); fflush(stdout); return -1, through
+    discovery and deduplication."""
+
+    @classmethod
+    def setUpClass(cls):
+        from angr.analyses.fuzzy_patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
+
+        proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions["doit"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.ail_graph is not None
+        params = AlignParams(min_size=3, min_score=9, min_anchors=1, k=3, min_identity=0.6)
+        cls.finder = proj.analyses.FuzzyPatternFinder(func, dec.ail_graph, params=params, disjoint=False)
+        cls.dedup = proj.analyses[PatternDeduplicator](
+            func, dec.ail_graph, cls.finder.patterns, cls.finder.stream, granularity="occurrence"
+        )
+        cls.proj, cls.func, cls.dec = proj, func, dec
+
+    def _error_exit_sites(self) -> list[int]:
+        st = self.finder.stream
+        seq = ["SE(Call[puts]/1)", "SE(Call[fflush]/1)", "Jf", "Jf", "Ret1(C)"]
+        return [i for i in range(len(st) - 4) if st.shapes[i : i + 5] == seq]
+
+    def test_a_failed_larger_region_releases_its_tokens(self):
+        """The idiom's copies overlap a looser family that cannot be outlined; they must still
+        be outlined themselves."""
+        sites = self._error_exit_sites()
+        assert len(sites) >= 8
+        outlined = [r.interval.start for r in self.dedup.result.outlined]
+        assert sum(1 for s in sites if s in outlined) >= 3, outlined
+
+    def test_merged_callee_lifts_values_but_never_targets(self):
+        from angr.ailment.expression import Const, VirtualVariable  # pylint:disable=import-outside-toplevel
+        from angr.ailment.statement import Jump, Return  # pylint:disable=import-outside-toplevel
+        from angr.analyses.fuzzy_patterns.dedup import graph_problems  # pylint:disable=import-outside-toplevel
+
+        sites = set(self._error_exit_sites())
+        group = next(g for g in self.dedup.result.groups if any(m.interval.start in sites for m in g.members))
+        assert group.size >= 3
+        rep = group.members[0]
+        # the message and the returned value differ between copies and become parameters
+        assert len(group.lifted_const_indices) == 2 and len(rep.child_args) == 2
+        for block in rep.child_graph:
+            for stmt in block.statements:
+                if isinstance(stmt, Jump):
+                    assert isinstance(stmt.target, Const), "a jump target is a block address, never a parameter"
+                if isinstance(stmt, Return):
+                    assert isinstance(stmt.ret_exprs[0], VirtualVariable), "the returned value is a parameter"
+        for stmt in (s for b in rep.child_graph for s in b.statements):
+            call = getattr(stmt, "expr", None)
+            if call is not None and hasattr(call, "target"):
+                assert isinstance(call.target, Const), "a callee is what the body does, never a parameter"
+        # a closed region's callsite returns the call, with the copy's own constants appended
+        blocks = {(b.addr, b.idx): b for b in self.dedup.result.graph}
+        for member in group.members:
+            (stmt,) = (s for s in blocks[member.call_loc].statements if isinstance(s, Return))
+            call = stmt.ret_exprs[0]
+            assert call.target == group.name and len(call.args) == 2 and all(isinstance(a, Const) for a in call.args)
+        assert graph_problems(self.dedup.result.graph, self.func.addr) == []
+
+    def test_a_failed_merge_leaves_no_trace(self):
+        from angr.analyses.fuzzy_patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
+        from angr.analyses.fuzzy_patterns.dedup import callee_shape  # pylint:disable=import-outside-toplevel
+
+        dedup = self.proj.analyses[PatternDeduplicator](
+            self.func,
+            self.dec.ail_graph,
+            self.finder.patterns,
+            self.finder.stream,
+            granularity="occurrence",
+            merge=False,
+        )
+        sites = set(self._error_exit_sites())
+        members = [r for r in dedup.result.outlined if r.interval.start in sites]
+        assert len(members) >= 2
+        before = (callee_shape(members[0].child_graph), list(members[0].child_args), members[0].child_func.name)
+        # a member whose callsite is gone makes the merge fail after the representative was edited
+        members[-1].call_loc = (0xDEAD, None)
+        assert dedup._apply_merge(dedup.result.graph, members, [1], "nope") is False
+        after = (callee_shape(members[0].child_graph), list(members[0].child_args), members[0].child_func.name)
+        assert after == before
