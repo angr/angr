@@ -128,10 +128,13 @@ class AILCanonicalizer:
         kb: KnowledgeBase | None = None,
         block_pos: dict[Address, int] | None = None,
         loader=None,
+        skip_conversions: bool = False,
     ):
         if const_mode not in ("abstract", "class", "exact"):
             raise ValueError(f"unknown const_mode {const_mode!r}")
         self.max_depth = max_depth
+        # render through Convert/Reinterpret the way the pattern matcher looks through them
+        self.skip_conversions = skip_conversions
         self.keep_vvar_category = keep_vvar_category
         self.keep_sizes = keep_sizes
         self.const_mode = const_mode
@@ -226,6 +229,8 @@ class AILCanonicalizer:
             return "SBO"
         if isinstance(o, ex.Load):
             return f"Ld{self._size(o.size)}({self._expr(o.addr, d)})"
+        if isinstance(o, (ex.Convert, ex.Reinterpret)) and self.skip_conversions:
+            return self._expr(o.operand, depth)
         if isinstance(o, ex.Convert):
             return f"Cv{o.from_bits}_{o.to_bits}({self._expr(o.operand, d)})"
         if isinstance(o, ex.Reinterpret):
@@ -341,6 +346,7 @@ def tokenize(
     skip_labels: bool = False,
     skip_phis: bool = False,
     compute_bags: bool = False,
+    skip_conversions: bool = False,
 ) -> TokenStream:
     """Linearize ``graph`` from ``entry`` and canonicalize every statement into a token."""
     order = linearize(graph, entry)
@@ -353,6 +359,7 @@ def tokenize(
         kb=kb,
         block_pos=block_pos,
         loader=loader,
+        skip_conversions=skip_conversions,
     )
 
     locs: list[TokenLoc] = []
