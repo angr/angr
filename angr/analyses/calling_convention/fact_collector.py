@@ -14,6 +14,7 @@ from angr.calling_conventions import SimRegArg, SimStackArg, default_cc_for_proj
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.functions.function import PrototypeSource
 from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
@@ -329,7 +330,10 @@ class FactCollector(Analysis):
         #: demote a prototype to void when it is set.
         self.retval_incidental: bool = False
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
+        #: Bytes the callee pops after the return address; None when no exit proves it either way.
         self.extra_pop: int | None = None
+        # bytes popped by each tail-call target, None where the target's cleanup is unknown
+        self._tailcall_pops: list[int | None] = []
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
 
         self._analyze()
@@ -358,17 +362,19 @@ class FactCollector(Analysis):
         init_state.bp_value = init_state.sp_value
 
         traversed = set()
+        # the last element marks a tail call (an outside transition)
         queue: list[
             tuple[
                 int,
                 FactCollectorState,
                 CodeNode | BlockNode | HookNode | FuncNode,
                 BlockNode | HookNode | FuncNode | None,
+                bool,
             ]
-        ] = [(0, init_state, startpoint, None)]
+        ] = [(0, init_state, startpoint, None, False)]
         end_states: list[FactCollectorState] = []
         while queue:
-            depth, state, node, retnode = queue.pop(0)
+            depth, state, node, retnode, is_tailcall = queue.pop(0)
             if isinstance(node, BlockNode) and node in traversed:
                 continue
             traversed.add(node)
@@ -386,6 +392,18 @@ class FactCollector(Analysis):
                     func = self.kb.functions.get_by_addr(node.addr)
                 else:
                     continue
+            if is_tailcall and self.kb.functions.contains_addr(node.addr):
+                tail_func = self.kb.functions.get_by_addr(node.addr)
+                self._tailcall_pops.append(self._tailcall_callee_pops(state, tail_func))
+                if (
+                    func is None
+                    and tail_func.calling_convention is not None
+                    and tail_func.prototype is not None
+                    and tail_func.prototype_source >= PrototypeSource.SIMPROC
+                ):
+                    # a tail jump targets a BlockNode; treat it as a call when the target's prototype is trustworthy.
+                    # otherwise, analyzing the target's first block is safer than inheriting its inferred arguments.
+                    func = tail_func
             if func is not None:
                 if func.calling_convention is not None and func.prototype is not None:
                     # consume args and overwrite the return register
@@ -398,7 +416,7 @@ class FactCollector(Analysis):
                     new_state = state.copy()
                     if self.project.arch.call_pushes_ret and not func.is_syscall:
                         new_state.sp_value += self.project.arch.bytes
-                    queue.append((depth, new_state, retnode, None))
+                    queue.append((depth, new_state, retnode, None, False))
                 continue
 
             block = self.project.factory.block(node.addr, size=node.size)
@@ -406,6 +424,7 @@ class FactCollector(Analysis):
 
             successor_added = False
             call_succ, ret_succ = None, None
+            call_is_tail = False
             for _, succ, data in func_graph.out_edges(node, data=True):
                 edge_type = data.get("type")
                 outside = data.get("outside", False)
@@ -416,7 +435,7 @@ class FactCollector(Analysis):
                     elif edge_type == "transition" and not outside:
                         if succ not in traversed:
                             successor_added = True
-                            queue.append((depth + 1, state.copy(), succ, None))
+                            queue.append((depth + 1, state.copy(), succ, None, False))
                     elif edge_type in {"call", "syscall"} or (edge_type == "transition" and outside):
                         # a call or a tail-call
                         # note that it's ok to traverse a called function multiple times
@@ -424,14 +443,39 @@ class FactCollector(Analysis):
                             # not sure who we are calling
                             continue
                         call_succ = succ
+                        call_is_tail = edge_type == "transition"
             if call_succ is not None:
                 successor_added = True
-                queue.append((depth + 1, state.copy(), call_succ, ret_succ))
+                queue.append((depth + 1, state.copy(), call_succ, ret_succ, call_is_tail))
 
             if not successor_added:
                 end_states.append(state)
 
         return end_states
+
+    def _tailcall_callee_pops(self, state: FactCollectorState, func: Function) -> int | None:
+        """
+        The number of bytes a tail-call target pops after the return address, which the tail-calling function then
+        pops on its behalf. None if unknown.
+        """
+        if not self.project.arch.call_pushes_ret or state.sp_value != self.project.arch.bytes:
+            # the stack pointer must be back at its entry value for a tail call to hand over the return address
+            return None
+        cc = func.calling_convention
+        if cc is None or func.prototype is None:
+            return None
+        if not cc.CALLEE_CLEANUP:
+            return 0
+        proto = (
+            dereference_simtype_by_lib(func.prototype, func.prototype_libname)
+            if func.prototype_libname is not None
+            else func.prototype
+        )
+        try:
+            arg_locs = cc.arg_locs(proto)
+        except (TypeError, ValueError):
+            return None
+        return self.project.arch.bytes * sum(1 for arg_loc in arg_locs if isinstance(arg_loc, SimStackArg))
 
     def _handle_function(self, state: FactCollectorState, func: Function) -> None:
         try:
@@ -996,22 +1040,26 @@ class FactCollector(Analysis):
 
         return callee_restored_regs.difference(caller_saved_offsets)
 
-    def _analyze_endpoints_for_extrapop(self) -> int:
+    def _analyze_endpoints_for_extrapop(self) -> int | None:
         """
         Analyze all endpoints to determine the number of bytes that are popped after popping the return address at the
         end of the function. This information is useful for determining if the function cleans up stack arguments
         before returning.
+
+        Only return instructions and tail calls to functions with known cleanup are evidence. Returns None if no exit
+        provides any.
         """
 
         if not self.project.arch.call_pushes_ret:
             return 0
 
         sp_offset = self.project.arch.sp_offset
-        sp_diffs = set()  # should all be positive
+        sp_diffs = {pops for pops in self._tailcall_pops if pops is not None}  # should all be positive
 
-        for endpoint in self.function.endpoints:
+        for endpoint in self.function.endpoints_with_type["return"]:
             block = self.project.factory.block(endpoint.addr, size=endpoint.size)
-            if not block.instruction_addrs:
+            if not block.instruction_addrs or block.vex.jumpkind != "Ijk_Ret":
+                # e.g., calls to non-returning functions
                 continue
             # ret is the only instruction that can load the return address, and it must be the last instruction of the
             # block. so we simply take a look at sp value diff before and after the last instruction. hopefully this
@@ -1028,7 +1076,7 @@ class FactCollector(Analysis):
             sp_diff = sp_off_after - sp_off_before
             sp_diffs.add(sp_diff - self.project.arch.bytes)
 
-        return 0 if not sp_diffs else max(sp_diffs)
+        return max(sp_diffs) if sp_diffs else None
 
     def _determine_input_args(self, end_states: list[FactCollectorState], callee_restored_regs: set[int]) -> None:
         self.input_args = []

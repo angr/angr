@@ -1261,8 +1261,8 @@ class SimCC:
                 has_stackargs = True
             new_args.append(arg)
 
-        if has_stackargs and cls.CALLEE_CLEANUP and not extra_pop:
-            # the callee-cleanup convention should have a nonzero extra_pop if there are stack arguments
+        if has_stackargs and cls.CALLEE_CLEANUP and (extra_pop is None or extra_pop <= 0):
+            # a callee-cleanup convention with stack arguments needs proof that the callee pops them; None means unknown
             return False
 
         # update args (e.g., drop caller-saved register arguments)
@@ -1305,7 +1305,8 @@ class SimCC:
                             remove non-argument arguments.
         :param sp_delta:    The change of stack pointer before and after the call is made.
         :param extra_pop:   The number of bytes that are popped by the callee. This is used to distinguish between
-                            callee-cleanup and caller-cleanup conventions.
+                            callee-cleanup and caller-cleanup conventions. None means unknown, in which case
+                            callee-cleanup conventions with stack arguments are not matched.
         :param language:    The source language of the binary (e.g. "go"), if known. Languages with their own ABI are
                             matched against that ABI alone.
         :return:            A calling convention instance, or None if none of the SimCC subclasses seems to fit the

@@ -11,9 +11,12 @@ import archinfo
 import angr
 from angr.calling_conventions import (
     SimCCCdecl,
+    SimCCMicrosoftCdecl,
+    SimCCStdcall,
     SimCCSystemVAMD64,
     default_cc,
 )
+from angr.sim_type import SimTypeFunction, SimTypeInt
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location
 
@@ -36,6 +39,40 @@ class TestFactCollector(unittest.TestCase):
             force_smart_scan=False,
         )
         return project.analyses.FunctionFactCollector(cfg.kb.functions[base_addr])
+
+    def test_x86_extra_pop_from_returns(self):
+        # pop ecx; push ecx; ret -- pops nothing beyond the return address
+        self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("5951c3"), arch="x86").extra_pop, 0)
+        # ret 8
+        self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("c20800"), arch="x86").extra_pop, 8)
+
+    def test_x86_extra_pop_of_tail_jump_thunk(self):
+        # thunk at 0x400000: jmp 0x400010; target at 0x400010: mov eax, [esp+4]; ret 4
+        code = bytes.fromhex("eb0e") + b"\xcc" * 14 + bytes.fromhex("8b442404c20400")
+        base_addr = 0x400000
+        target_addr = base_addr + 0x10
+        project = angr.load_shellcode(code, arch="x86", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, target_addr],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        thunk = cfg.kb.functions[base_addr]
+        target = cfg.kb.functions[target_addr]
+
+        # a jmp is not a ret: without knowing the target, the thunk's cleanup is unknown rather than -4
+        self.assertIsNone(project.analyses.FunctionFactCollector(thunk).extra_pop)
+
+        # the thunk pops whatever its tail-call target pops
+        proto = SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(project.arch)
+        target.calling_convention = SimCCStdcall(project.arch)
+        target.prototype = proto
+        self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 4)
+        target.calling_convention = SimCCMicrosoftCdecl(project.arch)
+        self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 0)
 
     def test_stack_canary_comparison_is_not_a_return_value(self):
         prefix = bytes.fromhex(
