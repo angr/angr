@@ -254,7 +254,11 @@ class RegionIdentifier(Analysis):
                 type_ = graph.edges[src, dst].get("type", None)
                 merged_node = None
                 if type_ == "fake_return":
-                    if graph.out_degree(src) == 1 and graph.in_degree(dst) == 1:
+                    if (
+                        graph.out_degree(src) == 1
+                        and graph.in_degree(dst) == 1
+                        and not self._block_ends_with_indirect_jump_or_call(dst)
+                    ):
                         merged_node = self._merge_nodes(graph, src, dst, force_multinode=True)
                 elif type_ == "call":
                     graph.remove_node(dst)

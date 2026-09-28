@@ -323,6 +323,9 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
 
         Load(addr=(((vvar_9{reg 36} & 0x3<32>) * 0x4<32>) + 0x42cd28<32>), size=4, endness=Iend_LE)
 
+    Logical right shifts also bound unsigned indexes. For example, ``status() >> 31`` on a 32-bit value
+    selects one of two entries. Keep the bounded expression intact, including any calls it contains.
+
     :param last_stmt:   The last statement of the switch-case header node.
     :return:            A tuple of ``(index expression, lower bound, upper bound)``, or None.
     """
@@ -399,16 +402,29 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
                     ub = expr.operands[1].value  # type: ignore
                     index_expr = expr
                     break
-                if isinstance(expr.operands[0], ailment.Expr.Const) and expr.operands[1].value in masks:
+                if isinstance(expr.operands[0], ailment.Expr.Const) and expr.operands[0].value in masks:
                     lb = 0
                     ub = expr.operands[0].value  # type: ignore
                     index_expr = expr
                     break
                 return None
+            elif expr.op == "Shr" and isinstance(expr.operands[1], ailment.Expr.Const):
+                shift = expr.operands[1].value
+                bits = expr.operands[0].bits
+                if not isinstance(shift, int) or not 0 <= shift < bits:
+                    return None
+                remaining_bits = bits - shift
+                # Match the same maximum table size as the supported masks.
+                if not 1 <= remaining_bits <= 10:
+                    return None
+                lb = 0
+                ub = (1 << remaining_bits) - 1
+                index_expr = expr
+                break
             else:
                 return None
         elif isinstance(expr, ailment.Expr.Convert):
-            if expr.is_signed is False:
+            if expr.is_signed is False and expr.from_bits <= expr.to_bits:
                 expr = expr.operand
             else:
                 return None

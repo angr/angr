@@ -7,13 +7,40 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
+import networkx
+
 import angr
+from angr.ailment import Block
+from angr.ailment.expression import Register
+from angr.ailment.statement import Jump, Return
+from angr.analyses.decompiler.region_identifier import RegionIdentifier
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestRegionIdentifier(unittest.TestCase):
+    def test_supergraph_preserves_dispatch_address_after_call(self):
+        for edge_type in ("fake_return", "transition"):
+            for indirect in (False, True):
+                with self.subTest(edge_type=edge_type, indirect=indirect):
+                    head = Block(0x400000, 5, statements=[])
+                    terminator = Jump(0, Register(1, 8, 32)) if indirect else Return(0, [])
+                    dispatch = Block(0x400005, 10, statements=[terminator])
+                    graph = networkx.DiGraph()
+                    graph.add_edge(head, dispatch, type=edge_type)
+                    identifier = object.__new__(RegionIdentifier)
+                    identifier.entry_node_addr = (head.addr, None)
+                    identifier._make_supergraph(graph)  # pylint:disable=protected-access
+
+                    if indirect:
+                        # Switch matching keys CFG jump-table metadata by the dispatch block's address.
+                        assert set(graph) == {head, dispatch}
+                        assert graph.has_edge(head, dispatch)
+                    else:
+                        assert len(graph) == 1
+                        assert next(iter(graph)).addr == head.addr
+
     def test_smoketest(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "all"), auto_load_libs=False)
         cfg = p.analyses.CFG(normalize=True)
