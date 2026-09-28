@@ -2582,6 +2582,9 @@ class PhoenixStructurer(StructurerBase):
                 # merge two blocks
                 new_seq = self._merge_nodes(start_node, end_node)
             elif isinstance(end_node, IncompleteSwitchCaseNode):
+                if any(start_node.addr in (table.jumptable_entries or ()) for table in self.jump_tables.values()):
+                    # Absorption keeps the inner dispatch address, hiding this entry from an enclosing switch.
+                    return False
                 # a special case where there is a node between the actual switch-case head and the jump table
                 # head
                 # binary 7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb, function 0x1400326C0
