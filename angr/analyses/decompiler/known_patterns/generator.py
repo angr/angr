@@ -118,6 +118,7 @@ class PatternGenerator:
     def __init__(self, codegen, ail_graph: networkx.DiGraph | None = None):
         self.codegen = codegen
         self.ail_graph = ail_graph
+        self._wildcards = 0
         self.text: str = codegen.text
         # id(cnode) -> (min_start, max_end) merged over its text chunks
         self._cnode_span: dict[int, tuple[int, int]] = {}
@@ -335,7 +336,9 @@ class PatternGenerator:
             if id(expr) in const_promote:
                 return PConst(name=self._extra_name_of(expr))
             if fuzzy and self._is_string_pointer(expr):
-                return PAny()
+                # named, so that the outliner can hand each occurrence's own string to the call
+                self._wildcards += 1
+                return PAny(name=f"_s{self._wildcards}")
             return PConst(value=expr.value)
         if isinstance(expr, Load):
             return PLoad(addr=self._gen_expr(expr.addr, capture_of, const_promote, fuzzy=fuzzy), size=expr.size)
@@ -780,6 +783,7 @@ class PatternGenerator:
         ins_addrs = self._body_ins_addrs(start_offset, end_offset)
         if not ins_addrs:
             raise PatternGenerationError("the selection covers no statement")
+        self._wildcards = 0
         # the same order the fuzzy matcher's stream uses, so the sequence lines up with it
         from angr.analyses.fuzzy_patterns.tokenizer import linearize  # pylint:disable=import-outside-toplevel
 
@@ -836,7 +840,8 @@ class PatternGenerator:
         """:meth:`generate_fuzzy` for a caller that already holds the statements, in order."""
         if not stmts:
             raise PatternGenerationError("no statements")
-        stmts = [s for s in stmts if not isinstance(s, Label)]
+        stmts = [s for s in stmts if not isinstance(s, (Label, Jump))]
+        self._wildcards = 0
         capture_of, arg_varids = self._auto_captures(stmts)
         pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))
         return self._finish(

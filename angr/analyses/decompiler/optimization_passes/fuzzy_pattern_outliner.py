@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import Call, VirtualVariable
+from angr.ailment.expression import Call, Const, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.known_patterns.pattern import resolve_typeref
 from angr.analyses.decompiler.utils import copy_graph
@@ -136,7 +136,9 @@ class FuzzyPatternOutliner(OptimizationPass):
 
         snapshot = _snapshot(graph)
         saved_vvar_id = self.vvar_id_start
+        closed = not region.frontier
         try:
+            hoisted = self._hoist_constants(graph, stream, match)
             src_loc, frontier = materialize(
                 graph, stream, region, self.new_block_addr, split_tail=not auto, idx_alloc=self.manager.next_atom
             )
@@ -179,50 +181,125 @@ class FuzzyPatternOutliner(OptimizationPass):
             return False
 
         outliner.child_func.name = pattern.call_name
-        call = self._rename_call(graph, src_loc, pattern.call_name)
+        call = self._rename_call(graph, src_loc, pattern.call_name, hoisted)
         if call is not None:
-            self._declare_prototype(call, stored, match, outliner.child_graph)
+            self._declare_prototype(call, stored, {**match.captures, **hoisted}, outliner.child_graph, closed)
         self.outlined.append((pattern.name, src_loc, coverage))
         return True
 
-    @staticmethod
-    def _rename_call(graph: networkx.DiGraph[Block], call_loc: tuple[int, int | None], name: str) -> Call | None:
-        """Point the synthesized callsite at the pattern's call name; returns the new Call."""
+    def _hoist_constants(
+        self, graph: networkx.DiGraph[Block], stream: TokenStream, match: TemplateMatch
+    ) -> dict[str, tuple[VirtualVariable, Const]]:
+        """Turn every constant a named wildcard bound into a variable of the occurrence.
+
+        Copies of an idiom differ in exactly what the pattern left open, a string
+        pointer or a size, say, so a callee that hard-coded one copy's constant would be
+        wrong for the others. Each such constant becomes a fresh variable inside the
+        region, which liveness then makes an argument; the definition is written at
+        the callsite once the region is gone. Returns capture name -> (variable, constant).
+        """
+        consts = {
+            name: expr
+            for name, expr in match.captures.items()
+            if isinstance(expr, Const) and isinstance(expr.value, int)
+        }
+        if not consts:
+            return {}
+        blocks = {(b.addr, b.idx): b for b in graph}
+        hoisted: dict[str, tuple[VirtualVariable, Const]] = {}
+        for column in match.columns:
+            if column.token is None:
+                continue
+            loc = stream.locs[column.token]
+            block = blocks[loc.block_loc]
+            stmt = block.statements[loc.stmt_idx]
+            for name, const in consts.items():
+                if name in hoisted:
+                    continue
+                vvar = VirtualVariable(
+                    self.manager.next_atom(),
+                    self.vvar_id_start,
+                    const.bits,
+                    VirtualVariableCategory.REGISTER,
+                    oident=self.project.arch.ret_offset,
+                    **const.tags,
+                )
+                replaced, new_stmt = stmt.replace(const, vvar)
+                if not replaced:
+                    continue
+                self.vvar_id_start += 1
+                stmt = new_stmt
+                hoisted[name] = (vvar, const)
+            block.statements[loc.stmt_idx] = stmt
+        return hoisted
+
+    def _rename_call(
+        self,
+        graph: networkx.DiGraph[Block],
+        call_loc: tuple[int, int | None],
+        name: str,
+        hoisted: dict[str, tuple[VirtualVariable, Const]],
+    ) -> Call | None:
+        """Point the synthesized callsite at the pattern's call name, passing each hoisted
+        constant in place of its variable; returns the new Call."""
         block = next((b for b in graph if (b.addr, b.idx) == call_loc), None)
         if block is None:
             return None
+        const_of = {vvar.varid: const for vvar, const in hoisted.values()}
         for i, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
                 call = stmt.src
-                new_call = Call(call.idx, name, args=call.args, bits=call.bits, **call.tags)
+            elif isinstance(stmt, Return) and len(stmt.ret_exprs or ()) == 1 and isinstance(stmt.ret_exprs[0], Call):
+                call = stmt.ret_exprs[0]
+            else:
+                continue
+            args = [
+                (
+                    Const(self.manager.next_atom(), const_of[a.varid].value, const_of[a.varid].bits, **a.tags)
+                    if isinstance(a, VirtualVariable) and a.varid in const_of
+                    else a
+                )
+                for a in (call.args or ())
+            ]
+            new_call = Call(call.idx, name, args=args, bits=call.bits, **call.tags)
+            if isinstance(stmt, Assignment):
                 block.statements[i] = Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags)
-                return new_call
+            else:
+                block.statements[i] = Return(stmt.idx, [new_call], **stmt.tags)
+            return new_call
         return None
 
-    def _declare_prototype(self, call: Call, stored: StoredPattern, match, child_graph) -> None:
+    def _declare_prototype(
+        self, call: Call, stored: StoredPattern, bound: dict[str, Expression | tuple], child_graph, closed: bool
+    ) -> None:
         """Give the callsite the types the pattern declares.
 
         The outliner orders arguments by liveness, not by the pattern's parameter
         list, so each argument is typed by the capture it binds. A callee that
-        returns a value the pattern did not declare a type for is left alone: a
-        wrong prototype is worse than none.
+        returns a value the pattern did not declare a type for is left alone, unless
+        it returns on the caller's behalf, in which case it returns what the caller
+        does: a wrong prototype is worse than none.
         """
         pattern = stored.pattern
         returns_value = any(
             isinstance(stmt, Return) and stmt.ret_exprs for block in child_graph for stmt in block.statements
         )
-        if returns_value and pattern.returnty is None:
-            return
         arch = self.project.arch
+        returnty = resolve_typeref(pattern.returnty, arch) if pattern.returnty is not None else None
+        if returns_value and returnty is None:
+            if not closed or self._func.prototype is None:
+                return
+            returnty = self._func.prototype.returnty
         by_varid = {}
         for param in pattern.params:
-            bound = match.captures.get(param.capture)
-            if isinstance(bound, VirtualVariable):
-                by_varid[bound.varid] = param
+            value = bound.get(param.capture)
+            if isinstance(value, tuple):
+                value = value[0]
+            if isinstance(value, VirtualVariable):
+                by_varid[value.varid] = param
         args = []
         for arg in call.args or ():
             param = by_varid.get(arg.varid) if isinstance(arg, VirtualVariable) else None
             ty = resolve_typeref(param.type, arch) if param is not None and param.type is not None else None
             args.append(ty if ty is not None else parse_type("void *").with_arch(arch))
-        returnty = resolve_typeref(pattern.returnty, arch) if pattern.returnty is not None else None
         variable_map_of(self.manager).set_prototype(call, SimTypeFunction(args, returnty).with_arch(arch))

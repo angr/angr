@@ -89,7 +89,7 @@ class TestGenerateFuzzy(unittest.TestCase):
 
         assert isinstance(pattern.pattern, PStmtSeq)
         puts, fflush, ret = pattern.pattern.stmts
-        assert isinstance(puts, PCallStmt) and puts.call.names == {"puts"} and puts.call.args == (PAny(),)
+        assert isinstance(puts, PCallStmt) and puts.call.names == {"puts"} and puts.call.args == (PAny(name="_s1"),)
         assert isinstance(fflush, PCallStmt) and fflush.call.names == {"fflush"}
         (stdout,) = fflush.call.args
         assert isinstance(stdout, PLoad) and isinstance(stdout.addr, PConst) and stdout.addr.value is not None

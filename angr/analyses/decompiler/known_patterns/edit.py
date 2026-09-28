@@ -153,9 +153,18 @@ class PatternEditor:
         if not paths:
             return 0
         root = self.pattern.pattern
+        taken = {n.name for _, n in self.leaves() for n in _named_nodes(n)}
+        k = 0
         for path in paths:
             node = self.node_at(path)
-            root = _rebuild(root, path, dataclasses.replace(node, value=None, pred=None, values=None))
+            name = node.name
+            if name is None:
+                # named, so that the outliner can hand each occurrence's own value to the call
+                k += 1
+                while f"_k{k}" in taken:
+                    k += 1
+                name = f"_k{k}"
+            root = _rebuild(root, path, dataclasses.replace(node, value=None, pred=None, values=None, name=name))
         self._commit(dataclasses.replace(self.pattern, pattern=root))
         return len(paths)
 
@@ -277,6 +286,23 @@ class PatternEditor:
 #
 # labels for a UI
 #
+
+
+def _named_nodes(node: dsl.PatternNode) -> list[dsl.PatternNode]:
+    """Every node under ``node`` (itself included) that carries a capture name."""
+    out = []
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        if isinstance(n, _NAMED) and n.name is not None:
+            out.append(n)
+        for f in dataclasses.fields(n):  # type: ignore[arg-type]
+            v = getattr(n, f.name)
+            if isinstance(v, dsl.PatternNode):
+                stack.append(v)
+            elif isinstance(v, tuple):
+                stack.extend(x for x in v if isinstance(x, dsl.PatternNode))
+    return out
 
 
 def describe(node: dsl.PatternNode) -> str:

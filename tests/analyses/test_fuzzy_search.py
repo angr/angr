@@ -165,6 +165,14 @@ class TestSearch(unittest.TestCase):
         assert values == [1, 3, 2]
 
 
+def _first_statement(stream, start: int) -> int:
+    """The first token at or after ``start`` that is not a jump: jumps are not leaves."""
+    pos = start
+    while pos < len(stream) and stream.shapes[pos] in ("Jf", "Jb", "J?"):
+        pos += 1
+    return pos
+
+
 class TestVerifyOnARealFunction(unittest.TestCase):
     """Shape search places a template; verification holds it to the constraints shapes
     cannot see. Lift a template from a real function's own statements: it must find
@@ -224,7 +232,8 @@ class TestVerifyOnARealFunction(unittest.TestCase):
         for start, length in ((20, 30), (50, 60), (100, 100)):
             stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs[start : start + length]]
             template = self.gen.generate_fuzzy_from_statements(stmts, "w")
-            hits = [m for m in search(template, stream) if m.interval.start <= start < m.interval.end]
+            origin = _first_statement(stream, start)
+            hits = [m for m in search(template, stream) if m.interval.start <= origin < m.interval.end]
             assert hits, f"window [{start},{start + length}) not found at its origin"
             verify(hits[0], template, stream)
             assert hits[0].similarity == 1.0, (start, length, hits[0].similarity)
@@ -244,7 +253,8 @@ class TestVerifyOnARealFunction(unittest.TestCase):
             editor.loosen_constants()
             editor.cut_depth()
             editor.loosen_interior_captures()
-            hits = [m for m in search(editor.pattern, stream) if m.interval.start <= start < m.interval.end]
+            origin = _first_statement(stream, start)
+            hits = [m for m in search(editor.pattern, stream) if m.interval.start <= origin < m.interval.end]
             assert hits, f"window [{start},{start + 40}) not found at its origin after loosening"
             verify(hits[0], editor.pattern, stream)
             assert hits[0].verified is True, (start, [c for c in hits[0].columns if c.verified is False][:3])

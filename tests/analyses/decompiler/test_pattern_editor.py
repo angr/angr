@@ -143,7 +143,7 @@ class TestEdits(unittest.TestCase):
         path = ("stmts", 0, "src", "operands", 1)
         ed.replace_node(path, PConst(values=frozenset({3, 5})))
         assert ed.loosen_constants() == 3
-        assert ed.node_at(path) == PConst()
+        assert ed.node_at(path) == PConst(name="_k1")
         ed.replace_node(path, PConst(values=frozenset({3, 5})))
         ed.set_const(path, 9)
         assert ed.node_at(path) == PConst(value=9)
@@ -151,8 +151,9 @@ class TestEdits(unittest.TestCase):
     def test_loosen_constants_is_one_undoable_sweep(self):
         ed = PatternEditor(_pattern())
         assert ed.loosen_constants() == 3, "8, and the two choice alternatives"
-        assert ed.node_at(("stmts", 0, "src", "operands", 1)) == PConst()
-        assert ed.node_at(("stmts", 2, "src", "alternatives", 0)) == PConst()
+        # a loosened constant is named, so that an occurrence's own value reaches the call
+        assert ed.node_at(("stmts", 0, "src", "operands", 1)) == PConst(name="_k1")
+        assert ed.node_at(("stmts", 2, "src", "alternatives", 0)) == PConst(name="_k2")
         assert ed.loosen_constants() == 0
         assert ed.undo()
         assert ed.node_at(("stmts", 0, "src", "operands", 1)) == PConst(value=8)

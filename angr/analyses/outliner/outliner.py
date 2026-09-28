@@ -67,9 +67,16 @@ class Outliner(Analysis):
             arg_vvars=[],  # TODO: FIXME
         )
 
+        # None: derive the frontier from dominance and liveness. An empty set: the region
+        # is closed, every path through it ends in a return, and the callee returns on the
+        # caller's behalf.
+        self.closed = frontier is not None and not frontier
         if frontier:
             self.frontier_locs = frontier
             self.frontier_vars = self._determine_frontier_vars()
+        elif self.closed:
+            self.frontier_locs = set()
+            self.frontier_vars = set()
         else:
             self.frontier_locs = self._determine_frontier_locs()
             self.frontier_vars = set()
@@ -147,9 +154,14 @@ class Outliner(Analysis):
                 raise KeyError(f"Frontier location {loc} is not valid in the given graph.") from e
 
         # generate a subgraph
-        subgraph = subgraph_between_nodes(
-            self.parent_graph, src_node, frontier, include_frontier=False
-        )  # FISHME: why was this True?
+        if self.closed:
+            subgraph = networkx.DiGraph(
+                self.parent_graph.subgraph({src_node, *networkx.descendants(self.parent_graph, src_node)})
+            )
+        else:
+            subgraph = subgraph_between_nodes(
+                self.parent_graph, src_node, frontier, include_frontier=False
+            )  # FISHME: why was this True?
 
         in_edges = [(node, src_node) for node in self.parent_graph.pred[src_node]]
         out_edges = [
@@ -295,6 +307,24 @@ class Outliner(Analysis):
             if len(ret_exprs) > 1:
                 _l.error("Outlined region seems to have multiple return values. Can't represent this correctly.")
             call_stmt.dst = ret_exprs[0]
+
+        if self.closed:
+            # the callee kept the region's returns; the caller returns what it returned,
+            # at the width the region returned it
+            ret_bits = next(
+                (
+                    stmt.ret_exprs[0].bits
+                    for node in subgraph
+                    for stmt in node.statements
+                    if isinstance(stmt, Return) and stmt.ret_exprs
+                ),
+                None,
+            )
+            if ret_bits is not None:
+                call_expr = Call(None, call_expr.target, args=call_expr.args, bits=ret_bits, ins_addr=src_node.addr)
+                new_src_node.statements = [Return(None, [call_expr], ins_addr=src_node.addr)]
+            else:
+                new_src_node.statements.append(Return(None, [], ins_addr=src_node.addr))
 
         return callee_func, subgraph, callee_arg_vvars
 

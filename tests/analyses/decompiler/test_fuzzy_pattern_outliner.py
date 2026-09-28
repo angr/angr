@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
+import re
 import unittest
 
 import angr
@@ -48,6 +49,29 @@ def _lift_a_pattern(proj, cfg, func, call_name, length=3):
 
 
 class TestFuzzyPatternOutliner(unittest.TestCase):
+    def test_an_error_exit_selection_outlines_every_exit_with_its_own_string(self):
+        """puts(msg); fflush(stdout); return -1 in doit: the region ends in a return, so the
+        callee returns on the caller's behalf, and the message the pattern left open is
+        passed to each occurrence's call."""
+        proj, cfg, func = _load()
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None
+        m = re.search(r'puts\("String is empty."\);\n +fflush\(stdout\);\n +return 0xffffffff;\n', dec.codegen.text)
+        assert m is not None
+        pattern = PatternGenerator(dec.codegen, dec.ail_graph).generate_fuzzy(m.start(), m.end(), "PatternErrorsOut")
+
+        proj2, cfg2, func2 = _load()
+        proj2.kb.fuzzy_patterns.add(pattern)
+        dec2 = proj2.analyses.Decompiler(func2, cfg=cfg2.model)
+        assert dec2.codegen is not None and dec2.ail_graph is not None
+        text = dec2.codegen.text
+
+        calls = re.findall(r'return PatternErrorsOut\("([^"]*)"\);', text)
+        assert len(calls) == 8, calls
+        assert "Empty title" in calls and "Cannot open document." in calls
+        assert text.count("PatternErrorsOut(") == 8
+        assert graph_problems(dec2.ail_graph, func2.addr) == []
+
     def test_a_stored_pattern_is_outlined_by_name(self):
         proj, cfg, func = _load()
         pattern, _ = _lift_a_pattern(proj, cfg, func, "my_idiom")

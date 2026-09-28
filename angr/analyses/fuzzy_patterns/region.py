@@ -17,6 +17,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from angr.ailment.statement import Return
+
 from .align import Interval
 
 if TYPE_CHECKING:
@@ -108,12 +110,20 @@ def snap(
 
     region.frontier = frontier
     if not frontier:
-        region.reason = "region has no exit (it would swallow the function tail)"
-        return region
+        # a closed region, one whose every path ends in a return, is a callee that
+        # returns on the caller's behalf; anything else with no exit is the function's tail
+        sinks = [loc for loc in block_locs if not any(True for _ in graph.successors(nodes[loc]))]
+        if not sinks or not all(_ends_in_return(nodes[loc]) for loc in sinks):
+            region.reason = "region has no exit (it would swallow the function tail)"
+            return region
 
     region.outlinable = True
     region.reason = "ok"
     return region
+
+
+def _ends_in_return(block: Block) -> bool:
+    return bool(block.statements) and isinstance(block.statements[-1], Return)
 
 
 def largest_single_entry_subrun(
