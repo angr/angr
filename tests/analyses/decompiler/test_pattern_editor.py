@@ -138,6 +138,15 @@ class TestEdits(unittest.TestCase):
         with self.assertRaises(KeyError):
             ed.set_param_type("nope", "int")
 
+    def test_loosen_constants_is_one_undoable_sweep(self):
+        ed = PatternEditor(_pattern())
+        assert ed.loosen_constants() == 3, "8, and the two choice alternatives"
+        assert ed.node_at(("stmts", 0, "src", "operands", 1)) == PConst()
+        assert ed.node_at(("stmts", 2, "src", "alternatives", 0)) == PConst()
+        assert ed.loosen_constants() == 0
+        assert ed.undo()
+        assert ed.node_at(("stmts", 0, "src", "operands", 1)) == PConst(value=8)
+
     def test_edits_round_trip_through_json(self):
         ed = PatternEditor(_pattern())
         ed.set_leaf_mode(("stmts", 1), "optional")

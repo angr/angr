@@ -136,6 +136,29 @@ class PatternEditor:
             raise TypeError(f"{type(node).__name__} has no operator")
         self.replace_node(path, dataclasses.replace(node, op=ops))
 
+    def loosen_constants(self) -> int:
+        """Drop the value of every pinned constant, as one undoable edit. Copies of an idiom
+        that differ only in their constants, a decryption loop's keys and sizes, say, are
+        exactly what a fuzzy pattern is for, and pinning them is what a lifted pattern
+        starts out doing. Returns how many constants were loosened."""
+        paths: list[NodePath] = []
+
+        def walk(path: NodePath) -> None:
+            for child_path, child in self.children(path):
+                if isinstance(child, dsl.PConst) and child.value is not None:
+                    paths.append(child_path)
+                walk(child_path)
+
+        walk(())
+        if not paths:
+            return 0
+        root = self.pattern.pattern
+        for path in paths:
+            node = self.node_at(path)
+            root = _rebuild(root, path, dataclasses.replace(node, value=None, pred=None))
+        self._commit(dataclasses.replace(self.pattern, pattern=root))
+        return len(paths)
+
     def set_call_name(self, call_name: str) -> None:
         self._commit(dataclasses.replace(self.pattern, call_name=call_name))
 
