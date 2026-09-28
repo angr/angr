@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import networkx
+from archinfo import Endness
 
 import angr
 from angr.ailment import Block
@@ -396,3 +397,50 @@ def test_wcscpy_keeps_writes_whose_values_are_used():
     _, statements = builder.run()
 
     assert [stmt.dst.stack_offset for stmt in statements[:3]] == [-108, -107, -106]
+
+
+def test_wcscpy_keeps_terminator():
+    builder = _WcscpyBlockBuilder()
+    builder.write_bytes(-108, APPDATA_PATH + b"\x00\x00")
+    simplifier, statements = builder.run()
+
+    assert builder.wide_copies(simplifier, statements) == [(-108, APPDATA_PATH, 62)]
+    assert len(statements) == 1
+
+
+def test_wcscpy_wide_string_check_returns_all_bytes():
+    data = APPDATA_PATH + b"\x00\x00"
+    for endness, byteorder in ((Endness.BE, "big"), (Endness.LE, "little")):
+        r, s = InlinedWcscpySimplifier.is_integer_likely_a_wide_string(
+            int.from_bytes(data, byteorder), len(data), endness, min_length=2, char_endness=Endness.LE
+        )
+        assert r and s == data
+    # half a code unit is not a wide string
+    assert InlinedWcscpySimplifier.is_integer_likely_a_wide_string(0x41, 1, Endness.LE, min_length=1) == (False, None)
+    # characters must be in the requested byte order
+    assert InlinedWcscpySimplifier.is_integer_likely_a_wide_string(
+        int.from_bytes(b"\x00c\x00d", "big"), 4, Endness.BE, min_length=1, char_endness=Endness.LE
+    ) == (False, None)
+
+
+def test_wcscpy_does_not_merge_half_code_units():
+    builder = _WcscpyBlockBuilder()
+    vvars = builder.write_bytes(-108, "abcd".encode("utf-16le"))
+    builder.call("consume", vvars[7])
+    simplifier, statements = builder.run()
+
+    # the stride is cut before the used byte, and the lone "d" byte must stay a byte write
+    assert builder.wide_copies(simplifier, statements) == [(-108, "abc".encode("utf-16le"), 6)]
+    assert [stmt.dst.stack_offset for stmt in statements if isinstance(stmt, Assignment)] == [-102, -101]
+
+
+def test_wcscpy_consolidation_keeps_terminator_of_second_call():
+    simplifier = _simplifier(InlinedWcscpySimplifier)
+    first = _inlined_wcsncpy(simplifier, 0, 0, b"A\x00B\x00")
+    second = _inlined_wcsncpy(simplifier, 10, 4, b"C\x00", count=Const(11, 2, 64))
+
+    (merged,) = simplifier._consolidate_wcscpy_calls([first, second])
+    assert simplifier._copied_bytes(merged) == b"A\x00B\x00C\x00\x00\x00"
+    # nothing is appended after a terminator
+    third = _inlined_wcsncpy(simplifier, 20, 10, b"D\x00")
+    assert simplifier._consolidate_wcscpy_calls([merged, third]) is None

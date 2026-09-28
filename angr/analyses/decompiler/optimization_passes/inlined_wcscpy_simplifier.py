@@ -153,7 +153,13 @@ class InlinedWcscpySimplifier(OptimizationPass):
         else:
             return None
 
-        r, s = self.is_integer_likely_a_wide_string(value, value_size, self.project.arch.memory_endness, min_length=2)
+        r, s = self.is_integer_likely_a_wide_string(
+            value,
+            value_size,
+            self.project.arch.memory_endness,
+            min_length=2,
+            char_endness=self.project.arch.memory_endness,
+        )
         if r and self._stmts_removable(statements, [stmt_idx]):
             assert s is not None
             return self._make_wcsncpy_call(stmt, dst, s)
@@ -196,7 +202,9 @@ class InlinedWcscpySimplifier(OptimizationPass):
             integer, size = self._stride_to_int(stride)
             if size % 2 != 0:
                 continue
-            r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=2)
+            r, s = self.is_integer_likely_a_wide_string(
+                integer, size, Endness.BE, min_length=2, char_endness=self.project.arch.memory_endness
+            )
             if r and self._stmts_removable(statements, [sidx for _, sidx, _ in stride]):
                 assert s is not None
                 return stride, s
@@ -244,8 +252,33 @@ class InlinedWcscpySimplifier(OptimizationPass):
             self._vvar_value_uses = dict(counts)
         return self._vvar_value_uses
 
+    @staticmethod
+    def _wide_string_text(data: bytes) -> bytes:
+        """
+        The displayed string of copied bytes, without the terminator.
+        """
+        return data[:-2] if data.endswith(b"\x00\x00") else data
+
+    def _copied_bytes(self, stmt) -> bytes | None:
+        """
+        All bytes written by an inlined wcsncpy call, including the terminator and padding.
+        """
+        assert isinstance(stmt, SideEffectStatement) and stmt.expr.args is not None
+        str_const, count = stmt.expr.args[1], stmt.expr.args[2]
+        assert isinstance(str_const, Const)
+        if not isinstance(count, Const) or not count.is_int:
+            return None
+        text = self.kb.custom_strings[str_const.value_int]
+        size = count.value_int * 2
+        if size < len(text):
+            return None
+        return text + b"\x00" * (size - len(text))
+
     def _make_wcsncpy_call(self, stmt, dst, s):
-        str_id = self.kb.custom_strings.allocate(s)
+        """
+        Create a wcsncpy call that writes all bytes in s.
+        """
+        str_id = self.kb.custom_strings.allocate(self._wide_string_text(s))
         wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
         wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
         str_const = Const(
@@ -455,16 +488,17 @@ class InlinedWcscpySimplifier(OptimizationPass):
         if self.is_inlined_wcsncpy(last_stmt):
             assert isinstance(last_stmt, SideEffectStatement)
             assert last_stmt.expr.args is not None and isinstance(last_stmt.expr.args[1], Const)
-            s_last = self.kb.custom_strings[last_stmt.expr.args[1].value_int]
+            s_last = self._copied_bytes(last_stmt)
             addr_last = last_stmt.expr.args[0]
             new_str = None
+            if s_last is None or s_last.endswith(b"\x00\x00"):
+                return None
 
             if isinstance(stmt, SideEffectStatement) and self.is_inlined_wcsncpy(stmt):
-                assert stmt.expr.args is not None and isinstance(stmt.expr.args[1], Const)
-                s_curr = self.kb.custom_strings[stmt.expr.args[1].value_int]
+                s_curr = self._copied_bytes(stmt)
                 addr_curr = stmt.expr.args[0]
                 delta = self._get_delta(addr_last, addr_curr)
-                if delta is not None and delta == len(s_last):
+                if s_curr is not None and delta is not None and delta == len(s_last):
                     new_str = s_last + s_curr
             elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
                 addr_curr = stmt.addr
@@ -474,7 +508,11 @@ class InlinedWcscpySimplifier(OptimizationPass):
                         r, s = True, b"\x00\x00"
                     else:
                         r, s = self.is_integer_likely_a_wide_string(
-                            stmt.data.value, stmt.size, stmt.endness, min_length=1
+                            stmt.data.value,
+                            stmt.size,
+                            stmt.endness,
+                            min_length=1,
+                            char_endness=self.project.arch.memory_endness,
                         )
                     if r and s is not None:
                         new_str = s_last + s
@@ -488,7 +526,11 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):
                     r, s = self.is_integer_likely_a_wide_string(
-                        stmt.src.value, stmt.dst.size, self.project.arch.memory_endness, min_length=1
+                        stmt.src.value,
+                        stmt.dst.size,
+                        self.project.arch.memory_endness,
+                        min_length=1,
+                        char_endness=self.project.arch.memory_endness,
                     )
                     if r and s is not None:
                         new_str = s_last + s
@@ -499,35 +541,20 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 prototype = SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
                     self.project.arch
                 )
-                if new_str.endswith(b"\x00\x00"):
-                    call_name = "wcsncpy"
-                    new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
-                    str_const = Const(
-                        self.manager.next_atom(),
-                        new_str_idx,
-                        last_stmt.expr.args[0].bits,
-                        type=wstr_type,
-                    )
-                    variable_map_of(self.manager).set_custom_string(str_const)
-                    args = [
-                        last_stmt.expr.args[0],
-                        str_const,
-                    ]
-                else:
-                    call_name = "wcsncpy"
-                    new_str_idx = self.kb.custom_strings.allocate(new_str)
-                    str_const = Const(
-                        self.manager.next_atom(),
-                        new_str_idx,
-                        last_stmt.expr.args[0].bits,
-                        type=wstr_type,
-                    )
-                    variable_map_of(self.manager).set_custom_string(str_const)
-                    args = [
-                        last_stmt.expr.args[0],
-                        str_const,
-                        Const(self.manager.next_atom(), len(new_str) // 2, self.project.arch.bits),
-                    ]
+                call_name = "wcsncpy"
+                new_str_idx = self.kb.custom_strings.allocate(self._wide_string_text(new_str))
+                str_const = Const(
+                    self.manager.next_atom(),
+                    new_str_idx,
+                    last_stmt.expr.args[0].bits,
+                    type=wstr_type,
+                )
+                variable_map_of(self.manager).set_custom_string(str_const)
+                args = [
+                    last_stmt.expr.args[0],
+                    str_const,
+                    Const(self.manager.next_atom(), len(new_str) // 2, self.project.arch.bits),
+                ]
 
                 tags = TagDict(stmt.tags)
                 if args[0].tags.get("extra_def", False):
@@ -670,40 +697,37 @@ class InlinedWcscpySimplifier(OptimizationPass):
         return all(isinstance(ch, int) and (ch == 0 if i % 2 == 1 else ch != 0) for i, ch in enumerate(lst))
 
     @staticmethod
-    def is_integer_likely_a_wide_string(v, size, endness, min_length=4):
-        if not isinstance(v, int) or not isinstance(size, int):
+    def is_integer_likely_a_wide_string(v, size, endness, min_length=4, char_endness=None):
+        """
+        Check if an integer of `size` bytes stored with `endness` holds a wide string. `char_endness` is the byte order
+        of each wide character (both orders are accepted if it is None). On success, return all `size` bytes in
+        memory order, including any trailing terminator.
+        """
+        if not isinstance(v, int) or not isinstance(size, int) or size % 2 != 0:
             return False, None
 
-        chars = []
-        if endness == Endness.LE:
-            while v != 0:
-                byt = v & 0xFF
-                if byt != 0 and byt not in ASCII_PRINTABLES:
-                    return False, None
-                chars.append(byt)
-                v >>= 8
-            if len(chars) % 2 == 1:
-                chars.append(0)
-        elif endness == Endness.BE:
-            for _ in range(size):
-                byt = v & 0xFF
-                v >>= 8
-                if byt != 0 and byt not in ASCII_PRINTABLES:
-                    return False, None
-                chars.append(byt)
+        chars = [(v >> (8 * i)) & 0xFF for i in range(size)]
+        if endness == Endness.BE:
             chars.reverse()
+        elif endness != Endness.LE:
+            return False, None
+        if any(byt != 0 and byt not in ASCII_PRINTABLES for byt in chars):
+            return False, None
+
+        if char_endness == Endness.LE:
+            valid = InlinedWcscpySimplifier.odd_offsets_are_zero(chars)
+        elif char_endness == Endness.BE:
+            valid = InlinedWcscpySimplifier.even_offsets_are_zero(chars)
         else:
+            valid = InlinedWcscpySimplifier.even_offsets_are_zero(
+                chars
+            ) or InlinedWcscpySimplifier.odd_offsets_are_zero(chars)
+        if not valid:
             return False, None
 
-        if not (
-            InlinedWcscpySimplifier.even_offsets_are_zero(chars) or InlinedWcscpySimplifier.odd_offsets_are_zero(chars)
-        ):
-            return False, None
-
-        if chars and len(chars) >= 2 and chars[-1] == 0 and chars[-2] == 0:
-            chars = chars[:-1]
-        if len(chars) >= min_length * 2 and all((ch == 0 or ch in ASCII_PRINTABLES) for ch in chars):
-            if len(chars) <= 4 * 2 and all((ch == 0 or ch in ASCII_DIGITS) for ch in chars):
+        text = chars[:-2] if chars[-2:] == [0, 0] else chars
+        if len(text) >= min_length * 2:
+            if len(text) <= 4 * 2 and all((ch == 0 or ch in ASCII_DIGITS) for ch in text):
                 return False, None
             return True, bytes(chars)
         return False, None
