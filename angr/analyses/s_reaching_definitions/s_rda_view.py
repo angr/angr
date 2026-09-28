@@ -14,7 +14,7 @@ from angr.calling_conventions import SimRegArg, call_clobbered_regs, default_cc
 from angr.knowledge_plugins.key_definitions.constants import ObservationPoint, ObservationPointType
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils
-from angr.utils.ssa import get_reg_offset_base
+from angr.utils.ssa import clobber_def_vvars, get_reg_offset_base
 
 from .s_rda_model import SRDAModel
 
@@ -87,6 +87,13 @@ class RegVVarPredicate:
         self.functions = functions
 
     def predicate(self, stmt: Statement) -> bool:
+        if "clobber_defs" in stmt.tags:
+            # a call defines the caller-saved registers it clobbers
+            for cvvar in clobber_def_vvars(stmt):
+                if cvvar.reg_offset == self.reg_offset and cvvar.size >= self.min_size:
+                    if cvvar not in self.vvars:
+                        self.vvars.append(cvvar)
+                    return True
         if (
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)

@@ -53,6 +53,7 @@ class RewritingAnalysis:
         vvar_id_start: int = 0,
         stackvars: bool = False,
         fail_fast: bool = False,
+        clobber_defs_by_loc: dict[tuple[int, int | None, int], list[Def]] | None = None,
     ):
         self.project = project
         self._fail_fast = fail_fast
@@ -74,6 +75,7 @@ class RewritingAnalysis:
             def_to_udef=def_to_udef,
             stackvars=stackvars,
             fail_fast=self._fail_fast,
+            clobber_defs_by_loc=clobber_defs_by_loc,
         )
 
         self._pending_states: dict[ailment.Block, RewritingState] = {}
@@ -185,7 +187,10 @@ class RewritingAnalysis:
         return phi_stmts
 
     @staticmethod
-    def insert_phi_statements(node: Block, phi_stmts: list[Assignment]):
+    def insert_phi_statements(node: Block, phi_stmts: list[Assignment]) -> int:
+        """
+        Insert phi statements after the leading labels of the block; return the index they were inserted at.
+        """
         idx = 0
         while idx < len(node.statements):
             if not isinstance(node.statements[idx], Label):
@@ -194,8 +199,9 @@ class RewritingAnalysis:
 
         if idx >= len(node.statements):
             node.statements += phi_stmts
-        else:
-            node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
+            return idx
+        node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
+        return idx
 
     def _reg_predicate(self, node_: Block, *, reg_offset: int) -> tuple[bool, Any]:
         out_state: RewritingState = (
@@ -237,7 +243,9 @@ class RewritingAnalysis:
         for node in self._graph:
             phi_stmts = self.create_phi_statements(node, self._phiid_to_udef, self._block_to_phiids[node])
             if phi_stmts:
-                self.insert_phi_statements(node, phi_stmts)
+                pos = self.insert_phi_statements(node, phi_stmts)
+                # the traversal recorded statement indices of the original block; the engine maps them back
+                self._engine_ail.phi_insertions[(node.addr, node.idx)] = (pos, len(phi_stmts))
 
     def _initial_abstract_state(self, node) -> RewritingState:
         func_args_map = {}

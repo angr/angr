@@ -479,6 +479,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         old_stmt_tags = common_cond.statements[0].tags.copy()
         # extra_defs describes definitions made by the original statement, not by this synthesized conditional jump.
         old_stmt_tags.pop("extra_defs", None)
+        old_stmt_tags.pop("clobber_defs", None)
         cond_jump = ConditionalJump(
             1,
             best_condition.copy() if best_condition is not None else None,

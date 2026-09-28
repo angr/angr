@@ -10,7 +10,7 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, SideEffect
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
-from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
+from angr.utils.ssa import VVarUsesCollector, clobber_def_ids, phi_assignment_get_src
 
 
 class SLivenessModel:
@@ -127,6 +127,7 @@ class SLivenessAnalysis(Analysis):
                 elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable):
                     live.discard(stmt.ret_expr.varid)
                 live.difference_update(stmt.tags.get("extra_defs", ()))
+                live.difference_update(clobber_def_ids(stmt))
 
                 phi_expr = phi_assignment_get_src(stmt)
                 if phi_expr is not None:
@@ -213,7 +214,7 @@ class SLivenessAnalysis(Analysis):
                 stmts = block.statements
 
             for stmt in reversed(stmts):
-                def_vvars = list(stmt.tags.get("extra_defs", []))
+                def_vvars = list(stmt.tags.get("extra_defs", [])) + clobber_def_ids(stmt)
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvars.append(stmt.dst.varid)
                 elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable):
@@ -271,7 +272,7 @@ class SLivenessAnalysis(Analysis):
 
             for i, stmt in enumerate(reversed(stmts)):
                 stmt_idx = len(stmts) - i - 1
-                def_vvars = list(stmt.tags.get("extra_defs", []))
+                def_vvars = list(stmt.tags.get("extra_defs", [])) + clobber_def_ids(stmt)
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvars.append(stmt.dst.varid)
                 elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable):

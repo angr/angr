@@ -38,6 +38,7 @@ class TraversalAnalysis:
         func_args: set[ailment.Expr.VirtualVariable],
         functions: Callable[[int | str], Function | None] | None,
         variable_map=None,
+        ail_manager=None,
     ):
         self.project = project
         self._stackvars = stackvars
@@ -58,11 +59,14 @@ class TraversalAnalysis:
             use_tmps=self._tmps,
             functions=functions,
             variable_map=variable_map,
+            ail_manager=ail_manager,
         )
 
         self._analyze()
 
         self.def_info = self._engine_ail.def_info
+        self.clobber_defs_by_loc = self._engine_ail.clobber_defs_by_loc
+        self.clobber_def_for = self._engine_ail.clobber_def_for
 
     #
     # Main analysis routines

@@ -89,6 +89,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             set(),
             self.kb.functions.get,
             variable_map=variable_map_of(self._ail_manager) if self._ail_manager is not None else None,
+            ail_manager=self._ail_manager,
         )
 
         # calculate virtual variables and phi nodes
@@ -130,9 +131,15 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 # variable at this location
                 if (state := traversal.start_states.get(block, None)) is not None:
                     defmap = {"stack": state.stackvar_defs, "reg": state.register_defs}[udef[0]]
-                    if udef[1] not in defmap:
+                    defs = set(defmap.get(udef[1], ()))
+                    if udef[0] == "reg":
+                        # a register clobbered by a call on some incoming path is defined by that call
+                        for loc in state.register_blackout.get(udef[1], ()):
+                            cdef = traversal.clobber_def_for(loc, udef[1])
+                            if cdef is not None:
+                                defs.add(cdef)
+                    if not defs:
                         continue
-                    defs = set(defmap[udef[1]])
                     # Generally, we only see multiple sizes if a) the variable is actually unused past this point
                     # or b) this is the top of a loop with one def at the bottom
                     if udef[2] != max(traversal.def_info[def_].variable_size for def_ in defs):
@@ -143,6 +150,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         for def2 in defmap.get(suboffset, ()):
                             definfo2 = traversal.def_info[def2]
                             ranges.add((definfo2.variable_offset, definfo2.variable_size))
+                    for def2 in defs:
+                        definfo2 = traversal.def_info[def2]
+                        ranges.add((definfo2.variable_offset, definfo2.variable_size))
                     # Reaching defs that share this udef's start offset but are narrower are partial writes of the same
                     # variable (e.g. a 1-byte store into a 4-byte variable at the end of a loop). They do not
                     # invalidate the phi for the full-width variable.
@@ -169,6 +179,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             vvar_id_start=next(phi_id_ctr),
             stackvars=self._ssa_stackvars,
             fail_fast=self._fail_fast,
+            clobber_defs_by_loc=traversal.clobber_defs_by_loc,
         )
         self.out_graph = rewriter.out_graph
         self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0

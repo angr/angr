@@ -77,8 +77,12 @@ class SimEngineSSARewriting(
         rewrite_tmps: bool = False,
         stackvars: bool = False,
         fail_fast: bool = False,
+        clobber_defs_by_loc: dict[tuple[int, int | None, int], list[Def]] | None = None,
     ):
         super().__init__(project)
+        self.clobber_defs_by_loc = clobber_defs_by_loc if clobber_defs_by_loc is not None else {}
+        # (block addr, block idx) -> (position, count) of the phi statements the rewriting analysis inserted
+        self.phi_insertions: dict[tuple[int, int | None], tuple[int, int]] = {}
 
         self.def_to_vvid_cache: dict[Def, int] = {}
         self.tmp_to_vvid_cache: dict[tuple[int, int | None, int], int] = {}
@@ -147,12 +151,26 @@ class SimEngineSSARewriting(
     def _stmt(self, stmt: Statement):
         self._extra_defs = []
         result = super()._stmt(stmt)
+        pos, count = self.phi_insertions.get((self.block.addr, self.block.idx), (0, 0))
+        if pos <= self.stmt_idx < pos + count:
+            clobber_defs = ()  # an inserted phi statement
+        else:
+            orig_idx = self.stmt_idx - count if self.stmt_idx >= pos + count else self.stmt_idx
+            clobber_defs = self.clobber_defs_by_loc.get((self.block.addr, self.block.idx, orig_idx), ())
+        if clobber_defs and result is None:
+            result = stmt.copy()
+        clobber_tag: list[int] = []
+        # create the vvars that this call clobbers
+        for clobber_def in clobber_defs:
+            vvar = self._expr_to_vvar(clobber_def, True)
+            clobber_tag += [vvar.varid, vvar.reg_offset, vvar.bits]
         for rstmt in result if isinstance(result, tuple) else [result] if isinstance(result, Statement) else []:
             if self._extra_defs:
                 rstmt.tags["extra_defs"] = self._extra_defs
             else:
                 rstmt.tags.pop("extra_defs", None)
-
+            if clobber_tag:
+                rstmt.tags["clobber_defs"] = clobber_tag
         return result
 
     def _handle_expr_VirtualVariable(self, expr):
