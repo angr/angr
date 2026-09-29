@@ -41,7 +41,7 @@ class TestFactCollector(unittest.TestCase):
         return project.analyses.FunctionFactCollector(cfg.kb.functions[base_addr])
 
     def test_x86_extra_pop_from_returns(self):
-        # pop ecx; push ecx; ret -- pops nothing beyond the return address
+        # `pop ecx; push ecx; ret` pops nothing beyond the return address
         self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("5951c3"), arch="x86").extra_pop, 0)
         # ret 8
         self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("c20800"), arch="x86").extra_pop, 8)

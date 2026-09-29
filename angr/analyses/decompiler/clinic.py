@@ -1617,7 +1617,6 @@ class Clinic(Analysis, Serializable):
         regs |= self._find_regs_saving_sp(self._func_graph)
 
         def _run_spt():
-            # the knowledge base must match where call-site prototypes are stored
             return self.project.analyses[StackPointerTracker].prep(kb=self.kb, fail_fast=self._fail_fast)(
                 self.function,
                 regs,
@@ -1656,10 +1655,10 @@ class Clinic(Analysis, Serializable):
 
     def _balance_stack_with_callee_cleanup(self, spt, run_spt):
         """
-        Use stack balance as evidence of callee cleanup at call sites whose cleanup is unproven: indirect calls with an
-        inferred caller-cleanup prototype that has stack arguments. Try treating the smallest set of them as
-        callee-cleanup that balances the stack, and record the result in kb.callsite_prototypes. Returns the stack
-        pointer tracker to use.
+        For call sites with unknown caller/callee cleanup configurations (especially with indirect calls), adjust
+        the caller/callee cleanup configuration to attempt to balance the stack.
+
+        Returns the StackPointerTracker instance once the stack is properly balanced or after giving up.
         """
         platform = self.project.simos.name if self.project.simos is not None else None
         cc_classes = CC.get(self.project.arch.name, {}).get(platform, []) if platform is not None else []

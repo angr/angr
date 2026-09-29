@@ -1264,7 +1264,7 @@ class SimCC:
             new_args.append(arg)
 
         if has_stackargs and cls.CALLEE_CLEANUP:
-            # a callee-cleanup convention with stack arguments needs proof that the callee pops them; None means unknown
+            # a callee-cleanup convention with stack arguments should be demonstrated by stack pops in the callee
             if extra_pop is None:
                 if not allow_unknown_cleanup:
                     return False

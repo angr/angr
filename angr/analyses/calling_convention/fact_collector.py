@@ -330,9 +330,9 @@ class FactCollector(Analysis):
         #: demote a prototype to void when it is set.
         self.retval_incidental: bool = False
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
-        #: Bytes the callee pops after the return address; None when no exit proves it either way.
+        #: Number of bytes the callee pops after the return address on the stack, or None if we cannot determine.
         self.extra_pop: int | None = None
-        # bytes popped on this function's behalf by code it jumps to (tail calls and split-off continuations)
+        # Number of bytes popped by code that the function jumps to (e.g., tail calls and split-off continuations)
         self._tailcall_pops: set[int] = set()
         self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
 
@@ -362,7 +362,7 @@ class FactCollector(Analysis):
         init_state.bp_value = init_state.sp_value
 
         traversed = set()
-        # the last element marks a tail call (an outside transition)
+        # the last element marks a tail call
         queue: list[
             tuple[
                 int,
@@ -401,8 +401,8 @@ class FactCollector(Analysis):
                     and tail_func.prototype is not None
                     and tail_func.prototype_source >= PrototypeSource.SIMPROC
                 ):
-                    # a tail jump targets a BlockNode; treat it as a call when the target's prototype is trustworthy.
-                    # otherwise, analyzing the target's first block is safer than inheriting its inferred arguments.
+                    # a tail jump targets a BlockNode. Treat it as a call if the target's prototype is trustworthy.
+                    # otherwise, analyzing the target's first block is safer than using the inferred arguments.
                     func = tail_func
             if func is not None:
                 if func.calling_convention is not None and func.prototype is not None:
@@ -457,12 +457,8 @@ class FactCollector(Analysis):
 
     def _tailcall_callee_pops(self, state: FactCollectorState, func: Function) -> set[int]:
         """
-        The numbers of bytes popped after the return address by code this function jumps to, which pops them on this
-        function's behalf. Empty if unknown.
-
-        A jump with the stack pointer at its entry value is a tail call, and the target's calling convention says what
-        it pops. Otherwise, the target cannot be a tail call and must be this function's own code that the CFG split
-        off, so its return instructions are this function's.
+        The numbers of bytes that are popped after the return address on the stack by code that this function jumps
+        to. Returns an empty set if we cannot determine.
         """
         if not self.project.arch.call_pushes_ret:
             return set()
@@ -484,7 +480,7 @@ class FactCollector(Analysis):
 
     def _continuation_pops(self, func: Function, depth: int, visited: set[int]) -> set[int]:
         """
-        Bytes popped by the return instructions of ``func``, or of the code it jumps to if it has none.
+        Bytes popped by the ret instructions of func or the code that func jumps to.
         """
         if func.addr in visited or func.is_simprocedure:
             return set()
@@ -503,14 +499,13 @@ class FactCollector(Analysis):
 
     def _ret_pops(self, func: Function) -> set[int]:
         """
-        The numbers of bytes that the return instructions of ``func`` pop after popping the return address.
+        The numbers of bytes that the ret instructions of func pop after popping the return addr on the stack.
         """
         sp_offset = self.project.arch.sp_offset
         pops = set()
         for endpoint in func.endpoints_with_type["return"]:
             block = self.project.factory.block(endpoint.addr, size=endpoint.size)
             if not block.instruction_addrs or block.vex.jumpkind != "Ijk_Ret":
-                # e.g., calls to non-returning functions
                 continue
             # ret is the only instruction that can load the return address, and it must be the last instruction of the
             # block. so we simply take a look at sp value diff before and after the last instruction. hopefully this
@@ -1096,8 +1091,10 @@ class FactCollector(Analysis):
         end of the function. This information is useful for determining if the function cleans up stack arguments
         before returning.
 
-        Only return instructions (including those of split-off continuations) and tail calls to functions with known
-        cleanup are evidence. Returns None if no exit provides any.
+        Only use popped bytes by the following:
+        - ret instructions (including those of split-off continuations)
+        - tail calls to functions with known caller/callee cleanup configuration.
+        Returns None if we cannot determine the number of popped bytes.
         """
 
         if not self.project.arch.call_pushes_ret:
