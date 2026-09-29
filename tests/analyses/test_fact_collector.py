@@ -63,16 +63,41 @@ class TestFactCollector(unittest.TestCase):
         thunk = cfg.kb.functions[base_addr]
         target = cfg.kb.functions[target_addr]
 
-        # a jmp is not a ret: without knowing the target, the thunk's cleanup is unknown rather than -4
-        self.assertIsNone(project.analyses.FunctionFactCollector(thunk).extra_pop)
+        # a jmp is not a ret (which used to yield -4); without a calling convention, the target's ret 4 decides
+        self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 4)
 
-        # the thunk pops whatever its tail-call target pops
+        # otherwise, the thunk pops whatever the target's calling convention pops
         proto = SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(project.arch)
         target.calling_convention = SimCCStdcall(project.arch)
         target.prototype = proto
         self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 4)
         target.calling_convention = SimCCMicrosoftCdecl(project.arch)
         self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 0)
+
+    def test_x86_extra_pop_of_split_off_epilogue(self):
+        # 0x400000: push ebx; jmp 0x400010. 0x400010 is its epilogue: pop ebx; ret 8. The epilogue is also called from
+        # 0x400020 (push 1; push 2; call 0x400010; ret), so the CFG splits it off as a function. The jump is not a
+        # tail call (ebx is still on the stack), so the epilogue's ret is the function's own.
+        code = (
+            bytes.fromhex("53eb0d")
+            + b"\xcc" * 13
+            + bytes.fromhex("5bc20800")
+            + b"\xcc" * 12
+            + bytes.fromhex("6a016a02e8e7ffffffc3")
+        )
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch="x86", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, base_addr + 0x10, base_addr + 0x20],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        func = cfg.kb.functions[base_addr]
+        assert not func.endpoints_with_type["return"]
+        self.assertEqual(project.analyses.FunctionFactCollector(func).extra_pop, 8)
 
     def test_stack_canary_comparison_is_not_a_return_value(self):
         prefix = bytes.fromhex(

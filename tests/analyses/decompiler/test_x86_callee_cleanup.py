@@ -53,6 +53,35 @@ class TestX86CalleeCleanup(unittest.TestCase):
         )
         assert type(proj.kb.callsite_prototypes.get_cc(call_block.addr)) is SimCCMicrosoftCdecl
 
+    def test_issue_7288_indirect_stdcall_with_split_off_helper_epilogue(self):
+        # sub_4290e0 calls a runtime-resolved import with six stack arguments and never pops them. Its helper sub_423a40
+        # has no ret of its own: the CFG split its epilogue (`add esp, 0x24; pop x4; ret`) off into sub_423b0f.
+        binary = os.path.join(test_location, "82ce4d6615793fec42a57571f6161794de24362be69a5103cf3c1192aa4b6ecb")
+        proj, _ = load_project_with_scoped_cfg(
+            binary,
+            0x4290E0,
+            extra_func_addrs=[0x40C710, 0x40C720, 0x4402E0, 0x440350, 0x423A40, 0x423B0F, 0x423AEA, 0x423B00],
+            expand_call_tree=False,
+        )
+        # jmp thunks to the allocator and to free, and the helper, are all caller-cleanup
+        for addr in (0x40C710, 0x40C720, 0x423A40):
+            assert type(proj.kb.functions[addr].calling_convention) is SimCCMicrosoftCdecl
+
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x4290E0], preset="malware")
+        assert dec.codegen is not None and dec.clinic is not None
+        print_decompilation_result(dec)
+        for call_block_addr in (0x4291D2, 0x4292B4):
+            cc = proj.kb.callsite_prototypes.get_cc(call_block_addr)
+            proto = proj.kb.callsite_prototypes.get_prototype(call_block_addr)
+            assert type(cc) is SimCCStdcall
+            assert proto is not None and len(proto.args) == 6
+        # the local frame stays put across both indirect calls
+        spt = dec.clinic._spt
+        sp = proj.arch.sp_offset
+        frame = spt.offset_after(0x4290EC, sp)
+        for addr in (0x4291E4, 0x429206, 0x4292BE):
+            assert spt.offset_after(addr, sp) == frame
+
 
 if __name__ == "__main__":
     unittest.main()
