@@ -510,9 +510,8 @@ class TestPeepholeOptimizations(unittest.TestCase):
         assert len(out.args) == 1 and out.args[0].likes(reg)
 
     def test_bitwise_inserts(self):
-        proj = angr.load_shellcode(b"\x90", "AMD64")
         manager = Manager()
-        opt = SimplifyBitwiseInserts(proj, proj.kb, manager)
+        opt = SimplifyBitwiseInserts(None, None, manager)
 
         # Insert(a, 0<64>, (Extract(8, a, 0<8>) Or 44570<16>)) => a Or 44570<16>
         expr = Insert(
@@ -564,6 +563,32 @@ class TestPeepholeOptimizations(unittest.TestCase):
             Register(manager.next_atom(), 0, 8)
         )
         assert isinstance(out.operands[1], Const) and out.operands[1].value == 44570 and out.operands[1].bits == 64
+
+        # Keep aggregate Inserts intact: lowering this shape to an oversized scalar Convert makes it impossible for
+        # structured code generation to render the partial stack write.
+        low = VirtualVariable(manager.next_atom(), 1, 32, VirtualVariableCategory.STACK, oident=-8)
+        other = VirtualVariable(manager.next_atom(), 2, 32, VirtualVariableCategory.REGISTER, oident=16)
+
+        def aggregate_insert(bits: int) -> Insert:
+            return Insert(
+                manager.next_atom(),
+                BinaryOp(
+                    manager.next_atom(),
+                    "Concat",
+                    [low, Const(manager.next_atom(), 0, bits - low.bits)],
+                    False,
+                    bits=bits,
+                ),
+                Const(manager.next_atom(), 0, 64),
+                BinaryOp(manager.next_atom(), "Xor", [low, other], False, bits=32),
+                "Iend_LE",
+            )
+
+        out = opt.optimize(aggregate_insert(512))
+        assert isinstance(out, Convert) and out.from_bits == 32 and out.to_bits == 512
+        for bits in (544, 608, 768, 3072):
+            with self.subTest(bits=bits):
+                assert opt.optimize(aggregate_insert(bits)) is None
 
 
 class TestExtractOffsetIsNotATruncation(unittest.TestCase):

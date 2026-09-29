@@ -6,6 +6,8 @@ from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert
 
 from .base import PeepholeOptimizationExprBase
 
+_MAX_C_SCALAR_BITS = 512
+
 
 class SimplifyBitwiseInserts(PeepholeOptimizationExprBase):
     """
@@ -51,6 +53,11 @@ class SimplifyBitwiseInserts(PeepholeOptimizationExprBase):
         if pb1o != 0:
             # hello future angr developer! This branch exists because I don't have an example to exercise this branch.
             # for offsets != 0. If you see code enter this branch, please remove this and test for correctness :)
+            return None
+
+        if expr.bits > _MAX_C_SCALAR_BITS and pb1.bits != expr.bits:
+            # Keep aggregate Inserts intact. Structured C code generation handles them as partial writes, whereas
+            # widening the matched scalar here creates a Convert whose target has no corresponding C integer type.
             return None
 
         if pb2x.bits < pb2.bits:
