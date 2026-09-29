@@ -117,6 +117,11 @@ class TokenStream:
         return (min(addrs), max(addrs)) if addrs else (None, None)
 
 
+def is_glue_shape(shape: str) -> bool:
+    """An unconditional jump: control glue between blocks, not a statement an idiom is made of."""
+    return shape in ("Jf", "Jb", "J?")
+
+
 class AILCanonicalizer:
     """Renders AIL statements into canonical shape strings."""
 

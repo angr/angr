@@ -27,6 +27,10 @@ from .search import (
 from .template import TEMPLATE_TOKENIZER, Fit, match_shape, parse_shape, shape_of
 
 __all__ = [
+    "STATEMENTS_ANY",
+    "STATEMENTS_CONSECUTIVE",
+    "STATEMENTS_FOLLOW",
+    "STATEMENTS_MODES",
     "TEMPLATE_TOKENIZER",
     "AILCanonicalizer",
     "AlignParams",
@@ -67,7 +71,15 @@ __all__ = [
 from .align import Alignment, AlignParams, Interval, PatternCluster, discover, select_disjoint
 from .dedup import DedupResult, MergeGroup, PatternDeduplicator
 from .exact import ExactCore, find_exact_cores
-from .finder import FuzzyPattern, FuzzyPatternFinder, PatternOccurrence
+from .finder import (
+    STATEMENTS_ANY,
+    STATEMENTS_CONSECUTIVE,
+    STATEMENTS_FOLLOW,
+    STATEMENTS_MODES,
+    FuzzyPattern,
+    FuzzyPatternFinder,
+    PatternOccurrence,
+)
 from .priority import Checkpoint
 from .region import Region, materialize, snap
 from .tokenizer import AILCanonicalizer, TokenLoc, TokenStream, linearize, tokenize

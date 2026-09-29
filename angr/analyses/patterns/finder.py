@@ -12,7 +12,7 @@ from .align import AlignParams, Interval, PatternCluster, discover, select_disjo
 from .exact import ExactCore, find_exact_cores
 from .priority import Checkpoint
 from .region import Region, snap
-from .tokenizer import TokenStream, tokenize
+from .tokenizer import TokenStream, is_glue_shape, tokenize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -48,6 +48,15 @@ class PatternOccurrence:
             f"<PatternOccurrence [{self.interval.start},{self.interval.end}) "
             f"{lo:#x}-{hi:#x} {'outlinable' if self.outlinable else self.region.reason}>"
         )
+
+
+#: statements of an occurrence may come from anywhere in the function's block order
+STATEMENTS_ANY = "any"
+#: an occurrence continues only into a block that follows in the control flow
+STATEMENTS_FOLLOW = "follow"
+#: an occurrence is one straight run of code: consecutive lines of the pseudocode
+STATEMENTS_CONSECUTIVE = "consecutive"
+STATEMENTS_MODES = (STATEMENTS_ANY, STATEMENTS_FOLLOW, STATEMENTS_CONSECUTIVE)
 
 
 @dataclass
@@ -129,7 +138,12 @@ class FuzzyPatternFinder(Analysis):
         entry: Block | None = None,
         low_priority: bool = False,
         checkpoint: Callable[[], None] | None = None,
+        statements: str = STATEMENTS_ANY,
     ):
+        if statements not in STATEMENTS_MODES:
+            raise ValueError(f"unknown statements mode {statements!r}; expected one of {STATEMENTS_MODES}")
+        #: how the statements of one occurrence may follow each other; see STATEMENTS_MODES
+        self.statements = statements
         self.func = func
         # low_priority: yield the GIL now and then from the alignment loops, as the CFG does;
         # checkpoint: called at the same cadence, and may raise to abort. A ready Checkpoint
@@ -175,7 +189,10 @@ class FuzzyPatternFinder(Analysis):
         if len(stream) < self.params.k:
             return
 
-        clusters = discover(stream.shape_ids, stream.klass_of_shape, self.params, self._checkpoint)
+        glue = frozenset(i for i, shape in enumerate(stream.shape_vocab) if is_glue_shape(shape))
+        clusters = discover(
+            stream.shape_ids, stream.klass_of_shape, self.params, self._checkpoint, self._segments(), glue
+        )
         _l.debug("FuzzyPatternFinder: %d clusters over %d tokens", len(clusters), len(stream))
 
         entry_loc = (self.entry.addr, self.entry.idx)
@@ -185,6 +202,34 @@ class FuzzyPatternFinder(Analysis):
             self.patterns = [p for p in self.all_patterns if id(p.cluster) in keep]
         else:
             self.patterns = list(self.all_patterns)
+
+    def _segments(self) -> list[int] | None:
+        """A segment number per token, changing wherever an occurrence may not continue.
+
+        The stream lists blocks in reverse post-order, which puts unrelated code next to
+        each other. With ``follow``, an occurrence may only continue into a block that
+        follows the previous one in the control flow; with ``consecutive``, only into a
+        block that is its sole successor and has it as sole predecessor, so the occurrence
+        is one straight run of code.
+        """
+        if self.statements == STATEMENTS_ANY:
+            return None
+        graph = self.graph
+        nodes = {(b.addr, b.idx): b for b in graph}
+        locs = self.stream.locs
+        segment = [0] * len(locs)
+        seg = 0
+        for t in range(1, len(locs)):
+            a, b = locs[t - 1].block_loc, locs[t].block_loc
+            if a != b:
+                pred, succ = nodes[a], nodes[b]
+                follows = graph.has_edge(pred, succ)
+                if self.statements == STATEMENTS_CONSECUTIVE:
+                    follows = follows and graph.out_degree[pred] == 1 and graph.in_degree[succ] == 1
+                if not follows:
+                    seg += 1
+            segment[t] = seg
+        return segment
 
     def _build(self, cluster: PatternCluster, entry_loc: Address) -> FuzzyPattern:
         occurrences = [

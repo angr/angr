@@ -31,7 +31,7 @@ from angr.analyses.decompiler.known_patterns.symbols import symbol_addr
 
 from .align import AlignParams, Interval
 from .template import TEMPLATE_TOKENIZER, Fit, ShapeTree, match_shape, parse_shape, shape_of
-from .tokenizer import TokenStream, tokenize
+from .tokenizer import TokenStream, is_glue_shape, tokenize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -206,7 +206,7 @@ def _candidates(leaves: list[_Leaf], stream: TokenStream, params: AlignParams) -
 
 
 def _is_glue(shape: str) -> bool:
-    return shape in ("Jf", "Jb", "J?")
+    return is_glue_shape(shape)
 
 
 #: the band of an alignment never narrows below this many tokens either side of its diagonals

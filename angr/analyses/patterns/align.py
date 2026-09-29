@@ -130,22 +130,32 @@ class AlignParams:
 class ScoreModel:
     """Substitution score between two shape ids."""
 
-    def __init__(self, klass_of_shape: list[int], params: AlignParams):
+    def __init__(self, klass_of_shape: list[int], params: AlignParams, glue: frozenset[int] = frozenset()):
         self.klass_of_shape = klass_of_shape
         self.match = params.match
         self.klass_match = params.klass_match
         self.mismatch = params.mismatch
+        #: shape ids of unconditional jumps: control glue between blocks, which neither
+        #: makes two stretches of code alike nor keeps them apart
+        self.glue = glue
 
     def __call__(self, a: int, b: int) -> float:
         if a == b:
-            return self.match
+            return 0.0 if a in self.glue else self.match
         if self.klass_of_shape[a] == self.klass_of_shape[b]:
             return self.klass_match
         return self.mismatch
 
 
-def find_seeds(ids: list[int], params: AlignParams) -> dict[tuple[int, ...], list[int]]:
-    """k-gram index, low-complexity-masked and optionally winnowed."""
+def find_seeds(
+    ids: list[int],
+    params: AlignParams,
+    segment: list[int] | None = None,
+    glue: frozenset[int] = frozenset(),
+) -> dict[tuple[int, ...], list[int]]:
+    """k-gram index, low-complexity-masked and optionally winnowed. With ``segment``, a
+    k-gram that crosses from one segment into another is not a seed; nor is one made of
+    unconditional jumps alone."""
     k = params.k
     n = len(ids)
     if n < k:
@@ -168,13 +178,21 @@ def find_seeds(ids: list[int], params: AlignParams) -> dict[tuple[int, ...], lis
 
     buckets: dict[tuple[int, ...], list[int]] = defaultdict(list)
     for i in positions:
-        buckets[tuple(ids[i : i + k])].append(i)
+        if segment is not None and segment[i] != segment[i + k - 1]:
+            continue
+        gram = tuple(ids[i : i + k])
+        if glue and all(g in glue for g in gram):
+            continue
+        buckets[gram].append(i)
 
     return {gram: pos for gram, pos in buckets.items() if 2 <= len(pos) <= params.max_seed_multiplicity}
 
 
-def chain_seeds(buckets: dict[tuple[int, ...], list[int]], params: AlignParams) -> list[tuple[int, int, int, int]]:
-    """Group seed pairs by diagonal and cut them into colinear runs.
+def chain_seeds(
+    buckets: dict[tuple[int, ...], list[int]], params: AlignParams, segment: list[int] | None = None
+) -> list[tuple[int, int, int, int]]:
+    """Group seed pairs by diagonal and cut them into colinear runs. With ``segment``, a
+    run also ends where either copy would cross into another segment.
 
     Returns ``(diagonal, start, end, anchors)`` candidates, where ``[start, end)``
     is the range in the *first* (lower-index) copy.
@@ -193,7 +211,8 @@ def chain_seeds(buckets: dict[tuple[int, ...], list[int]], params: AlignParams) 
         xs.sort()
         run = [xs[0]]
         for x in xs[1:]:
-            if x - run[-1] <= params.max_gap:
+            same_segments = segment is None or (segment[x] == segment[run[0]] and segment[x + d] == segment[run[0] + d])
+            if x - run[-1] <= params.max_gap and same_segments:
                 run.append(x)
                 continue
             if len(run) >= params.min_anchors:
@@ -243,7 +262,14 @@ def banded_sw(
     params: AlignParams,
     checkpoint: Callable[[], None] | None = None,
 ) -> Alignment | None:
-    """Banded local alignment with affine gaps, restricted to ``|i - j| <= band``."""
+    """Banded local alignment with affine gaps, restricted to ``|i - j| <= band``.
+
+    Two unconditional jumps (``score.glue``) lined up score nothing, and such a column
+    counts toward neither the matched columns nor the columns. Skipping one costs the
+    usual gap: a free skip would let an alignment run on from one copy into the next,
+    since reverse post-order often places copies side by side.
+    """
+    glue = score.glue
     la, lb = a1 - a0, b1 - b0
     if la <= 0 or lb <= 0:
         return None
@@ -305,16 +331,20 @@ def banded_sw(
     while True:
         prev_state = ptr.get((i, j, state), -1)
         if state == _M:
-            columns += 1
-            if ids[a0 + i - 1] == ids[b0 + j - 1]:
-                matched += 1
+            ai, bj = ids[a0 + i - 1], ids[b0 + j - 1]
+            if not (ai in glue and bj in glue):
+                columns += 1
+                if ai == bj:
+                    matched += 1
             i -= 1
             j -= 1
         elif state == _X:
-            columns += 1
+            if ids[a0 + i - 1] not in glue:
+                columns += 1
             i -= 1
         else:
-            columns += 1
+            if ids[b0 + j - 1] not in glue:
+                columns += 1
             j -= 1
         if prev_state == -1 or i <= 0 or j <= 0:
             break
@@ -335,9 +365,16 @@ def refine_candidates(
     score: ScoreModel,
     params: AlignParams,
     checkpoint: Callable[[], None] | None = None,
+    segment: list[int] | None = None,
 ) -> list[Alignment]:
-    """Run banded Smith-Waterman on every chained candidate and keep the good ones."""
+    """Run banded Smith-Waterman on every chained candidate and keep the good ones. With
+    ``segment``, each copy's window is clipped to the segment its seed lies in."""
     n = len(ids)
+    bounds: dict[int, tuple[int, int]] = {}
+    if segment is not None:
+        for t, seg in enumerate(segment):
+            lo_hi = bounds.get(seg)
+            bounds[seg] = (t, t + 1) if lo_hi is None else (lo_hi[0], t + 1)
     out: list[Alignment] = []
     for d, s, e, _anchors in candidates:
         if checkpoint is not None:
@@ -358,6 +395,10 @@ def refine_candidates(
             if a1 > b0:
                 mid = (gap_lo + gap_hi) // 2
                 a1, b0 = mid, mid
+        if segment is not None and s < n and s + d < n:
+            sa, sb = bounds[segment[s]], bounds[segment[s + d]]
+            a0, a1 = max(a0, sa[0]), min(a1, sa[1])
+            b0, b1 = max(b0, sb[0]), min(b1, sb[1])
         if b0 >= n or a0 >= a1 or b0 >= b1:
             continue
         aln = banded_sw(ids, a0, a1, b0, b1, params.band + params.pad, score, params, checkpoint)
@@ -473,14 +514,18 @@ def discover(
     klass_of_shape: list[int],
     params: AlignParams | None = None,
     checkpoint: Callable[[], None] | None = None,
+    segment: list[int] | None = None,
+    glue: frozenset[int] = frozenset(),
 ) -> list[PatternCluster]:
     """Full pipeline: seed -> chain -> align -> cluster. ``checkpoint`` is called from the
-    alignment loops, where the time goes; see :class:`.priority.Checkpoint`."""
+    alignment loops, where the time goes; see :class:`.priority.Checkpoint`. ``segment``
+    gives each token a segment number that no occurrence may cross out of, and ``glue`` the
+    shape ids of unconditional jumps, which score nothing and cost nothing to skip."""
     params = params or AlignParams()
-    score = ScoreModel(klass_of_shape, params)
-    buckets = find_seeds(ids, params)
-    candidates = chain_seeds(buckets, params)
+    score = ScoreModel(klass_of_shape, params, glue)
+    buckets = find_seeds(ids, params, segment, glue)
+    candidates = chain_seeds(buckets, params, segment)
     _l.debug("fuzzy patterns: %d seed buckets, %d chained candidates", len(buckets), len(candidates))
-    alignments = refine_candidates(ids, candidates, score, params, checkpoint)
+    alignments = refine_candidates(ids, candidates, score, params, checkpoint, segment)
     _l.debug("fuzzy patterns: %d alignments survived refinement", len(alignments))
     return cluster_alignments(alignments, params)
