@@ -151,13 +151,8 @@ def qualifies_for_implicit_cast(ty1, ty2):
 
 def c_return_type(returnty: SimType) -> SimType:
     """
-    The return type as C can spell it: an array becomes a pointer to its element type.
-
-    C writes an array's extent after the declared name, so a return type has nowhere to put it. The
-    adjustment is the language's own array-to-pointer conversion, which is also what happens to the
-    array expression a return statement hands back. A nested array goes all the way to the innermost
-    element type, because SimTypePointer.c_repr renders a pointer to an array without the star and
-    decaying one dimension of an int[2][3] would print an array again.
+    Convert a return type to a C-compatible type.
+    - Arrays are converted to pointers to their element type.
     """
     if not isinstance(returnty, SimTypeArray):
         return returnty
