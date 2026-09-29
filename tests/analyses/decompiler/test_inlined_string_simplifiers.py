@@ -18,7 +18,10 @@ from angr.ailment.expression import (
 )
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
-from angr.analyses.decompiler.optimization_passes.inlined_strcpy_simplifier import InlinedStrcpySimplifier
+from angr.analyses.decompiler.optimization_passes.inlined_strcpy_simplifier import (
+    InlinedStrcpySimplifier,
+    InlinedStrcpySimplifierLate,
+)
 from angr.analyses.decompiler.optimization_passes.inlined_wcscpy_simplifier import (
     InlinedWcscpySimplifier,
     InlinedWcscpySimplifierLate,
@@ -307,6 +310,7 @@ class _WcscpyBlockBuilder:
 
     def insert_bytes(self, offset: int, data: bytes):
         base = self.vvar(offset, bits=len(data) * 8)
+        vvars = []
         for i, byte in enumerate(data):
             dst = self.vvar(offset, bits=len(data) * 8)
             update = Insert(
@@ -317,7 +321,9 @@ class _WcscpyBlockBuilder:
                 "Iend_LE",
             )
             self.statements.append(Assignment(self.manager.next_atom(), dst, update))
+            vvars.append(dst)
             base = dst
+        return vvars
 
     def store_bytes(self, offset: int, data: bytes):
         for i, byte in enumerate(data):
@@ -565,3 +571,20 @@ def test_wcscpy_early_does_not_hoist_stores_across_barriers():
 
         assert builder.wide_copies(simplifier, statements) == [(-108, data[:4], 4), (-104, data[4:], 4)]
         assert len(statements) == 3
+
+
+def test_strcpy_late_destination_is_lowest_stack_variable():
+    # after SSA, the string is written through partial updates of dword stack variables
+    builder = _WcscpyBlockBuilder()
+    vvars = builder.insert_bytes(-108, b"hell")
+    for i, chunk in enumerate((b"o, w", b"orld")):
+        builder.insert_bytes(-104 + i * 4, chunk)
+    _, statements = builder.run(InlinedStrcpySimplifierLate)
+
+    (stmt,) = statements
+    assert isinstance(stmt, SideEffectStatement) and stmt.expr.target == "strncpy"
+    dst = stmt.expr.args[0]
+    # a raw stack offset created after SSA is never turned into a stack variable
+    assert isinstance(dst, UnaryOp) and dst.op == "Reference" and dst.tags.get("extra_def", False)
+    assert dst.operand.varid == vvars[0].varid
+    assert stmt.tags["extra_defs"] == [vvars[0].varid]

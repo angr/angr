@@ -9,6 +9,7 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
+    Expression,
     Insert,
     Register,
     StackBaseOffset,
@@ -92,7 +93,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
             if isinstance(stmt.src, Const) and isinstance(stmt.src.value, int):
                 inlined_strcpy_candidate = True
                 src = stmt.src
-                strcpy_dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
+                strcpy_dst = self._stack_vvar_ref(stmt.dst, stmt.dst.stack_offset)
             elif (
                 isinstance(stmt.src, Insert)
                 and isinstance(stmt.src.base, (Const, VirtualVariable))
@@ -104,9 +105,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
             ):
                 inlined_strcpy_candidate = True
                 src = stmt.src.value
-                strcpy_dst = StackBaseOffset(
-                    self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset + stmt.src.offset.value_int
-                )
+                strcpy_dst = self._stack_vvar_ref(stmt.dst, stmt.dst.stack_offset + stmt.src.offset.value_int)
         elif (
             isinstance(stmt, Store)
             and isinstance(stmt.addr, UnaryOp)
@@ -132,6 +131,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
             r, s = self.is_integer_likely_a_string(src.value, src.size, self.project.arch.memory_endness)
             if r:
                 assert s is not None
+                tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                 str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
                 variable_map_of(self.manager).set_custom_string(str_const)
@@ -144,7 +144,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                         Const(self.manager.next_atom(), len(s), self.project.arch.bits),
                     ],
                     bits=None,
-                    **stmt.tags,
+                    **tags,
                 )
                 variable_map_of(self.manager).set_prototype(
                     call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
@@ -154,7 +154,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                     call,
                     ret_expr=None,
                     fp_ret_expr=None,
-                    **stmt.tags,
+                    **tags,
                 )
 
             # scan forward to find all consecutive constant stores
@@ -187,6 +187,15 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_str_length)
                 if r:
                     assert s is not None
+                    # copy into the stack variable at the lowest address of the stride
+                    first_offset, first_sidx, _ = min(stride, key=lambda x: x[0])
+                    first_stmt = statements[first_sidx]
+                    strcpy_dst = (
+                        self._stack_vvar_ref(first_stmt.dst, first_offset)
+                        if isinstance(first_stmt, Assignment)
+                        else first_stmt.addr
+                    )
+                    tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
                     # remove all involved statements whose indices are greater than the current one
                     for _, sidx, _ in reversed(stride):
                         if sidx <= stmt_idx:
@@ -205,7 +214,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                             Const(self.manager.next_atom(), len(s), self.project.arch.bits),
                         ],
                         bits=None,
-                        **stmt.tags,
+                        **tags,
                     )
                     variable_map_of(self.manager).set_prototype(
                         call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
@@ -215,10 +224,42 @@ class InlinedStrcpySimplifier(OptimizationPass):
                         call,
                         ret_expr=None,
                         fp_ret_expr=None,
-                        **stmt.tags,
+                        **tags,
                     )
 
         return None
+
+    def _stack_vvar_ref(self, vvar: VirtualVariable, offset: int) -> Expression:
+        """
+        Build a pointer to `offset` from a stack variable whose definition is replaced by a string copy.
+        """
+        ref = UnaryOp(self.manager.next_atom(), "Reference", vvar, bits=self.project.arch.bits, extra_def=True)
+        if offset == vvar.stack_offset:
+            return ref
+        delta = Const(self.manager.next_atom(), offset - vvar.stack_offset, self.project.arch.bits)
+        return BinaryOp(self.manager.next_atom(), "Add", [ref, delta], bits=self.project.arch.bits)
+
+    @staticmethod
+    def _extra_def_vvar(dst: Expression) -> VirtualVariable | None:
+        """
+        The stack variable that a string copy to `dst` defines, if any.
+        """
+        if isinstance(dst, BinaryOp) and dst.op == "Add" and isinstance(dst.operands[1], Const):
+            dst = dst.operands[0]
+        if dst.tags.get("extra_def", False):
+            assert isinstance(dst, UnaryOp) and dst.op == "Reference"
+            assert isinstance(dst.operand, VirtualVariable)
+            return dst.operand
+        return None
+
+    def _tags_with_extra_defs(self, tags, dst: Expression) -> TagDict:
+        tags = TagDict(tags)
+        vvar = self._extra_def_vvar(dst)
+        if vvar is not None:
+            tags["extra_defs"] = [vvar.varid]
+        else:
+            tags.pop("extra_defs", None)
+        return tags
 
     def _consolidate_strcpy_calls(self, statements):
         """Consolidate consecutive inlined strcpy calls (phase 2)."""
@@ -290,14 +331,7 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 ]
                 prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
 
-            tags = TagDict(stmt.tags)
-            if args[0].tags.get("extra_def", False):
-                assert isinstance(args[0], UnaryOp)
-                assert args[0].op == "Reference"
-                assert isinstance(args[0].operand, VirtualVariable)
-                tags["extra_defs"] = [args[0].operand.varid]
-            else:
-                tags.pop("extra_defs", None)
+            tags = self._tags_with_extra_defs(stmt.tags, args[0])
 
             call = Call(self.manager.next_atom(), call_name, args=args, **tags)
             variable_map_of(self.manager).set_prototype(call, prototype)
