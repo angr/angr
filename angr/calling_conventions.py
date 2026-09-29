@@ -2442,6 +2442,8 @@ class SimCCAArch64(SimCC):
 
     # https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#parameter-passing
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         composite = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
