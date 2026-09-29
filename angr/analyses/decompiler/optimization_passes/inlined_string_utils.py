@@ -82,7 +82,7 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
 
     def _stmts_removable(self, statements, stmt_indices) -> bool:
         """
-        Statements are removable if the virtual variables they define are not used by value anywhere else.
+        Statements are removable if the vvars they define are not used anywhere else.
         """
         defined = [
             statements[i].dst.varid
@@ -99,7 +99,6 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
 
     def _value_use_counts(self) -> dict[int, int]:
         if self._vvar_value_uses is None:
-            # uses by a phi only count if the phi variable itself is used, since dead phis are removed later
             counter = VVarValueUseCounter()
             phi_srcs: dict[int, list[int]] = {}
             for block in self._graph:
@@ -124,7 +123,8 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
 
     def _is_partial_stack_update(self, stmt: Assignment) -> bool:
         """
-        Whether the statement only writes a constant into part of a stack variable and leaves the other bytes alone.
+        Checks if the statement only writes a constant into part of a stack variable and does not touch
+        the other bytes of the stack variable.
         """
         src = stmt.src
         dst = stmt.dst
@@ -153,7 +153,7 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
     @staticmethod
     def _is_unrelated_stmt(stmt) -> bool:
         """
-        Whether a statement neither reads nor writes memory.
+        Returns True if a statement does not read or write memory.
         """
         if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, (VirtualVariable, Register))):
             return False
@@ -164,9 +164,6 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
         return not finder.found
 
     def _stack_vvar_ref(self, vvar: VirtualVariable, offset: int) -> Expression:
-        """
-        Build a pointer to `offset` from a stack variable whose definition is replaced by a string copy.
-        """
         bits = self.project.arch.bits
         ref = UnaryOp(self.manager.next_atom(), "Reference", vvar, bits=bits, extra_def=True)
         if offset == vvar.stack_offset:

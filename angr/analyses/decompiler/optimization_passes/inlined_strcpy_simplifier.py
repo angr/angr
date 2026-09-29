@@ -131,7 +131,7 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
             # scan forward to find all consecutive constant stores
             all_constant_stores = self._collect_constant_stores(statements, stmt_idx)
             prev_stmt = None if stmt_idx == 0 else statements[stmt_idx - 1]
-            # a short string may extend an unterminated copy right before it
+            # a short string may extend an unterminated string before it
             prev_copied = self._copied_bytes(prev_stmt) if self.is_inlined_strcpy(prev_stmt) else None
             min_str_length = 1 if prev_copied is not None and b"\x00" not in prev_copied else 4
             found = self._find_string_stride(statements, stmt_idx, all_constant_stores, min_str_length)
@@ -257,9 +257,6 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         return text + b"\x00" * (count.value_int - len(text))
 
     def _make_copy_call(self, dst, data: bytes, tags) -> Call:
-        """
-        Create a strcpy or strncpy call that writes all bytes in data.
-        """
         text = self._string_text(data)
         str_const = Const(self.manager.next_atom(), self.kb.custom_strings.allocate(text), self.project.arch.bits)
         variable_map_of(self.manager).set_custom_string(str_const)
@@ -276,7 +273,7 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         return call
 
     def _collect_constant_stores(self, statements, starting_stmt_idx):
-        # stop at the first statement that may read or clobber the buffer, since writes after it cannot be hoisted
+        # stop at the first statement that may read or clobber the buffer because writes after cannot be hoisted
         r = {}
         covered = set()
         for idx in range(starting_stmt_idx, len(statements)):

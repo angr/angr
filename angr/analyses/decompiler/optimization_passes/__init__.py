@@ -81,7 +81,7 @@ ALL_OPTIMIZATION_PASSES = [
     CodeMotionOptimization,
     CrossJumpReverter,
     FlipBooleanCmp,
-    # decode string transformation loops before the inlined string and memory operations consume their stores
+    # Simplify string transformation loops before other inlined string/memory operations use simplified output
     InlinedStringTransformationSimplifier,
     InlinedMemcpySimplifier,
     InlinedMemsetSimplifier,

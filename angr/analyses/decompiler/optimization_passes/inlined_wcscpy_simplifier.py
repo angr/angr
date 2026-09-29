@@ -217,9 +217,9 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
         Collects all wcsncpy calls, constant stores, and constant stack assignments in the block, groups them by base
         address, and consolidates adjacent entries within each group.
         """
-        # Collect all candidate statements with their base/offset. Candidates separated by a statement that may read
-        # or clobber memory, or by a write through a different base that may alias, are never merged, so each group
-        # only spans one barrier-free segment.
+        # Collect all candidate statements with their base/offset.
+        # Candidates that are separated by a statement that may read or clobber memory, or by a write through
+        # a different base that may alias, are never merged.
         candidates = []  # list of (stmt_index, base, offset, store_size, stmt)
         segments = {}  # stmt_index -> segment id
         segment = 0
@@ -472,7 +472,7 @@ class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
         else:
             return r
 
-        # stop at the first statement that may read or clobber the buffer, since writes after it cannot be hoisted
+        # stop at the first statement that may read or clobber the buffer because writes after cannot be hoisted
         covered = set()
         for idx in range(starting_stmt_idx, len(statements)):
             stmt = statements[idx]
