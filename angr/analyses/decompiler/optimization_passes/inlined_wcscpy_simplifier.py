@@ -2,83 +2,32 @@
 from __future__ import annotations
 
 import string
-from collections import defaultdict
 
 from archinfo import Endness
 
-from angr.ailment import AILBlockViewer, BinaryOp
+from angr.ailment import BinaryOp
 from angr.ailment.expression import (
     Call,
     Const,
-    DirtyExpression,
     Expression,
-    Load,
-    MultiStatementExpression,
     Register,
     StackBaseOffset,
     UnaryOp,
     VirtualVariable,
 )
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
-from angr.ailment.tagged_object import TagDict
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
-from angr.utils.ssa import phi_assignment_get_src
 
-from .optimization_pass import OptimizationPass, OptimizationPassStage
+from .inlined_string_utils import InlinedStringCopySimplifierBase
+from .optimization_pass import OptimizationPassStage
 
 ASCII_PRINTABLES = {ord(x) for x in string.printable if ord(x) >= 0x20}
 ASCII_DIGITS = {ord(x) for x in string.digits}
 
 
-class _MemoryAccessFinder(AILBlockViewer):
-    """
-    Determines if a statement may read memory, reference the stack, or have side effects.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.found = False
-
-    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
-        if self.found:
-            return None
-        if isinstance(expr, (Load, Call, DirtyExpression, MultiStatementExpression, StackBaseOffset)) or (
-            isinstance(expr, VirtualVariable) and expr.was_stack
-        ):
-            self.found = True
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
-
-
-class _VVarValueUseCounter(AILBlockViewer):
-    """
-    Counts value uses of virtual variables. Taking the address of a virtual variable is not a value use.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.counts: defaultdict[int, int] = defaultdict(int)
-
-    def _handle_expr(self, expr_idx, expr, stmt_idx, stmt, block):
-        if expr.tags.get("extra_def", False):
-            return None
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
-
-    def _handle_Assignment(self, stmt_idx, stmt, block):
-        self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-
-    def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
-        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
-            return None
-        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
-
-    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
-        self.counts[expr.varid] += 1
-
-
-class InlinedWcscpySimplifier(OptimizationPass):
+class InlinedWcscpySimplifier(InlinedStringCopySimplifierBase):
     """
     Simplifies inlined wide string copying logic into calls to wcsncpy, and consolidates multiple consecutive
     inlined wcsncpy calls.
@@ -92,7 +41,6 @@ class InlinedWcscpySimplifier(OptimizationPass):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._vvar_value_uses: dict[int, int] | None = None
         self.analyze()
 
     def _check(self):
@@ -143,7 +91,7 @@ class InlinedWcscpySimplifier(OptimizationPass):
             and isinstance(stmt.src, Const)
             and isinstance(stmt.src.value, int)
         ):
-            dst = self._stack_vvar_ref(stmt.dst)
+            dst = self._stack_vvar_ref(stmt.dst, stmt.dst.stack_offset)
             value_size = stmt.src.size
             value = stmt.src.value
         elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
@@ -175,7 +123,11 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 if sidx != stmt_idx:
                     statements[sidx] = None
             # the lowest stack variable is now defined by the call
-            dst = self._stack_vvar_ref(first_stmt.dst) if isinstance(first_stmt, Assignment) else first_stmt.addr
+            dst = (
+                self._stack_vvar_ref(first_stmt.dst, first_stmt.dst.stack_offset)
+                if isinstance(first_stmt, Assignment)
+                else first_stmt.addr
+            )
             return self._make_wcsncpy_call(stmt, dst, s)
 
         return None
@@ -209,48 +161,6 @@ class InlinedWcscpySimplifier(OptimizationPass):
                 return stride, s
         return None
 
-    def _stmts_removable(self, statements, stmt_indices) -> bool:
-        """
-        Statements are removable if the virtual variables they define are not used by value anywhere else.
-        """
-        defined = [
-            statements[i].dst.varid
-            for i in stmt_indices
-            if isinstance(statements[i], Assignment) and isinstance(statements[i].dst, VirtualVariable)
-        ]
-        if not defined:
-            return True
-        local_counter = _VVarValueUseCounter()
-        for i in stmt_indices:
-            local_counter.walk_statement(statements[i])
-        all_uses = self._value_use_counts()
-        return all(all_uses.get(varid, 0) == local_counter.counts.get(varid, 0) for varid in defined)
-
-    def _value_use_counts(self) -> dict[int, int]:
-        if self._vvar_value_uses is None:
-            # uses by a phi only count if the phi variable itself is used, since dead phis are removed later
-            counter = _VVarValueUseCounter()
-            phi_srcs: dict[int, list[int]] = {}
-            for block in self._graph:
-                for stmt in block.statements:
-                    phi = phi_assignment_get_src(stmt)
-                    if phi is not None:
-                        assert isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
-                        phi_srcs[stmt.dst.varid] = [vvar.varid for _, vvar in phi.src_and_vvars if vvar is not None]
-                    else:
-                        counter.walk_statement(stmt, block=block)
-            counts = counter.counts
-            worklist = [varid for varid in phi_srcs if counts[varid] > 0]
-            live = set(worklist)
-            while worklist:
-                for src_varid in phi_srcs.get(worklist.pop(), []):
-                    counts[src_varid] += 1
-                    if src_varid in phi_srcs and src_varid not in live:
-                        live.add(src_varid)
-                        worklist.append(src_varid)
-            self._vvar_value_uses = dict(counts)
-        return self._vvar_value_uses
-
     @staticmethod
     def _wide_string_text(data: bytes) -> bytes:
         """
@@ -280,32 +190,6 @@ class InlinedWcscpySimplifier(OptimizationPass):
         tags = self._tags_with_extra_defs(stmt.tags, dst)
         call = self._make_wide_copy_call(dst, s, tags)
         return SideEffectStatement(self.manager.next_atom(), call, **tags)
-
-    def _stack_vvar_ref(self, vvar: VirtualVariable) -> UnaryOp:
-        """
-        Build a pointer to a stack variable whose definition is replaced by a string copy.
-        """
-        return UnaryOp(self.manager.next_atom(), "Reference", vvar, bits=self.project.arch.bits, extra_def=True)
-
-    @staticmethod
-    def _extra_def_vvar(dst: Expression) -> VirtualVariable | None:
-        """
-        The stack variable that a string copy to `dst` defines, if any.
-        """
-        if dst.tags.get("extra_def", False):
-            assert isinstance(dst, UnaryOp) and dst.op == "Reference"
-            assert isinstance(dst.operand, VirtualVariable)
-            return dst.operand
-        return None
-
-    def _tags_with_extra_defs(self, tags, dst: Expression) -> TagDict:
-        tags = TagDict(tags)
-        vvar = self._extra_def_vvar(dst)
-        if vvar is not None:
-            tags["extra_defs"] = [vvar.varid]
-        else:
-            tags.pop("extra_defs", None)
-        return tags
 
     def _make_wide_copy_call(self, dst, data: bytes, tags) -> Call:
         """
@@ -646,19 +530,6 @@ class InlinedWcscpySimplifier(OptimizationPass):
             covered.update(written)
 
         return r
-
-    @staticmethod
-    def _is_unrelated_stmt(stmt) -> bool:
-        """
-        Whether a statement neither reads nor writes memory.
-        """
-        if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, (VirtualVariable, Register))):
-            return False
-        if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
-            return False
-        finder = _MemoryAccessFinder()
-        finder.walk_expression(stmt.src)
-        return not finder.found
 
     @staticmethod
     def _stride_to_int(stride):

@@ -9,7 +9,6 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
-    Expression,
     Insert,
     Register,
     StackBaseOffset,
@@ -17,18 +16,18 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
-from angr.ailment.tagged_object import TagDict
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
 
-from .optimization_pass import OptimizationPass, OptimizationPassStage
+from .inlined_string_utils import InlinedStringCopySimplifierBase
+from .optimization_pass import OptimizationPassStage
 
 ASCII_PRINTABLES = set(string.printable)
 ASCII_DIGITS = set(string.digits)
 
 
-class InlinedStrcpySimplifier(OptimizationPass):
+class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
     """
     Simplifies inlined string copying logic into calls to strcpy/strncpy, and consolidates multiple consecutive
     inlined strcpy calls.
@@ -228,38 +227,6 @@ class InlinedStrcpySimplifier(OptimizationPass):
                     )
 
         return None
-
-    def _stack_vvar_ref(self, vvar: VirtualVariable, offset: int) -> Expression:
-        """
-        Build a pointer to `offset` from a stack variable whose definition is replaced by a string copy.
-        """
-        ref = UnaryOp(self.manager.next_atom(), "Reference", vvar, bits=self.project.arch.bits, extra_def=True)
-        if offset == vvar.stack_offset:
-            return ref
-        delta = Const(self.manager.next_atom(), offset - vvar.stack_offset, self.project.arch.bits)
-        return BinaryOp(self.manager.next_atom(), "Add", [ref, delta], bits=self.project.arch.bits)
-
-    @staticmethod
-    def _extra_def_vvar(dst: Expression) -> VirtualVariable | None:
-        """
-        The stack variable that a string copy to `dst` defines, if any.
-        """
-        if isinstance(dst, BinaryOp) and dst.op == "Add" and isinstance(dst.operands[1], Const):
-            dst = dst.operands[0]
-        if dst.tags.get("extra_def", False):
-            assert isinstance(dst, UnaryOp) and dst.op == "Reference"
-            assert isinstance(dst.operand, VirtualVariable)
-            return dst.operand
-        return None
-
-    def _tags_with_extra_defs(self, tags, dst: Expression) -> TagDict:
-        tags = TagDict(tags)
-        vvar = self._extra_def_vvar(dst)
-        if vvar is not None:
-            tags["extra_defs"] = [vvar.varid]
-        else:
-            tags.pop("extra_defs", None)
-        return tags
 
     def _consolidate_strcpy_calls(self, statements):
         """Consolidate consecutive inlined strcpy calls (phase 2)."""
