@@ -18,6 +18,7 @@ environment, so a constraint the shape could not see still has to hold.
 from __future__ import annotations
 
 import logging
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -178,6 +179,8 @@ def _candidates(leaves: list[_Leaf], stream: TokenStream, params: AlignParams) -
 
     votes: dict[int, int] = defaultdict(int)
     concrete = 0
+    # statements whose shape is too common to vote; a copy can only be counted on for the rest
+    voting = 0
     for t, leaf in enumerate(leaves):
         if leaf.shape is None:
             continue
@@ -188,11 +191,17 @@ def _candidates(leaves: list[_Leaf], stream: TokenStream, params: AlignParams) -
         positions = by_shape[sid]
         if len(positions) > params.max_seed_multiplicity:
             continue
+        voting += 1
         for pos in positions:
             votes[pos - t] += 1
     if concrete == 0:
         return list(range(-len(leaves) + 1, len(stream)))
-    ranked = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))
+    # a real occurrence lines up many statements on its diagonal; a diagonal only one or two
+    # happen to agree on is not worth a window, and a large template has hundreds of those.
+    # Measured against the statements that can vote: common shapes do not, so a template
+    # made mostly of them gets few votes even on its own copy.
+    threshold = min(params.min_votes, max(1, math.ceil(voting / 4)))
+    ranked = sorted(((d, v) for d, v in votes.items() if v >= threshold), key=lambda kv: (-kv[1], kv[0]))
     return [d for d, _ in ranked[: params.max_candidates]]
 
 

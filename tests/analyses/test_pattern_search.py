@@ -5,6 +5,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
+import sys
 import unittest
 from collections import Counter
 from dataclasses import replace
@@ -143,6 +144,34 @@ class TestSearch(unittest.TestCase):
         heavy_first = PStmtSeq((replace(IDIOM.stmts[0], weight=4.0), *IDIOM.stmts[1:]))
         heavy = search(heavy_first, stream)[0].similarity
         assert heavy < light, "the class-only leaf carries more weight, so the same variant scores lower"
+
+    def test_weakly_voted_diagonals_of_a_large_template_are_skipped(self):
+
+        search_mod = sys.modules["angr.analyses.patterns.search"]
+        # a 24-statement template of eight different shapes, one copy of it, and noise that
+        # agrees with it one statement at a time on many diagonals
+        ops = ("Add", "Sub", "Mul", "And", "Or", "Xor", "Shl", "Shr")
+        template = PStmtSeq(tuple(PAssign(PVVar(), PBinOp(op, (PVVar(), PConst()))) for op in ops) * 3)
+        shapes = [search_mod.shape_of(leaf) for leaf in template_leaves(template)][:8]
+        noise = []
+        for i in range(8):
+            noise += [*NOISE, shapes[i]]
+        stream = _stream(noise * 3 + shapes * 3 + noise)
+        leaves = [
+            search_mod._Leaf(node=n, optional=False, weight=1.0, shape=search_mod.shape_of(n))
+            for n in template_leaves(template)
+        ]
+        # with pruning off, every single-vote diagonal is a window; with it on, they are not
+        everything = search_mod._candidates(leaves, stream, AlignParams(min_votes=1))
+        pruned = search_mod._candidates(leaves, stream, AlignParams())
+        assert len(pruned) < len(everything) // 4
+        (hit,) = search(template, stream)
+        assert hit.interval.start == len(noise) * 3 and hit.similarity == 1.0
+
+    def test_a_small_template_is_never_pruned(self):
+        stream = _stream(NOISE[:5] + IDIOM_SHAPES[:1] + NOISE + IDIOM_SHAPES + NOISE)
+        # one statement of three agrees at the first site: still a candidate diagonal
+        assert search(IDIOM, stream, AlignParams(min_identity=0.0))
 
     def test_wildcard_only_template_is_tried_everywhere(self):
         stream = _stream([*NOISE, "St8(V,V)", "St4(V,C)", *NOISE])

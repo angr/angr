@@ -121,6 +121,10 @@ class AlignParams:
     max_candidates: int = 4000
     overlap_ratio: float = 0.5
     allow_tandem: bool = False
+    #: template search: a diagonal needs this many statements of the template voting for
+    #: it to be aligned, or a quarter of the template's concrete statements if that is
+    #: fewer, so small templates are never pruned
+    min_votes: int = 5
 
 
 class ScoreModel:
