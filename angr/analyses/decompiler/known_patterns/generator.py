@@ -805,7 +805,7 @@ class PatternGenerator:
             s
             for b in linearize(self.ail_graph, entry)
             for s in b.statements
-            if not isinstance(s, (Label, Jump)) and stmt_ins_addrs(s) & ins_addrs
+            if not isinstance(s, (Label, Jump)) and not s.tags.get("dephi") and stmt_ins_addrs(s) & ins_addrs
         ]
         if not stmts:
             raise PatternGenerationError("the selection covers no statement")
@@ -850,7 +850,8 @@ class PatternGenerator:
         """:meth:`generate_pattern` for a caller that already holds the statements, in order."""
         if not stmts:
             raise PatternGenerationError("no statements")
-        stmts = [s for s in stmts if not isinstance(s, (Label, Jump))]
+        # the copies SSA destruction adds do not exist where the pattern pass looks for patterns
+        stmts = [s for s in stmts if not isinstance(s, (Label, Jump)) and not s.tags.get("dephi")]
         self._wildcards = 0
         capture_of, arg_varids = self._auto_captures(stmts)
         pattern = PStmtSeq(tuple(self._gen_stmt_lenient(s, capture_of, set()) for s in stmts))

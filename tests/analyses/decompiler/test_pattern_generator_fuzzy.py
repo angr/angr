@@ -141,6 +141,18 @@ class TestGeneratePattern(unittest.TestCase):
         assert symbolic > 0, "the symbolic pattern must find fflush(stdout) in the other binary"
         assert pinned_hits == 0, "an address pinned in 1after909 means nothing in about_time"
 
+    def test_ssa_destruction_copies_are_not_lifted(self):
+        """Copies tagged ``dephi`` appear after the stage the pattern pass runs at; a pattern
+        lifted with them could not match there."""
+        from angr.ailment.statement import Assignment  # pylint:disable=import-outside-toplevel
+
+        stmts = [
+            s for b in self.dec.ail_graph for s in b.statements if isinstance(s, Assignment) and not s.tags.get("dephi")
+        ][:2]
+        copy = Assignment(stmts[0].idx, stmts[0].dst, stmts[0].src, **{**stmts[0].tags, "dephi": True})
+        pattern = self.gen.generate_pattern_from_statements([copy, stmts[1]], "x")
+        assert len(list(iter_stmt_patterns(pattern.pattern))) == 1
+
     def test_the_whole_function_lifts_calls_and_returns(self):
         """A span over the whole function covers calls and returns, which have patterns of their own."""
         pattern = self.gen.generate_pattern(0, len(self.gen.text), "whole")

@@ -35,6 +35,7 @@ TEMPLATE_TOKENIZER: dict = {
     # too); left in the stream, each one is a gap every template has to pay for
     "skip_labels": True,
     "skip_phis": True,
+    "skip_dephi": True,
 }
 
 _MAX_DEPTH = TEMPLATE_TOKENIZER["max_depth"]

@@ -319,6 +319,21 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         assert dec3.codegen.text.count("idiom(") == calls
         assert graph_problems(dec3.ail_graph, func3.addr) == []
 
+    def test_ssa_destruction_copies_do_not_keep_a_pattern_from_its_own_source(self):
+        # the final graph of this BIOS routine has copies SSA destruction added after the
+        # pattern pass's stage; lifted, they made the pattern miss even the copy it came from
+        proj, cfg, func = _scoped("i386/bios.bin.elf", 0xFAFAD, include_plt=False)
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert any(s.tags.get("dephi") for b in dec.ail_graph for s in b.statements)
+        finder = proj.analyses.FuzzyPatternFinder(func, dec.ail_graph, params=_DISCOVERY, disjoint=False)
+        blocks = {(b.addr, b.idx): b for b in finder.stream.blocks}
+        assert not any(blocks[loc.block_loc].statements[loc.stmt_idx].tags.get("dephi") for loc in finder.stream.locs)
+        pattern = self._longest_family_pattern(proj, cfg, func, min_size=12)
+        proj.kb.patterns.add(pattern)
+        proj.analyses.Decompiler(func, cfg=cfg.model, use_cache=False, update_cache=False)
+        stats = proj.kb.patterns.stats(func.addr, pattern.name)
+        assert stats is not None and stats.outlined >= 1
+
     def test_an_outline_that_drops_a_live_value_is_kept_with_a_warning(self):
         # in gnulib's quoting loop the family's region hands on more values than a call returns
         proj, cfg, func = _scoped("x86_64/dir_gcc_-O0", 0x410AAE, include_plt=True)

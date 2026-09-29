@@ -117,6 +117,11 @@ class TokenStream:
         return (min(addrs), max(addrs)) if addrs else (None, None)
 
 
+def is_dephi_copy(stmt: st.Statement) -> bool:
+    """A copy SSA destruction added: it does not exist at the stage the pattern pass runs at."""
+    return bool(stmt.tags.get("dephi"))
+
+
 def is_glue_shape(shape: str) -> bool:
     """An unconditional jump: control glue between blocks, not a statement an idiom is made of."""
     return shape in ("Jf", "Jb", "J?")
@@ -355,8 +360,13 @@ def tokenize(
     skip_phis: bool = False,
     compute_bags: bool = False,
     skip_conversions: bool = False,
+    skip_dephi: bool = False,
 ) -> TokenStream:
-    """Linearize ``graph`` from ``entry`` and canonicalize every statement into a token."""
+    """Linearize ``graph`` from ``entry`` and canonicalize every statement into a token.
+
+    ``skip_dephi`` leaves out the copies SSA destruction adds (tagged ``dephi``): they
+    appear after the stage the pattern pass runs at, so a pattern must not depend on them.
+    """
     order = linearize(graph, entry)
     block_pos = {(b.addr, b.idx): i for i, b in enumerate(order)}
     canon = AILCanonicalizer(
@@ -381,6 +391,8 @@ def tokenize(
             if skip_labels and isinstance(stmt, st.Label):
                 continue
             if skip_phis and isinstance(stmt, st.Assignment) and isinstance(stmt.src, ex.Phi):
+                continue
+            if skip_dephi and is_dephi_copy(stmt):
                 continue
             shapes.append(canon.statement(stmt, pos))
             bags.append(canon.bag(stmt) if compute_bags else Counter())

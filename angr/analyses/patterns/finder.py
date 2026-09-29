@@ -134,6 +134,7 @@ class FuzzyPatternFinder(Analysis):
         const_mode: str = "abstract",
         skip_labels: bool = True,
         skip_phis: bool = True,
+        skip_dephi: bool = True,
         resolve_calls: bool = True,
         entry: Block | None = None,
         low_priority: bool = False,
@@ -178,6 +179,7 @@ class FuzzyPatternFinder(Analysis):
             const_mode=const_mode,
             skip_labels=skip_labels,
             skip_phis=skip_phis,
+            skip_dephi=skip_dephi,
         )
 
         self.all_patterns: list[FuzzyPattern] = []
