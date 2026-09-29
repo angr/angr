@@ -62,16 +62,18 @@ class AllocHelper:
         self.base = claripy.BVS("alloc_base", ptrsize)
         self.ptr = self.base
         self._size = 0
-        self._alignment = 1
         self.stores = {}
         self.store_asts = {}
 
     def alloc(self, size, alignment=1):
-        self._alignment = max(self._alignment, alignment)
-        self._size = (self._size + alignment - 1) // alignment * alignment
-        out = self.base + self._size
+        if alignment > 1:
+            self.ptr = (self.ptr + alignment - 1) & ((1 << len(self.ptr)) - alignment)
+            # alloc_base is caller-controlled and may be unaligned. Reserve the worst-case padding so a
+            # stack-growing allocation cannot escape the space setup_callsite carved out for it.
+            self._size += alignment - 1
+        out = self.ptr
+        self.ptr += size
         self._size += size
-        self.ptr = self.base + self._size
         return out
 
     def dump(self, val, state, loc=None, alignment=1):
@@ -99,7 +101,7 @@ class AllocHelper:
             loc.set_value(state, translated_val, stack_base=translated_ptr)
 
     def size(self):
-        return (self._size + self._alignment - 1) // self._alignment * self._alignment
+        return self._size
 
     @classmethod
     def calc_size(cls, val, arch):
@@ -156,8 +158,16 @@ def refine_locs_with_struct_type(
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
 
+    while isinstance(arg_type, TypeRef):
+        arg_type = arg_type.type
+
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
+
+    # Debug information can tell us the byte width of a class without recovering any of its members. Preserve
+    # that width instead of applying the generic unsupported-type fallback, which is only one C ``int`` wide.
+    if isinstance(arg_type, SimStruct) and not arg_type.fields and arg_type.size:
+        arg_type = SimTypeNum(arg_type.size, signed=False).with_arch(arch)
 
     if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
         assert arg_type.size is not None
@@ -173,6 +183,8 @@ def refine_locs_with_struct_type(
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
 
+        if len(pieces) > 1 and not isinstance(arg_type, SimTypeFloat) and arch.register_endness == archinfo.Endness.BE:
+            pieces.reverse()
         piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
         if isinstance(arg_type, SimTypeFloat):
             piece.is_fp = True
@@ -187,9 +199,7 @@ def refine_locs_with_struct_type(
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs_list)
-    # An opaque class has a size and no members: nothing to lay out field by field, so leave it to the
-    # integer case below, which is how SimCCSystemVAMD64._classify already classifies it.
-    if isinstance(arg_type, SimStruct) and (arg_type.fields or not arg_type.size):
+    if isinstance(arg_type, SimStruct):
         locs_dict = {
             field: refine_locs_with_struct_type(arch, locs, field_ty, offset=offset + arg_type.offsets[field])
             for field, field_ty in arg_type.fields.items()
@@ -576,15 +586,15 @@ class SimReferenceArgument(SimFunctionArgument):
         self.alloc_align = alloc_align
 
     def get_footprint(self):
-        return self.main_loc.get_footprint()
+        return self.ptr_loc.get_footprint()
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
-        return self.main_loc.get_value(state, stack_base=ptr_val, **kwargs)
+        return self.main_loc.get_value(state, **(kwargs | {"stack_base": ptr_val}))
 
     def set_value(self, state, value, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
-        self.main_loc.set_value(state, value, stack_base=ptr_val, **kwargs)
+        self.main_loc.set_value(state, value, **(kwargs | {"stack_base": ptr_val}))
 
 
 class ArgSession:
@@ -1180,6 +1190,10 @@ class SimCC:
         if isinstance(arg, (tuple, dict, SimStructValue)):
             if not isinstance(ty, SimStruct):
                 raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
+            if not ty.fields and ty.size:
+                if len(arg) != 0:
+                    raise TypeError(f"Wrong number of fields in struct, expected 0 got {len(arg)}")
+                return claripy.BVV(0, ty.size)
             if not isinstance(arg, SimStructValue):
                 if len(arg) != len(ty.fields):
                     raise TypeError(f"Wrong number of fields in struct, expected {len(ty.fields)} got {len(arg)}")
@@ -1214,7 +1228,9 @@ class SimCC:
             raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
 
         if isinstance(arg, claripy.ast.BV):
-            if isinstance(ty, (SimTypeReg, SimTypeNum)):
+            if isinstance(ty, (SimTypeReg, SimTypeNum)) or (
+                isinstance(ty, SimStruct) and not ty.fields and ty.size is not None
+            ):
                 if len(arg) != ty.size:
                     if arg.concrete:
                         size = ty.size
