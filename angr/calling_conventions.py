@@ -1918,7 +1918,11 @@ class SimCCSystemVAMD64(SimCC):
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
         if opaque_cpp_class(ty):
-            return ["INTEGER"]
+            # This is an opaque C++ class (likely unresolved); we cannot lay it out. Treat it as a native integer when
+            # it fits in the two eightbytes that this ABI may pass in registers. Larger aggregates use the ordinary
+            # memory fallback. Keep the number of classes consistent with the declared width so the generic location
+            # refiner can preserve that width.
+            return ["INTEGER"] * nchunks if nchunks <= 2 else ["MEMORY"] * nchunks
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
             assert ty.size is not None
