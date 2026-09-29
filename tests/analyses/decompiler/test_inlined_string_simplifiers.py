@@ -75,9 +75,9 @@ def _inlined_wcsncpy(simplifier, idx: int, offset: int, data: bytes, count=None)
     return SideEffectStatement(idx + 4, call)
 
 
-class _WcscpyBlockBuilder:
+class _StackWriteBlockBuilder:
     """
-    Builds a single AIL block of stack writes and runs InlinedWcscpySimplifierLate on it.
+    Builds a single AIL block of stack writes and runs an inlined string simplifier on it.
     """
 
     def __init__(self):
@@ -381,7 +381,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
 
     def test_wcscpy_folds_valid_prefix_before_partial_updates(self):
         # issue 7285: constant Insert updates after the path used to discard the whole path
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.write_bytes(-108, APPDATA_PATH)
         builder.insert_bytes(-48, b"\x00\x00\xde\xdf")
         builder.insert_bytes(-44, b"\xe0\xe1\xe2\xe3")
@@ -392,7 +392,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert sum(isinstance(stmt, Assignment) and isinstance(stmt.src, Insert) for stmt in statements) == 8
 
     def test_wcscpy_writes_to_start_of_stride(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.write_bytes(-120, b"A")
         builder.write_bytes(-108, "abcd".encode("utf-16le"))
         simplifier, statements = builder.run()
@@ -401,7 +401,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert isinstance(statements[0], Assignment) and statements[0].dst.stack_offset == -120
 
     def test_wcscpy_does_not_hoist_writes_across_calls(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         data = "abcd".encode("utf-16le")
         vvars = builder.write_bytes(-108, data[:4])
         builder.call("consume", UnaryOp(builder.manager.next_atom(), "Reference", vvars[0], bits=64))
@@ -412,7 +412,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert isinstance(statements[1], SideEffectStatement) and statements[1].expr.target == "consume"
 
     def test_wcscpy_keeps_writes_whose_values_are_used(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         vvars = builder.write_bytes(-108, "abcd".encode("utf-16le"))
         builder.call("consume", vvars[2])
         _, statements = builder.run()
@@ -420,7 +420,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert [stmt.dst.stack_offset for stmt in statements[:3]] == [-108, -107, -106]
 
     def test_wcscpy_keeps_terminator(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.write_bytes(-108, APPDATA_PATH + b"\x00\x00")
         simplifier, statements = builder.run()
 
@@ -446,7 +446,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         ) == (False, None)
 
     def test_wcscpy_does_not_merge_half_code_units(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         vvars = builder.write_bytes(-108, "abcd".encode("utf-16le"))
         builder.call("consume", vvars[7])
         simplifier, statements = builder.run()
@@ -468,7 +468,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert simplifier._consolidate_wcscpy_calls([merged, third]) is None
 
     def test_wcscpy_keeps_bytes_after_terminator(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.write_bytes(-108, "abc".encode("utf-16le") + b"\x00" * 4)
         simplifier, statements = builder.run()
 
@@ -496,7 +496,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert simplifier._copied_bytes(merged) == b"Z\x00Y\x00A\x00B\x00C\x00\x00\x00"
 
     def test_wcscpy_destination_is_lowest_stack_variable(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         vvars = builder.write_bytes(-108, APPDATA_PATH + b"\x00\x00")
         _, statements = builder.run()
 
@@ -508,7 +508,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert stmt.tags["extra_defs"] == [vvars[0].varid]
 
     def test_wcscpy_early_folds_stack_stores(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.store_bytes(-108, APPDATA_PATH + b"\x00\x00")
         simplifier, statements = builder.run(InlinedWcscpySimplifier)
 
@@ -519,7 +519,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert isinstance(stmt.expr.args[0], StackBaseOffset)
 
     def test_wcscpy_early_folds_prefix_before_unknown_store(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.store_bytes(-108, APPDATA_PATH)
         unknown = VirtualVariable(builder.manager.next_atom(), 100, 32, VirtualVariableCategory.REGISTER, oident=0)
         builder.statements.append(
@@ -539,7 +539,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
 
     def test_wcscpy_early_stride_starts_at_later_statement(self):
         # stores in descending address order: the lowest one is written last
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         data = "abcd".encode("utf-16le")
         for offset in range(6, -1, -2):
             builder.store_bytes(-108 + offset, data[offset : offset + 2])
@@ -548,7 +548,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert builder.wide_copies(simplifier, statements) == [(-108, data, 8)]
 
     def test_wcscpy_early_writes_to_start_of_stride(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.store_bytes(-120, b"A")
         builder.store_bytes(-108, "abcd".encode("utf-16le"))
         simplifier, statements = builder.run(InlinedWcscpySimplifier)
@@ -560,7 +560,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         data = "abcd".encode("utf-16le")
         pointer = VirtualVariable(0, 100, 64, VirtualVariableCategory.REGISTER, oident=0)
         for barrier in ("call", "store"):
-            builder = _WcscpyBlockBuilder()
+            builder = _StackWriteBlockBuilder()
             builder.store_bytes(-108, data[:4])
             if barrier == "call":
                 builder.call("consume", StackBaseOffset(builder.manager.next_atom(), 64, -108))
@@ -579,7 +579,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
 
     def test_strcpy_late_destination_is_lowest_stack_variable(self):
         # after SSA, the string is written through partial updates of dword stack variables
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         vvars = builder.insert_bytes(-108, b"hell")
         for i, chunk in enumerate((b"o, w", b"orld")):
             builder.insert_bytes(-104 + i * 4, chunk)
@@ -596,7 +596,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
     def test_strcpy_does_not_hoist_stores_across_barriers(self):
         pointer = VirtualVariable(0, 100, 64, VirtualVariableCategory.REGISTER, oident=0)
         for barrier in ("call", "store"):
-            builder = _WcscpyBlockBuilder()
+            builder = _StackWriteBlockBuilder()
             builder.store_bytes(-108, b"hello, ")
             if barrier == "call":
                 builder.call("consume", StackBaseOffset(builder.manager.next_atom(), 64, -108))
@@ -614,7 +614,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
             assert len(statements) == 3
 
     def test_strcpy_folds_prefix_before_unknown_store(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.store_bytes(-108, b"hello, world")
         unknown = VirtualVariable(builder.manager.next_atom(), 100, 32, VirtualVariableCategory.REGISTER, oident=0)
         builder.statements.append(
@@ -632,7 +632,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert len(statements) == 2
 
     def test_strcpy_late_keeps_updates_whose_values_are_used(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.insert_bytes(-108, b"hell")
         vvars = builder.insert_bytes(-104, b"o, w")
         builder.call("consume", vvars[-1])
@@ -643,7 +643,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert sum(isinstance(stmt, Assignment) and isinstance(stmt.src, Insert) for stmt in statements) == 4
 
     def test_strcpy_late_folds_constant_stack_assignments(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         vvars = builder.write_bytes(-108, b"hello, world")
         simplifier, statements = builder.run(InlinedStrcpySimplifierLate)
 
@@ -653,7 +653,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
 
     def test_strcpy_late_rejects_insert_into_a_different_variable(self):
         # the base covers a different range than the destination, so the other bytes of the destination change too
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.insert_bytes(-108, b"hell")
         base = builder.vvar(-104, bits=64)
         for i, byte in enumerate(b"o, w"):
@@ -673,7 +673,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert len(statements) == 5
 
     def test_strcpy_late_keeps_terminator(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.write_bytes(-108, b"hello, world\x00")
         simplifier, statements = builder.run(InlinedStrcpySimplifierLate)
 
@@ -682,7 +682,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         assert len(statements) == 1
 
     def test_strcpy_keeps_padding_after_terminator(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.store_bytes(-108, b"hello\x00\x00\x00")
         simplifier, statements = builder.run(InlinedStrcpySimplifier)
 
@@ -706,7 +706,7 @@ class TestInlinedStringSimplifiers(unittest.TestCase):
         )
 
     def test_strcpy_consolidation_uses_copied_bytes(self):
-        builder = _WcscpyBlockBuilder()
+        builder = _StackWriteBlockBuilder()
         builder.store_bytes(-108, b"hello, ")
         zero = Store(
             builder.manager.next_atom(),
