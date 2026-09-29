@@ -4418,8 +4418,7 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("sailr")
     def test_simplifying_string_transformation_loops_with_split_loads_and_pointers(self, decompiler_options=None):
-        # angr issue #7286: three decoder loops, one loading into a vvar and storing in a separate statement, and one
-        # also walking the buffer with a pointer carried in a vvar
+        # regression: angr issue #7286
         bin_path = os.path.join(
             test_location, "i386", "windows", "82ce4d6615793fec42a57571f6161794de24362be69a5103cf3c1192aa4b6ecb"
         )

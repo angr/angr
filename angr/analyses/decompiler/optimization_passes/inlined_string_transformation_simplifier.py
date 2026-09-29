@@ -594,8 +594,8 @@ class _MemoryReadNotification(Exception):
 
 class _HasMemoryReadWalker(AILBlockViewer):
     """
-    Raises ``_MemoryReadNotification`` on the first expression that InlinedStringTransformationAILEngine could turn
-    into a "load" stack-access record: a Load, or a virtual variable that lives on the stack.
+    Notify on the first expression that InlinedStringTransformationAILEngine could turn
+    into a "load" stack-access record.
     """
 
     def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
@@ -611,9 +611,10 @@ _HAS_MEMORY_READ_WALKER = _HasMemoryReadWalker()
 
 def _may_transform_stack_bytes(block) -> bool:
     """
-    A descriptor needs the loop body to load a stack byte and to store a value derived from it, possibly through
-    register vvars in other statements. This is a cheap syntactic over-approximation of that: the block must contain
-    both a memory read and a memory write.
+    Check if the block contains both a memory read and a memory write.
+    This is a cheap over-approximation to checking if a descriptor corresponds to transformable stack bytes.
+    The stricter version is that a descriptor needs the loop body to load a stack byte and to store a value
+    derived from the loaded bytes.
     """
     has_read = has_write = False
     for stmt in block.statements:
@@ -772,7 +773,6 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             pred = next(iter(nn for nn in self._graph.predecessors(loop_node) if nn is not loop_node))
             succ = next(iter(nn for nn in self._graph.successors(loop_node) if nn is not loop_node))
             if not _may_transform_stack_bytes(loop_node):
-                # the loop body cannot transform stack bytes; skip the (expensive) execution entirely
                 continue
             engine = InlinedStringTransformationAILEngine(
                 self.project, {pred.addr: pred, loop_node.addr: loop_node}, pred.addr, succ.addr, 1024
