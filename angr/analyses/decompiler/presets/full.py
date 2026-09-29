@@ -73,11 +73,12 @@ preset_full = DecompilationPreset(
         ReturnDeduplicator,
         CrossJumpReverter,
         FlipBooleanCmp,
+        # decode string transformation loops before the inlined string and memory operations consume their stores
+        InlinedStringTransformationSimplifier,
         InlinedMemcpySimplifier,
         InlinedMemsetSimplifier,
         InlinedStrcpySimplifier,
         InlinedWcscpySimplifier,
-        InlinedStringTransformationSimplifier,
         InlinedMemcpySimplifierLate,
         InlinedMemsetSimplifierLate,
         InlinedStrcpySimplifierLate,
