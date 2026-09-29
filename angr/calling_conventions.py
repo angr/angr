@@ -1241,8 +1241,9 @@ class SimCC:
             if not isinstance(ty, SimStruct):
                 raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
             if not ty.fields and ty.size:
-                if len(arg) != 0:
-                    raise TypeError(f"Wrong number of fields in struct, expected 0 got {len(arg)}")
+                field_count = len(arg._values) if isinstance(arg, SimStructValue) else len(arg)
+                if field_count != 0:
+                    raise TypeError(f"Wrong number of fields in struct, expected 0 got {field_count}")
                 return claripy.BVV(0, ty.size)
             if not isinstance(arg, SimStructValue):
                 if len(arg) != len(ty.fields):
@@ -1274,7 +1275,9 @@ class SimCC:
                     raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
                 return arg
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
-                return arg.val_to_bv(ty.size, ty.signed if isinstance(ty, SimTypeNum) else False)
+                size = ty.size
+                assert size is not None
+                return arg.val_to_bv(size, ty.signed if isinstance(ty, SimTypeNum) else False)
             raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
 
         if isinstance(arg, claripy.ast.BV):
@@ -1285,7 +1288,9 @@ class SimCC:
                     if arg.concrete:
                         size = ty.size
                         assert size is not None
-                        return claripy.BVV(arg.concrete_value, size)
+                        concrete_value = arg.concrete_value
+                        assert concrete_value is not None
+                        return claripy.BVV(concrete_value, size)
                     raise TypeError(f"Type mismatch of symbolic data: expected {ty}, got {len(arg)} bits")
                 return arg
             if isinstance(ty, (SimTypeFloat)):
@@ -2860,18 +2865,20 @@ class SimCCAArch64(SimCC):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         composite = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
-        if arg_type.size is None:
+        arg_size = arg_type.size
+        if arg_size is None:
             return super().next_arg(session, arg_type)
-        if isinstance(arg_type, SimTypeNum) and arg_type.size <= 128:
-            machine_size = next(size for size in (8, 16, 32, 64, 128) if size >= arg_type.size)
+        if isinstance(arg_type, SimTypeNum) and arg_size <= 128:
+            machine_size = next(size for size in (8, 16, 32, 64, 128) if size >= arg_size)
             arg_type = SimTypeNum(machine_size, signed=arg_type.signed).with_arch(self.arch)
-        if not composite and arg_type.size <= self.arch.bits:
+            arg_size = machine_size
+        if not composite and arg_size <= self.arch.bits:
             return super().next_arg(session, arg_type)
-        if arg_type.size > 128:
+        if arg_size > 128:
             # A composite larger than 16 bytes is copied to memory by the caller and replaced by a pointer. The
             # AArch64 C mapping treats a wider integral type as an array of 128-bit units, so it follows the same rule.
             if isinstance(arg_type, SimTypeNum):
-                padded_size = (arg_type.size + 127) // 128 * 128
+                padded_size = (arg_size + 127) // 128 * 128
                 padded_type = SimTypeNum(padded_size, signed=arg_type.signed).with_arch(self.arch)
                 return self._reference_arg(session, padded_type)
             return self._reference_arg(session, arg_type)
