@@ -1688,7 +1688,7 @@ class Clinic(Analysis, Serializable):
             )
             if cleanup_cc_cls is not None:
                 candidates.append((block.addr, cc, proto, cleanup_cc_cls(self.project.arch)))
-        if not candidates or not self._direct_callee_cleanups_known():
+        if not candidates or not self._direct_callee_cleanups_known(spt):
             # an imbalance may be due to a direct callee whose cleanup is unknown
             return spt
 
@@ -1717,36 +1717,31 @@ class Clinic(Analysis, Serializable):
                 return new_spt
         return spt
 
-    def _direct_callee_cleanups_known(self) -> bool:
+    def _direct_callee_cleanups_known(self, spt: StackPointerTracker) -> bool:
         """
-        Whether every returning direct callee pops a known number of bytes that matches what its calling convention
-        and prototype account for. Otherwise, a stack imbalance may be caused by a direct callee.
+        Whether every returning direct callee pops a known number of bytes that matches what the stack pointer tracker
+        assumes at its call sites. Otherwise, a stack imbalance may be caused by a direct callee.
         """
         for node in self.function.transition_graph:
-            if not isinstance(node, FuncNode) or not self.kb.functions.contains_addr(node.addr):
-                continue
-            callee = self.kb.functions.get_by_addr(node.addr)
-            if (
-                callee.returning is False
-                or callee.is_simprocedure
-                or callee.is_plt
-                or callee.prototype_source >= PrototypeSource.SIMPROC
-            ):
-                continue
-            if callee.calling_convention is None or callee.prototype is None:
-                return False
-            extra_pop = self.project.analyses[FactCollector].prep(kb=self.kb)(callee).extra_pop
-            accounted = 0
-            if callee.calling_convention.CALLEE_CLEANUP:
-                proto = (
-                    dereference_simtype_by_lib(callee.prototype, callee.prototype_libname)
-                    if callee.prototype_libname is not None
-                    else callee.prototype
-                )
-                arg_locs = callee.calling_convention.arg_locs(proto)
-                accounted = self.project.arch.bytes * sum(1 for loc in arg_locs if isinstance(loc, SimStackArg))
-            if extra_pop != accounted:
-                return False
+            for _, dst, data in self.function.transition_graph.out_edges(node, data=True):
+                if (
+                    data.get("type") != "call"
+                    or not isinstance(dst, FuncNode)
+                    or self._is_unresolvable_call_target(dst.addr)
+                    or not self.kb.functions.contains_addr(dst.addr)
+                ):
+                    continue
+                callee = self.kb.functions.get_by_addr(dst.addr)
+                if (
+                    callee.returning is False
+                    or callee.is_simprocedure
+                    or callee.is_plt
+                    or callee.prototype_source >= PrototypeSource.SIMPROC
+                ):
+                    continue
+                extra_pop = self.project.analyses[FactCollector].prep(kb=self.kb)(callee).extra_pop
+                if extra_pop is None or extra_pop != spt.callee_cleanup_size_at(node):
+                    return False
         return True
 
     def _is_unresolvable_call_target(self, addr: int) -> bool:

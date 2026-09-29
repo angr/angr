@@ -4454,6 +4454,15 @@ class TestDecompiler(unittest.TestCase):
         self._decompile_thunderbird_profile_path_builder(True, decompiler_options=decompiler_options)
 
     @structuring_algo("sailr")
+    def test_simplifying_string_transformation_loops_with_split_loads_and_pointers_without_ccc(
+        self, decompiler_options=None
+    ):
+        # regression: angr issues #7286 and #7288. Without CompleteCallingConventions, callees have no calling
+        # conventions, and the call-site analysis recovers all five arguments of the helper, the third being the buffer.
+        text, buffer = self._decompile_thunderbird_profile_path_builder(False, decompiler_options=decompiler_options)
+        assert re.search(rf"sub_423a40\(v\d+, v\d+, {buffer}, 0, 0\)", text) is not None
+
+    @structuring_algo("sailr")
     def test_win_security_cookie_removal_with_interleaved_ip_writes(self, decompiler_options=None):
         # The /GS security-cookie init idiom (load __security_cookie; xor with frame; store to stack) can be
         # interleaved with program-counter (rip) register writes. WinStackCanarySimplifier must skip those
