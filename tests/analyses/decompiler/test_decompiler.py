@@ -4416,15 +4416,19 @@ class TestDecompiler(unittest.TestCase):
         for value in range(222, 228):
             assert f" = {value};" in d.codegen.text
 
-    @structuring_algo("sailr")
-    def test_simplifying_string_transformation_loops_with_split_loads_and_pointers(self, decompiler_options=None):
-        # regression: angr issue #7286
+    @staticmethod
+    def _decompile_thunderbird_profile_path_builder(run_ccc: bool, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "i386", "windows", "82ce4d6615793fec42a57571f6161794de24362be69a5103cf3c1192aa4b6ecb"
         )
-        # 0x4402e0 and 0x440350 are the targets of the thunks at 0x40c710 and 0x40c720
+        # 0x40c710 and 0x40c720 are thunks to 0x4402e0 and 0x440350. 0x423a40 is a helper whose epilogue the CFG
+        # splits off into 0x423b0f, 0x423aea, and 0x423b00.
         proj, cfg = load_project_with_scoped_cfg(
-            bin_path, 0x4290E0, extra_func_addrs=[0x4402E0, 0x440350], expand_call_tree=False, run_ccc=False
+            bin_path,
+            0x4290E0,
+            extra_func_addrs=[0x40C710, 0x40C720, 0x4402E0, 0x440350, 0x423A40, 0x423B0F, 0x423AEA, 0x423B00],
+            expand_call_tree=False,
+            run_ccc=run_ccc,
         )
         f = cfg.kb.functions[0x4290E0]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
@@ -4437,6 +4441,26 @@ class TestDecompiler(unittest.TestCase):
         assert 'L"Thunderbird"' in d.codegen.text
         # the encoded bytes are not outlined into string copies
         assert "{'e!" not in d.codegen.text
+        # the two six-argument indirect calls pop their arguments (angr issue #7288), so the stack pointer does not
+        # drift and all three strings are copied into the same buffer
+        dsts = re.findall(r"wcscpy\((v\d+), L", d.codegen.text)
+        assert len(dsts) == 3
+        assert len(set(dsts)) == 1
+        return d.codegen.text, dsts[0]
+
+    @structuring_algo("sailr")
+    def test_simplifying_string_transformation_loops_with_split_loads_and_pointers(self, decompiler_options=None):
+        # regression: angr issues #7286 and #7288
+        self._decompile_thunderbird_profile_path_builder(True, decompiler_options=decompiler_options)
+
+    @structuring_algo("sailr")
+    def test_simplifying_string_transformation_loops_with_split_loads_and_pointers_without_ccc(
+        self, decompiler_options=None
+    ):
+        # regression: angr issues #7286 and #7288. Without CompleteCallingConventions, callees have no calling
+        # conventions, and the call-site analysis recovers all five arguments of the helper, the third being the buffer.
+        text, buffer = self._decompile_thunderbird_profile_path_builder(False, decompiler_options=decompiler_options)
+        assert re.search(rf"sub_423a40\(v\d+, v\d+, {buffer}, 0, 0\)", text) is not None
 
     @structuring_algo("sailr")
     def test_win_security_cookie_removal_with_interleaved_ip_writes(self, decompiler_options=None):

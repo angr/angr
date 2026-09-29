@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import enum
 import importlib
+import itertools
 import logging
 from collections import defaultdict, namedtuple
 from collections.abc import Iterable
@@ -31,6 +32,7 @@ from angr.ailment.expression import (
     Register as AILRegister,
 )
 from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.calling_convention.fact_collector import FactCollector
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.block_simplifier import BlockSimplifier, PeepholeOptimizationBundle
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
@@ -38,11 +40,13 @@ from angr.analyses.decompiler.optimization_pass_registry import name_to_pass, pa
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
-from angr.analyses.stack_pointer_tracker import OffsetVal, Register
+from angr.analyses.stack_pointer_tracker import OffsetVal, Register, StackPointerTracker
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
 from angr.calling_conventions import (
+    CC,
+    SimCC,
     SimCCUsercall,
     SimComboArg,
     SimFunctionArgument,
@@ -1612,18 +1616,135 @@ class Clinic(Analysis, Serializable):
         regs |= self._find_regs_compared_against_sp(self._func_graph)
         regs |= self._find_regs_saving_sp(self._func_graph)
 
-        spt = self.project.analyses.StackPointerTracker(
-            self.function,
-            regs,
-            fail_fast=self._fail_fast,
-            track_memory=self._sp_tracker_track_memory,
-            cross_insn_opt_callback=_cross_insn_opt_callback,
-            initial_reg_values=initial_reg_values,
-        )
+        def _run_spt():
+            return self.project.analyses[StackPointerTracker].prep(kb=self.kb, fail_fast=self._fail_fast)(
+                self.function,
+                regs,
+                track_memory=self._sp_tracker_track_memory,
+                cross_insn_opt_callback=_cross_insn_opt_callback,
+                initial_reg_values=initial_reg_values,
+            )
+
+        spt = _run_spt()
+        if not self._stack_balanced(spt):
+            spt = self._balance_stack_with_callee_cleanup(spt, _run_spt)
 
         if spt.inconsistent_for(self.project.arch.sp_offset):
             l.warning("Inconsistency found during stack pointer tracking. Decompilation results might be incorrect.")
         return spt
+
+    MAX_CALLEE_CLEANUP_SUBSET_CANDIDATES = 4
+
+    def _stack_balanced(self, spt) -> bool:
+        """
+        Whether the stack pointer is consistent at every endpoint and back at its entry value before every return.
+        """
+        sp_offset = self.project.arch.sp_offset
+        if spt.inconsistent_for(sp_offset):
+            return False
+        entry_sp = spt.offset_before(self.function.addr, sp_offset)
+        if entry_sp is None:
+            return False
+        for endpoint in self.function.endpoints_with_type["return"]:
+            block = self.project.factory.block(endpoint.addr, size=endpoint.size)
+            if not block.instruction_addrs or block.vex.jumpkind != "Ijk_Ret":
+                continue
+            if spt.offset_before(block.instruction_addrs[-1], sp_offset) != entry_sp:
+                return False
+        return True
+
+    def _balance_stack_with_callee_cleanup(self, spt, run_spt):
+        """
+        For call sites with unknown caller/callee cleanup configurations (especially with indirect calls), adjust
+        the caller/callee cleanup configuration to attempt to balance the stack.
+
+        Returns the StackPointerTracker instance once the stack is properly balanced or after giving up.
+        """
+        platform = self.project.simos.name if self.project.simos is not None else None
+        cc_classes = CC.get(self.project.arch.name, {}).get(platform, []) if platform is not None else []
+        if not any(cc_cls.CALLEE_CLEANUP for cc_cls in cc_classes):
+            return spt
+
+        callsite_protos = self.kb.callsite_prototypes
+        candidates: list[tuple[int, SimCC, SimTypeFunction, SimCC]] = []
+        for block in self.function.blocks:
+            if block.vex.jumpkind != "Ijk_Call" or callsite_protos.is_prototype_certain(block.addr) is not False:
+                continue
+            if any(
+                isinstance(dst, FuncNode) and not self._is_unresolvable_call_target(dst.addr)
+                for dst in self.function.transition_graph.successors(self.function.get_node(block.addr))
+            ):
+                # direct calls use the callee's calling convention
+                continue
+            cc = callsite_protos.get_cc(block.addr)
+            proto = callsite_protos.get_prototype(block.addr)
+            if cc is None or proto is None or cc.CALLEE_CLEANUP:
+                continue
+            if not any(isinstance(loc, SimStackArg) for loc in cc.arg_locs(proto)):
+                continue
+            cleanup_cc_cls = next(
+                (cc_cls for cc_cls in cc_classes if cc_cls.CALLEE_CLEANUP and issubclass(cc_cls, type(cc))), None
+            )
+            if cleanup_cc_cls is not None:
+                candidates.append((block.addr, cc, proto, cleanup_cc_cls(self.project.arch)))
+        if not candidates or not self._direct_callee_cleanups_known(spt):
+            # an imbalance may be due to a direct callee whose cleanup is unknown
+            return spt
+
+        if len(candidates) <= self.MAX_CALLEE_CLEANUP_SUBSET_CANDIDATES:
+            subsets_by_size = [list(itertools.combinations(candidates, size)) for size in range(1, len(candidates) + 1)]
+        else:
+            subsets_by_size = [[tuple(candidates)]]
+
+        def _balanced_spt(subset):
+            for addr, _, proto, cleanup_cc in subset:
+                callsite_protos.set_prototype(addr, cleanup_cc, proto)
+            new_spt = run_spt()
+            for addr, cc, proto, _ in subset:
+                callsite_protos.set_prototype(addr, cc, proto)
+            return new_spt if self._stack_balanced(new_spt) else None
+
+        for subsets in subsets_by_size:
+            solutions = [(subset, new_spt) for subset in subsets if (new_spt := _balanced_spt(subset)) is not None]
+            if len(solutions) > 1:
+                # ambiguous
+                break
+            if solutions:
+                subset, new_spt = solutions[0]
+                for addr, _, proto, cleanup_cc in subset:
+                    callsite_protos.set_prototype(addr, cleanup_cc, proto)
+                return new_spt
+        return spt
+
+    def _direct_callee_cleanups_known(self, spt: StackPointerTracker) -> bool:
+        """
+        Whether every returning direct callee pops a known number of bytes that matches what the stack pointer tracker
+        assumes at its call sites. Otherwise, a stack imbalance may be caused by a direct callee.
+        """
+        for node in self.function.transition_graph:
+            for _, dst, data in self.function.transition_graph.out_edges(node, data=True):
+                if (
+                    data.get("type") != "call"
+                    or not isinstance(dst, FuncNode)
+                    or self._is_unresolvable_call_target(dst.addr)
+                    or not self.kb.functions.contains_addr(dst.addr)
+                ):
+                    continue
+                callee = self.kb.functions.get_by_addr(dst.addr)
+                if (
+                    callee.returning is False
+                    or callee.is_simprocedure
+                    or callee.is_plt
+                    or callee.prototype_source >= PrototypeSource.SIMPROC
+                ):
+                    continue
+                extra_pop = self.project.analyses[FactCollector].prep(kb=self.kb)(callee).extra_pop
+                if extra_pop is None or extra_pop != spt.callee_cleanup_size_at(node):
+                    return False
+        return True
+
+    def _is_unresolvable_call_target(self, addr: int) -> bool:
+        return isinstance(self.project.hooked_by(addr), UnresolvableCallTarget)
 
     def block_lifted_with_cross_insn_opt(self, block_addr: int, block_size: int) -> bool:
         return (block_addr, block_size) in self._block_cross_insn_opt

@@ -20,7 +20,11 @@ from angr.analyses.complete_calling_conventions import (
     CompleteCallingConventionsAnalysis,
 )
 from angr.calling_conventions import (
+    SimCC,
     SimCCCdecl,
+    SimCCMicrosoftCdecl,
+    SimCCMicrosoftFastcall,
+    SimCCStdcall,
     SimCCSystemVAMD64,
     SimRegArg,
     SimStackArg,
@@ -28,7 +32,7 @@ from angr.calling_conventions import (
 from angr.errors import AngrRuntimeError
 from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
-from tests.common import bin_location, requires_binaries_private
+from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -776,6 +780,46 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert isinstance(func_init.prototype.returnty, SimTypeBottom), (
             f"G_InitPlayer should be void (tail-calls void function), got {func_init.prototype.returnty}"
         )
+
+    def test_find_cc_with_unknown_cleanup(self):
+        arch = archinfo.ArchX86()
+
+        def find_cc(args, extra_pop):
+            return SimCC.find_cc(arch, list(args), 4, platform="Win32", extra_pop=extra_pop)
+
+        stack_args = [SimStackArg(4, 4), SimStackArg(8, 4)]
+        # unknown cleanup does not prove callee cleanup
+        assert type(find_cc(stack_args, None)) is SimCCMicrosoftCdecl
+        assert type(find_cc(stack_args, 8)) is SimCCStdcall
+        # only a callee-cleanup convention reads ecx and edx; with unknown cleanup it is still the best fit
+        reg_args = [SimRegArg("ecx", 4), SimRegArg("edx", 4), SimStackArg(4, 4)]
+        assert type(find_cc(reg_args, None)) is SimCCMicrosoftFastcall
+        assert type(find_cc(reg_args, 4)) is SimCCMicrosoftFastcall
+        # but not when the callee is known to pop nothing
+        assert find_cc(reg_args, 0) is None
+
+    def test_x86_jmp_thunk_to_cdecl_is_caller_cleanup(self):
+        # sub_40187f is `jmp free`. Its caller cleans up with `pop ecx`, so it must not be inferred as stdcall.
+        binary_path = os.path.join(test_location, "i386", "windows", "known_patterns_stl_msvc_17_x86.exe")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(workers=0)
+
+        thunk = proj.kb.functions[0x40187F]
+        assert type(thunk.calling_convention) is SimCCMicrosoftCdecl
+        assert thunk.prototype is not None and len(thunk.prototype.args) == 1
+
+    def test_x86_jmp_thunk_to_stdcall_is_callee_cleanup(self):
+        # sub_405094 is `jmp WriteFile` and sub_405088 is `jmp HeapDestroy`; they inherit the targets' cleanup
+        binary_path = os.path.join(
+            test_location, "i386", "windows", "00f53f8bf3df545f0422a7c68170ac379ec8d78bee9782b49ce05b14f8bcc7d5"
+        )
+        proj, _ = load_project_with_scoped_cfg(binary_path, 0x405094, extra_func_addrs=[0x405088], window=0x20)
+
+        for addr, arg_count in ((0x405094, 5), (0x405088, 1)):
+            thunk = proj.kb.functions[addr]
+            assert type(thunk.calling_convention) is SimCCStdcall
+            assert thunk.prototype is not None and len(thunk.prototype.args) == arg_count
 
 
 if __name__ == "__main__":

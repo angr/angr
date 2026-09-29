@@ -1016,6 +1016,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         except CouldNotResolveException:
             pass
 
+    def callee_cleanup_size_at(self, node) -> int:
+        """
+        The number of bytes this analysis assumes the callee pops at the call site ending ``node``.
+        """
+        callees = [] if self._func is None else self._find_callees(node)
+        r = self._callsite_cc_and_prototype(node, callees)
+        if r is None or not r[0].CALLEE_CLEANUP:
+            return 0
+        return self._callee_cleanup_size(*r)
+
     def _find_callees(self, node) -> list[Function]:
         if self._func is None:
             raise ValueError("find_callees() is only supported in function mode")

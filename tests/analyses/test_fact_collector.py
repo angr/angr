@@ -11,9 +11,12 @@ import archinfo
 import angr
 from angr.calling_conventions import (
     SimCCCdecl,
+    SimCCMicrosoftCdecl,
+    SimCCStdcall,
     SimCCSystemVAMD64,
     default_cc,
 )
+from angr.sim_type import SimTypeFunction, SimTypeInt
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location
 
@@ -36,6 +39,65 @@ class TestFactCollector(unittest.TestCase):
             force_smart_scan=False,
         )
         return project.analyses.FunctionFactCollector(cfg.kb.functions[base_addr])
+
+    def test_x86_extra_pop_from_returns(self):
+        # `pop ecx; push ecx; ret` pops nothing beyond the return address
+        self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("5951c3"), arch="x86").extra_pop, 0)
+        # ret 8
+        self.assertEqual(self._collect_shellcode_facts(bytes.fromhex("c20800"), arch="x86").extra_pop, 8)
+
+    def test_x86_extra_pop_of_tail_jump_thunk(self):
+        # thunk at 0x400000: jmp 0x400010; target at 0x400010: mov eax, [esp+4]; ret 4
+        code = bytes.fromhex("eb0e") + b"\xcc" * 14 + bytes.fromhex("8b442404c20400")
+        base_addr = 0x400000
+        target_addr = base_addr + 0x10
+        project = angr.load_shellcode(code, arch="x86", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, target_addr],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        thunk = cfg.kb.functions[base_addr]
+        target = cfg.kb.functions[target_addr]
+
+        # a jmp is not a ret (which used to yield -4); without a calling convention, the target's ret 4 decides
+        self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 4)
+
+        # otherwise, the thunk pops whatever the target's calling convention pops
+        proto = SimTypeFunction([SimTypeInt()], SimTypeInt()).with_arch(project.arch)
+        target.calling_convention = SimCCStdcall(project.arch)
+        target.prototype = proto
+        self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 4)
+        target.calling_convention = SimCCMicrosoftCdecl(project.arch)
+        self.assertEqual(project.analyses.FunctionFactCollector(thunk).extra_pop, 0)
+
+    def test_x86_extra_pop_of_split_off_epilogue(self):
+        # 0x400000: push ebx; jmp 0x400010. 0x400010 is its epilogue: pop ebx; ret 8. The epilogue is also called from
+        # 0x400020 (push 1; push 2; call 0x400010; ret), so the CFG splits it off as a function. The jump is not a
+        # tail call (ebx is still on the stack), so the epilogue's ret is the function's own.
+        code = (
+            bytes.fromhex("53eb0d")
+            + b"\xcc" * 13
+            + bytes.fromhex("5bc20800")
+            + b"\xcc" * 12
+            + bytes.fromhex("6a016a02e8e7ffffffc3")
+        )
+        base_addr = 0x400000
+        project = angr.load_shellcode(code, arch="x86", load_address=base_addr)
+        cfg = project.analyses.CFGFast(
+            normalize=True,
+            regions=[(base_addr, base_addr + len(code))],
+            function_starts=[base_addr, base_addr + 0x10, base_addr + 0x20],
+            start_at_entry=False,
+            symbols=False,
+            force_smart_scan=False,
+        )
+        func = cfg.kb.functions[base_addr]
+        assert not func.endpoints_with_type["return"]
+        self.assertEqual(project.analyses.FunctionFactCollector(func).extra_pop, 8)
 
     def test_stack_canary_comparison_is_not_a_return_value(self):
         prefix = bytes.fromhex(
