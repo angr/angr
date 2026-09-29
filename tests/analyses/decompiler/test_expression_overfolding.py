@@ -6,6 +6,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 
 import logging
 import os
+import re
 import unittest
 
 import angr
@@ -105,6 +106,31 @@ class TestExpressionOverfolding(unittest.TestCase):
         lines = t.split("\n")
         for line in lines:
             assert len(line.strip(" ")) < 200, f"Line is too long: {line}"
+
+    def test_loop_body_folding_keeps_def_used_outside_body(self):
+        # issue #7292: `lea` increments eax after `cmp` reads it, so the pre-increment copy is used by the loop condition
+        # and the return. folding it inside the loop body alone left those uses undefined.
+        code = bytes.fromhex(
+            "b8ffffffff"  # mov eax, -1
+            "8b4c2404"  # mov ecx, [esp+4]
+            "807c010100"  # cmp byte ptr [ecx+eax+1], 0
+            "8d4001"  # lea eax, [eax+1]
+            "75f6"  # jne 0x400009
+            "c3"  # ret
+        )
+        proj = angr.load_shellcode(code, "x86", load_address=0x400000)
+        proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x400000], preset="basic", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        t = dec.codegen.text
+
+        for var in re.findall(r"^\s+[\w ]+\b(v\d+);", t, re.MULTILINE):
+            assert re.search(rf"\b{var} = ", t) is not None, f"{var} is never assigned"
+        m = re.search(r"while \(.*\b(v\d+) \+ 1\)", t)
+        assert m is not None
+        assert f"return {m.group(1)} + 1;" in t
 
 
 if __name__ == "__main__":

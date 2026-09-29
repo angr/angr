@@ -119,15 +119,18 @@ class RegionSimplifier(Analysis):
 
     def _fold_oneuse_expressions(self, region):
         loop_nodes = LoopNodeFinder(region).loop_nodes
+        # a variable defined in a loop body may also be used in the loop condition or after the loop, which the
+        # loop-body counter cannot see
+        region_uses = ExpressionCounter(region).all_uses if loop_nodes else None
         for sub_region in [*loop_nodes, region]:
             # fold one-use expressions in each sub-region
             if isinstance(sub_region, LoopNode):
-                self._fold_oneuse_expressions_in_region(sub_region.sequence_node)
+                self._fold_oneuse_expressions_in_region(sub_region.sequence_node, region_uses=region_uses)
             else:
                 self._fold_oneuse_expressions_in_region(sub_region)
         return region
 
-    def _fold_oneuse_expressions_in_region(self, region):
+    def _fold_oneuse_expressions_in_region(self, region, region_uses: dict[int, set] | None = None):
         # pylint:disable=unreachable
         expr_counter = ExpressionCounter(region)
 
@@ -147,6 +150,7 @@ class RegionSimplifier(Analysis):
                 and len(all_uses) == 1
                 and var in expr_counter.assignments
                 and len(expr_counter.assignments[var]) == 1
+                and (region_uses is None or len(region_uses.get(var, ())) <= 1)
             ):
                 definition, deps, loc, has_loads = next(iter(expr_counter.assignments[var]))
                 _, use_expr_loc = next(iter(outerscope_uses))
