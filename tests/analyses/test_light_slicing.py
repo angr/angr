@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 import struct
