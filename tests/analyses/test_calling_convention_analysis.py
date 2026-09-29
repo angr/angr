@@ -21,6 +21,7 @@ from angr.analyses.complete_calling_conventions import (
 )
 from angr.calling_conventions import (
     SimCCCdecl,
+    SimCCS390X,
     SimCCSystemVAMD64,
     SimRegArg,
     SimStackArg,
@@ -105,6 +106,22 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_s390x_plt_without_cfg_jumpout(self):
+        binary_path = os.path.join(test_location, "s390x", "fauxware")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+
+        puts = cfg.functions.function(name="puts", plt=True)
+        assert puts is not None
+        assert len(puts.jumpout_sites) == 0
+
+        cca = project.analyses.CallingConvention(puts, cfg=cfg.model)
+        assert isinstance(cca.cc, SimCCS390X)
+        assert cca.prototype is not None
+        assert len(cca.prototype.args) == 1
+        assert isinstance(cca.prototype.returnty, SimTypeInt)
+        assert cca.proto_from_symbol
 
     @requires_binaries_private
     def test_cgc_binary1(self):
