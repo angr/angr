@@ -168,6 +168,32 @@ class TestSearch(unittest.TestCase):
         (hit,) = search(template, stream)
         assert hit.interval.start == len(noise) * 3 and hit.similarity == 1.0
 
+    def test_a_found_copy_is_aligned_once(self):
+        search_mod = sys.modules["angr.analyses.patterns.search"]
+        # a periodic template: its copy also agrees with itself shifted by one period, so the
+        # diagonals a period either side are well voted and land on the same copy
+        ops = ("Add", "Sub", "Mul", "And", "Or", "Xor", "Shl", "Shr")
+        template = PStmtSeq(tuple(PAssign(PVVar(), PBinOp(op, (PVVar(), PConst()))) for op in ops) * 3)
+        shapes = [search_mod.shape_of(leaf) for leaf in template_leaves(template)]
+        stream = _stream(NOISE * 6 + shapes + NOISE * 6)
+        calls = []
+        orig = search_mod._align
+
+        def counting(*args, **kwargs):
+            calls.append(args[3:5])
+            return orig(*args, **kwargs)
+
+        search_mod._align = counting
+        try:
+            (hit,) = search(template, stream)
+        finally:
+            search_mod._align = orig
+        assert hit.interval.start == len(NOISE) * 6 and hit.similarity == 1.0
+        # one window for the whole cluster of diagonals, then only what lies either side of the copy
+        first_lo, first_hi = calls[0]
+        assert first_lo <= hit.interval.start and hit.interval.end <= first_hi
+        assert all(hi <= hit.interval.start or lo >= hit.interval.end for lo, hi in calls[1:]), calls
+
     def test_a_small_template_is_never_pruned(self):
         stream = _stream(NOISE[:5] + IDIOM_SHAPES[:1] + NOISE + IDIOM_SHAPES + NOISE)
         # one statement of three agrees at the first site: still a candidate diagonal

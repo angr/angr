@@ -328,18 +328,27 @@ def search(
     )
 
     found: list[TemplateMatch] = []
-    seen_windows: set[tuple[int, int]] = set()
-    # a window just wide enough for the gaps a copy can carry; wider, and two copies
-    # near each other fall into one window, of which only the best comes back
+    # a window just wide enough for the gaps a copy can carry around its diagonal
     slack = max(n, 2)
-    for start in _candidates(leaves, stream, params):
+    diagonals = sorted(_candidates(leaves, stream, params))
+    # Neighbouring diagonals are the same copy seen from a little to the side, so they are
+    # aligned as one window. A window's best alignment is found, and the parts of the window
+    # either side of it are searched again if a candidate diagonal lands there, so two copies
+    # near each other are both found. A window whose best is below the cutoff holds nothing:
+    # every other alignment in it scores lower still.
+    windows: list[tuple[int, int, list[int]]] = []
+    for d in diagonals:
+        if windows and d - windows[-1][2][-1] <= slack:
+            windows[-1][2].append(d)
+        else:
+            windows.append((0, 0, [d]))
+    work = [(max(0, ds[0] - slack), min(len(stream), ds[-1] + n + slack), ds) for _, _, ds in windows]
+    while work:
         if checkpoint is not None:
             checkpoint()
-        lo = max(0, start - slack)
-        hi = min(len(stream), start + n + slack)
-        if (lo, hi) in seen_windows:
+        lo, hi, ds = work.pop()
+        if hi - lo <= 0:
             continue
-        seen_windows.add((lo, hi))
         aligned = _align(leaves, stream, scorer, lo, hi, params, checkpoint)
         if aligned is None:
             continue
@@ -347,21 +356,24 @@ def search(
         placed = [c.token for c in columns if c.token is not None]
         if not placed:
             continue
-        exact_required = sum(
-            1 for c in columns if c.token is not None and c.fit is Fit.EXACT and not leaves[c.leaf].optional
-        )
         similarity = min(1.0, score / max_score) if max_score > 0 else 0.0
         if similarity < params.min_identity:
             continue
-        found.append(
-            TemplateMatch(
-                interval=Interval(min(placed), max(placed) + 1),
-                score=score,
-                similarity=similarity,
-                identity=exact_required / len(required) if required else 1.0,
-                columns=columns,
-            )
+        exact_required = sum(
+            1 for c in columns if c.token is not None and c.fit is Fit.EXACT and not leaves[c.leaf].optional
         )
+        match = TemplateMatch(
+            interval=Interval(min(placed), max(placed) + 1),
+            score=score,
+            similarity=similarity,
+            identity=exact_required / len(required) if required else 1.0,
+            columns=columns,
+        )
+        found.append(match)
+        for side_lo, side_hi in ((lo, match.interval.start), (match.interval.end, hi)):
+            side = [d for d in ds if side_lo <= d + n // 2 < side_hi]
+            if side:
+                work.append((side_lo, side_hi, side))
 
     found.sort(key=lambda mt: (-mt.score, mt.interval.start))
     kept: list[TemplateMatch] = []
