@@ -737,3 +737,17 @@ def test_strcpy_consolidation_uses_copied_bytes():
     # the zero store is merged, and both of its bytes are still written
     assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hello, ", 9)]
     assert len(statements) == 1
+
+
+def test_strcpy_consolidation_merges_into_trailing_strcpy():
+    simplifier = _simplifier(InlinedStrcpySimplifier)
+    first = SideEffectStatement(0, simplifier._make_copy_call(StackBaseOffset(1, 64, -108), b"hello, ", {}))
+    second = SideEffectStatement(2, simplifier._make_copy_call(StackBaseOffset(3, 64, -101), b"world\x00", {}))
+    assert second.expr.target == "strcpy"
+
+    (merged,) = simplifier._consolidate_strcpy_calls([first, second])
+    assert merged.expr.target == "strcpy"
+    assert simplifier._copied_bytes(merged) == b"hello, world\x00"
+    # nothing is appended after a terminator
+    third = SideEffectStatement(4, simplifier._make_copy_call(StackBaseOffset(5, 64, -95), b"abcd", {}))
+    assert simplifier._consolidate_strcpy_calls([merged, third]) is None

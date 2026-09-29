@@ -131,7 +131,9 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
             # scan forward to find all consecutive constant stores
             all_constant_stores = self._collect_constant_stores(statements, stmt_idx)
             prev_stmt = None if stmt_idx == 0 else statements[stmt_idx - 1]
-            min_str_length = 1 if prev_stmt is not None and self.is_inlined_strcpy(prev_stmt) else 4
+            # a short string may extend an unterminated copy right before it
+            prev_copied = self._copied_bytes(prev_stmt) if self.is_inlined_strcpy(prev_stmt) else None
+            min_str_length = 1 if prev_copied is not None and b"\x00" not in prev_copied else 4
             found = self._find_string_stride(statements, stmt_idx, all_constant_stores, min_str_length)
             if found is not None:
                 stride, s = found
@@ -360,9 +362,11 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         return (
             isinstance(stmt, SideEffectStatement)
             and isinstance(stmt.expr.target, str)
-            and stmt.expr.target == "strncpy"
             and stmt.expr.args is not None
-            and len(stmt.expr.args) == 3
+            and (
+                (stmt.expr.target == "strncpy" and len(stmt.expr.args) == 3)
+                or (stmt.expr.target == "strcpy" and len(stmt.expr.args) == 2)
+            )
             and isinstance(stmt.expr.args[1], Const)
             and variable_map_of(self.manager).custom_string(stmt.expr.args[1])
         )
