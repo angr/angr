@@ -74,6 +74,22 @@ class TestReturnValue(unittest.TestCase):
                 bounds = get_x86_return_range(project, function, cfg.kb)
                 assert bounds is None or bounds == (0, 255)
 
+    def test_unknown_inputs_are_not_correlated(self):
+        cases = {
+            "register_difference": bytes.fromhex("89c829d0c3"),
+            "stack_argument_difference": bytes.fromhex("8b4424042b442408c3"),
+            "register_sum": bytes.fromhex("89c801d0c3"),
+            "distinct_flags": bytes.fromhex("0f95c185c00f95c288c828d0c3"),
+            "join_with_constant": bytes.fromhex("85c0740689c829d0eb02b001c3"),
+        }
+        for name, code in cases.items():
+            with self.subTest(name=name):
+                project, cfg, function = _leaf(code)
+                bounds = get_x86_return_range(project, function, cfg.kb)
+                assert bounds is None or bounds == (0, 255)
+                _, caller_cfg, _ = _dispatch(leaf=code)
+                assert _BASE + 6 not in caller_cfg.jump_tables
+
     def test_callee_saved_register_writes(self):
         for opcode in (0xBB, 0xBD, 0xBE, 0xBF):
             with self.subTest(opcode=opcode):

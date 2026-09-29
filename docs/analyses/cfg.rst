@@ -205,8 +205,9 @@ The fallback requires a unique direct-call fallthrough and a small, closed,
 acyclic leaf graph. It checks every lifted successor and normal return, rejects
 calls, stores, special effects, non-stack loads and callee-saved register writes,
 and requires an unchanged stack pointer before an ordinary return. Only AL is
-narrowed; the upper bits of EAX remain unknown. Unsupported or incomplete callees supply no return summary,
-and existing successful resolutions are left unchanged. The fallback is disabled
+narrowed; the upper bits of EAX remain unknown. Unsupported or incomplete callees
+supply no return summary, and existing successful resolutions are left unchanged.
+The fallback is disabled
 while the caller graph is incomplete or when a custom base state is supplied;
 it does not summarize state-specific modifications to code.
 
