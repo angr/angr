@@ -81,6 +81,9 @@ class Outliner(Analysis):
             self.frontier_locs = self._determine_frontier_locs()
             self.frontier_vars = set()
 
+        #: how many values the region defines for later use beyond the one a call can return;
+        #: when nonzero, the outlined code loses them and the result is wrong
+        self.dropped_return_values = 0
         self.child_func, self.child_graph, self.child_funcargs = self._analyze()
 
     def _next_vvar_id(self) -> int:
@@ -305,6 +308,7 @@ class Outliner(Analysis):
 
         if ret_exprs:
             if len(ret_exprs) > 1:
+                self.dropped_return_values = len(ret_exprs) - 1
                 _l.error("Outlined region seems to have multiple return values. Can't represent this correctly.")
             call_stmt.dst = ret_exprs[0]
 

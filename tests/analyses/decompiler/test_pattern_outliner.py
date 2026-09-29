@@ -236,19 +236,17 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
     """A family discovered in a large function, outlined there, written out, read back, and
     applied to the same function in a fresh project of the same binary."""
 
-    def _discover_outline_and_reuse(self, rel_path: str, func_addr: int, include_plt: bool, min_size: int):
-        proj, cfg, func = _scoped(rel_path, func_addr, include_plt)
+    @staticmethod
+    def _longest_family_pattern(proj, cfg, func, min_size: int):
+        """The longest discovered family with more than one outlinable copy, lifted from its first
+        outlinable copy and loosened as the Discover tab does."""
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.ail_graph is not None
-
-        # the longest family with more than one copy the outliner could take
         finder = proj.analyses.FuzzyPatternFinder(func, dec.ail_graph, params=_DISCOVERY, disjoint=False)
         families = [p for p in finder.all_patterns if len(p.outlinable_occurrences) > 1]
         assert families, "the function has a family with two outlinable copies"
         family = max(families, key=lambda p: (p.size, len(p.outlinable_occurrences)))
         assert family.size >= min_size, family.size
-
-        # lifted from its first outlinable copy, loosened as the Discover tab does
         stream = finder.stream
         blocks = {(b.addr, b.idx): b for b in stream.blocks}
         first = min(family.outlinable_occurrences, key=lambda o: o.interval.start).interval
@@ -258,7 +256,11 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         )
         editor.loosen_constants()
         editor.cut_depth()
-        pattern = editor.pattern
+        return editor.pattern
+
+    def _discover_outline_and_reuse(self, rel_path: str, func_addr: int, include_plt: bool, min_size: int):
+        proj, cfg, func = _scoped(rel_path, func_addr, include_plt)
+        pattern = self._longest_family_pattern(proj, cfg, func, min_size)
 
         # outlined in this project, and never by dropping a value the region defines for later: the
         # Outliner can return one value, and says so when a region has more
@@ -292,6 +294,35 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         assert sorted(stats3.call_addrs) == sorted(stats.call_addrs)
         assert dec3.codegen.text.count("idiom(") == calls
         assert graph_problems(dec3.ail_graph, func3.addr) == []
+
+    def test_an_outline_that_drops_a_live_value_is_kept_with_a_warning(self):
+        # in gnulib's quoting loop the family's region hands on more values than a call returns
+        proj, cfg, func = _scoped("x86_64/dir_gcc_-O0", 0x410AAE, include_plt=True)
+        pattern = self._longest_family_pattern(proj, cfg, func, min_size=30)
+        proj.kb.patterns.add(pattern)
+        passes = []
+        orig = PatternOutliner.__init__
+
+        def keep(self_, *args, **kwargs):
+            passes.append(self_)
+            orig(self_, *args, **kwargs)
+
+        PatternOutliner.__init__ = keep
+        try:
+            with self.assertLogs(
+                "angr.analyses.decompiler.optimization_passes.pattern_outliner", level="WARNING"
+            ) as logs:
+                dec = proj.analyses.Decompiler(func, cfg=cfg.model, use_cache=False, update_cache=False)
+        finally:
+            PatternOutliner.__init__ = orig
+        assert dec.codegen is not None
+        assert any("the decompilation after that call is wrong" in line for line in logs.output), logs.output
+        lossy = [entry for p in passes for entry in p.lossy]
+        assert lossy and all(name == pattern.name and dropped >= 1 for name, _, dropped in lossy)
+        # kept: the occurrences are outlined all the same
+        stats = proj.kb.patterns.stats(func.addr, pattern.name)
+        assert stats is not None and stats.outlined >= len(lossy)
+        assert dec.codegen.text.count("idiom(") >= 1
 
     def test_print_stats_nicely_in_acct_sa(self):
         # acct's sa report printer: a 17-statement family, three copies

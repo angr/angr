@@ -63,6 +63,9 @@ class PatternOutliner(OptimizationPass):
         self.outlined: list[tuple[str, tuple[int, int | None], float]] = []
         #: (pattern name, reason) for every occurrence that was found but not outlined
         self.skipped: list[tuple[str, str]] = []
+        #: (pattern name, call location, values dropped) for every occurrence outlined although the
+        #: region leaves more values live than the call can return: the output there is wrong
+        self.lossy: list[tuple[str, tuple[int, int | None], int]] = []
         # the instruction address of the call the last successful outline placed
         self._last_call_addr: int | None = None
         self.analyze()
@@ -205,6 +208,18 @@ class PatternOutliner(OptimizationPass):
         if call is not None:
             self._declare_prototype(call, stored, {**match.captures, **hoisted}, outliner.child_graph, closed)
         self.outlined.append((pattern.name, src_loc, coverage))
+        if outliner.dropped_return_values:
+            # kept, as the user asked for it; but the call cannot carry every value the
+            # region hands on, so what follows it reads values nothing assigns
+            self.lossy.append((pattern.name, src_loc, outliner.dropped_return_values))
+            _l.warning(
+                "Pattern %s outlined at %#x in %s leaves %d more value(s) live than a call can return; "
+                "the decompilation after that call is wrong",
+                pattern.name,
+                src_loc[0],
+                self._func.name,
+                outliner.dropped_return_values,
+            )
         return True
 
     def _hoist_constants(
