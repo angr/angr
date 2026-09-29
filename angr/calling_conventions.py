@@ -1223,6 +1223,8 @@ class SimCC:
         sp_delta,
         unused_hint: list[SimRegArg] | None = None,
         extra_pop: int | None = None,
+        *,
+        allow_unknown_cleanup: bool = False,
     ) -> bool:
         if cls.arches() is not None and ":" not in arch.name and not isinstance(arch, cls.arches()):  # pylint:disable=isinstance-second-argument-not-valid-type
             return False
@@ -1261,9 +1263,13 @@ class SimCC:
                 has_stackargs = True
             new_args.append(arg)
 
-        if has_stackargs and cls.CALLEE_CLEANUP and (extra_pop is None or extra_pop <= 0):
+        if has_stackargs and cls.CALLEE_CLEANUP:
             # a callee-cleanup convention with stack arguments needs proof that the callee pops them; None means unknown
-            return False
+            if extra_pop is None:
+                if not allow_unknown_cleanup:
+                    return False
+            elif extra_pop <= 0:
+                return False
 
         # update args (e.g., drop caller-saved register arguments)
         args.clear()
@@ -1306,7 +1312,8 @@ class SimCC:
         :param sp_delta:    The change of stack pointer before and after the call is made.
         :param extra_pop:   The number of bytes that are popped by the callee. This is used to distinguish between
                             callee-cleanup and caller-cleanup conventions. None means unknown, in which case
-                            callee-cleanup conventions with stack arguments are not matched.
+                            callee-cleanup conventions with stack arguments are only matched if no other convention
+                            fits the arguments.
         :param language:    The source language of the binary (e.g. "go"), if known. Languages with their own ABI are
                             matched against that ABI alone.
         :return:            A calling convention instance, or None if none of the SimCC subclasses seems to fit the
@@ -1325,6 +1332,14 @@ class SimCC:
         for cc_cls in possible_cc_classes:
             if cc_cls._match(arch, args, sp_delta, unused_hint, extra_pop):
                 return cc_cls(arch)
+        if extra_pop is None:
+            # the callee's cleanup is unknown, and only a callee-cleanup convention fits the arguments (e.g., ecx and
+            # edx and stack arguments on Windows x86)
+            for cc_cls in possible_cc_classes:
+                if cc_cls.CALLEE_CLEANUP and cc_cls._match(
+                    arch, args, sp_delta, unused_hint, extra_pop, allow_unknown_cleanup=True
+                ):
+                    return cc_cls(arch)
         return None
 
     @classmethod
