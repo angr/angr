@@ -133,6 +133,36 @@ class TestCallingConvention(TestCase):
             for subtype in v:
                 self.assertIsInstance(subtype, SimTypeInt)
 
+    def test_SystemVAMD64_sized_opaque_class(self):
+        arch = archinfo.arch_from_id("amd64")
+        cc = SimCCSystemVAMD64(arch)
+
+        expected_args = (
+            (64, {SimRegArg("rdi", 8)}),
+            (128, {SimRegArg("rdi", 8), SimRegArg("rsi", 8)}),
+        )
+        expected_returns = (
+            (64, {SimRegArg("rax", 8)}),
+            (128, {SimRegArg("rax", 8), SimRegArg("rdx", 8)}),
+        )
+        for bits, footprint in expected_args:
+            opaque = SimCppClass(name=f"Opaque{bits}", size=bits).with_arch(arch)
+            proto = SimTypeFunction([opaque], SimTypeInt()).with_arch(arch)
+            assert cc.arg_locs(proto)[0].get_footprint() == footprint
+        for bits, footprint in expected_returns:
+            opaque = SimCppClass(name=f"Opaque{bits}", size=bits).with_arch(arch)
+            return_loc = cc.return_val(opaque)
+            assert return_loc is not None
+            assert return_loc.get_footprint() == footprint
+
+        opaque = SimCppClass(name="Opaque192", size=192).with_arch(arch)
+        proto = SimTypeFunction([opaque], SimTypeInt()).with_arch(arch)
+        arg_loc = cc.arg_locs(proto)[0]
+        return_loc = cc.return_val(opaque)
+        assert arg_loc.get_footprint() == {SimStackArg(8, 8), SimStackArg(16, 8), SimStackArg(24, 8)}
+        assert isinstance(return_loc, SimReferenceArgument)
+        assert return_loc.main_loc.size == 24
+
     def test_arg_locs_array(self):
         arch = archinfo.arch_from_id("amd64")
         cc = SimCCSystemVAMD64(arch)
