@@ -1464,6 +1464,7 @@ class SimCCStdcall(SimCCMicrosoftCdecl):
 
 
 class SimCCMicrosoftFastcall(SimCC):
+    CALLEE_CLEANUP = True
     ARG_REGS = ["ecx", "edx"]  # Remaining arguments are passed in stack
     CALLER_SAVED_REGS = ["eax", "ecx", "edx"]
     STACKARG_SP_DIFF = 4  # Return address is pushed on to stack by call
