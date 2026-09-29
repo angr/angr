@@ -16,11 +16,13 @@ from archinfo.arch_arm import is_arm_arch
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.block import BlockNode
-from angr.calling_conventions import SimStackArg
+from angr.calling_conventions import SimCC, SimReferenceArgument, SimStackArg
 from angr.codenode import FuncNode
 from angr.engines import pcode
 from angr.errors import SimTranslationError
 from angr.knowledge_plugins import Function
+from angr.knowledge_plugins.callsite_prototypes import CallsitePrototypeKind
+from angr.sim_type import SimTypeFunction
 from angr.utils.constants import is_alignment_mask
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -816,87 +818,52 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             # who are we calling?
             callees = [] if self._func is None else self._find_callees(node)
             sp_adjusted = False
-            if callees:
-                if len(callees) == 1:
-                    callee = callees[0]
-                    if callee.info.get("is_rust_probestack", False):
-                        # sp = sp - rax/eax right after returning from the call
-                        rust_probe_stack_rax_regname: str | None = None
-                        if self.project.arch.name == "AMD64":
-                            rust_probe_stack_rax_regname = "rax"
-                        elif self.project.arch.name == "X86":
-                            rust_probe_stack_rax_regname = "eax"
+            if len(callees) == 1:
+                callee = callees[0]
+                if callee.info.get("is_rust_probestack", False):
+                    # sp = sp - rax/eax right after returning from the call
+                    rust_probe_stack_rax_regname: str | None = None
+                    if self.project.arch.name == "AMD64":
+                        rust_probe_stack_rax_regname = "rax"
+                    elif self.project.arch.name == "X86":
+                        rust_probe_stack_rax_regname = "eax"
 
-                        if rust_probe_stack_rax_regname is not None:
-                            for stmt in reversed(vex_block.statements):
-                                if (
-                                    isinstance(stmt, pyvex.IRStmt.Put)
-                                    and stmt.offset == self.project.arch.registers[rust_probe_stack_rax_regname][0]
-                                    and isinstance(stmt.data, pyvex.IRExpr.Const)
-                                ):
-                                    sp_adjusted = True
-                                    state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
-                                    break
+                    if rust_probe_stack_rax_regname is not None:
+                        for stmt in reversed(vex_block.statements):
+                            if (
+                                isinstance(stmt, pyvex.IRStmt.Put)
+                                and stmt.offset == self.project.arch.registers[rust_probe_stack_rax_regname][0]
+                                and isinstance(stmt.data, pyvex.IRExpr.Const)
+                            ):
+                                sp_adjusted = True
+                                state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
+                                break
 
-                    if not sp_adjusted and (callee.info.get("is_alloca_probe", False) or callee.name == "__chkstk"):
-                        # sp = sp - rax, but it's adjusted within the callee
-                        chkstk_stack_rax_regname: str | None = None
-                        if self.project.arch.name == "AMD64":
-                            chkstk_stack_rax_regname = "rax"
-                        elif self.project.arch.name == "X86":
-                            chkstk_stack_rax_regname = "eax"
+                if not sp_adjusted and (callee.info.get("is_alloca_probe", False) or callee.name == "__chkstk"):
+                    # sp = sp - rax, but it's adjusted within the callee
+                    chkstk_stack_rax_regname: str | None = None
+                    if self.project.arch.name == "AMD64":
+                        chkstk_stack_rax_regname = "rax"
+                    elif self.project.arch.name == "X86":
+                        chkstk_stack_rax_regname = "eax"
 
-                        if chkstk_stack_rax_regname is not None:
-                            for stmt in reversed(vex_block.statements):
-                                if (
-                                    isinstance(stmt, pyvex.IRStmt.Put)
-                                    and stmt.offset == self.project.arch.registers[chkstk_stack_rax_regname][0]
-                                    and isinstance(stmt.data, pyvex.IRExpr.Const)
-                                    and self.project.arch.sp_offset in state.regs
-                                ):
-                                    sp_adjusted = True
-                                    sp_v = state.regs[self.project.arch.sp_offset]
-                                    if sp_v is not None:
-                                        sp_v -= Constant(stmt.data.con.value)
-                                        state.put(self.project.arch.sp_offset, sp_v, force=True)  # sp -= OFFSET
-                                        state.put(stmt.offset, Constant(0), force=True)  # rax = 0
-                                    break
+                    if chkstk_stack_rax_regname is not None:
+                        for stmt in reversed(vex_block.statements):
+                            if (
+                                isinstance(stmt, pyvex.IRStmt.Put)
+                                and stmt.offset == self.project.arch.registers[chkstk_stack_rax_regname][0]
+                                and isinstance(stmt.data, pyvex.IRExpr.Const)
+                                and self.project.arch.sp_offset in state.regs
+                            ):
+                                sp_adjusted = True
+                                sp_v = state.regs[self.project.arch.sp_offset]
+                                if sp_v is not None:
+                                    sp_v -= Constant(stmt.data.con.value)
+                                    state.put(self.project.arch.sp_offset, sp_v, force=True)  # sp -= OFFSET
+                                    state.put(stmt.offset, Constant(0), force=True)  # rax = 0
+                                break
 
-                callee_cleanups = [
-                    callee
-                    for callee in callees
-                    if callee.calling_convention is not None
-                    and callee.calling_convention.CALLEE_CLEANUP
-                    and callee.prototype is not None
-                ]
-                if callee_cleanups:
-                    # found callee clean-up cases...
-                    callee = callee_cleanups[0]
-                    assert callee.calling_convention is not None  # just to make pyright happy
-                    try:
-                        v = state.get(self.project.arch.sp_offset)
-                        incremented = None
-                        if v is BOTTOM:
-                            incremented = BOTTOM
-                        elif callee.prototype is not None:
-                            proto = (
-                                dereference_simtype_by_lib(callee.prototype, callee.prototype_libname)
-                                if callee.prototype_libname
-                                else callee.prototype
-                            )
-                            num_stack_args = len(
-                                [
-                                    arg_loc
-                                    for arg_loc in callee.calling_convention.arg_locs(proto)
-                                    if isinstance(arg_loc, SimStackArg)
-                                ]
-                            )
-                            if num_stack_args > 0:
-                                incremented = v + Constant(self.project.arch.bytes * num_stack_args)
-                        if incremented is not None:
-                            state.put(self.project.arch.sp_offset, incremented)
-                    except CouldNotResolveException:
-                        pass
+            self._apply_callee_cleanup(node, callees, state)
 
         return curr_stmt_start_addr
 
@@ -971,27 +938,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 except CouldNotResolveException:
                     pass
             # who are we calling?
-            callees = self._find_callees(node)
-            if callees:
-                callee_cleanups = [
-                    callee
-                    for callee in callees
-                    if callee.calling_convention is not None and callee.calling_convention.CALLEE_CLEANUP
-                ]
-                if callee_cleanups:
-                    # found callee clean-up cases...
-                    try:
-                        v = state.get(self.project.arch.sp_offset)
-                        incremented = None
-                        if v is BOTTOM:
-                            incremented = BOTTOM
-                        elif callee_cleanups[0].prototype is not None:
-                            num_args = len(callee_cleanups[0].prototype.args)
-                            incremented = v + Constant(self.project.arch.bytes * num_args)
-                        if incremented is not None:
-                            state.put(self.project.arch.sp_offset, incremented)
-                    except CouldNotResolveException:
-                        pass
+            callees = [] if self._func is None else self._find_callees(node)
+            self._apply_callee_cleanup(node, callees, state)
 
         return curr_stmt_start_addr
 
@@ -1000,6 +948,73 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         for other in states[1:]:
             merged_state = merged_state.merge(other, node.addr, self._reg_merge_cache, self._mem_merge_cache)
         return merged_state, merged_state == states[0]
+
+    def _callsite_cc_and_prototype(self, node, callees: list[Function]) -> tuple[SimCC, SimTypeFunction] | None:
+        # same precedence as CallSiteMaker: manual call-site prototype > callee function > inferred call-site prototype
+        callsite_protos = self.kb.callsite_prototypes
+        if callsite_protos.is_prototype_manual(node.addr):
+            cc = callsite_protos.get_cc(node.addr, kind=CallsitePrototypeKind.MANUAL)
+            proto = callsite_protos.get_prototype(node.addr, kind=CallsitePrototypeKind.MANUAL)
+            if cc is not None and proto is not None:
+                return cc, proto
+
+        known = [callee for callee in callees if callee.calling_convention is not None and callee.prototype is not None]
+        if known:
+            callee = next((c for c in known if c.calling_convention.CALLEE_CLEANUP), known[0])  # type: ignore
+            assert callee.calling_convention is not None and callee.prototype is not None
+            proto = (
+                dereference_simtype_by_lib(callee.prototype, callee.prototype_libname)
+                if callee.prototype_libname
+                else callee.prototype
+            )
+            assert isinstance(proto, SimTypeFunction)
+            return callee.calling_convention, proto
+
+        cc = callsite_protos.get_cc(node.addr)
+        proto = callsite_protos.get_prototype(node.addr)
+        if cc is not None and proto is not None:
+            return cc, proto
+        return None
+
+    def _callee_cleanup_size(self, cc: SimCC, proto: SimTypeFunction) -> int:
+        """
+        The number of argument bytes a callee-cleanup callee pops off the stack upon returning.
+        """
+        locs = cc.arg_locs(proto)
+        if proto.returnty is not None and cc.return_in_implicit_outparam(proto.returnty):
+            ret_loc = cc.return_val(proto.returnty)
+            assert isinstance(ret_loc, SimReferenceArgument)
+            locs.append(ret_loc.ptr_loc)
+        stack_end = max(
+            (
+                leaf.stack_offset + leaf.size
+                for loc in locs
+                for leaf in loc.get_footprint()
+                if isinstance(leaf, SimStackArg)
+            ),
+            default=cc.STACKARG_SP_DIFF,
+        )
+        size = stack_end - cc.STACKARG_SP_DIFF
+        slot = self.project.arch.bytes
+        return (size + slot - 1) // slot * slot
+
+    def _apply_callee_cleanup(self, node, callees: list[Function], state: StackPointerTrackerState) -> None:
+        r = self._callsite_cc_and_prototype(node, callees)
+        if r is None:
+            return
+        cc, proto = r
+        if not cc.CALLEE_CLEANUP:
+            return
+        try:
+            v = state.get(self.project.arch.sp_offset)
+            if v is BOTTOM:
+                state.put(self.project.arch.sp_offset, BOTTOM)
+                return
+            cleanup_size = self._callee_cleanup_size(cc, proto)
+            if cleanup_size > 0:
+                state.put(self.project.arch.sp_offset, v + Constant(cleanup_size))
+        except CouldNotResolveException:
+            pass
 
     def _find_callees(self, node) -> list[Function]:
         if self._func is None:
