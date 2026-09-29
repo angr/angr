@@ -5692,12 +5692,13 @@ class TestDecompiler(unittest.TestCase):
         str_name = m.group(1)
         assert f"{str_name}();" in dec.codegen.text
         assert f"{str_name}.c_str()" in dec.codegen.text
-        # assert there exists a stack-based buffer that is 12-byte long
-        # this is to test the type hint that strncpy provides
+        # assert there exists a stack-based buffer that is 16-byte long
+        # this is to test the type hint that strcpy provides
         m = re.search(r"char (\w+)\[16];", dec.codegen.text)
         assert m is not None
         bufvar = m.group(1)
-        assert f'strncpy({bufvar}, "FWe#JID%WkOCZy7", 15);' in dec.codegen.text
+        # the terminator is written as well
+        assert f'strcpy({bufvar}, "FWe#JID%WkOCZy7");' in dec.codegen.text
         # ensure the stack argument for sub_401a90 is correct
         assert "sub_401a90(-1888440072);" in dec.codegen.text
         # ensure the stack argument for the first indirect call is incorrect

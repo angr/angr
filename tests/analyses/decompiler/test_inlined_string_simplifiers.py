@@ -687,3 +687,53 @@ def test_strcpy_late_rejects_insert_into_a_different_variable():
 
     assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hell", 4)]
     assert len(statements) == 5
+
+
+def test_strcpy_late_keeps_terminator():
+    builder = _WcscpyBlockBuilder()
+    builder.write_bytes(-108, b"hello, world\x00")
+    simplifier, statements = builder.run(InlinedStrcpySimplifierLate)
+
+    # strcpy writes the terminator
+    assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hello, world", None)]
+    assert len(statements) == 1
+
+
+def test_strcpy_keeps_padding_after_terminator():
+    builder = _WcscpyBlockBuilder()
+    builder.store_bytes(-108, b"hello\x00\x00\x00")
+    simplifier, statements = builder.run(InlinedStrcpySimplifier)
+
+    # strncpy pads the destination with zeros up to the count
+    assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hello", 8)]
+    assert len(statements) == 1
+
+
+def test_strcpy_string_check_returns_all_bytes():
+    data = b"hello\x00\x00\x00"
+    for endness, byteorder in ((Endness.BE, "big"), (Endness.LE, "little")):
+        r, s = InlinedStrcpySimplifier.is_integer_likely_a_string(int.from_bytes(data, byteorder), len(data), endness)
+        assert r and s == data
+    # a nonzero byte after the terminator is not part of the string
+    assert InlinedStrcpySimplifier.is_integer_likely_a_string(int.from_bytes(b"hello\x00ab", "big"), 8, Endness.BE) == (
+        False,
+        None,
+    )
+
+
+def test_strcpy_consolidation_uses_copied_bytes():
+    builder = _WcscpyBlockBuilder()
+    builder.store_bytes(-108, b"hello, ")
+    zero = Store(
+        builder.manager.next_atom(),
+        StackBaseOffset(builder.manager.next_atom(), 64, -101),
+        Const(builder.manager.next_atom(), 0, 16),
+        2,
+        "Iend_LE",
+    )
+    builder.statements.append(zero)
+    simplifier, statements = builder.run(InlinedStrcpySimplifier)
+
+    # the zero store is merged, and both of its bytes are still written
+    assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hello, ", 9)]
+    assert len(statements) == 1

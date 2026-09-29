@@ -125,30 +125,8 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
             if r and self._stmts_removable(statements, [stmt_idx]):
                 assert s is not None
                 tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
-                str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-                variable_map_of(self.manager).set_custom_string(str_const)
-                call = Call(
-                    self.manager.next_atom(),
-                    "strncpy",
-                    args=[
-                        strcpy_dst,
-                        str_const,
-                        Const(self.manager.next_atom(), len(s), self.project.arch.bits),
-                    ],
-                    bits=None,
-                    **tags,
-                )
-                variable_map_of(self.manager).set_prototype(
-                    call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
-                )
-                return SideEffectStatement(
-                    self.manager.next_atom(),
-                    call,
-                    ret_expr=None,
-                    fp_ret_expr=None,
-                    **tags,
-                )
+                call = self._make_copy_call(strcpy_dst, s, tags)
+                return SideEffectStatement(self.manager.next_atom(), call, ret_expr=None, fp_ret_expr=None, **tags)
 
             # scan forward to find all consecutive constant stores
             all_constant_stores = self._collect_constant_stores(statements, stmt_idx)
@@ -170,30 +148,8 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                     if sidx != stmt_idx:
                         statements[sidx] = None
 
-                str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-                variable_map_of(self.manager).set_custom_string(str_const)
-                call = Call(
-                    self.manager.next_atom(),
-                    "strncpy",
-                    args=[
-                        strcpy_dst,
-                        str_const,
-                        Const(self.manager.next_atom(), len(s), self.project.arch.bits),
-                    ],
-                    bits=None,
-                    **tags,
-                )
-                variable_map_of(self.manager).set_prototype(
-                    call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
-                )
-                return SideEffectStatement(
-                    self.manager.next_atom(),
-                    call,
-                    ret_expr=None,
-                    fp_ret_expr=None,
-                    **tags,
-                )
+                call = self._make_copy_call(strcpy_dst, s, tags)
+                return SideEffectStatement(self.manager.next_atom(), call, ret_expr=None, fp_ret_expr=None, **tags)
 
         return None
 
@@ -246,65 +202,76 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         if not self.is_inlined_strcpy(last_stmt):
             return None
 
-        s_last = self.kb.custom_strings[last_stmt.expr.args[1].value]
+        s_last = self._copied_bytes(last_stmt)
+        # nothing is appended after a terminator
+        if s_last is None or b"\x00" in s_last:
+            return None
         addr_last = last_stmt.expr.args[0]
         new_str = None
 
-        if isinstance(stmt, SideEffectStatement) and self.is_inlined_strcpy(stmt):
-            assert stmt.expr.args is not None and isinstance(stmt.expr.args[1], Const)
-            s_curr = self.kb.custom_strings[stmt.expr.args[1].value_int]
-            addr_curr = stmt.expr.args[0]
-            delta = self._get_delta(addr_last, addr_curr)
-            if delta is not None and delta == len(s_last):
+        if self.is_inlined_strcpy(stmt):
+            s_curr = self._copied_bytes(stmt)
+            delta = self._get_delta(addr_last, stmt.expr.args[0])
+            if s_curr is not None and delta is not None and delta == len(s_last):
                 new_str = s_last + s_curr
         elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and stmt.data.is_int:
-            addr_curr = stmt.addr
-            delta = self._get_delta(addr_last, addr_curr)
+            delta = self._get_delta(addr_last, stmt.addr)
             if delta is not None and delta == len(s_last):
-                if stmt.size == 1 and stmt.data.value == 0:
-                    r, s = True, "\x00"
+                if stmt.data.value_int == 0:
+                    r, s = True, b"\x00" * stmt.size
                 else:
                     r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.size, stmt.endness, min_length=1)
                 if r:
                     assert s is not None
-                    new_str = s_last + s.encode("ascii")
+                    new_str = s_last + s
 
         if new_str is not None:
-            if new_str.endswith(b"\x00"):
-                call_name = "strcpy"
-                new_str_idx = self.kb.custom_strings.allocate(new_str[:-1])
-                str_const = Const(self.manager.next_atom(), new_str_idx, last_stmt.expr.args[0].bits)
-                variable_map_of(self.manager).set_custom_string(str_const)
-                args = [
-                    last_stmt.expr.args[0],
-                    str_const,
-                ]
-                prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strcpy")
-            else:
-                call_name = "strncpy"
-                new_str_idx = self.kb.custom_strings.allocate(new_str)
-                str_const = Const(self.manager.next_atom(), new_str_idx, last_stmt.expr.args[0].bits)
-                variable_map_of(self.manager).set_custom_string(str_const)
-                args = [
-                    last_stmt.expr.args[0],
-                    str_const,
-                    Const(self.manager.next_atom(), len(new_str), self.project.arch.bits),
-                ]
-                prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
-
-            tags = self._tags_with_extra_defs(stmt.tags, args[0])
-
-            call = Call(self.manager.next_atom(), call_name, args=args, **tags)
-            variable_map_of(self.manager).set_prototype(call, prototype)
-            return [
-                SideEffectStatement(
-                    self.manager.next_atom(),
-                    call,
-                    **tags,
-                )
-            ]
+            tags = self._tags_with_extra_defs(stmt.tags, addr_last)
+            call = self._make_copy_call(addr_last, new_str, tags)
+            return [SideEffectStatement(self.manager.next_atom(), call, **tags)]
 
         return None
+
+    @staticmethod
+    def _string_text(data: bytes) -> bytes:
+        """
+        The displayed string of copied bytes, without the terminator and padding.
+        """
+        return data.split(b"\x00", 1)[0]
+
+    def _copied_bytes(self, stmt) -> bytes | None:
+        """
+        All bytes written by an inlined strcpy or strncpy call, including the terminator and padding.
+        """
+        assert isinstance(stmt, SideEffectStatement) and stmt.expr.args is not None
+        str_const = stmt.expr.args[1]
+        assert isinstance(str_const, Const)
+        text = self.kb.custom_strings[str_const.value_int]
+        if len(stmt.expr.args) == 2:
+            return text + b"\x00"
+        count = stmt.expr.args[2]
+        if not isinstance(count, Const) or not count.is_int or count.value_int < len(text):
+            return None
+        return text + b"\x00" * (count.value_int - len(text))
+
+    def _make_copy_call(self, dst, data: bytes, tags) -> Call:
+        """
+        Create a strcpy or strncpy call that writes all bytes in data.
+        """
+        text = self._string_text(data)
+        str_const = Const(self.manager.next_atom(), self.kb.custom_strings.allocate(text), self.project.arch.bits)
+        variable_map_of(self.manager).set_custom_string(str_const)
+        if len(data) == len(text) + 1:
+            # exactly one terminator
+            name, args = "strcpy", [dst, str_const]
+        else:
+            # strncpy pads the rest of the destination with zeros
+            name, args = "strncpy", [dst, str_const, Const(self.manager.next_atom(), len(data), self.project.arch.bits)]
+        call = Call(self.manager.next_atom(), name, args=args, bits=None, **tags)
+        variable_map_of(self.manager).set_prototype(
+            call, SIM_LIBRARIES["libc.so"][0].get_prototype(name, arch=self.project.arch)
+        )
+        return call
 
     def _collect_constant_stores(self, statements, starting_stmt_idx):
         # stop at the first statement that may read or clobber the buffer, since writes after it cannot be hoisted
@@ -367,35 +334,26 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
 
     @staticmethod
     def is_integer_likely_a_string(v, size, endness, min_length=4):
-        chars = []
-        if endness == Endness.LE:
-            while v != 0:
-                byt = v & 0xFF
-                if chr(byt) not in ASCII_PRINTABLES:
-                    return False, None
-                chars.append(chr(byt))
-                v >>= 8
-        elif endness == Endness.BE:
-            first_non_zero = False
-            for _ in range(size):
-                byt = v & 0xFF
-                v >>= 8
-                if byt == 0:
-                    if first_non_zero:
-                        return False, None
-                    continue
-                first_non_zero = True
-                if chr(byt) not in ASCII_PRINTABLES:
-                    return False, None
-                chars.append(chr(byt))
-            chars.reverse()
-        else:
+        """
+        Check if an integer of `size` bytes stored with `endness` holds a string, optionally followed by zero bytes.
+        On success, return all `size` bytes in memory order, including the terminator and padding.
+        """
+        if not isinstance(v, int) or not isinstance(size, int):
             return False, None
 
-        if len(chars) >= min_length:
-            if len(chars) <= 4 and all(ch in ASCII_DIGITS for ch in chars):
+        data = [(v >> (8 * i)) & 0xFF for i in range(size)]
+        if endness == Endness.BE:
+            data.reverse()
+        elif endness != Endness.LE:
+            return False, None
+        text = InlinedStrcpySimplifier._string_text(bytes(data))
+        if any(data[len(text) :]) or any(chr(ch) not in ASCII_PRINTABLES for ch in text):
+            return False, None
+
+        if len(text) >= min_length:
+            if len(text) <= 4 and all(chr(ch) in ASCII_DIGITS for ch in text):
                 return False, None
-            return True, "".join(chars)
+            return True, bytes(data)
         return False, None
 
     def is_inlined_strcpy(self, stmt):
