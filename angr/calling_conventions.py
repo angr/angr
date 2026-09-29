@@ -2848,15 +2848,21 @@ class SimCCAArch64(SimCC):
             return super().next_arg(session, arg_type)
 
         double_words = self._double_words(arg_type)
+        # AAPCS64 B.6 gives an over-aligned composite's marshalled copy 16-byte alignment. Use that adjusted
+        # alignment for both C.10's even-register rule and C.14's stack alignment rule.
+        natural_alignment = arg_type.alignment
+        if natural_alignment is NotImplemented:
+            natural_alignment = self.arch.bytes
+        alignment = 16 if composite and natural_alignment >= 16 else natural_alignment
         state = session.getstate()
-        if double_words > 1 and arg_type.alignment == 16 and session.int_iter.getstate() % 2 == 1:
+        if alignment == 16 and session.int_iter.getstate() % 2 == 1:
             next(session.int_iter)  # a 16-byte-aligned argument starts on an even-numbered register
         try:
             locs = [next(session.int_iter) for _ in range(double_words)]
         except StopIteration:
             session.setstate(state)
             session.int_iter.setstate(len(self.ARG_REGS))
-            alignment = max(self.arch.bytes, arg_type.alignment)
+            alignment = max(self.arch.bytes, alignment)
             stack_offset = session.both_iter.getstate()
             session.both_iter.setstate((stack_offset + alignment - 1) // alignment * alignment)
             locs = [next(session.both_iter) for _ in range(double_words)]

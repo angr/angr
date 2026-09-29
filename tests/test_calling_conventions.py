@@ -364,6 +364,16 @@ class TestCallingConvention(TestCase):
         # A 16-byte integral argument takes a register pair, starting on an even-numbered register.
         assert locs(integer, SimTypeNum(128))[1].get_footprint() == {SimRegArg("x2", 8), SimRegArg("x3", 8)}
 
+        # B.6 normalizes an over-aligned composite's marshalled-copy alignment to 16 bytes. That adjusted alignment
+        # selects an even register pair and a 16-byte stack boundary rather than preserving the natural 32 bytes.
+        over_aligned = SimStruct({"x": SimTypeLongLong()}, name="OverAligned", align=32)
+        over_aligned_regs = locs(integer, over_aligned, integer)
+        assert over_aligned_regs[1].get_footprint() == {SimRegArg("x2", 8)}
+        assert over_aligned_regs[2] == SimRegArg("x3", 4)
+        over_aligned_spill = locs(*[integer] * 9, over_aligned, integer)
+        assert over_aligned_spill[9].get_footprint() == {SimStackArg(0x10, 8)}
+        assert over_aligned_spill[10] == SimStackArg(0x18, 4)
+
         # Wider integral types map to arrays of 128-bit units, and therefore follow the large-composite rule.
         wide = locs(SimTypeNum(256))[0]
         assert isinstance(wide, SimReferenceArgument)
