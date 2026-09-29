@@ -4,15 +4,20 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+import json
 import os
 import re
+import tempfile
 import unittest
 
 import angr
+from angr.analyses.decompiler.known_patterns import PAny, PCallStmt, PConst, PLoad, PReturn
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
+from angr.analyses.decompiler.known_patterns.serialize import dumps, loads
 from angr.analyses.decompiler.optimization_passes import PatternOutliner
 from angr.analyses.patterns.dedup import graph_problems
 from angr.analyses.patterns.search import tokenize_for_templates
+from angr.knowledge_plugins.patterns import StoredPattern
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")
@@ -151,6 +156,64 @@ class TestPatternOutliner(unittest.TestCase):
         assert all(coverage == 1.0 for _, _, coverage in pass_.outlined)
         assert names and set(names) == {"my_idiom"}, names
         assert graph_problems(pass_.out_graph, func.addr) == []
+
+
+class TestErrorExitPatternSerialization(unittest.TestCase):
+    """The pattern lifted from doit's error exits, written out and read back, reused in a
+    project that has never seen the one it came from."""
+
+    SELECTION = r'puts\("String is empty."\);\n +fflush\(stdout\);\n +return 0xffffffff;\n'
+
+    @classmethod
+    def setUpClass(cls):
+        proj, cfg, func = _load()
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None
+        m = re.search(cls.SELECTION, dec.codegen.text)
+        assert m is not None
+        cls.pattern = PatternGenerator(dec.codegen, dec.ail_graph).generate_pattern(
+            m.start(), m.end(), "PatternErrorsOut"
+        )
+
+    def test_the_lifted_pattern_survives_a_round_trip(self):
+        pattern = self.pattern
+        assert loads(dumps(pattern)) == pattern
+
+        # what was lifted, and so what the file has to carry: a named string wildcard,
+        # a global by symbol, and the returned constant
+        puts, fflush, ret = loads(dumps(pattern)).pattern.stmts
+        assert isinstance(puts, PCallStmt) and puts.call.names == {"puts"} and puts.call.args == (PAny(name="_s1"),)
+        assert isinstance(fflush, PCallStmt) and fflush.call.args == (PLoad(PConst(symbol="stdout"), size=8),)
+        assert isinstance(ret, PReturn) and ret.values == (PConst(value=0xFFFFFFFF),)
+
+        # the library's own record, settings included, through JSON text
+        stored = StoredPattern(pattern, enabled=False, min_similarity=0.9, require_verified=False)
+        back = StoredPattern.from_dict(json.loads(json.dumps(stored.to_dict())))
+        assert back.pattern == pattern
+        assert (back.enabled, back.min_similarity, back.require_verified) == (False, 0.9, False)
+
+    def test_a_fresh_project_outlines_every_exit_from_the_file(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "errors_out.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(StoredPattern(self.pattern).to_dict(), f)
+
+            # a new project and CFG: nothing of the lifting run is reachable from here
+            proj, cfg, func = _load()
+            with open(path, encoding="utf-8") as f:
+                loaded = StoredPattern.from_dict(json.load(f))
+            # a looser pattern would still outline these exits, so what came back is checked too
+            assert loaded.pattern == self.pattern
+            proj.kb.patterns.store(loaded)
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.ail_graph is not None
+        calls = re.findall(r'return PatternErrorsOut\("([^"]*)"\);', dec.codegen.text)
+        assert len(calls) == 8, calls
+        assert "Empty title" in calls and "Cannot open document." in calls
+        stats = proj.kb.patterns.stats(func.addr, self.pattern.name)
+        assert stats is not None and stats.outlined == 8
+        assert graph_problems(dec.ail_graph, func.addr) == []
 
 
 if __name__ == "__main__":
