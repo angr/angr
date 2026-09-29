@@ -81,7 +81,7 @@ if TYPE_CHECKING:
     from .pattern import TypeRef
 
 
-def _stmt_ins_addrs(stmt: Statement) -> set[int]:
+def stmt_ins_addrs(stmt: Statement) -> set[int]:
     """The instruction addresses a statement and its subexpressions carry."""
     addrs: set[int] = set()
     ins = stmt.tags.get("ins_addr")
@@ -805,7 +805,7 @@ class PatternGenerator:
             s
             for b in linearize(self.ail_graph, entry)
             for s in b.statements
-            if not isinstance(s, (Label, Jump)) and _stmt_ins_addrs(s) & ins_addrs
+            if not isinstance(s, (Label, Jump)) and stmt_ins_addrs(s) & ins_addrs
         ]
         if not stmts:
             raise PatternGenerationError("the selection covers no statement")
