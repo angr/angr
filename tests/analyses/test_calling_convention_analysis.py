@@ -123,6 +123,19 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert isinstance(cca.prototype.returnty, SimTypeInt)
         assert cca.proto_from_symbol
 
+        plt_name = project.loader.find_plt_stub_name(puts.addr)
+        assert plt_name == "puts"
+        symbol = project.loader.find_symbol(plt_name)
+        assert symbol is not None
+        hooker = project.hooked_by(symbol.rebased_addr)
+        assert hooker is not None
+        hooker.cc = None
+
+        cca_with_default_cc = project.analyses.CallingConvention(puts, cfg=cfg.model)
+        assert isinstance(cca_with_default_cc.cc, SimCCS390X)
+        assert cca_with_default_cc.prototype is not None
+        assert cca_with_default_cc.proto_from_symbol
+
     @requires_binaries_private
     def test_cgc_binary1(self):
         self._run_cgc("002ba801_01")
