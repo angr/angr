@@ -31,6 +31,7 @@ __all__ = [
     "AILCanonicalizer",
     "AlignParams",
     "Alignment",
+    "Checkpoint",
     "DedupResult",
     "ExactCore",
     "Fit",
@@ -67,5 +68,6 @@ from .align import Alignment, AlignParams, Interval, PatternCluster, discover, s
 from .dedup import DedupResult, MergeGroup, PatternDeduplicator
 from .exact import ExactCore, find_exact_cores
 from .finder import FuzzyPattern, FuzzyPatternFinder, PatternOccurrence
+from .priority import Checkpoint
 from .region import Region, materialize, snap
 from .tokenizer import AILCanonicalizer, TokenLoc, TokenStream, linearize, tokenize

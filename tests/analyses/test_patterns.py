@@ -430,6 +430,80 @@ class TestFuzzyPatternFinder(TestCase):
         assert len(clusters[0].occurrences) >= 2
 
 
+class TestCheckpoint(TestCase):
+    """Low priority and cancellation in the pattern analyses."""
+
+    def test_checkpoint_throttles_by_call_count_and_clock(self):
+        from angr.analyses.patterns import Checkpoint  # pylint:disable=import-outside-toplevel
+
+        calls = []
+        cp = Checkpoint(low_priority=False, callback=lambda: calls.append(1), freq=4, interval=0.0)
+        for _ in range(12):
+            cp()
+        assert len(calls) == 3, "every freq-th call looks at the clock"
+        slow = Checkpoint(low_priority=True, callback=lambda: calls.append(2), freq=1, interval=3600.0)
+        for _ in range(100):
+            slow()
+        assert 2 not in calls, "and runs at most once per interval"
+
+    def _doit(self):
+        proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions["doit"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        return proj, func, dec
+
+    def test_low_priority_finds_the_same_families_and_a_raising_checkpoint_aborts(self):
+        from angr.analyses.patterns import Checkpoint  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.search import find_template_occurrences  # pylint:disable=import-outside-toplevel
+
+        proj, func, dec = self._doit()
+        params = AlignParams(min_size=3, min_score=9, min_anchors=1, k=3, min_identity=0.6)
+        plain = proj.analyses.FuzzyPatternFinder(func, dec.ail_graph, params=params, disjoint=False)
+        ticks = []
+        low = proj.analyses.FuzzyPatternFinder(
+            func,
+            dec.ail_graph,
+            params=params,
+            disjoint=False,
+            low_priority=True,
+            checkpoint=Checkpoint(callback=lambda: ticks.append(1), freq=1, interval=0.0),
+        )
+        assert ticks, "the alignment loops call the checkpoint"
+        assert [[o.interval for o in p.occurrences] for p in low.all_patterns] == [
+            [o.interval for o in p.occurrences] for p in plain.all_patterns
+        ]
+
+        class Stop(Exception):
+            pass
+
+        def stop():
+            raise Stop
+
+        with self.assertRaises(Stop):
+            proj.analyses.FuzzyPatternFinder(
+                func, dec.ail_graph, params=params, checkpoint=Checkpoint(callback=stop, freq=1, interval=0.0)
+            )
+
+        entry = next(b for b in dec.ail_graph if b.addr == func.addr)
+        leaf_source = plain.all_patterns[0].occurrences[0]
+        from angr.analyses.decompiler.known_patterns.generator import (
+            PatternGenerator,  # pylint:disable=import-outside-toplevel
+        )
+
+        stream = plain.stream
+        blocks = {(b.addr, b.idx): b for b in stream.blocks}
+        stmts = [
+            blocks[loc.block_loc].statements[loc.stmt_idx]
+            for loc in stream.locs[leaf_source.interval.start : leaf_source.interval.end]
+        ]
+        pattern = PatternGenerator(dec.codegen, dec.ail_graph).generate_pattern_from_statements(stmts, "p")
+        with self.assertRaises(Stop):
+            find_template_occurrences(
+                pattern, dec.ail_graph, entry, kb=proj.kb, checkpoint=Checkpoint(callback=stop, freq=1, interval=0.0)
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
 

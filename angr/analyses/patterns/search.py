@@ -201,7 +201,13 @@ def _is_glue(shape: str) -> bool:
 
 
 def _align(
-    leaves: list[_Leaf], stream: TokenStream, scorer: _Scorer, lo: int, hi: int, params: AlignParams
+    leaves: list[_Leaf],
+    stream: TokenStream,
+    scorer: _Scorer,
+    lo: int,
+    hi: int,
+    params: AlignParams,
+    checkpoint: Callable[[], None] | None = None,
 ) -> tuple[float, list[TemplateColumn]] | None:
     """Semi-global affine-gap alignment of the whole template against stream ``[lo, hi)``.
 
@@ -227,6 +233,8 @@ def _align(
         m[0][j] = 0.0  # a free start anywhere in the window
 
     for i in range(1, n + 1):
+        if checkpoint is not None:
+            checkpoint()
         leaf = leaves[i - 1]
         skip_open = 0.0 if leaf.optional else params.gap_open * leaf.weight
         skip_ext = 0.0 if leaf.optional else params.gap_extend * leaf.weight
@@ -283,10 +291,14 @@ def _align(
 
 
 def search(
-    pattern: KnownPattern | dsl.PatternNode, stream: TokenStream, params: AlignParams | None = None
+    pattern: KnownPattern | dsl.PatternNode,
+    stream: TokenStream,
+    params: AlignParams | None = None,
+    checkpoint: Callable[[], None] | None = None,
 ) -> list[TemplateMatch]:
     """Every non-overlapping occurrence of ``pattern`` in ``stream`` scoring at least
-    ``params.min_identity`` in similarity, best first.
+    ``params.min_identity`` in similarity, best first. ``checkpoint`` is called from the
+    alignment loops; see :class:`.priority.Checkpoint`.
 
     The stream must come from :func:`tokenize_for_templates` (or an equivalent
     :data:`~.template.TEMPLATE_TOKENIZER` configuration), or shapes will not
@@ -312,12 +324,14 @@ def search(
     # near each other fall into one window, of which only the best comes back
     slack = max(n, 2)
     for start in _candidates(leaves, stream, params):
+        if checkpoint is not None:
+            checkpoint()
         lo = max(0, start - slack)
         hi = min(len(stream), start + n + slack)
         if (lo, hi) in seen_windows:
             continue
         seen_windows.add((lo, hi))
-        aligned = _align(leaves, stream, scorer, lo, hi, params)
+        aligned = _align(leaves, stream, scorer, lo, hi, params, checkpoint)
         if aligned is None:
             continue
         score, columns = aligned
@@ -353,6 +367,7 @@ def verify(
     pattern: KnownPattern | dsl.PatternNode,
     stream: TokenStream,
     ctx: MatchCtx | None = None,
+    checkpoint: Callable[[], None] | None = None,
 ) -> TemplateMatch:
     """Run every placed leaf's structural ``match`` on its statement, sharing one
     binding environment, and record the outcome on the match.
@@ -375,6 +390,8 @@ def verify(
     ok = True
     columns: list[TemplateColumn] = []
     for column in match.columns:
+        if checkpoint is not None:
+            checkpoint()
         if column.token is None:
             columns.append(column)
             continue
@@ -431,12 +448,13 @@ def find_template_occurrences(
     kb: KnowledgeBase | None = None,
     params: AlignParams | None = None,
     ctx: MatchCtx | None = None,
+    checkpoint: Callable[[], None] | None = None,
 ) -> tuple[TokenStream, list[TemplateMatch]]:
     """Tokenize ``graph``, search it for ``pattern``, and verify every hit."""
     stream = tokenize_for_templates(graph, entry, kb=kb)
-    matches = search(pattern, stream, params)
+    matches = search(pattern, stream, params, checkpoint)
     for match in matches:
-        verify(match, pattern, stream, ctx)
+        verify(match, pattern, stream, ctx, checkpoint)
     return stream, matches
 
 

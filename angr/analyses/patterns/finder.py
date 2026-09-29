@@ -10,10 +10,13 @@ from angr.analyses.analysis import AnalysesHub, Analysis
 
 from .align import AlignParams, Interval, PatternCluster, discover, select_disjoint
 from .exact import ExactCore, find_exact_cores
+from .priority import Checkpoint
 from .region import Region, snap
 from .tokenizer import TokenStream, tokenize
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import networkx
 
     from angr.ailment import Block
@@ -124,8 +127,20 @@ class FuzzyPatternFinder(Analysis):
         skip_phis: bool = True,
         resolve_calls: bool = True,
         entry: Block | None = None,
+        low_priority: bool = False,
+        checkpoint: Callable[[], None] | None = None,
     ):
         self.func = func
+        # low_priority: yield the GIL now and then from the alignment loops, as the CFG does;
+        # checkpoint: called at the same cadence, and may raise to abort. A ready Checkpoint
+        # is used as it is.
+        self._checkpoint: Callable[[], None] | None
+        if isinstance(checkpoint, Checkpoint):
+            self._checkpoint = checkpoint
+        elif low_priority or checkpoint is not None:
+            self._checkpoint = Checkpoint(low_priority, checkpoint)
+        else:
+            self._checkpoint = None
         self.graph = ail_graph
         self.params = params or AlignParams()
         self.min_core_len = min_core_len
@@ -160,7 +175,7 @@ class FuzzyPatternFinder(Analysis):
         if len(stream) < self.params.k:
             return
 
-        clusters = discover(stream.shape_ids, stream.klass_of_shape, self.params)
+        clusters = discover(stream.shape_ids, stream.klass_of_shape, self.params, self._checkpoint)
         _l.debug("FuzzyPatternFinder: %d clusters over %d tokens", len(clusters), len(stream))
 
         entry_loc = (self.entry.addr, self.entry.idx)

@@ -30,6 +30,10 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _l = logging.getLogger(__name__)
 
@@ -233,6 +237,7 @@ def banded_sw(
     band: int,
     score: ScoreModel,
     params: AlignParams,
+    checkpoint: Callable[[], None] | None = None,
 ) -> Alignment | None:
     """Banded local alignment with affine gaps, restricted to ``|i - j| <= band``."""
     la, lb = a1 - a0, b1 - b0
@@ -244,6 +249,8 @@ def banded_sw(
     best_score, best_cell = 0.0, None
 
     for i in range(1, la + 1):
+        if checkpoint is not None:
+            checkpoint()
         cur = [{}, {}, {}]
         lo = max(1, i - band)
         hi = min(lb, i + band)
@@ -323,11 +330,14 @@ def refine_candidates(
     candidates: list[tuple[int, int, int, int]],
     score: ScoreModel,
     params: AlignParams,
+    checkpoint: Callable[[], None] | None = None,
 ) -> list[Alignment]:
     """Run banded Smith-Waterman on every chained candidate and keep the good ones."""
     n = len(ids)
     out: list[Alignment] = []
     for d, s, e, _anchors in candidates:
+        if checkpoint is not None:
+            checkpoint()
         # candidates arrive longest-first, so an already-accepted alignment that
         # covers both sides of this one makes it redundant
         if any(a.a.start <= s and e <= a.a.end and a.b.start <= s + d and e + d <= a.b.end for a in out):
@@ -346,7 +356,7 @@ def refine_candidates(
                 a1, b0 = mid, mid
         if b0 >= n or a0 >= a1 or b0 >= b1:
             continue
-        aln = banded_sw(ids, a0, a1, b0, b1, params.band + params.pad, score, params)
+        aln = banded_sw(ids, a0, a1, b0, b1, params.band + params.pad, score, params, checkpoint)
         if aln is None:
             continue
         if aln.score < params.min_score or aln.identity < params.min_identity:
@@ -454,13 +464,19 @@ def _deoverlap(intervals: list[Interval]) -> list[Interval]:
     return chosen
 
 
-def discover(ids: list[int], klass_of_shape: list[int], params: AlignParams | None = None) -> list[PatternCluster]:
-    """Full pipeline: seed -> chain -> align -> cluster."""
+def discover(
+    ids: list[int],
+    klass_of_shape: list[int],
+    params: AlignParams | None = None,
+    checkpoint: Callable[[], None] | None = None,
+) -> list[PatternCluster]:
+    """Full pipeline: seed -> chain -> align -> cluster. ``checkpoint`` is called from the
+    alignment loops, where the time goes; see :class:`.priority.Checkpoint`."""
     params = params or AlignParams()
     score = ScoreModel(klass_of_shape, params)
     buckets = find_seeds(ids, params)
     candidates = chain_seeds(buckets, params)
     _l.debug("fuzzy patterns: %d seed buckets, %d chained candidates", len(buckets), len(candidates))
-    alignments = refine_candidates(ids, candidates, score, params)
+    alignments = refine_candidates(ids, candidates, score, params, checkpoint)
     _l.debug("fuzzy patterns: %d alignments survived refinement", len(alignments))
     return cluster_alignments(alignments, params)
