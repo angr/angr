@@ -344,6 +344,13 @@ class TestCallingConvention(TestCase):
 
         # A 16-byte integral argument takes a register pair, starting on an even-numbered register.
         assert locs(integer, SimTypeNum(128))[1].get_footprint() == {SimRegArg("x2", 8), SimRegArg("x3", 8)}
+        for bits, size in ((1, 1), (9, 2), (33, 8)):
+            assert locs(SimTypeNum(bits))[0] == SimRegArg("x0", size)
+        for bits in (65, 96, 127):
+            assert locs(integer, SimTypeNum(bits))[1].get_footprint() == {
+                SimRegArg("x2", 8),
+                SimRegArg("x3", 8),
+            }
 
         # B.6 normalizes an over-aligned composite's marshalled-copy alignment to 16 bytes. That adjusted alignment
         # selects an even register pair and a 16-byte stack boundary rather than preserving the natural 32 bytes.
@@ -365,6 +372,12 @@ class TestCallingConvention(TestCase):
             SimStackArg(0x10, 8),
             SimStackArg(0x18, 8),
         }
+        for bits, backing_size in ((129, 32), (191, 32), (257, 48)):
+            wide = locs(SimTypeNum(bits))[0]
+            assert isinstance(wide, SimReferenceArgument)
+            assert wide.ptr_loc == SimRegArg("x0", 8)
+            assert wide.main_loc.size == backing_size
+            assert wide.main_loc.get_footprint() == {SimStackArg(offset, 8) for offset in range(0, backing_size, 8)}
 
     def test_aarch64_aggregate_args_reach_the_callsite(self):
         proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
@@ -405,6 +418,57 @@ class TestCallingConvention(TestCase):
         assert evaluate(spilled_state.regs.sp) == initial_sp - 16
         assert evaluate(spilled_state.memory.load(initial_sp - 16, 8, endness="Iend_LE")) == 0x1111
         assert evaluate(spilled_state.memory.load(initial_sp - 8, 8, endness="Iend_LE")) == 0x2222
+
+        # A one-word aggregate spill still preserves the public-interface requirement SP mod 16 == 0.
+        one_word = SimStruct({"x": SimTypeLongLong()}, name="OneWord")
+        one_word_proto = SimTypeFunction([SimTypeInt()] * 8 + [one_word], SimTypeInt()).with_arch(proj.arch)
+        one_word_locs = cc.arg_locs(one_word_proto)
+        assert cc.stack_space(one_word_locs) == 8
+        base_state = proj.factory.blank_state()
+        base_state.regs.sp = initial_sp
+        one_word_state = proj.factory.call_state(
+            addr,
+            *range(8),
+            {"x": 0x1122_3344_5566_7788},
+            base_state=base_state,
+            cc=cc,
+            prototype=one_word_proto,
+        )
+        one_word_sp = evaluate(one_word_state.regs.sp)
+        assert one_word_sp == initial_sp - 16
+        assert one_word_sp % 16 == 0
+        assert evaluate(one_word_state.memory.load(one_word_sp, 8, endness="Iend_LE")) == 0x1122_3344_5566_7788
+
+        # The machine-type padding for bit-precise integers is materialized at the call site without losing the
+        # significant high bit. The unused upper bits in each AAPCS64 container are zero here, which the ABI permits.
+        bitint65_proto = SimTypeFunction([SimTypeInt(), SimTypeNum(65)], SimTypeInt()).with_arch(proj.arch)
+        bitint65_state = proj.factory.call_state(addr, 0, 1 << 64, cc=cc, prototype=bitint65_proto)
+        assert evaluate(bitint65_state.regs.x2) == 0
+        assert evaluate(bitint65_state.regs.x3) == 1
+
+        bitint129_proto = SimTypeFunction([SimTypeNum(129)], SimTypeInt()).with_arch(proj.arch)
+        bitint129_value = (1 << 128) | 0x1234
+        bitint129_state = proj.factory.call_state(addr, bitint129_value, cc=cc, prototype=bitint129_proto)
+        bitint129_ptr = evaluate(bitint129_state.regs.x0)
+        assert bitint129_ptr % 16 == 0
+        assert evaluate(bitint129_state.memory.load(bitint129_ptr, 32, endness="Iend_LE")) == bitint129_value
+
+        # Indirect copies honor their individual alignment without overlapping, even when an 8-byte-aligned,
+        # 24-byte composite precedes a padded bit-precise integer whose backing array requires 16-byte alignment.
+        bitint129_after_big_proto = SimTypeFunction([big, SimTypeNum(129)], SimTypeInt()).with_arch(proj.arch)
+        bitint129_after_big_state = proj.factory.call_state(
+            addr,
+            {"a": 1, "b": 2, "c": 3},
+            bitint129_value,
+            cc=cc,
+            prototype=bitint129_after_big_proto,
+        )
+        big_ptr = evaluate(bitint129_after_big_state.regs.x0)
+        wide_ptr = evaluate(bitint129_after_big_state.regs.x1)
+        assert big_ptr % 8 == 0
+        assert wide_ptr % 16 == 0
+        assert wide_ptr - big_ptr == 32
+        assert evaluate(bitint129_after_big_state.memory.load(wide_ptr, 32, endness="Iend_LE")) == bitint129_value
 
     def test_aarch64_class_by_value_argument(self):
         proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
