@@ -209,6 +209,10 @@ def _is_glue(shape: str) -> bool:
     return shape in ("Jf", "Jb", "J?")
 
 
+#: the band of an alignment never narrows below this many tokens either side of its diagonals
+_MIN_BAND = 16
+
+
 def _align(
     leaves: list[_Leaf],
     stream: TokenStream,
@@ -217,12 +221,19 @@ def _align(
     hi: int,
     params: AlignParams,
     checkpoint: Callable[[], None] | None = None,
+    diagonals: list[int] | None = None,
+    min_score: float | None = None,
 ) -> tuple[float, list[TemplateColumn]] | None:
     """Semi-global affine-gap alignment of the whole template against stream ``[lo, hi)``.
 
     The template is consumed in full; the stream is free on both sides. Rows
     are template leaves, columns stream tokens. State M places a leaf on a
     token, X skips a leaf (free when the leaf is optional), Y skips a token.
+
+    With ``diagonals``, only cells within a band of a quarter of the template's length
+    (at least :data:`_MIN_BAND`) around them are computed. With ``min_score``, a first
+    pass computes scores alone and gives up on a window that cannot reach it; only a
+    window that can is aligned again with traceback.
     """
     n = len(leaves)
     width = hi - lo
@@ -232,69 +243,107 @@ def _align(
     # an unconditional jump is control glue between blocks, not a statement an
     # occurrence has to account for: skipping one costs nothing
     glue = [_is_glue(stream.shapes[lo + j]) for j in range(width)]
+    if diagonals:
+        band = max(_MIN_BAND, n // 4)
+        dmin, dmax = min(diagonals) - lo, max(diagonals) - lo
+        bounds = [(max(0, dmin + i - band), min(width, dmax + i + band)) for i in range(n + 1)]
+    else:
+        bounds = [(0, width)] * (n + 1)
 
-    # dp[state][i][j], j in 0..width; column 0 is "before the window"
-    m = [[_NEG] * (width + 1) for _ in range(n + 1)]
-    x = [[_NEG] * (width + 1) for _ in range(n + 1)]
-    y = [[_NEG] * (width + 1) for _ in range(n + 1)]
-    back: dict[tuple[int, int, int], tuple[int, int, int]] = {}
-    for j in range(width + 1):
-        m[0][j] = 0.0  # a free start anywhere in the window
+    def run(keep: bool):
+        """(best score, end column, end state, rows) where rows is kept only for traceback."""
+        clo, chi = bounds[0]
+        pm = [0.0] * (chi - clo + 1)  # a free start anywhere in the window
+        px = [_NEG] * len(pm)
+        py = [_NEG] * len(pm)
+        plo = clo
+        rows = [(clo, pm, px, py, None)] if keep else None
+        for i in range(1, n + 1):
+            if checkpoint is not None:
+                checkpoint()
+            leaf = leaves[i - 1]
+            skip_open = 0.0 if leaf.optional else params.gap_open * leaf.weight
+            skip_ext = 0.0 if leaf.optional else params.gap_extend * leaf.weight
+            clo, chi = bounds[i]
+            if chi < clo:
+                return None
+            size = chi - clo + 1
+            cm = [_NEG] * size
+            cx = [_NEG] * size
+            cy = [_NEG] * size
+            bm = [0] * size if keep else None
+            bx = [0] * size if keep else None
+            by = [0] * size if keep else None
+            plen = len(pm)
+            for k in range(size):
+                j = clo + k
+                # skip leaf i (X): coming from any state at (i-1, j)
+                pk = j - plo
+                if 0 <= pk < plen:
+                    best, code = pm[pk] + skip_open, 0
+                    if px[pk] + skip_ext > best:
+                        best, code = px[pk] + skip_ext, 1
+                    if py[pk] + skip_open > best:
+                        best, code = py[pk] + skip_open, 2
+                    if best > _NEG:
+                        cx[k] = best
+                        if keep:
+                            bx[k] = code
+                if j == 0:
+                    continue
+                # place leaf i on token j (M): from (i-1, j-1)
+                pk -= 1
+                if 0 <= pk < plen:
+                    best, code = pm[pk], 0
+                    if px[pk] > best:
+                        best, code = px[pk], 1
+                    if py[pk] > best:
+                        best, code = py[pk], 2
+                    if best > _NEG:
+                        cm[k] = best + scorer.score(i - 1, ids[lo + j - 1])
+                        if keep:
+                            bm[k] = code
+                # skip token j between placed leaves (Y): from (i, j-1), only inside the template
+                if k > 0:
+                    tok_open, tok_ext = (0.0, 0.0) if glue[j - 1] else (params.gap_open, params.gap_extend)
+                    best, code = cm[k - 1] + tok_open, 0
+                    if cy[k - 1] + tok_ext > best:
+                        best, code = cy[k - 1] + tok_ext, 2
+                    if best > _NEG:
+                        cy[k] = best
+                        if keep:
+                            by[k] = code
+            pm, px, py, plo = cm, cx, cy, clo
+            if keep:
+                rows.append((clo, cm, cx, cy, (bm, bx, by)))
+        # the template is consumed; the stream after the last placed token is free
+        end_j, end_state, best = 0, 0, _NEG
+        for k in range(len(pm)):
+            for state, table in ((0, pm), (1, px)):
+                if table[k] > best:
+                    best, end_j, end_state = table[k], plo + k, state
+        return best, end_j, end_state, rows
 
-    for i in range(1, n + 1):
-        if checkpoint is not None:
-            checkpoint()
-        leaf = leaves[i - 1]
-        skip_open = 0.0 if leaf.optional else params.gap_open * leaf.weight
-        skip_ext = 0.0 if leaf.optional else params.gap_extend * leaf.weight
-        for j in range(width + 1):
-            # skip leaf i (X): coming from any state at (i-1, j)
-            best, src = m[i - 1][j] + skip_open, (0, i - 1, j)
-            if x[i - 1][j] + skip_ext > best:
-                best, src = x[i - 1][j] + skip_ext, (1, i - 1, j)
-            if y[i - 1][j] + skip_open > best:
-                best, src = y[i - 1][j] + skip_open, (2, i - 1, j)
-            if best > _NEG:
-                x[i][j] = best
-                back[1, i, j] = src
-            if j == 0:
-                continue
-            # place leaf i on token j (M)
-            s = scorer.score(i - 1, ids[lo + j - 1])
-            best, src = m[i - 1][j - 1], (0, i - 1, j - 1)
-            if x[i - 1][j - 1] > best:
-                best, src = x[i - 1][j - 1], (1, i - 1, j - 1)
-            if y[i - 1][j - 1] > best:
-                best, src = y[i - 1][j - 1], (2, i - 1, j - 1)
-            if best > _NEG:
-                m[i][j] = best + s
-                back[0, i, j] = src
-            # skip token j between placed leaves (Y): only inside the template
-            tok_open, tok_ext = (0.0, 0.0) if glue[j - 1] else (params.gap_open, params.gap_extend)
-            best, src = m[i][j - 1] + tok_open, (0, i, j - 1)
-            if y[i][j - 1] + tok_ext > best:
-                best, src = y[i][j - 1] + tok_ext, (2, i, j - 1)
-            if best > _NEG:
-                y[i][j] = best
-                back[2, i, j] = src
-
-    # the template is consumed; the stream after the last placed token is free
-    end_j, end_state, best = 0, 0, _NEG
-    for j in range(width + 1):
-        for state, table in ((0, m), (1, x)):
-            if table[n][j] > best:
-                best, end_j, end_state = table[n][j], j, state
-    if best == _NEG:
+    first = run(keep=False)
+    if first is None or first[0] == _NEG:
         return None
+    if min_score is not None and first[0] < min_score:
+        return None
+    best, end_j, end_state, rows = run(keep=True)
 
     columns: list[TemplateColumn] = []
     state, i, j = end_state, n, end_j
     while i > 0:
+        clo, _cm, _cx, _cy, (bm, bx, by) = rows[i]
+        k = j - clo
         if state == 0:
             columns.append(TemplateColumn(i - 1, lo + j - 1, scorer.fit(i - 1, ids[lo + j - 1])))
+            state, i, j = bm[k], i - 1, j - 1
         elif state == 1:
             columns.append(TemplateColumn(i - 1, None, Fit.NONE))
-        state, i, j = back[state, i, j]
+            state, i = bx[k], i - 1
+        else:
+            state, j = by[k], j - 1
     columns.reverse()
     return best, columns
 
@@ -349,7 +398,9 @@ def search(
         lo, hi, ds = work.pop()
         if hi - lo <= 0:
             continue
-        aligned = _align(leaves, stream, scorer, lo, hi, params, checkpoint)
+        aligned = _align(
+            leaves, stream, scorer, lo, hi, params, checkpoint, diagonals=ds, min_score=params.min_identity * max_score
+        )
         if aligned is None:
             continue
         score, columns = aligned
