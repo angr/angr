@@ -461,14 +461,6 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         self.show_demangled_name = show_demangled_name
 
     def get_unified_local_vars(self) -> dict[SimVariable, list[tuple[RustVariable, SimType]]]:
-        # An insertion-ordered list rather than a set. Neither half of the pair has a content hash --
-        # RustVariable inherits object.__hash__ and SimType.__hash__ starts from hash(type(self)) --
-        # so a set of these iterated in an order derived from object addresses, which differs between
-        # processes even at PYTHONHASHSEED=0. That order reaches the output: variable_list_repr_chunks
-        # folds the types with a Counter, and SimType equality ignores `label`, so a labelled type
-        # (BOOLEAN, HANDLE, PSTR) and its unlabelled twin share one Counter key and whichever was seen
-        # first supplies the name printed. variables_in_use is filled while the body is built, so its
-        # order is the order the function's own statements are rendered in.
         unified_to_var_and_types: dict[SimVariable, list[tuple[RustVariable, SimType]]] = defaultdict(list)
 
         arg_set: set[SimVariable] = set()

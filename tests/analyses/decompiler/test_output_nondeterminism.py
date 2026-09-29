@@ -168,19 +168,7 @@ class TestVariableNondeterminism(unittest.TestCase):
         assert counts[0] == counts[1] == counts[2], f"stack variables accumulate across decompilations: {counts}"
 
     def test_local_variable_types_are_not_collected_in_a_hash_ordered_set(self):
-        """Regression: a local's declared type must not depend on where objects landed in memory.
-
-        ``CFunction.get_unified_local_vars`` collected each local's ``(CVariable, SimType)`` pairs into a set.
-        Neither half has a content hash -- ``CVariable`` inherits ``object.__hash__`` and ``SimType.__hash__``
-        starts from ``hash(type(self))`` -- so the set iterated in an address-derived order that differs
-        between processes even at ``PYTHONHASHSEED=0``, and between two decompilations in one process,
-        because each one allocates fresh objects. ``variable_list_repr_chunks`` turns that order into the
-        printed type: ``Counter`` collapses types that compare equal, ``SimType`` equality ignores ``label``,
-        and whichever object came out of the set first supplies the name. The local at ``[bp+0x20]`` of
-        ``cancel.sys``'s 0x14000b610 is passed by address to ``RtlGetSaclSecurityDescriptor`` and
-        ``RtlGetDaclSecurityDescriptor``, both of which take ``PBOOLEAN``, and was declared ``BOOLEAN`` or
-        ``char`` with nothing but the allocator deciding which.
-        """
+        # Regression: a local's declared type must not depend on where objects landed in memory.
 
         binary_path = os.path.join(bin_location, "tests", "x86_64", "windows", "cancel.sys")
         project = angr.Project(binary_path, auto_load_libs=False)
