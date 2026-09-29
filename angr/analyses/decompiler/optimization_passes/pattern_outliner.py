@@ -63,6 +63,8 @@ class PatternOutliner(OptimizationPass):
         self.outlined: list[tuple[str, tuple[int, int | None], float]] = []
         #: (pattern name, reason) for every occurrence that was found but not outlined
         self.skipped: list[tuple[str, str]] = []
+        # the instruction address of the call the last successful outline placed
+        self._last_call_addr: int | None = None
         self.analyze()
 
     def _check(self):
@@ -98,6 +100,8 @@ class PatternOutliner(OptimizationPass):
                 tried.add((pattern.name, stream.addr_range(match.interval.start, match.interval.end)))
                 if self._outline(graph, stream, pattern, match):
                     stats[pattern.name].outlined += 1
+                    if self._last_call_addr is not None:
+                        stats[pattern.name].call_addrs.append(self._last_call_addr)
                     outlined = changed = True
                     break
             if not outlined:
@@ -197,6 +201,7 @@ class PatternOutliner(OptimizationPass):
 
         outliner.child_func.name = pattern.call_name
         call = self._rename_call(graph, src_loc, pattern.call_name, hoisted)
+        self._last_call_addr = call.tags.get("ins_addr") if call is not None else None
         if call is not None:
             self._declare_prototype(call, stored, {**match.captures, **hoisted}, outliner.child_graph, closed)
         self.outlined.append((pattern.name, src_loc, coverage))

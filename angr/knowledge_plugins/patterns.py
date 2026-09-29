@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from .plugin import KnowledgeBasePlugin
@@ -28,6 +28,8 @@ class PatternStats:
     matches: int = 0
     #: occurrences outlined into calls
     outlined: int = 0
+    #: the instruction address each outlined call carries, which is where it renders
+    call_addrs: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -92,7 +94,10 @@ class Patterns(KnowledgeBasePlugin):
     def copy(self) -> Patterns:
         o = Patterns(self._kb)
         o._patterns = dict(self._patterns)
-        o._stats = {addr: dict(per) for addr, per in self._stats.items()}
+        o._stats = {
+            addr: {name: replace(st, call_addrs=list(st.call_addrs)) for name, st in per.items()}
+            for addr, per in self._stats.items()
+        }
         return o
 
     def record_stats(self, func_addr: int, stats: dict[str, PatternStats]) -> None:

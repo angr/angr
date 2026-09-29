@@ -70,6 +70,13 @@ class TestPatternOutliner(unittest.TestCase):
         assert len(calls) == 8, calls
         stats = proj2.kb.patterns.stats(func2.addr, pattern.name)
         assert stats is not None and stats.outlined == 8 and stats.matches >= 8
+        # each call is findable in the pseudocode by the address it carries
+        rendered = {
+            elem.obj.tags.get("ins_addr")
+            for elem in dec2.codegen.map_pos_to_node.values()
+            if type(elem.obj).__name__ == "CFunctionCall" and "PatternErrorsOut" in str(elem.obj.callee_target)
+        }
+        assert len(stats.call_addrs) == 8 and set(stats.call_addrs) <= rendered
         assert "Empty title" in calls and "Cannot open document." in calls
         assert text.count("PatternErrorsOut(") == 8
         assert graph_problems(dec2.ail_graph, func2.addr) == []
