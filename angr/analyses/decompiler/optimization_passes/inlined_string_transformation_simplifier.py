@@ -12,6 +12,7 @@ from angr import claripy
 from angr.ailment import AILBlockViewer
 from angr.ailment.expression import (
     BinaryOp,
+    Call,
     Const,
     Convert,
     Expression,
@@ -19,6 +20,7 @@ from angr.ailment.expression import (
     Phi,
     Register,
     StackBaseOffset,
+    Tmp,
     UnaryOp,
     VirtualVariable,
 )
@@ -33,6 +35,7 @@ from angr.storage.memory_mixins import (
     UltraPagesMixin,
 )
 from angr.utils.bits import zeroextend_on_demand
+from angr.utils.ssa import get_vvar_uselocs
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -89,6 +92,8 @@ class InlinedStringTransformationState:
         self.stack_pointer_vvars: set[int] = set()
         # varid -> stack addresses the value of this register vvar was computed from
         self.vvar_deps: dict[int, frozenset[int]] = {}
+        # memory bytes overwritten with unknown values
+        self.erased_bytes: set[int] = set()
 
         self.registers.set_state(self)
         self.memory.set_state(self)
@@ -110,9 +115,16 @@ class InlinedStringTransformationState:
             return None
 
     def mem_store(self, addr: int, value: claripy.ast.Bits, endness: str) -> None:
-        self.memory.store(addr, value, size=value.size() // self.arch.byte_width, endness=endness)
+        size = value.size() // self.arch.byte_width
+        self.memory.store(addr, value, size=size, endness=endness)
+        self.erased_bytes.difference_update(range(addr, addr + size))
+
+    def mem_erase(self, addr: int, size: int) -> None:
+        self.erased_bytes.update(range(addr, addr + size))
 
     def mem_load(self, addr: int, size: int, endness) -> claripy.ast.BV | None:
+        if self.erased_bytes and not self.erased_bytes.isdisjoint(range(addr, addr + size)):
+            return None
         try:
             return self.memory.load(addr, size=size, endness=str(endness), fill_missing=False)
         except SimMemoryMissingError:
@@ -152,7 +164,10 @@ class InlinedStringTransformationAILEngine(
         self.stack_accesses: defaultdict[int, list[StackAccess]] = defaultdict(list)
         # stack addresses read while evaluating the current statement
         self._reads: set[int] = set()
+        # block address -> kinds of side effects that removing or re-executing the block would not preserve
+        self.effects: defaultdict[int, set[str]] = defaultdict(set)
         self.finished: bool = False
+        self.final_state = state
 
         i = 0
         self.last_pc = None
@@ -210,32 +225,52 @@ class InlinedStringTransformationAILEngine(
             return None
         return v.concrete_value & self.MASK, "stack" if self._is_stack_pointer(addr) else "mem"
 
+    def _record_effect(self, kind: str) -> None:
+        self.effects[self.block.addr].add(kind)
+
     def _handle_stmt_Assignment(self, stmt):
-        if isinstance(stmt.dst, VirtualVariable):
-            if stmt.dst.was_reg:
-                self._reads = set()
-                val = self._expr(stmt.src)
-                self.state.vvar_store(
-                    stmt.dst,
-                    val if isinstance(val, claripy.ast.Bits) else None,
-                    self._is_stack_pointer(stmt.src),
-                )
-                self.state.vvar_deps[stmt.dst.varid] = frozenset(self._reads)
-            elif stmt.dst.was_stack:
-                addr = (stmt.dst.stack_offset + self.STACK_BASE) & self.MASK
-                self._reads = set()
-                val = self._expr(stmt.src)
-                if isinstance(val, claripy.ast.BV):
-                    self._store_stack(addr, val, self.arch.memory_endness)
+        dst = stmt.dst
+        self._reads = set()
+        if isinstance(dst, Tmp):
+            val = self._expr(stmt.src)
+            if isinstance(val, claripy.ast.Bits):
+                self.tmps[dst.tmp_idx] = val
+        elif isinstance(dst, VirtualVariable) and dst.was_reg:
+            val = self._expr(stmt.src)
+            self.state.vvar_store(
+                dst, val if isinstance(val, claripy.ast.Bits) else None, self._is_stack_pointer(stmt.src)
+            )
+            self.state.vvar_deps[dst.varid] = frozenset(self._reads)
+        elif isinstance(dst, VirtualVariable) and dst.was_stack:
+            addr = (dst.stack_offset + self.STACK_BASE) & self.MASK
+            val = self._expr(stmt.src)
+            if isinstance(val, claripy.ast.BV):
+                self._store_stack(addr, val, self.arch.memory_endness)
+            else:
+                self._erase_stack(addr, dst.size)
+        else:
+            self._record_effect("unsupported_stmt")
 
     def _handle_stmt_Store(self, stmt: Store):
         addr_and_type = self._process_address(stmt.addr)
-        if addr_and_type is not None:
-            addr, addr_type = addr_and_type
-            self._reads = set()
-            val = self._expr(stmt.data)
-            if addr_type == "stack" and isinstance(val, claripy.ast.BV):
-                self._store_stack(addr, val, stmt.endness)
+        if addr_and_type is None:
+            # this store may alias any stack byte
+            self._record_effect("unresolved_write")
+            return
+        addr, addr_type = addr_and_type
+        if addr_type != "stack":
+            self._record_effect("global_write")
+            return
+        self._reads = set()
+        val = self._expr(stmt.data)
+        if isinstance(val, claripy.ast.BV):
+            self._store_stack(addr, val, stmt.endness)
+        else:
+            self._erase_stack(addr, stmt.size)
+
+    def _erase_stack(self, addr: int, size: int) -> None:
+        self._record_effect("unknown_stack_value")
+        self.state.mem_erase(addr, size)
 
     def _store_stack(self, addr: int, val: claripy.ast.BV, endness) -> None:
         self.state.mem_store(addr, val, endness)
@@ -439,16 +474,31 @@ class InlinedStringTransformationAILEngine(
         return None
 
     def _handle_stmt_SideEffectStatement(self, stmt):
-        pass
+        self._expr(stmt.expr)
 
-    def _handle_expr_Call(self, expr):
-        pass
+    def _handle_stmt_DirtyStatement(self, stmt):
+        self._record_effect("unresolved_write")
+
+    def _handle_stmt_CAS(self, stmt):
+        self._record_effect("unresolved_write")
+
+    def _handle_stmt_WeakAssignment(self, stmt):
+        self._record_effect("unsupported_stmt")
+
+    def _handle_stmt_Return(self, stmt):
+        self._record_effect("unsupported_stmt")
+
+    def _handle_expr_Call(self, expr: Call):
+        self._record_effect("call")
+        if expr.args and any(self._is_stack_pointer(arg) for arg in expr.args):
+            # the callee may write to the stack through this pointer
+            self._record_effect("unresolved_write")
 
     def _handle_expr_BasePointerOffset(self, expr):
         return None
 
     def _handle_expr_DirtyExpression(self, expr):
-        return None
+        self._record_effect("unsupported_stmt")
 
     def _handle_expr_ITE(self, expr):
         return None
@@ -586,11 +636,23 @@ class InlineStringTransformationDescriptor:
     Describes an instance of inline string transformation.
     """
 
-    def __init__(self, store_block, loop_body, stack_accesses, beginning_stack_offset):
+    def __init__(
+        self,
+        store_block,
+        loop_body,
+        stack_accesses: list[list[StackAccess]],
+        beginning_stack_offset: int,
+        removable_stmt_indices: set[int],
+        live_out_values: list[tuple[VirtualVariable, int, bool]],
+    ):
         self.store_block = store_block
         self.loop_body = loop_body
         self.stack_accesses = stack_accesses
         self.beginning_stack_offset = beginning_stack_offset
+        # indices of statements in store_block that only initialize bytes in the transformed region
+        self.removable_stmt_indices = removable_stmt_indices
+        # (vvar, final value, whether the value is a stack pointer) for loop-defined vvars used after the loop
+        self.live_out_values = live_out_values
 
 
 class InlinedStringTransformationSimplifier(OptimizationPass):
@@ -620,62 +682,69 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
 
         for desc in cache["descs"]:
             desc: InlineStringTransformationDescriptor
+            assert self._graph is not None
+            if self.out_graph is not None and (
+                desc.store_block not in self.out_graph or desc.loop_body not in self.out_graph
+            ):
+                # an earlier rewrite has replaced one of the blocks
+                continue
 
-            # remove the original statements
-            skip_stmt_indices = set()
-            for stack_accesses in desc.stack_accesses:
-                # the first stores are the initial storing statements
-                for access in stack_accesses:
-                    if access.kind != "store":
-                        break
-                    codeloc = access.codeloc
-                    assert codeloc.block_addr == desc.store_block.addr
-                    skip_stmt_indices.add(codeloc.stmt_idx)
+            pred = desc.store_block
+            succ = next(iter(nn for nn in self._graph.successors(desc.loop_body) if nn is not desc.loop_body))
+
             new_statements = [
-                stmt for idx, stmt in enumerate(desc.store_block.statements) if idx not in skip_stmt_indices
+                stmt for idx, stmt in enumerate(pred.statements) if idx not in desc.removable_stmt_indices
             ]
 
-            # add new statements
-            store_statements = []
+            # the final values of the transformed bytes
+            ins_addr = pred.addr + pred.original_size - 1
+            new_tail = []
             for off, stack_accesses in enumerate(desc.stack_accesses):
-                # the last element is the final storing statement
-                new_value_ast = stack_accesses[-1].value
-                new_value = Const(self.manager.next_atom(), new_value_ast.concrete_value, self.project.arch.byte_width)
-                stmt = Store(
-                    self.manager.next_atom(),
-                    StackBaseOffset(
-                        self.manager.next_atom(), self.project.arch.bits, desc.beginning_stack_offset + off
-                    ),
-                    new_value,
-                    new_value.size,
-                    self.project.arch.memory_endness,
-                    ins_addr=desc.store_block.addr + desc.store_block.original_size - 1,
+                new_value = Const(
+                    self.manager.next_atom(), stack_accesses[-1].value.concrete_value, self.project.arch.byte_width
                 )
-                store_statements.append(stmt)
+                new_tail.append(
+                    Store(
+                        self.manager.next_atom(),
+                        StackBaseOffset(
+                            self.manager.next_atom(), self.project.arch.bits, desc.beginning_stack_offset + off
+                        ),
+                        new_value,
+                        new_value.size,
+                        self.project.arch.memory_endness,
+                        ins_addr=ins_addr,
+                    )
+                )
+            # the final values of loop-defined vvars that are used after the loop
+            for vvar, value, is_stack_pointer in desc.live_out_values:
+                if is_stack_pointer:
+                    src = StackBaseOffset(self.manager.next_atom(), vvar.bits, value)
+                else:
+                    src = Const(self.manager.next_atom(), value, vvar.bits)
+                new_tail.append(Assignment(self.manager.next_atom(), vvar, src, ins_addr=ins_addr))
+
             if new_statements and isinstance(new_statements[-1], (ConditionalJump, Jump)):
-                new_statements = new_statements[:-1] + store_statements + new_statements[-1:]
+                last_stmt = new_statements[-1]
+                new_statements = [
+                    *new_statements[:-1],
+                    *new_tail,
+                    Jump(
+                        self.manager.next_atom(),
+                        Const(self.manager.next_atom(), succ.addr, self.project.arch.bits),
+                        succ.idx,
+                        **last_stmt.tags,
+                    ),
+                ]
             else:
-                new_statements += store_statements
+                new_statements += new_tail
 
-            new_store_block = desc.store_block.copy(statements=new_statements)
-            self._update_block(desc.store_block, new_store_block)
+            new_pred = pred.copy(statements=new_statements)
+            self._update_block(pred, new_pred)
 
-            # remote the loop node
-            # since the loop node has exactly one external predecessor and one external successor, we can get rid of it
+            # the loop node has exactly one external predecessor and one external successor
             assert self.out_graph is not None
-            pred = next(iter(nn for nn in self.out_graph.predecessors(desc.loop_body) if nn is not desc.loop_body))
-            succ = next(iter(nn for nn in self.out_graph.successors(desc.loop_body) if nn is not desc.loop_body))
-
             self.out_graph.remove_node(desc.loop_body)
-            self.out_graph.add_edge(pred, succ)
-
-            if pred.statements and isinstance(pred.statements[-1], ConditionalJump):
-                pred.statements[-1] = Jump(
-                    self.manager.next_atom(),
-                    Const(self.manager.next_atom(), succ.addr, self.project.arch.bits),
-                    succ.idx,
-                    **pred.statements[-1].tags,
-                )
+            self.out_graph.add_edge(new_pred, succ)
 
     def _find_string_transformation_loops(self):
         # find self loops
@@ -708,34 +777,104 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             engine = InlinedStringTransformationAILEngine(
                 self.project, {pred.addr: pred, loop_node.addr: loop_node}, pred.addr, succ.addr, 1024
             )
-            if engine.finished:
-                # find the longest slide where the last stack accesses of each byte are like the following:
-                #   "store" in the predecessor
-                #   "load" in the loop body
-                #   "store" in the loop body, whose value is computed from the loaded byte
-                candidate_stack_addrs = []
-                for stack_addr in sorted(engine.stack_accesses.keys()):
-                    stack_accesses = engine.stack_accesses[stack_addr]
-                    if len(stack_accesses) >= 3:
-                        *_, item0, item1, item2 = stack_accesses
-                        if (
-                            item0.kind == "store"
-                            and item0.codeloc.block_addr == pred.addr
-                            and item1.kind == "load"
-                            and item1.codeloc.block_addr == loop_node.addr
-                            and item2.kind == "store"
-                            and item2.codeloc.block_addr == loop_node.addr
-                            and stack_addr in item2.deps
-                        ):
-                            candidate_stack_addrs.append(stack_addr)
-
-                if (
-                    len(candidate_stack_addrs) >= 2
-                    and candidate_stack_addrs[-1] == candidate_stack_addrs[0] + len(candidate_stack_addrs) - 1
-                ):
-                    filtered_stack_accesses = [engine.stack_accesses[a] for a in candidate_stack_addrs]
-                    stack_offset = candidate_stack_addrs[0] - engine.STACK_BASE
-                    info = InlineStringTransformationDescriptor(pred, loop_node, filtered_stack_accesses, stack_offset)
-                    descs.append(info)
+            if not engine.finished:
+                continue
+            desc = self._make_descriptor(engine, pred, loop_node)
+            if desc is not None:
+                descs.append(desc)
 
         return descs
+
+    def _make_descriptor(
+        self, engine: InlinedStringTransformationAILEngine, pred, loop_node
+    ) -> InlineStringTransformationDescriptor | None:
+        # the loop body must not have any effect beyond register vvars and the transformed stack bytes, and nothing in
+        # the predecessor may write to unknown locations
+        if engine.effects.get(loop_node.addr) or "unresolved_write" in engine.effects.get(pred.addr, ()):
+            return None
+
+        # find the longest slide where the last stack accesses of each byte are like the following:
+        #   "store" in the predecessor
+        #   "load" in the loop body
+        #   "store" in the loop body, whose value is computed from the loaded byte
+        candidate_stack_addrs = []
+        loop_stored_addrs = set()
+        for stack_addr in sorted(engine.stack_accesses.keys()):
+            stack_accesses = engine.stack_accesses[stack_addr]
+            if any(acc.kind == "store" and acc.codeloc.block_addr == loop_node.addr for acc in stack_accesses):
+                loop_stored_addrs.add(stack_addr)
+            if len(stack_accesses) >= 3:
+                *_, item0, item1, item2 = stack_accesses
+                if (
+                    item0.kind == "store"
+                    and item0.codeloc.block_addr == pred.addr
+                    and item1.kind == "load"
+                    and item1.codeloc.block_addr == loop_node.addr
+                    and item2.kind == "store"
+                    and item2.codeloc.block_addr == loop_node.addr
+                    and stack_addr in item2.deps
+                ):
+                    candidate_stack_addrs.append(stack_addr)
+
+        if not (
+            len(candidate_stack_addrs) >= 2
+            and candidate_stack_addrs[-1] == candidate_stack_addrs[0] + len(candidate_stack_addrs) - 1
+            and loop_stored_addrs == set(candidate_stack_addrs)
+        ):
+            return None
+        candidates = set(candidate_stack_addrs)
+
+        # the predecessor must not read the bytes whose initialization we remove
+        stmt_bytes: defaultdict[int, set[int]] = defaultdict(set)
+        for stack_addr, stack_accesses in engine.stack_accesses.items():
+            for acc in stack_accesses:
+                if acc.codeloc.block_addr != pred.addr:
+                    continue
+                if acc.kind == "load" and stack_addr in candidates:
+                    return None
+                if acc.kind == "store":
+                    assert acc.codeloc.stmt_idx is not None
+                    stmt_bytes[acc.codeloc.stmt_idx].add(stack_addr)
+        # statements that also initialize bytes outside the region are kept; the new stores override them
+        removable_stmt_indices = {idx for idx, addrs in stmt_bytes.items() if addrs <= candidates}
+
+        live_out_values = self._live_out_values(engine, loop_node)
+        if live_out_values is None:
+            return None
+
+        filtered_stack_accesses = [engine.stack_accesses[a] for a in candidate_stack_addrs]
+        stack_offset = candidate_stack_addrs[0] - engine.STACK_BASE
+        return InlineStringTransformationDescriptor(
+            pred, loop_node, filtered_stack_accesses, stack_offset, removable_stmt_indices, live_out_values
+        )
+
+    def _live_out_values(
+        self, engine: InlinedStringTransformationAILEngine, loop_node
+    ) -> list[tuple[VirtualVariable, int, bool]] | None:
+        """
+        Collect the final values of vvars that are defined in the loop body and used elsewhere. Returns None if any of
+        them does not have a concrete final value.
+        """
+        loop_defs: dict[int, VirtualVariable] = {
+            stmt.dst.varid: stmt.dst
+            for stmt in loop_node.statements
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+        }
+        assert self._graph is not None
+        used_varids = get_vvar_uselocs(nn for nn in self._graph if nn is not loop_node).keys() & loop_defs.keys()
+
+        state = engine.final_state
+        live_out_values = []
+        for varid in sorted(used_varids):
+            vvar = loop_defs[varid]
+            value = state.virtual_variables.get(varid)
+            if not vvar.was_reg or value is None or not value.concrete:
+                return None
+            if varid in state.stack_pointer_vvars:
+                offset = (value.concrete_value - engine.STACK_BASE) & engine.MASK
+                if offset > engine.MASK // 2:
+                    offset -= engine.MASK + 1
+                live_out_values.append((vvar, offset, True))
+            else:
+                live_out_values.append((vvar, value.concrete_value, False))
+        return live_out_values
