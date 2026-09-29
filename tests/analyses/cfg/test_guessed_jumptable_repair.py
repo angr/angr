@@ -110,6 +110,14 @@ class TestGuessedJumptableRepair(unittest.TestCase):
         assert cfg.jump_tables[_BASE].resolved_targets == set(entries[:2])
         assert set(cfg.kb.indirect_jumps.resolved[_BASE]) == set(entries[:2]) | {other_target}
 
+    def test_repair_tolerates_missing_knowledge_base_targets(self):
+        cfg, entries = _overlapping_tables(guessed=False)
+        cfg.jump_tables[_BASE].jumptables[0].entries_guessed = True
+        del cfg.kb.indirect_jumps.resolved[_BASE]
+        cfg._repair_guessed_jumptables()  # pylint:disable=protected-access
+        assert cfg.jump_tables[_BASE].resolved_targets == set(entries[:2])
+        assert _BASE not in cfg.kb.indirect_jumps.resolved
+
     def test_data_reference_can_further_bound_a_guessed_table(self):
         cfg, entries = _overlapping_tables(repeated=True)
         cfg.kb.xrefs.add_xref(XRef(ins_addr=_BASE + 0x80, dst=_TABLE + 4, xref_type=XRefType.Read))
