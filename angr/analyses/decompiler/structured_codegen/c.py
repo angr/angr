@@ -149,6 +149,19 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
 
 
+def c_return_type(returnty: SimType) -> SimType:
+    """
+    Convert a return type to a C-compatible type.
+    - Arrays are converted to pointers to their element type.
+    """
+    if not isinstance(returnty, SimTypeArray):
+        return returnty
+    elem_type = returnty.elem_type
+    while isinstance(elem_type, SimTypeArray):
+        elem_type = elem_type.elem_type
+    return SimTypePointer(elem_type).with_arch(returnty._arch)
+
+
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
@@ -968,7 +981,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         # return type
         assert self.functy.returnty is not None
-        yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
+        yield c_return_type(self.functy.returnty).c_repr(name="").strip(" "), self.functy.returnty
         yield " ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
