@@ -245,5 +245,52 @@ class TestDescribe(unittest.TestCase):
         assert describe(PBinOp(frozenset({"Add", "Sub"}), (PAny(), PAny()))) == "Add|Sub"
 
 
+class TestRestoringWildcards(unittest.TestCase):
+    """A wildcard made in the editor can be turned back into what it replaced."""
+
+    def test_an_expression_wildcard_is_restored_as_a_new_edit(self):
+        ed = PatternEditor(_pattern())
+        path = ("stmts", 0, "src")
+        before = ed.node_at(path)
+        ed.set_expr_wildcard(path)
+        assert isinstance(ed.node_at(path), PAny)
+        assert ed.restorable(path) == before
+
+        assert ed.restore_node(path)
+        assert ed.node_at(path) == before
+        ed.undo()  # the restore is an edit of its own
+        assert isinstance(ed.node_at(path), PAny)
+
+    def test_a_cut_subtree_is_restorable_too(self):
+        ed = PatternEditor(_pattern())
+        path = ("stmts", 0, "src", "operands", 1)
+        ed.cut_depth(max_depth=1)
+        assert isinstance(ed.node_at(path), PAny)
+        assert ed.restore_node(path)
+        assert ed.node_at(path) == PConst(value=8)
+
+    def test_leaving_statement_wildcard_mode_brings_the_shape_back(self):
+        ed = PatternEditor(_pattern())
+        path = ("stmts", 1)
+        shape = ed.node_at(path)
+        ed.set_leaf_weight(path, 2.0)
+        ed.set_leaf_mode(path, "wildcard")
+        assert isinstance(ed.node_at(path), PAnyStmt)
+        ed.set_leaf_mode(path, "optional")
+        restored = ed.node_at(path)
+        assert isinstance(restored, PStore) and restored.addr == shape.addr
+        assert restored.optional is True and restored.weight == 2.0
+        assert PatternEditor.leaf_mode(restored) == "optional"
+
+    def test_a_wildcard_with_no_earlier_form_stays(self):
+        seq = PStmtSeq((PAssign(PVVar(name="t"), PAny(name="_s1")), PAnyStmt()))
+        ed = PatternEditor(KnownPattern(name="q", display_name="q", call_name="q", pattern=seq, params=()))
+        assert ed.restorable(("stmts", 0, "src")) is None
+        assert ed.restore_node(("stmts", 0, "src")) is False
+        with self.assertRaises(ValueError):
+            ed.set_leaf_mode(("stmts", 1), "required")
+        assert isinstance(ed.node_at(("stmts", 1)), PAnyStmt)
+
+
 if __name__ == "__main__":
     unittest.main()

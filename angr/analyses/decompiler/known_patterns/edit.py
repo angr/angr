@@ -39,6 +39,20 @@ class PatternEditor:
             node = _child(node, step)
         return node
 
+    def restorable(self, path: NodePath) -> dsl.PatternNode | None:
+        """The most recent form the wildcard at ``path`` had before it became one, from the
+        edit history, or None if it has always been a wildcard (as a generator-made one is)."""
+        for older in reversed(self._undo):
+            node: Any = older.pattern
+            try:
+                for step in path:
+                    node = _child(node, step)
+            except (AttributeError, IndexError, KeyError, TypeError):
+                continue
+            if isinstance(node, dsl.PatternNode) and not _is_wildcard(node):
+                return node
+        return None
+
     def children(self, path: NodePath) -> list[tuple[NodePath, dsl.PatternNode]]:
         """The pattern nodes directly under the node at ``path``, in field order."""
         node = self.node_at(path)
@@ -86,7 +100,8 @@ class PatternEditor:
 
     def set_leaf_mode(self, path: NodePath, mode: str) -> None:
         """``required`` or ``optional`` keep the statement's shape; ``wildcard`` drops it for a
-        PAnyStmt that keeps the weight and optionality. Undo brings the shape back."""
+        PAnyStmt that keeps the weight and optionality. Leaving ``wildcard`` brings back the
+        shape the statement had before, when the history has one."""
         leaf = self.node_at(path)
         if mode not in LEAF_MODES:
             raise ValueError(f"unknown leaf mode {mode!r}")
@@ -95,9 +110,24 @@ class PatternEditor:
                 self.replace_node(path, dsl.PAnyStmt(optional=leaf.optional, weight=leaf.weight))
             return
         if isinstance(leaf, dsl.PAnyStmt):
-            self.replace_node(path, dataclasses.replace(leaf, optional=mode == "optional"))
+            shape = self.restorable(path)
+            if shape is None:
+                raise ValueError("this statement has always been a wildcard; there is no shape to bring back")
+            self.replace_node(path, dataclasses.replace(shape, optional=mode == "optional", weight=leaf.weight))
             return
         self.replace_node(path, dataclasses.replace(leaf, optional=mode == "optional"))
+
+    def restore_node(self, path: NodePath) -> bool:
+        """Put back the form the wildcard at ``path`` had before it became one, as one undoable
+        edit; a statement keeps its current weight and optionality. Returns whether it could."""
+        node = self.node_at(path)
+        old = self.restorable(path)
+        if not _is_wildcard(node) or old is None:
+            return False
+        if isinstance(node, dsl.PAnyStmt):
+            old = dataclasses.replace(old, optional=node.optional, weight=node.weight)
+        self.replace_node(path, old)
+        return True
 
     def set_leaf_weight(self, path: NodePath, weight: float) -> None:
         self.replace_node(path, dataclasses.replace(self.node_at(path), weight=float(weight)))
@@ -426,6 +456,10 @@ def _child(node: Any, step: str | int) -> Any:
     if isinstance(step, int):
         return node[step]
     return getattr(node, step)
+
+
+def _is_wildcard(node: dsl.PatternNode) -> bool:
+    return isinstance(node, (dsl.PAny, dsl.PAnyStmt))
 
 
 def _rebuild(node: Any, path: NodePath, new_node: dsl.PatternNode) -> Any:
