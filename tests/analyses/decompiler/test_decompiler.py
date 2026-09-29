@@ -4417,6 +4417,29 @@ class TestDecompiler(unittest.TestCase):
             assert f" = {value};" in d.codegen.text
 
     @structuring_algo("sailr")
+    def test_simplifying_string_transformation_loops_with_split_loads_and_pointers(self, decompiler_options=None):
+        # angr issue #7286: three decoder loops, one loading into a vvar and storing in a separate statement, and one
+        # also walking the buffer with a pointer carried in a vvar
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "82ce4d6615793fec42a57571f6161794de24362be69a5103cf3c1192aa4b6ecb"
+        )
+        # 0x4402e0 and 0x440350 are the targets of the thunks at 0x40c710 and 0x40c720
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, 0x4290E0, extra_func_addrs=[0x4402E0, 0x440350], expand_call_tree=False, run_ccc=False
+        )
+        f = cfg.kb.functions[0x4290E0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, options=decompiler_options)
+        print_decompilation_result(d)
+
+        assert d.codegen is not None and d.codegen.text is not None
+        # all three decoder loops are gone
+        assert "while" not in d.codegen.text
+        assert d.codegen.text.count('L"%AppData%\\\\Thunderbird\\\\Profiles"') == 2
+        assert 'L"Thunderbird"' in d.codegen.text
+        # the encoded bytes are not outlined into string copies
+        assert "{'e!" not in d.codegen.text
+
+    @structuring_algo("sailr")
     def test_win_security_cookie_removal_with_interleaved_ip_writes(self, decompiler_options=None):
         # The /GS security-cookie init idiom (load __security_cookie; xor with frame; store to stack) can be
         # interleaved with program-counter (rip) register writes. WinStackCanarySimplifier must skip those
