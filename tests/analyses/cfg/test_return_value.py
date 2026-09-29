@@ -145,16 +145,24 @@ class TestReturnValue(unittest.TestCase):
         assert get_x86_return_range(project, function, cfg.kb) is None
 
     def test_cfgfast_recovers_exact_edges(self):
-        with patch(_SUMMARY, return_value=None):
-            _, baseline, _ = _dispatch()
-        assert _BASE + 6 not in baseline.jump_tables
-        _, cfg, targets = _dispatch()
-        jump = cfg.jump_tables[_BASE + 6]
-        assert jump.jumptable_entries == targets
-        assert not jump.jumptable_entries_guessed
-        node = cfg.model.get_any_node(_BASE + 6)
-        assert node is not None
-        assert {successor.addr for successor in cfg.graph.successors(node)} == set(targets)
+        # GCC/Clang -m32 -O2 for: _Bool predicate(int value) { return value > 7; }
+        cases = {
+            "stack_test": _BOOLEAN,
+            "gcc_comparison": bytes.fromhex("837c2404070f9fc0c3"),
+            "clang_comparison": bytes.fromhex("837c2404080f9dc0c3"),
+        }
+        for name, leaf in cases.items():
+            with self.subTest(name=name):
+                with patch(_SUMMARY, return_value=None):
+                    _, baseline, _ = _dispatch(leaf=leaf)
+                assert _BASE + 6 not in baseline.jump_tables
+                _, cfg, targets = _dispatch(leaf=leaf)
+                jump = cfg.jump_tables[_BASE + 6]
+                assert jump.jumptable_entries == targets
+                assert not jump.jumptable_entries_guessed
+                node = cfg.model.get_any_node(_BASE + 6)
+                assert node is not None
+                assert {successor.addr for successor in cfg.graph.successors(node)} == set(targets)
 
     def test_existing_success_does_not_run_summary(self):
         with patch(_SUMMARY, side_effect=AssertionError("Summary must remain a fallback")):

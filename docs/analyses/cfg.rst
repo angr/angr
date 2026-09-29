@@ -202,14 +202,14 @@ post-call dispatches such as ``movzx eax, al; jmp [table + eax*4]`` without trus
 a declared Boolean return type.
 
 The fallback requires a unique direct-call fallthrough and a small, closed,
-acyclic leaf graph. It checks every lifted successor and normal return, rejects
-calls, stores, special effects, non-stack loads and callee-saved register writes,
-and requires an unchanged stack pointer before an ordinary return. Only AL is
-narrowed; the upper bits of EAX remain unknown. Unsupported or incomplete callees
-supply no return summary, and existing successful resolutions are left unchanged.
-The fallback is disabled
-while the caller graph is incomplete or when a custom base state is supplied;
-it does not summarize state-specific modifications to code.
+acyclic leaf graph with at most eight blocks, 256 bytes per block and 256 total
+VEX statements. It checks every lifted successor and normal return, rejects calls,
+stores, special effects, non-stack loads and callee-saved register writes, and
+requires an unchanged stack pointer before an ordinary return. Only AL is narrowed;
+the upper bits of EAX remain unknown. Unsupported or incomplete callees supply no
+return summary, and existing successful resolutions are left unchanged.
+The fallback is disabled while the caller graph is incomplete or when a custom
+base state is supplied; it does not summarize state-specific modifications to code.
 
 .. todo:: Document the remaining indirect-jump resolution strategies.
 
