@@ -457,11 +457,11 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         self.variables_in_use = variables_in_use
         self.variable_manager: VariableManagerInternal = variable_manager
         self.demangled_name = demangled_name
-        self.unified_local_vars: dict[SimVariable, set[tuple[RustVariable, SimType]]] = self.get_unified_local_vars()
+        self.unified_local_vars: dict[SimVariable, list[tuple[RustVariable, SimType]]] = self.get_unified_local_vars()
         self.show_demangled_name = show_demangled_name
 
-    def get_unified_local_vars(self) -> dict[SimVariable, set[tuple[RustVariable, SimType]]]:
-        unified_to_var_and_types: dict[SimVariable, set[tuple[RustVariable, SimType]]] = defaultdict(set)
+    def get_unified_local_vars(self) -> dict[SimVariable, list[tuple[RustVariable, SimType]]]:
+        unified_to_var_and_types: dict[SimVariable, list[tuple[RustVariable, SimType]]] = defaultdict(list)
 
         arg_set: set[SimVariable] = set()
         for arg in self.arg_list:
@@ -493,7 +493,9 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
                 # This should be good
                 var_type = RustSimTypeInt(self.codegen.project.arch.bits)
 
-            unified_to_var_and_types[key].add((cvar, var_type))
+            entry = (cvar, var_type)
+            if entry not in unified_to_var_and_types[key]:  # keeps the set's de-duplication
+                unified_to_var_and_types[key].append(entry)
 
         return unified_to_var_and_types
 

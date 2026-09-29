@@ -10,6 +10,7 @@ import re
 import unittest
 
 import angr
+from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeGenerator
 from angr.utils.loader import is_in_readonly_section, is_in_readonly_segment
 from tests.common import bin_location
 
@@ -165,6 +166,56 @@ class TestVariableNondeterminism(unittest.TestCase):
             counts.append(len(varman.get_variables("stack")))
 
         assert counts[0] == counts[1] == counts[2], f"stack variables accumulate across decompilations: {counts}"
+
+    def test_local_variable_types_are_not_collected_in_a_hash_ordered_set(self):
+        # Regression: a local's declared type must not depend on where objects landed in memory.
+
+        binary_path = os.path.join(bin_location, "tests", "x86_64", "windows", "cancel.sys")
+        project = angr.Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        project.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+
+        checked = 0
+        for addr in (0x14000B610, 0x14000173C):
+            dec = project.analyses.Decompiler(project.kb.functions[addr], cfg=cfg.model)
+            assert isinstance(dec.codegen, CStructuredCodeGenerator)
+            cfunc = dec.codegen.cfunc
+            assert cfunc is not None
+            # the order the function's own body was rendered in
+            body_order = {id(cvar): i for i, cvar in enumerate(cfunc.variables_in_use.values())}
+            for unified, entries in cfunc.unified_local_vars.items():
+                assert isinstance(entries, list), (
+                    f"{addr:#x}: {unified} holds a {type(entries).__name__}; an unordered container hands the "
+                    f"declared type to the memory allocator"
+                )
+                positions = [body_order[id(cvar)] for cvar, _ty in entries]
+                assert positions == sorted(positions), (
+                    f"{addr:#x}: {unified}'s candidate types are not in variables_in_use order: {positions}"
+                )
+                checked += len(entries)
+        assert checked > 0, "no local variable candidate types were checked"
+
+        # and end to end: re-decompiling must not move the declarations. Every re-decompilation
+        # allocates new CVariable and SimType objects, so a set of them iterates differently and
+        # the base build prints both spellings within one process.
+        for addr in (0x14000B610, 0x14000173C):
+            output = []
+            for i in range(8):
+                dec = project.analyses.Decompiler(
+                    project.kb.functions[addr], cfg=cfg.model, use_cache=False, update_cache=False
+                )
+                assert dec.codegen is not None and dec.codegen.text is not None
+                output.append(dec.codegen.text)
+                if output[0] != output[i]:
+                    diff = "".join(
+                        difflib.unified_diff(
+                            output[0].splitlines(keepends=True),
+                            output[i].splitlines(keepends=True),
+                            fromfile="output[0]",
+                            tofile=f"output[{i}]",
+                        )
+                    )
+                    assert False, f"re-decompiling {addr:#x} differs at iteration {i}:\n{diff}"
 
 
 if __name__ == "__main__":

@@ -685,7 +685,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.variables_in_use = variables_in_use
         self.variable_manager: VariableManagerInternal = variable_manager
         self.demangled_name = demangled_name
-        self.unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]] = {}
+        self.unified_local_vars: dict[SimVariable, list[tuple[CVariable, SimType]]] = {}
         self.show_demangled_name = show_demangled_name
         self.omit_header = omit_header
 
@@ -694,8 +694,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     def refresh(self):
         self.unified_local_vars = self.get_unified_local_vars()
 
-    def get_unified_local_vars(self) -> dict[SimVariable, set[tuple[CVariable, SimType]]]:
-        unified_to_var_and_types: dict[SimVariable, set[tuple[CVariable, SimType]]] = defaultdict(set)
+    def get_unified_local_vars(self) -> dict[SimVariable, list[tuple[CVariable, SimType]]]:
+        unified_to_var_and_types: dict[SimVariable, list[tuple[CVariable, SimType]]] = defaultdict(list)
 
         arg_set: set[SimVariable] = set()
         for arg in self.arg_list:
@@ -726,7 +726,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             if var_type is None:
                 var_type = SimTypeBottom().with_arch(self.codegen.project.arch)
 
-            unified_to_var_and_types[key].add((cvar, var_type))
+            entry = (cvar, var_type)
+            if entry not in unified_to_var_and_types[key]:  # keeps the set's de-duplication
+                unified_to_var_and_types[key].append(entry)
 
         return unified_to_var_and_types
 
