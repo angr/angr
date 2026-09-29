@@ -655,3 +655,35 @@ def test_strcpy_late_keeps_updates_whose_values_are_used():
     # removing the updates at -104 would leave the variable passed to consume() undefined
     assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hell", 4)]
     assert sum(isinstance(stmt, Assignment) and isinstance(stmt.src, Insert) for stmt in statements) == 4
+
+
+def test_strcpy_late_folds_constant_stack_assignments():
+    builder = _WcscpyBlockBuilder()
+    vvars = builder.write_bytes(-108, b"hello, world")
+    simplifier, statements = builder.run(InlinedStrcpySimplifierLate)
+
+    assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hello, world", 12)]
+    (stmt,) = statements
+    assert stmt.expr.args[0].operand.varid == vvars[0].varid
+
+
+def test_strcpy_late_rejects_insert_into_a_different_variable():
+    # the base covers a different range than the destination, so the other bytes of the destination change too
+    builder = _WcscpyBlockBuilder()
+    builder.insert_bytes(-108, b"hell")
+    base = builder.vvar(-104, bits=64)
+    for i, byte in enumerate(b"o, w"):
+        dst = builder.vvar(-104, bits=32)
+        update = Insert(
+            builder.manager.next_atom(),
+            base,
+            Const(builder.manager.next_atom(), i, 64),
+            Const(builder.manager.next_atom(), byte, 8),
+            "Iend_LE",
+        )
+        builder.statements.append(Assignment(builder.manager.next_atom(), dst, update))
+        base = dst
+    simplifier, statements = builder.run(InlinedStrcpySimplifierLate)
+
+    assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hell", 4)]
+    assert len(statements) == 5

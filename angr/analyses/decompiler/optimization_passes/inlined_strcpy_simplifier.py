@@ -93,15 +93,9 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                 inlined_strcpy_candidate = True
                 src = stmt.src
                 strcpy_dst = self._stack_vvar_ref(stmt.dst, stmt.dst.stack_offset)
-            elif (
-                isinstance(stmt.src, Insert)
-                and isinstance(stmt.src.base, (Const, VirtualVariable))
-                and (not isinstance(stmt.src.base, Const) or stmt.src.base.is_int)
-                and isinstance(stmt.src.value, Const)
-                and stmt.src.value.is_int
-                and isinstance(stmt.src.offset, Const)
-                and stmt.src.offset.is_int
-            ):
+            elif self._is_partial_stack_update(stmt):
+                assert isinstance(stmt.src, Insert) and isinstance(stmt.src.value, Const)
+                assert isinstance(stmt.src.offset, Const)
                 inlined_strcpy_candidate = True
                 src = stmt.src.value
                 strcpy_dst = self._stack_vvar_ref(stmt.dst, stmt.dst.stack_offset + stmt.src.offset.value_int)
@@ -329,22 +323,11 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                 offset = stmt.dst.stack_offset
                 size = stmt.dst.size
                 value = None
-                if (
-                    isinstance(stmt.src, Insert)
-                    and (
-                        isinstance(stmt.src.base, Const)
-                        or (
-                            isinstance(stmt.src.base, VirtualVariable)
-                            and stmt.src.base.was_stack
-                            and stmt.src.base.stack_offset == stmt.dst.stack_offset
-                        )
-                    )
-                    and (not isinstance(stmt.src.base, Const) or stmt.src.base.is_int)
-                    and isinstance(stmt.src.offset, Const)
-                    and stmt.src.offset.is_int
-                    and isinstance(stmt.src.value, Const)
-                    and stmt.src.value.is_int
-                ):
+                if isinstance(stmt.src, Const) and stmt.src.is_int:
+                    value = ail_const_to_be(stmt.src, self.project.arch.memory_endness)
+                elif self._is_partial_stack_update(stmt):
+                    assert isinstance(stmt.src, Insert) and isinstance(stmt.src.value, Const)
+                    assert isinstance(stmt.src.offset, Const)
                     offset += stmt.src.offset.value_int
                     size = stmt.src.value.size
                     value = ail_const_to_be(stmt.src.value, self.project.arch.memory_endness)

@@ -10,6 +10,7 @@ from angr.ailment.expression import (
     Const,
     DirtyExpression,
     Expression,
+    Insert,
     Load,
     MultiStatementExpression,
     Register,
@@ -120,6 +121,34 @@ class InlinedStringCopySimplifierBase(OptimizationPass):
                         worklist.append(src_varid)
             self._vvar_value_uses = dict(counts)
         return self._vvar_value_uses
+
+    def _is_partial_stack_update(self, stmt: Assignment) -> bool:
+        """
+        Whether the statement only writes a constant into part of a stack variable and leaves the other bytes alone.
+        """
+        src = stmt.src
+        dst = stmt.dst
+        return (
+            isinstance(src, Insert)
+            and isinstance(dst, VirtualVariable)
+            and dst.was_stack
+            and src.endness == self.project.arch.memory_endness
+            and isinstance(src.offset, Const)
+            and src.offset.is_int
+            and isinstance(src.value, Const)
+            and src.value.is_int
+            and src.offset.value_int >= 0
+            and src.offset.value_int + src.value.size <= dst.size
+            and (
+                (
+                    isinstance(src.base, VirtualVariable)
+                    and src.base.was_stack
+                    and src.base.stack_offset == dst.stack_offset
+                    and src.base.size == dst.size
+                )
+                or (isinstance(src.base, Const) and src.base.tags.get("uninitialized", False))
+            )
+        )
 
     @staticmethod
     def _is_unrelated_stmt(stmt) -> bool:
