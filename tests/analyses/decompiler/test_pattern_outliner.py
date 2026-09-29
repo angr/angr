@@ -12,13 +12,15 @@ import unittest
 
 import angr
 from angr.analyses.decompiler.known_patterns import PAny, PCallStmt, PConst, PLoad, PReturn
+from angr.analyses.decompiler.known_patterns.edit import PatternEditor
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
 from angr.analyses.decompiler.known_patterns.serialize import dumps, loads
 from angr.analyses.decompiler.optimization_passes import PatternOutliner
+from angr.analyses.patterns.align import AlignParams
 from angr.analyses.patterns.dedup import graph_problems
 from angr.analyses.patterns.search import tokenize_for_templates
 from angr.knowledge_plugins.patterns import StoredPattern
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 BIN_PATH = os.path.join(bin_location, "tests")
 BINARY = os.path.join(BIN_PATH, "x86_64", "1after909")
@@ -214,6 +216,86 @@ class TestErrorExitPatternSerialization(unittest.TestCase):
         stats = proj.kb.patterns.stats(func.addr, self.pattern.name)
         assert stats is not None and stats.outlined == 8
         assert graph_problems(dec.ail_graph, func.addr) == []
+
+
+# discovery settings small enough to find the idioms of one large function
+_DISCOVERY = AlignParams(min_size=4, min_score=12.0, min_anchors=1, k=4, min_identity=0.6)
+
+
+def _scoped(rel_path: str, func_addr: int, include_plt: bool):
+    proj, cfg = load_project_with_scoped_cfg(
+        os.path.join(BIN_PATH, rel_path),
+        func_addr,
+        project_kwargs={"auto_load_libs": False},
+        include_plt=include_plt,
+    )
+    return proj, cfg, cfg.functions[func_addr]
+
+
+class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
+    """A family discovered in a large function, outlined there, written out, read back, and
+    applied to the same function in a fresh project of the same binary."""
+
+    def _discover_outline_and_reuse(self, rel_path: str, func_addr: int, include_plt: bool, min_size: int):
+        proj, cfg, func = _scoped(rel_path, func_addr, include_plt)
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.ail_graph is not None
+
+        # the longest family with more than one copy the outliner could take
+        finder = proj.analyses.FuzzyPatternFinder(func, dec.ail_graph, params=_DISCOVERY, disjoint=False)
+        families = [p for p in finder.all_patterns if len(p.outlinable_occurrences) > 1]
+        assert families, "the function has a family with two outlinable copies"
+        family = max(families, key=lambda p: (p.size, len(p.outlinable_occurrences)))
+        assert family.size >= min_size, family.size
+
+        # lifted from its first outlinable copy, loosened as the Discover tab does
+        stream = finder.stream
+        blocks = {(b.addr, b.idx): b for b in stream.blocks}
+        first = min(family.outlinable_occurrences, key=lambda o: o.interval.start).interval
+        stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs[first.start : first.end]]
+        editor = PatternEditor(
+            PatternGenerator(dec.codegen, dec.ail_graph).generate_pattern_from_statements(stmts, "idiom")
+        )
+        editor.loosen_constants()
+        editor.cut_depth()
+        pattern = editor.pattern
+
+        # outlined in this project, and never by dropping a value the region defines for later: the
+        # Outliner can return one value, and says so when a region has more
+        proj.kb.patterns.add(pattern)
+        with self.assertNoLogs("angr.analyses.outliner.outliner", level="ERROR"):
+            dec2 = proj.analyses.Decompiler(func, cfg=cfg.model, use_cache=False, update_cache=False)
+        assert dec2.codegen is not None and dec2.ail_graph is not None
+        stats = proj.kb.patterns.stats(func.addr, pattern.name)
+        assert stats is not None and stats.outlined >= 2, stats
+        calls = dec2.codegen.text.count("idiom(")
+        assert calls >= 2
+        assert graph_problems(dec2.ail_graph, func.addr) == []
+
+        # through a file
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "idiom.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(proj.kb.patterns.get(pattern.name).to_dict(), f)
+            with open(path, encoding="utf-8") as f:
+                loaded = StoredPattern.from_dict(json.load(f))
+        assert loaded.pattern == pattern
+
+        # the same function in a fresh project outlines the same copies
+        proj3, cfg3, func3 = _scoped(rel_path, func_addr, include_plt)
+        proj3.kb.patterns.store(loaded)
+        with self.assertNoLogs("angr.analyses.outliner.outliner", level="ERROR"):
+            dec3 = proj3.analyses.Decompiler(func3, cfg=cfg3.model)
+        assert dec3.codegen is not None and dec3.ail_graph is not None
+        stats3 = proj3.kb.patterns.stats(func3.addr, pattern.name)
+        assert stats3 is not None and stats3.outlined == stats.outlined
+        assert sorted(stats3.call_addrs) == sorted(stats.call_addrs)
+        assert dec3.codegen.text.count("idiom(") == calls
+        assert graph_problems(dec3.ail_graph, func3.addr) == []
+
+    def test_print_stats_nicely_in_acct_sa(self):
+        # acct's sa report printer: a 17-statement family, three copies
+        self._discover_outline_and_reuse("x86_64/ALLSTAR_acct_sa", 0x401930, include_plt=True, min_size=12)
 
 
 if __name__ == "__main__":
