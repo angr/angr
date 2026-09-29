@@ -16,18 +16,18 @@ from angr.ailment.expression import (
     VirtualVariable,
 )
 from angr.ailment.statement import Assignment, SideEffectStatement, Store
-from angr.ailment.tagged_object import TagDict
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.procedures import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
 
-from .optimization_pass import OptimizationPass, OptimizationPassStage
+from .inlined_string_utils import InlinedStringCopySimplifierBase
+from .optimization_pass import OptimizationPassStage
 
 ASCII_PRINTABLES = set(string.printable)
 ASCII_DIGITS = set(string.digits)
 
 
-class InlinedStrcpySimplifier(OptimizationPass):
+class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
     """
     Simplifies inlined string copying logic into calls to strcpy/strncpy, and consolidates multiple consecutive
     inlined strcpy calls.
@@ -92,21 +92,13 @@ class InlinedStrcpySimplifier(OptimizationPass):
             if isinstance(stmt.src, Const) and isinstance(stmt.src.value, int):
                 inlined_strcpy_candidate = True
                 src = stmt.src
-                strcpy_dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
-            elif (
-                isinstance(stmt.src, Insert)
-                and isinstance(stmt.src.base, (Const, VirtualVariable))
-                and (not isinstance(stmt.src.base, Const) or stmt.src.base.is_int)
-                and isinstance(stmt.src.value, Const)
-                and stmt.src.value.is_int
-                and isinstance(stmt.src.offset, Const)
-                and stmt.src.offset.is_int
-            ):
+                strcpy_dst = self._stack_vvar_ref(stmt.dst, stmt.dst.stack_offset)
+            elif self._is_partial_stack_update(stmt):
+                assert isinstance(stmt.src, Insert) and isinstance(stmt.src.value, Const)
+                assert isinstance(stmt.src.offset, Const)
                 inlined_strcpy_candidate = True
                 src = stmt.src.value
-                strcpy_dst = StackBaseOffset(
-                    self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset + stmt.src.offset.value_int
-                )
+                strcpy_dst = self._stack_vvar_ref(stmt.dst, stmt.dst.stack_offset + stmt.src.offset.value_int)
         elif (
             isinstance(stmt, Store)
             and isinstance(stmt.addr, UnaryOp)
@@ -130,94 +122,62 @@ class InlinedStrcpySimplifier(OptimizationPass):
             assert isinstance(src.value, int)
 
             r, s = self.is_integer_likely_a_string(src.value, src.size, self.project.arch.memory_endness)
-            if r:
+            if r and self._stmts_removable(statements, [stmt_idx]):
                 assert s is not None
-                str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-                variable_map_of(self.manager).set_custom_string(str_const)
-                call = Call(
-                    self.manager.next_atom(),
-                    "strncpy",
-                    args=[
-                        strcpy_dst,
-                        str_const,
-                        Const(self.manager.next_atom(), len(s), self.project.arch.bits),
-                    ],
-                    bits=None,
-                    **stmt.tags,
-                )
-                variable_map_of(self.manager).set_prototype(
-                    call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
-                )
-                return SideEffectStatement(
-                    self.manager.next_atom(),
-                    call,
-                    ret_expr=None,
-                    fp_ret_expr=None,
-                    **stmt.tags,
-                )
+                tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
+                call = self._make_copy_call(strcpy_dst, s, tags)
+                return SideEffectStatement(self.manager.next_atom(), call, ret_expr=None, fp_ret_expr=None, **tags)
 
             # scan forward to find all consecutive constant stores
             all_constant_stores = self._collect_constant_stores(statements, stmt_idx)
-            if all_constant_stores:
-                offsets = sorted(all_constant_stores.keys())
-                next_offset = min(offsets)
-                stride = []
-                for offset in offsets:
-                    if next_offset is not None and offset != next_offset:
-                        next_offset = None
-                        stride = []
-                    sidx, v = all_constant_stores[offset]
-                    if v is not None:
-                        stride.append((offset, sidx, v))
-                        next_offset = offset + v.size
-                    else:
-                        next_offset = None
-                        stride = []
-
-                if not stride:
-                    return None
-                min_stride_stmt_idx = min(sidx for _, sidx, _ in stride)
-                if min_stride_stmt_idx > stmt_idx:
-                    return None
-
-                integer, size = self._stride_to_int(stride)
-                prev_stmt = None if stmt_idx == 0 else statements[stmt_idx - 1]
-                min_str_length = 1 if prev_stmt is not None and self.is_inlined_strcpy(prev_stmt) else 4
-                r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_str_length)
-                if r:
-                    assert s is not None
-                    # remove all involved statements whose indices are greater than the current one
-                    for _, sidx, _ in reversed(stride):
-                        if sidx <= stmt_idx:
-                            continue
+            prev_stmt = None if stmt_idx == 0 else statements[stmt_idx - 1]
+            # a short string may extend an unterminated string before it
+            prev_copied = self._copied_bytes(prev_stmt) if self.is_inlined_strcpy(prev_stmt) else None
+            min_str_length = 1 if prev_copied is not None and b"\x00" not in prev_copied else 4
+            found = self._find_string_stride(statements, stmt_idx, all_constant_stores, min_str_length)
+            if found is not None:
+                stride, s = found
+                # copy into the stack variable at the lowest address of the stride
+                first_offset, first_sidx, _ = min(stride, key=lambda x: x[0])
+                first_stmt = statements[first_sidx]
+                strcpy_dst = (
+                    self._stack_vvar_ref(first_stmt.dst, first_offset)
+                    if isinstance(first_stmt, Assignment)
+                    else first_stmt.addr
+                )
+                tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
+                for _, sidx, _ in stride:
+                    if sidx != stmt_idx:
                         statements[sidx] = None
 
-                    str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                    str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-                    variable_map_of(self.manager).set_custom_string(str_const)
-                    call = Call(
-                        self.manager.next_atom(),
-                        "strncpy",
-                        args=[
-                            strcpy_dst,
-                            str_const,
-                            Const(self.manager.next_atom(), len(s), self.project.arch.bits),
-                        ],
-                        bits=None,
-                        **stmt.tags,
-                    )
-                    variable_map_of(self.manager).set_prototype(
-                        call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
-                    )
-                    return SideEffectStatement(
-                        self.manager.next_atom(),
-                        call,
-                        ret_expr=None,
-                        fp_ret_expr=None,
-                        **stmt.tags,
-                    )
+                call = self._make_copy_call(strcpy_dst, s, tags)
+                return SideEffectStatement(self.manager.next_atom(), call, ret_expr=None, fp_ret_expr=None, **tags)
 
+        return None
+
+    def _find_string_stride(self, statements, stmt_idx, all_constant_stores, min_length):
+        """
+        Find the longest valid string made of contiguous constant writes that include the write at stmt_idx.
+        """
+        pieces = sorted((off, sidx, v) for off, (sidx, v) in all_constant_stores.items() if v is not None)
+        start = next((i for i, (_, sidx, _) in enumerate(pieces) if sidx == stmt_idx), None)
+        if start is None:
+            return None
+        lo = start
+        while lo > 0 and pieces[lo - 1][0] + pieces[lo - 1][2].size == pieces[lo][0]:
+            lo -= 1
+        hi = start
+        while hi + 1 < len(pieces) and pieces[hi][0] + pieces[hi][2].size == pieces[hi + 1][0]:
+            hi += 1
+
+        # the write at stmt_idx is replaced, so it must be part of the stride
+        for end in range(hi, start - 1, -1):
+            stride = pieces[lo : end + 1]
+            integer, size = self._stride_to_int(stride)
+            r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_length)
+            if r and self._stmts_removable(statements, [sidx for _, sidx, _ in stride]):
+                assert s is not None
+                return stride, s
         return None
 
     def _consolidate_strcpy_calls(self, statements):
@@ -244,78 +204,80 @@ class InlinedStrcpySimplifier(OptimizationPass):
         if not self.is_inlined_strcpy(last_stmt):
             return None
 
-        s_last = self.kb.custom_strings[last_stmt.expr.args[1].value]
+        s_last = self._copied_bytes(last_stmt)
+        # nothing is appended after a terminator
+        if s_last is None or b"\x00" in s_last:
+            return None
         addr_last = last_stmt.expr.args[0]
         new_str = None
 
-        if isinstance(stmt, SideEffectStatement) and self.is_inlined_strcpy(stmt):
-            assert stmt.expr.args is not None and isinstance(stmt.expr.args[1], Const)
-            s_curr = self.kb.custom_strings[stmt.expr.args[1].value_int]
-            addr_curr = stmt.expr.args[0]
-            delta = self._get_delta(addr_last, addr_curr)
-            if delta is not None and delta == len(s_last):
+        if self.is_inlined_strcpy(stmt):
+            s_curr = self._copied_bytes(stmt)
+            delta = self._get_delta(addr_last, stmt.expr.args[0])
+            if s_curr is not None and delta is not None and delta == len(s_last):
                 new_str = s_last + s_curr
         elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and stmt.data.is_int:
-            addr_curr = stmt.addr
-            delta = self._get_delta(addr_last, addr_curr)
+            delta = self._get_delta(addr_last, stmt.addr)
             if delta is not None and delta == len(s_last):
-                if stmt.size == 1 and stmt.data.value == 0:
-                    r, s = True, "\x00"
+                if stmt.data.value_int == 0:
+                    r, s = True, b"\x00" * stmt.size
                 else:
                     r, s = self.is_integer_likely_a_string(stmt.data.value, stmt.size, stmt.endness, min_length=1)
                 if r:
                     assert s is not None
-                    new_str = s_last + s.encode("ascii")
+                    new_str = s_last + s
 
         if new_str is not None:
-            if new_str.endswith(b"\x00"):
-                call_name = "strcpy"
-                new_str_idx = self.kb.custom_strings.allocate(new_str[:-1])
-                str_const = Const(self.manager.next_atom(), new_str_idx, last_stmt.expr.args[0].bits)
-                variable_map_of(self.manager).set_custom_string(str_const)
-                args = [
-                    last_stmt.expr.args[0],
-                    str_const,
-                ]
-                prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strcpy")
-            else:
-                call_name = "strncpy"
-                new_str_idx = self.kb.custom_strings.allocate(new_str)
-                str_const = Const(self.manager.next_atom(), new_str_idx, last_stmt.expr.args[0].bits)
-                variable_map_of(self.manager).set_custom_string(str_const)
-                args = [
-                    last_stmt.expr.args[0],
-                    str_const,
-                    Const(self.manager.next_atom(), len(new_str), self.project.arch.bits),
-                ]
-                prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
-
-            tags = TagDict(stmt.tags)
-            if args[0].tags.get("extra_def", False):
-                assert isinstance(args[0], UnaryOp)
-                assert args[0].op == "Reference"
-                assert isinstance(args[0].operand, VirtualVariable)
-                tags["extra_defs"] = [args[0].operand.varid]
-            else:
-                tags.pop("extra_defs", None)
-
-            call = Call(self.manager.next_atom(), call_name, args=args, **tags)
-            variable_map_of(self.manager).set_prototype(call, prototype)
-            return [
-                SideEffectStatement(
-                    self.manager.next_atom(),
-                    call,
-                    **tags,
-                )
-            ]
+            tags = self._tags_with_extra_defs(stmt.tags, addr_last)
+            call = self._make_copy_call(addr_last, new_str, tags)
+            return [SideEffectStatement(self.manager.next_atom(), call, **tags)]
 
         return None
 
+    @staticmethod
+    def _string_text(data: bytes) -> bytes:
+        """
+        The displayed string of copied bytes, without the terminator and padding.
+        """
+        return data.split(b"\x00", 1)[0]
+
+    def _copied_bytes(self, stmt) -> bytes | None:
+        """
+        All bytes written by an inlined strcpy or strncpy call, including the terminator and padding.
+        """
+        assert isinstance(stmt, SideEffectStatement) and stmt.expr.args is not None
+        str_const = stmt.expr.args[1]
+        assert isinstance(str_const, Const)
+        text = self.kb.custom_strings[str_const.value_int]
+        if len(stmt.expr.args) == 2:
+            return text + b"\x00"
+        count = stmt.expr.args[2]
+        if not isinstance(count, Const) or not count.is_int or count.value_int < len(text):
+            return None
+        return text + b"\x00" * (count.value_int - len(text))
+
+    def _make_copy_call(self, dst, data: bytes, tags) -> Call:
+        text = self._string_text(data)
+        str_const = Const(self.manager.next_atom(), self.kb.custom_strings.allocate(text), self.project.arch.bits)
+        variable_map_of(self.manager).set_custom_string(str_const)
+        if len(data) == len(text) + 1:
+            # exactly one terminator
+            name, args = "strcpy", [dst, str_const]
+        else:
+            # strncpy pads the rest of the destination with zeros
+            name, args = "strncpy", [dst, str_const, Const(self.manager.next_atom(), len(data), self.project.arch.bits)]
+        call = Call(self.manager.next_atom(), name, args=args, bits=None, **tags)
+        variable_map_of(self.manager).set_prototype(
+            call, SIM_LIBRARIES["libc.so"][0].get_prototype(name, arch=self.project.arch)
+        )
+        return call
+
     def _collect_constant_stores(self, statements, starting_stmt_idx):
+        # stop at the first statement that may read or clobber the buffer because writes after cannot be hoisted
         r = {}
-        for idx, stmt in enumerate(statements):
-            if idx < starting_stmt_idx:
-                continue
+        covered = set()
+        for idx in range(starting_stmt_idx, len(statements)):
+            stmt = statements[idx]
             if stmt is None:
                 continue
             if (
@@ -324,35 +286,37 @@ class InlinedStrcpySimplifier(OptimizationPass):
                 and stmt.dst.was_stack
                 and isinstance(stmt.dst.stack_offset, int)
             ):
+                offset = stmt.dst.stack_offset
+                size = stmt.dst.size
+                value = None
                 if isinstance(stmt.src, Const) and stmt.src.is_int:
-                    r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, self.project.arch.memory_endness)
-                if (
-                    isinstance(stmt.src, Insert)
-                    and (
-                        isinstance(stmt.src.base, Const)
-                        or (
-                            isinstance(stmt.src.base, VirtualVariable)
-                            and stmt.src.base.was_stack
-                            and stmt.src.base.stack_offset == stmt.dst.stack_offset
-                        )
-                    )
-                    and (not isinstance(stmt.src.base, Const) or stmt.src.base.is_int)
-                    and isinstance(stmt.src.offset, Const)
-                    and stmt.src.offset.is_int
-                    and isinstance(stmt.src.value, Const)
-                    and stmt.src.value.is_int
-                ):
-                    r[stmt.dst.stack_offset + stmt.src.offset.value_int] = (
-                        idx,
-                        ail_const_to_be(stmt.src.value, self.project.arch.memory_endness),
-                    )
-                else:
-                    r[stmt.dst.stack_offset] = idx, None
+                    value = ail_const_to_be(stmt.src, self.project.arch.memory_endness)
+                elif self._is_partial_stack_update(stmt):
+                    assert isinstance(stmt.src, Insert) and isinstance(stmt.src.value, Const)
+                    assert isinstance(stmt.src.offset, Const)
+                    offset += stmt.src.offset.value_int
+                    size = stmt.src.value.size
+                    value = ail_const_to_be(stmt.src.value, self.project.arch.memory_endness)
             elif isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
-                if isinstance(stmt.data, Const) and stmt.data.is_int:
-                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, self.project.arch.memory_endness)
-                else:
-                    r[stmt.addr.offset] = idx, None
+                offset = stmt.addr.offset
+                size = stmt.size
+                value = (
+                    ail_const_to_be(stmt.data, self.project.arch.memory_endness)
+                    if isinstance(stmt.data, Const) and stmt.data.is_int
+                    else None
+                )
+            elif self._is_unrelated_stmt(stmt):
+                continue
+            else:
+                break
+
+            written = range(offset, offset + size)
+            if any(o in covered for o in written):
+                break
+            r[offset] = idx, value
+            if value is None:
+                break
+            covered.update(written)
         return r
 
     @staticmethod
@@ -369,44 +333,37 @@ class InlinedStrcpySimplifier(OptimizationPass):
 
     @staticmethod
     def is_integer_likely_a_string(v, size, endness, min_length=4):
-        chars = []
-        if endness == Endness.LE:
-            while v != 0:
-                byt = v & 0xFF
-                if chr(byt) not in ASCII_PRINTABLES:
-                    return False, None
-                chars.append(chr(byt))
-                v >>= 8
-        elif endness == Endness.BE:
-            first_non_zero = False
-            for _ in range(size):
-                byt = v & 0xFF
-                v >>= 8
-                if byt == 0:
-                    if first_non_zero:
-                        return False, None
-                    continue
-                first_non_zero = True
-                if chr(byt) not in ASCII_PRINTABLES:
-                    return False, None
-                chars.append(chr(byt))
-            chars.reverse()
-        else:
+        """
+        Check if an integer of `size` bytes stored with `endness` holds a string, optionally followed by zero bytes.
+        On success, return all `size` bytes in memory order, including the terminator and padding.
+        """
+        if not isinstance(v, int) or not isinstance(size, int):
             return False, None
 
-        if len(chars) >= min_length:
-            if len(chars) <= 4 and all(ch in ASCII_DIGITS for ch in chars):
+        data = [(v >> (8 * i)) & 0xFF for i in range(size)]
+        if endness == Endness.BE:
+            data.reverse()
+        elif endness != Endness.LE:
+            return False, None
+        text = InlinedStrcpySimplifier._string_text(bytes(data))
+        if any(data[len(text) :]) or any(chr(ch) not in ASCII_PRINTABLES for ch in text):
+            return False, None
+
+        if len(text) >= min_length:
+            if len(text) <= 4 and all(chr(ch) in ASCII_DIGITS for ch in text):
                 return False, None
-            return True, "".join(chars)
+            return True, bytes(data)
         return False, None
 
     def is_inlined_strcpy(self, stmt):
         return (
             isinstance(stmt, SideEffectStatement)
             and isinstance(stmt.expr.target, str)
-            and stmt.expr.target == "strncpy"
             and stmt.expr.args is not None
-            and len(stmt.expr.args) == 3
+            and (
+                (stmt.expr.target == "strncpy" and len(stmt.expr.args) == 3)
+                or (stmt.expr.target == "strcpy" and len(stmt.expr.args) == 2)
+            )
             and isinstance(stmt.expr.args[1], Const)
             and variable_map_of(self.manager).custom_string(stmt.expr.args[1])
         )
