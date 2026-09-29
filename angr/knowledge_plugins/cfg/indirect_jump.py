@@ -50,6 +50,9 @@ class JumptableInfo:
 class IndirectJump(Serializable):
     """
     Describes an indirect jump or call site.
+
+    ``resolved_targets`` is a set of distinct destination addresses. Jump-table entries separately preserve
+    slot order and duplicate destinations.
     """
 
     __slots__ = (

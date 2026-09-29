@@ -2850,8 +2850,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # record edges to remove
                 new_table_entry_count = new_size // ij1.jumptables[0].entry_size
                 dropped_entries = ij1.jumptables[0].entries[new_table_entry_count:]
-                edges_to_remove[block_addr1] |= set(dropped_entries)
                 new_entries = ij1.jumptables[0].entries[:new_table_entry_count]
+                dropped_targets = set(dropped_entries) - set(new_entries)
+                edges_to_remove[block_addr1] |= dropped_targets
 
                 # update the jumptable targets
                 # TODO: resolved_targets is a set, which means we cannot reliable drop the last N entries, so we
@@ -2859,6 +2860,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # TODO: jumptargets.
                 if ij1.resolved_targets == set(ij1.jumptables[0].entries):
                     ij1.resolved_targets = set(new_entries)
+                    if block_addr1 in self.kb.indirect_jumps.resolved:
+                        self.kb.indirect_jumps.resolved[block_addr1] = [
+                            target
+                            for target in self.kb.indirect_jumps.resolved[block_addr1]
+                            if target not in dropped_targets
+                        ]
 
                 ij1.jumptables[0].entries = new_entries
 
@@ -4754,8 +4761,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         )
                         self._memory_data[jumptable_info.addr] = memory_data
 
-        jump.resolved_targets = targets
-        all_targets = set(targets)
+        jump.resolved_targets = set(targets)
+        all_targets = jump.resolved_targets
         for addr in all_targets:
             to_outside = (
                 jump.jumpkind == "Ijk_Call"
