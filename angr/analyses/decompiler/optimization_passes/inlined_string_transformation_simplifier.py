@@ -73,6 +73,8 @@ class InlinedStringTransformationState:
         self.registers = FasterMemory(memory_id="reg")
         self.memory = FasterMemory(memory_id="mem")
         self.virtual_variables = {}
+        # varids of register vvars holding a pointer derived from the stack base
+        self.stack_pointer_vvars: set[int] = set()
 
         self.registers.set_state(self)
         self.memory.set_state(self)
@@ -102,8 +104,12 @@ class InlinedStringTransformationState:
         except SimMemoryMissingError:
             return None
 
-    def vvar_store(self, vvar: VirtualVariable, value: claripy.ast.Bits | None) -> None:
+    def vvar_store(self, vvar: VirtualVariable, value: claripy.ast.Bits | None, is_stack_pointer: bool) -> None:
         self.virtual_variables[vvar.varid] = value
+        if is_stack_pointer:
+            self.stack_pointer_vvars.add(vvar.varid)
+        else:
+            self.stack_pointer_vvars.discard(vvar.varid)
 
     def vvar_load(self, vvar: VirtualVariable) -> claripy.ast.BV | None:
         if vvar.varid in self.virtual_variables:
@@ -159,68 +165,64 @@ class InlinedStringTransformationAILEngine(
     def _process_block_end(self, block, stmt_data, whitelist):
         pass
 
+    def _is_stack_pointer(self, expr: Expression) -> bool:
+        """
+        Whether the value of ``expr`` is derived from the stack base. Only stack-derived values may be used as stack
+        addresses; concrete values that happen to fall into the stack range are not.
+        """
+        if isinstance(expr, StackBaseOffset):
+            return True
+        if isinstance(expr, UnaryOp):
+            return expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack
+        if isinstance(expr, VirtualVariable):
+            return expr.was_reg and expr.varid in self.state.stack_pointer_vvars
+        if isinstance(expr, Phi):
+            for src, vvar in expr.src_and_vvars:
+                if src[0] == self.last_pc and vvar is not None:
+                    return self._is_stack_pointer(vvar)
+            return False
+        if isinstance(expr, BinaryOp):
+            if expr.op == "Add":
+                return self._is_stack_pointer(expr.operands[0]) != self._is_stack_pointer(expr.operands[1])
+            if expr.op == "Sub":
+                return self._is_stack_pointer(expr.operands[0]) and not self._is_stack_pointer(expr.operands[1])
+        return False
+
     def _process_address(self, addr: Expression) -> tuple[int, str] | None:
-        if isinstance(addr, Const):
-            assert isinstance(addr.value, int)
-            return addr.value, "mem"
-        if isinstance(addr, StackBaseOffset):
-            return (addr.offset + self.STACK_BASE) & self.MASK, "stack"
-        if (
-            isinstance(addr, UnaryOp)
-            and addr.op == "Reference"
-            and isinstance(addr.operand, VirtualVariable)
-            and addr.operand.was_stack
-        ):
-            return (addr.operand.stack_offset + self.STACK_BASE) & self.MASK, "stack"
-        if (
-            isinstance(addr, BinaryOp)
-            and addr.op in {"Add", "Sub"}
-            and isinstance(addr.operands[0], (StackBaseOffset, UnaryOp, Const))
-        ):
-            v0_and_type = self._process_address(addr.operands[0])
-            if v0_and_type is not None:
-                v0 = v0_and_type[0]
-                v1 = self._expr(addr.operands[1])
-                if isinstance(v1, claripy.ast.Bits) and v1.concrete:
-                    if addr.op == "Add":
-                        return (v0 + v1.concrete_value) & self.MASK, "stack"
-                    if addr.op == "Sub":
-                        return (v0 - v1.concrete_value) & self.MASK, "stack"
-                    raise NotImplementedError("Unreachable")
-        return None
+        v = self._expr(addr)
+        if not isinstance(v, claripy.ast.BV) or not v.concrete:
+            return None
+        return v.concrete_value & self.MASK, "stack" if self._is_stack_pointer(addr) else "mem"
 
     def _handle_stmt_Assignment(self, stmt):
         if isinstance(stmt.dst, VirtualVariable):
             if stmt.dst.was_reg:
                 val = self._expr(stmt.src)
-                if isinstance(val, claripy.ast.Bits):
-                    self.state.vvar_store(stmt.dst, val)
+                self.state.vvar_store(
+                    stmt.dst,
+                    val if isinstance(val, claripy.ast.Bits) else None,
+                    self._is_stack_pointer(stmt.src),
+                )
             elif stmt.dst.was_stack:
                 addr = (stmt.dst.stack_offset + self.STACK_BASE) & self.MASK
                 val = self._expr(stmt.src)
                 if isinstance(val, claripy.ast.BV):
-                    self.state.mem_store(addr, val, self.arch.memory_endness)
-                    # log it
-                    for i in range(val.size() // self.arch.byte_width):
-                        byte_off = i
-                        if self.arch.memory_endness == Endness.LE:
-                            byte_off = val.size() // self.arch.byte_width - i - 1
-                        self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
+                    self._store_stack(addr, val, self.arch.memory_endness)
 
     def _handle_stmt_Store(self, stmt: Store):
         addr_and_type = self._process_address(stmt.addr)
         if addr_and_type is not None:
             addr, addr_type = addr_and_type
             val = self._expr(stmt.data)
-            if isinstance(val, claripy.ast.BV):
-                self.state.mem_store(addr, val, stmt.endness)
-                # log it
-                if addr_type == "stack":
-                    for i in range(val.size() // self.arch.byte_width):
-                        byte_off = i
-                        if stmt.endness == Endness.LE:
-                            byte_off = val.size() // self.arch.byte_width - i - 1
-                        self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
+            if addr_type == "stack" and isinstance(val, claripy.ast.BV):
+                self._store_stack(addr, val, stmt.endness)
+
+    def _store_stack(self, addr: int, val: claripy.ast.BV, endness) -> None:
+        self.state.mem_store(addr, val, endness)
+        size = val.size() // self.arch.byte_width
+        for i in range(size):
+            byte_off = size - i - 1 if endness == Endness.LE else i
+            self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
 
     def _handle_stmt_Jump(self, stmt):
         self.last_pc = self.pc
@@ -292,11 +294,11 @@ class InlinedStringTransformationAILEngine(
 
     def _handle_expr_Load(self, expr: Load):
         addr_and_type = self._process_address(expr.addr)
-        if addr_and_type is not None:
-            addr, addr_type = addr_and_type
+        if addr_and_type is not None and addr_and_type[1] == "stack":
+            addr, _ = addr_and_type
             v = self.state.mem_load(addr, expr.size, expr.endness)
             # log it
-            if addr_type == "stack" and isinstance(v, claripy.ast.BV):
+            if isinstance(v, claripy.ast.BV):
                 for i in range(expr.size):
                     byte_off = i
                     if expr.endness == Endness.LE:
@@ -357,7 +359,12 @@ class InlinedStringTransformationAILEngine(
     _handle_unop_Clz = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
-    _handle_unop_Reference = _handle_unop_Default
+
+    def _handle_unop_Reference(self, expr: UnaryOp):
+        if isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
+            return claripy.BVV((expr.operand.stack_offset + self.STACK_BASE) & self.MASK, expr.bits)
+        return None
+
     _handle_unop_GetMSBs = _handle_unop_Default
     _handle_unop_unpack = _handle_unop_Default
     _handle_unop_Sqrt = _handle_unop_Default
@@ -435,8 +442,8 @@ class InlinedStringTransformationAILEngine(
     def _handle_expr_Reinterpret(self, expr):
         return None
 
-    def _handle_expr_StackBaseOffset(self, expr):
-        return None
+    def _handle_expr_StackBaseOffset(self, expr: StackBaseOffset):
+        return claripy.BVV((expr.offset + self.STACK_BASE) & self.MASK, expr.bits)
 
     def _handle_expr_Tmp(self, expr):
         try:
