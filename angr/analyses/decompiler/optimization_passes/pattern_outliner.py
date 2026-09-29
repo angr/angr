@@ -68,6 +68,8 @@ class PatternOutliner(OptimizationPass):
         self.lossy: list[tuple[str, tuple[int, int | None], int]] = []
         # the instruction address of the call the last successful outline placed
         self._last_call_addr: int | None = None
+        # the graph being rewritten, which new block addresses must stay clear of
+        self._live_graph: networkx.DiGraph[Block] | None = None
         self.analyze()
 
     def _check(self):
@@ -80,6 +82,7 @@ class PatternOutliner(OptimizationPass):
     def _analyze(self, cache=None):
         stored = self.kb.patterns.enabled_patterns()
         graph = copy_graph(self._graph)
+        self._live_graph = graph
         changed = False
         stats = {entry.name: PatternStats() for entry in stored}
         first_round = True
@@ -112,6 +115,21 @@ class PatternOutliner(OptimizationPass):
         self.kb.patterns.record_stats(self._func.addr, stats)
         if changed:
             self.out_graph = graph
+
+    def new_block_addr(self) -> int:
+        """A block address no block of the graph being rewritten has.
+
+        The base class allocates from a map of the blocks built once per stage, before any
+        pass of the stage ran, so it hands out addresses an earlier pass of this stage (the
+        KnownPatternOutliner, say) has already given its own new blocks; the outline is then
+        rolled back as a duplicate block location.
+        """
+        floor = (max(self.blocks_by_addr) if self.blocks_by_addr else 0) + 2048
+        live_top = max((b.addr for b in self._live_graph), default=0) if self._live_graph is not None else 0
+        own_top = max(self._new_block_addrs) if self._new_block_addrs else 0
+        new_addr = max(floor, live_top + 1, own_top + 1)
+        self._new_block_addrs.add(new_addr)
+        return new_addr
 
     def _ranked_hits(
         self, stream: TokenStream, stored: list[StoredPattern], tried: set

@@ -160,6 +160,30 @@ class TestPatternOutliner(unittest.TestCase):
         assert graph_problems(pass_.out_graph, func.addr) == []
 
 
+class TestNewBlockAddresses(unittest.TestCase):
+    def test_addresses_clear_blocks_an_earlier_pass_added(self):
+        import types  # pylint:disable=import-outside-toplevel
+
+        import networkx  # pylint:disable=import-outside-toplevel
+
+        from angr.ailment import Block  # pylint:disable=import-outside-toplevel
+
+        # the stage's map knows the function's own blocks; an earlier pass of the stage has
+        # since added a block at the address the map alone would hand out next
+        stage_map = {0x1000: None, 0x1040: None}
+        taken = 0x1040 + 2048
+        graph = networkx.DiGraph()
+        for addr in (0x1000, 0x1040, taken):
+            graph.add_node(Block(addr, 4, statements=[]))
+        pass_ = types.SimpleNamespace(blocks_by_addr=stage_map, _new_block_addrs=set(), _live_graph=graph)
+        first = PatternOutliner.new_block_addr(pass_)
+        second = PatternOutliner.new_block_addr(pass_)
+        assert first == taken + 1 and second == first + 1
+        # with nothing added, it is where the base class would start
+        pass_ = types.SimpleNamespace(blocks_by_addr=stage_map, _new_block_addrs=set(), _live_graph=None)
+        assert PatternOutliner.new_block_addr(pass_) == 0x1040 + 2048
+
+
 class TestErrorExitPatternSerialization(unittest.TestCase):
     """The pattern lifted from doit's error exits, written out and read back, reused in a
     project that has never seen the one it came from."""
