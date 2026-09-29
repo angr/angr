@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NamedTuple
 
 import archinfo
 from archinfo import Endness
@@ -61,6 +61,18 @@ class FasterMemory(
     """
 
 
+class StackAccess(NamedTuple):
+    """
+    A byte-sized stack access recorded by InlinedStringTransformationAILEngine. For stores, ``deps`` holds the stack
+    addresses that the stored value was computed from.
+    """
+
+    kind: str
+    codeloc: CodeLocation
+    value: claripy.ast.BV
+    deps: frozenset[int] = frozenset()
+
+
 class InlinedStringTransformationState:
     """
     The abstract state used in InlinedStringTransformationAILEngine.
@@ -75,6 +87,8 @@ class InlinedStringTransformationState:
         self.virtual_variables = {}
         # varids of register vvars holding a pointer derived from the stack base
         self.stack_pointer_vvars: set[int] = set()
+        # varid -> stack addresses the value of this register vvar was computed from
+        self.vvar_deps: dict[int, frozenset[int]] = {}
 
         self.registers.set_state(self)
         self.memory.set_state(self)
@@ -135,7 +149,9 @@ class InlinedStringTransformationAILEngine(
         self.MASK = 0xFFFF_FFFF if self.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
 
         state = InlinedStringTransformationState(project)
-        self.stack_accesses: defaultdict[int, list[tuple[str, CodeLocation, claripy.ast.Bits]]] = defaultdict(list)
+        self.stack_accesses: defaultdict[int, list[StackAccess]] = defaultdict(list)
+        # stack addresses read while evaluating the current statement
+        self._reads: set[int] = set()
         self.finished: bool = False
 
         i = 0
@@ -197,14 +213,17 @@ class InlinedStringTransformationAILEngine(
     def _handle_stmt_Assignment(self, stmt):
         if isinstance(stmt.dst, VirtualVariable):
             if stmt.dst.was_reg:
+                self._reads = set()
                 val = self._expr(stmt.src)
                 self.state.vvar_store(
                     stmt.dst,
                     val if isinstance(val, claripy.ast.Bits) else None,
                     self._is_stack_pointer(stmt.src),
                 )
+                self.state.vvar_deps[stmt.dst.varid] = frozenset(self._reads)
             elif stmt.dst.was_stack:
                 addr = (stmt.dst.stack_offset + self.STACK_BASE) & self.MASK
+                self._reads = set()
                 val = self._expr(stmt.src)
                 if isinstance(val, claripy.ast.BV):
                     self._store_stack(addr, val, self.arch.memory_endness)
@@ -213,16 +232,25 @@ class InlinedStringTransformationAILEngine(
         addr_and_type = self._process_address(stmt.addr)
         if addr_and_type is not None:
             addr, addr_type = addr_and_type
+            self._reads = set()
             val = self._expr(stmt.data)
             if addr_type == "stack" and isinstance(val, claripy.ast.BV):
                 self._store_stack(addr, val, stmt.endness)
 
     def _store_stack(self, addr: int, val: claripy.ast.BV, endness) -> None:
         self.state.mem_store(addr, val, endness)
+        deps = frozenset(self._reads)
         size = val.size() // self.arch.byte_width
         for i in range(size):
             byte_off = size - i - 1 if endness == Endness.LE else i
-            self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
+            self.stack_accesses[addr + i].append(StackAccess("store", self._codeloc(), val.get_byte(byte_off), deps))
+
+    def _log_stack_load(self, addr: int, v: claripy.ast.BV | None, size: int, endness) -> None:
+        self._reads.update(range(addr, addr + size))
+        if v is not None:
+            for i in range(size):
+                byte_off = size - i - 1 if endness == Endness.LE else i
+                self.stack_accesses[addr + i].append(StackAccess("load", self._codeloc(), v.get_byte(byte_off)))
 
     def _handle_stmt_Jump(self, stmt):
         self.last_pc = self.pc
@@ -297,13 +325,7 @@ class InlinedStringTransformationAILEngine(
         if addr_and_type is not None and addr_and_type[1] == "stack":
             addr, _ = addr_and_type
             v = self.state.mem_load(addr, expr.size, expr.endness)
-            # log it
-            if isinstance(v, claripy.ast.BV):
-                for i in range(expr.size):
-                    byte_off = i
-                    if expr.endness == Endness.LE:
-                        byte_off = expr.size - i - 1
-                    self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
+            self._log_stack_load(addr, v, expr.size, expr.endness)
             return v
         return None
 
@@ -314,22 +336,17 @@ class InlinedStringTransformationAILEngine(
         if expr.was_stack:
             addr = (expr.stack_offset + self.STACK_BASE) & self.MASK
             v = self.state.mem_load(addr, expr.size, self.arch.memory_endness)
-            if v is not None:
-                # log it
-                for i in range(expr.size):
-                    byte_off = i
-                    if self.arch.memory_endness == Endness.LE:
-                        byte_off = expr.size - i - 1
-                    self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
+            self._log_stack_load(addr, v, expr.size, self.arch.memory_endness)
             return v
         if expr.was_reg:
+            self._reads |= self.state.vvar_deps.get(expr.varid, frozenset())
             return self.state.vvar_load(expr)
         return None
 
     def _handle_expr_Phi(self, expr: Phi):
         for src, vvar in expr.src_and_vvars:
             if src[0] == self.last_pc and vvar is not None:
-                return self.state.vvar_load(vvar)
+                return self._expr(vvar)
         return None
 
     def _handle_unop_Neg(self, expr: UnaryOp):
@@ -521,67 +538,45 @@ class InlinedStringTransformationAILEngine(
     _handle_binop_Set = _handle_binop_Default
 
 
-class _StackReadNotification(Exception):
-    """Abort the walk on the first potential stack read."""
+class _MemoryReadNotification(Exception):
+    """Abort the walk on the first potential memory read."""
 
 
-class _HasStackReadWalker(AILBlockViewer):
+class _HasMemoryReadWalker(AILBlockViewer):
     """
-    Raises ``_StackReadNotification`` on the first expression that InlinedStringTransformationAILEngine could turn
+    Raises ``_MemoryReadNotification`` on the first expression that InlinedStringTransformationAILEngine could turn
     into a "load" stack-access record: a Load, or a virtual variable that lives on the stack.
     """
 
     def _handle_Load(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
-        raise _StackReadNotification
+        raise _MemoryReadNotification
 
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
         if expr.was_stack:
-            raise _StackReadNotification
+            raise _MemoryReadNotification
 
 
-_HAS_STACK_READ_WALKER = _HasStackReadWalker()
-
-
-def _addr_may_be_stack(addr: Expression) -> bool:
-    """
-    Syntactic over-approximation of the addresses ``InlinedStringTransformationAILEngine._process_address`` can
-    resolve. Anything outside this shape never produces a stack-access record.
-    """
-    if isinstance(addr, (Const, StackBaseOffset)):
-        return True
-    if isinstance(addr, UnaryOp) and addr.op == "Reference":
-        return True
-    return (
-        isinstance(addr, BinaryOp)
-        and addr.op in {"Add", "Sub"}
-        and isinstance(addr.operands[0], (StackBaseOffset, UnaryOp, Const))
-    )
-
-
-def _reads_stack(expr: Expression) -> bool:
-    try:
-        _HAS_STACK_READ_WALKER.walk_expression(expr)
-    except _StackReadNotification:
-        return True
-    return False
+_HAS_MEMORY_READ_WALKER = _HasMemoryReadWalker()
 
 
 def _may_transform_stack_bytes(block) -> bool:
     """
-    A descriptor is only ever built when some statement records a "load" and a "store" stack access at the *same*
-    code location, i.e. a store to the stack whose value is derived from a stack read. Checking that syntactically is
-    far cheaper than symbolically executing the loop, and no statement outside this shape can produce that pair.
+    A descriptor needs the loop body to load a stack byte and to store a value derived from it, possibly through
+    register vvars in other statements. This is a cheap syntactic over-approximation of that: the block must contain
+    both a memory read and a memory write.
     """
+    has_read = has_write = False
     for stmt in block.statements:
-        if isinstance(stmt, Store):
-            if _addr_may_be_stack(stmt.addr) and _reads_stack(stmt.data):
-                return True
-        elif (
-            isinstance(stmt, Assignment)
-            and isinstance(stmt.dst, VirtualVariable)
-            and stmt.dst.was_stack
-            and _reads_stack(stmt.src)
+        if isinstance(stmt, Store) or (
+            isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack
         ):
+            has_write = True
+        if not has_read:
+            try:
+                _HAS_MEMORY_READ_WALKER.walk_statement(stmt)
+            except _MemoryReadNotification:
+                has_read = True
+        if has_read and has_write:
             return True
     return False
 
@@ -631,9 +626,9 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             for stack_accesses in desc.stack_accesses:
                 # the first stores are the initial storing statements
                 for access in stack_accesses:
-                    if access[0] != "store":
+                    if access.kind != "store":
                         break
-                    codeloc = access[1]
+                    codeloc = access.codeloc
                     assert codeloc.block_addr == desc.store_block.addr
                     skip_stmt_indices.add(codeloc.stmt_idx)
             new_statements = [
@@ -644,7 +639,7 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             store_statements = []
             for off, stack_accesses in enumerate(desc.stack_accesses):
                 # the last element is the final storing statement
-                new_value_ast = stack_accesses[-1][2]
+                new_value_ast = stack_accesses[-1].value
                 new_value = Const(self.manager.next_atom(), new_value_ast.concrete_value, self.project.arch.byte_width)
                 stmt = Store(
                     self.manager.next_atom(),
@@ -707,33 +702,31 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
         for loop_node in self_loops:
             pred = next(iter(nn for nn in self._graph.predecessors(loop_node) if nn is not loop_node))
             succ = next(iter(nn for nn in self._graph.successors(loop_node) if nn is not loop_node))
-            if not _may_transform_stack_bytes(loop_node) and not _may_transform_stack_bytes(pred):
-                # no statement here can produce the load-then-store-at-the-same-code-location pair a descriptor
-                # needs; skip the (expensive) symbolic execution entirely
+            if not _may_transform_stack_bytes(loop_node):
+                # the loop body cannot transform stack bytes; skip the (expensive) execution entirely
                 continue
             engine = InlinedStringTransformationAILEngine(
                 self.project, {pred.addr: pred, loop_node.addr: loop_node}, pred.addr, succ.addr, 1024
             )
             if engine.finished:
-                # find the longest slide where the stack accesses are like the following:
-                #   "store", code_location_a, value_a
-                #   "load", code_location_b, value_a
-                #   "store", code_location_b, value_b
-                # where value_a and value_b may be the same
+                # find the longest slide where the last stack accesses of each byte are like the following:
+                #   "store" in the predecessor
+                #   "load" in the loop body
+                #   "store" in the loop body, whose value is computed from the loaded byte
                 candidate_stack_addrs = []
                 for stack_addr in sorted(engine.stack_accesses.keys()):
                     stack_accesses = engine.stack_accesses[stack_addr]
                     if len(stack_accesses) >= 3:
                         *_, item0, item1, item2 = stack_accesses
                         if (
-                            item0[0] == "store"
-                            and item1[0] == "load"
-                            and item2[0] == "store"
-                            and item0[1] != item1[1]
-                            and item1[1] == item2[1]
-                            and item0[2] is item1[2]
+                            item0.kind == "store"
+                            and item0.codeloc.block_addr == pred.addr
+                            and item1.kind == "load"
+                            and item1.codeloc.block_addr == loop_node.addr
+                            and item2.kind == "store"
+                            and item2.codeloc.block_addr == loop_node.addr
+                            and stack_addr in item2.deps
                         ):
-                            # found one!
                             candidate_stack_addrs.append(stack_addr)
 
                 if (
