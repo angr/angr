@@ -22,13 +22,13 @@ from angr.analyses.decompiler.known_patterns import (
     iter_stmt_patterns,
 )
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
-from angr.analyses.fuzzy_patterns.search import find_template_occurrences
+from angr.analyses.patterns.search import find_template_occurrences
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")
 
 
-class TestGenerateFuzzy(unittest.TestCase):
+class TestGeneratePattern(unittest.TestCase):
     """Text span in, fuzzy pattern out, with nothing else asked of the user."""
 
     @classmethod
@@ -65,7 +65,7 @@ class TestGenerateFuzzy(unittest.TestCase):
 
     def test_two_adjacent_statements_become_a_sequence(self):
         start, end = self._adjacent_pair()
-        pattern = self.gen.generate_fuzzy(start, end, "my_idiom")
+        pattern = self.gen.generate_pattern(start, end, "my_idiom")
 
         assert isinstance(pattern.pattern, (PStmtSeq, PGraphPat))
         assert len(list(iter_stmt_patterns(pattern.pattern))) >= 2
@@ -75,7 +75,7 @@ class TestGenerateFuzzy(unittest.TestCase):
 
     def test_the_selection_finds_itself_verified(self):
         start, end = self._adjacent_pair()
-        pattern = self.gen.generate_fuzzy(start, end, "my_idiom")
+        pattern = self.gen.generate_pattern(start, end, "my_idiom")
         entry = next(b for b in self.dec.ail_graph if b.addr == self.func.addr)
 
         _stream, matches = find_template_occurrences(pattern, self.dec.ail_graph, entry, kb=self.kb)
@@ -86,7 +86,7 @@ class TestGenerateFuzzy(unittest.TestCase):
         global stream pointer and the returned constant are kept, and nothing becomes a parameter."""
         m = re.search(r'puts\("String is empty."\);\n +fflush\(stdout\);\n +return 0xffffffff;\n', self.gen.text)
         assert m is not None
-        pattern = self.gen.generate_fuzzy(m.start(), m.end(), "PatternErrorsOut")
+        pattern = self.gen.generate_pattern(m.start(), m.end(), "PatternErrorsOut")
 
         assert isinstance(pattern.pattern, PStmtSeq)
         puts, fflush, ret = pattern.pattern.stmts
@@ -107,7 +107,7 @@ class TestGenerateFuzzy(unittest.TestCase):
         another address; the same leaf with the address pinned does not."""
         m = re.search(r"fflush\(stdout\);\n", self.gen.text)
         assert m is not None
-        pattern = self.gen.generate_fuzzy(m.start(), m.end(), "flush_out")
+        pattern = self.gen.generate_pattern(m.start(), m.end(), "flush_out")
         (leaf,) = pattern.pattern.stmts
         assert isinstance(leaf, PCallStmt) and leaf.call.args[0] == PLoad(PConst(symbol="stdout"), size=8)
         pinned = dataclasses.replace(
@@ -143,7 +143,7 @@ class TestGenerateFuzzy(unittest.TestCase):
 
     def test_the_whole_function_lifts_calls_and_returns(self):
         """A span over the whole function covers calls and returns, which have patterns of their own."""
-        pattern = self.gen.generate_fuzzy(0, len(self.gen.text), "whole")
+        pattern = self.gen.generate_pattern(0, len(self.gen.text), "whole")
         leaves = list(iter_stmt_patterns(pattern.pattern))
         assert any(isinstance(leaf, PCallStmt) for leaf in leaves)
         assert any(isinstance(leaf, PReturn) for leaf in leaves)
@@ -152,10 +152,10 @@ class TestGenerateFuzzy(unittest.TestCase):
 
     def test_empty_and_expression_only_selections_are_refused(self):
         with self.assertRaises(PatternGenerationError):
-            self.gen.generate_fuzzy(10, 10, "x")
+            self.gen.generate_pattern(10, 10, "x")
         # a single character cannot cover a whole statement
         with self.assertRaises(PatternGenerationError):
-            self.gen.generate_fuzzy(0, 1, "x")
+            self.gen.generate_pattern(0, 1, "x")
 
 
 if __name__ == "__main__":

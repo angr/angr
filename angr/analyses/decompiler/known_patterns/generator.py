@@ -763,7 +763,7 @@ class PatternGenerator:
     # fuzzy templates
     #
 
-    def generate_fuzzy(
+    def generate_pattern(
         self,
         start_offset: int,
         end_offset: int,
@@ -795,7 +795,7 @@ class PatternGenerator:
             raise PatternGenerationError("the selection covers no statement")
         self._wildcards = 0
         # the same order the fuzzy matcher's stream uses, so the sequence lines up with it
-        from angr.analyses.fuzzy_patterns.tokenizer import linearize  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.tokenizer import linearize  # pylint:disable=import-outside-toplevel
 
         entry = next(b for b in self.ail_graph if not any(True for _ in self.ail_graph.predecessors(b)))
         # A statement is selected when it or any of its subexpressions carries a selected
@@ -837,7 +837,7 @@ class PatternGenerator:
                     addrs.add(ins)
         return addrs
 
-    def generate_fuzzy_from_statements(
+    def generate_pattern_from_statements(
         self,
         stmts: Sequence[Statement],
         call_name: str,
@@ -847,7 +847,7 @@ class PatternGenerator:
         returnty: TypeRef | None = None,
         param_types: Sequence[TypeRef | None] | None = None,
     ) -> KnownPattern:
-        """:meth:`generate_fuzzy` for a caller that already holds the statements, in order."""
+        """:meth:`generate_pattern` for a caller that already holds the statements, in order."""
         if not stmts:
             raise PatternGenerationError("no statements")
         stmts = [s for s in stmts if not isinstance(s, (Label, Jump))]

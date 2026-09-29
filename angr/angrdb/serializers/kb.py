@@ -8,8 +8,8 @@ from .callgraph import CallGraphSerializer
 from .cfg_model import CFGModelSerializer
 from .comments import CommentsSerializer
 from .funcs import FunctionManagerSerializer
-from .fuzzy_patterns import FuzzyPatternsSerializer
 from .labels import LabelsSerializer
+from .patterns import PatternsSerializer
 from .structured_code import StructuredCodeManagerSerializer
 from .variables import VariableManagerSerializer
 from .xrefs import XRefsSerializer
@@ -45,7 +45,7 @@ class KnowledgeBaseSerializer:
         XRefsSerializer.dump(session, db_kb, kb.xrefs)
         CommentsSerializer.dump(session, db_kb, kb.comments)
         BookmarksSerializer.dump(session, db_kb, kb.bookmarks)
-        FuzzyPatternsSerializer.dump(session, db_kb, kb.fuzzy_patterns)
+        PatternsSerializer.dump(session, db_kb, kb.patterns)
         LabelsSerializer.dump(session, db_kb, kb.labels)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
         VariableManagerSerializer.dump_dvars(session, db_kb, kb.dec_variables)
@@ -95,7 +95,7 @@ class KnowledgeBaseSerializer:
             kb.bookmarks = bookmarks
 
         # Load fuzzy patterns
-        kb.fuzzy_patterns = FuzzyPatternsSerializer.load(session, db_kb, kb)
+        kb.patterns = PatternsSerializer.load(session, db_kb, kb)
 
         # Load labels
         labels = LabelsSerializer.load(session, db_kb, kb)

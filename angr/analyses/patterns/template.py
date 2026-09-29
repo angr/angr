@@ -11,7 +11,7 @@ score against a token stream:
   up to operator class, or not at all. Wildcards accept anything.
 
 Both mirror :class:`~.tokenizer.AILCanonicalizer` rule for rule under the
-:data:`TEMPLATE_TOKENIZER` settings, and ``tests/analyses/test_fuzzy_template.py``
+:data:`TEMPLATE_TOKENIZER` settings, and ``tests/analyses/test_pattern_template.py``
 checks the mirror against every statement of a real function.
 """
 

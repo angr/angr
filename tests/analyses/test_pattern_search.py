@@ -22,10 +22,10 @@ from angr.analyses.decompiler.known_patterns import (
     PVVar,
 )
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
-from angr.analyses.fuzzy_patterns.align import AlignParams
-from angr.analyses.fuzzy_patterns.search import find_template_occurrences, search, template_leaves, verify
-from angr.analyses.fuzzy_patterns.template import Fit
-from angr.analyses.fuzzy_patterns.tokenizer import AILCanonicalizer, TokenLoc, TokenStream
+from angr.analyses.patterns.align import AlignParams
+from angr.analyses.patterns.search import find_template_occurrences, search, template_leaves, verify
+from angr.analyses.patterns.template import Fit
+from angr.analyses.patterns.tokenizer import AILCanonicalizer, TokenLoc, TokenStream
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")
@@ -210,7 +210,7 @@ class TestVerifyOnARealFunction(unittest.TestCase):
         raise AssertionError("no liftable window with a constant assignment in doit")
 
     def test_a_lifted_template_finds_itself_verified(self):
-        from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         start, template = self._pick_window(stream)
@@ -225,13 +225,13 @@ class TestVerifyOnARealFunction(unittest.TestCase):
     def test_long_windows_find_themselves_verified(self):
         """Labels and phis are not pattern statements and conversions are dropped by the
         generator; a lifted window of any length must still match its own statements."""
-        from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         blocks = {(b.addr, b.idx): b for b in stream.blocks}
         for start, length in ((20, 30), (50, 60), (100, 100)):
             stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs[start : start + length]]
-            template = self.gen.generate_fuzzy_from_statements(stmts, "w")
+            template = self.gen.generate_pattern_from_statements(stmts, "w")
             origin = _first_statement(stream, start)
             hits = [m for m in search(template, stream) if m.interval.start <= origin < m.interval.end]
             assert hits, f"window [{start},{start + length}) not found at its origin"
@@ -243,13 +243,13 @@ class TestVerifyOnARealFunction(unittest.TestCase):
         """Every loosening the editor offers must keep a pattern matching the statements it
         came from; each one has failed that at some point."""
         from angr.analyses.decompiler.known_patterns.edit import PatternEditor  # pylint:disable=import-outside-toplevel
-        from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         blocks = {(b.addr, b.idx): b for b in stream.blocks}
         for start in range(0, len(stream) - 40, 40):
             stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs[start : start + 40]]
-            editor = PatternEditor(self.gen.generate_fuzzy_from_statements(stmts, "w"))
+            editor = PatternEditor(self.gen.generate_pattern_from_statements(stmts, "w"))
             editor.loosen_constants()
             editor.cut_depth()
             editor.loosen_interior_captures()
@@ -260,7 +260,7 @@ class TestVerifyOnARealFunction(unittest.TestCase):
             assert hits[0].verified is True, (start, [c for c in hits[0].columns if c.verified is False][:3])
 
     def test_a_wrong_constant_is_found_but_refused(self):
-        from angr.analyses.fuzzy_patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         start, template = self._pick_window(stream)

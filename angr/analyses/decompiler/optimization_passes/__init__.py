@@ -22,7 +22,6 @@ from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .eager_std_string_eval import EagerStdStringEvalPass
 from .expr_op_swapper import ExprOpSwapper
 from .flip_boolean_cmp import FlipBooleanCmp
-from .fuzzy_pattern_outliner import FuzzyPatternOutliner
 from .inlined_memcpy_simplifier import InlinedMemcpySimplifier, InlinedMemcpySimplifierLate
 from .inlined_memset_simplifier import InlinedMemsetSimplifier, InlinedMemsetSimplifierLate
 from .inlined_strcpy_simplifier import InlinedStrcpySimplifier, InlinedStrcpySimplifierLate
@@ -36,6 +35,7 @@ from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
 from .mod_simplifier import ModSimplifier
 from .optimization_pass import OptimizationPassStage
+from .pattern_outliner import PatternOutliner
 from .peephole_simplifier import PostStructuringPeepholeOptimizationPass
 from .register_save_area_simplifier import RegisterSaveAreaSimplifier
 from .register_save_area_simplifier_adv import RegisterSaveAreaSimplifierAdvanced
@@ -101,7 +101,7 @@ ALL_OPTIMIZATION_PASSES = [
     RegisterSaveAreaSimplifierAdvanced,
     InlinedStrlenSimplifier,
     KnownPatternOutliner,
-    FuzzyPatternOutliner,
+    PatternOutliner,
     StaticVVarRewriter,
     EagerStdStringEvalPass,
 ]
@@ -161,7 +161,6 @@ __all__ = (
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
     "FlipBooleanCmp",
-    "FuzzyPatternOutliner",
     "ITEExprConverter",
     "ITERegionConverter",
     "InlinedMemcpySimplifier",
@@ -179,6 +178,7 @@ __all__ = (
     "MipsGpSettingSimplifier",
     "ModSimplifier",
     "OptimizationPassStage",
+    "PatternOutliner",
     "RegisterSaveAreaSimplifier",
     "RegisterSaveAreaSimplifierAdvanced",
     "RetAddrSaveSimplifier",

@@ -5,14 +5,14 @@ NPInit is compiled with Warbird string obfuscation: nine copies of a 24-round
 ARX decryption stub are inlined into it, each with a freshly randomized round
 function. No two copies are identical -- not one of the 36 pairs matches even
 after abstracting constants away -- so an exact matcher finds nothing. This
-script runs :class:`~angr.analyses.fuzzy_patterns.FuzzyPatternFinder` over the
+script runs :class:`~angr.analyses.patterns.FuzzyPatternFinder` over the
 AIL graph to recover the families, then :class:`PatternDeduplicator` to outline
 them and merge whatever is provably identical.
 
 Not a unit test: decompiling NPInit alone takes about a minute, and the binary
 is not in the binaries repo. Run it directly:
 
-    python tests/analyses/fuzzy_patterns_npinit_demo.py [core|occurrence] [/path/to/notepad.exe]
+    python tests/analyses/patterns_npinit_demo.py [core|occurrence] [/path/to/notepad.exe]
 
 Both decompilations are written to /tmp for diffing: ``npinit_before.c`` and
 ``npinit_after_<granularity>.c``.
@@ -29,8 +29,8 @@ from pathlib import Path
 import angr
 from angr.analyses.decompiler.clinic import ClinicStage
 from angr.analyses.decompiler.decompiler import Decompiler
-from angr.analyses.fuzzy_patterns import AlignParams, FuzzyPatternFinder, PatternDeduplicator
-from angr.analyses.fuzzy_patterns.dedup import graph_problems
+from angr.analyses.patterns import AlignParams, FuzzyPatternFinder, PatternDeduplicator
+from angr.analyses.patterns.dedup import graph_problems
 
 NPINIT = 0x140013154
 

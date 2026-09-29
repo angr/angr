@@ -8,11 +8,11 @@ from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.known_patterns.pattern import resolve_typeref
 from angr.analyses.decompiler.utils import copy_graph
 from angr.analyses.decompiler.variable_map import variable_map_of
-from angr.analyses.fuzzy_patterns.dedup import _restore, _snapshot, graph_problems, normalize_call_width
-from angr.analyses.fuzzy_patterns.region import largest_single_entry_subrun, materialize, snap
-from angr.analyses.fuzzy_patterns.search import search, tokenize_for_templates, verify
 from angr.analyses.outliner import Outliner
-from angr.knowledge_plugins.fuzzy_patterns import PatternStats
+from angr.analyses.patterns.dedup import _restore, _snapshot, graph_problems, normalize_call_width
+from angr.analyses.patterns.region import largest_single_entry_subrun, materialize, snap
+from angr.analyses.patterns.search import search, tokenize_for_templates, verify
+from angr.knowledge_plugins.patterns import PatternStats
 from angr.sim_type import SimTypeFunction, parse_type
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -21,16 +21,16 @@ if TYPE_CHECKING:
     import networkx
 
     from angr.ailment import Block
-    from angr.analyses.fuzzy_patterns.search import TemplateMatch
-    from angr.analyses.fuzzy_patterns.tokenizer import TokenStream
-    from angr.knowledge_plugins.fuzzy_patterns import StoredPattern
+    from angr.analyses.patterns.search import TemplateMatch
+    from angr.analyses.patterns.tokenizer import TokenStream
+    from angr.knowledge_plugins.patterns import StoredPattern
 
 _l = logging.getLogger(__name__)
 
 
-class FuzzyPatternOutliner(OptimizationPass):
+class PatternOutliner(OptimizationPass):
     """
-    Finds occurrences of the user's fuzzy patterns (kb.fuzzy_patterns) in the AIL
+    Finds occurrences of the user's patterns (kb.patterns) in the AIL
     graph and outlines each into a call named after its pattern.
 
     Where the KnownPatternOutliner matches library idioms exactly, this pass aligns a
@@ -44,7 +44,7 @@ class FuzzyPatternOutliner(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
-    NAME = "Outline the user's fuzzy patterns into calls"
+    NAME = "Outline the user's patterns into calls"
     DESCRIPTION = __doc__.strip() if __doc__ else ""
 
     MAX_ROUNDS = 32
@@ -66,14 +66,14 @@ class FuzzyPatternOutliner(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        if not self.kb.fuzzy_patterns.enabled_patterns():
+        if not self.kb.patterns.enabled_patterns():
             # nothing searched for, so nothing is known about this function any more
-            self.kb.fuzzy_patterns.record_stats(self._func.addr, {})
+            self.kb.patterns.record_stats(self._func.addr, {})
             return False, None
         return True, None
 
     def _analyze(self, cache=None):
-        stored = self.kb.fuzzy_patterns.enabled_patterns()
+        stored = self.kb.patterns.enabled_patterns()
         graph = copy_graph(self._graph)
         changed = False
         stats = {entry.name: PatternStats() for entry in stored}
@@ -102,7 +102,7 @@ class FuzzyPatternOutliner(OptimizationPass):
                     break
             if not outlined:
                 break
-        self.kb.fuzzy_patterns.record_stats(self._func.addr, stats)
+        self.kb.patterns.record_stats(self._func.addr, stats)
         if changed:
             self.out_graph = graph
 

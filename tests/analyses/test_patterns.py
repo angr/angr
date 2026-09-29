@@ -10,7 +10,7 @@ import networkx
 
 import angr
 from angr.ailment.statement import Label
-from angr.analyses.fuzzy_patterns import (
+from angr.analyses.patterns import (
     AILCanonicalizer,
     AlignParams,
     Interval,
@@ -20,7 +20,7 @@ from angr.analyses.fuzzy_patterns import (
     snap,
     tokenize,
 )
-from angr.analyses.fuzzy_patterns.align import (
+from angr.analyses.patterns.align import (
     ScoreModel,
     banded_sw,
     chain_seeds,
@@ -242,7 +242,7 @@ class TestSingleEntrySubrun(TestCase):
         return graph, entry, chain
 
     def test_largest_subrun_excludes_the_block_jumped_into(self):
-        from angr.analyses.fuzzy_patterns.region import (
+        from angr.analyses.patterns.region import (
             largest_single_entry_subrun,  # pylint:disable=import-outside-toplevel
         )
 
@@ -260,7 +260,7 @@ class TestSingleEntrySubrun(TestCase):
         assert best.block_locs == [(b.addr, None) for b in chain[:3]]
 
     def test_min_ratio_can_refuse_a_small_subrun(self):
-        from angr.analyses.fuzzy_patterns.region import (
+        from angr.analyses.patterns.region import (
             largest_single_entry_subrun,  # pylint:disable=import-outside-toplevel
         )
 
@@ -366,7 +366,7 @@ class TestFuzzyPatternFinder(TestCase):
 
     def test_dedup_keeps_the_graph_consistent(self):
         """Whatever the deduplicator outlines, the result must stay decompilable."""
-        from angr.analyses.fuzzy_patterns.dedup import graph_problems
+        from angr.analyses.patterns.dedup import graph_problems
 
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
@@ -391,7 +391,7 @@ class TestFuzzyPatternFinder(TestCase):
 
     def test_merged_callees_are_identical_modulo_constants(self):
         """A merge group may only contain callees with the same full-depth shape."""
-        from angr.analyses.fuzzy_patterns.dedup import callee_shape
+        from angr.analyses.patterns.dedup import callee_shape
 
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
@@ -440,7 +440,7 @@ class TestDeduplicateDoit(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from angr.analyses.fuzzy_patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
 
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
@@ -470,7 +470,7 @@ class TestDeduplicateDoit(TestCase):
     def test_merged_callee_lifts_values_but_never_targets(self):
         from angr.ailment.expression import Const, VirtualVariable  # pylint:disable=import-outside-toplevel
         from angr.ailment.statement import Jump, Return  # pylint:disable=import-outside-toplevel
-        from angr.analyses.fuzzy_patterns.dedup import graph_problems  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.dedup import graph_problems  # pylint:disable=import-outside-toplevel
 
         sites = set(self._error_exit_sites())
         group = next(g for g in self.dedup.result.groups if any(m.interval.start in sites for m in g.members))
@@ -497,8 +497,8 @@ class TestDeduplicateDoit(TestCase):
         assert graph_problems(self.dedup.result.graph, self.func.addr) == []
 
     def test_a_failed_merge_leaves_no_trace(self):
-        from angr.analyses.fuzzy_patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
-        from angr.analyses.fuzzy_patterns.dedup import callee_shape  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
+        from angr.analyses.patterns.dedup import callee_shape  # pylint:disable=import-outside-toplevel
 
         dedup = self.proj.analyses[PatternDeduplicator](
             self.func,

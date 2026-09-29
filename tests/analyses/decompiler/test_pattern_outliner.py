@@ -10,9 +10,9 @@ import unittest
 
 import angr
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
-from angr.analyses.decompiler.optimization_passes import FuzzyPatternOutliner
-from angr.analyses.fuzzy_patterns.dedup import graph_problems
-from angr.analyses.fuzzy_patterns.search import tokenize_for_templates
+from angr.analyses.decompiler.optimization_passes import PatternOutliner
+from angr.analyses.patterns.dedup import graph_problems
+from angr.analyses.patterns.search import tokenize_for_templates
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")
@@ -44,11 +44,11 @@ def _lift_a_pattern(proj, cfg, func, call_name, length=3):
                 gen._gen_stmt(stmt, {}, set())
         except PatternGenerationError:
             continue
-        return gen.generate_fuzzy_from_statements(stmts, call_name), dec
+        return gen.generate_pattern_from_statements(stmts, call_name), dec
     raise AssertionError("no liftable run of statements in doit")
 
 
-class TestFuzzyPatternOutliner(unittest.TestCase):
+class TestPatternOutliner(unittest.TestCase):
     def test_an_error_exit_selection_outlines_every_exit_with_its_own_string(self):
         """puts(msg); fflush(stdout); return -1 in doit: the region ends in a return, so the
         callee returns on the caller's behalf, and the message the pattern left open is
@@ -58,17 +58,17 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
         assert dec.codegen is not None
         m = re.search(r'puts\("String is empty."\);\n +fflush\(stdout\);\n +return 0xffffffff;\n', dec.codegen.text)
         assert m is not None
-        pattern = PatternGenerator(dec.codegen, dec.ail_graph).generate_fuzzy(m.start(), m.end(), "PatternErrorsOut")
+        pattern = PatternGenerator(dec.codegen, dec.ail_graph).generate_pattern(m.start(), m.end(), "PatternErrorsOut")
 
         proj2, cfg2, func2 = _load()
-        proj2.kb.fuzzy_patterns.add(pattern)
+        proj2.kb.patterns.add(pattern)
         dec2 = proj2.analyses.Decompiler(func2, cfg=cfg2.model)
         assert dec2.codegen is not None and dec2.ail_graph is not None
         text = dec2.codegen.text
 
         calls = re.findall(r'return PatternErrorsOut\("([^"]*)"\);', text)
         assert len(calls) == 8, calls
-        stats = proj2.kb.fuzzy_patterns.stats(func2.addr, pattern.name)
+        stats = proj2.kb.patterns.stats(func2.addr, pattern.name)
         assert stats is not None and stats.outlined == 8 and stats.matches >= 8
         assert "Empty title" in calls and "Cannot open document." in calls
         assert text.count("PatternErrorsOut(") == 8
@@ -80,7 +80,7 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
 
         # a fresh project, so nothing of the lifting run is around but the pattern
         proj2, cfg2, func2 = _load()
-        proj2.kb.fuzzy_patterns.add(pattern, min_similarity=0.9)
+        proj2.kb.patterns.add(pattern, min_similarity=0.9)
         dec = proj2.analyses.Decompiler(func2, cfg=cfg2.model)
 
         assert dec.codegen is not None and dec.ail_graph is not None
@@ -92,7 +92,7 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
         pattern, baseline = _lift_a_pattern(proj, cfg, func, "my_idiom")
 
         proj2, cfg2, func2 = _load()
-        proj2.kb.fuzzy_patterns.add(pattern, enabled=False)
+        proj2.kb.patterns.add(pattern, enabled=False)
         dec = proj2.analyses.Decompiler(func2, cfg=cfg2.model)
 
         assert dec.codegen is not None and baseline.codegen is not None
@@ -113,8 +113,8 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
         wrong = replace(pattern, pattern=replace(pattern.pattern, stmts=tuple(stmts)))
 
         strict, lenient = _load(), _load()
-        strict[0].kb.fuzzy_patterns.add(wrong, min_similarity=0.9)
-        lenient[0].kb.fuzzy_patterns.add(wrong, min_similarity=0.9, require_verified=False)
+        strict[0].kb.patterns.add(wrong, min_similarity=0.9)
+        lenient[0].kb.patterns.add(wrong, min_similarity=0.9, require_verified=False)
         strict_text = strict[0].analyses.Decompiler(strict[2], cfg=strict[1].model).codegen.text
         lenient_text = lenient[0].analyses.Decompiler(lenient[2], cfg=lenient[1].model).codegen.text
 
@@ -124,14 +124,14 @@ class TestFuzzyPatternOutliner(unittest.TestCase):
     def test_the_pass_reports_what_it_did(self):
         proj, cfg, func = _load()
         pattern, dec = _lift_a_pattern(proj, cfg, func, "my_idiom")
-        proj.kb.fuzzy_patterns.add(pattern, min_similarity=0.9)
+        proj.kb.patterns.add(pattern, min_similarity=0.9)
 
         assert dec.clinic is not None and dec.ail_graph is not None
         # what Clinic hands a pass: the block indexes it allocates fresh addresses from
         by_addr: dict = {}
         for block in dec.ail_graph:
             by_addr.setdefault(block.addr, set()).add(block)
-        pass_ = FuzzyPatternOutliner(
+        pass_ = PatternOutliner(
             func,
             dec.clinic._ail_manager,
             graph=dec.ail_graph,

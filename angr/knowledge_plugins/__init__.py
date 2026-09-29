@@ -8,12 +8,12 @@ from .custom_strings import CustomStrings
 from .data import Data
 from .debug_variables import DebugVariableManager
 from .functions import Function, FunctionManager
-from .fuzzy_patterns import FuzzyPatterns, StoredPattern
 from .indirect_jumps import IndirectJumps
 from .key_definitions import KeyDefinitionManager
 from .labels import Labels
 from .obfuscations import Obfuscations
 from .patches import PatchManager
+from .patterns import Patterns, StoredPattern
 from .plugin import KnowledgeBasePlugin
 from .propagations import PropagationManager
 from .rtdb import RuntimeDb
@@ -35,13 +35,13 @@ __all__ = (
     "DebugVariableManager",
     "Function",
     "FunctionManager",
-    "FuzzyPatterns",
     "IndirectJumps",
     "KeyDefinitionManager",
     "KnowledgeBasePlugin",
     "Labels",
     "Obfuscations",
     "PatchManager",
+    "Patterns",
     "PropagationManager",
     "RuntimeDb",
     "StoredPattern",

@@ -80,7 +80,7 @@ class StoredPattern:
         )
 
 
-class FuzzyPatterns(KnowledgeBasePlugin):
+class Patterns(KnowledgeBasePlugin):
     """The fuzzy patterns of a knowledge base, by pattern name."""
 
     def __init__(self, kb: KnowledgeBase):
@@ -89,8 +89,8 @@ class FuzzyPatterns(KnowledgeBasePlugin):
         # function address -> pattern name -> stats; runtime only, never persisted
         self._stats: dict[int, dict[str, PatternStats]] = {}
 
-    def copy(self) -> FuzzyPatterns:
-        o = FuzzyPatterns(self._kb)
+    def copy(self) -> Patterns:
+        o = Patterns(self._kb)
         o._patterns = dict(self._patterns)
         o._stats = {addr: dict(per) for addr, per in self._stats.items()}
         return o
@@ -172,4 +172,4 @@ class FuzzyPatterns(KnowledgeBasePlugin):
             self.store(StoredPattern.from_dict(record))
 
 
-KnowledgeBasePlugin.register_default("fuzzy_patterns", FuzzyPatterns)
+KnowledgeBasePlugin.register_default("patterns", Patterns)

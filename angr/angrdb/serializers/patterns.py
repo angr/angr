@@ -2,23 +2,23 @@ from __future__ import annotations
 
 import json
 
-from angr.angrdb.models import DbFuzzyPattern
-from angr.knowledge_plugins.fuzzy_patterns import FuzzyPatterns, StoredPattern
+from angr.angrdb.models import DbPattern
+from angr.knowledge_plugins.patterns import Patterns, StoredPattern
 
 
-class FuzzyPatternsSerializer:
+class PatternsSerializer:
     """
     Serialize/unserialize user-authored fuzzy patterns to/from a database session.
     """
 
     @staticmethod
-    def dump(session, db_kb, fuzzy_patterns: FuzzyPatterns):
+    def dump(session, db_kb, patterns: Patterns):
         # rewritten wholesale, like bookmarks, so removals persist
-        for db_pattern in list(db_kb.fuzzy_patterns):
+        for db_pattern in list(db_kb.patterns):
             session.delete(db_pattern)
-        for stored in fuzzy_patterns:
+        for stored in patterns:
             session.add(
-                DbFuzzyPattern(
+                DbPattern(
                     kb=db_kb,
                     name=stored.name,
                     enabled=stored.enabled,
@@ -31,10 +31,10 @@ class FuzzyPatternsSerializer:
             )
 
     @staticmethod
-    def load(session, db_kb, kb) -> FuzzyPatterns:  # pylint:disable=unused-argument
-        fuzzy_patterns = FuzzyPatterns(kb)
-        for db_pattern in db_kb.fuzzy_patterns:
-            fuzzy_patterns.store(
+    def load(session, db_kb, kb) -> Patterns:  # pylint:disable=unused-argument
+        patterns = Patterns(kb)
+        for db_pattern in db_kb.patterns:
+            patterns.store(
                 StoredPattern.from_dict(
                     {
                         "pattern": json.loads(db_pattern.pattern),
@@ -48,4 +48,4 @@ class FuzzyPatternsSerializer:
                     }
                 )
             )
-        return fuzzy_patterns
+        return patterns
