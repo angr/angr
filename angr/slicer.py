@@ -28,6 +28,11 @@ class SimLightState:
 class SimSlicer:
     """
     A super lightweight intra-IRSB slicing class.
+
+    Register dependencies are tracked by byte offset. ``target_regs`` retains its
+    historical whole-base-register meaning; ``target_reg_bytes`` transfers exact
+    dependencies between blocks. Supply the IRSB's ``tyenv`` to size temporary
+    writes. Without it, writes from temporaries conservatively retain dependencies.
     """
 
     def __init__(
@@ -40,8 +45,12 @@ class SimSlicer:
         inslice_callback=None,
         inslice_callback_infodict=None,
         include_imarks: bool = True,
+        *,
+        tyenv: pyvex.IRTypeEnv | None = None,
+        target_reg_bytes: set[int] | None = None,
     ):
         self._arch = arch
+        self._tyenv = tyenv
         self._statements = statements
         self._target_tmps = target_tmps if target_tmps is not None else set()
         self._target_regs = target_regs if target_regs is not None else set()
@@ -55,29 +64,36 @@ class SimSlicer:
 
         self.stmts = []
         self.stmt_indices = []
-        self.final_regs = set()
+        self.final_reg_bytes: set[int] = set()
         self.final_stack_offsets = set()
 
-        if not self._target_tmps and not self._target_regs and not self._target_stack_offsets:
+        if not self._target_tmps and not self._target_regs and not self._target_stack_offsets and not target_reg_bytes:
             raise SimSlicerError(
                 'You must specify at least one of the following: "'
                 "target temps, target registers, and/or target stack offsets."
             )
 
-        # convert target registers to base registers
-        target_base_regs = set()
+        self._target_reg_bytes = set(target_reg_bytes) if target_reg_bytes is not None else set()
         for target_reg in self._target_regs:
-            base_reg = self._arch.get_base_register(target_reg)
-            if base_reg is None:
-                target_base_regs.add(target_reg)
-            else:
-                target_base_regs.add(base_reg[0])
-        self._target_regs = target_base_regs
+            offset, size = self._arch.get_base_register(target_reg) or (target_reg, self._arch.bytes)
+            self._target_reg_bytes.update(range(offset, offset + size))
 
         self._aliases = {}
 
         self._alias_analysis()
         self._slice()
+
+    @property
+    def final_regs(self) -> set[int]:
+        """Whole-base-register projection for callers that do not track byte dependencies."""
+        regs = set()
+        remaining = self.final_reg_bytes.copy()
+        for offset, size in set(self._arch.registers.values()):
+            if not self.final_reg_bytes.isdisjoint(range(offset, offset + size)):
+                base = self._arch.get_base_register(offset, size)
+                regs.add(base[0] if base is not None else offset)
+                remaining.difference_update(range(offset, offset + size))
+        return regs | remaining
 
     def _alias_analysis(self, mock_sp=True, mock_bp=True):
         """
@@ -200,7 +216,7 @@ class SimSlicer:
         Slice it!
         """
 
-        regs = set(self._target_regs)
+        regs = set(self._target_reg_bytes)
         tmps = set(self._target_tmps)
         stack_offsets = set(self._target_stack_offsets)
 
@@ -217,7 +233,7 @@ class SimSlicer:
             if not regs and not tmps and not stack_offsets:
                 break
 
-        self.final_regs = state.regs
+        self.final_reg_bytes = state.regs
         self.final_stack_offsets = state.stack_offsets
 
     #
@@ -250,17 +266,19 @@ class SimSlicer:
         return True
 
     def _backward_handler_stmt_Put(self, stmt: pyvex.IRStmt.Put, state):
-        reg = stmt.offset
-        # convert it to its base register
-        base_reg = self._arch.get_base_register(reg)
-        if base_reg is not None:
-            reg = base_reg[0]
+        if self._tyenv is None and isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+            offset, size = self._arch.get_base_register(stmt.offset) or (stmt.offset, self._arch.bytes)
+            written = range(offset, offset + size)
+            sized = False
+        else:
+            size = stmt.data.result_size(self._tyenv or pyvex.IRTypeEnv(self._arch)) // self._arch.byte_width
+            written = range(stmt.offset, stmt.offset + size)
+            sized = True
 
-        if reg in state.regs:
-            state.regs.remove(reg)
-
+        if not state.regs.isdisjoint(written):
+            if sized:
+                state.regs.difference_update(written)
             self._backward_handler_expr(stmt.data, state)
-
             return True
 
         return False
@@ -311,13 +329,8 @@ class SimSlicer:
         state.temps.add(tmp)
 
     def _backward_handler_expr_Get(self, expr, state):
-        reg = expr.offset
-        # convert it to its base register
-        base_reg = self._arch.get_base_register(reg)
-        if base_reg is not None:
-            reg = base_reg[0]
-
-        state.regs.add(reg)
+        size = expr.result_size(self._tyenv) // self._arch.byte_width
+        state.regs.update(range(expr.offset, expr.offset + size))
 
     def _backward_handler_expr_Load(self, expr, state):
         addr = expr.addr

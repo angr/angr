@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+from typing import TYPE_CHECKING
 
 import networkx
 import pyvex
@@ -9,6 +10,11 @@ from .errors import AngrBladeError, SimTranslationError
 from .knowledge_plugins.cfg import CFGNode
 from .slicer import SimSlicer
 from .utils.constants import DEFAULT_STATEMENT
+
+if TYPE_CHECKING:
+    from .analyses.cfg.cfg_base import CFGBase
+    from .knowledge_plugins.cfg.spilling_cfg import SpillingCFG
+    from .project import Project
 
 
 class BadJumpkindNotification(Exception):
@@ -25,12 +31,12 @@ class Blade:
 
     def __init__(
         self,
-        graph: networkx.DiGraph,
+        graph: networkx.DiGraph | SpillingCFG,
         dst_run: int,
         dst_stmt_idx: int,
         direction: str = "backward",
-        project=None,
-        cfg=None,
+        project: Project | None = None,
+        cfg: CFGBase | None = None,
         ignore_sp: bool = False,
         ignore_bp: bool = False,
         ignored_regs=None,
@@ -77,11 +83,13 @@ class Blade:
 
         self._slice = networkx.DiGraph()
 
+        if project is None:
+            raise AngrBladeError('"project" must be specified.')
         self.project = project
-        self._cfg = cfg.model
-        if self._cfg is None:
+        if cfg is None:
             # `cfg` is made optional only for compatibility concern. It will be made a positional parameter later.
             raise AngrBladeError('"cfg" must be specified.')
+        self._cfg = cfg.model
 
         if not self._in_graph(self._dst_run):
             raise AngrBladeError(f"The specified SimRun {self._dst_run} doesn't exist in graph.")
@@ -93,6 +101,15 @@ class Blade:
                     self._ignored_regs.add(r)
                 else:
                     self._ignored_regs.add(self.project.arch.registers[r][0])
+
+        if ignore_sp:
+            self._ignored_regs.add(self.project.arch.sp_offset)
+        if ignore_bp:
+            self._ignored_regs.add(self.project.arch.bp_offset)
+        self._ignored_reg_bytes = set()
+        for reg in self._ignored_regs:
+            offset, size = self.project.arch.get_base_register(reg) or (reg, self.project.arch.bytes)
+            self._ignored_reg_bytes.update(range(offset, offset + size))
 
         self._run_cache = {}
 
@@ -208,7 +225,7 @@ class Blade:
         return self._cfg.get_any_node(self._get_addr(thing))
 
     @staticmethod
-    def _get_addr(v):
+    def _get_addr(v) -> int:
         """
         Get address of the basic block or CFG node specified by v.
         :param v: Can be one of the following: a CFGNode, or an address.
@@ -217,13 +234,14 @@ class Blade:
         """
 
         if isinstance(v, CFGNode):
-            return v.addr
+            v = v.addr
         if type(v) is int:
             return v
         raise AngrBladeError(f"Unsupported SimRun argument type {type(v)}")
 
     def _in_graph(self, v):
-        return self._get_cfgnode(v) in self._graph
+        node = self._get_cfgnode(v)
+        return node is not None and node in self._graph
 
     def _inslice_callback(self, stmt_idx, stmt, infodict):  # pylint:disable=unused-argument
         tpl = (infodict["irsb_addr"], stmt_idx)
@@ -257,7 +275,8 @@ class Blade:
 
         # Retrieve the target: are we slicing from a register(IRStmt.Put), or a temp(IRStmt.WrTmp)?
         try:
-            stmts = self._get_irsb(self._dst_run).statements
+            irsb = self._get_irsb(self._dst_run)
+            stmts = irsb.statements
         except (SimTranslationError, BadJumpkindNotification):
             return
 
@@ -265,7 +284,9 @@ class Blade:
             dst_stmt = stmts[self._dst_stmt_idx]
 
             if type(dst_stmt) is pyvex.IRStmt.Put:
-                regs.add(dst_stmt.offset)
+                assert irsb.tyenv is not None
+                size = dst_stmt.data.result_size(irsb.tyenv) // self.project.arch.byte_width
+                regs.update(range(dst_stmt.offset, dst_stmt.offset + size))
             elif type(dst_stmt) is pyvex.IRStmt.WrTmp:
                 temps.add(dst_stmt.tmp)
             else:
@@ -296,7 +317,7 @@ class Blade:
             self.project.arch,
             stmts,
             target_tmps=temps,
-            target_regs=regs,
+            target_reg_bytes=regs,
             target_stack_offsets=None,
             inslice_callback=self._inslice_callback,
             inslice_callback_infodict={
@@ -304,18 +325,13 @@ class Blade:
                 "prev": prev,
             },
             include_imarks=self._include_imarks,
+            tyenv=irsb.tyenv,
         )
-        regs = slicer.final_regs
-        if self._ignore_sp and self.project.arch.sp_offset in regs:
-            regs.remove(self.project.arch.sp_offset)
-        if self._ignore_bp and self.project.arch.bp_offset in regs:
-            regs.remove(self.project.arch.bp_offset)
-        for offset in self._ignored_regs:
-            if offset in regs:
-                regs.remove(offset)
+        regs = slicer.final_reg_bytes - self._ignored_reg_bytes
 
         stack_offsets = slicer.final_stack_offsets
 
+        assert slicer.inslice_callback_infodict is not None
         prev = slicer.inslice_callback_infodict["prev"]
 
         if regs or stack_offsets:
@@ -347,7 +363,8 @@ class Blade:
 
         irsb_addr = self._get_addr(run)
         try:
-            stmts = self._get_irsb(run).statements
+            irsb = self._get_irsb(run)
+            stmts = irsb.statements
         except (SimTranslationError, BadJumpkindNotification):
             return
 
@@ -383,11 +400,12 @@ class Blade:
             self.project.arch,
             stmts,
             target_tmps=temps,
-            target_regs=regs,
+            target_reg_bytes=regs,
             target_stack_offsets=stack_offsets,
             inslice_callback=self._inslice_callback,
             inslice_callback_infodict=infodict,
             include_imarks=self._include_imarks,
+            tyenv=irsb.tyenv,
         )
 
         if not infodict["has_statement"]:
@@ -398,15 +416,11 @@ class Blade:
             return
         self._traced_runs.add(run)
 
-        regs = slicer.final_regs
-
-        if self._ignore_sp and self.project.arch.sp_offset in regs:
-            regs.remove(self.project.arch.sp_offset)
-        if self._ignore_bp and self.project.arch.bp_offset in regs:
-            regs.remove(self.project.arch.bp_offset)
+        regs = slicer.final_reg_bytes - self._ignored_reg_bytes
 
         stack_offsets = slicer.final_stack_offsets
 
+        assert slicer.inslice_callback_infodict is not None
         prev = slicer.inslice_callback_infodict["prev"]
 
         if regs or stack_offsets:
