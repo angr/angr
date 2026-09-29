@@ -23,6 +23,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     CReturn,
     CStructuredCodeGenerator,
     CUnaryOp,
+    c_return_type,
     qualifies_for_simple_cast,
     type_layout_key,
     type_to_c_repr_chunks,
@@ -32,7 +33,9 @@ from angr.sim_type import (
     SimCppClass,
     SimStruct,
     SimType,
+    SimTypeArray,
     SimTypeBottom,
+    SimTypeChar,
     SimTypeFloat,
     SimTypeFunction,
     SimTypeInt,
@@ -529,3 +532,61 @@ class TestTypeLayoutKey(unittest.TestCase):
         forward = [type_layout_key(s) for s in structs]
         backward = [type_layout_key(s) for s in reversed(structs)]
         assert backward[::-1] == forward
+
+
+class TestArrayReturnType(unittest.TestCase):
+    """C has no array return type, so the C view adjusts one to a pointer."""
+
+    arch = archinfo.ArchAMD64()
+
+    def test_a_scalar_return_type_is_handed_back_unchanged(self):
+        ty = SimTypeInt(signed=False).with_arch(self.arch)
+        assert c_return_type(ty) is ty
+
+    def test_a_pointer_return_type_is_handed_back_unchanged(self):
+        ty = SimTypePointer(SimTypeInt()).with_arch(self.arch)
+        assert c_return_type(ty) is ty
+
+    def test_an_array_return_type_becomes_a_pointer_to_its_element(self):
+        # the extent of an array is written after the declared name, which in a return type is
+        # where the function name goes
+        ty = SimTypeArray(SimTypeInt(signed=False), 2).with_arch(self.arch)
+        adjusted = c_return_type(ty)
+        assert isinstance(adjusted, SimTypePointer)
+        assert adjusted.c_repr(name="") == "unsigned int *"
+        assert adjusted._arch is self.arch
+
+    def test_an_array_of_a_named_element_keeps_the_element(self):
+        ty = SimTypeArray(SimTypeChar(), 16).with_arch(self.arch)
+        assert c_return_type(ty).c_repr(name="") == "char *"
+
+    def test_a_nested_array_reaches_the_innermost_element(self):
+        # SimTypePointer renders a pointer to an array without the star, so decaying one dimension
+        # would print an array again
+        ty = SimTypeArray(SimTypeArray(SimTypeInt(signed=False), 3), 2).with_arch(self.arch)
+        adjusted = c_return_type(ty)
+        assert isinstance(adjusted, SimTypePointer)
+        assert isinstance(adjusted.pts_to, SimTypeInt)
+        assert adjusted.c_repr(name="") == "unsigned int *"
+
+    def test_a_length_less_array_still_becomes_a_pointer(self):
+        ty = SimTypeArray(SimTypeInt(signed=False)).with_arch(self.arch)
+        assert c_return_type(ty).c_repr(name="") == "unsigned int *"
+
+    def test_a_recovered_array_return_type_renders_as_a_pointer(self):
+        # sub_141e0 fills a 24-byte stack slot with 8-byte handles and returns it, and type
+        # inference gives its return variable HANDLE[3]. Nothing here injects the type.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "windows", "dirtymoe.sys"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg.model)
+        func = cfg.functions[0x141E0]
+
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None
+        prototype = func.prototype
+        assert prototype is not None
+        assert isinstance(prototype.returnty, SimTypeArray)
+
+        text = dec.codegen.text or ""
+        signature = next(line for line in text.splitlines() if "sub_141e0(" in line)
+        assert signature.startswith("HANDLE * sub_141e0(")

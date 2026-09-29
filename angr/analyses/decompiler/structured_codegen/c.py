@@ -149,6 +149,24 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
 
 
+def c_return_type(returnty: SimType) -> SimType:
+    """
+    The return type as C can spell it: an array becomes a pointer to its element type.
+
+    C writes an array's extent after the declared name, so a return type has nowhere to put it. The
+    adjustment is the language's own array-to-pointer conversion, which is also what happens to the
+    array expression a return statement hands back. A nested array goes all the way to the innermost
+    element type, because SimTypePointer.c_repr renders a pointer to an array without the star and
+    decaying one dimension of an int[2][3] would print an array again.
+    """
+    if not isinstance(returnty, SimTypeArray):
+        return returnty
+    elem_type = returnty.elem_type
+    while isinstance(elem_type, SimTypeArray):
+        elem_type = elem_type.elem_type
+    return SimTypePointer(elem_type).with_arch(returnty._arch)
+
+
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
@@ -968,7 +986,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         # return type
         assert self.functy.returnty is not None
-        yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
+        yield c_return_type(self.functy.returnty).c_repr(name="").strip(" "), self.functy.returnty
         yield " ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
