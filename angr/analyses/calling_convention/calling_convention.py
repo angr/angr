@@ -37,7 +37,9 @@ from angr.knowledge_plugins.variables.variable_manager import VariableManagerInt
 from angr.procedures import SIM_PROCEDURES
 from angr.sim_type import (
     PointerDisposition,
+    SimStruct,
     SimType,
+    SimTypeArray,
     SimTypeBottom,
     SimTypeChar,
     SimTypeCppFunction,
@@ -48,8 +50,10 @@ from angr.sim_type import (
     SimTypeInt128,
     SimTypeLongLong,
     SimTypePointer,
+    SimTypeReference,
     SimTypeReg,
     SimTypeShort,
+    SimUnion,
     parse_cpp_file,
 )
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
@@ -66,6 +70,42 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.uses import Uses
 
 l = logging.getLogger(name=__name__)
+
+
+def _has_unresolved_aggregate(
+    ty: SimType | None, seen: set[tuple[int, bool]] | None = None, *, direct_pointee: bool = False
+) -> bool:
+    if ty is None:
+        return False
+
+    if seen is None:
+        seen = set()
+    seen_key = id(ty), direct_pointee
+    if seen_key in seen:
+        return False
+    seen.add(seen_key)
+
+    if isinstance(ty, SimStruct):
+        if not ty.fields:
+            # FILE is intentionally incomplete and used as an opaque handle. Its pointer is portable across the C
+            # runtime declarations, but FILE by value (and data-bearing incomplete types such as fpos_t) is not.
+            return not (direct_pointee and ty.name == "FILE")
+        return any(_has_unresolved_aggregate(field, seen, direct_pointee=False) for field in ty.fields.values())
+    if isinstance(ty, SimUnion):
+        return not ty.members or any(
+            _has_unresolved_aggregate(member, seen, direct_pointee=False) for member in ty.members.values()
+        )
+    if isinstance(ty, SimTypePointer):
+        return _has_unresolved_aggregate(ty.pts_to, seen, direct_pointee=True)
+    if isinstance(ty, SimTypeReference):
+        return _has_unresolved_aggregate(ty.refs, seen, direct_pointee=True)
+    if isinstance(ty, SimTypeArray):
+        return _has_unresolved_aggregate(ty.elem_type, seen, direct_pointee=False)
+    if isinstance(ty, SimTypeFunction):
+        return any(_has_unresolved_aggregate(arg, seen, direct_pointee=False) for arg in ty.args) or (
+            _has_unresolved_aggregate(ty.returnty, seen, direct_pointee=False)
+        )
+    return False
 
 
 class CallSiteFact:
@@ -210,6 +250,9 @@ class CallingConventionAnalysis(Analysis):
 
         if self._function.is_simprocedure:
             hooker = self.project.hooked_by(self._function.addr)
+            variadic_simprocedure = (
+                hooker is not None and not hooker.is_stub and hooker.guessed_prototype and hooker.ARGS_MISMATCH
+            )
             if isinstance(
                 hooker,
                 (
@@ -236,9 +279,22 @@ class CallingConventionAnalysis(Analysis):
 
             if self._function.prototype is None:
                 # try our luck
-                # we set ignore_binary_name to True because the binary name SimProcedures is "cle##externs" and does not
-                # match any library name
-                self._function.find_declaration(ignore_binary_name=True)
+                provider_known = hooker is not None and hooker.library_name is not None
+                declaration_found = provider_known and self._function.find_declaration()
+                if not declaration_found:
+                    old_cc = self._function.calling_convention
+                    old_returning = self._function.returning
+                    declaration_found = self._function.find_declaration(ignore_binary_name=True)
+                    if (
+                        provider_known
+                        and declaration_found
+                        and not variadic_simprocedure
+                        and _has_unresolved_aggregate(self._function.prototype)
+                    ):
+                        self._function.calling_convention = old_cc
+                        self._function.prototype = None
+                        self._function.prototype_libname = None
+                        self._function.returning = old_returning
 
             self.cc = self._function.calling_convention
             self.prototype = self._function.prototype
