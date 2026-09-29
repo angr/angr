@@ -4392,6 +4392,30 @@ class TestDecompiler(unittest.TestCase):
         assert "_security_check_cookie" not in d.codegen.text
         assert " ^ " not in d.codegen.text
 
+    def test_decoded_wide_string_copied_into_stack_variable(self, decompiler_options=None):
+        # issue 7285: the decoded path must be copied in full with its terminator, into a stack variable, and the
+        # decoded bytes after the terminator must be kept
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "82ce4d6615793fec42a57571f6161794de24362be69a5103cf3c1192aa4b6ecb"
+        )
+        # 0x4402e0 and 0x440350 are the targets of the allocation thunks; without them the first one is non-returning
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path,
+            0x4290E0,
+            extra_func_addrs=[0x4402E0, 0x440350],
+            expand_call_tree=False,
+            cfg_kwargs={"data_references": True},
+        )
+        f = proj.kb.functions[0x4290E0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        print_decompilation_result(d)
+
+        assert d.codegen is not None and d.codegen.text is not None
+        assert re.search(r'wcscpy\(v\d+, L"%AppData%\\\\Thunderbird\\\\Profiles"\);', d.codegen.text) is not None
+        assert "stack_base" not in d.codegen.text
+        for value in range(222, 228):
+            assert f" = {value};" in d.codegen.text
+
     @structuring_algo("sailr")
     def test_win_security_cookie_removal_with_interleaved_ip_writes(self, decompiler_options=None):
         # The /GS security-cookie init idiom (load __security_cookie; xor with frame; store to stack) can be
