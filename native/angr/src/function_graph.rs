@@ -1026,7 +1026,7 @@ impl FunctionGraph {
         let mut end_addresses: IndexMap<u64, Vec<u32>> = IndexMap::new();
         for idx in self.graph_nodes() {
             let n = &self.nodes[idx as usize];
-            if n.kind == NodeKind::Block {
+            if n.kind == NodeKind::Block && n.size != 0 {
                 end_addresses
                     .entry(n.addr.wrapping_add(n.size as u64))
                     .or_default()

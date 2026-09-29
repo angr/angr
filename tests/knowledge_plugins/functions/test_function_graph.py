@@ -205,6 +205,19 @@ class TestFunctionGraph(unittest.TestCase):
             loaded = Function.parse(func.serialize(), function_manager=proj.kb.functions, project=proj)
             assert function_digest(loaded) == function_digest(func)
 
+    def test_normalize_ignores_zero_size_return_target(self):
+        proj = angr.Project(
+            os.path.join(test_location, "aarch64", "go", "corpus", "age-v1.3.1-darwin-arm64"),
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        func = cfg.functions[0x10007D1E0]  # runtime.morestack
+        edges = {(src.addr, dst.addr, data["type"]) for src, dst, data in func.transition_graph.edges(data=True)}
+
+        assert any(node.addr == 0x10007D250 and node.size == 0 for node in func.transition_graph)
+        assert (0x10007D23C, 0x1000808A0, "call") in edges
+        assert (0x10007D23C, 0x10007D250, "transition") not in edges
+
     def test_normalize_splits_the_start_node(self):
         # the start block overlaps a smaller block that ends at the same address: normalize() shrinks the start block
         func = self._new_function(0x400664)  # fauxware: authenticate
