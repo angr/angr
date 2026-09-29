@@ -128,7 +128,7 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
             assert isinstance(src.value, int)
 
             r, s = self.is_integer_likely_a_string(src.value, src.size, self.project.arch.memory_endness)
-            if r:
+            if r and self._stmts_removable(statements, [stmt_idx]):
                 assert s is not None
                 tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
@@ -158,74 +158,74 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
 
             # scan forward to find all consecutive constant stores
             all_constant_stores = self._collect_constant_stores(statements, stmt_idx)
-            if all_constant_stores:
-                offsets = sorted(all_constant_stores.keys())
-                next_offset = min(offsets)
-                stride = []
-                for offset in offsets:
-                    if next_offset is not None and offset != next_offset:
-                        next_offset = None
-                        stride = []
-                    sidx, v = all_constant_stores[offset]
-                    if v is not None:
-                        stride.append((offset, sidx, v))
-                        next_offset = offset + v.size
-                    else:
-                        next_offset = None
-                        stride = []
-
-                if not stride:
-                    return None
-                min_stride_stmt_idx = min(sidx for _, sidx, _ in stride)
-                if min_stride_stmt_idx > stmt_idx:
-                    return None
-
-                integer, size = self._stride_to_int(stride)
-                prev_stmt = None if stmt_idx == 0 else statements[stmt_idx - 1]
-                min_str_length = 1 if prev_stmt is not None and self.is_inlined_strcpy(prev_stmt) else 4
-                r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_str_length)
-                if r:
-                    assert s is not None
-                    # copy into the stack variable at the lowest address of the stride
-                    first_offset, first_sidx, _ = min(stride, key=lambda x: x[0])
-                    first_stmt = statements[first_sidx]
-                    strcpy_dst = (
-                        self._stack_vvar_ref(first_stmt.dst, first_offset)
-                        if isinstance(first_stmt, Assignment)
-                        else first_stmt.addr
-                    )
-                    tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
-                    # remove all involved statements whose indices are greater than the current one
-                    for _, sidx, _ in reversed(stride):
-                        if sidx <= stmt_idx:
-                            continue
+            prev_stmt = None if stmt_idx == 0 else statements[stmt_idx - 1]
+            min_str_length = 1 if prev_stmt is not None and self.is_inlined_strcpy(prev_stmt) else 4
+            found = self._find_string_stride(statements, stmt_idx, all_constant_stores, min_str_length)
+            if found is not None:
+                stride, s = found
+                # copy into the stack variable at the lowest address of the stride
+                first_offset, first_sidx, _ = min(stride, key=lambda x: x[0])
+                first_stmt = statements[first_sidx]
+                strcpy_dst = (
+                    self._stack_vvar_ref(first_stmt.dst, first_offset)
+                    if isinstance(first_stmt, Assignment)
+                    else first_stmt.addr
+                )
+                tags = self._tags_with_extra_defs(stmt.tags, strcpy_dst)
+                for _, sidx, _ in stride:
+                    if sidx != stmt_idx:
                         statements[sidx] = None
 
-                    str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                    str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
-                    variable_map_of(self.manager).set_custom_string(str_const)
-                    call = Call(
-                        self.manager.next_atom(),
-                        "strncpy",
-                        args=[
-                            strcpy_dst,
-                            str_const,
-                            Const(self.manager.next_atom(), len(s), self.project.arch.bits),
-                        ],
-                        bits=None,
-                        **tags,
-                    )
-                    variable_map_of(self.manager).set_prototype(
-                        call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
-                    )
-                    return SideEffectStatement(
-                        self.manager.next_atom(),
-                        call,
-                        ret_expr=None,
-                        fp_ret_expr=None,
-                        **tags,
-                    )
+                str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
+                str_const = Const(self.manager.next_atom(), str_id, self.project.arch.bits)
+                variable_map_of(self.manager).set_custom_string(str_const)
+                call = Call(
+                    self.manager.next_atom(),
+                    "strncpy",
+                    args=[
+                        strcpy_dst,
+                        str_const,
+                        Const(self.manager.next_atom(), len(s), self.project.arch.bits),
+                    ],
+                    bits=None,
+                    **tags,
+                )
+                variable_map_of(self.manager).set_prototype(
+                    call, SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch)
+                )
+                return SideEffectStatement(
+                    self.manager.next_atom(),
+                    call,
+                    ret_expr=None,
+                    fp_ret_expr=None,
+                    **tags,
+                )
 
+        return None
+
+    def _find_string_stride(self, statements, stmt_idx, all_constant_stores, min_length):
+        """
+        Find the longest valid string made of contiguous constant writes that include the write at stmt_idx.
+        """
+        pieces = sorted((off, sidx, v) for off, (sidx, v) in all_constant_stores.items() if v is not None)
+        start = next((i for i, (_, sidx, _) in enumerate(pieces) if sidx == stmt_idx), None)
+        if start is None:
+            return None
+        lo = start
+        while lo > 0 and pieces[lo - 1][0] + pieces[lo - 1][2].size == pieces[lo][0]:
+            lo -= 1
+        hi = start
+        while hi + 1 < len(pieces) and pieces[hi][0] + pieces[hi][2].size == pieces[hi + 1][0]:
+            hi += 1
+
+        # the write at stmt_idx is replaced, so it must be part of the stride
+        for end in range(hi, start - 1, -1):
+            stride = pieces[lo : end + 1]
+            integer, size = self._stride_to_int(stride)
+            r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_length)
+            if r and self._stmts_removable(statements, [sidx for _, sidx, _ in stride]):
+                assert s is not None
+                return stride, s
         return None
 
     def _consolidate_strcpy_calls(self, statements):
@@ -313,10 +313,11 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
         return None
 
     def _collect_constant_stores(self, statements, starting_stmt_idx):
+        # stop at the first statement that may read or clobber the buffer, since writes after it cannot be hoisted
         r = {}
-        for idx, stmt in enumerate(statements):
-            if idx < starting_stmt_idx:
-                continue
+        covered = set()
+        for idx in range(starting_stmt_idx, len(statements)):
+            stmt = statements[idx]
             if stmt is None:
                 continue
             if (
@@ -325,8 +326,9 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                 and stmt.dst.was_stack
                 and isinstance(stmt.dst.stack_offset, int)
             ):
-                if isinstance(stmt.src, Const) and stmt.src.is_int:
-                    r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, self.project.arch.memory_endness)
+                offset = stmt.dst.stack_offset
+                size = stmt.dst.size
+                value = None
                 if (
                     isinstance(stmt.src, Insert)
                     and (
@@ -343,17 +345,29 @@ class InlinedStrcpySimplifier(InlinedStringCopySimplifierBase):
                     and isinstance(stmt.src.value, Const)
                     and stmt.src.value.is_int
                 ):
-                    r[stmt.dst.stack_offset + stmt.src.offset.value_int] = (
-                        idx,
-                        ail_const_to_be(stmt.src.value, self.project.arch.memory_endness),
-                    )
-                else:
-                    r[stmt.dst.stack_offset] = idx, None
+                    offset += stmt.src.offset.value_int
+                    size = stmt.src.value.size
+                    value = ail_const_to_be(stmt.src.value, self.project.arch.memory_endness)
             elif isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
-                if isinstance(stmt.data, Const) and stmt.data.is_int:
-                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, self.project.arch.memory_endness)
-                else:
-                    r[stmt.addr.offset] = idx, None
+                offset = stmt.addr.offset
+                size = stmt.size
+                value = (
+                    ail_const_to_be(stmt.data, self.project.arch.memory_endness)
+                    if isinstance(stmt.data, Const) and stmt.data.is_int
+                    else None
+                )
+            elif self._is_unrelated_stmt(stmt):
+                continue
+            else:
+                break
+
+            written = range(offset, offset + size)
+            if any(o in covered for o in written):
+                break
+            r[offset] = idx, value
+            if value is None:
+                break
+            covered.update(written)
         return r
 
     @staticmethod

@@ -55,6 +55,10 @@ def _integer_stack_assignment(idx: int, offset: int):
     return Assignment(idx, _stack_vvar(idx, offset), Const(idx, 0x41414141, 32))
 
 
+def _integer_stack_store(idx: int, offset: int):
+    return Store(idx, StackBaseOffset(idx, 64, offset), Const(idx, 0x41414141, 32), 4, "Iend_LE")
+
+
 def _inlined_wcsncpy(simplifier, idx: int, offset: int, data: bytes, count=None):
     string_id = simplifier.kb.custom_strings.allocate(data)
     string_const = Const(idx, string_id, 64)
@@ -72,7 +76,7 @@ def _inlined_wcsncpy(simplifier, idx: int, offset: int, data: bytes, count=None)
 def test_strcpy_collector_rejects_float_stack_assignment():
     simplifier = _simplifier(InlinedStrcpySimplifier)
     statements = [
-        _integer_stack_assignment(0, -8),
+        _integer_stack_store(0, -8),
         Assignment(1, _stack_vvar(1, -4), _float_const(1)),
     ]
 
@@ -85,7 +89,7 @@ def test_strcpy_collector_rejects_float_insert_value_and_offset():
     simplifier = _simplifier(InlinedStrcpySimplifier)
     dst = _stack_vvar(1, -4)
     statements = [
-        _integer_stack_assignment(0, -8),
+        _integer_stack_store(0, -8),
         Assignment(1, dst, Insert(1, dst, Const(2, 0, 32), _float_const(3), "Iend_LE")),
     ]
     collected = simplifier._collect_constant_stores(statements, 0)
@@ -144,7 +148,7 @@ def test_strcpy_single_statement_rejects_float_insert_base():
 def test_strcpy_collector_rejects_float_stack_store():
     simplifier = _simplifier(InlinedStrcpySimplifier)
     statements = [
-        _integer_stack_assignment(0, -8),
+        _integer_stack_store(0, -8),
         Store(1, StackBaseOffset(1, 64, -4), _float_const(1), 4, "Iend_LE"),
     ]
 
@@ -588,3 +592,66 @@ def test_strcpy_late_destination_is_lowest_stack_variable():
     assert isinstance(dst, UnaryOp) and dst.op == "Reference" and dst.tags.get("extra_def", False)
     assert dst.operand.varid == vvars[0].varid
     assert stmt.tags["extra_defs"] == [vvars[0].varid]
+
+
+def _strcpy_copies(builder, simplifier, statements):
+    """
+    Return (dst stack offset, string, count or None for strcpy) of each inlined string copy.
+    """
+    copies = []
+    for stmt in statements:
+        if (
+            isinstance(stmt, SideEffectStatement)
+            and stmt.expr.target in {"strcpy", "strncpy"}
+            and stmt.expr.args is not None
+            and variable_map_of(simplifier.manager).custom_string(stmt.expr.args[1])
+        ):
+            _, offset = simplifier._parse_addr(stmt.expr.args[0])
+            text = builder.project.kb.custom_strings[stmt.expr.args[1].value_int]
+            count = stmt.expr.args[2].value_int if len(stmt.expr.args) == 3 else None
+            copies.append((offset, text, count))
+    return copies
+
+
+def test_strcpy_does_not_hoist_stores_across_barriers():
+    pointer = VirtualVariable(0, 100, 64, VirtualVariableCategory.REGISTER, oident=0)
+    for barrier in ("call", "store"):
+        builder = _WcscpyBlockBuilder()
+        builder.store_bytes(-108, b"hello, ")
+        if barrier == "call":
+            builder.call("consume", StackBaseOffset(builder.manager.next_atom(), 64, -108))
+        else:
+            # may alias the stack buffer
+            builder.statements.append(
+                Store(builder.manager.next_atom(), pointer, Const(builder.manager.next_atom(), 0x41, 8), 1, "Iend_LE")
+            )
+        builder.store_bytes(-101, b"world!!")
+        simplifier, statements = builder.run(InlinedStrcpySimplifier)
+
+        assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hello, ", 7), (-101, b"world!!", 7)]
+        assert len(statements) == 3
+
+
+def test_strcpy_folds_prefix_before_unknown_store():
+    builder = _WcscpyBlockBuilder()
+    builder.store_bytes(-108, b"hello, world")
+    unknown = VirtualVariable(builder.manager.next_atom(), 100, 32, VirtualVariableCategory.REGISTER, oident=0)
+    builder.statements.append(
+        Store(builder.manager.next_atom(), StackBaseOffset(builder.manager.next_atom(), 64, -96), unknown, 4, "Iend_LE")
+    )
+    simplifier, statements = builder.run(InlinedStrcpySimplifier)
+
+    assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hello, world", 12)]
+    assert len(statements) == 2
+
+
+def test_strcpy_late_keeps_updates_whose_values_are_used():
+    builder = _WcscpyBlockBuilder()
+    builder.insert_bytes(-108, b"hell")
+    vvars = builder.insert_bytes(-104, b"o, w")
+    builder.call("consume", vvars[-1])
+    simplifier, statements = builder.run(InlinedStrcpySimplifierLate)
+
+    # removing the updates at -104 would leave the variable passed to consume() undefined
+    assert _strcpy_copies(builder, simplifier, statements) == [(-108, b"hell", 4)]
+    assert sum(isinstance(stmt, Assignment) and isinstance(stmt.src, Insert) for stmt in statements) == 4
