@@ -80,8 +80,8 @@ class Atom:
         if isinstance(expr, ailment.Expr.Register):
             if full_reg:
                 reg_name = arch.translate_register_name(expr.reg_offset)
-                return Register(arch.registers[reg_name][0], arch.registers[reg_name][1], arch)
-            return Register(expr.reg_offset, expr.size, arch)
+                return Register(arch.registers[reg_name][0], arch.registers[reg_name][1])
+            return Register(expr.reg_offset, expr.size)
         raise TypeError(f"Expression type {type(expr)} is not yet supported")
 
     @staticmethod
@@ -102,8 +102,8 @@ class Atom:
                 # e.g., the x87 st0 an X86 calling convention returns floats in
                 raise ValueError(f"Register {argument.reg_name} is unknown to {arch.name}")
             if full_reg:
-                return Register(arch.registers[argument.reg_name][0], arch.registers[argument.reg_name][1], arch)
-            return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size, arch)
+                return Register(arch.registers[argument.reg_name][0], arch.registers[argument.reg_name][1])
+            return Register(arch.registers[argument.reg_name][0] + argument.reg_offset, argument.size)
         if isinstance(argument, SimStackArg):
             if sp is None:
                 raise ValueError("You must provide a stack pointer to translate a SimStackArg")
@@ -142,7 +142,7 @@ class Atom:
             raise TypeError(
                 "Unsupported type of register. It must be a string (for register name) or an int (for register offset)"
             )
-        return Register(reg_offset, size, arch=arch)
+        return Register(reg_offset, size)
 
     register = reg
 
@@ -242,28 +242,21 @@ class Register(Atom):
     :ivar int size:          The size, in number of bytes.
     """
 
-    __slots__ = (
-        "arch",
-        "reg_offset",
-    )
+    __slots__ = ("reg_offset",)
 
-    def __init__(self, reg_offset: RegisterOffset | int, size: int, arch: Arch | None = None):
+    def __init__(self, reg_offset: RegisterOffset | int, size: int):
         super().__init__(size)
 
         self.reg_offset = RegisterOffset(reg_offset)
-        self.arch = arch
 
     def __repr__(self):
-        return f"<Reg {self.name}<{self.size}>>"
+        return f"<Reg {self.reg_offset}<{self.size}>>"
 
     def _identity(self):
         return (self.reg_offset, self.size)
 
-    @property
-    def name(self) -> str:
-        return (
-            str(self.reg_offset) if self.arch is None else self.arch.translate_register_name(self.reg_offset, self.size)
-        )
+    def name(self, arch: Arch) -> str:
+        return arch.translate_register_name(self.reg_offset, self.size)
 
 
 class VirtualVariable(Atom):
