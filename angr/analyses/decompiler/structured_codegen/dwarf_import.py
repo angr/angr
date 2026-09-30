@@ -182,9 +182,11 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
             l.error("There is a function whose address does not correspond to any loaded object")
             return {}
 
-        for addr, filename_line in obj.addr_to_line.items():
-            if filename_line in result:
-                result[filename_line] = addr
+        # cle maps each address to a set of (filename, line) pairs, not to a single pair.
+        for addr, filename_lines in obj.addr_to_line.items():
+            for filename_line in filename_lines:
+                if filename_line in result:
+                    result[filename_line] = addr
 
         return result
 
