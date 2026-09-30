@@ -28,7 +28,7 @@ class MultiWordMaps(GoDecompilationTarget):
 
     def test_struct_key_and_slice_value(self):
         assert "s.byKey[k] = v\n" in self.texts["main.put"], self.texts["main.put"]
-        assert re.search(r"^\s+(\w+), ok := s\.byKey\[k\]\n\s+return \1, ok\n", self.texts["main.get"], re.M)
+        assert re.search(r"^\s+(\w+), ok := s\.byKey\[k\]\n\s+return \1, ok\n", self.texts["main.get"], re.MULTILINE)
 
     def test_empty_struct_value(self):
         assert "s.flags[name] = struct{}{}\n" in self.texts["main.flag"], self.texts["main.flag"]

@@ -254,7 +254,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             return []
 
         # record all variables
-        for var, offset in list(existing_vars):
+        for var, offset in existing_vars:
             if offset == 0:
                 offset = None
             variable_manager.record_variable(codeloc, var, offset, atom=src_expr)
@@ -764,7 +764,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     for var_offset, var in self.state.extract_variables(v):
                         variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
         else:
-            for var, var_offset in list(existing_vars):
+            for var, var_offset in existing_vars:
                 variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
 
         # create type constraints
