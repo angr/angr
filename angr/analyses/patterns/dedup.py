@@ -229,10 +229,12 @@ def graph_problems(graph: networkx.DiGraph[Block], func_addr: int | None = None)
     Three things go wrong in practice, and all three surface far downstream as
     an unrelated crash, so they are caught here instead:
 
-    * A phi keeps sourcing a block that is gone. ``Outliner._update_phi_stmts``
-      handles a single replaced source, and a whole region collapsing into one
-      call block, but not a frontier block reached both from several blocks
-      inside the region and from outside it.
+    * A phi keeps sourcing a block that is gone. The Outliner keeps the source
+      block's phis in the caller, moves every block the region reaches into the
+      callee, and rewrites frontier phis to the call or dispatcher block;
+      ``materialize`` splits a head's phis off so a loop back to it exits the
+      region. What is left is a frontier phi reached through several new
+      predecessors at once, which ``_update_phi_stmts`` leaves alone.
     * Two blocks end up sharing ``(addr, idx)``. ``GraphDephicationVVarMapping``
       keys blocks by that pair in a plain dict, so one silently shadows the
       other and statement-index lookups land in the wrong block.

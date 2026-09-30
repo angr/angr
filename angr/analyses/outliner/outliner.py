@@ -13,7 +13,7 @@ from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions import Function
-from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
+from angr.utils.graph import Dominators, compute_dominance_frontier
 from angr.utils.ssa import is_phi_assignment
 
 _l = logging.getLogger(__name__)
@@ -71,6 +71,7 @@ class Outliner(Analysis):
         # is closed, every path through it ends in a return, and the callee returns on the
         # caller's behalf.
         self.closed = frontier is not None and not frontier
+        self.derived_frontier = frontier is None
         if frontier:
             self.frontier_locs = frontier
             self.frontier_vars = self._determine_frontier_vars()
@@ -156,17 +157,43 @@ class Outliner(Analysis):
             except KeyError as e:
                 raise KeyError(f"Frontier location {loc} is not valid in the given graph.") from e
 
-        # generate a subgraph
-        if self.closed:
-            subgraph = networkx.DiGraph(
-                self.parent_graph.subgraph({src_node, *networkx.descendants(self.parent_graph, src_node)})
-            )
-        else:
-            subgraph = subgraph_between_nodes(
-                self.parent_graph, src_node, frontier, include_frontier=False
-            )  # FISHME: why was this True?
+        # generate a subgraph: everything reachable from the source without crossing the frontier,
+        # including blocks that never reach it (noreturn calls), which would otherwise be orphaned
+        region_nodes = {src_node}
+        stack = [src_node]
+        frontier_set = set(frontier)
+        while stack:
+            node = stack.pop()
+            for succ in self.parent_graph.successors(node):
+                if succ not in region_nodes and succ not in frontier_set:
+                    region_nodes.add(succ)
+                    stack.append(succ)
+        if not self.closed:
+            # a return inside an open region returns from the caller: it stays there as one more exit
+            returns = [
+                node
+                for node in region_nodes
+                if node is not src_node
+                and self.parent_graph.out_degree[node] == 0
+                and node.statements
+                and isinstance(node.statements[-1], Return)
+            ]
+            if returns:
+                region_nodes.difference_update(returns)
+                frontier.extend(returns)
+                self.frontier_locs = {*self.frontier_locs, *((node.addr, node.idx) for node in returns)}
+                if not self.derived_frontier:
+                    self.frontier_vars = self._determine_frontier_vars()
+        subgraph = networkx.DiGraph(self.parent_graph.subgraph(region_nodes))
 
-        in_edges = [(node, src_node) for node in self.parent_graph.pred[src_node]]
+        in_edges = [(node, src_node) for node in self.parent_graph.pred[src_node] if node not in subgraph]
+        if len(in_edges) != self.parent_graph.in_degree[src_node]:
+            # the callee would have to loop back to its own entry, which the caller's call block cannot
+            raise AngrRuntimeError("The region loops back to its entry block.")
+        # the source's phis merge values from outside the region; they stay in the caller
+        head_phis = [stmt for stmt in src_node.statements if is_phi_assignment(stmt)]
+        if head_phis:
+            src_node.statements = [stmt for stmt in src_node.statements if not is_phi_assignment(stmt)]
         out_edges = [
             (node, frontier_node)
             for frontier_node in frontier
@@ -200,7 +227,9 @@ class Outliner(Analysis):
             None, vvar_id, self.project.arch.bits, VirtualVariableCategory.REGISTER, oident=self.project.arch.ret_offset
         )
         call_stmt = Assignment(None, switch_vvar, call_expr, ins_addr=src_node.addr)
-        new_src_node = Block(src_node.addr, src_node.original_size, statements=[call_stmt], idx=src_node.idx)
+        new_src_node = Block(
+            src_node.addr, src_node.original_size, statements=[*head_phis, call_stmt], idx=src_node.idx
+        )
         for pred, _ in in_edges:
             self.parent_graph.add_edge(pred, new_src_node)
 
@@ -326,7 +355,7 @@ class Outliner(Analysis):
             )
             if ret_bits is not None:
                 call_expr = Call(None, call_expr.target, args=call_expr.args, bits=ret_bits, ins_addr=src_node.addr)
-                new_src_node.statements = [Return(None, [call_expr], ins_addr=src_node.addr)]
+                new_src_node.statements = [*head_phis, Return(None, [call_expr], ins_addr=src_node.addr)]
             else:
                 new_src_node.statements.append(Return(None, [], ins_addr=src_node.addr))
 

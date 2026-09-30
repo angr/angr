@@ -6,6 +6,8 @@ import os.path
 import unittest
 from unittest import TestCase
 
+import networkx
+
 import angr
 from angr.ailment.expression import Call, Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment
@@ -268,6 +270,59 @@ class TestOutlinerSSAInvariants(TestCase):
                     f"outlining {name} at {block.addr:#x}.{block.idx} introduced "
                     f"{len(introduced)} SSA problems, e.g. {min(introduced)}"
                 )
+
+    def test_outlining_never_strands_a_block(self):
+        """A block the region reaches but that does not reach the frontier (a return, a
+        noreturn call) moves into the callee or stays reachable in the caller."""
+        checked = 0
+        for name, (func, base) in self.graphs.items():
+            for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
+                if base.in_degree[block] == 0 or base.out_degree[block] == 0:
+                    continue
+                graph = Clinic._copy_graph(base)
+                try:
+                    self.proj.analyses[Outliner](func, graph, src_loc=(block.addr, block.idx), min_step=2)
+                except Exception:  # pylint:disable=broad-except
+                    continue
+                entry = next(b for b in graph if b.addr == func.addr and b.idx is None)
+                stranded = set(graph) - networkx.descendants(graph, entry) - {entry}
+                checked += 1
+                assert not stranded, (
+                    f"outlining {name} at {block.addr:#x}.{block.idx} stranded "
+                    f"{sorted((b.addr, b.idx) for b in stranded)[:3]}"
+                )
+        assert checked
+
+    def test_phis_at_the_source_stay_defined_in_the_caller(self):
+        """The source block's phis merge values from the region's predecessors; the callee
+        takes them as arguments, so the caller must keep defining them."""
+        checked = 0
+        for name, (func, base) in self.graphs.items():
+            for block in sorted(base, key=lambda b: (b.addr, -1 if b.idx is None else b.idx)):
+                phi_dsts = {
+                    stmt.dst.varid
+                    for stmt in block.statements
+                    if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
+                }
+                if not phi_dsts or base.in_degree[block] == 0 or base.out_degree[block] == 0:
+                    continue
+                graph = Clinic._copy_graph(base)
+                try:
+                    self.proj.analyses[Outliner](func, graph, src_loc=(block.addr, block.idx), min_step=2)
+                except Exception:  # pylint:disable=broad-except
+                    continue
+                defined = {
+                    stmt.dst.varid
+                    for b in graph
+                    for stmt in b.statements
+                    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
+                }
+                checked += 1
+                assert phi_dsts <= defined, (
+                    f"outlining {name} at {block.addr:#x}.{block.idx} dropped the definitions of "
+                    f"{sorted(phi_dsts - defined)}"
+                )
+        assert checked, "no outline started at a block with phis"
 
     def test_call_returns_only_variables_the_region_defines(self):
         """The synthesized call must not become a second definition of a variable
