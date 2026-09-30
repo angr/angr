@@ -265,9 +265,10 @@ def banded_sw(
     """Banded local alignment with affine gaps, restricted to ``|i - j| <= band``.
 
     Two unconditional jumps (``score.glue``) lined up score nothing, and such a column
-    counts toward neither the matched columns nor the columns. Skipping one costs the
-    usual gap: a free skip would let an alignment run on from one copy into the next,
-    since reverse post-order often places copies side by side.
+    counts toward neither the matched columns nor the columns. Skipping one is free when
+    the statements after it on both sides are equal, and costs the usual gap otherwise:
+    free skips everywhere let an alignment run on from one copy into the next, since
+    reverse post-order often places copies side by side.
     """
     glue = score.glue
     la, lb = a1 - a0, b1 - b0
@@ -305,15 +306,19 @@ def banded_sw(
                 if m > best_score:
                     best_score, best_cell = m, (i, j)
 
-            om = prev[_M].get(j, _NEG) + params.gap_open
-            ox = prev[_X].get(j, _NEG) + params.gap_extend
+            # skipping a jump is free when it lines up two equal statements next; otherwise
+            # it costs a gap, or the alignment would run on from one copy into the next
+            free = ai in glue and i < la and j < lb and ids[a0 + i] == ids[b0 + j]
+            om = prev[_M].get(j, _NEG) + (0.0 if free else params.gap_open)
+            ox = prev[_X].get(j, _NEG) + (0.0 if free else params.gap_extend)
             x = max(om, ox)
             if x > 0:
                 cur[_X][j] = x
                 ptr[i, j, _X] = _M if om >= ox else _X
 
-            om = cur[_M].get(j - 1, _NEG) + params.gap_open
-            oy = cur[_Y].get(j - 1, _NEG) + params.gap_extend
+            free = ids[b0 + j - 1] in glue and i < la and j < lb and ids[a0 + i] == ids[b0 + j]
+            om = cur[_M].get(j - 1, _NEG) + (0.0 if free else params.gap_open)
+            oy = cur[_Y].get(j - 1, _NEG) + (0.0 if free else params.gap_extend)
             y = max(om, oy)
             if y > 0:
                 cur[_Y][j] = y
@@ -558,8 +563,17 @@ def discover(
     shape ids of unconditional jumps, which score nothing and cost nothing to skip."""
     params = params or AlignParams()
     score = ScoreModel(klass_of_shape, params, glue)
-    buckets = find_seeds(ids, params, segment, glue)
-    candidates = chain_seeds(buckets, params, segment)
+    # Seeds and chains are found on the statements without the jumps: one copy with an extra
+    # goto has no k-gram in common with the other through it, and sits on another diagonal
+    # after it. The candidates are mapped back to stream positions for the alignment.
+    real = [t for t, i in enumerate(ids) if i not in glue] if glue else list(range(len(ids)))
+    real_ids = [ids[t] for t in real]
+    real_segment = [segment[t] for t in real] if segment is not None else None
+    buckets = find_seeds(real_ids, params, real_segment, glue)
+    candidates = [
+        (real[s + d] - real[s], real[s], real[e - 1] + 1, anchors)
+        for d, s, e, anchors in chain_seeds(buckets, params, real_segment)
+    ]
     _l.debug("fuzzy patterns: %d seed buckets, %d chained candidates", len(buckets), len(candidates))
     alignments = refine_candidates(ids, candidates, score, params, checkpoint, segment)
     _l.debug("fuzzy patterns: %d alignments survived refinement", len(alignments))

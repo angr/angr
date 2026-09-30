@@ -337,7 +337,7 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
     def test_an_outline_that_drops_a_live_value_is_kept_with_a_warning(self):
         # in gnulib's quoting loop the family's region hands on more values than a call returns
         proj, cfg, func = _scoped("x86_64/dir_gcc_-O0", 0x410AAE, include_plt=True)
-        pattern = self._longest_family_pattern(proj, cfg, func, min_size=30)
+        pattern = self._longest_family_pattern(proj, cfg, func, min_size=10)
         proj.kb.patterns.add(pattern)
         passes = []
         orig = PatternOutliner.__init__

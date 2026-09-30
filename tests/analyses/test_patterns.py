@@ -564,6 +564,22 @@ class TestStatementsModes(TestCase):
         assert [(0, 5), (50, 55), (100, 105)] in occurrences, occurrences
         assert [(0, 8), (100, 108)] in occurrences, occurrences
 
+    def test_an_extra_jump_in_one_copy_does_not_hide_it(self):
+        # two copies of a 5-statement idiom; one has a goto in the middle
+        rng = random.Random(13)
+        idiom = [rng.randrange(20, 40) for _ in range(5)]
+        jump = 7
+        noise = iter(range(100, 1000))
+        ids = [next(noise) for _ in range(10)] + idiom + [next(noise) for _ in range(30)]
+        ids += idiom[:3] + [jump] + idiom[3:] + [next(noise) for _ in range(10)]
+        params = AlignParams(k=4, min_score=15, min_size=4, min_anchors=1)
+        clusters = discover(ids, list(range(1000)), params, glue=frozenset({jump}))
+        second = 10 + 5 + 30
+        assert any(
+            any(o.start <= 10 < o.end for o in c.occurrences) and any(o.start <= second < o.end for o in c.occurrences)
+            for c in clusters
+        ), [[(o.start, o.end) for o in c.occurrences] for c in clusters]
+
     def test_no_occurrence_crosses_a_segment_boundary(self):
         rng = random.Random(7)
         core = [rng.randrange(20, 60) for _ in range(12)]
