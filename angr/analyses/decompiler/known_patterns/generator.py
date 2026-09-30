@@ -795,7 +795,7 @@ class PatternGenerator:
             raise PatternGenerationError("the selection covers no statement")
         self._wildcards = 0
         # the same order the fuzzy matcher's stream uses, so the sequence lines up with it
-        from angr.analyses.patterns.tokenizer import linearize  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.tokenizer import linearize  # pylint:disable=import-outside-toplevel
 
         entry = next(b for b in self.ail_graph if not any(True for _ in self.ail_graph.predecessors(b)))
         # A statement is selected when it or any of its subexpressions carries a selected

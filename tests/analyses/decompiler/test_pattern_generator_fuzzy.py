@@ -22,7 +22,7 @@ from angr.analyses.decompiler.known_patterns import (
     iter_stmt_patterns,
 )
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
-from angr.analyses.patterns.search import find_template_occurrences
+from angr.analyses.decompiler.pattern_match.search import find_template_occurrences
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")

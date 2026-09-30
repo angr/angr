@@ -26,8 +26,8 @@ from angr.analyses.decompiler.known_patterns import (
     PVVar,
 )
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
-from angr.analyses.patterns import tokenize
-from angr.analyses.patterns.template import TEMPLATE_TOKENIZER, Fit, match_shape, parse_shape, shape_of
+from angr.analyses.decompiler.pattern_match import tokenize
+from angr.analyses.decompiler.pattern_match.template import TEMPLATE_TOKENIZER, Fit, match_shape, parse_shape, shape_of
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")

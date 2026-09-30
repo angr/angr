@@ -23,10 +23,10 @@ from angr.analyses.decompiler.known_patterns import (
     PVVar,
 )
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
-from angr.analyses.patterns.align import AlignParams
-from angr.analyses.patterns.search import find_template_occurrences, search, template_leaves, verify
-from angr.analyses.patterns.template import Fit
-from angr.analyses.patterns.tokenizer import AILCanonicalizer, TokenLoc, TokenStream
+from angr.analyses.decompiler.pattern_match.align import AlignParams
+from angr.analyses.decompiler.pattern_match.search import find_template_occurrences, search, template_leaves, verify
+from angr.analyses.decompiler.pattern_match.template import Fit
+from angr.analyses.decompiler.pattern_match.tokenizer import AILCanonicalizer, TokenLoc, TokenStream
 from tests.common import bin_location
 
 BIN_PATH = os.path.join(bin_location, "tests")
@@ -147,7 +147,7 @@ class TestSearch(unittest.TestCase):
 
     def test_weakly_voted_diagonals_of_a_large_template_are_skipped(self):
 
-        search_mod = sys.modules["angr.analyses.patterns.search"]
+        search_mod = sys.modules["angr.analyses.decompiler.pattern_match.search"]
         # a 24-statement template of eight different shapes, one copy of it, and noise that
         # agrees with it one statement at a time on many diagonals
         ops = ("Add", "Sub", "Mul", "And", "Or", "Xor", "Shl", "Shr")
@@ -169,7 +169,7 @@ class TestSearch(unittest.TestCase):
         assert hit.interval.start == len(noise) * 3 and hit.similarity == 1.0
 
     def test_a_found_copy_is_aligned_once(self):
-        search_mod = sys.modules["angr.analyses.patterns.search"]
+        search_mod = sys.modules["angr.analyses.decompiler.pattern_match.search"]
         # a periodic template: its copy also agrees with itself shifted by one period, so the
         # diagonals a period either side are well voted and land on the same copy
         ops = ("Add", "Sub", "Mul", "And", "Or", "Xor", "Shl", "Shr")
@@ -202,7 +202,7 @@ class TestSearch(unittest.TestCase):
         assert starts == [len(NOISE), 2 * len(NOISE) + 3, 3 * len(NOISE) + 6]
 
     def test_a_generic_template_of_common_statements_is_not_tried_everywhere(self):
-        search_mod = sys.modules["angr.analyses.patterns.search"]
+        search_mod = sys.modules["angr.analyses.decompiler.pattern_match.search"]
         generic = PStmtSeq((PAssign(PVVar(), PConst()), PAssign(PVVar(), PVVar()), PAssign(PVVar(), PConst())))
         shapes = ["Asn(V,C)", "Asn(V,V)", "Asn(V,C)"]
         stream = _stream((NOISE + shapes) * 3)
@@ -283,7 +283,9 @@ class TestVerifyOnARealFunction(unittest.TestCase):
         raise AssertionError("no liftable window with a constant assignment in doit")
 
     def test_a_lifted_template_finds_itself_verified(self):
-        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.search import (  # pylint:disable=import-outside-toplevel
+            tokenize_for_templates,
+        )
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         start, template = self._pick_window(stream)
@@ -298,7 +300,9 @@ class TestVerifyOnARealFunction(unittest.TestCase):
     def test_long_windows_find_themselves_verified(self):
         """Labels and phis are not pattern statements and conversions are dropped by the
         generator; a lifted window of any length must still match its own statements."""
-        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.search import (  # pylint:disable=import-outside-toplevel
+            tokenize_for_templates,
+        )
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         blocks = {(b.addr, b.idx): b for b in stream.blocks}
@@ -316,7 +320,9 @@ class TestVerifyOnARealFunction(unittest.TestCase):
         """Every loosening the editor offers must keep a pattern matching the statements it
         came from; each one has failed that at some point."""
         from angr.analyses.decompiler.known_patterns.edit import PatternEditor  # pylint:disable=import-outside-toplevel
-        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.search import (  # pylint:disable=import-outside-toplevel
+            tokenize_for_templates,
+        )
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         blocks = {(b.addr, b.idx): b for b in stream.blocks}
@@ -333,7 +339,9 @@ class TestVerifyOnARealFunction(unittest.TestCase):
             assert hits[0].verified is True, (start, [c for c in hits[0].columns if c.verified is False][:3])
 
     def test_a_wrong_constant_is_found_but_refused(self):
-        from angr.analyses.patterns.search import tokenize_for_templates  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.search import (  # pylint:disable=import-outside-toplevel
+            tokenize_for_templates,
+        )
 
         stream = tokenize_for_templates(self.graph, self.entry, kb=self.kb)
         start, template = self._pick_window(stream)

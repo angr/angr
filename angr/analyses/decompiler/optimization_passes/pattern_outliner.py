@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import Call, Const, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Return
 from angr.analyses.decompiler.known_patterns.pattern import resolve_typeref
+from angr.analyses.decompiler.pattern_match.dedup import _restore, _snapshot, graph_problems, normalize_call_width
+from angr.analyses.decompiler.pattern_match.region import largest_single_entry_subrun, materialize, snap
+from angr.analyses.decompiler.pattern_match.search import search, tokenize_for_templates, verify
 from angr.analyses.decompiler.utils import copy_graph
 from angr.analyses.decompiler.variable_map import variable_map_of
 from angr.analyses.outliner import Outliner
-from angr.analyses.patterns.dedup import _restore, _snapshot, graph_problems, normalize_call_width
-from angr.analyses.patterns.region import largest_single_entry_subrun, materialize, snap
-from angr.analyses.patterns.search import search, tokenize_for_templates, verify
 from angr.knowledge_plugins.patterns import PatternStats
 from angr.sim_type import SimTypeFunction, parse_type
 
@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     import networkx
 
     from angr.ailment import Block
-    from angr.analyses.patterns.search import TemplateMatch
-    from angr.analyses.patterns.tokenizer import TokenStream
+    from angr.analyses.decompiler.pattern_match.search import TemplateMatch
+    from angr.analyses.decompiler.pattern_match.tokenizer import TokenStream
     from angr.knowledge_plugins.patterns import StoredPattern
 
 _l = logging.getLogger(__name__)

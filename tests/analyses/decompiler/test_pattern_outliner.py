@@ -16,10 +16,10 @@ from angr.analyses.decompiler.known_patterns.edit import PatternEditor
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
 from angr.analyses.decompiler.known_patterns.serialize import dumps, loads
 from angr.analyses.decompiler.optimization_passes import PatternOutliner
+from angr.analyses.decompiler.pattern_match.align import AlignParams
+from angr.analyses.decompiler.pattern_match.dedup import graph_problems
+from angr.analyses.decompiler.pattern_match.search import tokenize_for_templates
 from angr.analyses.outliner import Outliner
-from angr.analyses.patterns.align import AlignParams
-from angr.analyses.patterns.dedup import graph_problems
-from angr.analyses.patterns.search import tokenize_for_templates
 from angr.knowledge_plugins.patterns import StoredPattern
 from tests.common import bin_location, load_project_with_scoped_cfg
 

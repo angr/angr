@@ -10,7 +10,7 @@ import networkx
 
 import angr
 from angr.ailment.statement import Label
-from angr.analyses.patterns import (
+from angr.analyses.decompiler.pattern_match import (
     AILCanonicalizer,
     AlignParams,
     Interval,
@@ -20,7 +20,7 @@ from angr.analyses.patterns import (
     snap,
     tokenize,
 )
-from angr.analyses.patterns.align import (
+from angr.analyses.decompiler.pattern_match.align import (
     ScoreModel,
     banded_sw,
     chain_seeds,
@@ -242,8 +242,8 @@ class TestSingleEntrySubrun(TestCase):
         return graph, entry, chain
 
     def test_largest_subrun_excludes_the_block_jumped_into(self):
-        from angr.analyses.patterns.region import (
-            largest_single_entry_subrun,  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.region import (  # pylint:disable=import-outside-toplevel
+            largest_single_entry_subrun,
         )
 
         graph, entry, chain = self._graph()
@@ -260,8 +260,8 @@ class TestSingleEntrySubrun(TestCase):
         assert best.block_locs == [(b.addr, None) for b in chain[:3]]
 
     def test_min_ratio_can_refuse_a_small_subrun(self):
-        from angr.analyses.patterns.region import (
-            largest_single_entry_subrun,  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.region import (  # pylint:disable=import-outside-toplevel
+            largest_single_entry_subrun,
         )
 
         graph, entry, chain = self._graph()
@@ -372,7 +372,7 @@ class TestFuzzyPatternFinder(TestCase):
 
     def test_dedup_keeps_the_graph_consistent(self):
         """Whatever the deduplicator outlines, the result must stay decompilable."""
-        from angr.analyses.patterns.dedup import graph_problems
+        from angr.analyses.decompiler.pattern_match.dedup import graph_problems
 
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
@@ -397,7 +397,7 @@ class TestFuzzyPatternFinder(TestCase):
 
     def test_merged_callees_are_identical_modulo_constants(self):
         """A merge group may only contain callees with the same full-depth shape."""
-        from angr.analyses.patterns.dedup import callee_shape
+        from angr.analyses.decompiler.pattern_match.dedup import callee_shape
 
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
@@ -440,7 +440,7 @@ class TestCheckpoint(TestCase):
     """Low priority and cancellation in the pattern analyses."""
 
     def test_checkpoint_throttles_by_call_count_and_clock(self):
-        from angr.analyses.patterns import Checkpoint  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match import Checkpoint  # pylint:disable=import-outside-toplevel
 
         calls = []
         cp = Checkpoint(low_priority=False, callback=lambda: calls.append(1), freq=4, interval=0.0)
@@ -460,8 +460,10 @@ class TestCheckpoint(TestCase):
         return proj, func, dec
 
     def test_low_priority_finds_the_same_families_and_a_raising_checkpoint_aborts(self):
-        from angr.analyses.patterns import Checkpoint  # pylint:disable=import-outside-toplevel
-        from angr.analyses.patterns.search import find_template_occurrences  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match import Checkpoint  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.search import (  # pylint:disable=import-outside-toplevel
+            find_template_occurrences,
+        )
 
         proj, func, dec = self._doit()
         params = AlignParams(min_size=3, min_score=9, min_anchors=1, k=3, min_identity=0.6)
@@ -493,8 +495,8 @@ class TestCheckpoint(TestCase):
 
         entry = next(b for b in dec.ail_graph if b.addr == func.addr)
         leaf_source = plain.all_patterns[0].occurrences[0]
-        from angr.analyses.decompiler.known_patterns.generator import (
-            PatternGenerator,  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.known_patterns.generator import (  # pylint:disable=import-outside-toplevel
+            PatternGenerator,
         )
 
         stream = plain.stream
@@ -514,7 +516,7 @@ class TestStatementsModes(TestCase):
     """Occurrences that stay within the control flow, or within one straight run of code."""
 
     def test_overlapping_cores_never_align_with_themselves(self):
-        from angr.analyses.patterns.align import ScoreModel  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.align import ScoreModel  # pylint:disable=import-outside-toplevel
 
         # a near-periodic run: five copies of a 6-token idiom, back to back, so the chained
         # candidate on diagonal 6 covers far more than 6 tokens and its cores overlap
@@ -547,7 +549,7 @@ class TestStatementsModes(TestCase):
         assert any(a.a.start <= s1 < a.a.end and a.b.start <= s2 < a.b.end for a in alignments), alignments
 
     def test_short_copies_are_not_absorbed_into_long_occurrences(self):
-        from angr.analyses.patterns.align import (  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.align import (  # pylint:disable=import-outside-toplevel
             Alignment,
             Interval,
             cluster_alignments,
@@ -606,7 +608,7 @@ class TestStatementsModes(TestCase):
         return proj, func, dec
 
     def test_modes_on_a_real_function(self):
-        from angr.analyses.patterns import (  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match import (  # pylint:disable=import-outside-toplevel
             STATEMENTS_ANY,
             STATEMENTS_CONSECUTIVE,
             STATEMENTS_FOLLOW,
@@ -653,7 +655,7 @@ class TestDeduplicateDoit(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from angr.analyses.patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match import PatternDeduplicator  # pylint:disable=import-outside-toplevel
 
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
@@ -684,7 +686,9 @@ class TestDeduplicateDoit(TestCase):
     def test_merged_callee_lifts_values_but_never_targets(self):
         from angr.ailment.expression import Const, VirtualVariable  # pylint:disable=import-outside-toplevel
         from angr.ailment.statement import Jump, Return  # pylint:disable=import-outside-toplevel
-        from angr.analyses.patterns.dedup import graph_problems  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.dedup import (  # pylint:disable=import-outside-toplevel
+            graph_problems,
+        )
 
         sites = set(self._error_exit_sites())
         group = next(g for g in self.dedup.result.groups if any(m.interval.start in sites for m in g.members))
@@ -711,8 +715,8 @@ class TestDeduplicateDoit(TestCase):
         assert graph_problems(self.dedup.result.graph, self.func.addr) == []
 
     def test_a_failed_merge_leaves_no_trace(self):
-        from angr.analyses.patterns import PatternDeduplicator  # pylint:disable=import-outside-toplevel
-        from angr.analyses.patterns.dedup import callee_shape  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match import PatternDeduplicator  # pylint:disable=import-outside-toplevel
+        from angr.analyses.decompiler.pattern_match.dedup import callee_shape  # pylint:disable=import-outside-toplevel
 
         dedup = self.proj.analyses[PatternDeduplicator](
             self.func,
