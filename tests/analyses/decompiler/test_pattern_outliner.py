@@ -363,9 +363,9 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         assert stats is not None and stats.outlined >= len(lossy)
         assert dec.codegen.text.count("idiom(") >= 1
 
-    def test_print_stats_nicely_in_acct_sa(self):
-        # acct's sa report printer: a 17-statement family, three copies
-        self._discover_outline_and_reuse("x86_64/ALLSTAR_acct_sa", 0x401930, include_plt=True, min_size=12)
+    def test_tiff_vget_field_in_tiffinfo(self):
+        # libtiff's tag getter, a switch of va_arg stores: a 41-statement family, two copies
+        self._discover_outline_and_reuse("x86_64/tiffinfo_gcc17_O0", 0x40A0A6, include_plt=True, min_size=20)
 
 
 if __name__ == "__main__":

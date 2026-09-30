@@ -328,20 +328,23 @@ class AILCanonicalizer:
 def linearize(graph: networkx.DiGraph[Block], entry: Block) -> list[Block]:
     """Reverse post-order from ``entry``, deterministic, with unreachable blocks appended.
 
-    RPO keeps single-entry regions contiguous, which is what the Outliner needs.
+    RPO keeps single-entry regions contiguous, which is what the Outliner needs. Successors
+    are visited highest address first: the one visited first ends up last, so the body of an
+    ``if (err) { ...; return; }``, usually the fall-through at the lower address, comes
+    right after its condition instead of at the end of the function.
     """
     key = lambda b: (b.addr, -1 if b.idx is None else b.idx)
 
     seen = {entry}
     post: list[Block] = []
-    stack: list[tuple[Block, list[Block]]] = [(entry, sorted(graph.successors(entry), key=key))]
+    stack: list[tuple[Block, list[Block]]] = [(entry, sorted(graph.successors(entry), key=key, reverse=True))]
     while stack:
         _node, succs = stack[-1]
         while succs:
             succ = succs.pop(0)
             if succ not in seen:
                 seen.add(succ)
-                stack.append((succ, sorted(graph.successors(succ), key=key)))
+                stack.append((succ, sorted(graph.successors(succ), key=key, reverse=True)))
                 break
         else:
             post.append(stack.pop()[0])
