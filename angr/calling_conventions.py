@@ -3321,7 +3321,9 @@ DefaultCC = DEFAULT_CC
 
 
 # Names used for the statically-linked MSVC stack-probe helper across toolchains.
-_STACK_PROBE_NAMES = frozenset({"__chkstk", "_chkstk", "__alloca_probe", "___chkstk_ms", "__chkstk_ms"})
+_STACK_PROBE_NAMES = frozenset(
+    {"__chkstk", "_chkstk", "__alloca_probe", "_alloca_probe", "___chkstk_ms", "__chkstk_ms"}
+)
 
 
 def is_stack_probe(func: Function) -> bool:

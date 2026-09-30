@@ -8,6 +8,7 @@ import cle
 
 from angr import ailment
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.calling_conventions import is_stack_probe
 from angr.utils.funcid import is_function_security_check_cookie
 from angr.utils.ssa import stmt_is_simple_call
 
@@ -172,9 +173,8 @@ class WinStackCanarySimplifier(OptimizationPass):
         ):
             # check if the target is alloca_probe
             callee_addr = call.target.value
-            if (
-                self.kb.functions.contains_addr(callee_addr)
-                and self.kb.functions.get_by_addr(callee_addr).info.get("is_alloca_probe", False) is True
+            if self.kb.functions.contains_addr(callee_addr) and is_stack_probe(
+                self.kb.functions.get_by_addr(callee_addr)
             ):
                 second_block = self._get_block(first_block.addr + first_block.original_size)
                 if second_block is not None:

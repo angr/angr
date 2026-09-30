@@ -54,6 +54,7 @@ from angr.calling_conventions import (
     SimRegArg,
     SimStackArg,
     SimStructArg,
+    is_stack_probe,
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
@@ -4478,7 +4479,7 @@ class Clinic(Analysis, Serializable):
                     if self.project.kb.functions.contains_addr(last_stmt.expr.target.value)
                     else None
                 )
-                if func is not None and (func.name == "__chkstk" or func.info.get("is_alloca_probe", False) is True):
+                if func is not None and is_stack_probe(func):
                     # get rid of this call
                     node.statements = node.statements[:-1]
                     if self.project.arch.call_pushes_ret and node.statements:

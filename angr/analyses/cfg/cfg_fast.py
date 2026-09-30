@@ -90,6 +90,24 @@ VEX_IRSB_MAX_SIZE = 400
 # the minimum interval (in seconds) between two consecutive progress notifications
 PROGRESS_NOTIFY_INTERVAL = 0.05
 
+# block bytes of known variants of MSVC's AMD64 __alloca_probe (__chkstk)
+AMD64_ALLOCA_PROBE_BLOCK_BYTES = [
+    # touches each page with `mov byte ptr [r11], 0`
+    {
+        b"H\x83\xec\x10L\x89\x14$L\x89\\$\x08M3\xdbL\x8dT$\x18L+\xd0M\x0fB\xd3eL\x8b\x1c%\x10\x00\x00\x00M;\xd3s\x16",
+        b"fA\x81\xe2\x00\xf0M\x8d\x9b\x00\xf0\xff\xffA\xc6\x03\x00M;\xd3u\xf0",
+        b"M\x8d\x9b\x00\xf0\xff\xffA\xc6\x03\x00M;\xd3u\xf0",
+        b"L\x8b\x14$L\x8b\\$\x08H\x83\xc4\x10\xc3",
+    },
+    # touches each page with `test byte ptr [r11], r11b`
+    {
+        b"H\x83\xec\x10L\x89\x14$L\x89\\$\x08M3\xdbL\x8dT$\x18L+\xd0M\x0fB\xd3eL\x8b\x1c%\x10\x00\x00\x00M;\xd3s\x15",
+        b"fA\x81\xe2\x00\xf0M\x8d\x9b\x00\xf0\xff\xffE\x84\x1bM;\xd3u\xf1",
+        b"M\x8d\x9b\x00\xf0\xff\xffE\x84\x1bM;\xd3u\xf1",
+        b"L\x8b\x14$L\x8b\\$\x08H\x83\xc4\x10\xc3",
+    },
+]
+
 
 l = logging.getLogger(name=__name__)
 
@@ -2199,12 +2217,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if func_block_count == 4:
                 func = self.kb.functions.get_by_addr(func_addr)  # must exist
                 block_bytes = {func.get_block(block_addr).bytes for block_addr in func.block_addrs_set}
-                if block_bytes == {
-                    b"H\x83\xec\x10L\x89\x14$L\x89\\$\x08M3\xdbL\x8dT$\x18L+\xd0M\x0fB\xd3eL\x8b\x1c%\x10\x00\x00\x00M;\xd3s\x16",
-                    b"fA\x81\xe2\x00\xf0M\x8d\x9b\x00\xf0\xff\xffA\xc6\x03\x00M;\xd3u\xf0",
-                    b"M\x8d\x9b\x00\xf0\xff\xffA\xc6\x03\x00M;\xd3u\xf0",
-                    b"L\x8b\x14$L\x8b\\$\x08H\x83\xc4\x10\xc3",
-                }:
+                if block_bytes in AMD64_ALLOCA_PROBE_BLOCK_BYTES:
                     func.info["is_alloca_probe"] = True
                     self.kb.functions.add_key_func_addr("alloca_probe", func_addr)
 

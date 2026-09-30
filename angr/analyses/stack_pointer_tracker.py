@@ -16,7 +16,7 @@ from archinfo.arch_arm import is_arm_arch
 from angr.analyses.analysis import AnalysesHub
 from angr.analyses.forward_analysis import ForwardAnalysis, visitors
 from angr.block import BlockNode
-from angr.calling_conventions import SimCC, SimReferenceArgument, SimStackArg
+from angr.calling_conventions import SimCC, SimReferenceArgument, SimStackArg, is_stack_probe
 from angr.codenode import FuncNode
 from angr.engines import pcode
 from angr.errors import SimTranslationError
@@ -839,7 +839,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                                 state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
                                 break
 
-                if not sp_adjusted and (callee.info.get("is_alloca_probe", False) or callee.name == "__chkstk"):
+                if not sp_adjusted and is_stack_probe(callee):
                     # sp = sp - rax, but it's adjusted within the callee
                     chkstk_stack_rax_regname: str | None = None
                     if self.project.arch.name == "AMD64":
