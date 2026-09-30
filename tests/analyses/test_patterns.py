@@ -507,6 +507,20 @@ class TestCheckpoint(TestCase):
 class TestStatementsModes(TestCase):
     """Occurrences that stay within the control flow, or within one straight run of code."""
 
+    def test_overlapping_cores_never_align_with_themselves(self):
+        from angr.analyses.patterns.align import ScoreModel  # pylint:disable=import-outside-toplevel
+
+        # a near-periodic run: five copies of a 6-token idiom, back to back, so the chained
+        # candidate on diagonal 6 covers far more than 6 tokens and its cores overlap
+        rng = random.Random(3)
+        idiom = [rng.randrange(20, 60) for _ in range(6)]
+        ids = [100 + i for i in range(10)] + idiom * 5 + [200 + i for i in range(10)]
+        params = AlignParams(k=3, min_score=10, min_size=4, min_anchors=2)
+        score = ScoreModel(list(range(300)), params)
+        alignments = refine_candidates(ids, [(6, 10, 40, 10)], score, params)
+        assert alignments, "the periodic copies pair up"
+        assert all(not a.a.overlaps(a.b) for a in alignments)
+
     def test_the_seeded_pair_is_aligned_even_when_a_stronger_pair_is_nearby(self):
         # X, the seeded pair, is short; Y, a longer repeat, sits inside the padded windows on
         # another diagonal (before the first X, after the second), so it wins the padded alignment

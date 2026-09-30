@@ -395,6 +395,14 @@ def refine_candidates(
             if a1 > b0:
                 mid = (gap_lo + gap_hi) // 2
                 a1, b0 = mid, mid
+        else:
+            # The cores overlap: a run of near-periodic copies, or runs fused by
+            # _merge_diagonals. Left as they are, the windows overlap too and the best
+            # alignment is the sequence with itself, which the tandem filter then drops,
+            # taking every genuine pair of the candidate with it. Split where the second
+            # copy starts, so one window ends where the other begins.
+            a1 = min(a1, s + d)
+            b0 = max(b0, s + d)
         if segment is not None and s < n and s + d < n:
             sa, sb = bounds[segment[s]], bounds[segment[s + d]]
             a0, a1 = max(a0, sa[0]), min(a1, sa[1])
