@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from angr.ailment.statement import Return
+from angr.utils.ssa import is_phi_assignment
 
 from .align import Interval
 
@@ -208,44 +209,49 @@ def materialize(
     nodes = {(b.addr, b.idx): b for b in graph}
     first_loc, last_loc = region.block_locs[0], region.block_locs[-1]
     src_loc = region.src_loc
-    frontier = set(region.frontier)
 
     head_stmt = stream.locs[region.interval.start].stmt_idx
     tail_stmt = stream.locs[region.interval.end - 1].stmt_idx + 1
 
     tail_split = region.tail_split if split_tail else 0
+    # the head's phis merge values from the region's predecessors (and, for a loop, from the
+    # region itself); they stay with the caller in a block of their own
+    head_split = region.head_split > 0 or any(is_phi_assignment(s) for s in nodes[first_loc].statements[:head_stmt])
 
+    if not head_split and tail_split == 0:
+        return src_loc, set(region.frontier)
+
+    member = set(region.block_locs)
     if first_loc == last_loc:
-        if region.head_split == 0 and tail_split == 0:
-            return src_loc, frontier
         block = nodes[first_loc]
         stmts = list(block.statements)
         mid_stmts = stmts[head_stmt:tail_stmt] if split_tail else stmts[head_stmt:]
         post_stmts = stmts[tail_stmt:] if split_tail else []
-        _pre, mid, post = split_ail_block(
+        _pre, mid, _post = split_ail_block(
             graph, block, stmts[:head_stmt], mid_stmts, post_stmts, block_addr_alloc, idx_alloc
         )
         src_loc = (mid.addr, mid.idx)
-        if post is not None:
-            frontier.add((post.addr, post.idx))
-        return src_loc, frontier
+        member = {src_loc}
+    else:
+        if head_split:
+            block = nodes[first_loc]
+            stmts = list(block.statements)
+            _pre, mid, _post = split_ail_block(
+                graph, block, stmts[:head_stmt], stmts[head_stmt:], [], block_addr_alloc, idx_alloc
+            )
+            src_loc = (mid.addr, mid.idx)
+            member = (member - {first_loc}) | {src_loc}
+        if tail_split > 0:
+            block = nodes[last_loc]
+            stmts = list(block.statements)
+            split_ail_block(graph, block, [], stmts[:tail_stmt], stmts[tail_stmt:], block_addr_alloc, idx_alloc)
 
-    if region.head_split > 0:
-        block = nodes[first_loc]
-        stmts = list(block.statements)
-        _pre, mid, _post = split_ail_block(
-            graph, block, stmts[:head_stmt], stmts[head_stmt:], [], block_addr_alloc, idx_alloc
-        )
-        src_loc = (mid.addr, mid.idx)
-
-    if tail_split > 0:
-        block = nodes[last_loc]
-        stmts = list(block.statements)
-        _pre, _mid, post = split_ail_block(
-            graph, block, [], stmts[:tail_stmt], stmts[tail_stmt:], block_addr_alloc, idx_alloc
-        )
-        if post is not None:
-            frontier.discard(last_loc)
-            frontier.add((post.addr, post.idx))
-
+    # recomputed on the split blocks: an edge back to the head now leaves the region for the
+    # pre-part, and a tail split exits through the post-part
+    nodes = {(b.addr, b.idx): b for b in graph}
+    frontier: set[Address] = set()
+    for loc in member:
+        for succ in graph.successors(nodes[loc]):
+            if (succ.addr, succ.idx) not in member:
+                frontier.add((succ.addr, succ.idx))
     return src_loc, frontier

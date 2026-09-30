@@ -176,12 +176,13 @@ class PatternOutliner(OptimizationPass):
 
         snapshot = _snapshot(graph)
         saved_vvar_id = self.vvar_id_start
-        closed = not region.frontier
         try:
             hoisted = self._hoist_constants(graph, stream, match)
             src_loc, frontier = materialize(
                 graph, stream, region, self.new_block_addr, split_tail=not auto, idx_alloc=self.manager.next_atom
             )
+            # a loop back to the head leaves the region once its phis are split off
+            closed = not (region.frontier if auto else frontier)
             # taken after materialize, which allocates its split blocks the same way
             block_addr_start = self.new_block_addr()
             outliner = self.project.analyses[Outliner].prep(kb=self.kb)(

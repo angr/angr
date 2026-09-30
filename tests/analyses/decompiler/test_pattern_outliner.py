@@ -373,6 +373,18 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
             "x86_64/ALLSTAR_apcalc-dev_sample_many", 0x44DAA0, include_plt=True, min_size=8
         )
 
+    def test_a_copy_at_a_loop_head_in_echo(self):
+        # the region starts at a self-looping block: its phis stay behind in the caller and the
+        # back edge leaves the region, instead of the removed head reappearing as a second block
+        proj, cfg, func = _scoped("x86_64/echo", 0x403C80, include_plt=True)
+        pattern = self._longest_family_pattern(proj, cfg, func, min_size=8)
+        proj.kb.patterns.add(pattern)
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, use_cache=False, update_cache=False)
+        assert dec.codegen is not None
+        stats = proj.kb.patterns.stats(func.addr, pattern.name)
+        assert stats is not None and stats.outlined >= 1, stats
+        assert "idiom(" in dec.codegen.text
+
     def test_sub_415e20_in_file(self):
         # a routine of file at -O2 whose 6-statement family the search finds nine times
         self._discover_outline_and_reuse("x86_64/file_gcc13.3.0_O2", 0x415E20, include_plt=True, min_size=4)
