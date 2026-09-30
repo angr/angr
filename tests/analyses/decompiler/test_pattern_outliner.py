@@ -367,6 +367,16 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         # libtiff's tag getter, a switch of va_arg stores: a 41-statement family, two copies
         self._discover_outline_and_reuse("x86_64/tiffinfo_gcc17_O0", 0x40A0A6, include_plt=True, min_size=20)
 
+    def test_c_sqrt_in_apcalc(self):
+        # apcalc's complex square root: a 12-statement family, two copies
+        self._discover_outline_and_reuse(
+            "x86_64/ALLSTAR_apcalc-dev_sample_many", 0x44DAA0, include_plt=True, min_size=8
+        )
+
+    def test_sub_415e20_in_file(self):
+        # a routine of file at -O2 whose 6-statement family the search finds nine times
+        self._discover_outline_and_reuse("x86_64/file_gcc13.3.0_O2", 0x415E20, include_plt=True, min_size=4)
+
 
 if __name__ == "__main__":
     unittest.main()
