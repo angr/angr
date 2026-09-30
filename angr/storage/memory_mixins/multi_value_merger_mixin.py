@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 class MultiValueMergerMixin(MemoryMixin):
@@ -28,6 +29,26 @@ class MultiValueMergerMixin(MemoryMixin):
 
         super().__init__(*args, **kwargs)
 
+    def store(self, addr, data, size=None, **kwargs):
+        # Apply the element limit on the store path too. Merging only happens at control-flow joins, so a
+        # straight-line chain of ITEs (e.g., cmovs) would otherwise grow value sets exponentially.
+        if isinstance(data, MultiValues):
+            data = self._limit_values(data)
+        super().store(addr, data, size=size, **kwargs)
+
+    def _limit_values(self, data: MultiValues) -> MultiValues:
+        offset_to_values: dict[int, set[Any]] = {}
+        collapsed = False
+        for offset, values_set in data.items():
+            if len(values_set) > self._element_limit:
+                merged_size = max(len(v) for v in values_set) // self.state.arch.byte_width
+                values_set = self._collapse_values(values_set, merged_size)
+                collapsed = True
+            offset_to_values[offset] = set(values_set)
+        if not collapsed:
+            return data
+        return MultiValues(offset_to_values=offset_to_values)
+
     def _merge_values(self, values: Iterable[tuple[Any, Any]], merged_size: int, **kwargs):
         values_set = {v for v, _ in values}
         if self._phi_maker is not None:
@@ -36,6 +57,13 @@ class MultiValueMergerMixin(MemoryMixin):
                 return {phi_var}
 
         # try to merge it in the traditional way
+        return self._collapse_values(values_set, merged_size)
+
+    def _collapse_values(self, values_set: set[Any], merged_size: int) -> set[Any]:
+        """
+        Collapse values_set into a single (possibly TOP) value when it contains TOP or exceeds the element limit.
+        Definition annotations of all values are migrated onto the result.
+        """
         has_top = self._merge_into_top and any(self._is_top_func(v) for v in values_set)
         if has_top or len(values_set) > self._element_limit:
             if has_top:
