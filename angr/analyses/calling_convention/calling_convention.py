@@ -804,6 +804,11 @@ class CallingConventionAnalysis(Analysis):
             # rarely) on incorrect CFGs.
             return
 
+        # registers that a preceding callee may define for its caller: its return value
+        ret_reg_offsets = (
+            {self.project.arch.registers[cc.RETURN_VAL.reg_name][0]} if isinstance(cc.RETURN_VAL, SimRegArg) else set()
+        )
+
         defs_by_reg_offset: dict[int, list[Definition]] = defaultdict(list)
         all_reg_defs: set[Definition] = get_all_definitions(state.registers)
         all_stack_defs: set[Definition] = get_all_definitions(state.stack)
@@ -812,6 +817,8 @@ class CallingConventionAnalysis(Analysis):
                 isinstance(d.atom, Register)
                 and not isinstance(d.codeloc, ExternalCodeLocation)
                 and not (d.codeloc.block_addr == caller_block.addr and d.codeloc.stmt_idx == DEFAULT_STATEMENT)
+                # registers clobbered by a preceding call are not arguments
+                and not (d.codeloc.stmt_idx is None and d.atom.reg_offset not in ret_reg_offsets)
             ):
                 # do an extra check because of how entry and callN work on Xtensa
                 if isinstance(caller_block, ailment.Block) and self._likely_saving_temp_reg(
