@@ -3,6 +3,7 @@ from __future__ import annotations
 # pylint: disable=missing-class-docstring,no-self-use
 import os
 import random
+import time
 import unittest
 from unittest import TestCase
 
@@ -451,6 +452,11 @@ class TestCheckpoint(TestCase):
         for _ in range(100):
             slow()
         assert 2 not in calls, "and runs at most once per interval"
+        # a microsecond sleep hands the GIL to no one: the sleeper takes it back first
+        assert Checkpoint().sleep >= 0.001
+        start = time.perf_counter()
+        Checkpoint(low_priority=True, freq=1, interval=0.0, sleep=0.01)()
+        assert time.perf_counter() - start >= 0.01, "a low-priority checkpoint sleeps for its sleep"
 
     def _doit(self):
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
