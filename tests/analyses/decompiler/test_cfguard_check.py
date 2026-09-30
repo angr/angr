@@ -8,6 +8,7 @@ stub (_guard_check_icall_nop), so the check must be removed instead of being dec
 from __future__ import annotations
 
 import os
+import re
 import unittest
 
 import angr
@@ -51,6 +52,9 @@ class TestCFGuardCheck(unittest.TestCase):
         )
         assert "sub_140014890(" not in text
         assert "g_14001c6d0(0, 2, 0);" in text
+        # the initializer called through `mov rcx, rdi; call [check]; call rdi` sets up no arguments; the registers the
+        # check clobbers are not arguments of the checked call
+        assert re.search(r"= \(\*\(\w+\)\)\(\);", text)
 
     def test_x86_check_calls_are_removed(self):
         # the check stub is sub_407eb0
