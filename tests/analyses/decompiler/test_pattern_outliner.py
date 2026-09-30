@@ -16,6 +16,7 @@ from angr.analyses.decompiler.known_patterns.edit import PatternEditor
 from angr.analyses.decompiler.known_patterns.generator import PatternGenerationError, PatternGenerator
 from angr.analyses.decompiler.known_patterns.serialize import dumps, loads
 from angr.analyses.decompiler.optimization_passes import PatternOutliner
+from angr.analyses.outliner import Outliner
 from angr.analyses.patterns.align import AlignParams
 from angr.analyses.patterns.dedup import graph_problems
 from angr.analyses.patterns.search import tokenize_for_templates
@@ -386,6 +387,80 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         stats = proj.kb.patterns.stats(func.addr, pattern.name)
         assert stats is not None and stats.outlined == 2, stats
         assert graph_problems(dec.ail_graph, func.addr) == []
+
+    def _outline_capturing(self, proj, cfg, func, pattern):
+        """Decompile with ``pattern`` enabled; return the result, the pass and the Outliner instances."""
+        proj.kb.patterns.add(pattern)
+        passes, outliners = [], []
+        orig_pass, orig_outliner = PatternOutliner.__init__, Outliner.__init__
+
+        def keep_pass(self_, *args, **kwargs):
+            passes.append(self_)
+            orig_pass(self_, *args, **kwargs)
+
+        def keep_outliner(self_, *args, **kwargs):
+            orig_outliner(self_, *args, **kwargs)
+            outliners.append(self_)
+
+        PatternOutliner.__init__, Outliner.__init__ = keep_pass, keep_outliner
+        try:
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model, use_cache=False, update_cache=False)
+        finally:
+            PatternOutliner.__init__, Outliner.__init__ = orig_pass, orig_outliner
+        assert dec.codegen is not None and dec.ail_graph is not None
+        stats = proj.kb.patterns.stats(func.addr, pattern.name)
+        assert stats is not None and stats.outlined == 1, [p.skipped for p in passes]
+        assert graph_problems(dec.ail_graph, func.addr) == []
+        assert dec.codegen.text.count("idiom(") == 1
+        return dec, passes, outliners
+
+    @staticmethod
+    def _assert_callee_holds_the_loop(outliner, head_addr: int):
+        # the loop sits behind a fresh entry block, and the caller keeps no orphan copy of its head
+        callee = outliner.child_graph
+        head = next(b for b in callee if b.addr == head_addr)
+        assert callee.has_edge(head, head)
+        (entry,) = (b for b in callee if callee.in_degree[b] == 0)
+        assert entry.addr == outliner.child_func.addr and list(callee.successors(entry)) == [head]
+        caller_heads = [b for b in outliner.parent_graph if b.addr == head_addr]
+        assert len(caller_heads) == 1 and not outliner.parent_graph.has_edge(caller_heads[0], caller_heads[0])
+
+    def test_an_outliner_region_headed_by_a_loop_takes_the_loop_into_the_callee(self):
+        # coreutils' inlined word-at-a-time strlen, outlined directly at its self-looping head with
+        # the loop's exits as the frontier, as KnownPatternFinder.outline does: the loop moves into the
+        # callee behind a fresh entry, and the caller keeps no orphan copy of the head
+        proj, cfg, func = _scoped("x86_64/true", 0x404290, include_plt=True)
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.ail_graph is not None
+        graph = dec.ail_graph.copy()
+        head = next(b for b in graph if b.addr == 0x404499)
+        assert graph.has_edge(head, head)
+        exits = {(s.addr, s.idx) for s in graph.successors(head) if s is not head}
+        outliner = proj.analyses[Outliner](func, graph, src_loc=(head.addr, head.idx), frontier=exits)
+        self._assert_callee_holds_the_loop(outliner, 0x404499)
+        assert graph_problems(graph, func.addr) == []
+
+    def test_a_whole_strlen_loop_in_the_pass_keeps_its_loop_in_the_caller(self):
+        # the whole strlen, lifted by hand: the pattern pass splits the head's phis off, so the loop
+        # stays in the caller around a call to its body. The body hands back the loop-carried values,
+        # more than one call returns, and the pass says so; no orphan head, no broken graph
+        proj, cfg, func = _scoped("x86_64/true", 0x404290, include_plt=True)
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.ail_graph is not None
+        entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx is None)
+        stream = tokenize_for_templates(dec.ail_graph, entry, kb=proj.kb)
+        blocks = {(b.addr, b.idx): b for b in stream.blocks}
+        stmts = [blocks[loc.block_loc].statements[loc.stmt_idx] for loc in stream.locs]
+        stmts = [s for s in stmts if 0x404499 <= s.tags.get("ins_addr", 0) < 0x4044D7]
+        editor = PatternEditor(
+            PatternGenerator(dec.codegen, dec.ail_graph).generate_pattern_from_statements(stmts, "idiom")
+        )
+        editor.loosen_constants()
+        editor.cut_depth()
+        _, passes, outliners = self._outline_capturing(proj, cfg, func, editor.pattern)
+        (outliner,) = outliners
+        assert len([b for b in outliner.parent_graph if b.addr == 0x404499]) == 1
+        assert [entry[2] for p in passes for entry in p.lossy] == [outliner.dropped_return_values]
 
     def test_tiff_vget_field_in_tiffinfo(self):
         # libtiff's tag getter, a switch of va_arg stores: a 41-statement family, two copies
