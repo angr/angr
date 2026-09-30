@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from angr.ailment.expression import Call, Const, Expression, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Return
+from angr.analyses.decompiler.known_patterns.generator import stmt_ins_addrs
 from angr.analyses.decompiler.known_patterns.pattern import resolve_typeref
 from angr.analyses.decompiler.pattern_match.dedup import _restore, _snapshot, graph_problems, normalize_call_width
 from angr.analyses.decompiler.pattern_match.region import largest_single_entry_subrun, materialize, snap
@@ -99,8 +100,17 @@ class PatternOutliner(OptimizationPass):
             hits = self._ranked_hits(stream, stored, tried)
             if first_round:
                 # later rounds search a graph already rewritten; the first one saw the function as it was
-                for entry, _ in hits:
+                blocks = {(b.addr, b.idx): b for b in stream.blocks}
+                for entry, match in hits:
                     stats[entry.name].matches += 1
+                    stats[entry.name].match_addrs.append(
+                        frozenset().union(
+                            *(
+                                stmt_ins_addrs(blocks[loc.block_loc].statements[loc.stmt_idx])
+                                for loc in stream.locs[match.interval.start : match.interval.end]
+                            )
+                        )
+                    )
                 first_round = False
             for pattern, match in hits:
                 tried.add((pattern.name, stream.addr_range(match.interval.start, match.interval.end)))
