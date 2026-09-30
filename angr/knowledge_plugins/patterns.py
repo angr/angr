@@ -30,6 +30,8 @@ class PatternStats:
     outlined: int = 0
     #: the instruction address each outlined call carries, which is where it renders
     call_addrs: list[int] = field(default_factory=list)
+    #: for each verified occurrence, the instruction addresses its statements carry
+    match_addrs: list[frozenset[int]] = field(default_factory=list)
 
 
 @dataclass
@@ -95,7 +97,10 @@ class Patterns(KnowledgeBasePlugin):
         o = Patterns(self._kb)
         o._patterns = dict(self._patterns)
         o._stats = {
-            addr: {name: replace(st, call_addrs=list(st.call_addrs)) for name, st in per.items()}
+            addr: {
+                name: replace(st, call_addrs=list(st.call_addrs), match_addrs=list(st.match_addrs))
+                for name, st in per.items()
+            }
             for addr, per in self._stats.items()
         }
         return o

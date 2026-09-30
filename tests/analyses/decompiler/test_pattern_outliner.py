@@ -85,6 +85,11 @@ class TestPatternOutliner(unittest.TestCase):
             if type(elem.obj).__name__ == "CFunctionCall" and "PatternErrorsOut" in str(elem.obj.callee_target)
         }
         assert len(stats.call_addrs) == 8 and set(stats.call_addrs) <= rendered
+        # and each match by the instructions it covered, where a disassembly highlight goes
+        assert len(stats.match_addrs) == stats.matches and all(stats.match_addrs)
+        assert all(any(a in addrs for addrs in stats.match_addrs) for a in stats.call_addrs)
+        covered = set().union(*stats.match_addrs)
+        assert all(func2.addr <= a < func2.addr + func2.size for a in covered)
         assert "Empty title" in calls and "Cannot open document." in calls
         assert text.count("PatternErrorsOut(") == 8
         assert graph_problems(dec2.ail_graph, func2.addr) == []
