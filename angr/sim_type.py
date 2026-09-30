@@ -230,7 +230,7 @@ class SimType:
         cls = IDENT_TO_CLS.get(d["_t"])  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
-            t = cls.from_json(d)
+            t = cls.from_json(d, decoded=decoded)
             if isinstance(t, SimTypeRef) and t.name is not None:
                 if t.name in decoded:
                     return decoded[t.name]
@@ -2763,7 +2763,10 @@ class SimTypeRef(SimType):
 
     @staticmethod
     def from_json(
-        d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None
+        d: dict[str, Any],
+        type_collection: SimTypeCollection | None = None,
+        memo: set[str] | None = None,
+        decoded: dict[str, SimType] | None = None,
     ) -> SimTypeRef:
         if "ot" not in d:
             raise ValueError("Missing original type for SimTypeRef")
