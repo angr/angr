@@ -196,6 +196,15 @@ def _candidates(leaves: list[_Leaf], stream: TokenStream, params: AlignParams) -
             votes[pos - t] += 1
     if concrete == 0:
         return list(range(-len(leaves) + 1, len(stream)))
+    if not votes:
+        # Every concrete statement is too common to vote, so no diagonal gets a vote, not even
+        # the pattern's own copy's. Trying every offset finds them, as for a wildcard-only
+        # template; but a pattern that says little beyond "v = constant" would then match all
+        # over the function, so it has to carry some information first.
+        informative = sum(1 for leaf in leaves if leaf.shape is not None and leaf.shape not in _GENERIC_SHAPES)
+        if informative >= 2:
+            return list(range(-len(leaves) + 1, len(stream)))
+        return []
     # a real occurrence lines up many statements on its diagonal; a diagonal only one or two
     # happen to agree on is not worth a window, and a large template has hundreds of those.
     # Measured against the statements that can vote: common shapes do not, so a template
@@ -203,6 +212,10 @@ def _candidates(leaves: list[_Leaf], stream: TokenStream, params: AlignParams) -
     threshold = min(params.min_votes, max(1, math.ceil(voting / 4)))
     ranked = sorted(((d, v) for d, v in votes.items() if v >= threshold), key=lambda kv: (-kv[1], kv[0]))
     return [d for d, _ in ranked[: params.max_candidates]]
+
+
+#: statement shapes too generic to identify anything on their own
+_GENERIC_SHAPES = frozenset({"Asn(V,C)", "Asn(V,V)"})
 
 
 def _is_glue(shape: str) -> bool:

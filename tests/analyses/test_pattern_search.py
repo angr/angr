@@ -194,6 +194,24 @@ class TestSearch(unittest.TestCase):
         assert first_lo <= hit.interval.start and hit.interval.end <= first_hi
         assert all(hi <= hit.interval.start or lo >= hit.interval.end for lo, hi in calls[1:]), calls
 
+    def test_a_template_of_common_statements_is_still_found(self):
+        # every statement of the idiom occurs more often than a seed may: nothing votes
+        stream = _stream(NOISE + IDIOM_SHAPES + NOISE + IDIOM_SHAPES + NOISE + IDIOM_SHAPES)
+        params = AlignParams(max_seed_multiplicity=2)
+        starts = sorted(m.interval.start for m in search(IDIOM, stream, params))
+        assert starts == [len(NOISE), 2 * len(NOISE) + 3, 3 * len(NOISE) + 6]
+
+    def test_a_generic_template_of_common_statements_is_not_tried_everywhere(self):
+        search_mod = sys.modules["angr.analyses.patterns.search"]
+        generic = PStmtSeq((PAssign(PVVar(), PConst()), PAssign(PVVar(), PVVar()), PAssign(PVVar(), PConst())))
+        shapes = ["Asn(V,C)", "Asn(V,V)", "Asn(V,C)"]
+        stream = _stream((NOISE + shapes) * 3)
+        leaves = [
+            search_mod._Leaf(node=n, optional=False, weight=1.0, shape=search_mod.shape_of(n))
+            for n in template_leaves(generic)
+        ]
+        assert search_mod._candidates(leaves, stream, AlignParams(max_seed_multiplicity=2)) == []
+
     def test_a_small_template_is_never_pruned(self):
         stream = _stream(NOISE[:5] + IDIOM_SHAPES[:1] + NOISE + IDIOM_SHAPES + NOISE)
         # one statement of three agrees at the first site: still a candidate diagonal
