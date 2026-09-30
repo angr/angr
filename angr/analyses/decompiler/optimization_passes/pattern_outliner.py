@@ -1,0 +1,359 @@
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from angr.ailment.expression import Call, Const, Expression, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Return
+from angr.analyses.decompiler.known_patterns.pattern import resolve_typeref
+from angr.analyses.decompiler.pattern_match.dedup import _restore, _snapshot, graph_problems, normalize_call_width
+from angr.analyses.decompiler.pattern_match.region import largest_single_entry_subrun, materialize, snap
+from angr.analyses.decompiler.pattern_match.search import search, tokenize_for_templates, verify
+from angr.analyses.decompiler.utils import copy_graph
+from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.analyses.outliner import Outliner
+from angr.knowledge_plugins.patterns import PatternStats
+from angr.sim_type import SimTypeFunction, parse_type
+
+from .optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    import networkx
+
+    from angr.ailment import Block
+    from angr.analyses.decompiler.pattern_match.search import TemplateMatch
+    from angr.analyses.decompiler.pattern_match.tokenizer import TokenStream
+    from angr.knowledge_plugins.patterns import StoredPattern
+
+_l = logging.getLogger(__name__)
+
+
+class PatternOutliner(OptimizationPass):
+    """
+    Finds occurrences of the user's patterns (kb.patterns) in the AIL
+    graph and outlines each into a call named after its pattern.
+
+    Where the KnownPatternOutliner matches library idioms exactly, this pass aligns a
+    pattern the user selected and edited, so an occurrence may differ from it in the
+    ways the pattern allows: a different operator of the same class, a statement it
+    marked optional, an extra statement in between. An occurrence is outlined when it
+    verifies structurally and reaches the pattern's similarity threshold. Runs right
+    before variable recovery so the calls' declared types flow into Typehoon.
+    """
+
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
+    NAME = "Outline the user's patterns into calls"
+    DESCRIPTION = __doc__.strip() if __doc__ else ""
+
+    MAX_ROUNDS = 32
+    #: with a derived frontier, reject a callee larger than this many times the region
+    MAX_AUTO_BLOCKS = 3
+    #: ...or smaller than this fraction of it
+    MIN_AUTO_RATIO = 0.5
+    #: a single-entry sub-run of an occurrence must cover this share of its tokens to be
+    #: outlined under the pattern's name
+    MIN_SUBRUN_RATIO = 0.5
+
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
+        #: (pattern name, block location of the call, share of the occurrence's tokens covered)
+        #: for every occurrence outlined; the share is below 1 when only a sub-run could be
+        self.outlined: list[tuple[str, tuple[int, int | None], float]] = []
+        #: (pattern name, reason) for every occurrence that was found but not outlined
+        self.skipped: list[tuple[str, str]] = []
+        #: (pattern name, call location, values dropped) for every occurrence outlined although the
+        #: region leaves more values live than the call can return: the output there is wrong
+        self.lossy: list[tuple[str, tuple[int, int | None], int]] = []
+        # the instruction address of the call the last successful outline placed
+        self._last_call_addr: int | None = None
+        # the graph being rewritten, which new block addresses must stay clear of
+        self._live_graph: networkx.DiGraph[Block] | None = None
+        self.analyze()
+
+    def _check(self):
+        if not self.kb.patterns.enabled_patterns():
+            # nothing searched for, so nothing is known about this function any more
+            self.kb.patterns.record_stats(self._func.addr, {})
+            return False, None
+        return True, None
+
+    def _analyze(self, cache=None):
+        stored = self.kb.patterns.enabled_patterns()
+        graph = copy_graph(self._graph)
+        self._live_graph = graph
+        changed = False
+        stats = {entry.name: PatternStats() for entry in stored}
+        first_round = True
+        # an occurrence is identified by what it covers, so one that fails is not retried
+        tried: set[tuple[str, tuple[int | None, int | None]]] = set()
+        for _ in range(self.MAX_ROUNDS):
+            entry = next((b for b in graph if b.addr == self._func.addr and b.idx is None), None)
+            if entry is None:
+                break
+            stream = tokenize_for_templates(graph, entry, kb=self.kb)
+            # a failed outline restores the graph, so the stream and the ranking stay good:
+            # work down the list until one succeeds, and only then tokenize and search again
+            outlined = False
+            hits = self._ranked_hits(stream, stored, tried)
+            if first_round:
+                # later rounds search a graph already rewritten; the first one saw the function as it was
+                for entry, _ in hits:
+                    stats[entry.name].matches += 1
+                first_round = False
+            for pattern, match in hits:
+                tried.add((pattern.name, stream.addr_range(match.interval.start, match.interval.end)))
+                if self._outline(graph, stream, pattern, match):
+                    stats[pattern.name].outlined += 1
+                    if self._last_call_addr is not None:
+                        stats[pattern.name].call_addrs.append(self._last_call_addr)
+                    outlined = changed = True
+                    break
+            if not outlined:
+                break
+        self.kb.patterns.record_stats(self._func.addr, stats)
+        if changed:
+            self.out_graph = graph
+
+    def new_block_addr(self) -> int:
+        """A block address no block of the graph being rewritten has.
+
+        The base class allocates from a map of the blocks built once per stage, before any
+        pass of the stage ran, so it hands out addresses an earlier pass of this stage (the
+        KnownPatternOutliner, say) has already given its own new blocks; the outline is then
+        rolled back as a duplicate block location.
+        """
+        floor = (max(self.blocks_by_addr) if self.blocks_by_addr else 0) + 2048
+        live_top = max((b.addr for b in self._live_graph), default=0) if self._live_graph is not None else 0
+        own_top = max(self._new_block_addrs) if self._new_block_addrs else 0
+        new_addr = max(floor, live_top + 1, own_top + 1)
+        self._new_block_addrs.add(new_addr)
+        return new_addr
+
+    def _ranked_hits(
+        self, stream: TokenStream, stored: list[StoredPattern], tried: set
+    ) -> list[tuple[StoredPattern, TemplateMatch]]:
+        """Every untried occurrence of any enabled pattern, most similar first, longest on ties."""
+        hits: list[tuple[tuple[float, int], StoredPattern, TemplateMatch]] = []
+        for entry in stored:
+            for match in search(entry.pattern, stream):
+                key = (entry.name, stream.addr_range(match.interval.start, match.interval.end))
+                if key in tried or match.similarity < entry.min_similarity:
+                    continue
+                verify(match, entry.pattern, stream)
+                if entry.require_verified and not match.verified:
+                    continue
+                hits.append(((match.similarity, len(match)), entry, match))
+        hits.sort(key=lambda h: h[0], reverse=True)
+        return [(entry, match) for _, entry, match in hits]
+
+    def _outline(self, graph: networkx.DiGraph[Block], stream: TokenStream, stored: StoredPattern, match) -> bool:
+        pattern = stored.pattern
+        entry_loc = (self._func.addr, None)
+        region = snap(stream, graph, match.interval, entry_loc=entry_loc)
+        # A run of tokens is not always a single-entry region: reverse post-order interleaves
+        # blocks from different parts of the CFG, so one copy of an idiom can still be jumped
+        # into from elsewhere. Then the largest single-entry sub-run of its blocks is what can
+        # carry the pattern's name, if it covers enough of the occurrence. Failing that, hand
+        # the Outliner the start alone and let it derive the frontier from dominance and
+        # liveness, as a hand-written outlining call would; the size checks below catch a
+        # frontier that ran away.
+        auto = False
+        coverage = 1.0
+        if not region.outlinable:
+            if "entered from outside" not in region.reason:
+                self.skipped.append((pattern.name, region.reason))
+                return False
+            subrun = largest_single_entry_subrun(
+                stream, graph, match.interval, entry_loc=entry_loc, min_ratio=self.MIN_SUBRUN_RATIO
+            )
+            if subrun is not None:
+                region = subrun
+                coverage = len(subrun.interval) / max(1, len(match.interval))
+            else:
+                auto = True
+
+        snapshot = _snapshot(graph)
+        saved_vvar_id = self.vvar_id_start
+        try:
+            hoisted = self._hoist_constants(graph, stream, match)
+            src_loc, frontier = materialize(
+                graph, stream, region, self.new_block_addr, split_tail=not auto, idx_alloc=self.manager.next_atom
+            )
+            # a loop back to the head leaves the region once its phis are split off
+            closed = not (region.frontier if auto else frontier)
+            # taken after materialize, which allocates its split blocks the same way
+            block_addr_start = self.new_block_addr()
+            outliner = self.project.analyses[Outliner].prep(kb=self.kb)(
+                self._func,
+                graph,
+                src_loc=src_loc,
+                frontier=None if auto else frontier,
+                min_step=2 if auto else 1,
+                vvar_id_start=max(self.vvar_id_start, 1),
+                block_addr_start=block_addr_start,
+            )
+        except Exception as ex:  # pylint:disable=broad-except
+            _l.debug("outlining %s failed", pattern.name, exc_info=True)
+            _restore(graph, snapshot)
+            self.skipped.append((pattern.name, f"{type(ex).__name__}: {ex}"))
+            return False
+        self.vvar_id_start = outliner.vvar_id_start
+        self._new_block_addrs.add(outliner.block_addr_start)
+
+        reason = None
+        n_region = max(1, len(region.block_locs))
+        if outliner.child_graph is None or len(outliner.child_graph) == 0:
+            reason = "outliner produced an empty callee"
+        elif auto and len(outliner.child_graph) > self.MAX_AUTO_BLOCKS * n_region:
+            reason = f"derived frontier ran away: {len(outliner.child_graph)} blocks for a {n_region}-block region"
+        elif auto and len(outliner.child_graph) < self.MIN_AUTO_RATIO * n_region:
+            reason = f"derived frontier too small: {len(outliner.child_graph)} blocks for a {n_region}-block region"
+        else:
+            normalize_call_width(graph, src_loc)
+            problems = graph_problems(graph, self._func.addr)
+            if problems:
+                reason = f"would break SSA: {problems[0]}"
+        if reason is not None:
+            _restore(graph, snapshot)
+            self.vvar_id_start = saved_vvar_id
+            self.skipped.append((pattern.name, reason))
+            return False
+
+        outliner.child_func.name = pattern.call_name
+        call = self._rename_call(graph, src_loc, pattern.call_name, hoisted)
+        self._last_call_addr = call.tags.get("ins_addr") if call is not None else None
+        if call is not None:
+            self._declare_prototype(call, stored, {**match.captures, **hoisted}, outliner.child_graph, closed)
+        self.outlined.append((pattern.name, src_loc, coverage))
+        if outliner.dropped_return_values:
+            # kept, as the user asked for it; but the call cannot carry every value the
+            # region hands on, so what follows it reads values nothing assigns
+            self.lossy.append((pattern.name, src_loc, outliner.dropped_return_values))
+            _l.warning(
+                "Pattern %s outlined at %#x in %s leaves %d more value(s) live than a call can return; "
+                "the decompilation after that call is wrong",
+                pattern.name,
+                src_loc[0],
+                self._func.name,
+                outliner.dropped_return_values,
+            )
+        return True
+
+    def _hoist_constants(
+        self, graph: networkx.DiGraph[Block], stream: TokenStream, match: TemplateMatch
+    ) -> dict[str, tuple[VirtualVariable, Const]]:
+        """Turn every constant a named wildcard bound into a variable of the occurrence.
+
+        Copies of an idiom differ in exactly what the pattern left open, a string
+        pointer or a size, say, so a callee that hard-coded one copy's constant would be
+        wrong for the others. Each such constant becomes a fresh variable inside the
+        region, which liveness then makes an argument; the definition is written at
+        the callsite once the region is gone. Returns capture name -> (variable, constant).
+        """
+        consts = {
+            name: expr
+            for name, expr in match.captures.items()
+            if isinstance(expr, Const) and isinstance(expr.value, int)
+        }
+        if not consts:
+            return {}
+        blocks = {(b.addr, b.idx): b for b in graph}
+        hoisted: dict[str, tuple[VirtualVariable, Const]] = {}
+        for column in match.columns:
+            if column.token is None:
+                continue
+            loc = stream.locs[column.token]
+            block = blocks[loc.block_loc]
+            stmt = block.statements[loc.stmt_idx]
+            for name, const in consts.items():
+                if name in hoisted:
+                    continue
+                vvar = VirtualVariable(
+                    self.manager.next_atom(),
+                    self.vvar_id_start,
+                    const.bits,
+                    VirtualVariableCategory.REGISTER,
+                    oident=self.project.arch.ret_offset,
+                    **const.tags,
+                )
+                replaced, new_stmt = stmt.replace(const, vvar)
+                if not replaced:
+                    continue
+                self.vvar_id_start += 1
+                stmt = new_stmt
+                hoisted[name] = (vvar, const)
+            block.statements[loc.stmt_idx] = stmt
+        return hoisted
+
+    def _rename_call(
+        self,
+        graph: networkx.DiGraph[Block],
+        call_loc: tuple[int, int | None],
+        name: str,
+        hoisted: dict[str, tuple[VirtualVariable, Const]],
+    ) -> Call | None:
+        """Point the synthesized callsite at the pattern's call name, passing each hoisted
+        constant in place of its variable; returns the new Call."""
+        block = next((b for b in graph if (b.addr, b.idx) == call_loc), None)
+        if block is None:
+            return None
+        const_of = {vvar.varid: const for vvar, const in hoisted.values()}
+        for i, stmt in enumerate(block.statements):
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
+                call = stmt.src
+            elif isinstance(stmt, Return) and len(stmt.ret_exprs or ()) == 1 and isinstance(stmt.ret_exprs[0], Call):
+                call = stmt.ret_exprs[0]
+            else:
+                continue
+            args = [
+                (
+                    Const(self.manager.next_atom(), const_of[a.varid].value, const_of[a.varid].bits, **a.tags)
+                    if isinstance(a, VirtualVariable) and a.varid in const_of
+                    else a
+                )
+                for a in (call.args or ())
+            ]
+            new_call = Call(call.idx, name, args=args, bits=call.bits, **call.tags)
+            if isinstance(stmt, Assignment):
+                block.statements[i] = Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags)
+            else:
+                block.statements[i] = Return(stmt.idx, [new_call], **stmt.tags)
+            return new_call
+        return None
+
+    def _declare_prototype(
+        self, call: Call, stored: StoredPattern, bound: dict[str, Expression | tuple], child_graph, closed: bool
+    ) -> None:
+        """Give the callsite the types the pattern declares.
+
+        The outliner orders arguments by liveness, not by the pattern's parameter
+        list, so each argument is typed by the capture it binds. A callee that
+        returns a value the pattern did not declare a type for is left alone, unless
+        it returns on the caller's behalf, in which case it returns what the caller
+        does: a wrong prototype is worse than none.
+        """
+        pattern = stored.pattern
+        returns_value = any(
+            isinstance(stmt, Return) and stmt.ret_exprs for block in child_graph for stmt in block.statements
+        )
+        arch = self.project.arch
+        returnty = resolve_typeref(pattern.returnty, arch) if pattern.returnty is not None else None
+        if returns_value and returnty is None:
+            if not closed or self._func.prototype is None:
+                return
+            returnty = self._func.prototype.returnty
+        by_varid = {}
+        for param in pattern.params:
+            value = bound.get(param.capture)
+            if isinstance(value, tuple):
+                value = value[0]
+            if isinstance(value, VirtualVariable):
+                by_varid[value.varid] = param
+        args = []
+        for arg in call.args or ():
+            param = by_varid.get(arg.varid) if isinstance(arg, VirtualVariable) else None
+            ty = resolve_typeref(param.type, arch) if param is not None and param.type is not None else None
+            args.append(ty if ty is not None else parse_type("void *").with_arch(arch))
+        variable_map_of(self.manager).set_prototype(call, SimTypeFunction(args, returnty).with_arch(arch))

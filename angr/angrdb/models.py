@@ -49,6 +49,7 @@ class DbKnowledgeBase(Base):
     xrefs = relationship("DbXRefs", uselist=False, back_populates="kb")
     comments = relationship("DbComment", back_populates="kb")
     bookmarks = relationship("DbBookmark", back_populates="kb")
+    patterns = relationship("DbPattern", back_populates="kb")
     labels = relationship("DbLabel", back_populates="kb")
     var_collections = relationship("DbVariableCollection", back_populates="kb")
     dec_var_collections = relationship("DbDecVariableCollection", back_populates="kb")
@@ -248,6 +249,29 @@ class DbBookmark(Base):
     addr = Column(Integer, index=True)
     label = Column(String)
     created_at = Column(Float)
+
+
+class DbPattern(Base):
+    """
+    Models a user-authored fuzzy pattern; the pattern itself is stored as JSON.
+    """
+
+    __tablename__ = "patterns"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(
+        Integer,
+        ForeignKey("knowledgebases.id"),
+        nullable=False,
+    )
+    kb = relationship("DbKnowledgeBase", uselist=False, back_populates="patterns")
+    name = Column(String, index=True)
+    enabled = Column(Boolean)
+    min_similarity = Column(Float)
+    origin_func = Column(Integer)
+    require_verified = Column(Boolean, default=True)
+    created_at = Column(Float)
+    pattern = Column(TEXT)
 
 
 class DbLabel(Base):

@@ -61,6 +61,7 @@ from .dsl import (
     PStmtSeq,
     expr_anchor_key,
     expr_const_operands,
+    has_fuzzy_nodes,
     pattern_index_keys,
     stmt_anchor_key,
     stmt_pattern_anchor_key,
@@ -73,6 +74,7 @@ from .registry import (
     patterns_for,
     resolve_pattern_selection,
 )
+from .symbols import symbol_addr
 from .templates import KnownPatternTemplate
 
 BlockLoc = tuple[int, "int | None"]
@@ -327,10 +329,22 @@ class KnownPatternFinder(Analysis):
                 if p.applicable(arch_name, platform) and (p.binary_guard is None or p.binary_guard(self.project))
             ]
 
+        self._patterns = self._drop_fuzzy_patterns(self._patterns)
         self._index_patterns()
         self.matches: list[KnownPatternMatch] = []
         self._srda_model = None
         self._analyze()
+
+    @staticmethod
+    def _drop_fuzzy_patterns(patterns: list[KnownPattern]) -> list[KnownPattern]:
+        """Leave out patterns only the fuzzy matcher can honor, loudly."""
+        kept = []
+        for pattern in patterns:
+            if has_fuzzy_nodes(pattern.pattern):
+                _l.warning("Pattern %s has optional statements; only the fuzzy matcher can apply it.", pattern.name)
+                continue
+            kept.append(pattern)
+        return kept
 
     @staticmethod
     def _fallback_ail_manager(ail_graph: networkx.DiGraph) -> AILManager:
@@ -802,6 +816,7 @@ class KnownPatternFinder(Analysis):
             next_idx=self._next_idx,
             chase_fn=self._make_chase_fn(block, start_idx) if self._chase_defs else None,
             call_target_fn=self._resolve_call_target,
+            symbol_addr_fn=self._resolve_symbol,
             def_fn=self._resolve_def,
         )
         result = self._scan_stmt_seq(block, stmt_pats, allow_gaps, start_idx, True, MatchState(), ctx, max_gap)
@@ -851,6 +866,7 @@ class KnownPatternFinder(Analysis):
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
             call_target_fn=self._resolve_call_target,
+            symbol_addr_fn=self._resolve_symbol,
             def_fn=self._resolve_def,
         )
 
@@ -914,6 +930,7 @@ class KnownPatternFinder(Analysis):
             peek_fn=self._resolve_remote_def,
             stack_slot_fn=self._resolve_stack_slot,
             call_target_fn=self._resolve_call_target,
+            symbol_addr_fn=self._resolve_symbol,
             def_fn=self._resolve_def,
         )
 
@@ -1040,6 +1057,7 @@ class KnownPatternFinder(Analysis):
             stack_slot_fn=self._resolve_stack_slot,
             remote_chase_fn=self._make_remote_chase_fn(),
             call_target_fn=self._resolve_call_target,
+            symbol_addr_fn=self._resolve_symbol,
             def_fn=self._resolve_def,
         )
         state = pat.match(target, MatchState(), ctx)
@@ -1196,6 +1214,10 @@ class KnownPatternFinder(Analysis):
         """Public face of :meth:`_resolve_call_target`, for the outliner's
         clean-up of calls a pattern declared pure."""
         return self._resolve_call_target(call)
+
+    def _resolve_symbol(self, name: str) -> int | None:
+        """Where the named symbol lives in this binary, or None."""
+        return symbol_addr(self.project.loader, name)
 
     def _resolve_call_target(self, call: Call) -> frozenset[str]:
         """Every name the callee of ``call`` is known by.

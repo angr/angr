@@ -13,7 +13,7 @@ from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitions
 from angr.errors import AngrRuntimeError
 from angr.knowledge_plugins.functions import Function
-from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
+from angr.utils.graph import Dominators, compute_dominance_frontier
 from angr.utils.ssa import is_phi_assignment
 
 _l = logging.getLogger(__name__)
@@ -67,13 +67,24 @@ class Outliner(Analysis):
             arg_vvars=[],  # TODO: FIXME
         )
 
+        # None: derive the frontier from dominance and liveness. An empty set: the region
+        # is closed, every path through it ends in a return, and the callee returns on the
+        # caller's behalf.
+        self.closed = frontier is not None and not frontier
+        self.derived_frontier = frontier is None
         if frontier:
             self.frontier_locs = frontier
             self.frontier_vars = self._determine_frontier_vars()
+        elif self.closed:
+            self.frontier_locs = set()
+            self.frontier_vars = set()
         else:
             self.frontier_locs = self._determine_frontier_locs()
             self.frontier_vars = set()
 
+        #: how many values the region defines for later use beyond the one a call can return;
+        #: when nonzero, the outlined code loses them and the result is wrong
+        self.dropped_return_values = 0
         self.child_func, self.child_graph, self.child_funcargs = self._analyze()
 
     def _next_vvar_id(self) -> int:
@@ -86,9 +97,10 @@ class Outliner(Analysis):
         self.block_addr_start += 1
         return block_addr
 
-    def cleanup_callee_graph(self, g: networkx.DiGraph, func: Function):
+    def cleanup_callee_graph(self, g: networkx.DiGraph, func: Function, entry_loc: Address | None = None):
         """
-        Remove all phi assignments whose all source variables are undefined in the graph.
+        Remove all phi assignments whose all source variables are undefined in the graph, except those with a
+        source at ``entry_loc`` (the callee's own entry, whose values are the callee's arguments).
         """
 
         srda = SReachingDefinitions(self.project, func, func_graph=g).model
@@ -101,19 +113,33 @@ class Outliner(Analysis):
                 assert phi_def_loc.block_addr is not None
                 assert phi_def_loc.stmt_idx is not None
                 phi_def_node = self.nodes_dict[(phi_def_loc.block_addr, phi_def_loc.block_idx)]
+                if entry_loc is not None:
+                    phi_stmt = phi_def_node.statements[phi_def_loc.stmt_idx]
+                    if any(src == entry_loc for src, _ in phi_stmt.src.src_and_vvars):
+                        continue
                 to_kill[phi_def_node].add(phi_def_loc.stmt_idx)
 
         for node, kills in to_kill.items():
             node.statements = [stmt for i, stmt in enumerate(node.statements) if i not in kills]
 
-    def get_interface(self, g: networkx.DiGraph[Block], func: Function) -> list[VirtualVariable]:
+    def get_interface(
+        self, g: networkx.DiGraph[Block], func: Function, entry_loc: Address | None = None
+    ) -> list[VirtualVariable]:
         """
-        Recover the interface from a function AIL graph.
+        Recover the interface from a function AIL graph. A phi operand sourced from ``entry_loc`` is an argument.
         """
 
         srda = SReachingDefinitions(self.project, func, func_graph=g).model
 
         blocks: dict[tuple[int, int | None], Block] = {(node.addr, node.idx): node for node in g}
+        entry_fed = {
+            vvar.varid
+            for node in g
+            for stmt in node.statements
+            if is_phi_assignment(stmt)
+            for src, vvar in stmt.src.src_and_vvars
+            if src == entry_loc and vvar is not None
+        }
 
         # find undefined vvars
         undef_vvars = []
@@ -124,7 +150,7 @@ class Outliner(Analysis):
                 use_stmts = [
                     blocks[loc.addr, loc.block_idx].statements[loc.stmt_idx] for _, loc in use_locs if not loc.is_extern
                 ]
-                if not all(is_phi_assignment(stmt) for stmt in use_stmts):
+                if vvar_id in entry_fed or not all(is_phi_assignment(stmt) for stmt in use_stmts):
                     undef_vvars.append(vvar_id)
 
         return [srda.varid_to_vvar[varid] for varid in undef_vvars]
@@ -146,12 +172,44 @@ class Outliner(Analysis):
             except KeyError as e:
                 raise KeyError(f"Frontier location {loc} is not valid in the given graph.") from e
 
-        # generate a subgraph
-        subgraph = subgraph_between_nodes(
-            self.parent_graph, src_node, frontier, include_frontier=False
-        )  # FISHME: why was this True?
+        # generate a subgraph: everything reachable from the source without crossing the frontier,
+        # including blocks that never reach it (noreturn calls), which would otherwise be orphaned
+        region_nodes = {src_node}
+        stack = [src_node]
+        frontier_set = set(frontier)
+        while stack:
+            node = stack.pop()
+            for succ in self.parent_graph.successors(node):
+                if succ not in region_nodes and succ not in frontier_set:
+                    region_nodes.add(succ)
+                    stack.append(succ)
+        if not self.closed:
+            # a return inside an open region returns from the caller: it stays there as one more exit
+            returns = [
+                node
+                for node in region_nodes
+                if node is not src_node
+                and self.parent_graph.out_degree[node] == 0
+                and node.statements
+                and isinstance(node.statements[-1], Return)
+            ]
+            if returns:
+                region_nodes.difference_update(returns)
+                frontier.extend(returns)
+                self.frontier_locs = {*self.frontier_locs, *((node.addr, node.idx) for node in returns)}
+                if not self.derived_frontier:
+                    self.frontier_vars = self._determine_frontier_vars()
+        subgraph = networkx.DiGraph(self.parent_graph.subgraph(region_nodes))
 
-        in_edges = [(node, src_node) for node in self.parent_graph.pred[src_node]]
+        in_edges = [(node, src_node) for node in self.parent_graph.pred[src_node] if node not in subgraph]
+        # a predecessor inside the region is a back-edge: the source heads a loop, which moves into the callee
+        back_preds = [node for node in self.parent_graph.pred[src_node] if node in subgraph]
+        head_phis: list[Assignment] = []
+        if not back_preds:
+            # the source's phis merge values from outside the region; they stay in the caller
+            head_phis = [stmt for stmt in src_node.statements if is_phi_assignment(stmt)]
+            if head_phis:
+                src_node.statements = [stmt for stmt in src_node.statements if not is_phi_assignment(stmt)]
         out_edges = [
             (node, frontier_node)
             for frontier_node in frontier
@@ -163,12 +221,20 @@ class Outliner(Analysis):
         for node in subgraph:
             self.parent_graph.remove_node(node)
 
-        callee_func = Function(self.kb.functions, src_node.addr)
+        callee_entry_loc = None
+        if back_preds:
+            # the callee gets a fresh entry that the head's phis source for the values the loop starts
+            # with; outside values that disagree are merged by a phi in the caller (into head_phis)
+            entry_block = self._make_loop_entry(subgraph, src_node, back_preds, head_phis)
+            callee_entry_loc = entry_block.addr, entry_block.idx
+            callee_func = Function(self.kb.functions, entry_block.addr)
+        else:
+            callee_func = Function(self.kb.functions, src_node.addr)
         callee_func.normalized = True
         # clean up the subgraph
-        self.cleanup_callee_graph(subgraph, callee_func)
+        self.cleanup_callee_graph(subgraph, callee_func, entry_loc=callee_entry_loc)
         # figure out the interface of the new callee
-        callee_arg_vvars = self.get_interface(subgraph, callee_func)
+        callee_arg_vvars = self.get_interface(subgraph, callee_func, entry_loc=callee_entry_loc)
 
         # rewrite the callsite
         vvar_id = self._next_vvar_id()
@@ -185,7 +251,9 @@ class Outliner(Analysis):
             None, vvar_id, self.project.arch.bits, VirtualVariableCategory.REGISTER, oident=self.project.arch.ret_offset
         )
         call_stmt = Assignment(None, switch_vvar, call_expr, ins_addr=src_node.addr)
-        new_src_node = Block(src_node.addr, src_node.original_size, statements=[call_stmt], idx=src_node.idx)
+        new_src_node = Block(
+            src_node.addr, src_node.original_size, statements=[*head_phis, call_stmt], idx=src_node.idx
+        )
         for pred, _ in in_edges:
             self.parent_graph.add_edge(pred, new_src_node)
 
@@ -293,10 +361,71 @@ class Outliner(Analysis):
 
         if ret_exprs:
             if len(ret_exprs) > 1:
+                self.dropped_return_values = len(ret_exprs) - 1
                 _l.error("Outlined region seems to have multiple return values. Can't represent this correctly.")
             call_stmt.dst = ret_exprs[0]
 
+        if self.closed:
+            # the callee kept the region's returns; the caller returns what it returned,
+            # at the width the region returned it
+            ret_bits = next(
+                (
+                    stmt.ret_exprs[0].bits
+                    for node in subgraph
+                    for stmt in node.statements
+                    if isinstance(stmt, Return) and stmt.ret_exprs
+                ),
+                None,
+            )
+            if ret_bits is not None:
+                call_expr = Call(None, call_expr.target, args=call_expr.args, bits=ret_bits, ins_addr=src_node.addr)
+                new_src_node.statements = [*head_phis, Return(None, [call_expr], ins_addr=src_node.addr)]
+            else:
+                new_src_node.statements.append(Return(None, [], ins_addr=src_node.addr))
+
         return callee_func, subgraph, callee_arg_vvars
+
+    def _make_loop_entry(
+        self, subgraph: networkx.DiGraph, head: Block, back_preds: list[Block], caller_phis: list[Assignment]
+    ) -> Block:
+        """
+        Add an entry block to the callee that jumps to the loop header ``head``, and split each phi of the head: its
+        in-region sources stay, its outside sources become one source at the entry. Outside sources that disagree are
+        merged by a phi in the caller (appended to ``caller_phis``), whose value the callee takes as an argument.
+        """
+        bits = self.project.arch.bits
+        entry_block = Block(
+            self._next_block_addr(),
+            0,
+            statements=[Jump(None, Const(None, head.addr, bits), target_idx=head.idx, ins_addr=head.addr)],
+        )
+        subgraph.add_edge(entry_block, head)
+        entry_loc = entry_block.addr, entry_block.idx
+        inside = {(node.addr, node.idx) for node in back_preds}
+        for i, stmt in enumerate(head.statements):
+            if not is_phi_assignment(stmt):
+                continue
+            assert isinstance(stmt, Assignment) and isinstance(stmt.src, Phi) and isinstance(stmt.dst, VirtualVariable)
+            in_pairs = [(src, vvar) for src, vvar in stmt.src.src_and_vvars if src in inside]
+            out_pairs = [(src, vvar) for src, vvar in stmt.src.src_and_vvars if src not in inside]
+            out_vvars = [vvar for _, vvar in out_pairs]
+            if all(vvar is None for vvar in out_vvars):
+                value = None
+            elif all(vvar is not None for vvar in out_vvars) and len({vvar.varid for vvar in out_vvars}) == 1:
+                value = out_vvars[0]
+            else:
+                value = VirtualVariable(
+                    None,
+                    self._next_vvar_id(),
+                    stmt.dst.bits,
+                    stmt.dst.category,
+                    oident=stmt.dst.oident,
+                    ins_addr=head.addr,
+                )
+                caller_phis.append(Assignment(None, value, Phi(None, stmt.src.bits, out_pairs), ins_addr=head.addr))
+            new_phi = Phi(stmt.src.idx, stmt.src.bits, [*in_pairs, (entry_loc, value)], **stmt.src.tags)
+            head.statements[i] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
+        return entry_block
 
     def _update_phi_stmts(self, block: Block, collapsed_loc=None, ret_vvar=None):
         srcs = list(self.parent_graph.predecessors(block))

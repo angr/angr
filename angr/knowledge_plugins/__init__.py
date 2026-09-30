@@ -13,6 +13,7 @@ from .key_definitions import KeyDefinitionManager
 from .labels import Labels
 from .obfuscations import Obfuscations
 from .patches import PatchManager
+from .patterns import Patterns, StoredPattern
 from .plugin import KnowledgeBasePlugin
 from .propagations import PropagationManager
 from .rtdb import RuntimeDb
@@ -40,8 +41,10 @@ __all__ = (
     "Labels",
     "Obfuscations",
     "PatchManager",
+    "Patterns",
     "PropagationManager",
     "RuntimeDb",
+    "StoredPattern",
     "StructuredCodeManager",
     "TypesStore",
     "VariableManager",
