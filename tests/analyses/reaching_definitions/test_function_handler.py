@@ -145,11 +145,11 @@ class TestFunctionHandler(TestCase):
         proto = SimTypeFunction([], retty).with_arch(arch)
 
         atoms = FunctionHandler.c_return_as_atoms(state, SimCCMicrosoftAMD64(arch), proto)
-        assert atoms == {Register(*arch.registers["rax"], arch=arch)}
+        assert atoms == {Register(*arch.registers["rax"])}
 
         # 16-byte structs are returned in rax:rdx on SysV; this behavior must be unchanged
         atoms = FunctionHandler.c_return_as_atoms(state, SimCCSystemVAMD64(arch), proto)
-        assert atoms == {Register(*arch.registers["rax"], arch=arch), Register(*arch.registers["rdx"], arch=arch)}
+        assert atoms == {Register(*arch.registers["rax"]), Register(*arch.registers["rdx"])}
 
         # on x86 cdecl, large structs are also returned through an implicit out-parameter
         arch_x86 = archinfo.ArchX86()
@@ -157,7 +157,7 @@ class TestFunctionHandler(TestCase):
         retty_x86 = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong()}, name="big").with_arch(arch_x86)
         proto_x86 = SimTypeFunction([], retty_x86).with_arch(arch_x86)
         atoms = FunctionHandler.c_return_as_atoms(state_x86, SimCCCdecl(arch_x86), proto_x86)
-        assert atoms == {Register(*arch_x86.registers["eax"], arch=arch_x86)}
+        assert atoms == {Register(*arch_x86.registers["eax"])}
 
 
 if __name__ == "__main__":

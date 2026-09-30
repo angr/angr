@@ -194,7 +194,7 @@ class SimEngineRDVEX(
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_stmt_Put(self, stmt):
         size: int = stmt.data.result_size(self.tyenv) // 8
-        reg = Register(stmt.offset, size, self.arch)
+        reg = Register(stmt.offset, size)
         data = self._expr(stmt.data)
 
         # special handling for references to heap or stack variables
@@ -408,7 +408,7 @@ class SimEngineRDVEX(
             # Define only the bytes that are missing. Redefining the whole register would clobber a narrower definition
             # that is already in place.
             for stride_start, stride_size in self._undefined_register_strides(expr.offset, size):
-                stride_atom = Register(stride_start, stride_size, self.arch)
+                stride_atom = Register(stride_start, stride_size)
                 top = self.state.top(stride_size * self.arch.byte_width)
                 top = self.state.annotate_with_def(top, Definition(stride_atom, self._external_codeloc()))
                 self.state.kill_and_add_definition(

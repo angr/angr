@@ -524,7 +524,7 @@ class FunctionHandler:
                 for ret_atom in data.ret_atoms:
                     data.depends(
                         ret_atom,
-                        *(Register(*state.arch.registers[reg_name], arch=state.arch) for reg_name in data.cc.ARG_REGS),
+                        *(Register(*state.arch.registers[reg_name]) for reg_name in data.cc.ARG_REGS),
                         apply_at_callsite=True,
                     )
         else:
@@ -613,7 +613,7 @@ class FunctionHandler:
                     atoms_set.add(atom)
                 atoms.append(atoms_set)
             return atoms
-        return [{Register(*state.arch.registers[arg_name], arch=state.arch)} for arg_name in cc.ARG_REGS]
+        return [{Register(*state.arch.registers[arg_name])} for arg_name in cc.ARG_REGS]
 
     @staticmethod
     def c_return_as_atoms(state: ReachingDefinitionsState, cc: SimCC, prototype: SimTypeFunction) -> set[Atom]:
@@ -637,11 +637,11 @@ class FunctionHandler:
     @staticmethod
     def caller_saved_regs_as_atoms(state: ReachingDefinitionsState, cc: SimCC) -> set[Register]:
         return (
-            {Register(*state.arch.registers[reg], arch=state.arch) for reg in cc.CALLER_SAVED_REGS}
+            {Register(*state.arch.registers[reg]) for reg in cc.CALLER_SAVED_REGS}
             if cc.CALLER_SAVED_REGS is not None
             else set()
         )
 
     @staticmethod
     def stack_pointer_as_atom(state) -> Register:
-        return Register(state.arch.sp_offset, state.arch.bytes, state.arch)
+        return Register(state.arch.sp_offset, state.arch.bytes)

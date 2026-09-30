@@ -20,6 +20,8 @@ from .atoms import Atom, AtomKind, MemoryLocation, Register, Tmp, VirtualVariabl
 from .tag import Tag
 
 if TYPE_CHECKING:
+    from archinfo import Arch
+
     from angr.code_location import CodeLocation
 
 log = logging.getLogger(__name__)
@@ -47,6 +49,7 @@ class DefinitionMatchPredicate:
     tmp_idx: int | None = None
     const_val: int | None = None
     extern: bool | None = None
+    arch: Arch | None = None
 
     @staticmethod
     def construct(predicate: DefinitionMatchPredicate | None = None, **kwargs) -> DefinitionMatchPredicate:
@@ -122,13 +125,16 @@ class DefinitionMatchPredicate:
                     if not defn.atom.reg_offset <= self.reg_name < defn.atom.reg_offset + defn.atom.size:
                         return False
                 elif isinstance(self.reg_name, str):
-                    if defn.atom.arch is not None:
-                        if self.reg_name != defn.atom.name:
-                            return False
-                    else:
-                        log.warning(
-                            "Attempting to match by register name against a definition which does not have an arch"
-                        )
+                    if self.arch is None:
+                        log.warning("Attempting to match by register name without an arch")
+                        return False
+                    if self.reg_name not in self.arch.registers:
+                        return False
+                    reg_offset, reg_size = self.arch.registers[self.reg_name]
+                    if (
+                        defn.atom.reg_offset >= reg_offset + reg_size
+                        or reg_offset >= defn.atom.reg_offset + defn.atom.size
+                    ):
                         return False
                 else:
                     raise TypeError(self.reg_name)
