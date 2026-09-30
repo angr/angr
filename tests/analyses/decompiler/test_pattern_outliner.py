@@ -363,6 +363,30 @@ class TestDiscoveredPatternsAcrossProjects(unittest.TestCase):
         assert stats is not None and stats.outlined >= len(lossy)
         assert dec.codegen.text.count("idiom(") >= 1
 
+    def test_tail_split_does_not_cut_a_back_edge_into_the_region(self):
+        # MSVC's memcpy tail: the second copy's last block jumps back into the region, past the
+        # occurrence's end. Split off, that jump became a bogus exit and the Outliner a KeyError.
+        proj, cfg, func = _scoped("i386/test_arrays.exe", 0x40BF00, include_plt=True)
+        pattern = self._longest_family_pattern(proj, cfg, func, min_size=10)
+        proj.kb.patterns.add(pattern)
+        passes = []
+        orig = PatternOutliner.__init__
+
+        def keep(self_, *args, **kwargs):
+            passes.append(self_)
+            orig(self_, *args, **kwargs)
+
+        PatternOutliner.__init__ = keep
+        try:
+            dec = proj.analyses.Decompiler(func, cfg=cfg.model, use_cache=False, update_cache=False)
+        finally:
+            PatternOutliner.__init__ = orig
+        assert dec.codegen is not None and dec.ail_graph is not None
+        assert [s for p in passes for s in p.skipped] == []
+        stats = proj.kb.patterns.stats(func.addr, pattern.name)
+        assert stats is not None and stats.outlined == 2, stats
+        assert graph_problems(dec.ail_graph, func.addr) == []
+
     def test_tiff_vget_field_in_tiffinfo(self):
         # libtiff's tag getter, a switch of va_arg stores: a 41-statement family, two copies
         self._discover_outline_and_reuse("x86_64/tiffinfo_gcc17_O0", 0x40A0A6, include_plt=True, min_size=20)

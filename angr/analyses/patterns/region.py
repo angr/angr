@@ -17,10 +17,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from angr.ailment.statement import Return
+from angr.ailment.statement import ConditionalJump, Jump, Label, Return
 from angr.utils.ssa import is_phi_assignment
 
 from .align import Interval
+from .tokenizer import is_dephi_copy
 
 if TYPE_CHECKING:
     import networkx
@@ -108,6 +109,20 @@ def snap(
             succ_loc = (succ.addr, succ.idx)
             if succ_loc not in member:
                 frontier.add(succ_loc)
+
+    if tail_split > 0:
+        # the tail split moves the last block's out-edges to its post-part; one into the region
+        # would enter it from outside and leave the post-part as a bogus exit
+        last_block = nodes[last]
+        back = {(s.addr, s.idx) for s in graph.successors(last_block)} & member
+        if back:
+            rest = last_block.statements[stream.locs[interval.end - 1].stmt_idx + 1 :]
+            if all(isinstance(stmt, (Jump, ConditionalJump, Label)) or is_dephi_copy(stmt) for stmt in rest):
+                # only control flow (or SSA-destruction copies) past the occurrence: keep it in the region
+                region.tail_split = 0
+            elif back - {first}:
+                region.reason = f"block {last[0]:#x} continues past the occurrence back into the region"
+                return region
 
     region.frontier = frontier
     if not frontier:
@@ -225,8 +240,9 @@ def materialize(
     if first_loc == last_loc:
         block = nodes[first_loc]
         stmts = list(block.statements)
-        mid_stmts = stmts[head_stmt:tail_stmt] if split_tail else stmts[head_stmt:]
-        post_stmts = stmts[tail_stmt:] if split_tail else []
+        # the tail is split off only when something is left to split off
+        mid_stmts = stmts[head_stmt:tail_stmt] if tail_split > 0 else stmts[head_stmt:]
+        post_stmts = stmts[tail_stmt:] if tail_split > 0 else []
         _pre, mid, _post = split_ail_block(
             graph, block, stmts[:head_stmt], mid_stmts, post_stmts, block_addr_alloc, idx_alloc
         )
