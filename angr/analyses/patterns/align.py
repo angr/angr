@@ -435,18 +435,34 @@ def _acceptable(aln: Alignment | None, params: AlignParams) -> bool:
 
 
 def cluster_alignments(alignments: list[Alignment], params: AlignParams) -> list[PatternCluster]:
-    """Merge pairwise alignments into groups of >= ``min_occurrences`` occurrences."""
+    """Merge pairwise alignments into groups of >= ``min_occurrences`` occurrences.
+
+    Alignments are clustered separately per length class (powers of two). Clustered
+    together, a long alignment that runs through several neighbouring copies absorbed the
+    short alignments of each copy: its interval replaced theirs, and one family came out
+    with a few long occurrences instead of many short ones.
+    """
     if not alignments:
         return []
+    by_class: dict[int, list[Alignment]] = defaultdict(list)
+    for aln in alignments:
+        by_class[max(len(aln.a), len(aln.b)).bit_length()].append(aln)
+    clusters: list[PatternCluster] = []
+    for group in by_class.values():
+        clusters.extend(_cluster_one_class(group, params))
+    clusters.sort(key=lambda c: (-c.savings, -c.score))
+    return clusters
 
+
+def _cluster_one_class(alignments: list[Alignment], params: AlignParams) -> list[PatternCluster]:
     canon: list[Interval] = []
 
     def canonical(iv: Interval) -> int:
+        # an interval that mostly overlaps a known one is that one; it does not replace it
+        # with itself when longer, which would grow the occurrence over its neighbours
         for idx, c in enumerate(canon):
             ov = iv.overlap_len(c)
             if ov and ov / max(len(iv), len(c)) >= params.overlap_ratio:
-                if len(iv) > len(c):
-                    canon[idx] = iv
                 return idx
         canon.append(iv)
         return len(canon) - 1
@@ -490,7 +506,6 @@ def cluster_alignments(alignments: list[Alignment], params: AlignParams) -> list
             )
         )
 
-    clusters.sort(key=lambda c: (-c.savings, -c.score))
     return clusters
 
 

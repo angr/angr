@@ -540,6 +540,24 @@ class TestStatementsModes(TestCase):
         alignments = refine_candidates(ids, [(s2 - s1, s1, s1 + 6, 2)], score, params)
         assert any(a.a.start <= s1 < a.a.end and a.b.start <= s2 < a.b.end for a in alignments), alignments
 
+    def test_short_copies_are_not_absorbed_into_long_occurrences(self):
+        from angr.analyses.patterns.align import (  # pylint:disable=import-outside-toplevel
+            Alignment,
+            Interval,
+            cluster_alignments,
+        )
+
+        def aln(a, b):
+            return Alignment(a=Interval(*a), b=Interval(*b), score=30.0, matched=b[1] - b[0], columns=b[1] - b[0])
+
+        # a short idiom at 0, 50 and 100, and a longer alignment that runs on past the copies
+        # at 0 and 100: clustered together, the short copies became the long occurrences
+        alignments = [aln((0, 8), (100, 108)), aln((0, 5), (50, 55)), aln((50, 55), (100, 105))]
+        clusters = cluster_alignments(alignments, AlignParams(min_occurrences=2))
+        occurrences = sorted([(o.start, o.end) for o in c.occurrences] for c in clusters)
+        assert [(0, 5), (50, 55), (100, 105)] in occurrences, occurrences
+        assert [(0, 8), (100, 108)] in occurrences, occurrences
+
     def test_no_occurrence_crosses_a_segment_boundary(self):
         rng = random.Random(7)
         core = [rng.randrange(20, 60) for _ in range(12)]
