@@ -402,16 +402,28 @@ def refine_candidates(
         if b0 >= n or a0 >= a1 or b0 >= b1:
             continue
         aln = banded_sw(ids, a0, a1, b0, b1, params.band + params.pad, score, params, checkpoint)
-        if aln is None:
-            continue
-        if aln.score < params.min_score or aln.identity < params.min_identity:
-            continue
-        if len(aln.a) < params.min_size or len(aln.b) < params.min_size:
-            continue
-        if not params.allow_tandem and aln.a.overlaps(aln.b):
-            continue
-        out.append(aln)
+        if _acceptable(aln, params):
+            out.append(aln)
+        # The padded windows and the wide band let a stronger pair nearby win, and a
+        # candidate yields one alignment: the pair its seeds found would be lost. If the
+        # alignment misses the seeded cores, align the cores themselves as well.
+        core_a, core_b = Interval(s, e), Interval(s + d, min(n, e + d))
+        missed = aln is None or not (aln.a.overlaps(core_a) and aln.b.overlaps(core_b))
+        if missed and core_b.end > core_b.start and not core_a.overlaps(core_b):
+            own = banded_sw(ids, s, e, core_b.start, core_b.end, params.band, score, params, checkpoint)
+            if _acceptable(own, params):
+                out.append(own)
     return out
+
+
+def _acceptable(aln: Alignment | None, params: AlignParams) -> bool:
+    if aln is None:
+        return False
+    if aln.score < params.min_score or aln.identity < params.min_identity:
+        return False
+    if len(aln.a) < params.min_size or len(aln.b) < params.min_size:
+        return False
+    return params.allow_tandem or not aln.a.overlaps(aln.b)
 
 
 def cluster_alignments(alignments: list[Alignment], params: AlignParams) -> list[PatternCluster]:

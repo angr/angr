@@ -507,6 +507,25 @@ class TestCheckpoint(TestCase):
 class TestStatementsModes(TestCase):
     """Occurrences that stay within the control flow, or within one straight run of code."""
 
+    def test_the_seeded_pair_is_aligned_even_when_a_stronger_pair_is_nearby(self):
+        # X, the seeded pair, is short; Y, a longer repeat, sits inside the padded windows on
+        # another diagonal (before the first X, after the second), so it wins the padded alignment
+        rng = random.Random(5)
+        x = [rng.randrange(20, 40) for _ in range(6)]
+        y = [rng.randrange(40, 60) for _ in range(15)]
+        noise = iter(range(100, 1000))
+
+        def filler(k):
+            return [next(noise) for _ in range(k)]
+
+        ids = filler(3) + y + filler(4) + x + filler(60) + x + filler(4) + y + filler(3)
+        s1 = 3 + 15 + 4
+        s2 = s1 + 6 + 60
+        params = AlignParams(k=3, min_score=10, min_size=4, min_anchors=2)
+        score = ScoreModel(list(range(1000)), params)
+        alignments = refine_candidates(ids, [(s2 - s1, s1, s1 + 6, 2)], score, params)
+        assert any(a.a.start <= s1 < a.a.end and a.b.start <= s2 < a.b.end for a in alignments), alignments
+
     def test_no_occurrence_crosses_a_segment_boundary(self):
         rng = random.Random(7)
         core = [rng.randrange(20, 60) for _ in range(12)]
