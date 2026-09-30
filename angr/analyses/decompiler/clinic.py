@@ -57,7 +57,7 @@ from angr.calling_conventions import (
 )
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
-from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError
+from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -498,6 +498,8 @@ class Clinic(Analysis, Serializable):
         self._rewrite_ites_to_diamond_max_cases = rewrite_ites_to_diamond_max_cases
         self.reaching_definitions: SRDAModel | None = None
         self._cache = cache
+        # instruction addresses of Windows Control-Flow-Guard check calls
+        self._guard_check_icall_ins_addrs: set[int] = set()
         self._mode = mode
         self._max_ail_statements = max_ail_statements
         self._max_type_constraints = max_type_constraints
@@ -1210,7 +1212,8 @@ class Clinic(Analysis, Serializable):
         )
 
     def _stage_post_callsite_simplifications(self) -> None:
-        pass
+        # the check calls have consumed their argument during callsite making; they can go now
+        self._ail_graph = self._remove_guard_check_icall_calls(self._ail_graph)
 
     def _stage_recover_variables(self) -> None:
         assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
@@ -2120,8 +2123,20 @@ class Clinic(Analysis, Serializable):
         """
         Fix the calling convention for special function calls.
         """
+        guard_check_slots = self._guard_check_icall_slots()
         for block in list(ail_graph.nodes()):
             last_stmt = block.statements[-1]
+            if (
+                guard_check_slots
+                and isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
+                and isinstance(last_stmt.expr, ailment.Expr.Call)
+                and self._is_call_through_pointer_slot(block, last_stmt.tags["ins_addr"], guard_check_slots)
+            ):
+                # the Control-Flow-Guard check takes the target of the checked indirect call as its only argument
+                block.statements[-1] = self._make_single_reg_arg_call(last_stmt)
+                self._guard_check_icall_ins_addrs.add(last_stmt.tags["ins_addr"])
+                continue
+
             if (
                 isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
                 and isinstance(last_stmt.expr, ailment.Expr.Call)
@@ -2135,36 +2150,44 @@ class Clinic(Analysis, Serializable):
                 continue
             target_func = self.kb.functions.get_by_addr(target)
             if target_func.name == "_security_check_cookie" and self.project.arch.name in {"X86", "AMD64"}:
-                arg = SimRegArg("ecx", 32) if self.project.arch.bits == 32 else SimRegArg("rcx", 64)
-                arg_offset, arg_bits = self.project.arch.registers[arg.reg_name]
-                arg_expr = ailment.Expr.Register(
-                    self._ail_manager.next_atom(),
-                    arg_offset,
-                    arg_bits * self.project.arch.byte_width,
-                    **last_stmt.tags,
-                )
-                IntCls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
-                call_tags = {**last_stmt.tags, "is_prototype_guessed": False}
-                new_call = ailment.Expr.Call(
-                    self._ail_manager.next_atom(),
-                    last_stmt.expr.target.copy(),
-                    args=[arg_expr],
-                    **call_tags,
-                )
-                self.variable_map.set_calling_convention(new_call, SimCCUsercall(self.project.arch, [arg], []))
-                self.variable_map.set_prototype(
-                    new_call,
-                    SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(self.project.arch),
-                )
-                call_stmt = ailment.Stmt.SideEffectStatement(
-                    self._ail_manager.next_atom(),
-                    new_call,
-                    ret_expr=None,
-                    **last_stmt.tags,
-                )
-                block.statements[-1] = call_stmt
+                block.statements[-1] = self._make_single_reg_arg_call(last_stmt)
 
         return ail_graph
+
+    def _make_single_reg_arg_call(
+        self, last_stmt: ailment.Stmt.SideEffectStatement
+    ) -> ailment.Stmt.SideEffectStatement:
+        """
+        Rewrite an x86/AMD64 call into `void f(unsigned int)` taking its only argument in ecx/rcx.
+        """
+        assert isinstance(last_stmt.expr, ailment.Expr.Call)
+        arg = SimRegArg("ecx", 32) if self.project.arch.bits == 32 else SimRegArg("rcx", 64)
+        arg_offset, arg_bits = self.project.arch.registers[arg.reg_name]
+        arg_expr = ailment.Expr.Register(
+            self._ail_manager.next_atom(),
+            arg_offset,
+            arg_bits * self.project.arch.byte_width,
+            **last_stmt.tags,
+        )
+        IntCls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
+        call_tags = {**last_stmt.tags, "is_prototype_guessed": False}
+        new_call = ailment.Expr.Call(
+            self._ail_manager.next_atom(),
+            last_stmt.expr.target.copy(),
+            args=[arg_expr],
+            **call_tags,
+        )
+        self.variable_map.set_calling_convention(new_call, SimCCUsercall(self.project.arch, [arg], []))
+        self.variable_map.set_prototype(
+            new_call,
+            SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(self.project.arch),
+        )
+        return ailment.Stmt.SideEffectStatement(
+            self._ail_manager.next_atom(),
+            new_call,
+            ret_expr=None,
+            **last_stmt.tags,
+        )
 
     def _apply_callsite_prototype_and_calling_convention(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         for block in ail_graph.nodes():
@@ -4480,29 +4503,120 @@ class Clinic(Analysis, Serializable):
                 )
                 if func is not None and (func.name == "__chkstk" or func.info.get("is_alloca_probe", False) is True):
                     # get rid of this call
-                    node.statements = node.statements[:-1]
-                    if self.project.arch.call_pushes_ret and node.statements:
-                        last_stmt = node.statements[-1]
-                        succ = next(iter(ail_graph.successors(node)))
-                        if (
-                            isinstance(last_stmt, ailment.Stmt.Store)
-                            and isinstance(last_stmt.addr, ailment.Expr.StackBaseOffset)
-                            and isinstance(last_stmt.addr.offset, int)
-                            and last_stmt.addr.offset < 0
-                            and isinstance(last_stmt.data, ailment.Expr.Const)
-                            and last_stmt.data.value == succ.addr
-                        ) or (
-                            isinstance(last_stmt, ailment.Stmt.Assignment)
-                            and isinstance(last_stmt.dst, ailment.Expr.VirtualVariable)
-                            and last_stmt.dst.was_stack
-                            and last_stmt.dst.stack_offset < 0
-                            and isinstance(last_stmt.src, ailment.Expr.Const)
-                            and last_stmt.src.value == succ.addr
-                        ):
-                            # remove the statement that pushes the return address
-                            node.statements = node.statements[:-1]
+                    self._remove_trailing_call(ail_graph, node)
                     break
         return ail_graph
+
+    def _remove_trailing_call(self, ail_graph: networkx.DiGraph, node: ailment.Block) -> None:
+        """
+        Remove the call statement at the end of a block, together with the push of its return address.
+        """
+        node.statements = node.statements[:-1]
+        if self.project.arch.call_pushes_ret and node.statements:
+            last_stmt = node.statements[-1]
+            succ = next(iter(ail_graph.successors(node)))
+            if (
+                isinstance(last_stmt, ailment.Stmt.Store)
+                and isinstance(last_stmt.addr, ailment.Expr.StackBaseOffset)
+                and isinstance(last_stmt.addr.offset, int)
+                and last_stmt.addr.offset < 0
+                and isinstance(last_stmt.data, ailment.Expr.Const)
+                and last_stmt.data.value == succ.addr
+            ) or (
+                isinstance(last_stmt, ailment.Stmt.Assignment)
+                and isinstance(last_stmt.dst, ailment.Expr.VirtualVariable)
+                and last_stmt.dst.was_stack
+                and last_stmt.dst.stack_offset < 0
+                and isinstance(last_stmt.src, ailment.Expr.Const)
+                and last_stmt.src.value == succ.addr
+            ):
+                # remove the statement that pushes the return address
+                node.statements = node.statements[:-1]
+
+    def _guard_check_icall_slots(self) -> set[int]:
+        """
+        Addresses of the Windows Control-Flow-Guard check-function pointers (e.g., __guard_check_icall_fptr).
+        """
+        if self.project.arch.name not in {"AMD64", "X86"}:
+            return set()
+        obj = self.project.loader.find_object_containing(self.function.addr)
+        load_config = getattr(obj, "load_config", None)
+        if not load_config:
+            return set()
+        return {
+            v
+            for k in ("GuardCFCheckFunctionPointer", "GuardXFGCheckFunctionPointer")
+            if (v := load_config.get(k, None))
+        }
+
+    def _remove_guard_check_icall_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        """
+        Remove Windows Control-Flow-Guard check calls, together with their argument.
+
+        The check validates the target of the indirect call that follows it and either returns or terminates the
+        process, so it has no effect on the decompiled code. The check pointer statically points to a `ret` stub that
+        the linker may share with unrelated empty functions, so _fix_special_call_calling_conventions identifies the
+        checks by the pointer they go through instead of by their callee.
+        """
+        if not self._guard_check_icall_ins_addrs:
+            return ail_graph
+
+        for node in ail_graph:
+            if not node.statements or ail_graph.out_degree[node] != 1:
+                continue
+            last_stmt = node.statements[-1]
+            if (
+                isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
+                and isinstance(last_stmt.expr, ailment.Expr.Call)
+                and last_stmt.tags.get("ins_addr", None) in self._guard_check_icall_ins_addrs
+            ):
+                self._remove_trailing_call(ail_graph, node)
+
+        return ail_graph
+
+    def _is_call_through_pointer_slot(self, node: ailment.Block, call_ins_addr: int, slots: set[int]) -> bool:
+        """
+        Check if the call instruction at `call_ins_addr` is `call [slot]`, or `call reg` where reg was last loaded
+        with `mov reg, [slot]` in the same block.
+        """
+
+        assert node.addr is not None and node.original_size is not None
+        try:
+            insns = self.project.factory.block(node.addr, size=node.original_size).capstone.insns
+        except SimTranslationError:
+            return False
+        idx = next((i for i, insn in enumerate(insns) if insn.address == call_ins_addr), None)
+        if idx is None or insns[idx].mnemonic != "call":
+            return False
+
+        def mem_operand_addr(insn, op) -> int | None:
+            if op.type != capstone.x86.X86_OP_MEM or op.mem.index != 0 or op.mem.segment != 0:
+                return None
+            if op.mem.base == capstone.x86.X86_REG_RIP:
+                return insn.address + insn.size + op.mem.disp
+            if op.mem.base == 0:
+                return op.mem.disp & ((1 << self.project.arch.bits) - 1)
+            return None
+
+        call_insn = insns[idx]
+        op = call_insn.operands[0]
+        if op.type == capstone.x86.X86_OP_MEM:
+            return mem_operand_addr(call_insn, op) in slots
+        if op.type != capstone.x86.X86_OP_REG:
+            return False
+        target_reg = op.reg
+        for insn in reversed(insns[:idx]):
+            _, regs_written = insn.insn.regs_access()
+            if target_reg not in regs_written:
+                continue
+            return (
+                insn.mnemonic == "mov"
+                and len(insn.operands) == 2
+                and insn.operands[0].type == capstone.x86.X86_OP_REG
+                and insn.operands[0].reg == target_reg
+                and mem_operand_addr(insn, insn.operands[1]) in slots
+            )
+        return False
 
     def _rewrite_alloca(self, ail_graph):
         # pylint:disable=too-many-boolean-expressions
