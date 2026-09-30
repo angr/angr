@@ -28,6 +28,13 @@ BIN_PATH = os.path.join(
 GUARD_DISPATCH_THUNK = 0x180124010
 NORMAL_FUNC = 0x18000A7F8
 
+# a function whose first call block has an unresolved callee, followed by guard-dispatched calls
+LATE_DISPATCH_BIN_PATH = os.path.join(
+    test_location, "x86_64", "windows", "9c75d43ec531c76caa65de86dcac0269d6727ba4ec74fe1cac1fda0e176fd2ab"
+)
+LATE_DISPATCH_FUNC = 0x1400409E0
+LATE_DISPATCH_THUNK = 0x140058E50
+
 
 class TestCFGuardDispatch(unittest.TestCase):
     def test_guard_dispatch_marker_propagated_to_jump_thunk(self):
@@ -78,6 +85,23 @@ class TestCFGuardDispatch(unittest.TestCase):
         assert m is not None, "expected indirect call through g_180165170 was not recovered"
         args = m.group(1).strip()
         assert args.count(",") >= 1, f"call-site arguments not recovered for g_180165170(...): {args!r}"
+
+    def test_dispatch_calls_after_an_ambiguous_call_are_rewritten(self):
+        """A call block without a single resolved callee must not stop the rewriting of later dispatch calls."""
+        proj, cfg = load_project_with_scoped_cfg(LATE_DISPATCH_BIN_PATH, LATE_DISPATCH_FUNC)
+
+        assert cfg.functions.function(LATE_DISPATCH_THUNK).info.get("jmp_rax") is True
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[LATE_DISPATCH_FUNC], cfg=cfg.model)
+        assert d.codegen is not None and d.codegen.text is not None
+        text = d.codegen.text
+
+        assert f"sub_{LATE_DISPATCH_THUNK:x}" not in text, "guard dispatch thunk still modeled as a direct call"
+        # the global function pointer called through the dispatcher, with its three arguments
+        assert re.search(
+            r"g_14007df30\(\(unsigned long long\)g_14007df24, \(unsigned long long\)g_14007df2c, "
+            r"\(unsigned long long\)g_14007df28\)",
+            text,
+        ), "indirect call through g_14007df30 was not recovered with its arguments"
 
 
 if __name__ == "__main__":

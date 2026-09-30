@@ -3445,10 +3445,10 @@ class Clinic(Analysis, Serializable):
                 # the CFG instead
                 callsite_node = self._cfg.get_any_node(block.addr, anyaddr=True)
                 if callsite_node is None:
-                    break
+                    continue
                 callees = self._cfg.get_successors(callsite_node, jumpkind="Ijk_Call")
                 if len(callees) != 1:
-                    break
+                    continue
                 callee = callees[0].addr
                 if self.kb.functions.contains_addr(callee):
                     callee_func = self.kb.functions.get_by_addr(callee)
