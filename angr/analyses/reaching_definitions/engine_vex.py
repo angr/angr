@@ -556,7 +556,11 @@ class SimEngineRDVEX(
             return iftrue
         if claripy.is_false(cond_v):
             return iffalse
-        return iftrue.merge(iffalse)
+        # Union both branches, but not without bound: a chain of ITEs (e.g., cmovs) doubles the set at every step.
+        merged = iftrue.merge(iffalse)
+        if any(len(vs) > self.state._element_limit for vs in merged.values()):
+            return self._top(len(iftrue))
+        return merged
 
     #
     # Unary operation handlers
