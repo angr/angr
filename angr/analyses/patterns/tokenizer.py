@@ -168,7 +168,9 @@ class AILCanonicalizer:
 
     @staticmethod
     def klass_of(shape: str) -> str:
-        """Fold operator names in a shape string into operator classes."""
+        """Fold operator names in a shape string into operator classes, and variables of
+        any category (``VR``, ``VS``, ...) into ``V``: the same idiom keeps a value in a
+        register in one copy and on the stack in another."""
         out = []
         i = 0
         n = len(shape)
@@ -179,6 +181,8 @@ class AILCanonicalizer:
                 while j < n and (shape[j].isalnum() or shape[j] == "_"):
                     j += 1
                 word = shape[i:j]
+                if len(word) == 2 and word[0] == "V" and word[1].isupper():
+                    word = "V"
                 out.append(_OP_CLASSES.get(word, word))
                 i = j
             else:

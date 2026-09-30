@@ -279,10 +279,16 @@ class TestSingleEntrySubrun(TestCase):
 class TestTokenizer(TestCase):
     """The AIL -> token transformation."""
 
+    def test_klass_folds_variable_categories(self):
+        assert AILCanonicalizer.klass_of("Asn(VS,VR)") == AILCanonicalizer.klass_of("Asn(VS,VS)") == "Asn(V,V)"
+        assert AILCanonicalizer.klass_of("Asn(VS,Add(VR,C))") == AILCanonicalizer.klass_of("Asn(VR,Add(VS,C))")
+        # the shape keeps the category; only the class forgets it
+        assert AILCanonicalizer.klass_of("St8(VS,VR)").count("V") == 2
+
     def test_klass_folds_operators(self):
         assert AILCanonicalizer.klass_of("Asn(VR,Add(VR,C))") == AILCanonicalizer.klass_of("Asn(VR,Sub(VR,C))")
         assert AILCanonicalizer.klass_of("Asn(VR,Add(VR,C))") != AILCanonicalizer.klass_of("Asn(VR,Shl(VR,C))")
-        assert AILCanonicalizer.klass_of("St8(VR,C)") == "St8(VR,C)"
+        assert AILCanonicalizer.klass_of("St8(VR,C)") == "St8(V,C)"
 
     def test_tokenize_is_deterministic_and_covers_every_statement(self):
         proj = angr.Project(os.path.join(BIN_PATH, "x86_64", "1after909"), auto_load_libs=False)
