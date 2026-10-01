@@ -31,6 +31,8 @@ from angr.calling_conventions import (
     SimTypeInt,
     default_cc,
 )
+from angr.engines.pcode.cc import SimCCPARISC
+from angr.errors import AngrTypeError
 from angr.sim_type import (
     SimCppClass,
     SimStruct,
@@ -39,6 +41,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeDouble,
     SimTypeLongLong,
+    SimTypeNum,
     SimTypePointer,
     SimTypeRef,
     SimUnion,
@@ -52,6 +55,35 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestCallingConvention(TestCase):
+    def test_opaque_cpp_class_returns_are_placed_like_integers(self):
+        for arch, cc_cls, return_reg in (
+            (archinfo.ArchPcode("pa-risc:BE:32:default"), SimCCPARISC, "r28"),
+            (archinfo.ArchMIPSN32(), SimCCN32, "v0"),
+        ):
+            cc = cc_cls(arch)
+            opaque = SimCppClass(unique_name="Opaque", name="Opaque", members={}, size=32)
+            opaque_loc = cc.return_val(opaque)
+            integer_loc = cc.return_val(SimTypeNum(32, signed=False))
+            assert opaque_loc is not None
+            assert integer_loc is not None
+            assert opaque_loc.get_footprint() == integer_loc.get_footprint()
+            assert isinstance(opaque_loc, SimRegArg)
+            assert opaque_loc.reg_name == return_reg
+            assert opaque_loc.size == 4
+
+            known_layout = SimCppClass(
+                unique_name="Pair",
+                name="Pair",
+                members={"a": SimTypeInt(), "b": SimTypeInt()},
+                size=64,
+            )
+            with self.assertRaises(AngrTypeError):
+                cc.return_val(known_layout)
+
+            unsized = SimCppClass(unique_name="Unsized", name="Unsized", members={})
+            with self.assertRaises(AngrTypeError):
+                cc.return_val(unsized)
+
     def test_SystemVAMD64_flatten_int(self):
         arch = archinfo.arch_from_id("amd64")
         cc = SimCCSystemVAMD64(arch)
