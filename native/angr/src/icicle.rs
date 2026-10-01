@@ -1,3 +1,4 @@
+#![allow(clippy::clone_on_copy)]
 #![allow(clippy::declare_interior_mutable_const)] // FIXME: https://github.com/PyO3/pyo3/issues/5768
 
 /// Icicle bindings
