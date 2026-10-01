@@ -11,6 +11,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector, clobber_def_ids, phi_assignment_get_src
+from angr.utils.vvar_set import VVarSet
 
 
 class SLivenessModel:
@@ -21,8 +22,9 @@ class SLivenessModel:
     """
 
     def __init__(self):
-        self.live_ins: dict[Address, set[int]] = {}
-        self.live_outs: dict[Address, set[int]] = {}
+        # bitmask-backed: these sets are wide and there are two per block
+        self.live_ins: dict[Address, VVarSet] = {}
+        self.live_outs: dict[Address, VVarSet] = {}
         # `block_end_vvars` stores for each Block the set of vvars that are used in the last statement of the Block if
         # the statement is a jump or a conditional jump.
         self.block_end_vvars: dict[Address, set[int]] = {}
@@ -63,14 +65,14 @@ class SLivenessAnalysis(Analysis):
         vvar_use_collector = VVarUsesCollector()
 
         # initialize the live_in and live_out sets
-        live_ins = {}
-        live_outs = {}
+        live_ins: dict[Address, VVarSet] = {}
+        live_outs: dict[Address, VVarSet] = {}
         for block in graph.nodes():
             block_key = block.addr, block.idx
-            live_ins[block_key] = set()
-            live_outs[block_key] = set()
+            live_ins[block_key] = VVarSet()
+            live_outs[block_key] = VVarSet()
 
-        live_on_edges: dict[tuple[tuple[int, int | None], tuple[int, int | None]], set[int]] = {}
+        live_on_edges: dict[tuple[tuple[int, int | None], tuple[int, int | None]], VVarSet] = {}
         # blocks whose statements have been walked at least once
         walked: set[tuple[int, int | None]] = set()
 
@@ -87,7 +89,7 @@ class SLivenessAnalysis(Analysis):
 
             head_controlled_loop = is_head_controlled_loop_block(block)
 
-            live = set()
+            live = VVarSet()
             for succ in graph.successors(block):
                 succ_key = succ.addr, succ.idx
                 if head_controlled_loop and block_key == succ_key:
@@ -119,7 +121,7 @@ class SLivenessAnalysis(Analysis):
             else:
                 stmts = block.statements
 
-            live_in_by_pred = {}
+            live_in_by_pred: dict[Address, VVarSet] = {}
             for i, stmt in enumerate(reversed(stmts)):
                 # handle assignments: a defined vvar is not live before the assignment
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -152,7 +154,7 @@ class SLivenessAnalysis(Analysis):
                     for src, vvar in stmt.src.src_and_vvars:
                         # this is a head-controlled loop block; we ignore the self-loop edge
                         if src != (block.addr, block.idx) and vvar is not None:
-                            live |= {vvar.varid}
+                            live.add(vvar.varid)
                 else:
                     vvar_use_collector.reset()
                     vvar_use_collector.walk_statement(stmt)
@@ -239,12 +241,12 @@ class SLivenessAnalysis(Analysis):
         return graph
 
     @staticmethod
-    def _interfering(def_vvar: int, live: set[int], vvar_ids: set[int] | None) -> set[int]:
+    def _interfering(def_vvar: int, live: VVarSet, vvar_ids: set[int] | None) -> VVarSet:
         if vvar_ids is None:
             return live
-        return live & vvar_ids if def_vvar in vvar_ids else set()
+        return live & vvar_ids if def_vvar in vvar_ids else VVarSet()
 
-    def live_vars_by_stmt(self) -> defaultdict[Address, dict[int, set[int]]]:
+    def live_vars_by_stmt(self) -> defaultdict[Address, dict[int, VVarSet]]:
         """
         Get a mapping from statements to live variables at the point of the statement.
 
