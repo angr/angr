@@ -263,10 +263,66 @@ pub struct Tags {
     pub block_idx: Option<i32>,
     /// Cold known keys and arbitrary custom keys, keyed by [`TagKey`]. Hot
     /// keys never appear here.
-    pub extras: HashMap<TagKey, TagExtra>,
+    /// Lazily allocated: almost every node only uses the hot keys, and an
+    /// empty ``HashMap`` still costs 48 bytes inline. ``None`` and
+    /// ``Some(empty)`` are equivalent; mutators keep it normalized to
+    /// ``None`` when empty so derived ``PartialEq`` stays consistent.
+    #[serde(with = "extras_serde")]
+    #[allow(clippy::box_collection)] // the Box is what shrinks the inline footprint
+    pub extras: Option<Box<HashMap<TagKey, TagExtra>>>,
+}
+
+/// Serde adapter: encodes ``extras`` as a plain map so the postcard wire
+/// format is identical to the previous inline ``HashMap`` field.
+#[allow(clippy::box_collection)]
+mod extras_serde {
+    use super::{TagExtra, TagKey};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::collections::HashMap;
+
+    pub fn serialize<S: Serializer>(
+        v: &Option<Box<HashMap<TagKey, TagExtra>>>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        match v {
+            Some(m) => m.serialize(s),
+            None => HashMap::<TagKey, TagExtra>::new().serialize(s),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Option<Box<HashMap<TagKey, TagExtra>>>, D::Error> {
+        let m: HashMap<TagKey, TagExtra> = HashMap::deserialize(d)?;
+        Ok(if m.is_empty() {
+            None
+        } else {
+            Some(Box::new(m))
+        })
+    }
 }
 
 impl Tags {
+    fn extras_len(&self) -> usize {
+        self.extras.as_ref().map_or(0, |m| m.len())
+    }
+
+    /// Insert into ``extras``, allocating the map on first use.
+    pub fn insert_extra(&mut self, key: TagKey, value: TagExtra) {
+        self.extras
+            .get_or_insert_with(Default::default)
+            .insert(key, value);
+    }
+
+    /// Remove from ``extras``; drops the map once it is empty.
+    pub fn remove_extra(&mut self, key: &TagKey) -> Option<TagExtra> {
+        let removed = self.extras.as_mut()?.remove(key);
+        if self.extras.as_ref().is_some_and(|m| m.is_empty()) {
+            self.extras = None;
+        }
+        removed
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -276,7 +332,7 @@ impl Tags {
             + self.vex_block_addr.is_some() as usize
             + self.vex_stmt_idx.is_some() as usize
             + self.block_idx.is_some() as usize;
-        hot + self.extras.len()
+        hot + self.extras_len()
     }
 
     pub fn keys(&self) -> Vec<String> {
@@ -294,8 +350,10 @@ impl Tags {
         if self.block_idx.is_some() {
             out.push("block_idx".to_string());
         }
-        for k in self.extras.keys() {
-            out.push(k.as_str().to_string());
+        if let Some(m) = &self.extras {
+            for k in m.keys() {
+                out.push(k.as_str().to_string());
+            }
         }
         out
     }
@@ -306,7 +364,7 @@ impl Tags {
             TagKey::VexBlockAddr => self.vex_block_addr.is_some(),
             TagKey::VexStmtIdx => self.vex_stmt_idx.is_some(),
             TagKey::BlockIdx => self.block_idx.is_some(),
-            other => self.extras.contains_key(&other),
+            other => self.extras.as_ref().is_some_and(|m| m.contains_key(&other)),
         }
     }
 
@@ -329,7 +387,8 @@ impl Tags {
             // turning "tag absent" into "tag present with value None".
             other => self
                 .extras
-                .get(&other)
+                .as_ref()
+                .and_then(|m| m.get(&other))
                 .map(|v| v.into_pyobject(py))
                 .transpose()?,
         })
@@ -356,7 +415,7 @@ impl Tags {
                     Some(TagValueKind::IntList) => TagExtra::IntList(value.extract()?),
                     None => extra_from_py(value),
                 };
-                self.extras.insert(other, extra);
+                self.insert_extra(other, extra);
             }
         }
         Ok(())
@@ -369,7 +428,7 @@ impl Tags {
             TagKey::VexStmtIdx => self.vex_stmt_idx = None,
             TagKey::BlockIdx => self.block_idx = None,
             other => {
-                self.extras.remove(&other);
+                self.remove_extra(&other);
             }
         }
     }
@@ -389,17 +448,17 @@ impl Tags {
         if other.block_idx.is_some() {
             self.block_idx = other.block_idx;
         }
-        for (k, v) in other.extras {
+        for (k, v) in other.extras.map(|m| *m).unwrap_or_default() {
             // A `None` value deletes the key, matching `set_from_py` (and so
             // `__setitem__`). The only stored value that can be `None` is an
             // `Opaque`, which `Deserialize` builds for anything that did not
             // survive serialization.
             match &v {
                 TagExtra::Opaque(o) if o.is_none(py) => {
-                    self.extras.remove(&k);
+                    self.remove_extra(&k);
                 }
                 _ => {
-                    self.extras.insert(k, v);
+                    self.insert_extra(k, v);
                 }
             }
         }
@@ -759,11 +818,9 @@ mod tests {
             block_idx: Some(2),
             ..Default::default()
         };
-        t.extras
-            .insert(TagKey::RegName, TagExtra::Str("rax".into()));
-        t.extras.insert(TagKey::Uninitialized, TagExtra::Bool(true));
-        t.extras
-            .insert(TagKey::Custom("mine".into()), TagExtra::Int(99));
+        t.insert_extra(TagKey::RegName, TagExtra::Str("rax".into()));
+        t.insert_extra(TagKey::Uninitialized, TagExtra::Bool(true));
+        t.insert_extra(TagKey::Custom("mine".into()), TagExtra::Int(99));
 
         let bytes = postcard::to_allocvec(&t).unwrap();
         let back: Tags = postcard::from_bytes(&bytes).unwrap();

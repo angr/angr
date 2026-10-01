@@ -167,6 +167,31 @@ impl<'py> IntoPyObject<'py> for &RoundingModeOrExpr {
 /// (one heap allocation per subtree). Variable information used to live
 /// on each variant (``variable`` / ``variable_offset``); it now lives in
 /// a side ``VariableMap`` keyed on ``ExprHeader::idx``.
+/// Payload of ``ExprInner::Struct``.
+#[derive(Clone, Debug)]
+pub struct StructExpr {
+    pub name: String,
+    /// Struct fields, keyed by byte offset, ordered by insertion
+    /// (matches the Python ``OrderedDict`` callers pass in).
+    pub fields: IndexMap<i64, Arc<AilExpression>>,
+    /// Field name -> byte offset, ordered by insertion.
+    pub field_offsets: IndexMap<String, i64>,
+    /// Byte offset -> field name. Derived in the constructor as
+    /// the reverse of ``field_offsets`` and kept eagerly in sync.
+    pub field_names: IndexMap<i64, String>,
+}
+
+/// Payload of ``ExprInner::DirtyExpression``.
+#[derive(Clone, Debug)]
+pub struct DirtyExpr {
+    pub callee: String,
+    pub operands: Vec<AilExpression>,
+    pub guard: Option<Arc<AilExpression>>,
+    pub mfx: Option<String>,
+    pub maddr: Option<Arc<AilExpression>>,
+    pub msize: Option<i64>,
+}
+
 #[derive(Clone, Debug)]
 pub enum ExprInner {
     Const {
@@ -254,14 +279,8 @@ pub enum ExprInner {
         args: Option<Vec<AilExpression>>,
         arg_vvars: Option<Vec<AilExpression>>,
     },
-    DirtyExpression {
-        callee: String,
-        operands: Vec<AilExpression>,
-        guard: Option<Arc<AilExpression>>,
-        mfx: Option<String>,
-        maddr: Option<Arc<AilExpression>>,
-        msize: Option<i64>,
-    },
+    /// Boxed for the same reason as ``Struct``.
+    DirtyExpression(Box<DirtyExpr>),
     VEXCCallExpression {
         callee: String,
         operands: Vec<AilExpression>,
@@ -270,17 +289,9 @@ pub enum ExprInner {
         stmts: Vec<AilStatement>,
         expr: Arc<AilExpression>,
     },
-    Struct {
-        name: String,
-        /// Struct fields, keyed by byte offset, ordered by insertion
-        /// (matches the Python ``OrderedDict`` callers pass in).
-        fields: IndexMap<i64, Arc<AilExpression>>,
-        /// Field name -> byte offset, ordered by insertion.
-        field_offsets: IndexMap<String, i64>,
-        /// Byte offset -> field name. Derived in the constructor as
-        /// the reverse of ``field_offsets`` and kept eagerly in sync.
-        field_names: IndexMap<i64, String>,
-    },
+    /// Boxed: the payload is large and rare; keeping it inline would size
+    /// every ``ExprInner`` (and thus every leaf) by it.
+    Struct(Box<StructExpr>),
     RustEnum {
         name: String,
         /// Variant fields. The marker class accepts a list or tuple of
@@ -375,10 +386,10 @@ impl ExprInner {
             ExprInner::BinaryOp { .. } => ExpressionKind::BinaryOp,
             ExprInner::Load { .. } => ExpressionKind::Load,
             ExprInner::Call { .. } => ExpressionKind::Call,
-            ExprInner::DirtyExpression { .. } => ExpressionKind::DirtyExpression,
+            ExprInner::DirtyExpression(..) => ExpressionKind::DirtyExpression,
             ExprInner::VEXCCallExpression { .. } => ExpressionKind::VEXCCallExpression,
             ExprInner::MultiStatementExpression { .. } => ExpressionKind::MultiStatementExpression,
-            ExprInner::Struct { .. } => ExpressionKind::Struct,
+            ExprInner::Struct(..) => ExpressionKind::Struct,
             ExprInner::RustEnum { .. } => ExpressionKind::RustEnum,
             ExprInner::Array { .. } => ExpressionKind::Array,
             ExprInner::Let { .. } => ExpressionKind::Let,
@@ -869,14 +880,15 @@ impl Hash for AilExpression {
                 bits.hash(h);
                 endness.hash(h);
             }
-            ExprInner::DirtyExpression {
-                callee,
-                operands,
-                guard,
-                mfx,
-                maddr,
-                msize,
-            } => {
+            ExprInner::DirtyExpression(boxed_) => {
+                let DirtyExpr {
+                    callee,
+                    operands,
+                    guard,
+                    mfx,
+                    maddr,
+                    msize,
+                } = &**boxed_;
                 callee.hash(h);
                 guard.as_ref().map(|g| g.cached_hash_or_compute()).hash(h);
                 operands.len().hash(h);
@@ -896,12 +908,13 @@ impl Hash for AilExpression {
                     o.cached_hash_or_compute().hash(h);
                 }
             }
-            ExprInner::Struct {
-                name,
-                fields,
-                field_offsets,
-                ..
-            } => {
+            ExprInner::Struct(boxed_) => {
+                let StructExpr {
+                    name,
+                    fields,
+                    field_offsets,
+                    ..
+                } = &**boxed_;
                 name.hash(h);
                 fields.len().hash(h);
                 for (off, e) in fields {
@@ -1033,7 +1046,7 @@ impl AilExpression {
             | ExprInner::StringLiteral { .. } => 0,
             ExprInner::BasePointerOffset { .. }
             | ExprInner::StackBaseOffset { .. }
-            | ExprInner::DirtyExpression { .. }
+            | ExprInner::DirtyExpression(..)
             | ExprInner::Macro { .. }
             | ExprInner::FunctionLikeMacro { .. } => 1,
             ExprInner::UnaryOp { operand, .. }
@@ -1051,7 +1064,8 @@ impl AilExpression {
                 operands.iter().map(|o| o.header.depth).max().unwrap_or(0)
             }
             ExprInner::MultiStatementExpression { expr, .. } => expr.header.depth + 1,
-            ExprInner::Struct { fields, .. } => {
+            ExprInner::Struct(boxed_) => {
+                let StructExpr { fields, .. } = &**boxed_;
                 fields.values().map(|f| f.header.depth).max().unwrap_or(0) + 1
             }
             ExprInner::RustEnum { fields, .. } => {
@@ -1361,14 +1375,15 @@ impl AilExpression {
                     }),
                 )
             }
-            ExprInner::DirtyExpression {
-                callee,
-                operands,
-                guard,
-                mfx,
-                maddr,
-                msize,
-            } => {
+            ExprInner::DirtyExpression(boxed_) => {
+                let DirtyExpr {
+                    callee,
+                    operands,
+                    guard,
+                    mfx,
+                    maddr,
+                    msize,
+                } = &**boxed_;
                 let (co, ro) = walk_vec(operands);
                 let (cg, rg) = walk_opt(guard);
                 let (cm, rm) = walk_opt(maddr);
@@ -1377,14 +1392,14 @@ impl AilExpression {
                 }
                 (
                     true,
-                    self.rebuilt(ExprInner::DirtyExpression {
+                    self.rebuilt(ExprInner::DirtyExpression(Box::new(DirtyExpr {
                         callee: callee.clone(),
                         operands: ro,
                         guard: rg,
                         mfx: mfx.clone(),
                         maddr: rm,
                         msize: *msize,
-                    }),
+                    }))),
                 )
             }
             ExprInner::VEXCCallExpression { callee, operands } => {
@@ -1410,12 +1425,13 @@ impl AilExpression {
                     self.rebuilt(ExprInner::ComboRegister { registers: rr }),
                 )
             }
-            ExprInner::Struct {
-                name,
-                fields,
-                field_offsets,
-                field_names,
-            } => {
+            ExprInner::Struct(boxed_) => {
+                let StructExpr {
+                    name,
+                    fields,
+                    field_offsets,
+                    field_names,
+                } = &**boxed_;
                 // Walk the value map; rebuild only if any field needs
                 // replacement. Offsets/names are scalar metadata.
                 let mut changed = false;
@@ -1435,12 +1451,12 @@ impl AilExpression {
                 }
                 (
                     true,
-                    self.rebuilt(ExprInner::Struct {
+                    self.rebuilt(ExprInner::Struct(Box::new(StructExpr {
                         name: name.clone(),
                         fields: new_fields,
                         field_offsets: field_offsets.clone(),
                         field_names: field_names.clone(),
-                    }),
+                    }))),
                 )
             }
             ExprInner::RustEnum { name, fields } => {
@@ -1633,12 +1649,13 @@ impl AilExpression {
                 }
                 false
             }
-            ExprInner::DirtyExpression {
-                operands,
-                guard,
-                maddr,
-                ..
-            } => {
+            ExprInner::DirtyExpression(boxed_) => {
+                let DirtyExpr {
+                    operands,
+                    guard,
+                    maddr,
+                    ..
+                } = &**boxed_;
                 if any_vec(operands) {
                     return true;
                 }
@@ -1849,21 +1866,14 @@ impl AilExpression {
                 offset: *offset,
             },
             ExprInner::StackBaseOffset { offset } => ExprInner::StackBaseOffset { offset: *offset },
-            ExprInner::DirtyExpression {
-                callee,
-                operands,
-                guard,
-                mfx,
-                maddr,
-                msize,
-            } => ExprInner::DirtyExpression {
-                callee: callee.clone(),
-                operands: recurse_vec(operands)?,
-                guard: recurse_opt(guard)?,
-                mfx: mfx.clone(),
-                maddr: recurse_opt(maddr)?,
-                msize: *msize,
-            },
+            ExprInner::DirtyExpression(d) => ExprInner::DirtyExpression(Box::new(DirtyExpr {
+                callee: d.callee.clone(),
+                operands: recurse_vec(&d.operands)?,
+                guard: recurse_opt(&d.guard)?,
+                mfx: d.mfx.clone(),
+                maddr: recurse_opt(&d.maddr)?,
+                msize: d.msize,
+            })),
             ExprInner::VEXCCallExpression { callee, operands } => ExprInner::VEXCCallExpression {
                 callee: callee.clone(),
                 operands: recurse_vec(operands)?,
@@ -1877,20 +1887,16 @@ impl AilExpression {
                     expr: recurse(expr)?,
                 }
             }
-            ExprInner::Struct {
-                name,
-                fields,
-                field_offsets,
-                field_names,
-            } => ExprInner::Struct {
-                name: name.clone(),
-                fields: fields
+            ExprInner::Struct(st) => ExprInner::Struct(Box::new(StructExpr {
+                name: st.name.clone(),
+                fields: st
+                    .fields
                     .iter()
                     .map(|(off, e)| Ok::<_, PyErr>((*off, recurse(e)?)))
                     .collect::<PyResult<IndexMap<_, _>>>()?,
-                field_offsets: field_offsets.clone(),
-                field_names: field_names.clone(),
-            },
+                field_offsets: st.field_offsets.clone(),
+                field_names: st.field_names.clone(),
+            })),
             ExprInner::RustEnum { name, fields } => ExprInner::RustEnum {
                 name: name.clone(),
                 fields: fields
@@ -2177,20 +2183,19 @@ impl AilExpression {
                     && a_end == b_end
                     && a_addr.cmp_ail::<MODE>(b_addr)
             }
-            (
-                ExprInner::Struct {
+            (ExprInner::Struct(a_s), ExprInner::Struct(b_s)) => {
+                let StructExpr {
                     name: a_n,
                     fields: a_f,
                     field_offsets: a_o,
                     ..
-                },
-                ExprInner::Struct {
+                } = &**a_s;
+                let StructExpr {
                     name: b_n,
                     fields: b_f,
                     field_offsets: b_o,
                     ..
-                },
-            ) => {
+                } = &**b_s;
                 if a_n != b_n
                     || a_f.len() != b_f.len()
                     || a_o != b_o
@@ -2275,24 +2280,23 @@ impl AilExpression {
                     _ => false,
                 }
             }
-            (
-                ExprInner::DirtyExpression {
+            (ExprInner::DirtyExpression(a_d), ExprInner::DirtyExpression(b_d)) => {
+                let DirtyExpr {
                     callee: a_c,
                     operands: a_ops,
                     guard: a_g,
                     mfx: a_mfx,
                     maddr: a_ma,
                     msize: a_ms,
-                },
-                ExprInner::DirtyExpression {
+                } = &**a_d;
+                let DirtyExpr {
                     callee: b_c,
                     operands: b_ops,
                     guard: b_g,
                     mfx: b_mfx,
                     maddr: b_ma,
                     msize: b_ms,
-                },
-            ) => {
+                } = &**b_d;
                 if a_c != b_c
                     || a_mfx != b_mfx
                     || a_ms != b_ms
@@ -3016,14 +3020,14 @@ impl Expression {
         let ops = operands;
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, 1, bits, tags),
-            inner: ExprInner::DirtyExpression {
+            inner: ExprInner::DirtyExpression(Box::new(DirtyExpr {
                 callee,
                 operands: ops,
                 guard: guard.map(Arc::new),
                 mfx,
                 maddr: maddr.map(Arc::new),
                 msize,
-            },
+            })),
         }))
     }
 
@@ -3089,12 +3093,12 @@ impl Expression {
             .collect();
         Ok(Self::wrap(AilExpression {
             header: ExprHeader::new(idx, depth, bits, tags),
-            inner: ExprInner::Struct {
+            inner: ExprInner::Struct(Box::new(StructExpr {
                 name,
                 fields: decoded_fields,
                 field_offsets,
                 field_names: decoded_names,
-            },
+            })),
         }))
     }
 
@@ -3667,8 +3671,8 @@ impl Expression {
             ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => {
                 Ok("macro_call".to_string())
             }
-            ExprInner::DirtyExpression { callee, .. }
-            | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
+            ExprInner::DirtyExpression(d) => Ok(d.callee.clone()),
+            ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
             ExprInner::Let { .. } => Ok("let".to_string()),
             _ => Err(PyAttributeError::new_err("no 'op' on this Expression")),
         }
@@ -3687,8 +3691,8 @@ impl Expression {
             ExprInner::Macro { .. } | ExprInner::FunctionLikeMacro { .. } => {
                 Ok("macro_call".to_string())
             }
-            ExprInner::DirtyExpression { callee, .. }
-            | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
+            ExprInner::DirtyExpression(d) => Ok(d.callee.clone()),
+            ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
             ExprInner::Let { .. } => Ok("let".to_string()),
             ExprInner::UnaryOp { op, .. } => Ok(op.clone()),
             ExprInner::BinaryOp {
@@ -3715,16 +3719,20 @@ impl Expression {
     #[getter]
     fn callee(&self) -> PyResult<String> {
         match &self.expr.inner {
-            ExprInner::DirtyExpression { callee, .. }
-            | ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
+            ExprInner::DirtyExpression(d) => Ok(d.callee.clone()),
+            ExprInner::VEXCCallExpression { callee, .. } => Ok(callee.clone()),
             _ => Err(PyAttributeError::new_err("no 'callee' on this Expression")),
         }
     }
     #[setter]
     fn set_callee(&mut self, value: String) -> PyResult<()> {
         match &mut self.expr.inner {
-            ExprInner::DirtyExpression { callee, .. }
-            | ExprInner::VEXCCallExpression { callee, .. } => {
+            ExprInner::DirtyExpression(d) => {
+                self.expr.header.cached_hash.clear();
+                d.callee = value;
+                Ok(())
+            }
+            ExprInner::VEXCCallExpression { callee, .. } => {
                 self.expr.header.cached_hash.clear();
                 *callee = value;
                 Ok(())
@@ -3743,7 +3751,8 @@ impl Expression {
     #[getter]
     fn operands<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
-            ExprInner::DirtyExpression { operands, .. } => {
+            ExprInner::DirtyExpression(boxed_) => {
+                let DirtyExpr { operands, .. } = &**boxed_;
                 Ok(PyList::new(py, operands)?.into_any())
             }
             ExprInner::VEXCCallExpression { operands, .. } => {
@@ -3769,8 +3778,13 @@ impl Expression {
     fn set_operands(&mut self, value: Vec<AilExpression>) -> PyResult<()> {
         let mut v = value;
         match &mut self.expr.inner {
-            ExprInner::DirtyExpression { operands, .. }
-            | ExprInner::VEXCCallExpression { operands, .. } => {
+            ExprInner::DirtyExpression(d) => {
+                self.expr.header.cached_hash.clear();
+                d.operands = v;
+                self.expr.header.depth = self.expr.compute_depth();
+                Ok(())
+            }
+            ExprInner::VEXCCallExpression { operands, .. } => {
                 self.expr.header.cached_hash.clear();
                 *operands = v;
                 self.expr.header.depth = self.expr.compute_depth();
@@ -3800,7 +3814,7 @@ impl Expression {
     #[getter]
     fn mfx(&self) -> PyResult<Option<String>> {
         match &self.expr.inner {
-            ExprInner::DirtyExpression { mfx, .. } => Ok(mfx.clone()),
+            ExprInner::DirtyExpression(d) => Ok(d.mfx.clone()),
             _ => Err(PyAttributeError::new_err("no 'mfx' on this Expression")),
         }
     }
@@ -3809,7 +3823,7 @@ impl Expression {
     #[getter]
     fn maddr(&self) -> PyResult<Option<&AilExpression>> {
         match &self.expr.inner {
-            ExprInner::DirtyExpression { maddr, .. } => Ok(maddr.as_deref()),
+            ExprInner::DirtyExpression(d) => Ok(d.maddr.as_deref()),
             _ => Err(PyAttributeError::new_err("no 'maddr' on this Expression")),
         }
     }
@@ -3818,7 +3832,7 @@ impl Expression {
     #[getter]
     fn msize(&self) -> PyResult<Option<i64>> {
         match &self.expr.inner {
-            ExprInner::DirtyExpression { msize, .. } => Ok(*msize),
+            ExprInner::DirtyExpression(d) => Ok(d.msize),
             _ => Err(PyAttributeError::new_err("no 'msize' on this Expression")),
         }
     }
@@ -3851,8 +3865,8 @@ impl Expression {
     #[getter]
     fn name(&self) -> PyResult<String> {
         match &self.expr.inner {
-            ExprInner::Struct { name, .. }
-            | ExprInner::RustEnum { name, .. }
+            ExprInner::Struct(st) => Ok(st.name.clone()),
+            ExprInner::RustEnum { name, .. }
             | ExprInner::Macro { name, .. }
             | ExprInner::FunctionLikeMacro { name, .. } => Ok(name.clone()),
             _ => Err(PyAttributeError::new_err("no 'name' on this Expression")),
@@ -3863,7 +3877,8 @@ impl Expression {
     #[getter]
     fn fields<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.expr.inner {
-            ExprInner::Struct { fields, .. } => {
+            ExprInner::Struct(boxed_) => {
+                let StructExpr { fields, .. } = &**boxed_;
                 let d = PyDict::new(py);
                 for (off, e) in fields {
                     d.set_item(*off, &**e)?;
@@ -3879,7 +3894,8 @@ impl Expression {
     #[setter]
     fn set_fields(&mut self, value: Bound<'_, PyAny>) -> PyResult<()> {
         match &mut self.expr.inner {
-            ExprInner::Struct { fields, .. } => {
+            ExprInner::Struct(boxed_) => {
+                let StructExpr { fields, .. } = &mut **boxed_;
                 let decoded: IndexMap<i64, Arc<AilExpression>> = value
                     .extract::<IndexMap<i64, AilExpression>>()?
                     .into_iter()
@@ -3909,7 +3925,7 @@ impl Expression {
     #[getter]
     fn field_offsets<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         match &self.expr.inner {
-            ExprInner::Struct { field_offsets, .. } => field_offsets.into_pyobject(py),
+            ExprInner::Struct(st) => (&st.field_offsets).into_pyobject(py),
             _ => Err(PyAttributeError::new_err(
                 "no 'field_offsets' on this Expression",
             )),
@@ -3920,7 +3936,7 @@ impl Expression {
     #[getter]
     fn field_names<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         match &self.expr.inner {
-            ExprInner::Struct { field_names, .. } => field_names.into_pyobject(py),
+            ExprInner::Struct(st) => (&st.field_names).into_pyobject(py),
             _ => Err(PyAttributeError::new_err(
                 "no 'field_names' on this Expression",
             )),
@@ -3929,16 +3945,16 @@ impl Expression {
 
     /// Struct.get_field(name) -- dotted-path lookup through nested Structs
     fn get_field(&self, name: String) -> PyResult<Option<AilExpression>> {
-        let ExprInner::Struct {
-            fields,
-            field_offsets,
-            ..
-        } = &self.expr.inner
-        else {
+        let ExprInner::Struct(st) = &self.expr.inner else {
             return Err(PyAttributeError::new_err(
                 "get_field is only valid on Struct",
             ));
         };
+        let StructExpr {
+            fields,
+            field_offsets,
+            ..
+        } = &**st;
         let parts: Vec<&str> = name.split('.').collect();
         let Some(off) = field_offsets.get(parts[0]) else {
             return Ok(None);
@@ -3949,7 +3965,7 @@ impl Expression {
         if parts.len() == 1 {
             return Ok(Some((**field).clone()));
         }
-        if matches!(field.inner, ExprInner::Struct { .. }) {
+        if matches!(field.inner, ExprInner::Struct(..)) {
             return Self::wrap((**field).clone()).get_field(parts[1..].join("."));
         }
         Ok(None)
@@ -4317,18 +4333,23 @@ impl Expression {
     #[getter]
     fn guard(&self) -> PyResult<Option<&AilExpression>> {
         match &self.expr.inner {
-            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
-                Ok(guard.as_deref())
-            }
+            ExprInner::Load { guard, .. } => Ok(guard.as_deref()),
+            ExprInner::DirtyExpression(d) => Ok(d.guard.as_deref()),
             _ => Err(PyAttributeError::new_err("no 'guard' on this Expression")),
         }
     }
     #[setter]
     fn set_guard(&mut self, value: Option<AilExpression>) -> PyResult<()> {
         match &mut self.expr.inner {
-            ExprInner::Load { guard, .. } | ExprInner::DirtyExpression { guard, .. } => {
+            ExprInner::Load { guard, .. } => {
                 self.expr.header.cached_hash.clear();
                 *guard = value.map(Arc::new);
+                self.expr.header.depth = self.expr.compute_depth();
+                Ok(())
+            }
+            ExprInner::DirtyExpression(d) => {
+                self.expr.header.cached_hash.clear();
+                d.guard = value.map(Arc::new);
                 self.expr.header.depth = self.expr.compute_depth();
                 Ok(())
             }
@@ -4830,9 +4851,10 @@ impl Expression {
                 Ok(format!("{}{:+}", base, offset))
             }
             ExprInner::StackBaseOffset { offset } => Ok(format!("sp{:+}", offset)),
-            ExprInner::DirtyExpression {
-                callee, operands, ..
-            } => {
+            ExprInner::DirtyExpression(boxed_) => {
+                let DirtyExpr {
+                    callee, operands, ..
+                } = &**boxed_;
                 let parts = operands
                     .iter()
                     .map(|o| Expression::wrap(o.clone()).__str__(py))
@@ -4854,7 +4876,8 @@ impl Expression {
                 parts.push(Expression::wrap((**expr).clone()).__str__(py)?);
                 Ok(format!("({})", parts.join(", ")))
             }
-            ExprInner::Struct { name, fields, .. } => {
+            ExprInner::Struct(boxed_) => {
+                let StructExpr { name, fields, .. } = &**boxed_;
                 let parts: Vec<String> = fields
                     .iter()
                     .map(|(off, e)| {
@@ -5394,14 +5417,15 @@ impl Serialize for ExprInner {
                 tv.serialize_field(arg_vvars)?;
                 tv.end()
             }
-            ExprInner::DirtyExpression {
-                callee,
-                operands,
-                guard,
-                mfx,
-                maddr,
-                msize,
-            } => {
+            ExprInner::DirtyExpression(boxed_) => {
+                let DirtyExpr {
+                    callee,
+                    operands,
+                    guard,
+                    mfx,
+                    maddr,
+                    msize,
+                } = &**boxed_;
                 let mut tv = s.serialize_tuple_variant("ExprInner", 12, "DirtyExpression", 6)?;
                 tv.serialize_field(callee)?;
                 tv.serialize_field(operands)?;
@@ -5424,13 +5448,14 @@ impl Serialize for ExprInner {
                 tv.serialize_field(expr)?;
                 tv.end()
             }
-            ExprInner::Struct {
-                name,
-                fields,
-                field_offsets,
-                // Derived from ``field_offsets``; rebuilt on read.
-                field_names: _,
-            } => {
+            ExprInner::Struct(boxed_) => {
+                let StructExpr {
+                    name,
+                    fields,
+                    field_offsets,
+                    // Derived from ``field_offsets``; rebuilt on read.
+                    field_names: _,
+                } = &**boxed_;
                 let mut tv = s.serialize_tuple_variant("ExprInner", 15, "Struct", 3)?;
                 tv.serialize_field(name)?;
                 tv.serialize_field(fields)?;
@@ -5620,14 +5645,14 @@ impl<'de> Deserialize<'de> for ExprInner {
                         args: next(&mut seq)?,
                         arg_vvars: next(&mut seq)?,
                     },
-                    12 => ExprInner::DirtyExpression {
+                    12 => ExprInner::DirtyExpression(Box::new(DirtyExpr {
                         callee: next(&mut seq)?,
                         operands: next(&mut seq)?,
                         guard: next(&mut seq)?,
                         mfx: next(&mut seq)?,
                         maddr: next(&mut seq)?,
                         msize: next(&mut seq)?,
-                    },
+                    })),
                     13 => ExprInner::VEXCCallExpression {
                         callee: next(&mut seq)?,
                         operands: next(&mut seq)?,
@@ -5644,12 +5669,12 @@ impl<'de> Deserialize<'de> for ExprInner {
                             .iter()
                             .map(|(n, off)| (*off, n.clone()))
                             .collect();
-                        ExprInner::Struct {
+                        ExprInner::Struct(Box::new(StructExpr {
                             name,
                             fields,
                             field_offsets,
                             field_names,
-                        }
+                        }))
                     }
                     16 => ExprInner::RustEnum {
                         name: next(&mut seq)?,
