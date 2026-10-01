@@ -11,18 +11,50 @@ import itertools
 from ._typehash import type_tag
 
 
+class _ReprMemo(set):
+    """
+    The ids of the type constants on the current repr path, plus the number of expansions this top-level repr may
+    still make. The path set alone only bounds the depth: a DAG with shared subtrees (a known struct type reaching
+    hundreds of other named structs) is re-expanded once per path, which is exponential.
+    """
+
+    __slots__ = ("budget",)
+
+    def __init__(self):
+        super().__init__()
+        self.budget = 256
+
+
 def memoize(f):
     @functools.wraps(f)
     def wrapped_repr(self, *args, **kwargs):
-        memo = set() if not kwargs or "memo" not in kwargs else kwargs.pop("memo")
-        if self in memo:
+        memo = kwargs.pop("memo", None)
+        if memo is None:
+            memo = _ReprMemo()
+        # cycle detection by identity: equality of type constants hashes their whole structure. Recursive types
+        # rebuilt during solving can nest hundreds of distinct objects deep; the label does not need all of them.
+        if id(self) in memo or len(memo) > 48 or memo.budget <= 0:
             return "..."
-        memo.add(self)
+        memo.budget -= 1
+        memo.add(id(self))
         r = f(self, *args, memo=memo, **kwargs)
-        memo.remove(self)
+        memo.discard(id(self))
         return r
 
     return wrapped_repr
+
+
+class _HashMemo(set):
+    """
+    The set of object ids on the current hashing path, plus the hashes already computed for structs during this
+    top-level hash so shared subtrees are hashed once instead of once per path (which is exponential).
+    """
+
+    __slots__ = ("results",)
+
+    def __init__(self):
+        super().__init__()
+        self.results: dict[int, int] = {}
 
 
 class TypeConstant:
@@ -239,7 +271,7 @@ class Pointer(TypeConstant):
         return self.__class__(basetype, name=name)
 
     def __hash__(self):
-        return self._hash(set())
+        return self._hash(_HashMemo())
 
     def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
         if id(self) in mapping:
@@ -302,9 +334,10 @@ class Array(TypeConstant):
 
     @memoize
     def __repr__(self, memo=None):
+        elem = self.element.__repr__(memo=memo) if isinstance(self.element, TypeConstant) else repr(self.element)
         if self.count is None:
-            return f"{self.element!r}[?]"
-        return f"{self.element!r}[{self.count}]"
+            return f"{elem}[?]"
+        return f"{elem}[{self.count}]"
 
     def __eq__(self, other):
         return type(other) is type(self) and self.element == other.element and self.count == other.count
@@ -313,10 +346,11 @@ class Array(TypeConstant):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((self.TYPE_HASH, self.element, self.count))
+        elem_hash = self.element._hash(visited) if self.element is not None else None
+        return hash((self.TYPE_HASH, elem_hash, self.count))
 
     def __hash__(self):
-        return self._hash(set())
+        return self._hash(_HashMemo())
 
     def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
         if id(self) in mapping:
@@ -333,18 +367,49 @@ _STRUCT_ID = itertools.count()
 
 
 class Struct(TypeConstant):
-    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False, idx: int = -1):
+    def __init__(
+        self,
+        fields=None,
+        name=None,
+        field_names=None,
+        is_cppclass: bool = False,
+        idx: int = -1,
+        size: int | None = None,
+    ):
         super().__init__(name=name)
-        self.fields = {} if fields is None else fields  # offset to type
+        self._cached_hash: int | None = None
+        self._fields: dict[int, TypeConstant] = {} if fields is None else fields  # offset to type
         self.field_names = field_names
         self.is_cppclass = is_cppclass
         self.idx = idx if idx != -1 else next(_STRUCT_ID)
+        # a pinned size (bytes) for structs whose fields are not spelled out (opaque known types)
+        self._size = size
+
+    @property
+    def fields(self) -> dict[int, TypeConstant]:
+        return self._fields
+
+    @fields.setter
+    def fields(self, v: dict[int, TypeConstant]) -> None:
+        # the hash covers the whole reachable structure; a struct whose fields are replaced must be re-hashed.
+        # mutating the dict in place bypasses this, so callers replace the dict instead (see _convert_arrays)
+        self._fields = v
+        self._cached_hash = None
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
-            return 0
+            results = getattr(visited, "results", None)
+            return results.get(id(self), 0) if results is not None else 0
         visited.add(id(self))
-        return hash((self.TYPE_HASH, self.idx, self._hash_fields(visited)))
+        if len(visited) > 128:
+            # a chain of distinct structs this deep is pathological (recursive types rebuilt during solving);
+            # the identity part of the hash is enough to stay consistent with __eq__
+            return hash((self.TYPE_HASH, self.idx))
+        h = hash((self.TYPE_HASH, self.idx, self._hash_fields(visited)))
+        results = getattr(visited, "results", None)
+        if results is not None:
+            results[id(self)] = h
+        return h
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
@@ -353,6 +418,8 @@ class Struct(TypeConstant):
 
     @property
     def size(self) -> int:
+        if self._size is not None:
+            return self._size
         if not self.fields:
             return 0
         max_field_off = max(self.fields.keys())
@@ -366,6 +433,10 @@ class Struct(TypeConstant):
         prefix += f"#{self.idx}"
         if self.name:
             prefix = f"{prefix} {self.name}"
+            if len(memo) > 1:
+                # a named struct nested in another type constant is identified by its name; its fields belong to
+                # its own definition
+                return prefix
         return (
             prefix
             + "{"
@@ -377,7 +448,11 @@ class Struct(TypeConstant):
         return type(other) is type(self) and hash(self) == hash(other) and self.idx == other.idx
 
     def __hash__(self):
-        return self._hash(set())
+        # cached per object: the walk over the reachable structure is O(graph) and every comparison needs it. only
+        # the top-level value is cached; nested values (_hash with a path) stay path-dependent for recursive types
+        if self._cached_hash is None:
+            self._cached_hash = self._hash(_HashMemo())
+        return self._cached_hash
 
 
 class EnumVariant:
@@ -440,7 +515,7 @@ class RustEnum(TypeConstant):
         return type(other) is type(self) and hash(self) == hash(other)
 
     def __hash__(self):
-        return self._hash(set())
+        return self._hash(_HashMemo())
 
     def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
         if id(self) in mapping:
@@ -542,7 +617,7 @@ class Function(TypeConstant):
         return hash((self.TYPE_HASH, params_hash, outputs_hash))
 
     def __hash__(self):
-        return self._hash(set())
+        return self._hash(_HashMemo())
 
     def replace(self, mapping: dict[int, TypeConstant], memo: set | None = None) -> TypeConstant:
         if id(self) in mapping:

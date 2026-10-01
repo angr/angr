@@ -73,6 +73,7 @@ class RewritingAnalysis:
             ail_manager=ail_manager,
             vvar_id_start=vvar_id_start,
             def_to_udef=def_to_udef,
+            extern_defs=extern_defs,
             stackvars=stackvars,
             fail_fast=self._fail_fast,
             clobber_defs_by_loc=clobber_defs_by_loc,
@@ -221,11 +222,12 @@ class RewritingAnalysis:
         return False, None
 
     def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, Any]:
-        out_state: RewritingState = (
-            self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
-            if is_head_controlled_loop_block(node_)
-            else self.out_states[(node_.addr, node_.idx)]
-        )
+        states = self.head_controlled_loop_outstates if is_head_controlled_loop_block(node_) else self.out_states
+        out_state: RewritingState | None = states.get((node_.addr, node_.idx))
+        if out_state is None:
+            # the node was never given an out-state (unreachable along this backward path): the stack slot is not
+            # set here, so keep walking predecessors rather than raising
+            return False, None
         if stack_offset in out_state.stackvars:
             existing_var = out_state.stackvars[stack_offset]
             if existing_var is None:

@@ -10,6 +10,7 @@ import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    Call,
     Const,
     Convert,
     Expression,
@@ -233,9 +234,10 @@ class SPropagator:
                 and isinstance(stmt.dst, VirtualVariable)
                 and stmt.dst.was_stack
                 and stmt.dst.stack_offset in self.stack_arg_offsets
-                and not isinstance(stmt.src, Phi)
+                and not isinstance(stmt.src, (Phi, Call))
             ):
                 # force propagation of stack variables to callsites; we set v to stmt.src, but const_value stays None
+                # (never a call: a result slot in the argument area must not re-issue the call at every use)
                 r = True
                 v = stmt.src
             elif not vvar.was_reg and not vvar.was_parameter:
@@ -495,7 +497,10 @@ class SPropagator:
             for tmp_atom, tmp_uses in tmp_and_uses.items():
                 # take a look at the definition and propagate the definition if supported
                 block = blocks[block_loc]
-                tmp_def_stmtidx = tmp_deflocs[block_loc][tmp_atom]
+                tmp_def_stmtidx = tmp_deflocs.get(block_loc, {}).get(tmp_atom)
+                if tmp_def_stmtidx is None:
+                    # defined by a dirty statement (load-linked, store-conditional): nothing to propagate
+                    continue
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):

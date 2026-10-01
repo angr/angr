@@ -46,6 +46,7 @@ from angr.analyses.typehoon.simple_solver import SimpleSolver
 from angr.block import Block as VEXBlock
 from angr.calling_conventions import (
     CC,
+    SimArrayArg,
     SimCC,
     SimCCUsercall,
     SimComboArg,
@@ -59,6 +60,8 @@ from angr.calling_conventions import (
 from angr.code_location import ExternalCodeLocation
 from angr.codenode import BlockNode, FuncNode
 from angr.errors import AngrDecompilationComplexityError, AngrDecompilationError, SimTranslationError
+from angr.go.sim_type import GoSimType
+from angr.go.typehoon.translator import GoTypeTranslator
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -939,6 +942,75 @@ class Clinic(Analysis, Serializable):
             walker.walk(block)
         return ail_graph
 
+    def _split_combo_phi_operands(self, ail_graph) -> networkx.DiGraph:
+        """
+        Give phi operands that are constituent registers of a combo-register value (an argument or a call result) an
+        explicit definition in the predecessor block: ``r = Load(&combo + offset)``.
+
+        Phi operands must stay virtual variables, so the reference walkers cannot rewrite them; without the copy, phi
+        elimination treats the operand as the register itself and the value the combo holds never reaches the merged
+        variable (a loop pointer starting at ``s.ptr``, a result of ``f()`` merged with a constant).
+        """
+
+        varid_to_combo = {}
+        if self.arg_vvars is not None:
+            for arg_vvar, _ in self.arg_vvars.values():
+                if arg_vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER:
+                    for reg_vvar in arg_vvar.reg_vvars or ():
+                        varid_to_combo[reg_vvar.varid] = arg_vvar
+        for block in ail_graph.nodes:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                    and stmt.dst.was_combo_reg
+                ):
+                    for reg_vvar in stmt.dst.reg_vvars or ():
+                        varid_to_combo[reg_vvar.varid] = stmt.dst
+        if not varid_to_combo:
+            return ail_graph
+
+        blocks = {(b.addr, b.idx): b for b in ail_graph.nodes}
+        walker = ComboRegReferenceWalker(self.project, self._ail_manager)
+        walker.varid_to_combo_reg = varid_to_combo
+        for block in list(ail_graph.nodes):
+            for i, stmt in enumerate(block.statements):
+                if not (isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Phi)):
+                    continue
+                new_sources = []
+                changed = False
+                for src, vvar in stmt.src.src_and_vvars:
+                    if vvar is None or vvar.varid not in varid_to_combo or src not in blocks:
+                        new_sources.append((src, vvar))
+                        continue
+                    pred = blocks[src]
+                    load = walker._handle_VirtualVariable(0, vvar, 0, None, None)
+                    fresh = ailment.Expr.VirtualVariable(
+                        self._ail_manager.next_atom(),
+                        self.vvar_id_start,
+                        vvar.bits,
+                        ailment.Expr.VirtualVariableCategory.REGISTER,
+                        oident=vvar.reg_offset,
+                        **vvar.tags,
+                    )
+                    self.vvar_id_start += 1
+                    copy_stmt = ailment.Stmt.Assignment(self._ail_manager.next_atom(), fresh, load, **stmt.tags)
+                    last = pred.statements[-1] if pred.statements else None
+                    if isinstance(last, (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+                        pred.statements.insert(len(pred.statements) - 1, copy_stmt)
+                    else:
+                        pred.statements.append(copy_stmt)
+                    new_sources.append((src, fresh))
+                    changed = True
+                if changed:
+                    block.statements[i] = ailment.Stmt.Assignment(
+                        stmt.idx,
+                        stmt.dst,
+                        ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_sources, **stmt.src.tags),
+                        **stmt.tags,
+                    )
+        return ail_graph
+
     def _rewrite_combo_reg_param_references(self, ail_graph) -> networkx.DiGraph:
         """
         Rewrite reads of the constituent registers of combo-register arguments into loads from the arguments.
@@ -1219,6 +1291,7 @@ class Clinic(Analysis, Serializable):
     def _stage_recover_variables(self) -> None:
         assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
 
+        self._ail_graph = self._split_combo_phi_operands(self._ail_graph)
         self._ail_graph = self._rewrite_combo_reg_param_references(self._ail_graph)
 
         # Recover variables on AIL blocks
@@ -2716,6 +2789,12 @@ class Clinic(Analysis, Serializable):
                     continue
                 tmp_locs += Clinic._expand_argloc(arg_loc.locs[field_name])
             return tmp_locs
+        if isinstance(arg_loc, SimArrayArg):
+            # a fixed-size array field: one location per element
+            tmp_locs = []
+            for loc in arg_loc.locs:
+                tmp_locs += Clinic._expand_argloc(loc)
+            return tmp_locs
         if isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
             return [arg_loc]
         raise NotImplementedError("Not implemented yet.")
@@ -2765,6 +2844,19 @@ class Clinic(Analysis, Serializable):
                             argvar = SimComboRegisterVariable(
                                 tuple(reg_offsets),
                                 arg.size,
+                                ident=f"arg_{idx}",
+                                name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
+                                region=self.function.addr,
+                            )
+                        elif locs and all(isinstance(loc, SimStackArg) for loc in locs):
+                            # a stack-resident aggregate (Go's ABI0 strings, slices, interfaces): one stack variable
+                            # over the whole span; the body's word reads extract from it
+                            start = min(loc.stack_offset for loc in locs)
+                            end = max(loc.stack_offset + loc.size for loc in locs)
+                            argvar = SimStackVariable(
+                                start,
+                                end - start,
+                                base="bp",
                                 ident=f"arg_{idx}",
                                 name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                                 region=self.function.addr,
@@ -2858,11 +2950,81 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    def _seed_stack_regions(self, vvar2vvar: dict[int, int]) -> dict[int, tuple[SimStackVariable, int]]:
+        """
+        Stack regions an optimization pass proved to hold one typed value (``optimization_scratch["stack_regions"]``:
+        offset -> (size, SimType, {vvar id: stack offset})) get one variable of that type before variable recovery
+        runs; the stack vvars carrying its words (ids after the phi unification) map to that variable and their
+        byte offset into it, so they render as its fields.
+        """
+        regions = self.optimization_scratch.pop("stack_regions", None) or {}
+        out: dict[int, tuple[SimStackVariable, int]] = {}
+        if not regions:
+            return out
+        var_manager = self.kb.dec_variables[self.function.addr]
+        # every vvar of a phi web shares the representative; definitions keep their own ids, so map the whole class
+        classes: dict[int, set[int]] = defaultdict(set)
+        for varid, rep in vvar2vvar.items():
+            classes[rep].add(varid)
+        for offset, (size, ty, pieces) in sorted(regions.items()):
+            variable = SimStackVariable(
+                offset, size, base="bp", ident=var_manager.next_variable_ident("stack"), region=self.function.addr
+            )
+            var_manager.add_variable("stack", offset, variable)
+            var_manager.set_variable_type(variable, ty.with_arch(self.project.arch), mark_manual=True)
+            for varid, stack_off in pieces.items():
+                rep = vvar2vvar.get(varid, varid)
+                for member in {varid, rep, *classes.get(rep, ())}:
+                    out[member] = (variable, stack_off - offset)
+        return out
+
+    def _untyped_go_params(self) -> frozenset[int]:
+        """Parameters of a Go prototype that only the calling-convention guess describes (see ``untyped_params``)."""
+        if self.flavor != "go" or not hasattr(self.kb, "go_signatures"):
+            return frozenset()
+        return self.kb.go_signatures.untyped_params(self.function)
+
+    def _refine_untyped_go_params(self, arg_list: list[SimVariable]) -> None:
+        """Give the guessed words of a Go prototype the types variable recovery found for them."""
+        untyped = self._untyped_go_params()
+        proto = self.function.prototype
+        if proto is None or self.flavor != "go" or not hasattr(self.kb, "go_signatures"):
+            return
+        variables = self.kb.dec_variables[self.function.addr]
+        args = list(proto.args)
+        changed = False
+        for i in untyped:
+            if i >= len(arg_list) or i >= len(args):
+                continue
+            ty = variables.get_variable_type(arg_list[i])
+            if (
+                ty is not None
+                and not isinstance(ty, SimTypeBottom)
+                and ty.size == args[i].with_arch(self.project.arch).size
+            ):
+                args[i] = ty
+                changed = True
+        # a result nobody typed (an inferred-parameters record kept the calling-convention guess) follows type
+        # inference as a guessed prototype would
+        returnty = proto.returnty
+        sigs = self.kb.go_signatures
+        if not isinstance(returnty, GoSimType) and sigs.results_guessed(self.function):
+            ret_ty = variables.get_variable_type(self.func_ret_var)
+            if ret_ty is not None and not isinstance(ret_ty, SimTypeBottom):
+                returnty = ret_ty
+                changed = True
+        if changed:
+            new_proto = proto.copy()
+            new_proto.args = args
+            new_proto.returnty = returnty
+            self.function.prototype = new_proto.with_arch(self.project.arch)
+
     @timethis
     def _make_function_prototype(self, arg_list: list[SimVariable]):
         if self.function.prototype is not None:
             if self.function.is_prototype_groundtruth:
                 # do not overwrite a prototype that came from outside our own analyses
+                self._refine_untyped_go_params(arg_list)
                 return
             if isinstance(self.function.prototype.returnty, SimTypeFloat) or any(
                 isinstance(arg, SimTypeFloat) for arg in self.function.prototype.args
@@ -2919,6 +3081,7 @@ class Clinic(Analysis, Serializable):
         tmp_kb = KnowledgeBase(self.project)
         tmp_kb.functions = self.kb.functions
         tmp_kb.register_plugin("variables", self.kb.dec_variables)
+        stack_region_vars = self._seed_stack_regions(vvar2vvar)
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type: ignore
@@ -2932,7 +3095,9 @@ class Clinic(Analysis, Serializable):
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
             type_hints=type_hints,
+            type_translator=GoTypeTranslator(self.project.arch) if self.flavor == "go" else None,
             variable_map=self.variable_map,
+            stack_region_vars=stack_region_vars,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]
@@ -2942,13 +3107,27 @@ class Clinic(Analysis, Serializable):
             if vartype is not None:
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
+        global_manager = tmp_kb.variables["global"]
+        for variable in global_manager.variables_with_manual_types:
+            vartype = global_manager.variable_to_types.get(variable, None)
+            if vartype is not None and variable in vr.var_to_typevars:
+                for tv in vr.var_to_typevars[variable]:
+                    groundtruth[tv] = vartype
 
         if self.function.is_prototype_groundtruth:
             assert self.function.prototype is not None
+            untyped = self._untyped_go_params()
             for arg_i, (_, variable) in arg_vvars.items():
-                if arg_i < len(self.function.prototype.args):
+                if arg_i < len(self.function.prototype.args) and arg_i not in untyped:
                     for tv in vr.var_to_typevars[variable]:
                         groundtruth[tv] = self.function.prototype.args[arg_i]
+
+        # types an optimization pass proved for virtual variables (vvar id -> SimType); ids may have been unified
+        for varid, vartype in (self.optimization_scratch.pop("vvar_ground_truth", None) or {}).items():
+            variable = var_manager.variable_by_vvar_id(vvar2vvar.get(varid, varid))
+            if variable is not None and variable in vr.var_to_typevars:
+                for tv in vr.var_to_typevars[variable]:
+                    groundtruth[tv] = vartype
 
         # get maximum sizes of each stack variable, regardless of its original type
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
@@ -3057,9 +3236,13 @@ class Clinic(Analysis, Serializable):
         # _rewrite_combo_reg_param_references), which variable recovery does not track, so no accesses were recorded
         # for them; link them to their argument variables directly. the variable map is keyed by expression idx and
         # every occurrence in the graph is the same expression object, so one call covers all of them.
+        # stack-passed aggregates (Go's ABI0) are read through References too.
         if arg_vvars is not None:
             for vvar, var in arg_vvars.values():
-                if vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER:
+                if vvar.parameter_category in (
+                    ailment.Expr.VirtualVariableCategory.COMBO_REGISTER,
+                    ailment.Expr.VirtualVariableCategory.STACK,
+                ):
                     self._set_expr_variable(vvar, var, 0)
 
         if self._cache is not None:
@@ -3113,7 +3296,7 @@ class Clinic(Analysis, Serializable):
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
                             var = _pick_var(variables)
-                            self._set_store_variable(stmt, var, 0)
+                            self._set_store_variable(stmt, var, stmt.addr.value - var.addr)
                     else:
                         self._link_variables_on_expr(
                             variable_manager, global_variables, block, stmt_idx, stmt, stmt.addr
@@ -3328,7 +3511,9 @@ class Clinic(Analysis, Serializable):
                             global_vars = {global_var}
                 if global_vars:
                     global_var = _pick_var(global_vars)
-                    self._set_reference_variable(expr, global_var, 0)
+                    # the constant may point inside a multi-word global
+                    delta = expr.value_int - global_var.addr if isinstance(global_var.addr, int) else 0
+                    self._set_reference_variable(expr, global_var, delta if 0 <= delta < (global_var.size or 1) else 0)
                 else:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
@@ -3503,8 +3688,39 @@ class Clinic(Analysis, Serializable):
 
         return ail_graph
 
+    @staticmethod
+    def _fold_bool_ites(ail_graph) -> None:
+        """
+        ``x = c ? 1 : 0`` (arm64 cset, csinc) is the condition itself: rewrite it to a conversion of the condition
+        instead of a diamond, so the propagator can fold it into the branch that tests x.
+        """
+        for block in ail_graph:
+            changed = False
+            stmts = list(block.statements)
+            for i, stmt in enumerate(stmts):
+                if not (isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE)):
+                    continue
+                ite = stmt.src
+                if ite.cond.bits != 1 or not (
+                    isinstance(ite.iftrue, ailment.Expr.Const) and isinstance(ite.iffalse, ailment.Expr.Const)
+                ):
+                    continue
+                mask = (1 << ite.bits) - 1
+                arms = (ite.iftrue.value & mask, ite.iffalse.value & mask)
+                if arms not in ((1, 0), (0, 1)):
+                    continue
+                cond = ite.cond
+                if arms == (0, 1):
+                    cond = ailment.Expr.UnaryOp(cond.idx, "Not", cond, bits=1, **cond.tags)
+                conv = ailment.Expr.Convert(ite.idx, 1, ite.bits, False, cond, **ite.tags)
+                stmts[i] = ailment.Stmt.Assignment(stmt.idx, stmt.dst, conv, **stmt.tags)
+                changed = True
+            if changed:
+                block.statements = stmts
+
     def _rewrite_ite_expressions(self, ail_graph):
         cfg = self._cfg
+        self._fold_bool_ites(ail_graph)
         block_and_ite_ins_addrs = []
         for block in ail_graph:
             if cfg is not None and block.addr in cfg.jump_tables:
@@ -3543,6 +3759,8 @@ class Clinic(Analysis, Serializable):
                     block_addr = self._create_triangle_for_ite_expression(ail_graph, block_addr, ite_ins_addr)
                     if block_addr is None or block_addr >= block.addr + block.original_size:
                         break
+        # a triangle relifts its head from the binary, which brings a folded ITE back
+        self._fold_bool_ites(ail_graph)
 
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
         ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
