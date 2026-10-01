@@ -263,12 +263,11 @@ pub struct Tags {
     pub block_idx: Option<i32>,
     /// Cold known keys and arbitrary custom keys, keyed by [`TagKey`]. Hot
     /// keys never appear here.
-    /// Lazily allocated: almost every node only uses the hot keys, and an
-    /// empty ``HashMap`` still costs 48 bytes inline. ``None`` and
-    /// ``Some(empty)`` are equivalent; mutators keep it normalized to
-    /// ``None`` when empty so derived ``PartialEq`` stays consistent.
+    /// Lazily allocated.
+    /// ``None`` and ``Some(empty)`` are equivalent; mutators keep it normalized
+    /// to ``None`` when empty so derived ``PartialEq`` stays consistent.
     #[serde(with = "extras_serde")]
-    #[allow(clippy::box_collection)] // the Box is what shrinks the inline footprint
+    #[allow(clippy::box_collection)] // Boxed to reduce the memory footprint
     pub extras: Option<Box<HashMap<TagKey, TagExtra>>>,
 }
 

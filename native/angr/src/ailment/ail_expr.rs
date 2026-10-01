@@ -163,16 +163,13 @@ impl<'py> IntoPyObject<'py> for &RoundingModeOrExpr {
 
 /// Concrete Expression variants.
 ///
-/// Layout note: operand subtrees are owned via ``Arc<AilExpression>``
-/// (one heap allocation per subtree). Variable information used to live
-/// on each variant (``variable`` / ``variable_offset``); it now lives in
-/// a side ``VariableMap`` keyed on ``ExprHeader::idx``.
+/// Operand subtrees are owned via ``Arc<AilExpression>``.
+///
 /// Payload of ``ExprInner::Struct``.
 #[derive(Clone, Debug)]
 pub struct StructExpr {
     pub name: String,
     /// Struct fields, keyed by byte offset, ordered by insertion
-    /// (matches the Python ``OrderedDict`` callers pass in).
     pub fields: IndexMap<i64, Arc<AilExpression>>,
     /// Field name -> byte offset, ordered by insertion.
     pub field_offsets: IndexMap<String, i64>,
@@ -279,7 +276,7 @@ pub enum ExprInner {
         args: Option<Vec<AilExpression>>,
         arg_vvars: Option<Vec<AilExpression>>,
     },
-    /// Boxed for the same reason as ``Struct``.
+    /// Boxed: the payload is large and rare.
     DirtyExpression(Box<DirtyExpr>),
     VEXCCallExpression {
         callee: String,

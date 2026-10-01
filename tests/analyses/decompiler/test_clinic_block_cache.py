@@ -16,7 +16,6 @@ class TestClinicBlockCache(TestCase):
         cfg = proj.analyses.CFGFast(normalize=True)
         dec = proj.analyses.Decompiler(cfg.functions["main"], cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text
-        # the converted blocks are owned by the AIL graph; the lookup table must not pin them for the whole pipeline
         assert dec.clinic._blocks_by_addr_and_size is None
 
 

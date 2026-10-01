@@ -705,8 +705,6 @@ class Clinic(Analysis, Serializable):
         self._convert_all()
 
         ail_graph = self._make_ailgraph()
-        # the graph owns the converted blocks now; drop the lookup table so blocks superseded by later passes can be
-        # freed instead of being pinned (~1 GB on a 940k-statement function) until the end of the pipeline
         self._blocks_by_addr_and_size = None
         return ail_graph
 
