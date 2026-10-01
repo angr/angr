@@ -71,7 +71,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
             args = list(args)
             ty = pyvex.expr.op_arg_types(op)[1][1]
             args[1] = value(ty, 1)
-            return self._perform_vex_expr_Op(op, args)
+            return super()._perform_vex_expr_Op(op, args)
         res = super()._check_zero_division(op, args)
         if res is not raiseme:
             return res
