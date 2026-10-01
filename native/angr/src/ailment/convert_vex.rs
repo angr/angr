@@ -19,7 +19,7 @@ use pyo3::types::PyList;
 
 use crate::ailment::CachedHash;
 use crate::ailment::ail_expr::{
-    AilExpression, CFGTarget, ExprHeader, ExprInner, RoundingModeOrExpr,
+    AilExpression, CFGTarget, DirtyExpr, ExprHeader, ExprInner, RoundingModeOrExpr,
 };
 use crate::ailment::ail_stmt::{AilStatement, StmtHeader, StmtInner};
 use crate::ailment::block::Block;
@@ -308,7 +308,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             vex_block_addr: Some(self.block_addr),
             vex_stmt_idx: Some(self.vex_stmt_idx as i32),
             block_idx: None,
-            extras: HashMap::new(),
+            extras: None,
         }
     }
 
@@ -414,7 +414,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         let idx = self.next_atom();
         let mut tags = self.tags();
         if let Some(n) = reg_name {
-            tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
+            tags.insert_extra(TagKey::RegName, TagExtra::Str(n));
         }
         Ok(AilExpression {
             header: ExprHeader::new(idx, 0, bits, tags),
@@ -1145,14 +1145,14 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 // The DirtyExpression factory's depth is a constant 1.
                 let dirty_expr = AilExpression {
                     header: ExprHeader::new(didx, 1, tmp_bits, self.tags()),
-                    inner: ExprInner::DirtyExpression {
+                    inner: ExprInner::DirtyExpression(Box::new(DirtyExpr {
                         callee,
                         operands: ops,
                         guard: g.map(Arc::new),
                         mfx,
                         maddr: ma.map(Arc::new),
                         msize,
-                    },
+                    })),
                 };
                 match tmp {
                     None => {
@@ -1351,7 +1351,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             let aidx = self.next_atom();
             let mut tags = self.tags();
             if let Some(n) = ret_name {
-                tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
+                tags.insert_extra(TagKey::RegName, TagExtra::Str(n));
             }
             AilExpression {
                 header: ExprHeader::new(aidx, 0, bits, tags),
@@ -1370,7 +1370,7 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let aidx = self.next_atom();
                 let mut tags = self.tags();
                 if let Some(n) = fp_name {
-                    tags.extras.insert(TagKey::RegName, TagExtra::Str(n));
+                    tags.insert_extra(TagKey::RegName, TagExtra::Str(n));
                 }
                 Some(AilExpression {
                     header: ExprHeader::new(aidx, 0, bits, tags),
@@ -1544,14 +1544,14 @@ fn suffix_rounding_mode(name: &str) -> Option<RoundingModeOrExpr> {
 fn new_dirty_expr(idx: i64, callee: String, bits: u32, tags: Tags) -> AilExpression {
     AilExpression {
         header: ExprHeader::new(idx, 1, bits, tags),
-        inner: ExprInner::DirtyExpression {
+        inner: ExprInner::DirtyExpression(Box::new(DirtyExpr {
             callee,
             operands: Vec::new(),
             guard: None,
             mfx: None,
             maddr: None,
             msize: None,
-        },
+        })),
     }
 }
 

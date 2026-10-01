@@ -704,7 +704,9 @@ class Clinic(Analysis, Serializable):
         self._update_progress(20.0, text="Converting VEX to AIL")
         self._convert_all()
 
-        return self._make_ailgraph()
+        ail_graph = self._make_ailgraph()
+        self._blocks_by_addr_and_size = None
+        return ail_graph
 
     def _decompilation_fixups(self, ail_graph):
         is_pcode_arch = ":" in self.project.arch.name
@@ -1324,6 +1326,7 @@ class Clinic(Analysis, Serializable):
             return
 
         ail_graph = self._make_ailgraph()
+        self._blocks_by_addr_and_size = None
         self._remove_redundant_jump_blocks(ail_graph)
 
         # full-function constant-only propagation
@@ -1357,10 +1360,6 @@ class Clinic(Analysis, Serializable):
             max_iterations=1,
             simplify_blocks=False,
         )
-
-        # clear _blocks_by_addr_and_size so no one can use it again
-        # TODO: Totally remove this dict
-        self._blocks_by_addr_and_size = None
 
         self.graph = ail_graph
         self.arg_list = None
