@@ -1,4 +1,5 @@
 //! Simple PyO3-exposed enums shared across ailment expressions.
+#![allow(clippy::clone_on_copy)]
 
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
