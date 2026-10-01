@@ -43,8 +43,7 @@ def variable_map_of(manager: Manager) -> VariableMap:
 
 class VariableMap:
     """
-    A side container that maps the ``.idx`` of AIL :class:`Statement` and :class:`Expression` objects to
-    variable-related information.
+    A side container that maps AIL :class:`Statement` and :class:`Expression` objects to variable-related information.
 
     The following pieces of information are tracked:
 
@@ -62,9 +61,11 @@ class VariableMap:
     - ``variant`` (an ``EnumVariant``): the enum variant that a Rust ``Let`` expression binds.
     - ``returnty`` (a :class:`SimType`): the return type of a Rust ``FunctionLikeMacro`` call.
 
-    Keys are the integer ``.idx`` values of AIL Statement/Expression objects. Because :class:`Clinic` builds one
-    :class:`ailment.Manager` per invocation, ``.idx`` values are unique within a single Clinic. So a VariableMap is
-    scoped to one Clinic instance and is stored in the corresponding :class:`DecompilationCache`.
+    Most information is keyed by the integer ``.idx`` of an AIL atom. Variable and variable-offset information uses a
+    separate namespace for ``VirtualVariable`` atoms: a stable ``.varid`` default plus occurrence-specific overrides
+    and tombstones keyed by ``(.varid, .idx)``. Transformation passes can create different atom kinds with the same
+    ``.idx``, while duplicate ``VirtualVariable`` wrappers may have different ``.idx`` values for the same ``.varid``.
+    A VariableMap is scoped to one Clinic instance and is stored in the corresponding :class:`DecompilationCache`.
     """
 
     __slots__ = (
@@ -80,7 +81,12 @@ class VariableMap:
         "_variants",
         "_vvar_id_to_variable",
         "_vvar_id_to_variable_offset",
+        "_vvar_occurrence_tombstones",
+        "_vvar_occurrence_variable_offsets",
+        "_vvar_occurrence_variables",
     )
+
+    SERIALIZATION_VERSION = 2
 
     def __init__(self):
         self._variables: dict[int, SimVariable] = {}
@@ -95,13 +101,13 @@ class VariableMap:
         self._variants: dict[int, Any] = {}
         # ``returnty`` (a :class:`SimType`): the return type of a Rust ``FunctionLikeMacro`` call.
         self._returntys: dict[int, SimType] = {}
-        # Secondary index for VirtualVariable atoms keyed by their stable ``varid``. Intermediate passes that don't
-        # propagate variable_map entries via ``transfer`` create fresh Expression wrappers (each carrying a new
-        # ``.idx``); without this fallback those later vvar wrappers render as raw ``vvar_X`` in the C output even
-        # though their varid was registered at variable-recovery time.
-        # TODO: Identify these cases, fix them, and get rid of this fallback.
+        # VirtualVariable atoms use a stable varid default plus occurrence-specific overrides. A tombstone suppresses
+        # the stable default for one explicitly cleared wrapper without affecting other wrappers for the same varid.
         self._vvar_id_to_variable: dict[int, SimVariable] = {}
         self._vvar_id_to_variable_offset: dict[int, int] = {}
+        self._vvar_occurrence_variables: dict[tuple[int, int], SimVariable] = {}
+        self._vvar_occurrence_variable_offsets: dict[tuple[int, int], int] = {}
+        self._vvar_occurrence_tombstones: set[tuple[int, int]] = set()
 
     #
     # Key helper
@@ -111,27 +117,38 @@ class VariableMap:
     def _key(obj: AILObject | int) -> int:
         return obj if isinstance(obj, int) else obj.idx
 
+    @staticmethod
+    def _varid(obj: AILObject | int) -> int | None:
+        return None if isinstance(obj, int) else getattr(obj, "varid", None)
+
+    @classmethod
+    def _vvar_key(cls, obj: AILObject | int) -> tuple[int, int] | None:
+        varid = cls._varid(obj)
+        return None if varid is None else (varid, cls._key(obj))
+
     #
     # Accessors
     #
 
     def variable(self, obj: AILObject | int) -> SimVariable | None:
-        v = self._variables.get(self._key(obj))
-        if v is not None:
-            return v
-        varid = getattr(obj, "varid", None)
-        if varid is not None:
-            return self._vvar_id_to_variable.get(varid)
-        return None
+        vvar_key = self._vvar_key(obj)
+        if vvar_key is not None:
+            if vvar_key in self._vvar_occurrence_tombstones:
+                return None
+            if vvar_key in self._vvar_occurrence_variables:
+                return self._vvar_occurrence_variables[vvar_key]
+            return self._vvar_id_to_variable.get(vvar_key[0])
+        return self._variables.get(self._key(obj))
 
     def variable_offset(self, obj: AILObject | int) -> int:
-        key = self._key(obj)
-        if key in self._variable_offsets:
-            return self._variable_offsets[key]
-        varid = getattr(obj, "varid", None)
-        if varid is not None and varid in self._vvar_id_to_variable_offset:
-            return self._vvar_id_to_variable_offset[varid]
-        return 0
+        vvar_key = self._vvar_key(obj)
+        if vvar_key is not None:
+            if vvar_key in self._vvar_occurrence_tombstones:
+                return 0
+            if vvar_key in self._vvar_occurrence_variable_offsets:
+                return self._vvar_occurrence_variable_offsets[vvar_key]
+            return self._vvar_id_to_variable_offset.get(vvar_key[0], 0)
+        return self._variable_offsets.get(self._key(obj), 0)
 
     def custom_string(self, obj: AILObject | int) -> bool:
         return self._custom_strings.get(self._key(obj), False)
@@ -146,10 +163,12 @@ class VariableMap:
         return self._reference_variable_offsets.get(self._key(obj), 0)
 
     def has_variable(self, obj: AILObject | int) -> bool:
-        if self._key(obj) in self._variables:
-            return True
-        varid = getattr(obj, "varid", None)
-        return varid is not None and varid in self._vvar_id_to_variable
+        vvar_key = self._vvar_key(obj)
+        if vvar_key is not None:
+            if vvar_key in self._vvar_occurrence_tombstones:
+                return False
+            return vvar_key in self._vvar_occurrence_variables or vvar_key[0] in self._vvar_id_to_variable
+        return self._key(obj) in self._variables
 
     def prototype(self, obj: AILObject | int) -> SimTypeFunction | None:
         return self._prototypes.get(self._key(obj))
@@ -171,6 +190,20 @@ class VariableMap:
         """Set the variable information for an AIL atom. If ``variable`` is ``None``, the variable information for
         this atom is cleared."""
 
+        vvar_key = self._vvar_key(obj)
+        if vvar_key is not None:
+            if variable is None:
+                self._vvar_occurrence_variables.pop(vvar_key, None)
+                self._vvar_occurrence_variable_offsets.pop(vvar_key, None)
+                self._vvar_occurrence_tombstones.add(vvar_key)
+            else:
+                self._vvar_occurrence_variables[vvar_key] = variable
+                self._vvar_occurrence_variable_offsets[vvar_key] = offset
+                self._vvar_occurrence_tombstones.discard(vvar_key)
+                self._vvar_id_to_variable[vvar_key[0]] = variable
+                self._vvar_id_to_variable_offset[vvar_key[0]] = offset
+            return
+
         key = self._key(obj)
         if variable is None:
             self._variables.pop(key, None)
@@ -178,17 +211,13 @@ class VariableMap:
         else:
             self._variables[key] = variable
             self._variable_offsets[key] = offset
-        varid = getattr(obj, "varid", None)
-        if varid is not None:
-            if variable is None:
-                self._vvar_id_to_variable.pop(varid, None)
-                self._vvar_id_to_variable_offset.pop(varid, None)
-            else:
-                self._vvar_id_to_variable[varid] = variable
-                self._vvar_id_to_variable_offset[varid] = offset
 
     def set_variable_offset(self, obj: AILObject | int, offset: int) -> None:
-        self._variable_offsets[self._key(obj)] = offset
+        vvar_key = self._vvar_key(obj)
+        if vvar_key is not None:
+            self._vvar_occurrence_variable_offsets[vvar_key] = offset
+        else:
+            self._variable_offsets[self._key(obj)] = offset
 
     def set_custom_string(self, obj: AILObject | int, value: bool = True) -> None:
         self._custom_strings[self._key(obj)] = value
@@ -247,14 +276,71 @@ class VariableMap:
         else:
             self._returntys[key] = returnty
 
-    def transfer(self, src: TaggedObject | int, dst: TaggedObject | int) -> None:
+    def transfer(self, src: AILObject | int, dst: AILObject | int, vvar_id: int | None = None) -> None:
         """
         Copy all variable information associated with ``src`` to ``dst``. Used when an AIL atom is deep-copied to a new
         ``.idx`` (e.g. during structuring/duplication) so that the new atom keeps the same variable association.
+
+        Native AIL deep-copy passes integer indices. For a ``VirtualVariable`` it also supplies ``vvar_id`` so this
+        method uses the VVar occurrence namespace and cannot copy state owned by a colliding non-VVar atom.
         """
 
         src_key = self._key(src)
         dst_key = self._key(dst)
+        src_varid = vvar_id if vvar_id is not None else self._varid(src)
+        dst_varid = vvar_id if vvar_id is not None else self._varid(dst)
+
+        if src_varid is not None or dst_varid is not None:
+            src_vvar_key = (src_varid, src_key) if src_varid is not None else None
+            dst_vvar_key = (dst_varid, dst_key) if dst_varid is not None else None
+            if src_vvar_key is not None and src_vvar_key in self._vvar_occurrence_tombstones:
+                if dst_vvar_key is not None:
+                    self._vvar_occurrence_variables.pop(dst_vvar_key, None)
+                    self._vvar_occurrence_variable_offsets.pop(dst_vvar_key, None)
+                    self._vvar_occurrence_tombstones.add(dst_vvar_key)
+                else:
+                    self.set_variable(dst, None)
+                return
+
+            variable = None
+            has_variable = False
+            offset = 0
+            has_offset = False
+            if src_vvar_key is not None:
+                if src_vvar_key in self._vvar_occurrence_variables:
+                    variable = self._vvar_occurrence_variables[src_vvar_key]
+                    has_variable = True
+                elif src_varid in self._vvar_id_to_variable:
+                    variable = self._vvar_id_to_variable[src_varid]
+                    has_variable = True
+                if src_vvar_key in self._vvar_occurrence_variable_offsets:
+                    offset = self._vvar_occurrence_variable_offsets[src_vvar_key]
+                    has_offset = True
+                elif src_varid in self._vvar_id_to_variable_offset:
+                    offset = self._vvar_id_to_variable_offset[src_varid]
+                    has_offset = True
+            else:
+                if src_key in self._variables:
+                    variable = self._variables[src_key]
+                    has_variable = True
+                if src_key in self._variable_offsets:
+                    offset = self._variable_offsets[src_key]
+                    has_offset = True
+
+            if dst_vvar_key is not None:
+                if has_variable:
+                    self._vvar_occurrence_variables[dst_vvar_key] = variable  # type: ignore[assignment]
+                if has_offset:
+                    self._vvar_occurrence_variable_offsets[dst_vvar_key] = offset
+                if has_variable or has_offset:
+                    self._vvar_occurrence_tombstones.discard(dst_vvar_key)
+            else:
+                if has_variable:
+                    self.set_variable(dst, variable, offset)  # type: ignore[arg-type]
+                elif has_offset:
+                    self.set_variable_offset(dst, offset)
+            return
+
         if src_key == dst_key:
             return
         for d in (
@@ -329,8 +415,24 @@ class VariableMap:
         """
 
         return {
+            "version": self.SERIALIZATION_VERSION,
             "variables": {idx: (v.ident if v is not None else None) for idx, v in self._variables.items()},
             "variable_offsets": dict(self._variable_offsets),
+            "vvar_id_to_variable": {
+                varid: (v.ident if v is not None else None) for varid, v in self._vvar_id_to_variable.items()
+            },
+            "vvar_id_to_variable_offset": dict(self._vvar_id_to_variable_offset),
+            "vvar_occurrence_variables": [
+                {"varid": varid, "idx": idx, "variable": variable.ident}
+                for (varid, idx), variable in sorted(self._vvar_occurrence_variables.items())
+            ],
+            "vvar_occurrence_variable_offsets": [
+                {"varid": varid, "idx": idx, "offset": offset}
+                for (varid, idx), offset in sorted(self._vvar_occurrence_variable_offsets.items())
+            ],
+            "vvar_occurrence_tombstones": [
+                {"varid": varid, "idx": idx} for varid, idx in sorted(self._vvar_occurrence_tombstones)
+            ],
             "custom_strings": dict(self._custom_strings),
             "reference_values": {idx: self._reference_values_to_json(d) for idx, d in self._reference_values.items()},
             "reference_variables": {
@@ -355,19 +457,78 @@ class VariableMap:
                                  ``None`` if it cannot be resolved).
         """
 
+        version = data.get("version", 1)
+        if version not in (1, cls.SERIALIZATION_VERSION):
+            raise ValueError(f"Unsupported VariableMap serialization version {version}")
+        if version == 1:
+            _l.warning(
+                "Deserializing legacy VariableMap serialization version 1; atom kinds were not recorded, so "
+                "discarding all variable and offset bindings"
+            )
+
         vm = cls()
 
         def _resolve(ident) -> SimVariable | None:
             return resolve_variable(ident) if ident is not None else None
 
-        for idx, ident in data.get("variables", {}).items():
-            v = _resolve(ident)
-            if v is not None:
-                vm._variables[int(idx)] = v
-            else:
-                _l.warning("Variable with ident %s could not be resolved during VariableMap deserialization", ident)
-        for idx, offset in data.get("variable_offsets", {}).items():
-            vm._variable_offsets[int(idx)] = offset
+        if version == cls.SERIALIZATION_VERSION:
+            for idx, ident in data.get("variables", {}).items():
+                v = _resolve(ident)
+                if v is not None:
+                    vm._variables[int(idx)] = v
+                else:
+                    _l.warning("Variable with ident %s could not be resolved during VariableMap deserialization", ident)
+            for idx, offset in data.get("variable_offsets", {}).items():
+                vm._variable_offsets[int(idx)] = offset
+
+            resolved_vvar_ids: set[int] = set()
+            for varid, ident in data.get("vvar_id_to_variable", {}).items():
+                varid = int(varid)
+                v = _resolve(ident)
+                if v is not None:
+                    vm._vvar_id_to_variable[varid] = v
+                    resolved_vvar_ids.add(varid)
+                else:
+                    _l.warning("Variable with ident %s could not be resolved during VariableMap deserialization", ident)
+            for varid, offset in data.get("vvar_id_to_variable_offset", {}).items():
+                varid = int(varid)
+                if varid in resolved_vvar_ids:
+                    vm._vvar_id_to_variable_offset[varid] = offset
+
+            resolved_occurrence_keys: set[tuple[int, int]] = set()
+            unresolved_occurrence_keys: set[tuple[int, int]] = set()
+            for entry in data.get("vvar_occurrence_variables", []):
+                vvar_key = (int(entry["varid"]), int(entry["idx"]))
+                v = _resolve(entry.get("variable"))
+                if v is not None:
+                    vm._vvar_occurrence_variables[vvar_key] = v
+                    resolved_occurrence_keys.add(vvar_key)
+                else:
+                    _l.warning(
+                        "Variable with ident %s could not be resolved during VariableMap deserialization",
+                        entry.get("variable"),
+                    )
+                    unresolved_occurrence_keys.add(vvar_key)
+            occurrence_offsets = {
+                (int(entry["varid"]), int(entry["idx"])): entry["offset"]
+                for entry in data.get("vvar_occurrence_variable_offsets", [])
+            }
+            resolved_occurrence_offset_keys = resolved_occurrence_keys | {
+                vvar_key
+                for vvar_key in occurrence_offsets
+                if vvar_key[0] in resolved_vvar_ids and vvar_key not in unresolved_occurrence_keys
+            }
+            for vvar_key in resolved_occurrence_offset_keys:
+                vm._vvar_occurrence_variable_offsets[vvar_key] = occurrence_offsets.get(vvar_key, 0)
+            for vvar_key in unresolved_occurrence_keys:
+                vm._vvar_occurrence_variables.pop(vvar_key, None)
+                vm._vvar_occurrence_variable_offsets.pop(vvar_key, None)
+                vm._vvar_occurrence_tombstones.add(vvar_key)
+            for entry in data.get("vvar_occurrence_tombstones", []):
+                vvar_key = (int(entry["varid"]), int(entry["idx"]))
+                vm._vvar_occurrence_variables.pop(vvar_key, None)
+                vm._vvar_occurrence_variable_offsets.pop(vvar_key, None)
+                vm._vvar_occurrence_tombstones.add(vvar_key)
         for idx, value in data.get("custom_strings", {}).items():
             vm._custom_strings[int(idx)] = value
         for idx, items in data.get("reference_values", {}).items():

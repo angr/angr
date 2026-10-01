@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import networkx
 
@@ -16,6 +16,9 @@ from angr.analyses.decompiler.structurer_nodes import ConditionNode, MultiNode
 from angr.analyses.decompiler.utils import calls_in_graph, remove_labels, to_ail_supergraph
 from angr.utils.ail import is_phi_assignment
 
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.variable_map import VariableMap
+
 _l = logging.getLogger(name=__name__)
 
 
@@ -24,10 +27,11 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
     Helper class to rewrite virtual variables so that they will use fresh virtual variables.
     """
 
-    def __init__(self, vvar_id_start: int, vvar_mapping: dict[int, int]):
+    def __init__(self, vvar_id_start: int, vvar_mapping: dict[int, int], *, variable_map: VariableMap | None = None):
         super().__init__()
         self.vvar_idx = vvar_id_start
         self.vvar_mapping = vvar_mapping
+        self.variable_map = variable_map
         self.new_block = None
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
@@ -38,7 +42,7 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
             self.vvar_mapping[dst.varid] = self.vvar_idx
             self.vvar_idx += 1
 
-            dst = VirtualVariable(
+            new_dst = VirtualVariable(
                 dst.idx,
                 self.vvar_mapping[dst.varid],
                 dst.bits,
@@ -46,8 +50,10 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 dst.oident,
                 **dst.tags,
             )
+            if self.variable_map is not None:
+                self.variable_map.transfer(dst, new_dst)
 
-            return Assignment(stmt.idx, dst, src, **stmt.tags)
+            return Assignment(stmt.idx, new_dst, src, **stmt.tags)
 
         return new_stmt
 
@@ -55,7 +61,7 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
     ) -> VirtualVariable:
         if expr.varid in self.vvar_mapping:
-            return VirtualVariable(
+            new_expr = VirtualVariable(
                 expr.idx,
                 self.vvar_mapping[expr.varid],
                 expr.bits,
@@ -63,6 +69,9 @@ class FreshVirtualVariableRewriter(AILBlockRewriter):
                 expr.oident,
                 **expr.tags,
             )
+            if self.variable_map is not None:
+                self.variable_map.transfer(expr, new_expr)
+            return new_expr
         return expr
 
 
@@ -317,7 +326,7 @@ class ReturnDuplicatorBase:
                 node.statements[idx] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
 
     def _use_fresh_virtual_variables(self, node: Block, vvar_map: dict[int, int]) -> Block:
-        rewriter = FreshVirtualVariableRewriter(self.vvar_id_start, vvar_map)
+        rewriter = FreshVirtualVariableRewriter(self.vvar_id_start, vvar_map, variable_map=self._manager.variable_map)
         rewriter.walk(node)
         self.vvar_id_start = rewriter.vvar_idx + 1
         return rewriter.new_block if rewriter.new_block is not None else node
