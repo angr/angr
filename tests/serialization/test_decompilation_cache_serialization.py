@@ -644,6 +644,115 @@ class TestClinicSerializationAboveFourGigabytes(unittest.TestCase):
         assert back.codegen.text == self.text
 
 
+class TestSerializationAboveSignedSixtyFourBits(unittest.TestCase):
+    """A guest address is unsigned, and a 64-bit image may map into the top half of the space.
+
+    Three fields of the schema were declared int64 and so refused every address above
+    2**63 - 1: AddressTuple.addr, which carries Clinic.entry_node_addr and both ends of
+    Clinic.edges_to_remove; CGotoMsg.target_int; and AddrToLabelEntry.addr. The addresses
+    used here are the ones a Windows kernel-mode image occupies.
+    """
+
+    # Inside the text of an image based at 0xfffff80000000000.
+    HIGH = 0xFFFFF80000200A58
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(
+            os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe"), auto_load_libs=False
+        )
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        # this function structures into labels and gotos, so its codegen carries both
+        # CGoto targets and map_addr_to_label keys
+        func = cls.proj.kb.functions[0x140003700]
+        assert func is not None
+        dec = cls.proj.analyses.Decompiler(func, cfg=cls.cfg.model, generate_code=True)
+        assert dec.clinic is not None and dec.cache is not None and dec.cache.codegen is not None
+        cls.clinic = dec.clinic
+        cls.codegen = dec.cache.codegen
+
+    def _parse_clinic(self, clinic):
+        return type(clinic).parse(
+            clinic.serialize(),
+            project=self.proj,
+            kb=self.proj.kb,
+            function=clinic.function,
+            cfg=clinic._cfg,
+        )
+
+    def _parse_codegen(self, codegen):
+        return type(codegen).parse(codegen.serialize(), project=self.proj, kb=self.proj.kb)
+
+    @classmethod
+    def _int_gotos(cls, codegen):
+        """Every CGoto in the AST whose target is a raw address.
+
+        Walked from the root rather than read off map_pos_to_node, which carries
+        rendered positions and no CGoto at all.
+        """
+        out: list = []
+        seen: set[int] = set()
+        cls._collect_gotos(codegen.cfunc, out, seen)
+        return out
+
+    @classmethod
+    def _collect_gotos(cls, value, out: list, seen: set) -> None:
+        if isinstance(value, (list, tuple, set, frozenset)):
+            for item in value:
+                cls._collect_gotos(item, out, seen)
+        elif isinstance(value, dict):
+            for item in value.values():
+                cls._collect_gotos(item, out, seen)
+        elif isinstance(value, CConstruct) and id(value) not in seen:
+            seen.add(id(value))
+            if isinstance(value, c_codegen.CGoto) and isinstance(value.target, int):
+                out.append(value)
+            # these classes carry their children in __slots__, which is per class, so the
+            # whole MRO has to be read
+            for klass in type(value).__mro__:
+                for slot in getattr(klass, "__slots__", ()) or ():
+                    cls._collect_gotos(getattr(value, slot, None), out, seen)
+
+    def test_address_fields_span_the_whole_address_space(self):
+        top = 2**64 - 1
+        # AddressTuple is reached through the Clinic message that carries it, because
+        # angr/protos/clinic_pb2.py is generated at build time and importing a name
+        # from it costs a pylint E0611 the Lint job scores
+        clinic_msg = type(self.clinic)._get_cmsg()
+        clinic_msg.entry_node_addr.addr = top
+        assert type(clinic_msg).FromString(clinic_msg.SerializeToString()).entry_node_addr.addr == top
+        assert (
+            codegen_pb2.CGotoMsg.FromString(codegen_pb2.CGotoMsg(target_int=top).SerializeToString()).target_int == top
+        )
+        entry = codegen_pb2.AddrToLabelEntry(addr=top, label_id=1)
+        assert codegen_pb2.AddrToLabelEntry.FromString(entry.SerializeToString()).addr == top
+
+    def test_clinic_address_tuples_roundtrip(self):
+        # a private copy, so moving an address here cannot disturb the other tests
+        clinic = self._parse_clinic(self.clinic)
+        clinic.entry_node_addr = (self.HIGH, None)
+        clinic.edges_to_remove = [((self.HIGH + 4, None), (self.HIGH + 8, 3))]
+
+        back = self._parse_clinic(clinic)
+
+        assert back.entry_node_addr == (self.HIGH, None)
+        assert back.edges_to_remove == [((self.HIGH + 4, None), (self.HIGH + 8, 3))]
+
+    def test_codegen_goto_and_label_addresses_roundtrip(self):
+        codegen = self._parse_codegen(self.codegen)
+        gotos = self._int_gotos(codegen)
+        assert gotos, "the fixture function is expected to structure into gotos"
+        gotos[0].target = self.HIGH
+        assert codegen.map_addr_to_label
+        key = min(codegen.map_addr_to_label, key=lambda addr_idx: addr_idx[0])
+        codegen.map_addr_to_label = {(self.HIGH, key[1]): codegen.map_addr_to_label[key]}
+
+        back = self._parse_codegen(codegen)
+
+        assert self.HIGH in {goto.target for goto in self._int_gotos(back)}
+        assert set(back.map_addr_to_label) == {(self.HIGH, key[1])}
+
+
 class TestSerializerRegistration(unittest.TestCase):
     """Every concrete CConstruct subclass must have a serializer/parser pair registered."""
 

@@ -187,7 +187,7 @@ message CReturnMsg {
 // CGoto. ``target`` may be an int or a CExpression — encode as oneof.
 message CGotoMsg {
     oneof target {
-        int64 target_int = 1;
+        uint64 target_int = 1;
         uint32 target_expr_id = 2;
     }
     optional int32 target_idx = 3;
@@ -441,7 +441,7 @@ message AstToPosEntry {
 
 // map_addr_to_label: dict[tuple[int, int | None], CLabel]
 message AddrToLabelEntry {
-    int64 addr = 1;
+    uint64 addr = 1;
     optional int32 idx = 2;                       // tuple's second element (block_idx); absent means None
     uint32 label_id = 3;                          // CLabel node_id
 }

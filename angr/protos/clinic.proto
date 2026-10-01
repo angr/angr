@@ -31,7 +31,7 @@ message StackItem {
 
 message AddressTuple {
     // ailment.Address = tuple[int, int | None]
-    int64 addr = 1;
+    uint64 addr = 1;
     optional int32 idx = 2;
 }
 
