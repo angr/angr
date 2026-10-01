@@ -12,6 +12,12 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "rust"
+  - package-ecosystem: "rust-toolchain"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "rust-toolchain"
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
