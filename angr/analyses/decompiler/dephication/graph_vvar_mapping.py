@@ -82,7 +82,10 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         live_ins = liveness.model.live_ins
         live_outs = liveness.model.live_outs
-        interference = liveness.interference_graph()
+        phi_related_vvars = set(phi_to_srcvarid)
+        for src_and_varids in phi_to_srcvarid.values():
+            phi_related_vvars.update(varid for _, varid in src_and_varids)
+        interference = liveness.interference_graph(vvar_ids=phi_related_vvars)
 
         # A phi congruence class is the transitive closure over phi statements. This means two vvars that never appear
         # together in a single phi statement can still land in the same phi congruence class through a chain of phi
