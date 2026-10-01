@@ -45,7 +45,7 @@ class TestCmovChain(TestCase):
                 assert len(values) <= limit
 
         # the definitions of rdi at the end of the block must survive the collapse
-        rdi_defs = list(end_state.get_definitions(Register(proj.arch.registers["rdi"][0], 8, proj.arch)))
+        rdi_defs = list(end_state.get_definitions(Register(proj.arch.registers["rdi"][0], 8)))
         assert rdi_defs
 
 

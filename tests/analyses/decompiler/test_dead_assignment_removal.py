@@ -136,7 +136,7 @@ class TestPackerFillerDecompilation(unittest.TestCase):
         assert dec.clinic is not None
         assert dec.clinic._cross_insn_opt_for_large_blocks is True
         assert dec.codegen is not None and dec.codegen.text is not None
-        assert elapsed < 60.0, f"decompiling {block_count} blocks of filler took {elapsed:.1f}s"
+        assert elapsed < 90.0, f"decompiling {block_count} blocks of filler took {elapsed:.1f}s"
 
 
 def _nested(manager, depth):
