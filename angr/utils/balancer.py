@@ -64,7 +64,9 @@ class Balancer:
 
     def _replacements_iter(self) -> Generator[tuple[BV, BV]]:
         all_keys = set(self._lower_bounds.keys()) | set(self._upper_bounds.keys())
-        for k in all_keys:
+        # callers apply replacements one by one; an inner expression replaced first no longer matches inside the
+        # outer one, so yield outer expressions first (AST hashes change per process, so never rely on set order)
+        for k in sorted(all_keys, key=lambda k: (-self._ast_hash_map[k].depth, str(self._ast_hash_map[k]))):
             ast = self._ast_hash_map[k]
             max_int = (1 << len(ast)) - 1
             min_int = 0

@@ -459,6 +459,30 @@ class TestConstraintToSI(unittest.TestCase):
             claripy.SI(bits=32, stride=1, lower_bound=0, upper_bound=0xFFFFFFFE),
         )
 
+    def test_replacements_outer_before_inner(self):
+        # SimSolver.add applies replacements one by one with structural replace(); if an inner expression is
+        # rewritten first, the outer one no longer matches and its bound is lost. The order must not come from set
+        # iteration over AST hashes, which differ per process.
+        x = claripy.BVS("x", 64)
+        exprs = [x]
+        for i in range(6):
+            exprs.append((exprs[-1] + (i + 1)) & 0xFFFF_FFFF)
+        bal = Balancer(claripy.true())
+        for i, e in enumerate(exprs):
+            bal._add_lower_bound(e, i)
+            bal._add_upper_bound(e, 100 + i)
+        reps = bal.replacements
+        assert len(reps) == len(exprs)
+        depths = [o.depth for o, _ in reps]
+        assert depths == sorted(depths, reverse=True)
+        assert reps[0][0] is exprs[-1]
+        assert reps[-1][0] is x
+        # applying the replacements in order keeps every bound
+        result = exprs[-1]
+        for o, n in reps:
+            result = claripy.replace(result, o, n)
+        assert sum(1 for v in result.variables if v.startswith("bound")) == len(exprs)
+
     #     # TODO: Add some more insane test cases
 
 
