@@ -1742,6 +1742,26 @@ class Function(Serializable):
     def call_sites(self) -> dict[int, tuple[int | None, int | None]]:
         return {addr: (target, ret) for addr, target, ret in self._graph.call_sites()}
 
+    def call_edge_addrs(self) -> list[tuple[int, int]]:
+        """
+        (call-site block address, callee address) of every call edge, in transition-graph order. Unlike call_sites,
+        a block with several call targets contributes one pair per target.
+        """
+        graph = self._graph
+        return [(graph.node_addr(src), graph.node_addr(dst)) for src, dst in graph.edges_of_kind(EdgeKind.CALL)]
+
+    def unconfirmed_fakeret_edges(self) -> list[tuple[CodeNode, CodeNode]]:
+        """
+        Fake-return edges that have not been confirmed by a return of the callee, in transition-graph order.
+        """
+        graph = self._graph
+        objs = self._node_obj
+        return [
+            (objs(src), objs(dst))
+            for src, dst in graph.edges_of_kind(EdgeKind.FAKE_RETURN)
+            if graph.edge_confirmed(src, dst) is not True
+        ]
+
     def outgoing_function_targets(self) -> list[int]:
         """
         Addresses of the functions this function calls or jumps out to.

@@ -3087,28 +3087,23 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 if not self.functions.contains_addr(caller_addr):
                     continue
                 f = self.functions.get_by_addr(caller_addr)
-                all_edges = f.transition_graph.edges(data=True)
 
                 callsites_to_functions = defaultdict(list)  # callsites to functions mapping
-
-                for src, dst, data in all_edges:
-                    if "type" in data and data["type"] == "call":
-                        callsites_to_functions[src.addr].append(dst.addr)
+                for src_addr, dst_addr in f.call_edge_addrs():
+                    callsites_to_functions[src_addr].append(dst_addr)
 
                 edges_to_remove = []
-                for src, dst, data in all_edges:
-                    if "type" in data and data["type"] == "fake_return" and data.get("confirmed", False) is False:
-                        # Get all possible functions being called here
-                        target_funcs = set(callsites_to_functions[src.addr])
-                        if target_funcs and all(
-                            self.functions.contains_addr(t) and self.functions.is_func_nonreturning(t)
-                            for t in target_funcs
-                        ):
-                            # Remove this edge
-                            edges_to_remove.append((src, dst))
-                        else:
-                            # Mark this edge as confirmed
-                            f.confirm_fakeret(src, dst)
+                for src, dst in f.unconfirmed_fakeret_edges():
+                    # Get all possible functions being called here
+                    target_funcs = set(callsites_to_functions[src.addr])
+                    if target_funcs and all(
+                        self.functions.contains_addr(t) and self.functions.is_func_nonreturning(t) for t in target_funcs
+                    ):
+                        # Remove this edge
+                        edges_to_remove.append((src, dst))
+                    else:
+                        # Mark this edge as confirmed
+                        f.confirm_fakeret(src, dst)
 
                 for src, dst in edges_to_remove:
                     f.remove_fakeret(src, dst)
