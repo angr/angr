@@ -22,6 +22,7 @@ from angr.analyses.complete_calling_conventions import (
 from angr.calling_conventions import (
     SimCC,
     SimCCCdecl,
+    SimCCGoAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
@@ -694,6 +695,36 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert len(func.prototype.args) == 2
         assert dec.codegen is not None
         assert re.search(r"sub_25659\([^,()]+, [^,()]+\)", dec.codegen.text) is not None
+
+    def test_unnameable_register_argument_is_not_consolidated(self):
+        """An argument whose register name is a register file offset has no full register to be widened to.
+
+        Arch.translate_register_name returns the decimal offset when no register starts there with that size, and
+        FactCollector._determine_input_args names every argument it reports that way. Go's convention accepts an
+        argument register read at any offset inside it, so an AVX2 gather reading four bytes at xmm10 + 12 gives
+        SimRegArg("876", 4), which _consolidate_input_args used to look up in arch.registers."""
+        binary = os.path.join(test_location, "x86_64", "langdetect_go")
+        project = angr.Project(binary, auto_load_libs=False)
+        main = project.loader.find_symbol("main.main")
+        assert main is not None
+        project.analyses.CFGFast(
+            normalize=True, regions=[(main.rebased_addr, main.rebased_addr + main.size)], start_at_entry=False
+        )
+        func = project.kb.functions[main.rebased_addr]
+
+        offset = project.arch.registers["xmm10"][0] + 12
+        assert project.arch.translate_register_name(offset, size=4) == str(offset)
+        unnameable = SimRegArg(str(offset), 4)
+
+        cca = project.analyses.CallingConvention(func, input_args=[SimRegArg("rax", 8), unnameable], retval_size=8)
+        assert isinstance(cca.cc, SimCCGoAMD64)
+        assert cca.prototype is not None
+        assert len(cca.prototype.args) == 1, f"only rax is an argument, got {cca.prototype}"
+
+        cca = project.analyses.CallingConvention(func, input_args=[unnameable], retval_size=8)
+        assert isinstance(cca.cc, SimCCGoAMD64)
+        assert cca.prototype is not None
+        assert len(cca.prototype.args) == 0, f"the function takes no arguments, got {cca.prototype}"
 
     def test_reorder_args_merges_overlapping_register_args(self):
         binary = os.path.join(test_location, "x86_64", "fauxware")

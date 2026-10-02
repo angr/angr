@@ -1018,6 +1018,9 @@ class CallingConventionAnalysis(Analysis):
         """
         Consolidate register arguments by converting partial registers to full registers on certain architectures.
 
+        An argument whose register name is not a register of the architecture has no full register to be widened
+        to, and is passed through unchanged.
+
         :param input_args:  A set of input arguments.
         :return:            A set of consolidated input args.
         """
@@ -1026,8 +1029,14 @@ class CallingConventionAnalysis(Analysis):
             new_input_args = set()
             for a in input_args:
                 if isinstance(a, SimRegArg) and a.size < self.project.arch.bytes:
+                    reg = self.project.arch.registers.get(a.reg_name)
+                    if reg is None:
+                        # translate_register_name() falls back to the decimal register file offset when no
+                        # register starts there, and that names no register to widen
+                        new_input_args.add(a)
+                        continue
                     # use complete registers on AMD64 and X86
-                    reg_offset, reg_size = self.project.arch.registers[a.reg_name]
+                    reg_offset, reg_size = reg
                     full_reg_offset, full_reg_size = get_reg_offset_base_and_size(
                         reg_offset, self.project.arch, size=reg_size
                     )
