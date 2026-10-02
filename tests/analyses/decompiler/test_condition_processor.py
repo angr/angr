@@ -104,6 +104,32 @@ class TestConditionProcessor(TestCase):
         assert isinstance(operand, claripy.ast.BV)
         assert operand.size() == 32
 
+    def test_division_by_a_concrete_zero_keeps_the_condition(self):
+        # claripy refuses to fold a division by a concrete zero, and the ZeroDivisionError used to escape the
+        # conversion and cost the containing function its whole decompiled output. A machine divide by zero
+        # traps, so no folded value is right either: keep the division opaque and convertible back.
+        arch = archinfo.ArchX86()
+        for signed in (False, True):
+            cp = ConditionProcessor(arch, ailment.Manager())
+            div = BinaryOp(0, "Div", [_vvar(1, 8, 16), Const(2, 0, 8)], signed, bits=8)
+            ast = cp.claripy_ast_from_ail_condition(div)
+            assert isinstance(ast, claripy.ast.BV)
+            assert ast.op == "BVS"
+            assert ast.size() == 8
+            assert cp.convert_claripy_bool_ast(ast) is div
+
+        # the shape it was found in: the division under a comparison the structurer has to recover
+        cp = ConditionProcessor(arch, ailment.Manager())
+        div = BinaryOp(0, "Div", [_vvar(1, 8, 16), Const(2, 0, 8)], False, bits=8)
+        summed = BinaryOp(3, "Add", [div, _vvar(4, 8, 24)], False, bits=8)
+        cmp = BinaryOp(5, "CmpGT", [summed, Const(6, 0, 8)], True, bits=1)
+        assert cp.claripy_ast_from_ail_condition(cmp).op == "SGT"
+
+        # a divisor that is not zero still folds
+        cp = ConditionProcessor(arch, ailment.Manager())
+        nonzero = BinaryOp(0, "Div", [_vvar(1, 32, 16), Const(2, 7, 32)], False, bits=32)
+        assert cp.claripy_ast_from_ail_condition(nonzero).op == "__floordiv__"
+
 
 if __name__ == "__main__":
     unittest.main()

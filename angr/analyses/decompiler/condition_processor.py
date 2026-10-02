@@ -1122,9 +1122,16 @@ class ConditionProcessor:
                 condition.verbose_op,
             )
             lambda_expr = _ail2claripy_op_mapping["_DUMMY_"]
-        r = lambda_expr(
-            condition, self.claripy_ast_from_ail_condition, self._condition_mapping, ins_addr, self.ail_manager
-        )
+        try:
+            r = lambda_expr(
+                condition, self.claripy_ast_from_ail_condition, self._condition_mapping, ins_addr, self.ail_manager
+            )
+        except (ZeroDivisionError, claripy.ClaripyZeroDivisionError):
+            # A division whose divisor folds to a concrete zero. Real code reaches this -- a propagated
+            # constant, a divisor recovered as 0 -- and the machine instruction traps there, so no value is
+            # the right answer; claripy refuses to fold it at all. Keep the division opaque, the way the
+            # operations with no claripy counterpart are kept, instead of losing the function's whole output.
+            r = _dummy_bvs(condition, self._condition_mapping)
 
         if isinstance(r, claripy.ast.Bool) and nobool:
             r = claripy.BVS(f"ailexpr_from_bool_{r!r}", 1, explicit_name=True)
