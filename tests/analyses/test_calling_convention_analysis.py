@@ -492,6 +492,80 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cc.prototype is not None
         assert len(cc.prototype.args) == 6
 
+    def test_simprocedure_declaration_respects_import_library(self):
+        binary_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "10c073e1a9a94b1589e7d39acb11c3273ce8c9b66cb5379277a78394e91368fd",
+        )
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for name in ("fgetpos", "fsetpos"):
+            function = cfg.kb.functions[name]
+            hooker = proj.hooked_by(function.addr)
+            assert hooker is not None
+            assert hooker.is_stub
+            binary_name = function.binary_name
+            assert isinstance(binary_name, str)
+            assert hooker.library_name == binary_name == "msvcrt.dll"
+
+            cca = proj.analyses.CallingConvention(function, cfg=cfg.model, analyze_callsites=True)
+            assert cca.prototype is not None
+            assert cca.prototype_libname is None or any(
+                library.name == cca.prototype_libname for library in angr.SIM_LIBRARIES[binary_name]
+            )
+            assert "fpos_t" not in repr(cca.prototype)
+
+        compatible_fallbacks = {
+            "fclose": "(struct FILE*) -> int (32 bits)",
+            "fflush": "(struct FILE*) -> int (32 bits)",
+            "fgetc": "(struct FILE*) -> int (32 bits)",
+            "fread": "(void*, size_t, size_t, struct FILE*) -> size_t",
+        }
+        for name, expected_prototype in compatible_fallbacks.items():
+            hooker = proj.hooked_by(cfg.kb.functions[name].addr)
+            assert hooker is not None
+            assert not hooker.is_stub
+            cca = proj.analyses.CallingConvention(cfg.kb.functions[name], cfg=cfg.model, analyze_callsites=True)
+            assert repr(cca.prototype) == expected_prototype
+            assert cca.prototype_libname == "libc.so.0"
+
+    def test_simprocedure_declaration_without_import_library(self):
+        binary_path = os.path.join(test_location, "x86_64", "test.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        function = cfg.kb.functions["strcmp"]
+        hooker = proj.hooked_by(function.addr)
+        assert hooker is not None
+
+        # Model a generic hook with no supplying library while retaining a real callsite from the fixture.
+        function.prototype = None
+        function.prototype_libname = None
+        function.calling_convention = None
+        hooker.library_name = None
+        hooker.prototype = None
+        hooker.cc = None
+        hooker.guessed_prototype = True
+
+        cca = proj.analyses.CallingConvention(function, cfg=cfg.model)
+        assert cca.prototype is not None
+        assert cca.prototype_libname is not None
+        assert len(cca.prototype.args) == 2
+
+    def test_simprocedure_compatible_cross_library_declaration(self):
+        binary_path = os.path.join(test_location, "x86_64", "windows", "cancel.sys")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        function = cfg.kb.functions["RtlInitUnicodeString"]
+        assert function.binary_name == "ntoskrnl.exe"
+
+        cca = proj.analyses.CallingConvention(function, cfg=cfg.model, analyze_callsites=True)
+        assert cca.prototype is not None
+        assert cca.prototype_libname == "ntdll.dll"
+        assert "UNICODE_STRING" in repr(cca.prototype)
+
     @cca_mode("fast,variables")
     def test_cdecl_nonconsecutive_stack_args(self, *, mode):
         binary_path = os.path.join(test_location, "i386", "calling_convention_0.o")
