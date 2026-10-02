@@ -25,7 +25,7 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -51,7 +51,7 @@ jobs:
   test:
     needs: [build]
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         runner_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -101,7 +101,7 @@ jobs:
 
   test_rust:
     name: Test Rust packages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
@@ -127,7 +127,7 @@ jobs:
 
   report:
       name: Report
-      runs-on: ubuntu-latest
+      runs-on: ubuntu-24.04
       permissions:
         id-token: write
         checks: write
@@ -155,12 +155,16 @@ jobs:
           echo 'set man-db/auto-update false' | sudo debconf-communicate
           sudo dpkg-reconfigure man-db
 
-          sudo apt-get install -qq llvm-20 llvm-20-tools
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-23 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt update
+
+          sudo apt-get install -qq llvm-23
           echo "Merging coverage..."
-          llvm-profdata-20 merge -sparse $(find . -name '*.profraw') -o default.profdata
+          llvm-profdata-23 merge -sparse $(find . -name '*.profraw') -o default.profdata
           echo "Generating report..."
-          llvm-cov-20 report ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs")
-          llvm-cov-20 export ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs") --format=lcov > lcov-py.info
+          llvm-cov-23 report ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs")
+          llvm-cov-23 export ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs") --format=lcov > lcov-py.info
       - name: Collect results
         id: files
         run: |
