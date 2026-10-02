@@ -1195,6 +1195,84 @@ class TestCfgfast(unittest.TestCase):
         assert node_1 is None  # this overlapping node is currently removed, but maybe we want to keep it?
         # assert node_1.instruction_addrs == [0x21514B690C, 0x21514B690E, 0x21514B690F]
 
+    def test_cfgfast_relocatable_object_with_alignment_hole(self):
+        # GitHub issue #6766. A relocatable object has no segments, so cle maps it one section at a time and
+        # aligns each section the way a linker would. That leaves a hole in front of every section whose
+        # alignment reaches past the end of the one before it. The hole sits inside the object's own
+        # min_addr/max_addr span with nothing behind it, so a call that is the last instruction of a section
+        # returns into unmapped memory. CFGFast recorded the hole as that call's return site and later died
+        # turning it into a code snippet: "No bytes in memory for block starting at ...".
+        #
+        # The fixture's .text section stops right after its final call to a local error handler, whose returning
+        # status is only settled after the scan.
+        section_name = ".text"
+        call_site = 0x401588
+
+        path = os.path.join(test_location, "x86_64", "relocatable_section_gap.o")
+        proj = angr.Project(path, auto_load_libs=False)
+        section = proj.loader.main_object.sections_map[section_name]
+        call = proj.factory.block(call_site)
+        assert call.vex.jumpkind == "Ijk_Call"
+        (callee,) = call.vex.constant_jump_targets
+        assert proj.loader.main_object.min_addr <= callee < proj.loader.main_object.max_addr
+
+        hole = section.vaddr + section.memsize
+        assert hole == call.addr + call.size
+        assert proj.loader.main_object.min_addr < hole < proj.loader.main_object.max_addr
+        assert hole not in proj.loader.memory
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        assert cfg.model.get_any_node(hole, anyaddr=True) is None
+
+        # A CFG base state may deliberately supply bytes outside the loader's mappings, for example through the
+        # patches API. In that case the address after the call is a real return site even though it remains a hole
+        # in loader memory. Copy a ret instruction already present in the fixture into the hole and make sure the
+        # mappedness check honors the same base state that lifting uses.
+        proj = angr.Project(path, auto_load_libs=False)
+        ret = proj.factory.block(0x4003AC)
+        assert ret.vex.jumpkind == "Ijk_Ret" and ret.size == 1
+        proj.kb.patches.add_patch(hole, ret.bytes)
+        state = proj.kb.patches.patched_entry_state
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            base_state=state,
+            skip_unmapped_addrs=False,
+            regions=[(proj.loader.main_object.min_addr, proj.loader.main_object.max_addr + 1)],
+            function_starts=[call_site],
+            start_at_entry=False,
+            symbols=False,
+            function_prologues=False,
+            eh_frame=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+            drop_bad_funcs=False,
+            treat_functions_as_complete=False,
+        )
+        assert cfg.model.get_any_node(hole, anyaddr=True) is not None
+
+        # A hook is another valid CFG target without loader or base-state bytes. CFGFast dispatches it through the
+        # procedure-scanning path, so the mappedness check must not suppress it either.
+        proj = angr.Project(path, auto_load_libs=False)
+        proj.hook(hole, angr.SIM_PROCEDURES["stubs"]["ReturnUnconstrained"](), length=1)
+        assert proj.is_hooked(hole)
+        assert hole not in proj.loader.memory
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            skip_unmapped_addrs=False,
+            regions=[(proj.loader.main_object.min_addr, proj.loader.main_object.max_addr + 1)],
+            function_starts=[call_site],
+            start_at_entry=False,
+            symbols=False,
+            function_prologues=False,
+            eh_frame=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+            drop_bad_funcs=False,
+            treat_functions_as_complete=False,
+        )
+        assert cfg.model.get_any_node(hole, anyaddr=True) is not None
+
 
 if __name__ == "__main__":
     unittest.main()
