@@ -61,19 +61,27 @@ class AllocHelper:
     def __init__(self, ptrsize):
         self.base = claripy.BVS("alloc_base", ptrsize)
         self.ptr = self.base
+        self._size = 0
         self.stores = {}
         self.store_asts = {}
 
-    def alloc(self, size):
+    def alloc(self, size, alignment=1):
+        if alignment > 1:
+            self.ptr = (self.ptr + alignment - 1) & ((1 << len(self.ptr)) - alignment)
+            # alloc_base is caller-controlled and may be unaligned. Reserve the worst-case padding so a
+            # stack-growing allocation cannot escape the space setup_callsite carved out for it.
+            self._size += alignment - 1
         out = self.ptr
         self.ptr += size
+        self._size += size
         return out
 
-    def dump(self, val, state, loc=None):
+    def dump(self, val, state, loc=None, alignment=1):
         if loc is None:
             loc = self.stack_loc(val, state.arch)
-        self.stores[self.ptr] = (val, loc)
-        return self.alloc(self.calc_size(val, state.arch))
+        ptr = self.alloc(max(self.calc_size(val, state.arch), loc.size), alignment=alignment)
+        self.stores[ptr] = (val, loc)
+        return ptr
 
     def translate(self, val, base):
         if type(val) is SimStructValue:
@@ -93,10 +101,7 @@ class AllocHelper:
             loc.set_value(state, translated_val, stack_base=translated_ptr)
 
     def size(self):
-        val = self.translate(self.ptr, claripy.BVV(0, len(self.ptr)))
-        assert isinstance(val, claripy.ast.Base) and val.op == "BVV"
-        assert isinstance(val.args[0], int)
-        return abs(val.args[0])
+        return self._size
 
     @classmethod
     def calc_size(cls, val, arch):
@@ -153,8 +158,16 @@ def refine_locs_with_struct_type(
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
 
+    while isinstance(arg_type, TypeRef):
+        arg_type = arg_type.type
+
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
+
+    # Debug information can tell us the byte width of a class without recovering any of its members. Preserve
+    # that width instead of applying the generic unsupported-type fallback, which is only one C ``int`` wide.
+    if isinstance(arg_type, SimStruct) and not arg_type.fields and arg_type.size:
+        arg_type = SimTypeNum(arg_type.size, signed=False).with_arch(arch)
 
     if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
         assert arg_type.size is not None
@@ -170,6 +183,8 @@ def refine_locs_with_struct_type(
             pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
             seen_bytes += use_bytes
 
+        if len(pieces) > 1 and not isinstance(arg_type, SimTypeFloat) and arch.register_endness == archinfo.Endness.BE:
+            pieces.reverse()
         piece = pieces[0] if len(pieces) == 1 else SimComboArg(pieces)
         if isinstance(arg_type, SimTypeFloat):
             piece.is_fp = True
@@ -184,9 +199,7 @@ def refine_locs_with_struct_type(
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs_list)
-    # An opaque class has a size and no members: nothing to lay out field by field, so leave it to the
-    # integer case below, which is how SimCCSystemVAMD64._classify already classifies it.
-    if isinstance(arg_type, SimStruct) and (arg_type.fields or not arg_type.size):
+    if isinstance(arg_type, SimStruct):
         locs_dict = {
             field: refine_locs_with_struct_type(arch, locs, field_ty, offset=offset + arg_type.offsets[field])
             for field, field_ty in arg_type.fields.items()
@@ -293,7 +306,9 @@ class SimFunctionArgument:
             if self.size not in (4, 8):
                 raise ValueError(f"What do I do with a float {self.size} bytes long")
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
-        return value.raw_to_bv()  # type: ignore
+        value = value.raw_to_bv()  # type: ignore
+        padding = self.size * arch.byte_width - len(value)
+        return claripy.ZeroExt(padding, value) if padding > 0 else value
 
     def check_value_get(self, value):
         if self.is_fp:
@@ -564,21 +579,22 @@ class SimReferenceArgument(SimFunctionArgument):
                         zero on the stack. It will be passed ``stack_base=ptr_loc.get_value(state)``
     """
 
-    def __init__(self, ptr_loc: SimFunctionArgument, main_loc: SimFunctionArgument):
+    def __init__(self, ptr_loc: SimFunctionArgument, main_loc: SimFunctionArgument, alloc_align: int = 1):
         super().__init__(ptr_loc.size)  # ???
         self.ptr_loc = ptr_loc
         self.main_loc = main_loc
+        self.alloc_align = alloc_align
 
     def get_footprint(self):
-        return self.main_loc.get_footprint()
+        return self.ptr_loc.get_footprint()
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
-        return self.main_loc.get_value(state, stack_base=ptr_val, **kwargs)
+        return self.main_loc.get_value(state, **(kwargs | {"stack_base": ptr_val}))
 
     def set_value(self, state, value, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
-        self.main_loc.set_value(state, value, stack_base=ptr_val, **kwargs)
+        self.main_loc.set_value(state, value, **(kwargs | {"stack_base": ptr_val}))
 
 
 class ArgSession:
@@ -792,8 +808,10 @@ class SimCC:
         """
         out = self.STACKARG_SP_DIFF
         for arg in args:
-            if isinstance(arg, SimStackArg):
-                out = max(out, arg.stack_offset + self.arg_slot_size)
+            footprint = arg.ptr_loc.get_footprint() if isinstance(arg, SimReferenceArgument) else arg.get_footprint()
+            for loc in footprint:
+                if isinstance(loc, SimStackArg):
+                    out = max(out, loc.stack_offset + self.arg_slot_size)
 
         out += self.STACKARG_SP_BUFF
         return out
@@ -995,7 +1013,7 @@ class SimCC:
         for i, (loc, val) in enumerate(zip(arg_locs, vals)):
             if not isinstance(loc, SimReferenceArgument):
                 continue
-            dumped = allocator.dump(val, state, loc=loc.main_loc)
+            dumped = allocator.dump(val, state, loc=loc.main_loc, alignment=loc.alloc_align)
             vals[i] = dumped
             arg_locs[i] = loc.ptr_loc
 
@@ -1172,6 +1190,11 @@ class SimCC:
         if isinstance(arg, (tuple, dict, SimStructValue)):
             if not isinstance(ty, SimStruct):
                 raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
+            if not ty.fields and ty.size:
+                field_count = len(arg._values) if isinstance(arg, SimStructValue) else len(arg)
+                if field_count != 0:
+                    raise TypeError(f"Wrong number of fields in struct, expected 0 got {field_count}")
+                return claripy.BVV(0, ty.size)
             if not isinstance(arg, SimStructValue):
                 if len(arg) != len(ty.fields):
                     raise TypeError(f"Wrong number of fields in struct, expected {len(ty.fields)} got {len(arg)}")
@@ -1202,16 +1225,22 @@ class SimCC:
                     raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
                 return arg
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
-                return arg.val_to_bv(ty.size, ty.signed if isinstance(ty, SimTypeNum) else False)
+                size = ty.size
+                assert size is not None
+                return arg.val_to_bv(size, ty.signed if isinstance(ty, SimTypeNum) else False)
             raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
 
         if isinstance(arg, claripy.ast.BV):
-            if isinstance(ty, (SimTypeReg, SimTypeNum)):
+            if isinstance(ty, (SimTypeReg, SimTypeNum)) or (
+                isinstance(ty, SimStruct) and not ty.fields and ty.size is not None
+            ):
                 if len(arg) != ty.size:
                     if arg.concrete:
                         size = ty.size
                         assert size is not None
-                        return claripy.BVV(arg.concrete_value, size)
+                        concrete_value = arg.concrete_value
+                        assert concrete_value is not None
+                        return claripy.BVV(concrete_value, size)
                     raise TypeError(f"Type mismatch of symbolic data: expected {ty}, got {len(arg)} bits")
                 return arg
             if isinstance(ty, (SimTypeFloat)):
@@ -1889,7 +1918,11 @@ class SimCCSystemVAMD64(SimCC):
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
         if opaque_cpp_class(ty):
-            return ["INTEGER"]
+            # This is an opaque C++ class (likely unresolved); we cannot lay it out. Treat it as a native integer when
+            # it fits in the two eightbytes that this ABI may pass in registers. Larger aggregates use the ordinary
+            # memory fallback. Keep the number of classes consistent with the declared width so the generic location
+            # refiner can preserve that width.
+            return ["INTEGER"] * nchunks if nchunks <= 2 else ["MEMORY"] * nchunks
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
             assert ty.size is not None
@@ -2437,6 +2470,75 @@ class SimCCAArch64(SimCC):
     RETURN_ADDR = SimRegArg("lr", 8)
     RETURN_VAL = SimRegArg("x0", 8)
     ARCH = archinfo.ArchAArch64
+    STACK_ALIGNMENT = 16
+
+    # https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst#parameter-passing
+    def next_arg(self, session, arg_type):
+        if isinstance(arg_type, TypeRef):
+            arg_type = arg_type.type
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        composite = isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray))
+        arg_size = arg_type.size
+        if arg_size is None:
+            return super().next_arg(session, arg_type)
+        if isinstance(arg_type, SimTypeNum) and arg_size <= 128:
+            machine_size = next(size for size in (8, 16, 32, 64, 128) if size >= arg_size)
+            arg_type = SimTypeNum(machine_size, signed=arg_type.signed).with_arch(self.arch)
+            arg_size = machine_size
+        if not composite and arg_size <= self.arch.bits:
+            return super().next_arg(session, arg_type)
+        if arg_size > 128:
+            # A composite larger than 16 bytes is copied to memory by the caller and replaced by a pointer. The
+            # AArch64 C mapping treats a wider integral type as an array of 128-bit units, so it follows the same rule.
+            if isinstance(arg_type, SimTypeNum):
+                padded_size = (arg_size + 127) // 128 * 128
+                padded_type = SimTypeNum(padded_size, signed=arg_type.signed).with_arch(self.arch)
+                return self._reference_arg(session, padded_type)
+            return self._reference_arg(session, arg_type)
+        if not composite and not (isinstance(arg_type, SimTypeNum) and arg_type.size == 128):
+            return super().next_arg(session, arg_type)
+
+        double_words = self._double_words(arg_type)
+        # AAPCS64 B.6 gives an over-aligned composite's marshalled copy 16-byte alignment. Use that adjusted
+        # alignment for both C.10's even-register rule and C.14's stack alignment rule.
+        natural_alignment = arg_type.alignment
+        if natural_alignment is NotImplemented:
+            natural_alignment = self.arch.bytes
+        alignment = 16 if composite and natural_alignment >= 16 else natural_alignment
+        state = session.getstate()
+        if alignment == 16 and session.int_iter.getstate() % 2 == 1:
+            next(session.int_iter)  # a 16-byte-aligned argument starts on an even-numbered register
+        try:
+            locs = [next(session.int_iter) for _ in range(double_words)]
+        except StopIteration:
+            session.setstate(state)
+            session.int_iter.setstate(len(self.ARG_REGS))
+            alignment = max(self.arch.bytes, alignment)
+            stack_offset = session.both_iter.getstate()
+            session.both_iter.setstate((stack_offset + alignment - 1) // alignment * alignment)
+            locs = [next(session.both_iter) for _ in range(double_words)]
+        return refine_locs_with_struct_type(self.arch, locs, arg_type)
+
+    def _double_words(self, arg_type: SimType) -> int:
+        assert arg_type.size is not None
+        return max(1, (arg_type.size + self.arch.bits - 1) // self.arch.bits)
+
+    def _reference_arg(self, session, arg_type: SimType) -> SimReferenceArgument:
+        referenced_locs = [
+            SimStackArg(offset * self.arch.bytes, self.arch.bytes) for offset in range(self._double_words(arg_type))
+        ]
+        try:
+            ptr_loc = next(session.int_iter)
+        except StopIteration:
+            ptr_loc = next(session.both_iter)
+        natural_alignment = arg_type.alignment
+        if natural_alignment is NotImplemented:
+            natural_alignment = self.arch.bytes
+        alloc_align = 16 if natural_alignment >= 16 else self.arch.bytes
+        return SimReferenceArgument(
+            ptr_loc, refine_locs_with_struct_type(self.arch, referenced_locs, arg_type), alloc_align=alloc_align
+        )
 
 
 class SimCCAArch64LinuxSyscall(SimCCSyscall):

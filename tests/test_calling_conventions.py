@@ -14,6 +14,7 @@ from angr import Project, calling_conventions, load_shellcode, types
 from angr.calling_conventions import (
     SimArrayArg,
     SimCC,
+    SimCCAArch64,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
@@ -112,6 +113,36 @@ class TestCallingConvention(TestCase):
         for v in flattened_array.values():
             for subtype in v:
                 self.assertIsInstance(subtype, SimTypeInt)
+
+    def test_SystemVAMD64_sized_opaque_class(self):
+        arch = archinfo.arch_from_id("amd64")
+        cc = SimCCSystemVAMD64(arch)
+
+        expected_args = (
+            (64, {SimRegArg("rdi", 8)}),
+            (128, {SimRegArg("rdi", 8), SimRegArg("rsi", 8)}),
+        )
+        expected_returns = (
+            (64, {SimRegArg("rax", 8)}),
+            (128, {SimRegArg("rax", 8), SimRegArg("rdx", 8)}),
+        )
+        for bits, footprint in expected_args:
+            opaque = SimCppClass(name=f"Opaque{bits}", size=bits).with_arch(arch)
+            proto = SimTypeFunction([opaque], SimTypeInt()).with_arch(arch)
+            assert cc.arg_locs(proto)[0].get_footprint() == footprint
+        for bits, footprint in expected_returns:
+            opaque = SimCppClass(name=f"Opaque{bits}", size=bits).with_arch(arch)
+            return_loc = cc.return_val(opaque)
+            assert return_loc is not None
+            assert return_loc.get_footprint() == footprint
+
+        opaque = SimCppClass(name="Opaque192", size=192).with_arch(arch)
+        proto = SimTypeFunction([opaque], SimTypeInt()).with_arch(arch)
+        arg_loc = cc.arg_locs(proto)[0]
+        return_loc = cc.return_val(opaque)
+        assert arg_loc.get_footprint() == {SimStackArg(8, 8), SimStackArg(16, 8), SimStackArg(24, 8)}
+        assert isinstance(return_loc, SimReferenceArgument)
+        assert return_loc.main_loc.size == 24
 
     def test_arg_locs_array(self):
         arch = archinfo.arch_from_id("amd64")
@@ -306,6 +337,288 @@ class TestCallingConvention(TestCase):
         c_float = struct.unpack("<f", struct.pack("<I", c_bits))[0]
         assert abs(c_float - 102.3) < 0.00001
         assert (a3_val >> 32) == 60
+
+    def test_aarch64_aggregate_args(self):
+        arch = archinfo.arch_from_id("aarch64")
+        cc = SimCCAArch64(arch)
+
+        def locs(*args):
+            return cc.arg_locs(SimTypeFunction(list(args), SimTypeInt()).with_arch(arch))
+
+        integer = SimTypeInt()
+        small = SimStruct({"a": SimTypeInt(), "b": SimTypeInt()}, name="Small")
+        pair = SimStruct({"x": SimTypeLongLong(), "y": SimTypeLongLong()}, name="Pair")
+        big = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong()}, name="Big")
+
+        # A composite of one double-word takes one register, one of two takes a consecutive pair.
+        assert locs(small)[0].get_footprint() == {SimRegArg("x0", 8)}
+        assert locs(pair)[0].get_footprint() == {SimRegArg("x0", 8), SimRegArg("x1", 8)}
+
+        # A composite larger than 16 bytes is passed by reference.
+        big_loc = locs(big)[0]
+        assert isinstance(big_loc, SimReferenceArgument)
+        assert big_loc.ptr_loc == SimRegArg("x0", 8)
+        assert big_loc.get_footprint() == {SimRegArg("x0", 8)}
+        assert big_loc.main_loc.get_footprint() == {SimStackArg(0, 8), SimStackArg(8, 8), SimStackArg(0x10, 8)}
+
+        # Seven integers leave one register free, which a two-register composite cannot use: it goes on
+        # the stack, and the register it skipped is not given to the argument after it either.
+        spilled = locs(*[integer] * 7, pair, integer)
+        assert spilled[6] == SimRegArg("x6", 4)
+        assert spilled[7].get_footprint() == {SimStackArg(0, 8), SimStackArg(8, 8)}
+        assert spilled[8] == SimStackArg(0x10, 4)
+
+        # A stack argument starts at its natural alignment even if an earlier spill left NSAA only 8-byte aligned.
+        aligned_spill = locs(*[integer] * 9, SimTypeNum(128))
+        assert aligned_spill[8] == SimStackArg(0, 4)
+        assert aligned_spill[9].get_footprint() == {SimStackArg(0x10, 8), SimStackArg(0x18, 8)}
+
+        # A 16-byte integral argument takes a register pair, starting on an even-numbered register.
+        assert locs(integer, SimTypeNum(128))[1].get_footprint() == {SimRegArg("x2", 8), SimRegArg("x3", 8)}
+        for bits, size in ((1, 1), (9, 2), (33, 8)):
+            assert locs(SimTypeNum(bits))[0] == SimRegArg("x0", size)
+        for bits in (65, 96, 127):
+            assert locs(integer, SimTypeNum(bits))[1].get_footprint() == {
+                SimRegArg("x2", 8),
+                SimRegArg("x3", 8),
+            }
+
+        # B.6 normalizes an over-aligned composite's marshalled-copy alignment to 16 bytes. That adjusted alignment
+        # selects an even register pair and a 16-byte stack boundary rather than preserving the natural 32 bytes.
+        over_aligned = SimStruct({"x": SimTypeLongLong()}, name="OverAligned", align=32)
+        over_aligned_regs = locs(integer, over_aligned, integer)
+        assert over_aligned_regs[1].get_footprint() == {SimRegArg("x2", 8)}
+        assert over_aligned_regs[2] == SimRegArg("x3", 4)
+        over_aligned_spill = locs(*[integer] * 9, over_aligned, integer)
+        assert over_aligned_spill[9].get_footprint() == {SimStackArg(0x10, 8)}
+        assert over_aligned_spill[10] == SimStackArg(0x18, 4)
+
+        # Wider integral types map to arrays of 128-bit units, and therefore follow the large-composite rule.
+        wide = locs(SimTypeNum(256))[0]
+        assert isinstance(wide, SimReferenceArgument)
+        assert wide.ptr_loc == SimRegArg("x0", 8)
+        assert wide.main_loc.get_footprint() == {
+            SimStackArg(0, 8),
+            SimStackArg(8, 8),
+            SimStackArg(0x10, 8),
+            SimStackArg(0x18, 8),
+        }
+        for bits, backing_size in ((129, 32), (191, 32), (257, 48)):
+            wide = locs(SimTypeNum(bits))[0]
+            assert isinstance(wide, SimReferenceArgument)
+            assert wide.ptr_loc == SimRegArg("x0", 8)
+            assert wide.main_loc.size == backing_size
+            assert wide.main_loc.get_footprint() == {SimStackArg(offset, 8) for offset in range(0, backing_size, 8)}
+
+    def test_aarch64_aggregate_args_reach_the_callsite(self):
+        proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
+        cc = SimCCAArch64(proj.arch)
+        pair = SimStruct({"x": SimTypeLongLong(), "y": SimTypeLongLong()}, name="Pair")
+        big = SimStruct({"a": SimTypeLongLong(), "b": SimTypeLongLong(), "c": SimTypeLongLong()}, name="Big")
+        proto = SimTypeFunction([SimTypeInt(), pair, big, SimTypeInt()], SimTypeInt()).with_arch(proj.arch)
+        symbol = proj.loader.find_symbol("_Z9call_theml")
+        assert symbol is not None
+        addr = symbol.rebased_addr
+
+        state = proj.factory.call_state(
+            addr, 7, {"x": 11, "y": 22}, {"a": 33, "b": 44, "c": 55}, 9, cc=cc, prototype=proto
+        )
+        evaluate = state.solver.eval
+        assert evaluate(state.regs.x0) == 7
+        assert evaluate(state.regs.x1) == 11
+        assert evaluate(state.regs.x2) == 22
+        referenced = evaluate(state.regs.x3)
+        assert [evaluate(state.memory.load(referenced + 8 * i, 8, endness="Iend_LE")) for i in range(3)] == [33, 44, 55]
+        assert evaluate(state.regs.x4) == 9
+
+        # A final aggregate spill still contributes to the caller's stack allocation.
+        spilled_proto = SimTypeFunction([SimTypeInt()] * 7 + [pair], SimTypeInt()).with_arch(proj.arch)
+        spilled_locs = cc.arg_locs(spilled_proto)
+        assert cc.stack_space(spilled_locs) == 16
+        initial_sp = 0x7FFF_0000
+        base_state = proj.factory.blank_state()
+        base_state.regs.sp = initial_sp
+        spilled_state = proj.factory.call_state(
+            addr,
+            *range(7),
+            {"x": 0x1111, "y": 0x2222},
+            base_state=base_state,
+            cc=cc,
+            prototype=spilled_proto,
+        )
+        assert evaluate(spilled_state.regs.sp) == initial_sp - 16
+        assert evaluate(spilled_state.memory.load(initial_sp - 16, 8, endness="Iend_LE")) == 0x1111
+        assert evaluate(spilled_state.memory.load(initial_sp - 8, 8, endness="Iend_LE")) == 0x2222
+
+        # A one-word aggregate spill still preserves the public-interface requirement SP mod 16 == 0.
+        one_word = SimStruct({"x": SimTypeLongLong()}, name="OneWord")
+        one_word_proto = SimTypeFunction([SimTypeInt()] * 8 + [one_word], SimTypeInt()).with_arch(proj.arch)
+        one_word_locs = cc.arg_locs(one_word_proto)
+        assert cc.stack_space(one_word_locs) == 8
+        base_state = proj.factory.blank_state()
+        base_state.regs.sp = initial_sp
+        one_word_state = proj.factory.call_state(
+            addr,
+            *range(8),
+            {"x": 0x1122_3344_5566_7788},
+            base_state=base_state,
+            cc=cc,
+            prototype=one_word_proto,
+        )
+        one_word_sp = evaluate(one_word_state.regs.sp)
+        assert one_word_sp == initial_sp - 16
+        assert one_word_sp % 16 == 0
+        assert evaluate(one_word_state.memory.load(one_word_sp, 8, endness="Iend_LE")) == 0x1122_3344_5566_7788
+
+        # The machine-type padding for bit-precise integers is materialized at the call site without losing the
+        # significant high bit. The unused upper bits in each AAPCS64 container are zero here, which the ABI permits.
+        bitint65_proto = SimTypeFunction([SimTypeInt(), SimTypeNum(65)], SimTypeInt()).with_arch(proj.arch)
+        bitint65_state = proj.factory.call_state(addr, 0, 1 << 64, cc=cc, prototype=bitint65_proto)
+        assert evaluate(bitint65_state.regs.x2) == 0
+        assert evaluate(bitint65_state.regs.x3) == 1
+
+        bitint129_proto = SimTypeFunction([SimTypeNum(129)], SimTypeInt()).with_arch(proj.arch)
+        bitint129_value = (1 << 128) | 0x1234
+        bitint129_state = proj.factory.call_state(addr, bitint129_value, cc=cc, prototype=bitint129_proto)
+        bitint129_ptr = evaluate(bitint129_state.regs.x0)
+        assert bitint129_ptr % 16 == 0
+        assert evaluate(bitint129_state.memory.load(bitint129_ptr, 32, endness="Iend_LE")) == bitint129_value
+
+        # Indirect copies honor their individual alignment without overlapping, even when an 8-byte-aligned,
+        # 24-byte composite precedes a padded bit-precise integer whose backing array requires 16-byte alignment.
+        bitint129_after_big_proto = SimTypeFunction([big, SimTypeNum(129)], SimTypeInt()).with_arch(proj.arch)
+        bitint129_after_big_state = proj.factory.call_state(
+            addr,
+            {"a": 1, "b": 2, "c": 3},
+            bitint129_value,
+            cc=cc,
+            prototype=bitint129_after_big_proto,
+        )
+        big_ptr = evaluate(bitint129_after_big_state.regs.x0)
+        wide_ptr = evaluate(bitint129_after_big_state.regs.x1)
+        assert big_ptr % 8 == 0
+        assert wide_ptr % 16 == 0
+        assert wide_ptr >= big_ptr + 24
+        assert evaluate(bitint129_after_big_state.memory.load(wide_ptr, 32, endness="Iend_LE")) == bitint129_value
+
+        # References remain usable through the ordinary SimCC API. get_args passes its own stack_base keyword,
+        # including when the transported pointer itself has spilled to the caller's stack.
+        for prefix in ([], [SimTypeInt()] * 8):
+            get_proto = SimTypeFunction([*prefix, big], SimTypeInt()).with_arch(proj.arch)
+            get_state = proj.factory.call_state(
+                addr,
+                *range(len(prefix)),
+                {"a": 0x11, "b": 0x22, "c": 0x33},
+                cc=cc,
+                prototype=get_proto,
+            )
+            get_loc = cc.arg_locs(get_proto)[-1]
+            assert isinstance(get_loc, SimReferenceArgument)
+            recovered = cc.get_args(get_state, get_proto)[-1]
+            assert [evaluate(recovered[field]) for field in ("a", "b", "c")] == [0x11, 0x22, 0x33]
+            get_loc.set_value(get_state, recovered, stack_base=None)
+
+        wide_recovered = cc.get_args(bitint129_state, bitint129_proto)[0]
+        assert evaluate(wide_recovered) == bitint129_value
+
+        # A TypeRef nested inside a composite preserves the named field's width, just as a top-level TypeRef does.
+        alias_pair = SimStruct(
+            {
+                "x": TypeRef("word_x", SimTypeLongLong()),
+                "y": TypeRef("word_y", SimTypeLongLong()),
+            },
+            name="AliasPair",
+        )
+        alias_proto = SimTypeFunction([alias_pair], SimTypeInt()).with_arch(proj.arch)
+        alias_loc = cc.arg_locs(alias_proto)[0]
+        assert isinstance(alias_loc, SimStructArg)
+        assert [alias_loc.locs[field].size for field in ("x", "y")] == [8, 8]
+        alias_state = proj.factory.call_state(
+            addr,
+            {"x": 0x1111_2222_3333_4444, "y": 0x5555_6666_7777_8888},
+            cc=cc,
+            prototype=alias_proto,
+        )
+        assert evaluate(alias_state.regs.x0) == 0x1111_2222_3333_4444
+        assert evaluate(alias_state.regs.x1) == 0x5555_6666_7777_8888
+
+        # Sized opaque C++ classes still occupy their declared ABI width when no member information was recovered.
+        for bits, expected_footprint in (
+            (64, {SimRegArg("x0", 8)}),
+            (128, {SimRegArg("x0", 8), SimRegArg("x1", 8)}),
+        ):
+            opaque = SimCppClass(name=f"Opaque{bits}", size=bits)
+            opaque_proto = SimTypeFunction([opaque], SimTypeInt()).with_arch(proj.arch)
+            opaque_loc = cc.arg_locs(opaque_proto)[0]
+            assert opaque_loc.get_footprint() == expected_footprint
+            opaque_value = (1 << (bits - 1)) | 0x1234
+            opaque_state = proj.factory.call_state(addr, opaque_value, cc=cc, prototype=opaque_proto)
+            assert evaluate(cc.get_args(opaque_state, opaque_proto)[0]) == opaque_value
+            empty_state = proj.factory.call_state(addr, {}, cc=cc, prototype=opaque_proto)
+            assert evaluate(cc.get_args(empty_state, opaque_proto)[0]) == 0
+
+        opaque = SimCppClass(name="Opaque192", size=192)
+        opaque_proto = SimTypeFunction([opaque], SimTypeInt()).with_arch(proj.arch)
+        opaque_loc = cc.arg_locs(opaque_proto)[0]
+        assert isinstance(opaque_loc, SimReferenceArgument)
+        assert opaque_loc.main_loc.size == 24
+        opaque_value = (1 << 191) | 0x5678
+        opaque_state = proj.factory.call_state(addr, opaque_value, cc=cc, prototype=opaque_proto)
+        assert evaluate(cc.get_args(opaque_state, opaque_proto)[0]) == opaque_value
+
+        # Alignment is absolute, not merely relative to a caller-supplied allocation base.
+        for alloc_base, grow_like_stack in ((0x1003, False), (0x2003, True)):
+            allocated = proj.factory.call_state(
+                addr,
+                bitint129_value,
+                cc=cc,
+                prototype=bitint129_proto,
+                alloc_base=alloc_base,
+                grow_like_stack=grow_like_stack,
+            )
+            allocated_ptr = evaluate(allocated.regs.x0)
+            assert allocated_ptr % 16 == 0
+            assert evaluate(allocated.memory.load(allocated_ptr, 32, endness="Iend_LE")) == bitint129_value
+
+    def test_aarch64_big_endian_wide_integers(self):
+        arch = archinfo.ArchAArch64(archinfo.Endness.BE)
+        cc = SimCCAArch64(arch)
+        proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
+        proj.arch = arch
+        value128 = 0x1122_3344_5566_7788_99AA_BBCC_DDEE_FF00
+
+        state = proj.factory.blank_state()
+        state.regs.sp = 0x7FFF_0000
+        proto128 = SimTypeFunction([SimTypeNum(128)], SimTypeInt()).with_arch(arch)
+        cc.setup_callsite(state, 0, [value128], proto128)
+        assert state.solver.eval(state.regs.x0) == 0x1122_3344_5566_7788
+        assert state.solver.eval(state.regs.x1) == 0x99AA_BBCC_DDEE_FF00
+
+        spilled = proj.factory.blank_state()
+        spilled.regs.sp = 0x7FFF_0000
+        spilled_proto = SimTypeFunction([SimTypeInt()] * 8 + [SimTypeNum(128)], SimTypeInt()).with_arch(arch)
+        cc.setup_callsite(spilled, 0, [*range(8), value128], spilled_proto)
+        spilled_sp = spilled.solver.eval(spilled.regs.sp)
+        assert spilled.solver.eval(spilled.memory.load(spilled_sp, 16, endness="Iend_BE")) == value128
+
+        value129 = (1 << 128) | value128
+        indirect = proj.factory.blank_state()
+        indirect.regs.sp = 0x7FFF_0000
+        proto129 = SimTypeFunction([SimTypeNum(129)], SimTypeInt()).with_arch(arch)
+        cc.setup_callsite(indirect, 0, [value129], proto129)
+        pointer = indirect.solver.eval(indirect.regs.x0)
+        assert pointer % 16 == 0
+        assert indirect.solver.eval(indirect.memory.load(pointer, 32, endness="Iend_BE")) == value129
+
+    def test_aarch64_class_by_value_argument(self):
+        proj = Project(os.path.join(test_location, "aarch64", "struct_by_value_aarch64.so"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
+        func = next(f for f in proj.kb.functions.values() if f.name == "_Z8take_big3Big" and not f.is_plt)
+        assert func.prototype is not None
+        assert isinstance(func.prototype.args[0], SimCppClass)
+        assert len(proj.factory.cc().arg_locs(func.prototype.with_arch(proj.arch))) == 1
+        assert proj.analyses.Decompiler(func, cfg=cfg.model).codegen is not None
 
     def test_simcc_arg_locs_returnty_unresolved_simtyperef(self):
         func_proto = SimTypeFunction([], SimTypeRef("std::wstring_t", SimCppClass))
