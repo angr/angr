@@ -1,7 +1,7 @@
 # pylint: disable=wrong-import-position
 from __future__ import annotations
 
-__version__ = "10.0.2.dev0"
+__version__ = "10.0.1.post1"
 
 if bytes is str:
     raise Exception("""
