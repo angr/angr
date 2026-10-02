@@ -745,7 +745,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         beginnings
         :param bool resolve_indirect_jumps: Try to resolve indirect jumps. This is necessary to resolve jump targets
                                             from jump tables, etc.
-        :param bool force_segment:      Force CFGFast to rely on binary segments instead of sections.
+        :param bool force_segment:      Derive the executable regions from an ELF's segments instead of its
+                                        sections. Only the ELF backend reads this; the others collect the same
+                                        regions whatever it is set to, and a PE's segments are its sections.
         :param bool force_complete_scan:    Perform a complete scan on the binary and maximize the number of identified
                                             code blocks.
         :param bool data_references:    Enables the collection of references to data used by individual instructions.

@@ -57,6 +57,29 @@ class TestCfgNoExeutableRegions(unittest.TestCase):
             cfg = p.analyses.CFG()
         assert len(cfg.kb.functions) > 0
 
+    def test_warning_offers_force_segment_only_where_segments_hold_code(self):
+        # Telling the caller to set force_segment is only worth doing where deriving the regions from segments
+        # gives something to scan. A PE's segments are its sections, and this relocatable has no executable
+        # segment either, so on both of these the knob cannot change the empty map and must not be offered.
+        windows_dll = os.path.join(
+            test_location, "x86_64", "windows", "65e25ea21a2f873affee8034e2c3381df48ff4129d447fa288fbd92307647582"
+        )
+        relocatable = os.path.join(test_location, "riscv64", "riscv-reloc-64-pic.o")
+        for bin_path, auto_load_libs in ((windows_dll, True), (relocatable, False)):
+            p = angr.Project(bin_path, auto_load_libs=auto_load_libs)
+            with self.assertLogs("angr.analyses.cfg.cfg_base", level=logging.WARNING) as logs:
+                cfg = p.analyses.CFGFast()
+            assert cfg.regions == []
+            said = [record for record in logs.output if "nothing to scan" in record]
+            assert len(said) == 1, said
+            assert '"regions"' in said[0]
+            assert 'set "force_segment" to derive' not in said[0]
+            assert '"force_segment" will not help here' in said[0]
+            # The setting the advice used to name, on a fresh project so the first run's knowledge base is not
+            # reused: it leaves the map just as empty, which is why naming it was wrong.
+            fresh = angr.Project(bin_path, auto_load_libs=auto_load_libs)
+            assert fresh.analyses.CFGFast(force_segment=True).regions == []
+
 
 if __name__ == "__main__":
     unittest.main()

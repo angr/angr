@@ -111,7 +111,10 @@ class CFGBase(Analysis):
                                                     the CFG of all loaded objects.
         :param iterable regions:                    A list of tuples in the form of (start address, end address)
                                                     describing memory regions that the CFG should cover.
-        :param bool force_segment:                  Force CFGFast to rely on binary segments instead of sections.
+        :param bool force_segment:                  Derive the executable regions from an ELF's segments instead
+                                                    of its sections. Only the ELF backend reads this; the others
+                                                    collect the same regions whatever it is set to, and a PE's
+                                                    segments are its sections.
         :param angr.SimState base_state:            A state to use as a backer for all memory loads.
         :param bool resolve_indirect_jumps:         Whether to try to resolve indirect jumps.
                                                     This is necessary to resolve jump targets from jump tables, etc.
@@ -298,12 +301,33 @@ class CFGBase(Analysis):
             l.debug("... %#x - %#x", start, end)
 
         if regions_derived_from_objects and not self._regions_size:
-            l.warning(
-                "CFG recovery has nothing to scan: the regions to analyze cover 0 bytes. If %s does contain code, "
-                'pass the address ranges that hold it in "regions", or set "force_segment" to derive regions from '
-                "segments instead of sections.",
-                self._binary,
+            # Only offer "force_segment" when deriving the regions from segments would give us something to
+            # scan. Outside the ELF branch of _executable_memory_regions the flag changes nothing, and a PE's
+            # segments are its sections, so on those formats it cannot help. Ask the map itself rather than
+            # guessing, through the same two filters the caller's own regions went through.
+            from_segments = (
+                [] if self._force_segment else self._executable_memory_regions(objects=objects, force_segment=True)
             )
+            if exclude_sparse_regions:
+                from_segments = [
+                    r for r in from_segments if not self._is_region_extremely_sparse(*r, base_state=self._base_state)
+                ]
+            if skip_specific_regions:
+                from_segments = [r for r in from_segments if not self._should_skip_region(r[0])]
+            if from_segments:
+                l.warning(
+                    "CFG recovery has nothing to scan: the regions to analyze cover 0 bytes. If %s does contain "
+                    'code, pass the address ranges that hold it in "regions", or set "force_segment" to derive '
+                    "regions from segments instead of sections.",
+                    self._binary,
+                )
+            else:
+                l.warning(
+                    "CFG recovery has nothing to scan: the regions to analyze cover 0 bytes. If %s does contain "
+                    'code, pass the address ranges that hold it in "regions". Deriving the regions from segments '
+                    'gives nothing either, so "force_segment" will not help here.',
+                    self._binary,
+                )
 
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
@@ -772,7 +796,9 @@ class CFGBase(Analysis):
 
         :param objects: A collection of binary objects to collect regions from. If None, regions from all project
                         binary objects are used.
-        :param bool force_segment: Rely on binary segments instead of sections.
+        :param bool force_segment: Rely on an ELF's segments instead of its sections. Only the ELF branch below
+                                   reads it; the other backends collect the same regions whatever it is set to,
+                                   and a PE's segments are its sections.
         :return: A sorted list of tuples (beginning_address, end_address)
         """
 
