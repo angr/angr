@@ -1195,6 +1195,18 @@ class TestCfgfast(unittest.TestCase):
         assert node_1 is None  # this overlapping node is currently removed, but maybe we want to keep it?
         # assert node_1.instruction_addrs == [0x21514B690C, 0x21514B690E, 0x21514B690F]
 
+    def test_function_ending_in_an_undefined_instruction_is_kept(self):
+        # split-rust is stripped, so no symbol names these three functions, and the ud2 that ends each one is
+        # reached by a jump inside the function rather than as the fall-through of a call. Each is a real
+        # 200-300 byte function that drop_bad_functions() deletes outright, reading the ud2 that rustc emits
+        # for an unreachable path as the function running into data.
+        proj = angr.Project(os.path.join(test_location, "x86_64", "split-rust"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        for addr in (0x501610, 0x5019B0, 0x501B20):
+            assert addr in cfg.kb.functions, f"{addr:#x} was dropped"
+            assert cfg.model.get_any_node(addr) is not None, f"no block covers {addr:#x}"
+
 
 if __name__ == "__main__":
     unittest.main()
