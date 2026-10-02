@@ -1966,7 +1966,8 @@ class CDirtyStatement(CExpression):
 
         yield indent_str, None
         yield from self.dirty.c_repr_chunks()
-        yield "\n", None
+        if not asexpr:
+            yield ";\n", None
 
 
 class CLabel(CStatement):
@@ -2997,37 +2998,51 @@ class CDirtyExpression(CExpression):
     AIL. Eventually this class should not be used at all.
     """
 
-    __slots__ = ("dirty",)
+    __slots__ = ("dirty", "operands")
 
     _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
-    def __init__(self, dirty, **kwargs):
+    def __init__(self, dirty, operands: list[CExpression] | None, **kwargs):
         super().__init__(**kwargs)
         self.dirty = dirty
+        self.operands = operands
 
     @property
     def type(self):
         return SimTypeInt().with_arch(self.codegen.project.arch)
 
-    def intrinsic_name(self) -> str | None:
+    @classmethod
+    def intrinsic_name_for(cls, dirty) -> str | None:
         """Return the dirty callee if it is a clean C identifier, else None."""
-        callee = getattr(self.dirty, "callee", None)
-        if isinstance(callee, str) and self._IDENT_RE.fullmatch(callee):
+        callee = getattr(dirty, "callee", None)
+        if isinstance(callee, str) and cls._IDENT_RE.fullmatch(callee):
             return callee
         return None
+
+    def intrinsic_name(self) -> str | None:
+        return self.intrinsic_name_for(self.dirty)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
             yield "...", self
             return
-        # Never leak the internal "[D] ..." diagnostic repr into emitted C. Render a clean
-        # pseudo-intrinsic call when the callee is a valid C identifier, otherwise a safe
-        # placeholder comment.
         name = self.intrinsic_name()
         if name is not None:
-            operands = getattr(self.dirty, "operands", None) or []
-            args = ", ".join(repr(op).replace("[D] ", "") for op in operands)
-            yield f"{name}({args})", None
+            if self.operands is None:
+                # ``operands_ids`` was added after CDirtyExpression serialization. Preserve the raw operands when an
+                # older cache is explicitly re-rendered instead of silently turning ``helper(arg)`` into ``helper()``.
+                operands = getattr(self.dirty, "operands", None) or []
+                args = ", ".join(repr(op).replace("[D] ", "") for op in operands)
+                yield f"{name}({args})", self
+                return
+            yield name, self
+            paren = CClosingObject("(")
+            yield "(", paren
+            for idx, operand in enumerate(self.operands):
+                if idx:
+                    yield ", ", None
+                yield from CExpression._try_c_repr_chunks(operand)
+            yield ")", paren
         else:
             yield "/* unsupported instruction */", None
 
@@ -4746,7 +4761,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return CVEXCCallExpression(expr.callee, operands, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Dirty(self, expr: Expr.DirtyExpression, **kwargs):
-        return CDirtyExpression(expr, codegen=self)
+        if CDirtyExpression.intrinsic_name_for(expr) is None:
+            return CDirtyExpression(expr, [], codegen=self)
+        operands = [self._handle(operand) for operand in expr.operands]
+        return CDirtyExpression(expr, operands, codegen=self)
 
     def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):
         return CITE(
@@ -4819,7 +4837,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             reg_name = self.project.arch.translate_register_name(expr.oident, expr.size)
             return CRegister(reg_name or f"reg{expr.oident}", tags=expr.tags, codegen=self)
 
-        return CDirtyExpression(expr, codegen=self)
+        return CDirtyExpression(expr, [], codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         expr_var = self._variable_map.variable(expr)
@@ -4915,6 +4933,10 @@ class CStructuredCodeWalker:
         obj.expr = self.handle(obj.expr)
         return obj
 
+    def handle_CDirtyStatement(self, obj):
+        obj.dirty = self.handle(obj.dirty)
+        return obj
+
     def handle_CFunctionCall(self, obj):
         obj.callee_target = self.handle(obj.callee_target)
         obj.args = [self.handle(arg) for arg in obj.args]
@@ -4962,6 +4984,11 @@ class CStructuredCodeWalker:
 
     def handle_CVEXCCallExpression(self, obj):
         obj.operands = [self.handle(operand) for operand in obj.operands]
+        return obj
+
+    def handle_CDirtyExpression(self, obj):
+        if obj.operands is not None:
+            obj.operands = [self.handle(operand) for operand in obj.operands]
         return obj
 
 
