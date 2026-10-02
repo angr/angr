@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import Atom, BinaryOp, Call, Convert, Extract, Phi, VirtualVariable
 from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.code_location import AILCodeLocation
@@ -112,14 +113,36 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_block_end(self, stmt_results, block: Block):
         pass
 
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
+    def _enter_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if isinstance(expr, VirtualVariable):
-            # we are done!
             self._record_vvar_occurrence(expr)
-            return
-        super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(None)
+        if isinstance(expr, BinaryOp):
+            effective_bits = self._node_effective_bits.get(expr.idx)
+            if effective_bits is None:
+                effective_bits = 0, expr.bits
+            if expr.op == "And" and isinstance(expr.operands[1], Const):
+                match expr.operands[1].value:
+                    case 0xFF:
+                        lo_bits, hi_bits = 0, 8
+                    case 0xFFFF:
+                        lo_bits, hi_bits = 0, 16
+                    case 0xFFFF_FFFF:
+                        lo_bits, hi_bits = 0, 32
+                    case 0xFFFF_FFFF_FFFF_FFFF:
+                        lo_bits, hi_bits = 0, 64
+                    case _:
+                        lo_bits, hi_bits = effective_bits
+
+                self._update_effective_bits(expr.operands[0], lo_bits, hi_bits)
+
+            elif expr.op in {"Add", "Sub", "Mul", "Xor", "Or", "And"}:
+                # Mod is excluded: truncating the operands does not preserve the result
+                self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
+                self._update_effective_bits(expr.operands[1], effective_bits[0], effective_bits[1])
+            elif expr.op == "Shl":
+                self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
+        return _ExprContinue(expr)
 
     def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
         # the base of an Insert is consumed at full width: every byte outside the inserted range is preserved
@@ -173,37 +196,6 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
         if stmt.ret_expr is not None:
             self._handle_expr(0, stmt.ret_expr, stmt_idx, stmt, block)
-
-    def _handle_BinaryOp(
-        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ):
-        effective_bits = self._node_effective_bits.get(expr.idx)
-        if effective_bits is None:
-            effective_bits = 0, expr.bits
-        if expr.op == "And" and isinstance(expr.operands[1], Const):
-            match expr.operands[1].value:
-                case 0xFF:
-                    lo_bits, hi_bits = 0, 8
-                case 0xFFFF:
-                    lo_bits, hi_bits = 0, 16
-                case 0xFFFF_FFFF:
-                    lo_bits, hi_bits = 0, 32
-                case 0xFFFF_FFFF_FFFF_FFFF:
-                    lo_bits, hi_bits = 0, 64
-                case _:
-                    lo_bits, hi_bits = effective_bits
-
-            self._update_effective_bits(expr.operands[0], lo_bits, hi_bits)
-
-        elif expr.op in {"Add", "Sub", "Mul", "Xor", "Or", "And"}:
-            # Mod is excluded: truncating the operands does not preserve the result
-            self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
-            self._update_effective_bits(expr.operands[1], effective_bits[0], effective_bits[1])
-        elif expr.op == "Shl":
-            self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
-
-        self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.op == "Reference":

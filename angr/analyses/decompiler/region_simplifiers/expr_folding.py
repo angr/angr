@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from angr import ailment
 from angr.ailment import AILBlockRewriter, Block, Expression
+from angr.ailment.block_walker import _ExprContinue, _ExprHandled
 from angr.ailment.expression import ITE, Atom, Call, Load, VirtualVariable
 from angr.ailment.statement import Assignment, Return, Statement
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
@@ -185,12 +186,11 @@ class MultiStatementExpressionAssignmentFinder(AILBlockRewriter):
         super().__init__()
         self._stmt_handler = stmt_handler
 
-    def _handle_MultiStatementExpression(
-        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
-    ):
+    def _pre_handle_MultiStatementExpression(
+        self, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> None:
         for idx, stmt_ in enumerate(expr.stmts):
             self._stmt_handler(idx, stmt_, block)
-        return super()._handle_MultiStatementExpression(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class ExpressionUseFinder(AILBlockRewriter):
@@ -224,9 +224,7 @@ class ExpressionUseFinder(AILBlockRewriter):
         self.uses: defaultdict[int, set[tuple[Expression, ExpressionLocation | None]]] = defaultdict(set)
         self.has_load = False
 
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
+    def _enter_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst.idx == expr.idx):
                 if block is not None:
@@ -244,12 +242,13 @@ class ExpressionUseFinder(AILBlockRewriter):
                     )
                 else:
                     self.uses[expr.varid].add((expr, None))
-            return expr
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(expr)
+        return _ExprContinue(expr)
 
-    def _handle_Load(self, expr_idx: int, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _pre_handle_Load(
+        self, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> None:
         self.has_load = True
-        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class ExpressionCounter(SequenceWalker):
@@ -573,10 +572,9 @@ class ExpressionReplacer(AILBlockRewriter):
         self._uses = uses
         self._variable_map = variable_map
 
-    def _handle_MultiStatementExpression(  # type: ignore
-        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
-    ) -> Expression | None:
-        changed = False
+    def _handle_MultiStatementExpression_statements(
+        self, expr: MultiStatementExpression, block: Block | None
+    ) -> list[Statement]:
         new_statements = []
         for idx, stmt_ in enumerate(expr.stmts):
             if (
@@ -586,35 +584,29 @@ class ExpressionReplacer(AILBlockRewriter):
                 and self._variable_map.variable(stmt_.dst) is not None
             ) and self._variable_map.variable(stmt_.dst) in self._assignments:
                 # remove this statement
-                changed = True
                 continue
 
             new_stmt = self._handle_stmt(idx, stmt_, None)
             if new_stmt is not None and new_stmt is not stmt_:
-                changed = True
                 if isinstance(new_stmt, Assignment) and new_stmt.src.likes(new_stmt.dst):
                     # this statement is simplified into reg = reg. ignore it
                     continue
                 new_statements.append(new_stmt)
             else:
                 new_statements.append(stmt_)
+        return new_statements
 
-        inner_in = expr.expr
-        new_expr = self._handle_expr(0, inner_in, stmt_idx, stmt, block)
-        if new_expr is not None and new_expr != inner_in:
-            changed = True
-        else:
-            new_expr = inner_in
-
-        if changed:
-            if not new_statements:
-                # it is no longer a multi-statement expression
-                return new_expr  # type: ignore
-            expr_ = expr.copy()
-            expr_.expr = new_expr
-            expr_.stmts = new_statements
-            return expr_
-        return expr
+    def _post_handle_MultiStatementExpression(
+        self, expr: MultiStatementExpression, new_statements: list[Statement], new_expr: Expression
+    ) -> Expression:
+        changed = len(new_statements) != len(expr.stmts) or any(
+            new is not old for new, old in zip(new_statements, expr.stmts)
+        )
+        changed |= new_expr != expr.expr
+        if changed and not new_statements:
+            # it is no longer a multi-statement expression
+            return new_expr
+        return super()._post_handle_MultiStatementExpression(expr, new_statements, new_expr)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         # override the base handler and make sure we do not replace .dst with a Call expression or an ITE expression
@@ -647,13 +639,11 @@ class ExpressionReplacer(AILBlockRewriter):
             return Assignment(stmt.idx, dst, src, **stmt.tags)
         return stmt
 
-    def _handle_expr(
-        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Expression:
+    def _enter_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.varid in self._uses:
             replace_with, _ = self._assignments[expr.varid]
-            return replace_with
-        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            return _ExprHandled(replace_with)
+        return _ExprContinue(expr)
 
 
 class ExpressionFolder(SequenceWalker):
