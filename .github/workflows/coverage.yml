@@ -159,7 +159,7 @@ jobs:
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main" | sudo tee /etc/apt/sources.list.d/llvm
           sudo apt update
 
-          sudo apt-get install -qq llvm-23 llvm-23-tools
+          sudo apt-get install -qq llvm-23
           echo "Merging coverage..."
           llvm-profdata-23 merge -sparse $(find . -name '*.profraw') -o default.profdata
           echo "Generating report..."
