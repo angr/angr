@@ -155,12 +155,12 @@ jobs:
           echo 'set man-db/auto-update false' | sudo debconf-communicate
           sudo dpkg-reconfigure man-db
 
-          sudo apt-get install -qq llvm-20 llvm-20-tools
+          sudo apt-get install -qq llvm-23 llvm-23-tools
           echo "Merging coverage..."
-          llvm-profdata-20 merge -sparse $(find . -name '*.profraw') -o default.profdata
+          llvm-profdata-23 merge -sparse $(find . -name '*.profraw') -o default.profdata
           echo "Generating report..."
-          llvm-cov-20 report ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs")
-          llvm-cov-20 export ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs") --format=lcov > lcov-py.info
+          llvm-cov-23 report ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs")
+          llvm-cov-23 export ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs") --format=lcov > lcov-py.info
       - name: Collect results
         id: files
         run: |
