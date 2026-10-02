@@ -40,6 +40,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
+    from angr.sim_state import SimState
 
 l = logging.getLogger(name=__name__)
 
@@ -865,6 +866,9 @@ class JumpTableResolver(IndirectJumpResolver):
         # cached memory read addresses that are used to initialize uninitialized registers
         # should be cleared before every symbolic execution run on the slice
         self._cached_memread_addrs = {}
+
+        # the address-independent part of the slice-execution start state; copied for every slice source
+        self._blank_state_template: SimState | None = None
 
         # set when resolution was declined because the data references that bound an unbounded jump table are not
         # collected yet. the CFG re-runs these jumps once the rest of the analysis is exhausted.
@@ -2467,7 +2471,7 @@ class JumpTableResolver(IndirectJumpResolver):
             )
             print(s)
 
-    def _initial_state(self, block_addr, cfg, func_addr: int):
+    def _make_blank_state_template(self) -> SimState:
         add_options = {
             o.DO_RET_EMULATION,
             o.TRUE_RET_EMULATION_GUARD,
@@ -2480,7 +2484,6 @@ class JumpTableResolver(IndirectJumpResolver):
             o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
         }
         state = self.project.factory.blank_state(
-            addr=block_addr,
             mode="static",
             add_options=add_options,
             remove_options={
@@ -2490,6 +2493,24 @@ class JumpTableResolver(IndirectJumpResolver):
             | o.refs,
         )
         state.regs._sp = 0x7FFF_FFF0
+
+        # FIXME:
+        # this is a hack: for certain architectures, we do not initialize the base pointer, since the jump table on
+        # those architectures may use the bp register to store value
+        if self.project.arch.name != "S390X":
+            state.regs.bp = state.arch.initial_sp + 0x2000
+
+        return state
+
+    def _initial_state(self, block_addr, cfg, func_addr: int):
+        # blank_state() is expensive (permission maps, OS-specific memory setup); build it once and copy. The copy
+        # carries no breakpoints, so the per-slice hooks below are installed in the same order as before.
+        if self._blank_state_template is None:
+            self._blank_state_template = self._make_blank_state_template()
+        state = self._blank_state_template.copy()
+        state.regs._ip = block_addr
+        state.scratch.ins_addr = block_addr
+        state.scratch.bbl_addr = block_addr
 
         # any read from an uninitialized segment should be unconstrained
         if self._bss_regions:
@@ -2521,12 +2542,6 @@ class JumpTableResolver(IndirectJumpResolver):
                 mips_gp_write_bp = BP(when=BP_AFTER, enabled=True, action=mips_gp_hook.gp_register_write_hook)
                 state.inspect.add_breakpoint("reg_read", mips_gp_read_bp)
                 state.inspect.add_breakpoint("reg_write", mips_gp_write_bp)
-
-        # FIXME:
-        # this is a hack: for certain architectures, we do not initialize the base pointer, since the jump table on
-        # those architectures may use the bp register to store value
-        if self.project.arch.name != "S390X":
-            state.regs.bp = state.arch.initial_sp + 0x2000
 
         return state
 
