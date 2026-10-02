@@ -288,6 +288,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 original_nodes = list(dict.fromkeys(case.original_node for case in real_cases))
                 original_head: Block = original_nodes[0]
                 original_nodes = original_nodes[1:]
+                # every cluster was found against the untouched region graph, and converting one removes
+                # its comparison nodes and whatever they orphaned -- which can be a whole cluster still
+                # waiting its turn, bodies and all. the rewrite below reads this cluster's nodes back out
+                # of the graph, so abandon the call rather than rewrite one that is no longer there. a
+                # switch head pointing at itself, or at an if-head merged into one, arrives the same way.
+                if any(node not in graph_copy for node in (original_head, *original_nodes)):
+                    self.out_graph = None
+                    return False
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
 
                 case_addrs: list[tuple[Block, int | str, int, int | None, int]] = []
@@ -362,13 +370,6 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 # update the block
                 self._update_block(original_head, new_head)
                 modified = True
-
-                # sanity check that no switch head points to either itself
-                # or to any if-head that was merged into the new switch head; this
-                # would result in a successor node no longer being present in the graph
-                if any(onode not in graph_copy for onode in original_nodes):
-                    self.out_graph = None
-                    return False
 
                 # add edges between the head and case nodes
                 for onode in original_nodes:
