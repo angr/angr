@@ -7,7 +7,7 @@ from unittest import TestCase
 
 import archinfo
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
@@ -50,6 +50,53 @@ class TestConditionProcessor(TestCase):
         assert shifted.size() == 8
         cmp = BinaryOp(5, "CmpEQ", [_vvar(6, 32, 16), _vvar(7, 64, 24)], False, bits=1)
         assert cp.claripy_ast_from_ail_condition(cmp) is not None
+
+    def test_one_bit_arithmetic_operands_stay_bitvectors(self):
+        # a 1-bit second operand converted to a claripy Bool, which the arithmetic operation widened to
+        # If(bool, 1, 0); nothing maps If back to AIL, so the conversion raised and the function decompiled empty
+        arch = archinfo.ArchAMD64()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        operand0 = Convert(0, 8, 1, False, _vvar(1, 8, 16))
+        operand1 = Convert(2, 8, 1, False, _vvar(3, 8, 24))
+        add = BinaryOp(4, "Add", [operand0, operand1], False, bits=1)
+        ast = cp.claripy_ast_from_ail_condition(add)
+        assert [arg.op for arg in ast.args] == ["BVS", "BVS"]
+        assert str(cp.convert_claripy_bool_ast(ast)) == f"({operand0} Add {operand1})"
+
+    def test_float_constant_arithmetic_uses_its_bit_pattern(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+
+        for index, (ail_op, claripy_op, value) in enumerate(
+            (("Add", "__add__", 32768.0), ("Sub", "__sub__", 4.4e-323), ("Mul", "__mul__", 32768.0))
+        ):
+            with self.subTest(ail_op=ail_op):
+                expr = BinaryOp(
+                    index * 5,
+                    ail_op,
+                    [
+                        _vvar(index * 5 + 1, 64, 16),
+                        Const(index * 5 + 2, value, 64),  # pyright: ignore[reportArgumentType]
+                    ],
+                    False,
+                    bits=64,
+                )
+                ast = cp.claripy_ast_from_ail_condition(expr)
+                expected = claripy.FPV(value, claripy.FSORT_DOUBLE).raw_to_bv()
+
+                assert ast.op == claripy_op
+                assert claripy.is_true(ast.args[1] == expected)
+
+                integer_ast = cp.claripy_ast_from_ail_condition(
+                    BinaryOp(
+                        index * 5 + 3,
+                        ail_op,
+                        [_vvar(index * 5 + 4, 64, 24), Const(index * 5 + 5, 3, 64)],
+                        False,
+                        bits=64,
+                    )
+                )
+                assert integer_ast.op == claripy_op
+                assert integer_ast.args[1].concrete_value == 3
 
     def test_signed_comparisons_map_to_signed_claripy_operations(self):
         arch = archinfo.ArchAMD64()
