@@ -54,7 +54,9 @@ def is_sane_register_variable(
     if arch_name == "MIPS32":
         return 24 <= reg_offset < 40  # a0-a3
 
-    if arch_name == "MIPS64":
+    if arch_name in ("MIPS64", "MIPSN32"):
+        # MIPSN32 is ArchMIPS64's register file under another name -- same vex_arch, so the same
+        # offsets -- and cle gives it to every n32 and O64 object, so one entry answers for both.
         return 48 <= reg_offset < 80 or 112 <= reg_offset < 208  # a0-a3 or t4-t7
 
     if arch_name == "PPC32":
