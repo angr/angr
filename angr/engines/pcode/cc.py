@@ -6,14 +6,29 @@ from archinfo import ArchPcode
 
 from angr.calling_conventions import (
     DEFAULT_CC,
+    ArgSession,
     SimCC,
     SimCCARM,
     SimCCO32,
     SimCCUnknown,
+    SimFunctionArgument,
     SimRegArg,
     SimStackArg,
     default_cc,
+    refine_locs_with_struct_type,
     register_default_cc,
+)
+from angr.sim_type import (
+    SimStruct,
+    SimType,
+    SimTypeArray,
+    SimTypeFixedSizeArray,
+    SimTypeFloat,
+    SimTypeNum,
+    SimTypePointer,
+    SimTypeReg,
+    SimUnion,
+    TypeRef,
 )
 
 l = logging.getLogger(__name__)
@@ -73,9 +88,79 @@ class SimCCSH4(SimCCPCodeBase):
     """
 
     LANGUAGE = "SuperH4:LE:32:default"
-    ARG_REGS = ["r4", "r5"]
+    # The SH ELF ABI passes the first four integer arguments in r4-r7.
+    ARG_REGS = ["r4", "r5", "r6", "r7"]
     RETURN_VAL = SimRegArg("r0", 4)
     RETURN_ADDR = SimRegArg("pr", 4)
+
+    def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
+        """
+        Place an aggregate, or a scalar wider than one word, in consecutive word-sized slots.
+
+        The slots come from the integer argument registers and then the stack, least significant word
+        first, and an argument that outruns the registers takes the ones left and continues on the
+        stack. Measured on SH objects built by gcc 10.5.0: a 64-bit second argument arrives in the
+        pair r5:r6, with no alignment to an even register, and a 64-bit fourth argument arrives half
+        in r7 and half in the first stack slot.
+
+        A ``TypeRef`` is unwrapped first and laid out as the type it names, which is what
+        :meth:`SimCC.next_arg` does with one: a typedef is where an opaque class or a 64-bit scalar
+        usually hides, and delegating one would see it refused again.
+
+        Anything one word or narrower goes to :meth:`SimCC.next_arg`, and so does any type this
+        cannot lay out word by word -- a float, since this class declares no FP argument registers,
+        and a type carrying no size, which the base class does not place either.
+        """
+        if isinstance(arg_type, TypeRef):  # a typedef is laid out as the type it names, as in SimCC.next_arg
+            arg_type = arg_type.type
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack, the same one SimCC.next_arg applies
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        aggregate = isinstance(arg_type, (SimStruct, SimUnion))
+        scalar = isinstance(arg_type, (SimTypeReg, SimTypeNum)) and not isinstance(arg_type, SimTypeFloat)
+        if not (aggregate or scalar) or not arg_type.size:
+            return super().next_arg(session, arg_type)
+        size = arg_type.size // self.arch.byte_width
+        if not size:
+            # Narrower than a byte: the word count is zero, so the loop below would place nothing
+            # and the argument would come back covering nothing at all. The base class refuses an
+            # aggregate that shape and gives a narrow scalar a register of its own, which is what it
+            # did before this override existed.
+            return super().next_arg(session, arg_type)
+        words = -(-size // self.arch.bytes)
+        if words == 1 and not aggregate:
+            return super().next_arg(session, arg_type)
+
+        locs = []
+        while len(locs) < words:
+            try:
+                locs.append(next(session.int_iter))
+            except StopIteration:
+                locs.append(next(session.both_iter))
+        return refine_locs_with_struct_type(self.arch, locs, self._layout_type(arg_type))
+
+    def _layout_type(self, arg_type: SimType) -> SimType:
+        """
+        The type to hand :func:`refine_locs_with_struct_type`, which is the argument's own unless
+        that would lay out less of it than it occupies.
+
+        The helper walks a struct field by field, and a union through whichever member spans it.
+        Anything else it treats as one ``SimTypeInt``, which covers the first word and no more --
+        while :meth:`next_arg` has taken a slot per word, so every word of the argument after the
+        first would have no location at all. An opaque C++ class is exactly that shape: a size and
+        no members.
+
+        This catches the shape angr produces. It does not catch an aggregate whose own fields or
+        members do not span it -- a union whose widest member is itself unlayoutable, a class with a
+        size larger than its fields -- where the helper still covers less than the argument occupies.
+        Nothing in angr builds either today.
+        """
+        if isinstance(arg_type, SimStruct) and not arg_type.fields:
+            return SimTypeNum(arg_type.size, False).with_arch(self.arch)
+        if isinstance(arg_type, SimUnion) and not any(
+            member.size == arg_type.size for member in arg_type.members.values()
+        ):
+            return SimTypeNum(arg_type.size, False).with_arch(self.arch)
+        return arg_type
 
 
 class SimCCPARISC(SimCCPCodeBase):
