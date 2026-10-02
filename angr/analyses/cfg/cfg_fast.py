@@ -671,6 +671,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     # TODO: Move arch_options to CFGBase, and add those logic to CFGEmulated as well.
 
     PRINTABLES = string.printable.replace("\x0b", "").replace("\x0c", "").encode()
+
+    # How much of a candidate run _repeating_tile_run_length reads before deciding it repeats at all. Long enough
+    # that a periodic window is not a coincidence, short enough that the check costs one small load per block on
+    # everything that is not filler.
+    TILE_PROBE_LENGTH = 64
+
     SPECIAL_THUNKS = {
         "AMD64": {
             bytes.fromhex("E807000000F3900FAEE8EBF9488D642408C3"): ("ret",),
@@ -720,6 +726,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         nodecode_threshold=0.6,
         nodecode_step=16483,
         repeating_byte_run_threshold=64,
+        repeating_tile_run_threshold=1024,
         check_funcret_max_job=500,
         indirect_calls_always_return: bool | None = None,
         jumptable_resolver_resolves_calls: bool | None = None,
@@ -794,6 +801,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                                         0x91 is `xchg ecx, eax` on x86), so linear disassembly would otherwise walk
                                         through them forever. Runs of the architecture's nop byte are exempt because
                                         execution really does flow through them. Set it to 0 to disable the check.
+        :param repeating_tile_run_threshold: The same, for a run of one repeated multi-byte tile (up to four bytes),
+                                        which decodes just as cleanly and is just as certainly filler. It needs a far
+                                        longer run to be sure of than a single repeated byte does, because real code
+                                        repeats a short instruction sequence and padding repeats a multi-byte nop:
+                                        over angr's own corpus of 942 ELF and PE fixtures, 209 MB of executable
+                                        sections, the longest such run is 858 bytes of `66 90` (`xchg ax, ax`)
+                                        alignment padding, so the default is the next power of two above it. Set it
+                                        to 0 to disable the check.
         :param check_funcret_max_job:   When popping return-site jobs out of the job queue, angr will prioritize jobs
                                         for which the callee is known to return. This check may be slow when there are
                                         a large amount of jobs in different caller functions, and this situation often
@@ -963,6 +978,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._nodecode_threshold = nodecode_threshold
         self._nodecode_step = nodecode_step
         self._repeating_byte_run_threshold = repeating_byte_run_threshold
+        self._repeating_tile_run_threshold = repeating_tile_run_threshold
         # a run of the nop byte is transparent -- execution really does flow through it into whatever follows -- so
         # repeating-byte-run detection must leave it alone. other padding bytes are not code, but they are still
         # padding rather than data we failed to recognize.
@@ -1431,6 +1447,52 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if matched < len(chunk):
                 break
         return length
+
+    def _repeating_tile_run_length(self, start_addr: int, min_length: int, max_period: int = 4) -> int:
+        """
+        Measure the run of one repeated multi-byte tile that begins at ``start_addr``.
+
+        :meth:`_repeating_byte_run_length` is the same rule for a tile one byte long, and keeps that case: a run
+        whose least period is 1 belongs to it, not here. The two are separate because they cannot share a
+        threshold. 64 bytes of one repeated byte is already conclusive; 64 bytes of a repeated *sequence* is not,
+        because real code repeats a short instruction sequence and alignment padding repeats a multi-byte nop.
+
+        Like :meth:`_repeating_byte_run_length`, this loads memory in bulk and is bounded by the enclosing region.
+
+        :param start_addr:  The address the run has to begin at.
+        :param min_length:  The shortest run that counts, and never shorter than ``TILE_PROBE_LENGTH``:
+                            a window of a few tiles cannot tell a repeat from a coincidence.
+        :param max_period:  The longest tile considered. Past four bytes no length threshold is safe: eight bytes
+                            is two instructions on a four-byte ISA, and the corpus holds 1,024- and 3,200-byte
+                            runs of genuinely repeated instruction pairs on `armel` and `aarch64`.
+        :return:            The length of the run, or 0 if it is shorter than ``min_length``.
+        """
+
+        inside, region_end = self._inside_regions_and_region_end(start_addr)
+        if not inside or region_end is None or region_end - start_addr < min_length:
+            return 0
+
+        head = self._fast_memory_load_bytes(start_addr, self.TILE_PROBE_LENGTH)
+        if head is None or len(head) < self.TILE_PROBE_LENGTH:
+            return 0
+        period = next((p for p in range(1, max_period + 1) if head[p:] == head[:-p]), None)
+        if period is None or period == 1:
+            return 0
+        tile = head[:period]
+
+        length = self.TILE_PROBE_LENGTH
+        while start_addr + length < region_end:
+            chunk = self._fast_memory_load_bytes(start_addr + length, min(0x1000, region_end - start_addr - length))
+            if not chunk:
+                break
+            # the tile continues at the phase the run has reached, not from its first byte
+            expected = (tile * (len(chunk) // period + 2))[length % period :][: len(chunk)]
+            if chunk == expected:
+                length += len(chunk)
+                continue
+            length += next(i for i, (a, b) in enumerate(zip(chunk, expected)) if a != b)
+            break
+        return length if length >= min_length else 0
 
     def _scan_for_fp_constants(self, start_addr: int, threshold: int = 4) -> int:
         """
@@ -6058,17 +6120,22 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # A long run of one repeated byte is filler, never code. Many such runs decode cleanly (0x91 is
             # `xchg ecx, eax` on x86), so without this check linear disassembly walks the whole run and emits a
             # fall-through block every VEX_IRSB_MAX_INST instructions until the run ends. See issue #6968.
+            # A run of one repeated multi-byte tile does exactly the same thing and needs its own, longer,
+            # threshold -- see _repeating_tile_run_length.
+            run_length = 0
             if self._repeating_byte_run_threshold:
                 run_length = self._repeating_byte_run_length(
                     real_addr, self._repeating_byte_run_threshold, ignore=self._nop_byte
                 )
-                if run_length:
-                    # same distinction _next_code_addr_core makes: padding is alignment, anything else is data we
-                    # cannot decode. only the latter may feed the smart scan's skip-a-window heuristic -- real code
-                    # regularly starts right after a padding run.
-                    is_padding = self._load_a_byte_as_int(real_addr) in self._padding_bytes
-                    self._seg_list.occupy(real_addr, run_length, "alignment" if is_padding else "nodecode")
-                    return None, None, None, None
+            if not run_length and self._repeating_tile_run_threshold:
+                run_length = self._repeating_tile_run_length(real_addr, self._repeating_tile_run_threshold)
+            if run_length:
+                # same distinction _next_code_addr_core makes: padding is alignment, anything else is data we
+                # cannot decode. only the latter may feed the smart scan's skip-a-window heuristic -- real code
+                # regularly starts right after a padding run.
+                is_padding = self._load_a_byte_as_int(real_addr) in self._padding_bytes
+                self._seg_list.occupy(real_addr, run_length, "alignment" if is_padding else "nodecode")
+                return None, None, None, None
 
             distance = VEX_IRSB_MAX_SIZE
             # if there is exception handling code, check the distance between `addr` and the closest ending address

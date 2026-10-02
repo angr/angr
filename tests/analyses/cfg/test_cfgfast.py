@@ -1182,6 +1182,65 @@ class TestCfgfast(unittest.TestCase):
         # nops are exempt at any length: a nop run is transparent, execution really does flow through it
         assert block_size(4096, filler=b"\x90") is not None
 
+    @staticmethod
+    def _idle_cfg(path: str) -> angr.analyses.cfg.cfg_fast.CFGFast:
+        """A CFGFast over a real binary with every seed turned off, so the helpers can be measured on their own."""
+        proj = angr.Project(path, auto_load_libs=False)
+        return proj.analyses.CFGFast(
+            start_at_entry=False,
+            symbols=False,
+            function_prologues=False,
+            eh_frame=False,
+            force_smart_scan=False,
+            force_complete_scan=False,
+        )
+
+    def test_repeating_tile_run_length_measures_a_multi_byte_tile(self):
+        # pylint:disable=protected-access
+        # A run of one repeated multi-byte tile decodes as cleanly and as endlessly as the run of one repeated byte
+        # in #6968 -- `10 90 50` on x86 is `adc byte ptr [eax + 0x50901050], dl` over and over -- and
+        # _repeating_byte_run_length cannot see it, because it takes its filler as `head[:1]`.
+        #
+        # bios.bin.elf carries an 858-byte run of `66 90` at 0xff4e6. It is under the default threshold, which is
+        # the point of the default, so the measurement is taken with the threshold lowered.
+        cfg = self._idle_cfg(os.path.join(test_location, "i386", "bios.bin.elf"))
+
+        assert cfg._repeating_tile_run_length(0xFF4E6, 512) == 858
+        # the run has to reach the threshold, and it is measured from the address given, not around it
+        assert cfg._repeating_tile_run_length(0xFF4E6, 1024) == 0
+        assert cfg._repeating_tile_run_length(0xFF4E6 + 500, 256) == 358
+        # a run whose least period is 1 belongs to _repeating_byte_run_length, not here: 0xf9e10 is 2,049 bytes
+        # of 0x00, far over this threshold, and this rule still declines it
+        assert cfg._repeating_tile_run_length(0xF9E10, 512) == 0
+        assert cfg._repeating_byte_run_length(0xF9E10, 512) == 2049
+
+    def test_repeating_tile_run_length_stops_at_four_byte_tiles(self):
+        # pylint:disable=protected-access
+        # Past four bytes no length threshold is safe: eight bytes is two instructions on a four-byte ISA, and real
+        # code repeats exactly that. This fixture holds a 3,200-byte run of one eight-byte tile -- longer than any
+        # filler run this rule is meant to catch -- and it is code.
+        cfg = self._idle_cfg(os.path.join(test_location, "aarch64", "decompiler", "pathological_loop"))
+
+        assert cfg._repeating_tile_run_length(0x4000B8, 1024) == 0
+        assert cfg._repeating_tile_run_length(0x4000B8, 1024, max_period=8) == 3200
+
+    def test_repeating_tile_run_threshold_leaves_real_code_alone(self):
+        # The safety property the default is chosen for. Measured over angr's own corpus -- 942 ELF and PE fixtures,
+        # 209 MB of executable sections -- the longest run of a repeated two-to-four-byte tile is the 858 bytes of
+        # `66 90` alignment padding in this binary, under the default, so the rule must not change its CFG at all.
+        #
+        # Each side needs its own Project: two CFGFast analyses on one Project share a knowledge base, so the second
+        # one starts from the first one's functions and the comparison measures that instead of the option.
+        path = os.path.join(test_location, "i386", "bios.bin.elf")
+
+        guarded = angr.Project(path, auto_load_libs=False).analyses.CFGFast(normalize=True)
+        unguarded = angr.Project(path, auto_load_libs=False).analyses.CFGFast(
+            normalize=True, repeating_tile_run_threshold=0
+        )
+
+        assert {n.addr for n in guarded.model.graph.nodes} == {n.addr for n in unguarded.model.graph.nodes}
+        assert set(guarded.kb.functions) == set(unguarded.kb.functions)
+
     def test_normalize_should_skip_legitimate_node_pairs(self):
         path = os.path.join(
             test_location, "x86_64", "windows", "1817a5bf9c01035bcf8a975c9f1d94b0ce7f6a200339485d8f93859f8f6d730c.exe"
