@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import cle
 import networkx
-from sortedcontainers import SortedDict, SortedList
+from sortedcontainers import SortedList
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.errors import AngrCFGError
@@ -19,7 +19,8 @@ from angr.utils.enums_conv import cfg_jumpkind_from_pb, cfg_jumpkind_to_pb
 from .cfg_node import CFGNode
 from .indirect_jump import IndirectJump
 from .memory_data import MemoryData, MemoryDataSort
-from .spilling_cfg import SpillingCFG, get_block_key
+from .spilling_cfg import SpillingCFG
+from .spilling_memory_data import InsnAddrToMemoryDataMap, SpillingMemoryDataDict
 
 if TYPE_CHECKING:
     from archinfo.arch_soot import SootAddressDescriptor
@@ -73,6 +74,7 @@ class CFGModel(Serializable):
         db_batch_size: int = 800,
         edge_cache_limit: int | None = None,
         edge_db_batch_size: int = 800,
+        memory_data_cache_limit: int | None = None,
         addr_type: CFG_ADDR_TYPES = "int",
     ):
         self.ident = ident
@@ -108,10 +110,15 @@ class CFGModel(Serializable):
         self.jump_tables: dict[int, IndirectJump] = {}
 
         # Memory references
-        # A mapping between address and the actual data in memory
-        self.memory_data: SortedDict[int, MemoryData] = SortedDict()
-        # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
+        # A mapping between address and the actual data in memory. Backed by an LRU + LMDB spilling
+        # container so that large binaries do not keep every MemoryData resident. This is the single owner
+        # of all MemoryData objects.
+        self.memory_data: SpillingMemoryDataDict = SpillingMemoryDataDict(rtdb, cache_limit=memory_data_cache_limit)
+        # A mapping between address of the instruction that's referencing the memory data and the memory data itself.
+        # Internally stores only data addresses (spilled ints) and materializes from memory_data on access.
+        self.insn_addr_to_memory_data: InsnAddrToMemoryDataMap = InsnAddrToMemoryDataMap(
+            rtdb, model=self, cache_limit=memory_data_cache_limit
+        )
 
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
         self._node_addrs: SortedList[int] | None = None
@@ -195,6 +202,11 @@ class CFGModel(Serializable):
 
         # Restore cfg_model reference in the graph
         self.graph._cfg_model = self
+
+        # Restore the model reference in the insn_addr -> memory data map (not pickled)
+        set_model = getattr(self.insn_addr_to_memory_data, "set_model", None)
+        if set_model is not None:
+            set_model(self)
 
         # Restore cfg_model reference in all nodes
         for addr in self._nodes:
@@ -356,11 +368,10 @@ class CFGModel(Serializable):
             model._node_addrs = None
 
             # edges
-            keys_by_addr = graph._keys_by_addr
             for edge_pb2 in cmsg.edges:
                 # more than one node at a given address is unsupported, grab the first one
-                src_key = next(iter(keys_by_addr.get(edge_pb2.src_ea, ())))
-                dst_key = next(iter(keys_by_addr.get(edge_pb2.dst_ea, ())))
+                src_key = next(graph.iter_keys_by_addr(edge_pb2.src_ea))
+                dst_key = next(graph.iter_keys_by_addr(edge_pb2.dst_ea))
                 data = {
                     "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
                     "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
@@ -391,6 +402,7 @@ class CFGModel(Serializable):
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
         model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
+        model.insn_addr_to_memory_data.set_model(model)
         model.edges_to_repair = self.edges_to_repair.copy()
         model._node_function_addrs_complete = self._node_function_addrs_complete
 
@@ -404,8 +416,8 @@ class CFGModel(Serializable):
     #
 
     def add_node(self, block_id: int, node: CFGNode) -> None:
-        self._blockid_to_blockkey[block_id] = get_block_key(node)
-        self.graph.add_node(node)
+        # graph.add_node returns the canonical (interned) block key; store that instead of a fresh copy
+        self._blockid_to_blockkey[block_id] = self.graph.add_node(node)
         if self._node_addrs is not None and isinstance(node.addr, int) and node.addr not in self._node_addrs:
             self._node_addrs.add(node.addr)
 
@@ -959,11 +971,7 @@ class CFGModel(Serializable):
                                 new_mem_data_addrs.add(ptr)
                             if xrefs is not None:
                                 # Make a copy of the old reference
-                                crs = []
-                                for old_cr in old_crs:
-                                    cr = old_cr.copy()
-                                    cr.memory_data = new_md
-                                    crs.append(cr)
+                                crs = [old_cr.copy() for old_cr in old_crs]
                                 xrefs.add_xrefs(crs)
                             new_data_found = True
 
@@ -1022,11 +1030,7 @@ class CFGModel(Serializable):
         if xrefs is not None:
             # Make a copy of all old references
             old_crs = xrefs.get_xrefs_by_dst(memory_data.addr)
-            crs = []
-            for old_cr in old_crs:
-                cr = old_cr.copy()
-                cr.memory_data = new_md
-                crs.append(cr)
+            crs = [old_cr.copy() for old_cr in old_crs]
             xrefs.add_xrefs(crs)
         return new_addr
 
