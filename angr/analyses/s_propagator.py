@@ -23,6 +23,7 @@ from angr.ailment.expression import (
 )
 from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Store
+from angr.ailment.utils import has_llsc_expression, has_store_conditional
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
@@ -213,6 +214,9 @@ class SPropagator:
             ):
                 # come back later, this is not the def you're looking for
                 continue
+            if isinstance(stmt, Assignment) and has_llsc_expression(stmt.src):
+                # Propagating an atomic operation would duplicate or move it.
+                continue
             if isinstance(stmt, Assignment) and isinstance(stmt.src, Insert):
                 # Do not propagate Inserts
                 # if this is not acceptable, just make sure we don't proagate inserts into the base of other inserts...
@@ -311,6 +315,9 @@ class SPropagator:
                     isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id
                 ):
                     # come back later, this is not the def you're looking for
+                    continue
+
+                if has_llsc_expression(stmt.src):
                     continue
 
                 if (
@@ -499,6 +506,9 @@ class SPropagator:
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):
+                    if has_llsc_expression(stmt.src):
+                        continue
+
                     r, v = is_const_assignment(stmt, self.only_consts)
                     if r:
                         # we can propagate it!
@@ -529,7 +539,7 @@ class SPropagator:
                                 == block.statements[tmp_use_stmtidx].tags["ins_addr"]
                             )
                             has_store = any(
-                                isinstance(stmt_, Store)
+                                isinstance(stmt_, Store) or has_store_conditional(stmt_)
                                 for stmt_ in block.statements[tmp_def_stmtidx + 1 : tmp_use_stmtidx]
                             )
                             if same_inst or not has_store:
@@ -561,6 +571,8 @@ class SPropagator:
 
             for idx in range(start_stmt_idx, end_stmt_idx):
                 stmt = block.statements[idx]
+                if has_store_conditional(stmt):
+                    return True
                 if isinstance(stmt, Store) and isinstance(stmt.addr, Const):
                     store_addr = stmt.addr.value
                     store_size = stmt.size
