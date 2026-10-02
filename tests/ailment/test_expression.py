@@ -225,6 +225,16 @@ class TestExpression(unittest.TestCase):
         assert vmap.returnty(macro_dc) is returnty  # transferred to the new .idx
         assert FunctionLikeMacro(18, "dbg", None).deep_copy(manager).args is None
 
+    def test_stack_base_offset_is_a_base_pointer_offset(self):
+        # StackBaseOffset subclassed BasePointerOffset before the AIL classes moved to Rust,
+        # and the marker classes have to keep that relationship: every isinstance() site that
+        # names the general case must still see the stack-relative one.
+        assert isinstance(StackBaseOffset(0, 32, 0), BasePointerOffset)
+        assert isinstance(StackBaseOffset(0, 64, -8), BasePointerOffset)
+        assert isinstance(BasePointerOffset(0, 32, "stack_base", 0), BasePointerOffset)
+        # and not the other way round
+        assert not isinstance(BasePointerOffset(0, 32, "stack_base", 0), StackBaseOffset)
+
     def test_stack_base_offset_offset_wraparound(self):
         # Offsets supplied in unsigned two's-complement form are normalized to
         # signed values at the declared bit width.
