@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
 
 import angr
 from angr.calling_conventions import CC_NAMES, SimCC, SimCCUsercall
@@ -11,7 +12,41 @@ from angr.rustylib.function_graph import FunctionGraph  # pylint:disable=import-
 from angr.sim_type import SimType, SimTypeFunction
 from angr.utils.types import make_type_reference, type_collections_for_lib
 
+if TYPE_CHECKING:
+    from .function import PrototypeSource
+
 l = logging.getLogger(name=__name__)
+
+# Function.info is tiny and highly repetitive (e.g. {"bp_as_gpr": true}); memoize its decoding across loads.
+# Only flat dicts of immutable values are cached, so a shallow copy fully isolates each Function's info.
+_INFO_SCALARS = (str, int, float, bool, type(None))
+_INFO_CACHE_MAX = 256
+_info_cache: dict[bytes, dict] = {}
+
+
+def _decode_info(raw: bytes) -> dict:
+    cached = _info_cache.get(raw)
+    if cached is not None:
+        return cached.copy()
+    data = json.loads(raw.decode("utf-8"))
+    if (
+        isinstance(data, dict)
+        and len(_info_cache) < _INFO_CACHE_MAX
+        and all(isinstance(v, _INFO_SCALARS) for v in data.values())
+    ):
+        _info_cache[raw] = data.copy()
+    return data
+
+
+_prototype_sources: dict[int, PrototypeSource] = {}
+
+
+def _prototype_source(value: int) -> PrototypeSource:
+    source = _prototype_sources.get(value)
+    if source is None:
+        source = angr.knowledge_plugins.functions.PrototypeSource(value)
+        _prototype_sources[value] = source
+    return source
 
 
 class CallingConventionSerializer:
@@ -134,24 +169,45 @@ class FunctionParser:
         if cmsg.HasField("returning"):
             returning = cmsg.returning
 
-        obj = angr.knowledge_plugins.functions.Function(
+        if cmsg.graph_blob:
+            graph = FunctionGraph.from_bytes(cmsg.graph_blob)
+            if graph.func_addr != cmsg.ea:
+                raise ValueError(f"Function graph of {graph.func_addr:#x} stored under {cmsg.ea:#x}")
+        else:
+            graph = FunctionGraph(cmsg.ea)
+
+        # every stored field is known, so skip Function.__init__ (which would derive them from the project again)
+        function_cls = angr.knowledge_plugins.functions.Function
+        obj = function_cls.__new__(function_cls)
+        obj._init_slots(
             function_manager,
             cmsg.ea,
-            name=cmsg.name,
-            is_plt=cmsg.is_plt,
-            syscall=cmsg.is_syscall,
-            is_simprocedure=cmsg.is_simprocedure,
-            returning=returning,
-            alignment=cmsg.alignment,
-            binary_name=None if not cmsg.binary_name else cmsg.binary_name,
-            calling_convention=cc,
-            prototype=proto,
-            prototype_libname=cmsg.prototype_libname or None,
-            prototype_source=angr.knowledge_plugins.functions.PrototypeSource(cmsg.prototype_source),
+            graph,
+            cc,
+            proto,
+            cmsg.prototype_libname or None,
+            _prototype_source(cmsg.prototype_source),
+            cmsg.alignment,
         )
+        obj._is_syscall = cmsg.is_syscall
+        obj._is_simprocedure = cmsg.is_simprocedure
+        obj._is_plt = cmsg.is_plt
+        obj._name = cmsg.name
+        obj.binary_name = cmsg.binary_name or obj._get_initial_binary_name()
+        if returning is not None:
+            obj.returning = returning
+        if cmsg.is_syscall or cmsg.is_simprocedure:
+            # a SimProcedure (or syscall) overrides the stored prototype and calling convention
+            obj._init_prototype_and_calling_convention()
         obj._project = project
         obj.normalized = cmsg.normalized
-        obj.info = json.loads(cmsg.info.decode("utf-8")) if cmsg.info else {}
+        if cmsg.info:
+            info = _decode_info(cmsg.info)
+            obj._info.data = info
+            if function_manager is not None:
+                for key, value in info.items():
+                    if key.startswith("is_") and value is True:
+                        function_manager.add_key_func_addr(key[3:], cmsg.ea)
         obj.is_default_name = cmsg.is_default_name
         obj.ran_cca = cmsg.ran_cca
         obj.previous_names = list(cmsg.previous_names)
@@ -167,10 +223,6 @@ class FunctionParser:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
         if cmsg.graph_blob:
-            graph = FunctionGraph.from_bytes(cmsg.graph_blob)
-            if graph.func_addr != cmsg.ea:
-                raise ValueError(f"Function graph of {graph.func_addr:#x} stored under {cmsg.ea:#x}")
-            obj._graph = graph
             obj._block_addrs_cache = None
             if meta_only:
                 obj.meta_only = True  # can't be serialized again when evicted from the cache

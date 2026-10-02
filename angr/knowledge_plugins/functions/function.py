@@ -254,64 +254,24 @@ class Function(Serializable):
         :param bool returning:  If this function returns.
         :param bool alignment:  If this function acts as an alignment filler. Such functions usually only contain nops.
         """
-        self._graph = FunctionGraph(addr)
-        # the networkx view of the store, created on-demand
-        self._transition_graph: TransitionGraph | None = None
-        # CodeNode objects, created on demand
-        self._node_objs: dict[int, CodeNode] = {}
-        self._block_addrs_cache: set[int] | None = None
-        self._local_transition_graph = None
-        self.normalized = False
-
-        self.addr = addr
-        self._function_manager = function_manager
-        self._is_syscall = False
-        self._is_simprocedure = False
-        self._is_alignment = alignment
-
-        # These properties are set by VariableManager
-        self.bp_on_stack = False
-        self.retaddr_on_stack = False
-        self.sp_delta = 0
-        # Calling convention
-        self._calling_convention = calling_convention
-        # Function prototype. Prototypes may contain SimTypeRefs (e.g., when loaded from a library definition or an
-        # angrdb); they are dereferenced lazily on the first read of .prototype.
-        self._prototype = prototype
-        self._prototype_resolved = False
-        self._prototype_ref_warned = False
-        self._prototype_libname = prototype_libname
         if prototype_source is None:
-            self._prototype_source = (
+            prototype_source = (
                 PrototypeSource.NONE
                 if prototype is None
                 else PrototypeSource.GUESSED
                 if is_prototype_guessed
                 else PrototypeSource.USER
             )
-        else:
-            self._prototype_source = prototype_source
-        # Whether this function returns or not. `None` means it's not determined yet
-        self._returning = None
-
-        self._info = FunctionInfo(self)  # storing special information, like $gp values for MIPS32
-        self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
-
-        # Initialize _cyclomatic_complexity to None
-        self._cyclomatic_complexity = None
-
-        # TODO: Can we remove the following two members?
-        # Register offsets of those arguments passed in registers
-        self._argument_registers = []
-        # Stack offsets of those arguments passed in stack variables
-        self._argument_stack_variables = []
-
-        self._project: Project | None = None  # will be initialized upon the first access to self.project
-
-        self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
-        self._dirty: bool = True
-        self.meta_only: bool = False
-        self.evicted: bool = False
+        self._init_slots(
+            function_manager,
+            addr,
+            FunctionGraph(addr),
+            calling_convention,
+            prototype,
+            prototype_libname,
+            prototype_source,
+            alignment,
+        )
 
         #
         # Initialize unspecified properties
@@ -363,8 +323,6 @@ class Function(Serializable):
         else:
             self.is_default_name = False
             self._name = name
-        self.previous_names = []
-        self._from_signature: str | None = None
 
         # Determine the name the binary where this function is.
         if binary_name is not None:
@@ -384,6 +342,77 @@ class Function(Serializable):
             self.returning = self._get_initial_returning()
 
         self._init_prototype_and_calling_convention()
+
+    def _init_slots(
+        self,
+        function_manager: FunctionManager | None,
+        addr: int,
+        graph: FunctionGraph,
+        calling_convention: SimCC | None,
+        prototype: SimTypeFunction | None,
+        prototype_libname: str | None,
+        prototype_source: PrototypeSource,
+        alignment: bool,
+    ) -> None:
+        """
+        Initialize every slot to its default. Shared by __init__ and FunctionParser, which fills in the stored values
+        afterwards instead of letting __init__ derive them from the project.
+        """
+        self._graph = graph
+        # the networkx view of the store, created on-demand
+        self._transition_graph: TransitionGraph | None = None
+        # CodeNode objects, created on demand
+        self._node_objs: dict[int, CodeNode] = {}
+        self._block_addrs_cache: set[int] | None = None
+        self._local_transition_graph = None
+        self.normalized = False
+
+        self.addr = addr
+        self._function_manager = function_manager
+        self._is_syscall = False
+        self._is_simprocedure = False
+        self._is_plt = False
+        self._is_alignment = alignment
+        self._name = ""
+        self.is_default_name = False
+        self.previous_names = []
+        self._from_signature: str | None = None
+        self.binary_name = None
+
+        # These properties are set by VariableManager
+        self.bp_on_stack = False
+        self.retaddr_on_stack = False
+        self.sp_delta = 0
+        # Calling convention
+        self._calling_convention = calling_convention
+        # Function prototype. Prototypes may contain SimTypeRefs (e.g., when loaded from a library definition or an
+        # angrdb); they are dereferenced lazily on the first read of .prototype.
+        self._prototype = prototype
+        self._prototype_resolved = False
+        self._prototype_ref_warned = False
+        self._prototype_libname = prototype_libname
+        self._prototype_source = prototype_source
+        # Whether this function returns or not. `None` means it's not determined yet
+        self._returning = None
+
+        self._info = FunctionInfo(self)  # storing special information, like $gp values for MIPS32
+        self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
+
+        # Initialize _cyclomatic_complexity to None
+        self._cyclomatic_complexity = None
+
+        # TODO: Can we remove the following two members?
+        # Register offsets of those arguments passed in registers
+        self._argument_registers = []
+        # Stack offsets of those arguments passed in stack variables
+        self._argument_stack_variables = []
+
+        self._project: Project | None = None  # will be initialized upon the first access to self.project
+
+        self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
+        self._dirty: bool = True
+        self.meta_only: bool = False
+        self.evicted: bool = False
 
     @property
     def name(self):

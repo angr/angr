@@ -435,7 +435,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     @property
     def cached_count(self) -> int:
         """Return the number of functions currently in memory."""
-        return super().__len__()
+        return len(self.data)
 
     @property
     def spilled_count(self) -> int:
@@ -1595,7 +1595,7 @@ class FunctionManager[K: (int, SootMethodDescriptor)](KnowledgeBasePlugin, colle
         """
         Record every key-function flag that ``func.info`` carries in the key-function address cache.
         """
-        for key, value in func.info.items():
+        for key, value in func.info.data.items():
             if key.startswith("is_") and value is True:
                 self.add_key_func_addr(key[3:], func.addr)
 
