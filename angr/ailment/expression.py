@@ -381,9 +381,14 @@ else:
             return _Expression._new_string_literal(idx, data, bits, **tags)
 
     class BasePointerOffset(metaclass=_AilMarkerMeta):
-        """Marker for ``Expression`` instances whose variant is ``BasePointerOffset``."""
+        """Marker for ``Expression`` instances whose variant is ``BasePointerOffset``.
+
+        ``isinstance`` also matches ``StackBaseOffset`` instances to preserve the former
+        subclass relationship.
+        """
 
         _kind = EK.BasePointerOffset
+        _kinds = frozenset({EK.BasePointerOffset, EK.StackBaseOffset})
 
         def __new__(  # type: ignore[misc]
             cls,
