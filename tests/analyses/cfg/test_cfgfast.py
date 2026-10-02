@@ -1195,6 +1195,15 @@ class TestCfgfast(unittest.TestCase):
         assert node_1 is None  # this overlapping node is currently removed, but maybe we want to keep it?
         # assert node_1.instruction_addrs == [0x21514B690C, 0x21514B690E, 0x21514B690F]
 
+    def test_arm_overlapping_blocks_survive_a_rescan_that_drops_blocks(self):
+        # _remove_redundant_overlapping_blocks() walks a snapshot of the graph's node keys, and rescans the leftover
+        # of every block it truncates. That rescan invalidates decoding assumptions and drops the blocks that rest on
+        # them, so a key in the snapshot can stop naming a node of the graph before the walk reaches it.
+        proj = angr.Project(os.path.join(test_location, "armel", "libc.so.6"), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+
+        assert len(cfg.kb.functions) > 1000, f"CFGFast recovered only {len(cfg.kb.functions)} functions"
+
 
 if __name__ == "__main__":
     unittest.main()
