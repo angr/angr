@@ -631,7 +631,7 @@ class SimEngineRDAIL(
 
         return cast(
             MultiValues[claripy.ast.BV | claripy.ast.FP],
-            base.extract(conc_offset, expr.offset.size, archinfo.Endness.BE),
+            base.extract(conc_offset, expr.size, expr.endness),
         )
 
     def _handle_expr_Insert(self, expr: ailment.expression.Insert):
@@ -646,15 +646,15 @@ class SimEngineRDAIL(
         if conc_offset is None:
             return self._top(expr.bits)
 
+        value_size = expr.value.size
+        before = base.extract(0, conc_offset, expr.endness)
+        after = base.extract(conc_offset + value_size, len(base) // 8 - conc_offset - value_size, expr.endness)
+        # concatenation is most-significant-first, so on a little-endian target the bytes stored after
+        # the inserted value are the high half
+        high, low = (before, after) if expr.endness == archinfo.Endness.BE else (after, before)
         return cast(
             MultiValues[claripy.ast.BV | claripy.ast.FP],
-            base.extract(0, conc_offset, archinfo.Endness.BE)
-            .concat(value)
-            .concat(
-                base.extract(
-                    conc_offset + expr.offset.size, len(base) // 8 - conc_offset - expr.offset.size, archinfo.Endness.BE
-                )
-            ),
+            high.concat(value).concat(low),
         )
 
     def _handle_unop_Not(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
