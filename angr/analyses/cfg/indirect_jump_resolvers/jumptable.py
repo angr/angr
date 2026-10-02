@@ -39,6 +39,7 @@ except ImportError:
     pcode = None
 
 if TYPE_CHECKING:
+    from angr.block import Block
     from angr.knowledge_plugins import Function
     from angr.sim_state import SimState
 
@@ -917,6 +918,9 @@ class JumpTableResolver(IndirectJumpResolver):
         else:
             cv_manager = None
 
+        # blocks lifted for one slice are reused by the deeper slices and by the precheck
+        block_cache: dict[int, Block] = {}
+
         for slice_steps in range(1, 5):
             # Perform a backward slicing from the jump target
             # Important: Do not go across function call boundaries
@@ -932,6 +936,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 base_state=self.base_state,
                 stop_at_calls=True,
                 cross_insn_opt=True,
+                block_cache=block_cache,
             )
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
@@ -954,6 +959,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 base_state=self.base_state,
                 stop_at_calls=True,
                 cross_insn_opt=True,
+                block_cache=block_cache,
             )
             return self._resolve(
                 cfg, addr, func, b, cv_manager, potential_call_table=True, func_graph_complete=func_graph_complete
@@ -1705,7 +1711,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 state._tmpvar_source.clear()
                 block_addr, _ = src
 
-                block = self.project.factory.block(block_addr, cross_insn_opt=True, backup_state=self.base_state)
+                block = b.get_block(block_addr)
                 stmt_whitelist = annotatedcfg.get_whitelisted_statements(block_addr)
                 assert isinstance(stmt_whitelist, list)
                 try:
