@@ -72,6 +72,24 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "switch (" in dec.codegen.text
 
+    def test_rewrite_is_abandoned_when_it_would_remove_the_switch_head(self):
+        # scan_request() in bash's man2html at -O2 has a lowered switch whose first case-emitting
+        # comparison is reached through a range-splitting comparison. That splitter is redundant once the
+        # switch head exists, and removing it left the head with no in-edges, so the same walk took the
+        # head and every case body hanging off it. The pass then read one of those bodies back out of the
+        # graph and raised, which sent the whole function to the basic preset.
+        proj, cfg = load_project_with_scoped_cfg(
+            os.path.join(test_location, "x86_64", "man2html_gcc11.4.0_O2"), 0x4051D0, window=0x3000
+        )
+
+        dec = proj.analyses.Decompiler(cfg.functions[0x4051D0], cfg=cfg)
+
+        # pytest sets is_testing, so fail_fast re-raises and this test fails at the call above rather than
+        # on the assertion. Outside a test run the same exception is caught, and the only sign of it is
+        # that the function was decompiled a second time on the basic preset.
+        assert not dec.errors
+        assert dec.codegen is not None and dec.codegen.text is not None
+
 
 if __name__ == "__main__":
     unittest.main()
