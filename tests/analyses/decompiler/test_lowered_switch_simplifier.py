@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use
+# pylint:disable=missing-class-docstring,no-self-use,protected-access
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
 import unittest
+from unittest import mock
 
 import angr
 from angr.analyses.decompiler.optimization_passes import LoweredSwitchSimplifier
 from angr.analyses.decompiler.presets import DECOMPILATION_PRESETS
+from angr.utils.ail import is_phi_assignment
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 test_location = os.path.join(bin_location, "tests")
@@ -71,6 +73,44 @@ class TestLoweredSwitchSimplifier(unittest.TestCase):
         assert not dec.errors
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "switch (" in dec.codegen.text
+
+    def test_folding_a_comparison_chain_repoints_the_phis_that_named_it(self):
+        # dd(1) at -O2: the comparison node 0x406e97 folds into the switch head at 0x406e92, and the phi
+        # variable in 0x406ee4 named 0x406e97, a block the fold removes.
+        proj, cfg = load_project_with_scoped_cfg(os.path.join(test_location, "x86_64", "decompiler", "dd"), 0x406E10)
+
+        mismatches = []
+        original_analyze = LoweredSwitchSimplifier._analyze
+
+        def analyze_and_check(pass_, cache=None):
+            result = original_analyze(pass_, cache=cache)
+            if pass_.out_graph is not None:
+                mismatches.append(_phis_that_miss_a_predecessor(pass_.out_graph))
+            return result
+
+        with mock.patch.object(LoweredSwitchSimplifier, "_analyze", analyze_and_check):
+            dec = proj.analyses.Decompiler(cfg.functions[0x406E10], cfg=cfg)
+
+        assert not dec.errors
+        assert dec.codegen is not None and dec.codegen.text is not None
+        # a run in which the pass never produced a graph would collect no mismatch either
+        assert mismatches, "LoweredSwitchSimplifier produced no graph for this function"
+        assert all(not m for m in mismatches), mismatches
+
+
+def _phis_that_miss_a_predecessor(graph) -> list[str]:
+    """Report every phi variable whose sources are not exactly the block's predecessors."""
+    reported = []
+    for block in graph.nodes():
+        predecessors = {(pred.addr, pred.idx) for pred in graph.predecessors(block)}
+        for stmt in block.statements:
+            if is_phi_assignment(stmt):
+                sources = {src for src, _ in stmt.src.src_and_vvars}
+                if sources != predecessors:
+                    reported.append(
+                        f"{block.addr:#x}-{block.idx}: {stmt.dst} from {sources}, reached from {predecessors}"
+                    )
+    return reported
 
 
 if __name__ == "__main__":
