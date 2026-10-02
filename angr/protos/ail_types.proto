@@ -41,6 +41,32 @@ message AilGraph {
     repeated uint32 block_refs = 3;  // indices into the shared pool, in node-insertion order
     // The modal edge-data value (excluding the per-edge ins_addr); edges with has_default_data reference it.
     optional AilEdgeData default_edge_data = 4;
+    // Python-only IncompleteSwitchCaseHeadStatements (created by LoweredSwitchSimplifier) cannot live inside a
+    // Block.to_bytes() payload; they are stripped from the payload and stored here, keyed by node index.
+    repeated AilIncompleteSwitchHead switch_heads = 5;
+}
+
+message AilSwitchCase {
+    // the original comparison node, by (addr, idx); absent when the statement carried None
+    optional uint64 cmp_node_addr = 1;
+    optional sint64 cmp_node_idx = 2;
+    oneof case_value {
+        sint64 int_value = 3;
+        string str_value = 4;  // "default"
+    }
+    uint64 target_addr = 5;
+    optional sint64 target_idx = 6;
+    optional uint64 next_addr = 7;  // absent for the last case
+}
+
+message AilIncompleteSwitchHead {
+    uint32 node = 1;      // index into the graph's nodes (same numbering as AilEdge.src/dst)
+    uint32 stmt_idx = 2;  // position of the statement within the block
+    optional sint64 idx = 3;
+    bytes switch_variable = 4;  // ailment.Expression.to_bytes()
+    repeated AilSwitchCase cases = 5;
+    bool peephole_optimized = 6;
+    optional uint64 ins_addr = 7;
 }
 
 //

@@ -17,6 +17,7 @@ import networkx
 
 from angr import sim_variable
 from angr.analyses.decompiler.optimization_passes.static_vvar_rewriter import FixedBuffer, FixedBufferPtr
+from angr.analyses.decompiler.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from angr.protos import ail_types_pb2
 from angr.rustylib.ailment import Block, Expression
 
@@ -123,6 +124,70 @@ def _edge_data_key(data: dict[str, Any]) -> tuple:
     return tuple(sorted((k, v) for k, v in data.items() if k != "ins_addr" and v is not None))
 
 
+def _strip_switch_heads(node: Block) -> tuple[Block, list[tuple[int, IncompleteSwitchCaseHeadStatement]]]:
+    """Separate Python-only IncompleteSwitchCaseHeadStatements from a block so the rest can go through
+    ``Block.to_bytes()``. Returns the block to serialize and the stripped statements with their positions."""
+    heads = [(i, stmt) for i, stmt in enumerate(node.statements) if isinstance(stmt, IncompleteSwitchCaseHeadStatement)]
+    if not heads:
+        return node, heads
+    stripped = [stmt for stmt in node.statements if not isinstance(stmt, IncompleteSwitchCaseHeadStatement)]
+    return node.copy(statements=stripped), heads
+
+
+def _pack_switch_head(
+    msg: ail_types_pb2.AilIncompleteSwitchHead, node_idx: int, stmt_idx: int, stmt: IncompleteSwitchCaseHeadStatement
+) -> None:
+    msg.node = node_idx
+    msg.stmt_idx = stmt_idx
+    if stmt.idx is not None:
+        msg.idx = stmt.idx
+    msg.switch_variable = stmt.switch_variable.to_bytes()
+    msg.peephole_optimized = stmt.peephole_optimized
+    ins_addr = stmt.tags.get("ins_addr")
+    if ins_addr is not None:
+        msg.ins_addr = ins_addr
+    for cmp_node, case_value, target_addr, target_idx, next_addr in stmt.case_addrs:
+        case = msg.cases.add()
+        if cmp_node is not None:
+            case.cmp_node_addr = cmp_node.addr
+            if cmp_node.idx is not None:
+                case.cmp_node_idx = cmp_node.idx
+        if isinstance(case_value, str):
+            case.str_value = case_value
+        else:
+            case.int_value = case_value
+        case.target_addr = target_addr
+        if target_idx is not None:
+            case.target_idx = target_idx
+        if next_addr is not None:
+            case.next_addr = next_addr
+
+
+def _parse_switch_head(
+    msg: ail_types_pb2.AilIncompleteSwitchHead, blocks_by_loc: dict[tuple[int, int | None], Block]
+) -> IncompleteSwitchCaseHeadStatement:
+    case_addrs: list[tuple[Block | None, int | str, int, int | None, int | None]] = []
+    for case in msg.cases:
+        cmp_node = None
+        if case.HasField("cmp_node_addr"):
+            cmp_idx = case.cmp_node_idx if case.HasField("cmp_node_idx") else None
+            # the comparison nodes were usually removed from the graph by the simplifier; keep a stand-in with the
+            # same address so the statement hashes identically
+            cmp_node = blocks_by_loc.get((case.cmp_node_addr, cmp_idx)) or Block(case.cmp_node_addr, 0, idx=cmp_idx)
+        case_value: int | str = case.str_value if case.WhichOneof("case_value") == "str_value" else case.int_value
+        target_idx = case.target_idx if case.HasField("target_idx") else None
+        next_addr = case.next_addr if case.HasField("next_addr") else None
+        case_addrs.append((cmp_node, case_value, case.target_addr, target_idx, next_addr))
+    tags = {"ins_addr": msg.ins_addr} if msg.HasField("ins_addr") else {}
+    return IncompleteSwitchCaseHeadStatement(
+        msg.idx if msg.HasField("idx") else None,
+        Expression.from_bytes(msg.switch_variable),
+        case_addrs,
+        peephole_optimized=msg.peephole_optimized,
+        **tags,
+    )
+
+
 def pack_graph(graph: networkx.DiGraph, pool: BlockPool | None = None) -> ail_types_pb2.AilGraph:
     """Encode a DiGraph of ailment Blocks. Node identity is preserved through per-graph block indices. When ``pool``
     is given, block payloads are deduplicated into it and the message stores pool refs instead of inline payloads."""
@@ -132,10 +197,13 @@ def pack_graph(graph: networkx.DiGraph, pool: BlockPool | None = None) -> ail_ty
         if not isinstance(node, Block):
             raise TypeError(f"Unsupported AIL graph node type {type(node).__name__}; only ailment.Block is allowed")
         node_to_idx[node] = i
+        payload_node, switch_heads = _strip_switch_heads(node)
+        for stmt_idx, stmt in switch_heads:
+            _pack_switch_head(msg.switch_heads.add(), i, stmt_idx, stmt)
         if pool is None:
-            msg.blocks.append(node.to_bytes())
+            msg.blocks.append(payload_node.to_bytes())
         else:
-            msg.block_refs.append(pool.add(node))
+            msg.block_refs.append(pool.add(payload_node))
 
     # Pick the modal non-ins_addr edge-data value as the default so common edge attributes are stored once.
     edge_list = list(graph.edges(data=True))
@@ -170,6 +238,13 @@ def parse_graph(msg: ail_types_pb2.AilGraph, pool_payloads=None) -> networkx.DiG
         blocks = [Block.from_bytes(pool_payloads[i]) for i in msg.block_refs]
     else:
         blocks = [Block.from_bytes(b) for b in msg.blocks]
+    if msg.switch_heads:
+        blocks_by_loc = {(b.addr, b.idx): b for b in blocks}
+        for head in msg.switch_heads:
+            block = blocks[head.node]
+            stmts = list(block.statements)
+            stmts.insert(head.stmt_idx, _parse_switch_head(head, blocks_by_loc))
+            block.statements = stmts
     graph.add_nodes_from(blocks)
     default_data = _parse_edge_data(msg.default_edge_data) if msg.HasField("default_edge_data") else {}
     for edge in msg.edges:
