@@ -10,6 +10,7 @@ import re
 import time
 import unittest
 from types import SimpleNamespace
+from typing import cast as typing_cast
 
 import archinfo
 
@@ -95,6 +96,71 @@ class TestConvertRendering(unittest.TestCase):
         assert self._render(1, 5, value=1) == "(char)1"
         assert self._render(8, 12, value=3) == "(unsigned short)3"
         assert self._render(32, 64, value=3) == "(unsigned long long)3"
+
+
+class TestDirtyExpressionRendering(unittest.TestCase):
+    _idx = itertools.count(0x10000)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proj = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cls.cfg = cls.proj.analyses.CFGFast(normalize=True)
+        cls.func = cls.cfg.functions["main"]
+        cls.codegen = typing_cast(
+            CStructuredCodeGenerator, cls.proj.analyses.Decompiler(cls.func, cfg=cls.cfg.model).codegen
+        )
+        assert isinstance(cls.codegen, CStructuredCodeGenerator)
+
+    def _dirty_statement(self):
+        lhs = Expr.Const(next(self._idx), 1, 64)
+        rhs = Expr.Const(next(self._idx), 2, 64)
+        operand = Expr.BinaryOp(next(self._idx), "Add", [lhs, rhs], False, bits=64)
+        dirty = Expr.DirtyExpression(next(self._idx), "amd64g_dirtyhelper_test", [operand], bits=0)
+        return self.codegen._handle(Stmt.DirtyStatement(next(self._idx), dirty), is_expr=False)
+
+    def test_operands_are_rendered_as_c_expressions(self):
+        assert self._dirty_statement().c_repr() == "amd64g_dirtyhelper_test(1 + 2);\n"
+
+    def test_operands_survive_codegen_serialization(self):
+        statement = self._dirty_statement()
+        cfunc = self.codegen.cfunc
+        assert cfunc is not None
+        statements = cfunc.statements.statements
+        statements.append(statement)
+        try:
+            blob = self.codegen.serialize()
+        finally:
+            assert statements.pop() is statement
+
+        parsed = CStructuredCodeGenerator.parse(blob, project=self.proj, kb=self.proj.kb, func=self.func)
+        assert parsed.cfunc.statements.statements[-1].c_repr() == "amd64g_dirtyhelper_test(1 + 2);\n"
+
+    def test_legacy_serialization_preserves_raw_operands(self):
+        statement = self._dirty_statement()
+        cfunc = self.codegen.cfunc
+        assert cfunc is not None
+        statements = cfunc.statements.statements
+        statements.append(statement)
+        try:
+            msg = self.codegen.serialize_to_cmessage()
+        finally:
+            assert statements.pop() is statement
+
+        dirty_nodes = [node for node in msg.nodes if node.HasField("cdirty_expr") and node.cdirty_expr.operands_ids]
+        assert len(dirty_nodes) == 1
+        dirty_nodes[0].cdirty_expr.ClearField("operands_ids")
+        parsed = CStructuredCodeGenerator.parse_from_cmessage(msg, project=self.proj, kb=self.proj.kb, func=self.func)
+        assert parsed.cfunc is not None
+        assert parsed.cfunc.statements.statements[-1].c_repr() == "amd64g_dirtyhelper_test((1<64> Add 2<64>));\n"
+        parsed.regenerate_text()
+        assert parsed.text is not None
+        assert "amd64g_dirtyhelper_test((1<64> Add 2<64>));" in parsed.text
+
+    def test_invalid_intrinsic_does_not_lower_operands(self):
+        operand = Expr.Phi(next(self._idx), 64, [])
+        dirty = Expr.DirtyExpression(next(self._idx), "not-a-c-identifier", [operand], bits=0)
+        statement = self.codegen._handle(Stmt.DirtyStatement(next(self._idx), dirty), is_expr=False)
+        assert statement.c_repr() == "/* unsupported instruction */;\n"
 
 
 class TestGotoRendering(unittest.TestCase):
