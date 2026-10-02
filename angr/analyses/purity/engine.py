@@ -353,6 +353,8 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
             def subst(v: DataSource) -> DataType_co:
                 if v.function_arg is not None:
+                    if v.function_arg >= len(args):
+                        return frozenset()
                     return args[v.function_arg]
                 if v.reference_to is not None:
                     return frozenset()

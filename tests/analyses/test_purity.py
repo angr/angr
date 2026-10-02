@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,protected-access
 import unittest
 
 import angr
@@ -65,6 +65,25 @@ class TestAILPurityAnalysis(unittest.TestCase):
             measured += len(whitelist)
 
         assert measured == 3, "the fixture no longer reaches the analysis with CAS statements; this test tests nothing"
+
+    def test_call_with_fewer_arguments_than_callee_summary(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "test_purity"), auto_load_libs=False)
+        p.analyses.CFGFast(normalize=True)
+
+        caller_clinic = p.analyses.Clinic(p.kb.functions["a"])
+        callee = p.kb.functions["b"]
+        callee_clinic = p.analyses.Clinic(callee)
+        callee_result = p.analyses[AILPurityAnalysis].prep()(callee_clinic).result
+        engine = PurityEngineAIL(p, caller_clinic, lambda _: callee_result)
+        call = ailment.Expr.Call(
+            None,
+            ailment.Expr.Const(None, callee.addr, p.arch.bits),
+            args=[],
+            bits=p.arch.bits,
+        )
+
+        assert engine._handle_expr_Call(call) == frozenset((AILPurityDataSource(constant_value=0),))
+        assert engine.result == AILPurityResultType()
 
 
 if __name__ == "__main__":
