@@ -1064,19 +1064,12 @@ class CFGModel(Serializable):
 
         pointer_size = self.project.arch.bytes
 
-        # who's using it?
-        irsb_addr, stmt_idx = None, None
-        if xrefs is not None and seg_list is not None:
-            try:
-                ref: XRef = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
-                irsb_addr = ref.block_addr
-            except StopIteration:
-                pass
-        if irsb_addr is not None and isinstance(self.project.loader.main_object, cle.MetaELF):
-            plt_entry = self.project.loader.main_object.reverse_plt.get(irsb_addr, None)
-            if plt_entry is not None:
-                # IRSB is owned by plt!
-                return MemoryDataSort.GOTPLTEntry, pointer_size
+        # who's using it? a GOT slot read by any PLT stub is a GOT PLT entry
+        if xrefs is not None and seg_list is not None and isinstance(self.project.loader.main_object, cle.MetaELF):
+            reverse_plt = self.project.loader.main_object.reverse_plt
+            for ref in xrefs.get_xrefs_by_dst(data_addr):
+                if ref.block_addr is not None and ref.block_addr in reverse_plt:
+                    return MemoryDataSort.GOTPLTEntry, pointer_size
 
         # is it in a section with zero bytes, like .bss?
         obj = self.project.loader.find_object_containing(data_addr)
@@ -1153,12 +1146,10 @@ class CFGModel(Serializable):
         # is it a code reference?
         irsb_addr, stmt_idx = None, None
         if xrefs is not None and seg_list is not None:
-            try:
-                ref: XRef = next(iter(xrefs.get_xrefs_by_dst(data_addr)))
+            ref = self._first_xref(xrefs.get_xrefs_by_dst(data_addr))
+            if ref is not None:
                 irsb_addr = ref.block_addr
                 stmt_idx = ref.stmt_idx
-            except StopIteration:
-                pass
 
             if seg_list.is_occupied(data_addr) and seg_list.occupied_by_sort(data_addr) == "code":
                 # it's a code reference
@@ -1173,6 +1164,20 @@ class CFGModel(Serializable):
                     return sort, size
 
         return None, None
+
+    @staticmethod
+    def _first_xref(refs: set[XRef]) -> XRef | None:
+        # lowest-addressed xref; set iteration order is not a stable choice
+        return min(
+            refs,
+            key=lambda r: (
+                r.ins_addr if r.ins_addr is not None else -1,
+                r.block_addr if r.block_addr is not None else -1,
+                r.stmt_idx if r.stmt_idx is not None else -1,
+                r.type if r.type is not None else -1,
+            ),
+            default=None,
+        )
 
     def _guess_data_type_pointer_array(
         self,
