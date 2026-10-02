@@ -233,7 +233,10 @@ class CFGBase(Analysis):
 
         # a dict of mapping between function addresses and sets of jobs (include both future jobs and pending jobs)
         # a set is used to speed up the job removal procedure
-        self._jobs_to_analyze_per_function = defaultdict(set)
+        self._jobs_to_analyze_per_function: defaultdict[int | SootMethodDescriptor, set] = defaultdict(set)
+        # functions whose job set is currently empty, in the order they ran out of jobs (an ordered set); maintained
+        # incrementally so that _get_finished_functions() does not sweep every partially analyzed function
+        self._functions_without_jobs: dict[int | SootMethodDescriptor, None] = {}
         # addresses of functions that have been completely recovered (i.e. all of its blocks are identified) so far
         self._completed_functions = set()
 
@@ -365,6 +368,7 @@ class CFGBase(Analysis):
         """
 
         self._jobs_to_analyze_per_function = defaultdict(set)
+        self._functions_without_jobs = {}
         self._completed_functions = set()
 
     def _function_completed(self, func_addr: int):
@@ -1582,7 +1586,10 @@ class CFGBase(Analysis):
         :return:              None
         """
 
-        self._jobs_to_analyze_per_function[func_addr].add(job)
+        jobs = self._jobs_to_analyze_per_function[func_addr]
+        if not jobs:
+            self._functions_without_jobs.pop(func_addr, None)
+        jobs.add(job)
 
     def _deregister_analysis_job(self, func_addr, job):
         """
@@ -1593,25 +1600,21 @@ class CFGBase(Analysis):
         :return:              None
         """
 
-        self._jobs_to_analyze_per_function[func_addr].discard(job)
+        jobs = self._jobs_to_analyze_per_function[func_addr]
+        jobs.discard(job)
+        if not jobs:
+            self._functions_without_jobs[func_addr] = None
 
-    def _get_finished_functions(self):
+    def _get_finished_functions(self) -> list[int | SootMethodDescriptor]:
         """
         Obtain all functions of which we have finished analyzing. As _jobs_to_analyze_per_function is a defaultdict(),
         if a function address shows up in it with an empty job list, we consider we have exhausted all jobs of this
         function (both current jobs and pending jobs), thus the analysis of this function is done.
 
         :return: a list of function addresses of that we have finished analysis.
-        :rtype:  list
         """
 
-        finished_func_addrs = []
-        for func_addr, all_jobs in self._jobs_to_analyze_per_function.items():
-            if not all_jobs:
-                # great! we have finished analyzing this function!
-                finished_func_addrs.append(func_addr)
-
-        return finished_func_addrs
+        return list(self._functions_without_jobs)
 
     def _cleanup_analysis_jobs(self, finished_func_addrs=None):
         """
@@ -1627,8 +1630,8 @@ class CFGBase(Analysis):
             finished_func_addrs = self._get_finished_functions()
 
         for func_addr in finished_func_addrs:
-            if func_addr in self._jobs_to_analyze_per_function:
-                del self._jobs_to_analyze_per_function[func_addr]
+            self._jobs_to_analyze_per_function.pop(func_addr, None)
+            self._functions_without_jobs.pop(func_addr, None)
 
     def _make_completed_functions(self):
         """
