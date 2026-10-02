@@ -13,20 +13,21 @@ reloading every record once. A resident Python adjacency would cost about 1.07 K
 ## Rust data layout (`native/angr/src/cfg_graph.rs`, `angr.rustylib.cfg_graph.CfgGraph`)
 
 ```
-Node   { addr: u64, size: i64, in_graph: bool, call_dst: bool }   // size == -1 encodes "no size"
+Node   { addr: u64, size: i64, in_graph: bool, call_dst: bool, next_at_addr: u32 }  // size == -1: no size
 Edge   { jk: u16, flags: u8, ins_addr: u64, stmt_idx: i64 }        // sentinels encode None; flags = presence bits
 
 CfgGraph {
     nodes:     Vec<Node>,                  // node id = index; stable for the graph lifetime
     by_key:    FxHashMap<(u64, i64), u32>, // (addr, size) -> live node id
-    by_addr:   FxHashMap<u64, Vec<u32>>,   // addr -> live node ids (replaces SpillingCFG._keys_by_addr)
+    by_addr:   FxHashMap<u64, u32>,        // addr -> first live node id; next_at_addr chains the rest
+                                           // (replaces SpillingCFG._keys_by_addr)
     edges:     FxHashMap<(u32, u32), Edge>,
     out_adj:   Vec<Vec<u32>>,              // insertion order == networkx successor order
     in_adj:    Vec<Vec<u32>>,
     n_live:    usize,
     jumpkinds: Vec<String>,                // interning table; jk == u16::MAX is None
+    jk_index:  FxHashMap<String, u16>,
     jk_is_call: Vec<bool>,                 // "Ijk_Call" or "Ijk_Sys*"
-    jk_pystr:  Vec<Py<PyString>>,          // cached Python str objects, rebuilt lazily after from_bytes
 }
 ```
 
