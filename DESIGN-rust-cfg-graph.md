@@ -32,7 +32,7 @@ CfgGraph {
 
 * Node ids are dense `u32` indices. `remove_node` detaches edges, clears `in_graph`, and drops the node from
   `by_key`/`by_addr`; re-adding the same key allocates a fresh id so that node iteration order matches networkx
-  (removed-then-re-added nodes come last). Tombstones are cheap (17 B) and are compacted only by `to_bytes`.
+  (removed-then-re-added nodes come last). Tombstones are cheap (about 20 B) and are kept, also in the pickle blob, so that ids stay stable for the object-key tables.
 * `add_edge` has networkx merge semantics: attributes that are passed overwrite, attributes that are not passed keep
   their previous value; presence bits make `edge_data()` return exactly the keys that were ever set (networkx
   returns the dict as built; the old LMDB codec always materialised all three keys, which only mattered after a
