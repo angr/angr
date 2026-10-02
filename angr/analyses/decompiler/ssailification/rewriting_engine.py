@@ -454,6 +454,8 @@ class SimEngineSSARewriting(
                 bits=expr.bits,
                 floating_point=expr.floating_point,
                 rounding_mode=expr.rounding_mode,
+                vector_count=expr.vector_count,
+                vector_size=expr.vector_size,
                 **expr.tags,
             )
         return None
