@@ -74,8 +74,18 @@ class MemoryMixin[InData, OutData, Addr](SimStatePlugin):
     def store(self, addr: Addr, data: InData, size: InData | None = None, **kwargs) -> None: ...
 
     def merge(
-        self, others: list[Self], merge_conditions: list[claripy.ast.Bool] | None, common_ancestor: Self | None = None
+        self,
+        others: list[Self],
+        merge_conditions: list[claripy.ast.Bool] | None,
+        common_ancestor: Self | None = None,
+        is_widening: bool = False,
     ) -> bool: ...
+
+    def widen(self, others: list[Self]) -> bool:
+        """
+        Widen this memory with others. Only abstract (VSA) memories implement real widening; everything else merges.
+        """
+        return self.merge(others, None, is_widening=True)
 
     def compare(self, other: Self) -> bool: ...
 

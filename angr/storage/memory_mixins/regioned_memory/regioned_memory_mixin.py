@@ -144,12 +144,14 @@ class RegionedMemoryMixin(MemoryMixin):
         for aw in gen:
             self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
 
-    def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
+    def merge(self, others, merge_conditions, common_ancestor=None, is_widening=False) -> bool:
         r = False
         for o in others:
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    r |= self._regions[region_id].merge([region], merge_conditions, common_ancestor=common_ancestor)
+                    r |= self._regions[region_id].merge(
+                        [region], merge_conditions, common_ancestor=common_ancestor, is_widening=is_widening
+                    )
                 else:
                     self._regions[region_id] = region
                     r = True

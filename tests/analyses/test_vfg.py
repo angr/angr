@@ -219,6 +219,48 @@ class TestVfg(unittest.TestCase):
 
         assert expected_indirect_call_targets == indirect_call_targets
 
+    #
+    # Loop convergence (join + widening + narrowing at loop heads)
+    #
+
+    def _run_vfg_loop(self, binary_name):
+        proj = angr.Project(os.path.join(test_location, "x86_64", binary_name), auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        step = cfg.kb.functions["step"]
+        vfg = proj.analyses.VFG(
+            cfg, start=step.addr, function_start=step.addr, context_sensitivity_level=1, interfunction_level=0
+        )
+
+        # every block of the function is reached and no block hit the iteration cap
+        assert step.block_addrs_set.issubset({n.addr for n in vfg.graph.nodes()})
+        assert max(vfg._tracing_times.values()) < vfg._max_iterations
+
+        # total is clamped by `if (total > 100) total = 0`, so the returned value is in [0, 100]
+        ret_block = max(step.block_addrs_set)
+        ret_node = vfg.get_any_node(ret_block)
+        assert ret_node is not None and ret_node.final_states
+        for final_state in ret_node.final_states:
+            assert claripy.vsa.min(final_state.regs.eax) == 0
+            assert claripy.vsa.max(final_state.regs.eax) == 100
+        return vfg, step
+
+    def test_vfg_loop_unbounded_counter(self):
+        # for (i = 0; i < n; i++) total += i;  with n read from a volatile MMIO address
+        self._run_vfg_loop("vfg_loop_O0")
+        self._run_vfg_loop("vfg_loop_O1")  # loop state lives in registers only
+
+    def test_vfg_loop_data_dependent_bound(self):
+        # same loop with `if (n > 127) n = 127`: the counter must not run past the exit test
+        vfg, step = self._run_vfg_loop("vfg_loop_min")
+        body_addr = next(a for a in step.block_addrs_set if 0x40112A <= a < 0x40113F)
+        body_node = vfg.get_any_node(body_addr)
+        assert body_node is not None
+        state = body_node.state
+        i = state.memory.load(state.regs.rbp - 8, 4, endness="Iend_LE")
+        n = state.memory.load(state.regs.rbp - 4, 4, endness="Iend_LE")
+        assert claripy.vsa.max(i) == 126
+        assert claripy.vsa.max(n) == 127
+
 
 if __name__ == "__main__":
     unittest.main()

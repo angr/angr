@@ -223,6 +223,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         page_addr: int | None = None,  # pylint: disable=arguments-differ
         memory=None,
         changed_offsets: set[int] | None = None,
+        is_widening: bool = False,
     ):
         assert page_addr is not None
         all_pages = [self, *others]
@@ -242,7 +243,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             l.debug("... on byte 0x%x", b)
 
             memory_objects: list[tuple[SimMemoryObject, Any]] = []
-            concretes: list[tuple[int, Any]] = []
+            concretes: list[tuple[UltraPage, Any]] = []
             unconstrained_in: list[tuple[UltraPage, Any]] = []
             our_mo: SimMemoryObject | None = None
 
@@ -261,18 +262,42 @@ class UltraPage(MemoryObjectMixin, PageBase):
                         unconstrained_in.append((pg, fv))
                 else:
                     # concrete data
-                    concretes.append((pg._concrete()[b], fv))  # pylint: disable=protected-access
+                    concretes.append((pg, fv))
 
             # fast path: no memory objects, no unconstrained positions, and only one concrete value
-            if not memory_objects and not unconstrained_in and len({cv for cv, _ in concretes}) == 1:
-                cv = concretes[0][0]
+            if (
+                not memory_objects and not unconstrained_in and len({pg._concrete()[b] for pg, _ in concretes}) == 1  # pylint: disable=protected-access
+            ):
+                cv = concretes[0][0]._concrete()[b]  # pylint: disable=protected-access
                 self.store(b, cv, size=1, cooperate=True, page_addr=page_addr, memory=memory)
                 continue
 
-            # convert all concrete values into memory objects
-            for cv, fv in concretes:
-                mo = SimMemoryObject(claripy.BVV(cv, size=8), page_addr + b, "Iend_LE")
+            # convert all concrete values into memory objects. When the symbolic objects all span the same range and
+            # the concrete pages are fully concrete over it, convert the whole range so values merge as one object
+            # instead of byte-by-byte
+            conv_len = 1
+            conv_endness = "Iend_LE"
+            mo_bases = {mo.base for mo, _ in memory_objects}
+            mo_lengths = {mo.length for mo, _ in memory_objects}
+            if len(mo_bases) == 1 and len(mo_lengths) == 1 and next(iter(mo_bases)) == page_addr + b:
+                length = next(iter(mo_lengths))
+                if (
+                    isinstance(length, int)
+                    and length > 1
+                    and b + length <= self.symbolic_bitmap.size
+                    and not any(pg.symbolic_bitmap.any_set(b, b + length) for pg, _ in concretes)
+                ):
+                    conv_len = length
+                    conv_endness = memory_objects[0][0].endness
+            for pg, fv in concretes:
+                raw = bytes(pg._concrete()[b : b + conv_len])  # pylint: disable=protected-access
+                cv = int.from_bytes(raw, "little" if conv_endness == "Iend_LE" else "big")
+                mo = SimMemoryObject(claripy.BVV(cv, size=conv_len * 8), page_addr + b, conv_endness)
                 memory_objects.append((mo, fv))
+            if our_mo is None and concretes and not self.symbolic_bitmap.get(b):
+                # our (concrete) value must come first: _merge_values() treats values[0] as the value being merged into
+                our_idx = len(memory_objects) - len(concretes)
+                memory_objects.insert(0, memory_objects.pop(our_idx))
 
             mos = {mo for mo, _ in memory_objects}
             mo_bases = {mo.base for mo, _ in memory_objects}
@@ -288,7 +313,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 # Update `merged_to`
                 merged_to = b + next(iter(mo_lengths))
 
-                merged_val = self._merge_values(to_merge, memory_objects[0][0].length, memory=memory)
+                merged_val = self._merge_values(
+                    to_merge, memory_objects[0][0].length, memory=memory, is_widening=is_widening
+                )
                 if merged_val is None:
                     continue
 
@@ -298,6 +325,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     self.store(
                         b, new_object, size=next(iter(mo_lengths)), cooperate=True, page_addr=page_addr, memory=memory
                     )
+                    # page-level stores bypass the memory-level name/hash map bookkeeping
+                    for i in range(next(iter(mo_lengths))):
+                        self._update_mappings(page_addr + b + i, None, merged_val, memory=memory)
                     merged_objects.add(new_object)
                 else:
                     # do the replacement
@@ -308,44 +338,82 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 merged_offsets.add(b)
 
             else:
-                # get the size that we can merge easily. This is the minimum of
-                # the size of all memory objects and unallocated spaces.
-                min_size = min(mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects)
-                for um, _ in unconstrained_in:
-                    for i in range(min_size):
-                        if um._contains(b + i, page_addr):  # pylint: disable=protected-access
-                            min_size = i
-                            break
-                merged_to = b + min_size
-                l.debug("... determined minimum size of %d", min_size)
+                # object boundaries disagree: merge over the longest span that every page has data for, so that a
+                # value is kept as one object instead of being fragmented into bytes
+                pages = list(zip(all_pages, merge_conditions))
+                unconstrained_pages = {id(pg) for pg, _ in unconstrained_in}
+                endness = our_mo.endness if our_mo is not None else memory_objects[0][0].endness
+                size = self._merge_span(b, page_addr, pages, memory_objects, unconstrained_pages)
+                merged_to = b + size
+                l.debug("... determined merge size of %d", size)
 
-                # Now, we have the minimum size. We'll extract/create expressions of that
-                # size and merge them
-                extracted = (
-                    [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
-                )
-                created = [
-                    (self._default_value(None, min_size, name=f"merge_uc_{uc.id}_{b:x}", memory=memory), fv)
-                    for uc, fv in unconstrained_in
-                ]
-                to_merge = extracted + created
+                to_merge = []
+                for pg, fv in pages:
+                    if id(pg) in unconstrained_pages:
+                        default = self._default_value(None, size, name=f"merge_uc_{pg.id}_{b:x}", memory=memory)
+                        to_merge.append((default, fv))
+                    else:
+                        to_merge.append((pg._span_value(b, size, page_addr, endness), fv))
 
-                merged_val = self._merge_values(to_merge, min_size, memory=memory)
+                merged_val = self._merge_values(to_merge, size, memory=memory, is_widening=is_widening)
                 if merged_val is None:
                     continue
 
+                for i in range(size):
+                    old_mo = self._get_object(b + i, page_addr) if self.symbolic_bitmap.get(b + i) else None
+                    self._update_mappings(
+                        page_addr + b + i, old_mo.object if old_mo is not None else None, merged_val, memory=memory
+                    )
                 self.store(
                     b,
                     merged_val,
-                    size=len(merged_val) // memory.state.arch.byte_width,
+                    size=size,
+                    endness=endness,
                     inspect=False,
                     page_addr=page_addr,
                     memory=memory,
-                )  # do not convert endianness again
+                )
 
                 merged_offsets.add(b)
 
         return merged_offsets
+
+    def _merge_span(self, b: int, page_addr: int, pages, memory_objects, unconstrained_pages: set[int]) -> int:
+        """
+        Number of bytes starting at b to merge as one value: up to the end of the farthest memory object, cut down to
+        what every page has data for (or, for pages without data at b, to where their data begins).
+        """
+
+        size = max(mo.base + mo.length - (page_addr + b) for mo, _ in memory_objects)
+        size = min(size, self.symbolic_bitmap.size - b)
+        for pg, _ in pages:
+            has_data_at_b = id(pg) not in unconstrained_pages
+            for i in range(size):
+                if pg._contains(b + i, page_addr) != has_data_at_b:  # pylint: disable=protected-access
+                    size = i
+                    break
+        return size
+
+    def _span_value(self, b: int, size: int, page_addr: int, endness: str) -> claripy.ast.BV:
+        """
+        The content of bytes [b, b + size) as a single expression in the given endness.
+        """
+
+        mo = self._get_object(b, page_addr) if self.symbolic_bitmap.get(b) else None
+        if mo is not None and mo.base == page_addr + b and mo.length == size:
+            return mo.bytes_at(page_addr + b, size, endness=endness)
+
+        pieces = []
+        for off in range(b, b + size):
+            if self.symbolic_bitmap.get(off):
+                piece_mo = self._get_object(off, page_addr)
+                assert piece_mo is not None
+                pieces.append(piece_mo.bytes_at(page_addr + off, 1))
+            else:
+                pieces.append(claripy.BVV(self._concrete()[off], 8))
+        if endness == "Iend_LE":
+            pieces.reverse()
+        return claripy.Concat(*pieces)
 
     def concrete_run_length(self, addr, size, **kwargs) -> int:  # pylint: disable=unused-argument
         """
@@ -536,6 +604,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
         for k in list(self.symbolic_data):
             if self.symbolic_data[k] is old:
                 self.symbolic_data[k] = new
+                # record the write so that changed_bytes() sees it (merge/replace_all do not go through store())
+                self._changed_offsets.occupy(k, old.length, "")
 
         if isinstance(new.object, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
             for b in range(old.base, old.base + old.length):
