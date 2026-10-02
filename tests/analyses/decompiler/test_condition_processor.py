@@ -7,7 +7,7 @@ from unittest import TestCase
 
 import archinfo
 
-from angr import ailment
+from angr import ailment, claripy
 from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
@@ -58,6 +58,95 @@ class TestConditionProcessor(TestCase):
             cmp = BinaryOp(0, ail_op, [_vvar(1, 32, 16), _vvar(2, 32, 24)], True, bits=1)
             assert cmp.verbose_op == ail_op + "s"
             assert cp.claripy_ast_from_ail_condition(cmp).op == claripy_op
+
+    def test_narrow_shift_count_is_extended_to_value_width(self):
+        arch = archinfo.ArchAMD64()
+        manager = ailment.Manager()
+        condition_processor = ConditionProcessor(arch, manager)
+
+        for op in ("Shl", "Shr", "Sar"):
+            value_bits, count_bits = 64, 8
+            value = VirtualVariable(0, 1, value_bits, VirtualVariableCategory.REGISTER, oident=0)
+            count = VirtualVariable(1, 2, count_bits, VirtualVariableCategory.REGISTER, oident=8)
+            shift = BinaryOp(2, op, [value, count], op == "Sar", bits=value_bits)
+
+            shift_ast = condition_processor.claripy_ast_from_ail_condition(shift)
+
+            assert isinstance(shift_ast, claripy.ast.BV)
+            assert shift_ast.size() == value_bits
+            converted_shift = condition_processor.convert_claripy_bool_ast(shift_ast)
+            assert isinstance(converted_shift, BinaryOp)
+            assert converted_shift.op == op
+            converted_count = converted_shift.operands[1]
+            assert isinstance(converted_count, Convert)
+            assert converted_count.from_bits == count_bits
+            assert converted_count.to_bits == value_bits
+            assert not converted_count.is_signed
+            assert converted_count.operand.likes(count)
+
+    def test_wide_shift_count_does_not_get_truncated(self):
+        arch = archinfo.ArchAMD64()
+        manager = ailment.Manager()
+        condition_processor = ConditionProcessor(arch, manager)
+
+        for op in ("Shl", "Shr", "Sar"):
+            value_bits, count_bits = 8, 64
+            value = VirtualVariable(0, 1, value_bits, VirtualVariableCategory.REGISTER, oident=0)
+            count = VirtualVariable(1, 2, count_bits, VirtualVariableCategory.REGISTER, oident=8)
+            shift = BinaryOp(2, op, [value, count], op == "Sar", bits=value_bits)
+
+            shift_ast = condition_processor.claripy_ast_from_ail_condition(shift)
+
+            assert isinstance(shift_ast, claripy.ast.BV)
+            assert shift_ast.size() == value_bits
+            converted_result = condition_processor.convert_claripy_bool_ast(shift_ast)
+            assert isinstance(converted_result, Convert)
+            assert converted_result.from_bits == count_bits
+            assert converted_result.to_bits == value_bits
+            assert not converted_result.is_signed
+            converted_shift = converted_result.operand
+            assert isinstance(converted_shift, BinaryOp)
+            assert converted_shift.op == op
+            converted_value, converted_count = converted_shift.operands
+            assert isinstance(converted_value, Convert)
+            assert converted_value.from_bits == value_bits
+            assert converted_value.to_bits == count_bits
+            assert converted_value.is_signed == (op == "Sar")
+            assert converted_value.operand.likes(value)
+            assert converted_count.likes(count)
+
+    def test_wide_shifts_preserve_signedness_in_shared_condition(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+        value = _vvar(1, 8, 0)
+        count = _vvar(2, 64, 8)
+        shifts = [BinaryOp(3, op, [value, count], False, bits=8) for op in ("Shr", "Sar")]
+        asts = [cp.claripy_ast_from_ail_condition(shift) for shift in shifts]
+
+        for op, ast in zip(("Shr", "Sar"), asts):
+            result = cp.convert_claripy_bool_ast(ast)
+            assert isinstance(result, Convert)
+            converted_shift = result.operand
+            assert isinstance(converted_shift, BinaryOp)
+            widened_value = converted_shift.operands[0]
+            assert isinstance(widened_value, Convert)
+            assert widened_value.is_signed == (op == "Sar")
+            assert widened_value.operand.likes(value)
+
+    def test_arithmetic_keeps_truncating_wide_right_operands(self):
+        cp = ConditionProcessor(archinfo.ArchAMD64(), ailment.Manager())
+        value = _vvar(1, 8, 0)
+        right = _vvar(2, 64, 8)
+        for op in ("Add", "Sub", "Mul"):
+            expr = BinaryOp(3, op, [value, right], False, bits=8)
+            result = cp.convert_claripy_bool_ast(cp.claripy_ast_from_ail_condition(expr))
+            assert isinstance(result, BinaryOp)
+            assert result.op == op
+            assert result.operands[0].likes(value)
+            converted_right = result.operands[1]
+            assert isinstance(converted_right, Convert)
+            assert converted_right.from_bits == 64
+            assert converted_right.to_bits == 8
+            assert converted_right.operand.likes(right)
 
 
 if __name__ == "__main__":
