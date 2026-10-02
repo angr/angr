@@ -198,6 +198,7 @@ class SLivenessAnalysis(Analysis):
         graph = networkx.Graph()
         if vvar_ids is not None and not vvar_ids:
             return graph
+        vvar_filter = None if vvar_ids is None else VVarSet(vvar_ids)
 
         # a single collector is reused for every statement (reset before each walk)
         vvar_use_collector = VVarUsesCollector()
@@ -227,7 +228,7 @@ class SLivenessAnalysis(Analysis):
                 vvar_use_collector.walk_statement(stmt)
 
                 for def_vvar in def_vvars:
-                    for live_vvar in self._interfering(def_vvar, live, vvar_ids):
+                    for live_vvar in self._interfering(def_vvar, live, vvar_filter):
                         graph.add_edge(def_vvar, live_vvar)
                     live.discard(def_vvar)
                 live |= vvar_use_collector.vvars
@@ -235,13 +236,13 @@ class SLivenessAnalysis(Analysis):
             if block.addr == self.func_addr:
                 # deal with function arguments
                 for arg_vvar in self.arg_vvars:
-                    for live_vvar in self._interfering(arg_vvar.varid, live, vvar_ids):
+                    for live_vvar in self._interfering(arg_vvar.varid, live, vvar_filter):
                         graph.add_edge(arg_vvar.varid, live_vvar)
 
         return graph
 
     @staticmethod
-    def _interfering(def_vvar: int, live: VVarSet, vvar_ids: set[int] | None) -> VVarSet:
+    def _interfering(def_vvar: int, live: VVarSet, vvar_ids: VVarSet | None) -> VVarSet:
         if vvar_ids is None:
             return live
         return live & vvar_ids if def_vvar in vvar_ids else VVarSet()

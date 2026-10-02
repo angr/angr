@@ -17,6 +17,7 @@ from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ail import is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector
+from angr.utils.vvar_set import VVarSet
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -162,6 +163,41 @@ class TestInterferenceGraphRestriction(unittest.TestCase):
             graph = liveness.interference_graph(vvar_ids=set())
         assert graph.number_of_nodes() == 0
         walk.assert_not_called()
+
+
+class TestInterferenceGraphFilter(unittest.TestCase):
+    """
+    The vvar_ids filter of interference_graph must be converted to a VVarSet once. Intersecting the live VVarSet with
+    a plain set rebuilds the bitmask for every defining statement, which is quadratic on large functions (the Go
+    endpoints.init function took 73 minutes in dephication alone).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "1after909"), auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions["doit"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.ail_graph is not None
+        entry = next(b for b in dec.ail_graph if b.addr == func.addr and b.idx is None)
+        cls.liveness = proj.analyses[SLivenessAnalysis].prep()(
+            func, func_graph=dec.ail_graph, entry=entry, arg_vvars=[]
+        )
+
+    def test_plain_set_filter_is_converted_once(self):
+        full = self.liveness.interference_graph()
+        assert full.number_of_edges() > 0
+        vvar_ids = set(full.nodes())
+
+        orig_to_bits = VVarSet._to_bits  # pylint:disable=protected-access
+        with mock.patch.object(VVarSet, "_to_bits", side_effect=orig_to_bits) as to_bits:
+            filtered = self.liveness.interference_graph(vvar_ids=vvar_ids)
+        conversions = sum(1 for call in to_bits.call_args_list if call.args[0] is vvar_ids)
+        assert conversions == 0, f"the plain-set filter was converted {conversions} times"
+
+        assert set(filtered.edges()) == set(full.edges())
+        assert set(self.liveness.interference_graph(vvar_ids=VVarSet(vvar_ids)).edges()) == set(full.edges())
 
 
 if __name__ == "__main__":
