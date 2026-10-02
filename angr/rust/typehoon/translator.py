@@ -38,21 +38,27 @@ class RustTypeTranslator(TypeTranslator):
     # TypeConstant -> RustSimType (tc2simtype direction)
     # ----------------------------------------------------------------
 
-    def _translate_Pointer64(self, tc):
+    def _translate_Pointer(self, tc):
         if isinstance(tc.basetype, typeconsts.BottomType):
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         else:
             internal = self._tc2simtype(tc.basetype)
         return RustSimTypeReference(internal).with_arch(self.arch)
 
-    def _translate_Pointer32(self, tc):
-        return self._translate_Pointer64(tc)
-
     def _translate_Int8(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=8, signed=False).with_arch(self.arch)
 
     def _translate_Int16(self, tc):  # type: ignore[override]
         return RustSimTypeInt(size=16, signed=False).with_arch(self.arch)
+
+    def _translate_Int24(self, tc):
+        return RustSimTypeInt(size=24, signed=False).with_arch(self.arch)
+
+    def _translate_SInt24(self, tc):
+        return RustSimTypeInt(size=24, signed=True).with_arch(self.arch)
+
+    def _translate_UInt24(self, tc):
+        return RustSimTypeInt(size=24, signed=False).with_arch(self.arch)
 
     def _translate_Int32(self, tc):
         return RustSimTypeInt(size=32, signed=False).with_arch(self.arch)
@@ -187,6 +193,8 @@ class RustTypeTranslator(TypeTranslator):
             return typeconsts.Int8()
         if ty.size == 16:
             return typeconsts.Int16()
+        if ty.size == 24:
+            return typeconsts.Int24()
         if ty.size == 32:
             return typeconsts.Int32()
         if ty.size == 64:
@@ -229,9 +237,7 @@ class RustTypeTranslator(TypeTranslator):
 
     def _translate_RustSimTypeReference(self, ty: RustSimTypeReference):
         base = self._simtype2tc(ty.pts_to)
-        if self.arch.bits == 32:
-            return typeconsts.Pointer32(base)
-        return typeconsts.Pointer64(base)
+        return typeconsts.pointer_type(self.arch.bits)(base)
 
     def _translate_RustSimTypeArray(self, ty: RustSimTypeArray):
         elem_type = self._simtype2tc(ty.elem_type)
@@ -250,13 +256,19 @@ class RustTypeTranslator(TypeTranslator):
         return self.tc2simtype(tc)[0]
 
 
+# pylint:disable=protected-access
 RustTypeConstHandlers = {
-    typeconsts.Pointer64: RustTypeTranslator._translate_Pointer64,
-    typeconsts.Pointer32: RustTypeTranslator._translate_Pointer32,
+    typeconsts.Pointer64: RustTypeTranslator._translate_Pointer,
+    typeconsts.Pointer32: RustTypeTranslator._translate_Pointer,
+    typeconsts.Pointer24: RustTypeTranslator._translate_Pointer,
+    typeconsts.Pointer16: RustTypeTranslator._translate_Pointer,
     typeconsts.Array: RustTypeTranslator._translate_Array,
     typeconsts.Struct: RustTypeTranslator._translate_Struct,
     typeconsts.Int8: RustTypeTranslator._translate_Int8,
     typeconsts.Int16: RustTypeTranslator._translate_Int16,
+    typeconsts.Int24: RustTypeTranslator._translate_Int24,
+    typeconsts.SInt24: RustTypeTranslator._translate_SInt24,
+    typeconsts.UInt24: RustTypeTranslator._translate_UInt24,
     typeconsts.Int32: RustTypeTranslator._translate_Int32,
     typeconsts.Int64: RustTypeTranslator._translate_Int64,
     typeconsts.Int128: RustTypeTranslator._translate_Int128,
@@ -264,6 +276,7 @@ RustTypeConstHandlers = {
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
     typeconsts.RustEnum: RustTypeTranslator._translate_RustEnum,
 }
+# pylint:enable=protected-access
 
 
 RustSimTypeHandlers = {
