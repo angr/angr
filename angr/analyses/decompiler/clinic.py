@@ -3321,8 +3321,10 @@ class Clinic(Analysis, Serializable):
                         # Create a new global variable if there isn't one already
                         global_vars = global_variables.get_global_variables(symbol.rebased_addr)
                         if not global_vars:
-                            global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
-                            global_var.renamed = True
+                            global_var = SimMemoryVariable(
+                                symbol.rebased_addr, symbol.size, name=symbol.name or f"g_{symbol.rebased_addr:x}"
+                            )
+                            global_var.renamed = bool(symbol.name)
                             global_variables.add_variable("global", global_var.addr, global_var)
                             global_vars = {global_var}
                 if global_vars:
