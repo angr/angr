@@ -11,6 +11,7 @@ import pyvex
 
 import angr
 from angr.block import Block
+from angr.engines.pcode.lifter import IRSB_MAX_SIZE
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
@@ -102,6 +103,71 @@ class TestPcodeEngine(TestCase):
 
         assert simgr.active[0].regs.t6.concrete
         assert simgr.active[0].regs.t6.concrete_value == 1
+
+    def test_block_stops_at_the_last_fully_mapped_instruction(self):
+        """
+        Test that a block does not run past the end of the image.
+        """
+        # 0xe8 opens a five-byte "call rel32", so the last byte of this image starts an instruction whose
+        # remaining four bytes are not mapped at all. Sleigh reads ahead at every instruction boundary and
+        # pypcode zero-fills whatever part of that read the buffer cannot satisfy, so the call decodes from
+        # bytes that are not in memory.
+        code = b"\x90\x90\xe8"
+        base_address = 0x400000
+
+        arch = archinfo.ArchPcode("x86:LE:64:default")
+        p = angr.load_shellcode(code, arch=arch, load_address=base_address, engine=angr.engines.UberEnginePcode)
+        assert p.loader.main_object.max_addr == base_address + len(code) - 1
+
+        block = p.factory.block(base_address)
+        assert block.size == 2
+        assert block.bytes == b"\x90\x90"
+        assert list(block.instruction_addrs) == [base_address, base_address + 1]
+        assert [insn.mnemonic for insn in block.disassembly.insns] == ["NOP", "NOP"]
+
+        # There are not enough bytes for the instruction the block stopped in front of, so no block starts
+        # there either.
+        truncated = p.factory.block(base_address + 2)
+        assert truncated.size == 0
+        assert truncated.vex.jumpkind == "Ijk_NoDecode"
+
+    def test_block_stops_in_front_of_an_instruction_spanning_the_byte_cap(self):
+        """
+        Test that a block ends before an instruction that runs past the lifter's byte cap.
+        """
+        # The same zero-fill applies to a fully mapped image, because the lifter hands Sleigh at most
+        # IRSB_MAX_SIZE bytes at a time. This "call rel32" starts two bytes before that cap, so three of its
+        # five bytes are outside the buffer and decoding it there yields the wrong target.
+        call = b"\xe8\x11\x22\x33\x44"
+        base_address = 0x400000
+        arch = archinfo.ArchPcode("x86:LE:64:default")
+
+        p = angr.load_shellcode(
+            b"\x90" * (IRSB_MAX_SIZE - 2) + call + b"\xc3" * 16,
+            arch=arch,
+            load_address=base_address,
+            engine=angr.engines.UberEnginePcode,
+        )
+        block = p.factory.block(base_address)
+        assert block.size == IRSB_MAX_SIZE - 2
+        assert block.vex.jumpkind == "Ijk_Boring"
+
+        call_address = base_address + block.size
+        call_block = p.factory.block(call_address)
+        assert call_block.size == len(call)
+        assert call_block.vex.jumpkind == "Ijk_Call"
+        next_expr = call_block.vex.next
+        assert isinstance(next_expr, pyvex.expr.Const)
+        assert next_expr.con.value == call_address + len(call) + 0x44332211
+
+        # An instruction that ends exactly on the cap is still one the lifter was given.
+        aligned = angr.load_shellcode(
+            b"\x90" * IRSB_MAX_SIZE + b"\xc3" * 16,
+            arch=arch,
+            load_address=base_address,
+            engine=angr.engines.UberEnginePcode,
+        )
+        assert aligned.factory.block(base_address).size == IRSB_MAX_SIZE
 
     def test_callless_function_graph_consistency(self):
         binary_path = os.path.join(test_location, "x86_64", "fauxware")
