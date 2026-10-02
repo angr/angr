@@ -4,6 +4,7 @@ import contextlib
 import enum
 import functools
 import logging
+import struct
 from collections import OrderedDict, defaultdict
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal, cast
@@ -1792,6 +1793,41 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return None
 
+    def _load_jumptable_entries(
+        self, cfg, table_base: int, stride: int, load_size: int, count: int
+    ) -> list[int] | None:
+        """
+        Read `count` table entries of `load_size` bytes spaced `stride` bytes apart, or None if any entry is not
+        mapped. When the whole table lies in one memory backer, which is what unpack_word() would consult for every
+        entry, the entries are unpacked from that backer directly instead of resolving the backer per entry.
+        """
+        memory = self.project.loader.memory
+        if count > 0 and load_size <= 8:
+            try:
+                backer_start, backer = next(memory.backers(table_base))
+            except StopIteration:
+                backer_start, backer = None, None
+            if (
+                backer_start is not None
+                and not isinstance(backer, list)
+                and backer_start <= table_base
+                and table_base + (count - 1) * stride + load_size <= backer_start + len(backer)
+            ):
+                fmt = memory._arch.struct_fmt(size=load_size, signed=False, endness=None)
+                unpack_from = struct.Struct(fmt).unpack_from
+                offset = table_base - backer_start
+                return [unpack_from(backer, offset + i * stride)[0] for i in range(count)]
+
+        entries = []
+        for i in range(count):
+            a = table_base + i * stride
+            target = cfg._fast_memory_load_pointer(a, size=load_size)
+            if target is None:
+                l.debug("Cannot load pointer from address %#x. Skip.", a)
+                return None
+            entries.append(target)
+        return entries
+
     def _is_jumptable_base_plausible(self, table_base: int) -> bool:
         """
         A jump table lives in mapped, read-only memory. Loads whose address is not a constant base plus an index
@@ -2181,20 +2217,11 @@ class JumpTableResolver(IndirectJumpResolver):
             return None
 
         # Load the jump table from memory
-        should_skip = False
-        for idx, a in enumerate(range(min_jumptable_addr, max_jumptable_addr + 1, stride)):
-            if idx % 100 == 0 and idx != 0:
-                l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
-            if idx >= total_cases:
-                break
-            target = cfg._fast_memory_load_pointer(a, size=load_size)
-            if target is None:
-                l.debug("Cannot load pointer from address %#x. Skip.", a)
-                should_skip = True
-                break
-            all_targets.append(target)
-        if should_skip:
+        entry_count = min(total_cases, len(range(min_jumptable_addr, max_jumptable_addr + 1, stride)))
+        loaded = self._load_jumptable_entries(cfg, min_jumptable_addr, stride, load_size, entry_count)
+        if loaded is None:
             return None
+        all_targets = loaded
 
         # Adjust entries inside the jump table
         transformation_list = list(reversed([v for v in transformations.values() if not v.first_load]))
