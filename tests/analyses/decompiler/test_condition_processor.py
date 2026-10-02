@@ -7,8 +7,17 @@ from unittest import TestCase
 
 import archinfo
 
-from angr import ailment
-from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Load, VirtualVariable, VirtualVariableCategory
+from angr import ailment, claripy
+from angr.ailment.expression import (
+    BinaryOp,
+    Const,
+    Convert,
+    Extract,
+    Load,
+    StackBaseOffset,
+    VirtualVariable,
+    VirtualVariableCategory,
+)
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
 
@@ -58,6 +67,19 @@ class TestConditionProcessor(TestCase):
             cmp = BinaryOp(0, ail_op, [_vvar(1, 32, 16), _vvar(2, 32, 24)], True, bits=1)
             assert cmp.verbose_op == ail_op + "s"
             assert cp.claripy_ast_from_ail_condition(cmp).op == claripy_op
+
+    def test_stack_base_offset_operand_is_abstracted_instead_of_raising(self):
+        # A comparison against a raw stack address -- (sp+0 == 0) in a 32-bit ARM ELF of a
+        # corpus sweep -- reached the op-handler lookup, which reads .verbose_op. A
+        # StackBaseOffset has no operation, so the lookup raised AttributeError instead of
+        # falling through to the catch-all, and the whole function decompiled to nothing.
+        arch = archinfo.ArchARMEL()
+        cp = ConditionProcessor(arch, ailment.Manager())
+        cmp = BinaryOp(0, "CmpEQ", [StackBaseOffset(1, 32, 0), Const(2, 0, 32)], False, bits=1)
+        assert cp.claripy_ast_from_ail_condition(cmp) is not None
+        operand = cp.claripy_ast_from_ail_condition(StackBaseOffset(3, 32, -8))
+        assert isinstance(operand, claripy.ast.BV)
+        assert operand.size() == 32
 
 
 if __name__ == "__main__":
