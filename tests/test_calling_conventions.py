@@ -14,6 +14,8 @@ from angr import Project, calling_conventions, load_shellcode, types
 from angr.calling_conventions import (
     SimArrayArg,
     SimCC,
+    SimCCARM,
+    SimCCARMHF,
     SimCCARMLinuxSyscall,
     SimCCCdecl,
     SimCCMicrosoftAMD64,
@@ -61,6 +63,19 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestCallingConvention(TestCase):
+    def test_arm_empty_struct_argument_uses_an_integer_slot(self):
+        for arch, cc_cls in ((archinfo.ArchARM(), SimCCARM), (archinfo.ArchARMHF(), SimCCARMHF)):
+            cc = cc_cls(arch)
+            empty = SimStruct({}, name="empty").with_arch(arch)
+
+            assert empty.size == 0
+
+            proto = SimTypeFunction([empty, SimTypeInt()], SimTypeInt()).with_arch(arch)
+            empty_loc, int_loc = cc.arg_locs(proto)
+            assert isinstance(empty_loc, SimStructArg)
+            assert not empty_loc.get_footprint()
+            assert int_loc == SimRegArg("r1", 4)
+
     def test_opaque_cpp_class_returns_are_placed_like_integers(self):
         for arch, cc_cls, return_reg in (
             (archinfo.ArchPcode("pa-risc:BE:32:default"), SimCCPARISC, "r28"),
