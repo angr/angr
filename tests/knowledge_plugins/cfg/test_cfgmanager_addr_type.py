@@ -1,11 +1,13 @@
 # pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+import pickle
 from unittest import TestCase, main
 
 from angr.knowledge_plugins.cfg.block_id import BlockID
 from angr.knowledge_plugins.cfg.cfg_manager import CFGManager
-from angr.knowledge_plugins.cfg.spilling_digraph import DirtyDict, SpillingAdjDict
+from angr.knowledge_plugins.cfg.cfg_node import CFGENode
+from angr.knowledge_plugins.cfg.spilling_cfg import _ObjKeys
 
 
 class TestCFGManagerNewCFGModelAddrType(TestCase):
@@ -27,27 +29,23 @@ class TestCFGManagerNewCFGModelAddrType(TestCase):
         assert model2.addr_type == "block_id"
 
     def test_graph_addr_type_matches_model(self):
-        """The SpillingCFG and underlying SpillingDiGraph should inherit addr_type from the model."""
+        """The SpillingCFG and its key table should inherit addr_type from the model."""
         manager = CFGManager(None)  # type: ignore
         model = manager.new_model("CFGEmulated", addr_type="block_id")
         assert model.graph.addr_type == "block_id"
-        assert model.graph._graph.addr_type == "block_id"
+        assert isinstance(model.graph._keys, _ObjKeys)
 
-    @staticmethod
-    def _make_block_id_key(addr):
-        bid = BlockID(addr, callsite_tuples=None, jump_type="normal")
-        return bid, 0x10, 0
-
-    def test_serialize_with_correct_addr_type(self):
-        """Serialization works when addr_type='block_id' matches the key type."""
-        adj = SpillingAdjDict(addr_type="block_id")
-        inner = DirtyDict(dirty=True)
-        dst_key = self._make_block_id_key(0x401000)
-        inner[dst_key] = {"jumpkind": "Ijk_Boring", "ins_addr": 0x400FFC, "stmt_idx": 0}
-
-        data = adj._serialize_inner_dict(inner)
-        assert isinstance(data, bytes)
-        assert len(data) > 0
+    def test_block_id_keys_round_trip(self):
+        """Edges between BlockID-keyed nodes survive a pickle round trip."""
+        manager = CFGManager(None)  # type: ignore
+        model = manager.new_model("CFGEmulated", addr_type="block_id")
+        src = CFGENode(0x400FF0, 0x10, model, block_id=BlockID(0x400FF0, None, "normal"))
+        dst = CFGENode(0x401000, 0x10, model, block_id=BlockID(0x401000, None, "normal"))
+        model.graph.add_edge(src, dst, jumpkind="Ijk_Boring", ins_addr=0x400FFC, stmt_idx=0)
+        restored = pickle.loads(pickle.dumps(model))
+        assert [(s.addr, d.addr, data) for s, d, data in restored.graph.edges(data=True)] == [
+            (0x400FF0, 0x401000, {"jumpkind": "Ijk_Boring", "ins_addr": 0x400FFC, "stmt_idx": 0})
+        ]
 
 
 if __name__ == "__main__":
