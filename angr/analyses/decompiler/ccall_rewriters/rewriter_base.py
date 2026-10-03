@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from angr import ailment
+from angr.sim_type import SimTypeDouble, SimTypeFunction, SimTypeInt
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -41,6 +42,28 @@ class CCallRewriterBase:
             if isinstance(callee, str):
                 return callee
         return ccall.callee
+
+    def _rewrite_fxam(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Expression | None:
+        """
+        ``calculate_FXAM(tag, dbl)`` -> ``__fxam(value)``: the x87 tag is dropped (registers are assumed valid) and the
+        I64 operand is viewed as the double it carries.
+        """
+        if len(ccall.operands) != 2:
+            return None
+        value = ccall.operands[1]
+        if isinstance(value, ailment.Expr.Reinterpret) and value.from_type == "F" and value.to_type == "I":
+            value = value.operand
+        else:
+            value = ailment.Expr.Reinterpret(self.ail_manager.next_atom(), 64, "I", 64, "F", value, **ccall.tags)
+        return ailment.Expr.Call(
+            ccall.idx,
+            "__fxam",
+            calling_convention=None,
+            prototype=SimTypeFunction([SimTypeDouble()], SimTypeInt(signed=False)).with_arch(self.project.arch),
+            args=(value,),
+            bits=ccall.bits,
+            **ccall.tags,
+        )
 
     def _rewrite(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Expression | None:
         raise NotImplementedError

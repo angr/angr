@@ -1125,3 +1125,48 @@ def _assert_no_x87_leaks(text: str) -> None:
 class TestX87CallDelta:
     """IRegisterResolver must resolve every x87 stack access to a concrete st(i) regardless of how the callees
     affect the stack."""
+
+    def test_callee_pushes_despite_int_prototype(self):
+        # ret_double writes eax, so its prototype returns int; the push must come from the callee's own code
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_merge")
+        _assert_no_x87_leaks(text)
+        assert "ret_double(" in text
+
+    def test_callee_pops_argument(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop")
+        _assert_no_x87_leaks(text)
+        assert "1.0" in text
+
+    def test_extern_callee_inferred_from_caller(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_extern")
+        _assert_no_x87_leaks(text)
+        assert "ext_fn(" in text
+
+    def test_unbalanced_paths_fall_back(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_unbalanced")
+        _assert_no_x87_leaks(text)
+
+    def test_fistp_saturation_keeps_fptag_ite(self):
+        # the fptag check is the first ITE of fistp; the saturation ITE after it must not turn it into a branch
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fistp_word")
+        _assert_no_x87_leaks(text)
+        assert "(short)" in text
+        assert "if (" not in text
+
+    def test_fisttp_before_shift_diamond(self):
+        # the shift-by-cl ITE becomes a diamond; the fisttp store ahead of it in the same block must survive
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fisttp_then_shl")
+        _assert_no_x87_leaks(text)
+        assert "= (long long)" in text
+
+    def test_long_double_load_from_ccall_address(self):
+        # loadF80le into a 64-bit tmp whose address is a segment-selector ccall (the tmp is not propagated)
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fld_f80_seg")
+        _check_no_x87_artifacts(text)
+        assert "long double" in text
+
+    def test_fxam_intrinsic(self):
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "fxam_fn")
+        _assert_no_x87_leaks(text)
+        assert "__fxam(" in text
+        assert "_ccall" not in text

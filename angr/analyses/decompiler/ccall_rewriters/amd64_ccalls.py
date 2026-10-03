@@ -21,6 +21,8 @@ class AMD64CCallRewriter(CCallRewriterBase):
     __slots__ = ()
 
     def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
+        if ccall.callee == "amd64g_calculate_FXAM":
+            return self._rewrite_fxam(ccall)
         if ccall.callee == "amd64g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
