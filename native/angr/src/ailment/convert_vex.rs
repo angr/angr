@@ -141,6 +141,9 @@ enum ExprKind<E> {
         args: Vec<E>,
         bits: u32,
     },
+    /// IRExpr_GSPTR: the guest-state pointer passed to dirty helpers. It has no
+    /// program semantics, so dirty-call conversion drops it from the operands.
+    GsPtr,
     /// Anything unsupported -> DirtyExpression(label, bits).
     Unsupported {
         label: String,
@@ -421,6 +424,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 let r = self.convert_triop(&op, &args, bits);
                 self.finish_op(r, op.label(), bits)
             }
+            // Only reachable outside a dirty call's argument list (never emitted by libVEX).
+            ExprKind::GsPtr => self.unsupported_expr("GSPTR".to_string(), 0),
             ExprKind::Unsupported { label, bits } => self.unsupported_expr(label, bits),
         }
     }
@@ -1483,7 +1488,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 tmp,
                 tmp_bits,
             } => {
-                let ops = self.convert_list(&args)?;
+                let mut ops = Vec::with_capacity(args.len());
+                for a in &args {
+                    if matches!(self.reader.expr_kind(self.py, a)?, ExprKind::GsPtr) {
+                        continue;
+                    }
+                    ops.push(self.convert_expr(a)?);
+                }
                 let g = match guard {
                     Some(e) => Some(self.convert_expr(&e)?),
                     None => None,
@@ -2388,8 +2399,9 @@ impl IrReader for CReader {
                         n_elems: descr.n_elems as i64,
                     }
                 }
+                IEX_GSPTR => ExprKind::GsPtr,
                 _ => {
-                    // Qop / VECRET / GSPTR / Binder: the Python converter
+                    // Qop / VECRET / Binder: the Python converter
                     // labels these with ``str(type(expr))``, which we can't
                     // reproduce here. Error out so the caller falls back to the
                     // Python-IRSB path.
@@ -2976,6 +2988,7 @@ impl<'py> IrReader for PyReader<'py> {
                     bits: self.result_size(expr),
                 }
             }
+            "GSPTR" => ExprKind::GsPtr,
             _ => {
                 // Match the original converter's label: f"unsupported_{type(expr)!s}".
                 // `unsupported_expr` prepends "unsupported_", so pass str(type(expr)).
