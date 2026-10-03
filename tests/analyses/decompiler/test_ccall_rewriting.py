@@ -194,6 +194,48 @@ class TestAMD64CondOverflowRewriting(unittest.TestCase):
         inner = _unwrap_convert(_rewrite_amd64_cond(AMD64_CondTypes["CondNO"], AMD64_OpTypes["G_CC_OP_COPY"]))
         assert isinstance(inner, Expr.BinaryOp) and inner.op == "CmpEQ"
 
+    def test_copy_b_be_mask_cf_zf_bits(self):
+        # jb / jbe / ja on flags copied from an earlier ucomisd
+        cf = AMD64_CondBitMasks["G_CC_MASK_C"]
+        zf = AMD64_CondBitMasks["G_CC_MASK_Z"]
+        assert isinstance(cf, int) and isinstance(zf, int)
+        for cond, op, mask in (
+            ("CondB", "CmpNE", cf),
+            ("CondNB", "CmpEQ", cf),
+            ("CondBE", "CmpNE", cf | zf),
+            ("CondNBE", "CmpEQ", cf | zf),
+        ):
+            inner = _unwrap_convert(_rewrite_amd64_cond(AMD64_CondTypes[cond], AMD64_OpTypes["G_CC_OP_COPY"]))
+            assert isinstance(inner, Expr.BinaryOp) and inner.op == op, cond
+            masked = inner.operands[0]
+            assert isinstance(masked, Expr.BinaryOp) and masked.op == "And"
+            assert masked.operands[1].value_int == mask
+            assert inner.operands[1].value_int == 0
+
+    def test_x86_copy_flag_tests(self):
+        from angr.analyses.decompiler.ccall_rewriters.x86_ccalls import X86CCallRewriter
+
+        cond_types = cast("dict[str, int]", data["X86"]["CondTypes"])
+        op_types = cast("dict[str, int]", data["X86"]["OpTypes"])
+        masks = data["X86"]["CondBitMasks"]
+        proj = angr.load_shellcode(b"\x90", arch="X86")
+        for cond, op, mask_name in (("CondP", "CmpNE", "G_CC_MASK_P"), ("CondNZ", "CmpEQ", "G_CC_MASK_Z")):
+            ccall = Expr.VEXCCallExpression(
+                idx=0,
+                callee="x86g_calculate_condition",
+                operands=(
+                    Expr.Const(0, cond_types[cond], 32),
+                    Expr.Const(0, op_types["G_CC_OP_COPY"], 32),
+                    Expr.Register(1, 8, 32),
+                    Expr.Const(0, 0, 32),
+                    Expr.Const(0, 0, 32),
+                ),
+                bits=32,
+            )
+            inner = _unwrap_convert(X86CCallRewriter(ccall, proj, Manager()).result)
+            assert isinstance(inner, Expr.BinaryOp) and inner.op == op, cond
+            assert inner.operands[0].operands[1].value_int == masks[mask_name]
+
     # ---- guards ----
 
     def test_symbolic_cond_returns_none(self):

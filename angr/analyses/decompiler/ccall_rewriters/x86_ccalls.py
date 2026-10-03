@@ -14,6 +14,29 @@ X86_OpTypes = data["X86"]["OpTypes"]
 X86_CondBitMasks = data["X86"]["CondBitMasks"]
 X86_CondBitOffsets = data["X86"]["CondBitOffsets"]
 
+# conditions on flags stored verbatim (G_CC_OP_COPY), e.g. a jcc in a later block than its ucomisd/comisd:
+# the flag mask tested and whether the condition holds when a masked flag is set
+_COPY_FLAG_TESTS = {
+    X86_CondTypes["CondZ"]: ("G_CC_MASK_Z", True),
+    X86_CondTypes["CondNZ"]: ("G_CC_MASK_Z", False),
+    X86_CondTypes["CondP"]: ("G_CC_MASK_P", True),
+    X86_CondTypes["CondNP"]: ("G_CC_MASK_P", False),
+    X86_CondTypes["CondB"]: ("G_CC_MASK_C", True),
+    X86_CondTypes["CondNB"]: ("G_CC_MASK_C", False),
+    X86_CondTypes["CondBE"]: ("G_CC_MASK_C|G_CC_MASK_Z", True),
+    X86_CondTypes["CondNBE"]: ("G_CC_MASK_C|G_CC_MASK_Z", False),
+}
+
+
+def _flag_mask(masks, names: str) -> int:
+    mask = 0
+    for name in names.split("|"):
+        bit = masks[name]
+        assert isinstance(bit, int)
+        mask |= bit
+    return mask
+
+
 X86_Win32_TIB_Funcs = {
     0x18: "NtGetCurrentTeb",
     0x30: "NtGetCurrentPeb",
@@ -57,6 +80,9 @@ class X86CCallRewriter(CCallRewriterBase):
                 fp_cond = self._rewrite_fp_condition(ccall, cond_v, op_v, dep_1, dep_2, ndep)
                 if fp_cond is not None:
                     return fp_cond
+                if op_v == X86_OpTypes["G_CC_OP_COPY"] and cond_v in _COPY_FLAG_TESTS:
+                    mask_names, flag_set = _COPY_FLAG_TESTS[cond_v]
+                    return self._copied_flag_test(ccall, dep_1, _flag_mask(X86_CondBitMasks, mask_names), flag_set)
                 if cond_v == X86_CondTypes["CondLE"]:
                     if op_v in {
                         X86_OpTypes["G_CC_OP_SUBB"],

@@ -67,3 +67,19 @@ class CCallRewriterBase:
 
     def _rewrite(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Expression | None:
         raise NotImplementedError
+
+    def _copied_flag_test(
+        self, ccall: ailment.Expr.VEXCCallExpression, flags: ailment.Expr.Expression, mask: int, flag_set: bool
+    ) -> ailment.Expr.Expression:
+        """A condition on flags stored verbatim (G_CC_OP_COPY): (flags & mask) != 0, or == 0 when the flags of
+        *mask* must be clear."""
+        masked = ailment.Expr.BinaryOp(
+            self.ail_manager.next_atom(),
+            "And",
+            [flags, ailment.Expr.Const(self.ail_manager.next_atom(), mask, flags.bits)],
+            False,
+            **ccall.tags,
+        )
+        zero = ailment.Expr.Const(self.ail_manager.next_atom(), 0, flags.bits)
+        r = ailment.Expr.BinaryOp(ccall.idx, "CmpNE" if flag_set else "CmpEQ", (masked, zero), False, **ccall.tags)
+        return ailment.Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)

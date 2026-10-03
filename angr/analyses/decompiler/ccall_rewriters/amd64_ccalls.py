@@ -12,6 +12,28 @@ AMD64_OpTypes = data["AMD64"]["OpTypes"]
 AMD64_CondBitMasks = data["AMD64"]["CondBitMasks"]
 AMD64_CondBitOffsets = data["AMD64"]["CondBitOffsets"]
 
+# conditions on flags stored verbatim (G_CC_OP_COPY), e.g. a jcc in a later block than its ucomisd/comisd:
+# the flag mask tested and whether the condition holds when a masked flag is set
+_COPY_FLAG_TESTS = {
+    AMD64_CondTypes["CondZ"]: ("G_CC_MASK_Z", True),
+    AMD64_CondTypes["CondNZ"]: ("G_CC_MASK_Z", False),
+    AMD64_CondTypes["CondP"]: ("G_CC_MASK_P", True),
+    AMD64_CondTypes["CondNP"]: ("G_CC_MASK_P", False),
+    AMD64_CondTypes["CondB"]: ("G_CC_MASK_C", True),
+    AMD64_CondTypes["CondNB"]: ("G_CC_MASK_C", False),
+    AMD64_CondTypes["CondBE"]: ("G_CC_MASK_C|G_CC_MASK_Z", True),
+    AMD64_CondTypes["CondNBE"]: ("G_CC_MASK_C|G_CC_MASK_Z", False),
+}
+
+
+def _flag_mask(masks, names: str) -> int:
+    mask = 0
+    for name in names.split("|"):
+        bit = masks[name]
+        assert isinstance(bit, int)
+        mask |= bit
+    return mask
+
 
 class AMD64CCallRewriter(CCallRewriterBase):
     """
@@ -31,6 +53,9 @@ class AMD64CCallRewriter(CCallRewriterBase):
             if isinstance(cond, Expr.Const) and isinstance(op, Expr.Const):
                 cond_v = cond.value_int
                 op_v = op.value_int
+                if op_v == AMD64_OpTypes["G_CC_OP_COPY"] and cond_v in _COPY_FLAG_TESTS:
+                    mask_names, flag_set = _COPY_FLAG_TESTS[cond_v]
+                    return self._copied_flag_test(ccall, dep_1, _flag_mask(AMD64_CondBitMasks, mask_names), flag_set)
                 if cond_v == AMD64_CondTypes["CondLE"]:
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_SUBB"],
@@ -237,21 +262,6 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
-                    if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
-                        # dep_1 & G_CC_MASK_Z == 0 or dep_1 & G_CC_MASK_Z != 0
-
-                        bitmask = AMD64_CondBitMasks["G_CC_MASK_Z"]
-                        assert isinstance(bitmask, int)
-                        flag = Expr.Const(self.ail_manager.next_atom(), bitmask, dep_1.bits)
-                        masked_dep = Expr.BinaryOp(
-                            self.ail_manager.next_atom(), "And", [dep_1, flag], False, **ccall.tags
-                        )
-                        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
-                        # dep_1 holds the old flags: ZF is *set* iff the masked bit is non-zero
-                        expr_op = "CmpNE" if cond_v == AMD64_CondTypes["CondZ"] else "CmpEQ"
-
-                        r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
-                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v in {
                         AMD64_OpTypes["G_CC_OP_DECB"],
                         AMD64_OpTypes["G_CC_OP_DECW"],
@@ -271,20 +281,6 @@ class AMD64CCallRewriter(CCallRewriterBase):
 
                         zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
                         r = Expr.BinaryOp(ccall.idx, expr_op, (dep_1, zero), False, **ccall.tags)
-                        return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
-                elif cond_v in {AMD64_CondTypes["CondP"], AMD64_CondTypes["CondNP"]}:
-                    if op_v == AMD64_OpTypes["G_CC_OP_COPY"]:
-                        # dep_1 & G_CC_MASK_P != 0 (CondP) or dep_1 & G_CC_MASK_P == 0 (CondNP)
-                        bitmask = AMD64_CondBitMasks["G_CC_MASK_P"]
-                        assert isinstance(bitmask, int)
-                        flag = Expr.Const(self.ail_manager.next_atom(), bitmask, dep_1.bits)
-                        masked_dep = Expr.BinaryOp(
-                            self.ail_manager.next_atom(), "And", [dep_1, flag], False, **ccall.tags
-                        )
-                        zero = Expr.Const(self.ail_manager.next_atom(), 0, dep_1.bits)
-                        expr_op = "CmpEQ" if cond_v == AMD64_CondTypes["CondNP"] else "CmpNE"
-
-                        r = Expr.BinaryOp(ccall.idx, expr_op, (masked_dep, zero), False, **ccall.tags)
                         return Expr.Convert(self.ail_manager.next_atom(), r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondL"]:
                     if op_v in {
