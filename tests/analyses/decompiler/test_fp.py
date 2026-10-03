@@ -211,7 +211,9 @@ class TestFPDecompilation:
         sig = _sig(text)
         _check_sig(sig, "double", "double")
         assert "*" in text and "+" in text
-        assert "3.0" in text and "2.0" in text and "1.0" in text
+        # gcc folds 2.0 * x into x + x (fadd %st(0),%st / addsd %xmm0,%xmm0): no 2.0 constant exists in the binary
+        assert "3.0" in text and "1.0" in text
+        assert "2.0" in text or re.search(r"(\w+) \+ \1\b", text)
 
     def test_sum_array_f64(self, bin_name):
         text = _env(bin_name).get_text("sum_array_f64")
@@ -590,10 +592,11 @@ class TestFPDecompilation:
     def test_polynomial_f80(self, bin_name):
         text = _env(bin_name).get_text("polynomial_f80")
         sig = _sig(text)
-        if "long double" not in sig:
-            pytest.xfail("polynomial_f80: return type is double instead of long double")
+        _check_sig(sig, "long double", "long double")
         assert "*" in text and "+" in text
-        assert "3.0" in text and "2.0" in text and "1.0" in text
+        assert "3.0" in text and "1.0" in text
+        assert "2.0" in text or re.search(r"(\w+) \+ \1\b", text)
+        assert "(long long)" not in text
         if bin_name not in I386_BINS:
             _check_no_x87_artifacts(text)
 
