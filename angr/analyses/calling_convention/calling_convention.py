@@ -1233,15 +1233,25 @@ class CallingConventionAnalysis(Analysis):
             )
             # Collect 8-byte FP load offsets.  Ity_F64 (fldl) always qualifies.
             # Ity_I64 loads also qualify when the block has FP conversions
-            # (e.g. fisttp loads the double as I64 then converts via F64toI32S).
+            # (e.g. fisttp loads the double as I64 then converts via F64toI32S),
+            # unless the loaded value is itself converted from an integer (fild).
             f64_types = {"Ity_F64"}
             if has_fp_conv:
                 f64_types.add("Ity_I64")
+            int_to_fp_tmps = {
+                s.data.args[1].tmp
+                for s in vex.statements
+                if isinstance(s, pyvex.IRStmt.WrTmp)
+                and isinstance(s.data, pyvex.IRExpr.Binop)
+                and s.data.op in ("Iop_I64StoF64", "Iop_I64UtoF64")
+                and isinstance(s.data.args[1], pyvex.IRExpr.RdTmp)
+            }
             for s in vex.statements:
                 if (
                     isinstance(s, pyvex.IRStmt.WrTmp)
                     and isinstance(s.data, pyvex.IRExpr.Load)
                     and vex.tyenv.types[s.tmp] in f64_types
+                    and s.tmp not in int_to_fp_tmps
                 ):
                     local_off = self._resolve_bp_offset(s.data.addr, tmps)
                     if local_off is not None and local_off < 0:
