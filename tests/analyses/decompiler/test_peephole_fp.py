@@ -13,6 +13,7 @@ import unittest
 
 import angr
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Const,
     Convert,
@@ -207,6 +208,51 @@ class TestSSEScalarLowering(unittest.TestCase):
         extract = Extract(5, 64, add, zero, "Iend_LE")
         result = self._opt(extract)
         assert result is None
+
+
+# ======================================================================
+# sse_bitwise_select: SSE bitwise select -> ITE
+# ======================================================================
+
+
+class TestSSEBitwiseSelect(unittest.TestCase):
+    """Test SSE bitwise select recognition and ITE narrowing."""
+
+    def _opt(self, expr):
+        from angr.analyses.decompiler.peephole_optimizations.sse_bitwise_select import SSEBitwiseSelect
+
+        opt = _make_peephole(SSEBitwiseSelect)
+        return opt.optimize(expr)
+
+    def test_select_branch_order(self):
+        """(~mask & A) | (B & mask) with mask = CmpLTV(0, x) -> ITE(0 < x, B, A)."""
+        x = Const(1, 42, 64)
+        zero = Const(2, 0, 64)
+        a = Const(3, 10, 64)
+        b = Const(4, 20, 64)
+        mask = BinaryOp(5, "CmpLTV", [zero, x], False, floating_point=True, bits=64)
+        not_mask = UnaryOp(6, "BitwiseNeg", mask, bits=64)
+        arm_a = BinaryOp(7, "And", [not_mask, a], False, bits=64)
+        arm_b = BinaryOp(8, "And", [b, mask], False, bits=64)
+        expr = BinaryOp(9, "Or", [arm_a, arm_b], False, bits=64)
+        result = self._opt(expr)
+        assert isinstance(result, ITE)
+        assert isinstance(result.cond, BinaryOp) and result.cond.op == "CmpLT"
+        assert result.iftrue == b
+        assert result.iffalse == a
+
+    def test_extract_ite_narrowing_keeps_branch_order(self):
+        """Extract(ITE(c, a, b), 8@0) -> ITE(c, Extract(a), Extract(b))."""
+        a = Const(1, 10, 32)
+        b = Const(2, 20, 32)
+        cond = BinaryOp(3, "CmpEQ", [Const(4, 1, 32), Const(5, 0, 32)], False, bits=1)
+        ite = ITE(6, cond, a, b, bits=32)
+        extract = Extract(7, 8, ite, Const(8, 0, 32), "Iend_LE")
+        result = self._opt(extract)
+        assert isinstance(result, ITE)
+        assert result.bits == 8
+        assert isinstance(result.iftrue, Extract) and result.iftrue.base == a
+        assert isinstance(result.iffalse, Extract) and result.iffalse.base == b
 
 
 if __name__ == "__main__":

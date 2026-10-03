@@ -410,7 +410,7 @@ class ExpressionNarrower(AILBlockRewriter):
                 and f.from_bits < f.to_bits
                 and t.from_bits == f.from_bits
             ):
-                return ITE(result.idx, result.cond, f.operand, t.operand, bits=t.from_bits, **result.tags)
+                return ITE(result.idx, result.cond, t.operand, f.operand, bits=t.from_bits, **result.tags)
         return result
 
     def _handle_SideEffectStatement(

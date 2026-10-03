@@ -59,7 +59,7 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
 
         cond_expr, if_true, if_false = result
 
-        ite = ITE(expr.idx, cond_expr, if_false, if_true, **expr.tags)
+        ite = ITE(expr.idx, cond_expr, if_true, if_false, **expr.tags)
 
         # Narrow to target width if the ITE is wider (e.g. 128 -> 64)
         if ite.bits > expr.bits:
@@ -86,7 +86,7 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
             narrow_ops = [n(op, out_bits, ref_expr) for op in cond.operands]
             cond = BinaryOp(cond.idx, cond.op, narrow_ops, False, floating_point=cond.floating_point, **cond.tags)
         return ITE(
-            ref_expr.idx, cond, n(ite.iffalse, out_bits, ref_expr), n(ite.iftrue, out_bits, ref_expr), **ref_expr.tags
+            ref_expr.idx, cond, n(ite.iftrue, out_bits, ref_expr), n(ite.iffalse, out_bits, ref_expr), **ref_expr.tags
         )
 
     @staticmethod

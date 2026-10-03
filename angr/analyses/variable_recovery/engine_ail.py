@@ -632,7 +632,7 @@ class SimEngineVRAIL(
                     # Both branches widen the same-size params -- this is x87
                     # widening, not a genuine promotion (e.g. float_max returns
                     # one of its float params).  Build a narrower ITE.
-                    return ailment.Expr.ITE(expr.idx, expr.cond, iffalse.operand, iftrue.operand, **expr.tags)
+                    return ailment.Expr.ITE(expr.idx, expr.cond, iftrue.operand, iffalse.operand, **expr.tags)
         return expr
 
     # Expression handlers
