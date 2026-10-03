@@ -344,6 +344,18 @@ class TestSSEBitwiseSelect(unittest.TestCase):
         assert isinstance(result.iftrue, Extract) and result.iftrue.base == a
         assert isinstance(result.iffalse, Extract) and result.iffalse.base == b
 
+    def test_extract_ite_narrowing_keeps_scalar_condition(self):
+        """Extract(ITE(a != b, x, y), 8@0) must not narrow the doubles the condition compares."""
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+
+        a = VirtualVariable(1, 10, 64, category=VirtualVariableCategory.REGISTER, oident=72)
+        b = VirtualVariable(2, 11, 64, category=VirtualVariableCategory.REGISTER, oident=88)
+        ne = BinaryOp(3, "CmpNE", [a, b], False, floating_point=True)
+        ite = ITE(4, ne, Const(5, 0, 32), Const(6, 1, 32), bits=32)
+        result = self._opt(Extract(7, 8, ite, Const(8, 0, 32), "Iend_LE"))
+        assert isinstance(result, ITE) and result.bits == 8
+        assert result.cond.likes(ne) and all(op.bits == 64 for op in result.cond.operands)
+
 
 # ======================================================================
 # float Const guards: integer peepholes must leave float constants alone

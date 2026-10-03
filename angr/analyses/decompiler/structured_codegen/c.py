@@ -2689,6 +2689,7 @@ class CBinaryOp(CExpression):
         if isinstance(self.type, SimTypeFloat) and not isinstance(self.type, SimTypeDouble):
             fn += "f"
         yield from self._c_repr_chunks_opfirst(fn)
+
     def _c_repr_chunks_cmpun(self):
         # a constant operand (inlined after the peepholes ran) can never be NaN
         for const, other in ((self.lhs, self.rhs), (self.rhs, self.lhs)):
