@@ -1684,7 +1684,11 @@ class AILSimplifier(Analysis):
                 stmt: Statement = the_block.statements[u.stmt_idx]
 
                 replace_with_copy = replace_with.copy()
-                if used_expr.size != replace_with_copy.size:
+                if used_expr.size != replace_with_copy.size and not (
+                    # an x87 register (modelled as F64 by VEX) loaded from an 80-bit long double holds the same value;
+                    # an integer Convert here would turn the copy into a bogus FP->int conversion
+                    replace_with_copy.bits == 80 and used_expr.bits == 64
+                ):
                     new_idx = self._ail_manager.next_atom()
                     replace_with_copy = Convert(
                         new_idx,
