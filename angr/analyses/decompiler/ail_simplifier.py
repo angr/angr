@@ -2617,8 +2617,29 @@ class AILSimplifier(Analysis):
             rewriter = rewriter_cls(r_expr, self.project.arch, self._ail_manager)
             if rewriter.result is not None:
                 _any_update.v = True
-                assert isinstance(rewriter.result, Expression)
-                return rewriter.result
+                result = rewriter.result
+                assert isinstance(result, Expression)
+                # loadF80le returns the double bits of a long double; when the rewritten Load is wider than the tmp
+                # it defines, keep the tmp width by narrowing the long double
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, Tmp)
+                    and expr_idx == 1
+                    and isinstance(stmt.src, DirtyExpression)
+                    and isinstance(result, Load)
+                    and result.bits != stmt.dst.bits
+                ):
+                    result = Convert(
+                        self._ail_manager.next_atom(),
+                        result.bits,
+                        stmt.dst.bits,
+                        False,
+                        result,
+                        from_type=Convert.TYPE_FP,
+                        to_type=Convert.TYPE_FP,
+                        **result.tags,
+                    )
+                return result
             return r_expr
 
         def _handle_Reinterpret(
@@ -2629,14 +2650,16 @@ class AILSimplifier(Analysis):
             # the dirty helper (e.g. loadF80le) returned I64 which VEX wrapped in
             # ReinterpI64asF64, but the Load already contains the float bits.
             # Strip the Reinterpret so the type system infers float from usage.
-            if (
-                isinstance(new_expr, Reinterpret)
-                and new_expr.from_type == "I"
-                and new_expr.to_type == "F"
-                and isinstance(new_expr.operand, Load)
-            ):
-                _any_update.v = True
-                return new_expr.operand
+            if isinstance(new_expr, Reinterpret) and new_expr.from_type == "I" and new_expr.to_type == "F":
+                operand = new_expr.operand
+                if isinstance(operand, Load) or (
+                    isinstance(operand, Convert)
+                    and operand.from_type == Convert.TYPE_FP
+                    and operand.to_type == Convert.TYPE_FP
+                    and isinstance(operand.operand, Load)
+                ):
+                    _any_update.v = True
+                    return operand
             return new_expr
 
         walker.expr_handlers[DirtyExpression] = _handle_DirtyExpression
