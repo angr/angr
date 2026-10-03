@@ -2746,6 +2746,23 @@ class CTypeCast(CExpression):
             yield ")", paren
 
 
+def _float32_repr(v: float) -> str:
+    """The shortest decimal literal that round-trips through a 32-bit float (0.72 rather than 0.7200000286102295)."""
+    if not math.isfinite(v):
+        return repr(v)
+    if v == int(v) and abs(v) < 1e15:
+        return f"{int(v)}.0"
+    for precision in range(1, 10):
+        s = f"{v:.{precision}g}"
+        if struct.unpack("f", struct.pack("f", float(s)))[0] == v:
+            break
+    else:
+        s = repr(v)
+    if "." not in s and "e" not in s and "n" not in s:
+        s += ".0"
+    return s
+
+
 class CConstant(CExpression):
     __slots__ = (
         "reference_values",
@@ -2824,7 +2841,15 @@ class CConstant(CExpression):
 
     @property
     def fmt_float(self):
-        return self.fmt.get("float", False)
+        result = self.fmt.get("float", None)
+        if result is None:
+            # an integer bit pattern assigned to a float-typed variable is a float literal
+            result = (
+                isinstance(self.value, int)
+                and isinstance(self._type, SimTypeFloat)
+                and not isinstance(self._type, SimTypeDouble)
+            )
+        return result
 
     @fmt_float.setter
     def fmt_float(self, v: bool):
@@ -2832,7 +2857,10 @@ class CConstant(CExpression):
 
     @property
     def fmt_double(self):
-        return self.fmt.get("double", False)
+        result = self.fmt.get("double", None)
+        if result is None:
+            result = isinstance(self.value, int) and isinstance(self._type, SimTypeDouble)
+        return result
 
     @fmt_double.setter
     def fmt_double(self, v: bool):
@@ -2964,7 +2992,7 @@ class CConstant(CExpression):
         """
 
         if self.fmt_float and 0 < value <= 0xFFFF_FFFF:
-            return str(struct.unpack("f", struct.pack("I", value))[0])
+            return _float32_repr(struct.unpack("f", struct.pack("I", value))[0])
 
         if self.fmt_char:
             if value < 0:
