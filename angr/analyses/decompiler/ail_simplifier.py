@@ -2575,7 +2575,7 @@ class AILSimplifier(Analysis):
         if rewriter_cls is None:
             return False
 
-        walker = AILBlockRewriter()
+        walker = AILBlockRewriter(update_block=False)
 
         class _any_update:
             """
@@ -2587,15 +2587,20 @@ class AILSimplifier(Analysis):
         def _handle_DirtyStatement(  # pylint:disable=unused-argument
             stmt_idx: int, stmt: DirtyStatement, block: Block | None
         ) -> Statement:
-            # we do not want to trigger _handle_DirtyExpression, which is why we do not call the superclass method
+            # rewrite nested dirty expressions (e.g. IN as an operand of OUT) without dispatching the top-level one
+            # to _handle_DirtyExpression, which would turn the statement's dirty into an expression
+            r_expr = AILBlockRewriter._handle_DirtyExpression(  # pylint:disable=protected-access
+                walker, 0, stmt.dirty, stmt_idx, stmt, block
+            )
+            assert isinstance(r_expr, DirtyExpression)
+            if r_expr is not stmt.dirty:
+                stmt = DirtyStatement(stmt.idx, r_expr, **stmt.tags)
             rewriter = rewriter_cls(stmt, self.project.arch, self._ail_manager)
-            if rewriter.result is not None:
+            result = rewriter.result if rewriter.result is not None else stmt
+            assert isinstance(result, Statement)
+            if rewriter.result is not None or r_expr is not stmt.dirty:
                 _any_update.v = True
-                if walker._update_block and block is not None:  # pylint:disable=protected-access
-                    block.statements[stmt_idx] = rewriter.result  # type: ignore
-                assert isinstance(rewriter.result, Statement)
-                return rewriter.result
-            return stmt
+            return result
 
         def _handle_DirtyExpression(
             expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -2634,18 +2639,19 @@ class AILSimplifier(Analysis):
                 return new_expr.operand
             return new_expr
 
-        blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[DirtyExpression] = _handle_DirtyExpression
         walker.expr_handlers[Reinterpret] = _handle_Reinterpret
         walker.stmt_handlers[DirtyStatement] = _handle_DirtyStatement
 
         updated = False
-        for block in blocks_by_addr_and_idx.values():
+        for node in self.func_graph.nodes():
+            # rewrite the current version of the block: an earlier step of this round may have replaced it already,
+            # and keying the result by the graph node is what the other steps expect
+            block = self.blocks.get(node, node)
             _any_update.v = False
-            old_block = block.copy()
-            walker.walk(block)
+            new_block = walker.walk(block)
             if _any_update.v:
-                self.blocks[old_block] = block
+                self.blocks[node] = new_block
                 updated = True
 
         return updated
