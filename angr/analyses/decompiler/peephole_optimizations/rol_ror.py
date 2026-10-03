@@ -64,7 +64,12 @@ class RolRorRewriter(PeepholeOptimizationStmtBase):
             if not (stmt1_op0.likes(stmt2_op0)):
                 return None
 
-            if not (isinstance(stmt1_op1, Const) and isinstance(stmt2_op1, Const)):
+            if not (
+                isinstance(stmt1_op1, Const)
+                and isinstance(stmt1_op1.value, int)
+                and isinstance(stmt2_op1, Const)
+                and isinstance(stmt2_op1.value, int)
+            ):
                 return None
 
             if (

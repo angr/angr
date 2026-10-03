@@ -18,6 +18,8 @@ from angr.ailment.expression import (
     Const,
     Convert,
     Extract,
+    Insert,
+    Tmp,
     UnaryOp,
 )
 
@@ -253,6 +255,98 @@ class TestSSEBitwiseSelect(unittest.TestCase):
         assert result.bits == 8
         assert isinstance(result.iftrue, Extract) and result.iftrue.base == a
         assert isinstance(result.iffalse, Extract) and result.iffalse.base == b
+
+
+# ======================================================================
+# float Const guards: integer peepholes must leave float constants alone
+# ======================================================================
+
+
+class TestFloatConstGuards(unittest.TestCase):
+    """Const.value may be a Python float; peepholes doing integer arithmetic on it must return None, not raise."""
+
+    def test_eager_eval(self):
+        from angr.analyses.decompiler.peephole_optimizations.eager_eval import EagerEvaluation
+
+        opt = _make_peephole(EagerEvaluation)
+        x = Tmp(1, 0, 64)
+        f = Const(2, 2.5, 64)
+        assert opt.optimize(BinaryOp(3, "Shl", [f, Const(4, 3, 8)], False, bits=64)) is None
+        assert opt.optimize(BinaryOp(3, "Shr", [f, Const(4, 3, 8)], False, bits=64)) is None
+        assert opt.optimize(BinaryOp(3, "Shr", [x, Const(4, 1.0, 8)], False, bits=64)) is None
+        inner = BinaryOp(5, "Shr", [x, Const(6, 2.0, 8)], False, bits=64)
+        assert opt.optimize(BinaryOp(3, "Shr", [inner, Const(4, 3, 8)], False, bits=64)) is None
+        inner = BinaryOp(5, "Add", [x, f], False, bits=64)
+        assert opt.optimize(BinaryOp(3, "Add", [inner, Const(4, 3, 64)], False, bits=64)) is None
+        assert opt.optimize(BinaryOp(3, "Sub", [inner, Const(4, 3, 64)], False, bits=64)) is None
+        inner = BinaryOp(5, "Mul", [x, f], False, bits=64)
+        assert opt.optimize(BinaryOp(3, "Mul", [inner, Const(4, 3, 64)], False, bits=64)) is None
+        assert opt.optimize(BinaryOp(3, "Add", [inner, x], False, bits=64)) is None
+        assert opt.optimize(BinaryOp(3, "Sub", [inner, x], False, bits=64)) is None
+
+    def test_bitwise_inserts(self):
+        from angr.analyses.decompiler.peephole_optimizations.bitwise_inserts import SimplifyBitwiseInserts
+
+        opt = _make_peephole(SimplifyBitwiseInserts)
+        base = Const(1, 7, 64)
+        low = Extract(2, 32, base, Const(3, 0, 64), "Iend_LE")
+        value = BinaryOp(4, "Or", [low, Const(5, 2.5, 32)], False, bits=32)
+        assert opt.optimize(Insert(6, base, Const(7, 0, 64), value, "Iend_LE")) is None
+
+    def test_sse_scalar_lowering(self):
+        from angr.analyses.decompiler.peephole_optimizations.sse_scalar_lowering import _strip_lane0
+
+        x = Const(1, 7, 64)
+        assert _strip_lane0(BinaryOp(2, "Or", [x, Const(3, 2.5, 64)], False, bits=64), 32) is None
+
+    def test_remove_const_insert(self):
+        from angr.analyses.decompiler.peephole_optimizations.remove_const_insert import RemoveConstInsert
+
+        opt = _make_peephole(RemoveConstInsert)
+        expr = Insert(1, Const(2, 2.5, 64), Const(3, 0, 64), Const(4, 1, 32), "Iend_LE")
+        assert opt.optimize(expr) is None
+
+    def test_remove_redundant_bitmasks(self):
+        from angr.analyses.decompiler.peephole_optimizations.remove_redundant_bitmasks import RemoveRedundantBitmasks
+
+        opt = _make_peephole(RemoveRedundantBitmasks)
+        masked = BinaryOp(1, "And", [Const(2, 7, 64), Const(3, 2.5, 64)], False, bits=64)
+        assert opt.optimize(Insert(4, masked, Const(5, 0, 64), Const(6, 1, 32), "Iend_LE")) is None
+        assert opt.optimize(Extract(4, 32, masked, Const(5, 0, 64), "Iend_LE")) is None
+
+    def test_coalesce_adjacent_shrs(self):
+        from angr.analyses.decompiler.peephole_optimizations.coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
+
+        opt = _make_peephole(CoalesceAdjacentShiftRights)
+        inner = BinaryOp(1, "Shr", [Const(2, 7, 64), Const(3, 2.5, 8)], False, bits=64)
+        assert opt.optimize(BinaryOp(4, "Shr", [inner, Const(5, 1, 8)], False, bits=64)) is None
+
+    def test_sar_to_signed_div(self):
+        from angr.analyses.decompiler.peephole_optimizations.sar_to_signed_div import SarToSignedDiv
+
+        opt = _make_peephole(SarToSignedDiv)
+        x = Const(1, 7, 32)
+        assert opt.optimize(BinaryOp(2, "Sar", [x, Const(3, 1.0, 8)], True, bits=32)) is None
+        shr = BinaryOp(4, "Shr", [x, Const(5, 31.0, 8)], False, bits=32)
+        assert SarToSignedDiv._check_signedness(BinaryOp(6, "CmpEQ", [shr, Const(7, 1, 32)], False, bits=1)) is None
+        masked = BinaryOp(8, "And", [BinaryOp(9, "Shr", [x, Const(10, 15.0, 8)], False, bits=32), Const(11, 1, 32)])
+        assert SarToSignedDiv._check_signedness(BinaryOp(6, "CmpEQ", [masked, Const(7, 1, 32)], False, bits=1)) is None
+
+    def test_rol_ror(self):
+        from angr.ailment.block import Block
+        from angr.ailment.statement import Assignment
+        from angr.analyses.decompiler.peephole_optimizations.rol_ror import RolRorRewriter
+
+        opt = _make_peephole(RolRorRewriter)
+        x = Tmp(1, 0, 32)
+        t1, t2, t3 = Tmp(2, 1, 32), Tmp(3, 2, 32), Tmp(4, 3, 32)
+        stmts = [
+            Assignment(5, t1, BinaryOp(6, "Shr", [x, Const(7, 25.0, 8)], False, bits=32)),
+            Assignment(8, t2, BinaryOp(9, "Shl", [x, Const(10, 7, 8)], False, bits=32)),
+            Assignment(11, t3, BinaryOp(12, "Or", [t2, t1], False, bits=32)),
+        ]
+        block = Block(0x400000, 12, statements=stmts)
+        assert opt.optimize(stmts[2], 2, block) is None
 
 
 if __name__ == "__main__":
