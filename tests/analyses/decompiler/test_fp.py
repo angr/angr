@@ -984,5 +984,42 @@ class TestX87ConstantLiterals:
         assert _decode_x87_extended(enc(0, 16383 + 1024, 1 << 63)) == "1.79769313486231590773e+308L"
 
 
+class TestI386PrototypelessCalleePushes:
+    """Decompiling a callee first leaves it with a prototype but no calling convention. The caller's fact collector
+    must not feed the raw stack pushes of such a callsite into the prototype-indexed arg-use table."""
+
+    @staticmethod
+    def _scoped_cfg(proj, callee_addr, caller_addr, end_addr):
+        return proj.analyses[CFGFast].prep()(
+            normalize=True,
+            regions=[(callee_addr, end_addr)],
+            function_starts=[callee_addr, caller_addr],
+        )
+
+    @pytest.mark.parametrize(
+        "callee_addr,caller_addr,end_addr",
+        [(0x1006872E, 0x100688C8, 0x10068BE9), (0x10069A2F, 0x10069B1D, 0x10069C51)],
+    )
+    def test_decompile_callee_then_caller(self, callee_addr, caller_addr, end_addr):
+        bin_path = os.path.join(
+            bin_location,
+            "tests",
+            "i386",
+            "windows",
+            "53575875777863a69a573be858e75ceea834ea54c844bb528128a4ad16879d45",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = self._scoped_cfg(proj, callee_addr, caller_addr, end_addr)
+
+        callee = cfg.functions[callee_addr]
+        proj.analyses[Decompiler].prep(fail_fast=True)(callee, cfg=cfg.model)
+        assert callee.calling_convention is None and callee.prototype is not None
+
+        caller = cfg.functions[caller_addr]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(caller, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert caller.calling_convention is not None
+
+
 if __name__ == "__main__":
     unittest.main()

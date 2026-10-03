@@ -370,7 +370,11 @@ class FactCollector(Analysis):
         self._max_depth = max_depth
         self._track_arg_uses = track_arg_uses
         self._track_arg_passthru = track_arg_passthru
+        #: callsite -> (callee, values passed to each argument of the callee's prototype, in prototype order)
         self.callsites: dict[int, tuple[Function, list[FactData]]] = {}
+        #: callsite -> (callee without a usable prototype, values pushed to the outgoing stack). positions are not
+        #: prototype indices.
+        self.pushed_arg_callsites: dict[int, tuple[Function, list[FactData]]] = {}
 
         self.input_args: list[SimRegArg | SimStackArg] | None = None
         self.unused_args: list[SimRegArg] = []
@@ -460,9 +464,8 @@ class FactCollector(Analysis):
                     # consume args and overwrite the return register
                     self._handle_function(state, func)
                 elif self._track_arg_passthru and state.sp_value is not None:
-                    # No prototype available.  Still record which of our own args
-                    # were pushed to the outgoing call stack so that the double-merge
-                    # heuristic can detect individually-passed args.
+                    # no usable prototype: still record which of our own args were pushed to the outgoing call
+                    # stack so that the i386 FP arg heuristics can detect individually-passed args
                     pushed_args = []
                     for off in sorted(state.simple_stack):
                         if off >= state.sp_value:
@@ -470,7 +473,7 @@ class FactCollector(Analysis):
                             if val is not None:
                                 pushed_args.append(val)
                     if pushed_args:
-                        self.callsites[state.ins_addr] = (func, pushed_args)
+                        self.pushed_arg_callsites[state.ins_addr] = (func, pushed_args)
                 if func.returning is False or retnode is None:
                     # the function call does not return
                     end_states.append(state)

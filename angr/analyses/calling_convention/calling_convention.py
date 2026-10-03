@@ -60,7 +60,7 @@ from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
 from angr.utils.vex import block_branch_ins_addr
 
-from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector
+from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector, FactData
 from .utils import is_sane_register_variable, merge_overlapping_register_spans, reg_arg_from_span
 
 if TYPE_CHECKING:
@@ -148,7 +148,8 @@ class CallingConventionAnalysis(Analysis):
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
         self._collect_facts_arg_passthru = collect_facts_arg_passthru
-        self._callsites = {}
+        self._callsites: dict[int, tuple[Function, list[FactData]]] = {}
+        self._pushed_arg_callsites: dict[int, tuple[Function, list[FactData]]] = {}
         self._pointer_arg_derefs = {}
 
         if self._retval_size is not None and self._input_args is None:
@@ -290,6 +291,7 @@ class CallingConventionAnalysis(Analysis):
             self._retval_size = facts.retval_size
             self._retval_incidental = facts.retval_incidental
             self._callsites = facts.callsites
+            self._pushed_arg_callsites = facts.pushed_arg_callsites
             self._pointer_arg_derefs = facts.pointer_arg_derefs
             self._unused_args = facts.unused_args
             self._extra_pop = facts.extra_pop
@@ -946,7 +948,10 @@ class CallingConventionAnalysis(Analysis):
                 if (
                     self._function is None
                     or proto.returnty is None
-                    or (self._is_retval_incidental() and not isinstance(proto.returnty, (SimTypeFloat, SimTypeDouble, SimTypeLongDouble)))
+                    or (
+                        self._is_retval_incidental()
+                        and not isinstance(proto.returnty, (SimTypeFloat, SimTypeDouble, SimTypeLongDouble))
+                    )
                 ):
                     proto.returnty = SimTypeBottom(label="void")
             else:
@@ -1158,8 +1163,9 @@ class CallingConventionAnalysis(Analysis):
                 args = self._merge_stack_args_by_pairs(args, double_bp_pairs)
 
         # Step 2: tag solitary 4-byte slots as floats when the function uses x87.
-        if self._function_has_fpreg_puti() and self._callsites:
-            individually_passed = self._get_individually_passed_offsets(self._callsites)
+        all_callsites = {**self._callsites, **self._pushed_arg_callsites}
+        if self._function_has_fpreg_puti() and all_callsites:
+            individually_passed = self._get_individually_passed_offsets(all_callsites)
             ret_addr_size = self.project.arch.bytes
             arg_offsets = {a.stack_offset for a in args if isinstance(a, SimStackArg)}
             for i, a in enumerate(args):
