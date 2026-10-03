@@ -1115,7 +1115,7 @@ class CStatements(CStatement):
         self.addr = addr
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        yield from self._c_repr_chunks(indent=indent, asexpr=asexpr, terminate_trailing_label=True)
+        return self._c_repr_chunks(indent=indent, asexpr=asexpr, terminate_trailing_label=True)
 
     def _c_repr_chunks(self, indent=0, asexpr=False, *, terminate_trailing_label):
         indent_str = self.indent_str(indent)

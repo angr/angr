@@ -100,6 +100,21 @@ class TestCStatementsRendering(unittest.TestCase):
 
         self.assertEqual(_render(statements), "if (condition)\nLABEL_400000:\n    ;\nreturn;\n")
 
+    def test_deep_statement_tree_does_not_add_a_generator_frame_per_sequence(self):
+        codegen = _codegen()
+        statement = CReturn(None, codegen=codegen)
+        for _ in range(350):
+            statement = CIfElse(
+                [(_Condition(codegen=codegen), CStatements([statement], codegen=codegen))],
+                cstyle_ifs=True,
+                codegen=codegen,
+            )
+
+        rendered = _render(CStatements([statement], codegen=codegen))
+
+        self.assertEqual(rendered.count("if (condition)"), 350)
+        self.assertTrue(rendered.endswith("return;\n"))
+
 
 if __name__ == "__main__":
     unittest.main()
