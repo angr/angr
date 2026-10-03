@@ -37,8 +37,10 @@ class AngrDB:
     ]
 
     # version 1 angrdb store functions in the legacy per-block/per-edge message layout.
-    VERSION = 2
-    COMPATIBLE_VERSIONS = (1, 2)
+    # version 3 stores CFG graphs as packed segment blobs instead of per-edge messages (older readers cannot load
+    # them; older databases still load).
+    VERSION = 3
+    COMPATIBLE_VERSIONS = (1, 2, 3)
 
     def __init__(self, project=None, nullpool=False):
         self.project = project

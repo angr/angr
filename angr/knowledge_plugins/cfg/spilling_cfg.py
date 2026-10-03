@@ -6,9 +6,11 @@ SpillingFunctionDict pattern); the graph structure and edge attributes live in t
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import threading
+import uuid
 import weakref
 from collections import OrderedDict, defaultdict
 from collections.abc import Generator, Iterator
@@ -608,6 +610,62 @@ class _ObjKeys:
         self._next = state["next"]
 
 
+class CFGSegmentStore:
+    """
+    Backend for paged :class:`CfgGraph` segments on the RuntimeDb: one LMDB sub-database shared by every graph of
+    the knowledge base, keys prefixed with a per-graph random id. The sub-database lives and dies with the rtdb.
+    """
+
+    DB_NAME = "cfgsegments"
+
+    def __init__(self, rtdb: RuntimeDb):
+        self.rtdb = rtdb
+        self._db = rtdb.open_db(self.DB_NAME, unique=False)
+        self._prefix = uuid.uuid4().bytes
+
+    def _key(self, window: int) -> bytes:
+        return self._prefix + window.to_bytes(8, "big")
+
+    def get(self, window: int) -> bytes | None:
+        with self.rtdb.begin_txn(self._db) as txn:
+            return txn.get(self._key(window))
+
+    def put(self, window: int, data: bytes) -> None:
+        while True:
+            try:
+                with self.rtdb.begin_txn(self._db, write=True) as txn:
+                    txn.put(self._key(window), data)
+                return
+            except lmdb.MapFullError:
+                self.rtdb.increase_lmdb_map_size()
+
+    def delete(self, window: int) -> None:
+        with self.rtdb.begin_txn(self._db, write=True) as txn:
+            txn.delete(self._key(window))
+
+    def delete_all(self) -> None:
+        with self.rtdb.begin_txn(self._db, write=True) as txn:
+            cursor = txn.cursor()
+            if cursor.set_range(self._prefix):
+                while cursor.key().startswith(self._prefix) and cursor.delete():
+                    pass
+
+    def __del__(self):
+        with contextlib.suppress(Exception):
+            self.delete_all()
+
+
+def _paging_callback(graph: SpillingCFG):
+    """Promotion callback held by the Rust store; a weak reference avoids an uncollectable cycle."""
+    ref = weakref.ref(graph)
+
+    def make_backend() -> tuple[CFGSegmentStore, int] | None:
+        g = ref()
+        return None if g is None else g._make_segment_backend()
+
+    return make_backend
+
+
 class _AdjacencyDict:
     """Helper class to support graph[src][dst] access pattern."""
 
@@ -927,10 +985,22 @@ class SpillingCFG:
         edge_cache_limit: int | None = None,  # pylint:disable=unused-argument
         edge_db_batch_size: int = 800,  # pylint:disable=unused-argument
         addr_type: CFG_ADDR_TYPES = "int",
+        segment_budget: int | None = None,
+        paged_node_threshold: int = 0,
+        estimated_nodes: int = 0,
     ):
+        """
+        :param segment_budget:          Byte budget for resident graph segments once the graph is paged to the
+                                        RuntimeDb; None keeps the whole graph resident (edges never spill).
+        :param paged_node_threshold:    Page the graph as soon as it holds this many nodes (0: immediately).
+        :param estimated_nodes:         Expected node count; at or above the threshold the graph is paged up front.
+        """
         # edge_cache_limit and edge_db_batch_size are accepted for compatibility; edges no longer spill
         self._addr_type = addr_type
         self._graph: CfgGraph = CfgGraph()
+        self._segment_budget = segment_budget
+        self._paged_node_threshold = paged_node_threshold
+        self._estimated_nodes = estimated_nodes
         self._keys: _IntKeys | _ObjKeys = self._make_keys()
         # edge attributes other than jumpkind/ins_addr/stmt_idx, keyed by (src id, dst id); normally empty
         self._extra_edge_attrs: dict[tuple[int, int], dict] = {}
@@ -951,6 +1021,7 @@ class SpillingCFG:
             db_batch_size=db_batch_size,
         )
         self._spilling_enabled = cache_limit is not None
+        self._arm_paging()
 
     def _make_keys(self) -> _IntKeys | _ObjKeys:
         return _IntKeys(self._graph) if self._addr_type == "int" else _ObjKeys(self._graph)
@@ -967,6 +1038,62 @@ class SpillingCFG:
             raise RuntimeError("Cannot change addr_type after nodes have been added")
         self._addr_type = value
         self._keys = self._make_keys()
+
+    #
+    # Paging
+    #
+
+    def _arm_paging(self) -> None:
+        """Attach the segment backend now (large binary) or once the node count crosses the threshold."""
+        g = self._graph
+        if self._segment_budget is None or self._rtdb is None or g.paged:
+            return
+        threshold = self._paged_node_threshold
+        if max(self._estimated_nodes, g.number_of_nodes()) >= threshold:
+            g.attach_backend(CFGSegmentStore(self._rtdb), self._segment_budget)
+        else:
+            g.set_paging_policy(threshold, _paging_callback(self))
+
+    def _make_segment_backend(self) -> tuple[CFGSegmentStore, int] | None:
+        if self._rtdb is None or self._segment_budget is None:
+            return None
+        return CFGSegmentStore(self._rtdb), self._segment_budget
+
+    @property
+    def paged(self) -> bool:
+        """Whether graph segments are paged to the RuntimeDb."""
+        return self._graph.paged
+
+    @property
+    def segment_budget(self) -> int | None:
+        return self._segment_budget
+
+    @segment_budget.setter
+    def segment_budget(self, value: int | None) -> None:
+        self._segment_budget = value
+        if value is None:
+            self._graph.clear_paging_policy()
+            self._graph.detach_backend()
+        elif self._graph.paged:
+            self._graph.budget_bytes = value
+        else:
+            self._arm_paging()
+
+    def segment_stats(self) -> dict:
+        """Segment paging counters: loads, evictions, writebacks, resident/total segments, resident bytes."""
+        return self._graph.stats()
+
+    def flush(self) -> None:
+        """Write dirty resident segments back to the backend (no-op when not paged)."""
+        self._graph.flush()
+
+    def _load_graph_blobs(self, header: bytes, blobs: list[bytes]) -> None:
+        """Replace the (empty) store with one rebuilt from serialized segment blobs."""
+        if self._graph.number_of_nodes() > 0:
+            raise RuntimeError("cannot load graph blobs into a non-empty graph")
+        self._graph = CfgGraph.from_blobs(header, blobs)
+        self._keys.bind(self._graph)
+        self._arm_paging()
 
     @property
     def _cfg_model(self) -> CFGModel | None:
@@ -1346,6 +1473,9 @@ class SpillingCFG:
             cache_limit=self._nodes._cache_limit if self._spilling_enabled else None,
             db_batch_size=self._nodes.db_batch_size,
             addr_type=self._addr_type,
+            segment_budget=self._segment_budget,
+            paged_node_threshold=self._paged_node_threshold,
+            estimated_nodes=self._estimated_nodes,
         )
 
         new_graph._nodes = self._nodes.copy()
@@ -1354,6 +1484,7 @@ class SpillingCFG:
         new_graph._keys = self._keys.copy(new_graph._graph)
         new_graph._extra_edge_attrs = {k: dict(v) for k, v in self._extra_edge_attrs.items()}
         new_graph._node_attrs = {k: dict(v) for k, v in self._node_attrs.items()}
+        new_graph._arm_paging()
 
         return new_graph
 
@@ -1455,6 +1586,8 @@ class SpillingCFG:
         """
         self._rtdb = rtdb
         self._nodes.rtdb = rtdb
+        if rtdb is not None:
+            self._arm_paging()
 
     #
     # Pickling
@@ -1473,6 +1606,9 @@ class SpillingCFG:
             "spilling_enabled": self._spilling_enabled,
             "db_batch_size": self._nodes.db_batch_size,
             "addr_type": self._addr_type,
+            "segment_budget": self._segment_budget,
+            "paged_node_threshold": self._paged_node_threshold,
+            "estimated_nodes": self._estimated_nodes,
         }
 
     def __setstate__(self, state: dict):
@@ -1487,6 +1623,9 @@ class SpillingCFG:
         self._extra_edge_attrs = state["extra_edge_attrs"]
         self._node_attrs = state["node_attrs"]
         self._spilling_enabled = state["spilling_enabled"]
+        self._segment_budget = state["segment_budget"]
+        self._paged_node_threshold = state["paged_node_threshold"]
+        self._estimated_nodes = state["estimated_nodes"]
         self._cfg_model_ref = None
         self._rtdb = None
 

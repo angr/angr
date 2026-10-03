@@ -3160,6 +3160,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         CFGBase._post_analysis(self)
 
+        # paged graph store: write dirty segments back so that the runtime db holds a complete copy
+        self.model.graph.flush()
+
         # drop the read-only memory view in loader
         self.project.loader.discard_ro_memview()
 

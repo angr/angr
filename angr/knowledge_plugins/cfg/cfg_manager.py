@@ -32,19 +32,29 @@ class CFGManager(KnowledgeBasePlugin):
     def __getitem__(self, ident) -> CFGModel:
         if ident not in self.cfgs:
             if self._kb is not None and self._kb._project is not None:
-                is_arm = is_arm_arch(self._kb._project.arch)
-                cache_limit = self._kb._project.get_cfg_node_cache_limit()
-                edge_cache_limit = self._kb._project.get_cfg_edge_cache_limit()
+                project = self._kb._project
+                is_arm = is_arm_arch(project.arch)
+                cache_limit = project.get_cfg_node_cache_limit()
+                edge_cache_limit = project.get_cfg_edge_cache_limit()
+                segment_budget = project.get_cfg_segment_budget()
+                paged_node_threshold = project.get_cfg_paged_node_threshold()
+                estimated_nodes = project.estimate_cfg_node_count()
             else:
                 is_arm = False
                 cache_limit = None
                 edge_cache_limit = None
+                segment_budget = None
+                paged_node_threshold = 0
+                estimated_nodes = 0
             self.cfgs[ident] = CFGModel(
                 ident,
                 cfg_manager=self,
                 is_arm=is_arm,
                 cache_limit=cache_limit,
                 edge_cache_limit=edge_cache_limit,
+                segment_budget=segment_budget,
+                paged_node_threshold=paged_node_threshold,
+                estimated_nodes=estimated_nodes,
             )
         return self.cfgs[ident]
 
