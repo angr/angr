@@ -265,13 +265,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         return self.tmps[expr.tmp_idx]
 
     def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType_co:
-        # allow registers to be uninitialized since callee-save is a thing
-        assert (
-            self.clinic.function.name == "_security_check_cookie"
-            or expr.category == ailment.expression.VirtualVariableCategory.REGISTER
-            or expr.varid in self.state.vars
-        )
-        return self.state.vars[expr.varid]
+        return self.state.vars.get(expr.varid, self._top(expr.bits))
 
     def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType_co:
         assert False, "Unreachable"
@@ -359,8 +353,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
     def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType_co:
         r = self._do_call(expr)
-        assert 0 in r
-        return r[0]
+        return r.get(0, self._top(expr.bits))
 
     def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co:
         for arg in expr.operands:

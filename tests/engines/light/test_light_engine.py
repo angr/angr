@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections import defaultdict
 from types import SimpleNamespace
 from typing import Any
 from unittest import TestCase, main
@@ -157,6 +158,21 @@ class TestLightEngine(TestCase):
 
         assert seen == [operand]
         assert result is provenance
+
+    def test_purity_missing_vvar_is_unknown(self):
+        engine: Any = object.__new__(PurityEngineAIL)
+        engine.clinic = SimpleNamespace(function=SimpleNamespace(name="ordinary_function"))
+        engine.state = SimpleNamespace(vars=defaultdict(frozenset))
+        vvar = VirtualVariable(0, 1, 64, VirtualVariableCategory.STACK, oident=0)
+
+        assert engine._handle_expr_VirtualVariable(vvar) == frozenset()
+        assert not engine.state.vars
+
+    def test_purity_missing_call_return_is_unknown(self):
+        engine: Any = object.__new__(PurityEngineAIL)
+        engine._do_call = lambda expr: {}
+        call = ailment.Expr.Call(1, "void_function", bits=64)
+        assert engine._handle_expr_Call(call) == frozenset()
 
 
 class TestUnknownAILOperations(TestCase):
