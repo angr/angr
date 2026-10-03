@@ -1256,7 +1256,7 @@ class SimCC:
         all_fp_args: set[int | str] = {_arg_ident(a) for a in sample_inst.fp_args}
         all_int_args: set[int | str] = {_arg_ident(a) for a in sample_inst.int_args}
         both_iter = sample_inst.memory_args
-        max_args = cls._guess_arg_count(args)
+        max_args = cls._guess_arg_count(args, sample_inst.arg_slot_size)
         some_both_args: set[int | str] = {_arg_ident(next(both_iter)) for _ in range(max_args)}
 
         new_args = []
@@ -1291,17 +1291,8 @@ class SimCC:
 
         return True
 
-    @classmethod
-    def _guess_arg_count(cls, args, limit: int = 64) -> int:
-        # pylint:disable=not-callable
-        assert cls.ARCH is not None
-        if cls.ARG_SLOT_SIZE is not None:
-            stack_arg_size = cls.ARG_SLOT_SIZE
-        elif hasattr(cls, "LANGUAGE"):
-            # this is a PCode SimCC where cls.ARCH is directly callable
-            stack_arg_size = cls.ARCH().bytes  # type: ignore
-        else:
-            stack_arg_size = cls.ARCH(archinfo.Endness.LE).bytes
+    @staticmethod
+    def _guess_arg_count(args, stack_arg_size: int, limit: int = 64) -> int:
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
         stack_arg_count = (max(a.stack_offset for a in stack_args) // stack_arg_size + 1) if stack_args else 0
         return min(limit, max(len(args), stack_arg_count))
