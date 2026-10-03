@@ -28,6 +28,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeInt,
     SimTypeLong,
+    SimTypeNum,
     SimTypeShort,
     TypeRef,
 )
@@ -1223,8 +1224,12 @@ class VariableManagerInternal(Serializable):
                 4: SimTypeInt,
                 8: SimTypeLong,
             }
+            arch = self.manager._kb._project.arch
             if var.size in size_to_type:
-                ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(self.manager._kb._project.arch)
+                ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(arch)
+            elif var.size > 0:
+                # e.g. a 16-byte xmm register variable: keep its width instead of the "int" that BOT renders as
+                ty = SimTypeNum(var.size * arch.byte_width, signed=False, label=ty.label).with_arch(arch)
 
         if name:
             if name not in self.types:
