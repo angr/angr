@@ -666,6 +666,7 @@ class TestTypes(unittest.TestCase):
         back = SimType.from_json(d).with_arch(archinfo.ArchAMD64())
         assert isinstance(back, SimStruct)
         assert back.size == variant.size
+
     def test_parse_cpp_member_pointer_param(self):
         # a pointer-to-member-function parameter used to raise NotImplementedError
         decls, _ = angr.sim_type.parse_cpp_file(
