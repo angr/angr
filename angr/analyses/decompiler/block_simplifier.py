@@ -306,6 +306,19 @@ class BlockSimplifier:
         return new_block, changed | peephole_changed
 
     @staticmethod
+    def _phi_collapses_to_const(phi: Phi, repls: Mapping[Expression, Expression], const: Const) -> bool:
+        const_by_varid = {
+            k.varid: v for k, v in repls.items() if isinstance(k, VirtualVariable) and isinstance(v, Const)
+        }
+        for _, vvar in phi.src_and_vvars:
+            if vvar is None:
+                return False
+            c = const_by_varid.get(vvar.varid)
+            if c is None or not c.likes(const) or c.value != const.value:
+                return False
+        return True
+
+    @staticmethod
     def replace_and_build(
         block: Block,
         replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
@@ -389,16 +402,11 @@ class BlockSimplifier:
                             new_src = new.copy()
                         elif (
                             isinstance(stmt.src, Phi)
-                            and all(v is not None for _, v in stmt.src.src_and_vvars)
-                            and all(
-                                (isinstance(v, Const) and v.likes(new) and v.value == new.value) for v in repls.values()
-                            )  # All same value?
-                            and {v.varid for _, v in stmt.src.src_and_vvars}
-                            == {v.varid for v in repls}  # All vvars replaced?
+                            and isinstance(new, Const)
+                            and BlockSimplifier._phi_collapses_to_const(stmt.src, replacements[codeloc], new)
                         ):
-                            # If stmt.src is a Phi variable, we can't replace any expressions
-                            # with non virtual variables. However, if we know we are going to replace
-                            # all vvars with the same constant, then just rewrite it!
+                            # a Phi only accepts vvar sources; it collapses when every source is rewritten to
+                            # the same constant
                             replaced = True
                             new_src = new
                             new_statements[codeloc.stmt_idx] = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
