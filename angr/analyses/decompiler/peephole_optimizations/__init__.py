@@ -64,7 +64,7 @@ from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 from .single_bit_xor import SingleBitXor
 from .sse_bitwise_select import SSEBitwiseSelect
-from .sse_scalar_lowering import SSEScalarLowering
+from .sse_scalar_lowering import SSEScalarLowering, SSEVectorConvertLowering
 from .tidy_stack_addr import TidyStackAddr
 from .x87_cmpf import X87CmpF
 
@@ -132,6 +132,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveRedundantInsert,
     NarrowFPOperations,
     SSEScalarLowering,
+    SSEVectorConvertLowering,
     SSEBitwiseSelect,
 ]
 

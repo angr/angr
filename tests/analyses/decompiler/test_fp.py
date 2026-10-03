@@ -872,6 +872,24 @@ class TestStackSlotReuse:
 
 
 # ======================================================================
+# Lane-wise SSE conversions on a scalar widened into lane 0 (cvtdq2ps after
+# movd; MSVC's inlined floorf).  They must become plain (float) casts.
+# ======================================================================
+
+
+class TestVectorConvertLowering:
+    def test_int_to_float(self):
+        text = _decompile_asm_func("vec_convert_amd64.o", "int_to_float")
+        assert "return (float)a0;" in text, text
+
+    def test_floorf_idiom(self):
+        text = _decompile_asm_func("vec_convert_amd64.o", "floorf_idiom")
+        assert "Conv" not in text and "x4" not in text, text
+        assert "(float)(int)a0" in text, text
+        assert "(float)((int)a0 - 1)" in text, text
+
+
+# ======================================================================
 # i386 structural FP detection
 #
 # Tests that the VEX propagator detects FP-returning callees

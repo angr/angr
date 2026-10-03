@@ -26,6 +26,15 @@ from .base import PeepholeOptimizationExprBase
 # Supported op mappings:
 #   AddV -> Add   SubV -> Sub   MulV -> Mul   DivV -> Div
 #   MaxV -> MaxF  MinV -> MinF
+#
+# Lane-wise conversions (cvtdq2ps, cvtps2dq, cvtps2pd, ...) used on a scalar
+# that was widened into lane 0 (movd/movss) are lowered the same way:
+#
+#   Extract(ConvV(a128), N@0)            ->  Convert(a_lane0)
+#   ConvV(Conv(N->128I, x))              ->  Conv(M->128I, Convert(N->M, x))
+#
+# The second form is bit-exact because every supported conversion maps an
+# all-zero lane to an all-zero lane.
 
 _V_TO_SCALAR: dict[str, str] = {
     "AddV": "Add",
@@ -56,6 +65,68 @@ def _unwrap_conv_or_extract(operand, n_bits: int):
     tags = operand.tags if hasattr(operand, "tags") else {}
     zero = Const(None, 0, 64, **tags)
     return Extract(None, n_bits, operand, zero, "Iend_LE", **tags)
+
+
+def _lane_widths(conv: Convert) -> tuple[int, int] | None:
+    """(from_lane_bits, to_lane_bits) of a lane-wise Convert, or None if it is not one."""
+    vc = conv.vector_count
+    if vc is None or vc <= 0 or conv.from_bits % vc or conv.to_bits % vc:
+        return None
+    return conv.from_bits // vc, conv.to_bits // vc
+
+
+def _scalar_convert(idx, conv: Convert, from_lane: int, to_lane: int, operand, tags) -> Convert:
+    return Convert(
+        idx,
+        from_lane,
+        to_lane,
+        conv.is_signed,
+        operand,
+        from_type=conv.from_type,
+        to_type=conv.to_type,
+        rounding_mode=conv.rounding_mode,
+        **tags,
+    )
+
+
+class SSEVectorConvertLowering(PeepholeOptimizationExprBase):
+    """Lower a lane-wise conversion of a scalar that was zero-widened into lane 0.
+
+    ConvV(Conv(N->128I, x)) -> Conv(M->128I, Convert(N->M, x)); upper lanes stay zero.
+    """
+
+    __slots__ = ()
+
+    NAME = "SSE lane-wise conversion of a widened scalar"
+    expr_classes = (Convert,)
+
+    def optimize(self, expr: Convert, **kwargs):
+        lanes = _lane_widths(expr)
+        if lanes is None:
+            return None
+        from_lane, to_lane = lanes
+        inner = expr.operand
+        if not (
+            isinstance(inner, Convert)
+            and inner.vector_count is None
+            and inner.from_type == Convert.TYPE_INT
+            and inner.to_type == Convert.TYPE_INT
+            and not inner.is_signed
+            and inner.from_bits == from_lane
+            and inner.to_bits == expr.from_bits
+        ):
+            return None
+        scalar = _scalar_convert(None, expr, from_lane, to_lane, inner.operand, expr.tags)
+        return Convert(
+            expr.idx,
+            to_lane,
+            expr.to_bits,
+            False,
+            scalar,
+            from_type=Convert.TYPE_INT,
+            to_type=Convert.TYPE_INT,
+            **expr.tags,
+        )
 
 
 class SSEScalarLowering(PeepholeOptimizationExprBase):
@@ -93,10 +164,20 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
                 return stripped
             return Extract(expr.idx, n_bits, stripped, Const(None, 0, 64, **expr.tags), "Iend_LE", **expr.tags)
 
+        base = expr.base
+
+        # Pattern: Extract(ConvV(a), N@0) with N == lane width -> scalar Convert of lane 0
+        if isinstance(base, Convert):
+            lanes = _lane_widths(base)
+            if lanes is None or lanes[1] != n_bits:
+                return None
+            from_lane, _ = lanes
+            return _scalar_convert(
+                expr.idx, base, from_lane, n_bits, _unwrap_conv_or_extract(base.operand, from_lane), expr.tags
+            )
+
         if n_bits not in (32, 64):
             return None
-
-        base = expr.base
 
         # Pattern: Extract(UnaryOp(Conv(N->128, x)), N@0) -> UnaryOp(x, fp=True)
         if isinstance(base, UnaryOp) and base.operand.bits > n_bits:

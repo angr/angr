@@ -201,6 +201,27 @@ class TestSSEScalarLowering(unittest.TestCase):
         assert result.bits == 64
         assert result.floating_point is True
 
+    def test_extract_lane_wise_convert(self):
+        """Extract(ConvV(I32StoF32x4, Conv(32->128, x)), 32@0) -> Convert(I32->F32, x)."""
+        x = Const(1, 42, 32)
+        conv = Convert(2, 32, 128, False, x, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_INT)
+        convv = Convert(3, 128, 128, True, conv, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_FP, vector_count=4)
+        extract = Extract(4, 32, convv, Const(5, 0, 64), "Iend_LE")
+        result = self._opt(extract)
+        assert isinstance(result, Convert)
+        assert result.vector_count is None
+        assert (result.from_bits, result.to_bits) == (32, 32)
+        assert (result.from_type, result.to_type) == (Convert.TYPE_INT, Convert.TYPE_FP)
+        assert result.is_signed is True
+        assert result.operand == x
+
+    def test_extract_lane_wise_convert_wrong_width(self):
+        """Extract(ConvV(F32toF64x2, a), 32@0) reads half a lane: no match."""
+        a = Const(1, 42, 128)
+        convv = Convert(2, 64, 128, False, a, from_type=Convert.TYPE_FP, to_type=Convert.TYPE_FP, vector_count=2)
+        extract = Extract(3, 32, convv, Const(4, 0, 64), "Iend_LE")
+        assert self._opt(extract) is None
+
     def test_non_vector_op_returns_none(self):
         """Extract(BinaryOp("Add", ...), 64@0) should not match (no V suffix)."""
         a = Const(1, 42, 128)
@@ -210,6 +231,41 @@ class TestSSEScalarLowering(unittest.TestCase):
         extract = Extract(5, 64, add, zero, "Iend_LE")
         result = self._opt(extract)
         assert result is None
+
+
+class TestSSEVectorConvertLowering(unittest.TestCase):
+    """ConvV(Conv(N->128, x)) -> Conv(M->128, Convert(N->M, x))."""
+
+    def _opt(self, expr):
+        from angr.analyses.decompiler.peephole_optimizations.sse_scalar_lowering import SSEVectorConvertLowering
+
+        return _make_peephole(SSEVectorConvertLowering).optimize(expr)
+
+    def test_widened_scalar(self):
+        x = Const(1, 42, 32)
+        conv = Convert(2, 32, 128, False, x, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_INT)
+        convv = Convert(3, 128, 128, True, conv, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_FP, vector_count=4)
+        result = self._opt(convv)
+        assert isinstance(result, Convert)
+        assert result.vector_count is None
+        assert (result.from_bits, result.to_bits) == (32, 128)
+        inner = result.operand
+        assert isinstance(inner, Convert)
+        assert (inner.from_bits, inner.to_bits) == (32, 32)
+        assert (inner.from_type, inner.to_type) == (Convert.TYPE_INT, Convert.TYPE_FP)
+        assert inner.operand == x
+
+    def test_sign_extended_scalar_not_lowered(self):
+        """Sign extension may put non-zero bits in the upper lanes."""
+        x = Const(1, 42, 32)
+        conv = Convert(2, 32, 128, True, x, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_INT)
+        convv = Convert(3, 128, 128, True, conv, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_FP, vector_count=4)
+        assert self._opt(convv) is None
+
+    def test_full_vector_not_lowered(self):
+        a = Const(1, 42, 128)
+        convv = Convert(2, 128, 128, True, a, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_FP, vector_count=4)
+        assert self._opt(convv) is None
 
 
 # ======================================================================

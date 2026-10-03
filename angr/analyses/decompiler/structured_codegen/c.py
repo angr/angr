@@ -4818,6 +4818,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
+        if expr.vector_count is not None:
+            child = self._handle(expr.operand)
+            return CVectorConvert(expr, child, tags=expr.tags, codegen=self)
+
         is_fp = expr.to_type == Expr.ConvertType.TYPE_FP
         if is_fp:
             # FP->FP or INT->FP
@@ -4829,14 +4833,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 # VEX models x87 as F64; the widening to 80 bits is implicit in C
                 return self._handle(expr.operand)
             else:
-                raise UnsupportedNodeTypeError(f"Unsupported FP conversion bits {expr.to_bits}.")
-            child = self._handle(expr.operand)
-            return CTypeCast(None, fp_dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
+                # no C float type of this width: fall back to an integer cast of the same width
+                is_fp = False
+            if is_fp:
+                child = self._handle(expr.operand)
+                return CTypeCast(None, fp_dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
 
         child = self._handle(expr.operand)
-
-        if expr.vector_count is not None:
-            return CVectorConvert(expr, child, tags=expr.tags, codegen=self)
 
         # Use a mask to represent non-standard size conversions
         if (
