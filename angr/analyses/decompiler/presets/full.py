@@ -29,8 +29,8 @@ from angr.analyses.decompiler.optimization_passes import (
     IRegReplacer,
     ITEExprConverter,
     ITERegionConverter,
-    KnownPatternOutliner,
     ITESimplifier,
+    KnownPatternOutliner,
     LoweredSwitchSimplifier,
     MipsGpSettingSimplifier,
     ModSimplifier,
@@ -90,6 +90,7 @@ preset_full = DecompilationPreset(
         InlinedStrcpySimplifierLate,
         InlinedWcscpySimplifierLate,
         InlinedStrlenSimplifier,
+        FpNegation,
         KnownPatternOutliner,
         PatternOutliner,
         CallStatementRewriter,
@@ -100,7 +101,6 @@ preset_full = DecompilationPreset(
         EagerStdStringConcatenationPass,
         IRegReplacer,
         InsertExtractReverter,
-        FpNegation,
     ],
 )
 

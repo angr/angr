@@ -8,7 +8,6 @@ from angr.ailment.statement import Assignment, Statement
 from angr.ailment.utils import is_lsb_extract
 from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
 from angr.calling_conventions import SimRegArg
-from angr.sim_type import SimTypeFloat
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -84,15 +83,19 @@ class FpNegation(OptimizationPass):
     Rewrite floating-point sign-bit XORs (``xorps``/``xorpd``) into negation.
 
     The lifter cannot tell an FP sign flip from an arbitrary 128-bit integer
-    XOR with a sign-shaped constant; both produce the same AIL.  This pass runs
-    after variable recovery so it can consult the recovered data domain and only
-    rewrite when the XORed value is actually floating-point (recovered FP type,
-    an FP argument register, or FP provenance in the expression).
+    XOR with a sign-shaped constant; both produce the same AIL.  This pass only
+    rewrites when the XORed value is provably floating-point: it lives in an FP
+    argument register of the prototype, or has FP provenance in the expression
+    (FP conversions and operations, traced through local definitions).
+
+    It runs right before variable recovery, ahead of KnownPatternOutliner (which
+    would otherwise outline the XOR as an opaque ``fneg()`` call), so Typehoon
+    sees a floating-point negation instead of an integer XOR.
     """
 
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux", "windows"]
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Rewrite FP sign-bit XOR to negation"
     DESCRIPTION = __doc__.strip()
 
@@ -120,8 +123,6 @@ class FpNegation(OptimizationPass):
 
     def _analyze(self, cache=None):
         assert self._graph is not None
-        dv = self.kb.dec_variables
-        var_manager = dv[self._func.addr] if self._func.addr in dv else None  # noqa: SIM401
         fp_arg_offsets = self._fp_arg_reg_offsets()
 
         # Map each virtual variable to its defining source expression so we can
@@ -134,7 +135,7 @@ class FpNegation(OptimizationPass):
                     vvar_defs[stmt.dst.varid] = stmt.src
 
         def is_fp(expr: Expression) -> bool:
-            return self._value_is_fp(expr, var_manager, fp_arg_offsets, vvar_defs, set())
+            return self._value_is_fp(expr, fp_arg_offsets, vvar_defs, set())
 
         for block in list(self._graph.nodes()):
             rewriter = _SignFlipRewriter(is_fp)
@@ -163,7 +164,6 @@ class FpNegation(OptimizationPass):
     def _value_is_fp(
         cls,
         expr: Expression,
-        var_manager,
         fp_arg_offsets: set[int],
         vvar_defs: dict[int, Expression],
         seen: set[int],
@@ -171,18 +171,8 @@ class FpNegation(OptimizationPass):
         # FP provenance in the expression itself.
         if isinstance(expr, Convert) and Convert.TYPE_FP in (expr.from_type, expr.to_type):
             return True
-        if isinstance(expr, (UnaryOp, BinaryOp)) and getattr(expr, "floating_point", False):
+        if isinstance(expr, (UnaryOp, BinaryOp)) and expr.floating_point:
             return True
-
-        # Recovered variable type.
-        var = getattr(expr, "variable", None)
-        if var is not None and var_manager is not None:
-            try:
-                vartype = var_manager.get_variable_type(var)
-            except (KeyError, AttributeError):
-                vartype = None
-            if isinstance(vartype, SimTypeFloat):
-                return True
 
         if isinstance(expr, VirtualVariable):
             # FP value in an FP argument register (typehoon infers integer from
@@ -197,18 +187,18 @@ class FpNegation(OptimizationPass):
             # result of an earlier FP op / sign flip is itself FP).
             if expr.varid not in seen and expr.varid in vvar_defs:
                 seen.add(expr.varid)
-                return cls._value_is_fp(vvar_defs[expr.varid], var_manager, fp_arg_offsets, vvar_defs, seen)
+                return cls._value_is_fp(vvar_defs[expr.varid], fp_arg_offsets, vvar_defs, seen)
 
         # Unwrap widening/narrowing Converts and Extracts.
         if isinstance(expr, Convert):
-            return cls._value_is_fp(expr.operand, var_manager, fp_arg_offsets, vvar_defs, seen)
+            return cls._value_is_fp(expr.operand, fp_arg_offsets, vvar_defs, seen)
         if isinstance(expr, Extract):
-            return cls._value_is_fp(expr.base, var_manager, fp_arg_offsets, vvar_defs, seen)
+            return cls._value_is_fp(expr.base, fp_arg_offsets, vvar_defs, seen)
 
         # A sign-flip XOR of an FP value is itself FP.
         inner = _SignFlipRewriter._match_xor_sign(expr)
         if inner is not None:
-            return cls._value_is_fp(inner, var_manager, fp_arg_offsets, vvar_defs, seen)
+            return cls._value_is_fp(inner, fp_arg_offsets, vvar_defs, seen)
 
         return False
 

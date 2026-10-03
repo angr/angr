@@ -37,7 +37,7 @@ from angr.analyses.decompiler.known_patterns import (
 )
 from angr.analyses.decompiler.known_patterns.context import MSVC, detect_cxx_runtime
 from angr.analyses.decompiler.known_patterns.dsl import PStmtSeq
-from angr.analyses.decompiler.optimization_passes import KnownPatternOutliner
+from angr.analyses.decompiler.optimization_passes import FpNegation, KnownPatternOutliner
 from angr.knowledge_plugins.functions.function import PrototypeSource
 from tests.common import bin_location, load_project_with_scoped_cfg
 
@@ -91,13 +91,16 @@ def _decompile(bin_path: str, func_name: str | None = None, addr: int | None = N
     # only works on a graph where the idioms are still idioms: once the
     # outliner has replaced one with a call there is nothing left to match. The
     # `fast` preset used to be pattern-free and is not any more, so what used to
-    # be implicit has to be said.
+    # be implicit has to be said. FpNegation is disabled for the same reason: it
+    # rewrites the FP sign-flip XOR (the fneg/fnegf idiom) into a negation.
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
     proj.analyses.CompleteCallingConventions(cfg=cfg.model)
     func = cfg.functions.function(name=func_name) if func_name is not None else cfg.functions.function(addr=addr)
     assert func is not None
-    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, disable_opts=[KnownPatternOutliner])
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+        func, cfg=cfg.model, disable_opts=[KnownPatternOutliner, FpNegation]
+    )
     assert dec.codegen is not None and dec.codegen.text is not None
     return proj, cfg, func, dec
 
@@ -993,9 +996,10 @@ class TestPatternsOutlineDuringDecompilation(TestCase):
         _assert_outlines_during(
             self,
             LIBM_BIN,
+            # no f_neg: FpNegation runs before the outliner and turns the
+            # sign-flip XOR into `-x` (tests/analyses/decompiler/test_fp.py)
             [
                 ("f_fabs", "fabs("),
-                ("f_neg", "fneg("),
                 ("f_copysign", "copysign("),
                 ("f_isnan", "isnan("),
                 ("f_isinf_bits", "isinf("),

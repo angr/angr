@@ -33,8 +33,8 @@ from .insert_extract_reverter import InsertExtractReverter
 from .ireg_replacer import IRegReplacer
 from .ite_expr_converter import ITEExprConverter
 from .ite_region_converter import ITERegionConverter
-from .known_pattern_outliner import KnownPatternOutliner
 from .ite_simplifier import ITESimplifier
+from .known_pattern_outliner import KnownPatternOutliner
 from .lowered_switch_simplifier import LoweredSwitchSimplifier
 from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
 from .mod_simplifier import ModSimplifier
@@ -105,13 +105,13 @@ ALL_OPTIMIZATION_PASSES = [
     PostStructuringPeepholeOptimizationPass,
     RegisterSaveAreaSimplifierAdvanced,
     InlinedStrlenSimplifier,
+    FpNegation,
     KnownPatternOutliner,
     PatternOutliner,
     StaticVVarRewriter,
     EagerStdStringEvalPass,
     IRegReplacer,
     InsertExtractReverter,
-    FpNegation,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -184,8 +184,8 @@ __all__ = (
     "InlinedStrlenSimplifier",
     "InlinedWcscpySimplifier",
     "InlinedWcscpySimplifierLate",
-    "KnownPatternOutliner",
     "InsertExtractReverter",
+    "KnownPatternOutliner",
     "LoweredSwitchSimplifier",
     "MipsGpSettingSimplifier",
     "ModSimplifier",
