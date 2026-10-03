@@ -20,6 +20,7 @@ from angr.analyses.complete_calling_conventions import (
     CallingConventionAnalysisMode,
     CompleteCallingConventionsAnalysis,
 )
+from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from tests.common import bin_location
 
 # -- Paths & binary matrix --------------------------------------------
@@ -1023,3 +1024,66 @@ class TestI386PrototypelessCalleePushes:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ======================================================================
+# x87 transcendental / remainder instructions
+# ======================================================================
+
+
+class TestX87Math(unittest.TestCase):
+    """fsin, fcos, fptan, fpatan, fsqrt, fprem, fprem1, fyl2x, fyl2xp1, f2xm1 and fscale: the VEX ops behind
+    them have no symbolic-engine model, and used to decompile to operand-less `unsupported_Iop_*()` calls."""
+
+    _env: _Env | None = None
+
+    @classmethod
+    def setUpClass(cls):
+        path = os.path.join(_fp_dir, "x87_math_amd64")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        _BIN_PATHS["x87_math_amd64"] = path
+        cls._env = _Env("x87_math_amd64")
+
+    def _text(self, func_name: str) -> str:
+        assert self._env is not None
+        text = self._env.get_text(func_name)
+        assert "unsupported_" not in text, text
+        return text
+
+    def test_libm_unary(self):
+        assert "sqrt(" in self._text("x87_sqrt")
+        # fsin/fcos only run on finite in-range arguments; VEX keeps the range check
+        assert re.search(r"<= 1085 \? sin\(", self._text("x87_sin"))
+        assert re.search(r"<= 1085 \? cos\(", self._text("x87_cos"))
+
+    def test_atan2(self):
+        assert re.search(r"atan2\(\w+, \w+\)", self._text("x87_atan2"))
+
+    def test_fprem_loop(self):
+        # gcc's fmod: do { fprem } while (C2)
+        text = self._text("x87_fmod")
+        assert re.search(r"fmod\(\w+, \w+\)", text)
+        assert re.search(r"x87_fprem_c3210\(\w+, \w+\)", text)
+        # the intrinsic's operands survive codegen serialization
+        assert self._env is not None
+        dec = self._env.project.analyses[Decompiler].prep()(
+            self._env.cfg.functions["x87_fmod"], cfg=self._env.cfg.model
+        )
+        assert dec.codegen is not None
+        parsed = parse_codegen(serialize_codegen(dec.codegen), project=dec.project, kb=dec.kb, func=dec.func)
+        assert parsed.text == dec.codegen.text
+        text = self._text("x87_remainder")
+        assert re.search(r"remainder\(\w+, \w+\)", text)
+        assert re.search(r"x87_fprem1_c3210\(\w+, \w+\)", text)
+
+    def test_log2_and_log1p(self):
+        assert re.search(r"1\.0 \* log2\(\w+\)", self._text("x87_log2"))
+        # log1p(x) = ln2 * log2(x + 1) (fyl2xp1 with ST1 = ln2)
+        assert re.search(r"0\.69314718\d* \* log2\(\w+ \+ 1\.0\)", self._text("x87_log1p"))
+
+    def test_exp2_and_ldexp(self):
+        # exp2(x) = ldexp(f2xm1(x - rint(x)) + 1, (int)rint(x))
+        text = self._text("x87_exp2")
+        assert "ldexp(exp2(" in text and "- 1.0 + 1.0, (int)" in text
+        assert re.search(r"ldexp\(\w+, \(int\)", self._text("x87_ldexp"))

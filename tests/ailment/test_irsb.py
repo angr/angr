@@ -518,3 +518,89 @@ class TestVectorConversions(unittest.TestCase):
         assert conv.vector_count is None
         assert conv.is_signed
         assert (conv.from_bits, conv.to_bits) == (64, 32)
+
+
+class TestX87MathOps(unittest.TestCase):
+    """
+    The x87 transcendental / remainder ops (and a few SSE ones) have no symbolic-engine model, so
+    `vexop_to_simop` rejects them; the converter still maps them to AIL ops with their operands instead
+    of an operand-less `unsupported_Iop_*` DirtyExpression.
+    """
+
+    @staticmethod
+    def _assignments(arch_name: str, block_hex: str) -> list[ailment.Expr.Expression]:
+        arch = archinfo.arch_from_id(arch_name)
+        block_bytes = bytes.fromhex(block_hex)
+        irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, block_bytes, ailment.Manager(), opt_level=1)
+        assert from_py == from_lift
+        srcs = [stmt.src for stmt in from_py.statements if isinstance(stmt, ailment.Stmt.Assignment)]
+        assert not any(isinstance(s, ailment.Expr.DirtyExpression) and "unsupported_" in s.callee for s in srcs)
+        return srcs
+
+    def _x87(self, insn_hex: str) -> list[ailment.Expr.Expression]:
+        # <insn> ; ret
+        return self._assignments("X86", insn_hex + "c3")
+
+    @staticmethod
+    def _only(srcs, kind, pred):
+        matches = [s for s in srcs if isinstance(s, kind) and pred(s)]
+        assert len(matches) == 1, matches
+        return matches[0]
+
+    def test_unary_x87_ops(self):
+        # Iop_XxxF64(rm, x) -> UnaryOp(Xxx, x): fsqrt, fsin, fcos, fptan
+        for insn, op in (("d9fa", "Sqrt"), ("d9fe", "Sin"), ("d9ff", "Cos"), ("d9f2", "Tan")):
+            unop = self._only(self._x87(insn), ailment.Expr.UnaryOp, lambda e, op=op: e.op == op)
+            assert unop.floating_point and unop.bits == 64
+            assert isinstance(unop.operand, ailment.Expr.Expression)
+
+    def test_fprem_and_status_bits(self):
+        # fprem: ST0 = fmod(ST0, ST1); C3210 = x87_fprem_c3210(ST0, ST1)
+        srcs = self._x87("d9f8")
+        prem = self._only(srcs, ailment.Expr.BinaryOp, lambda e: e.op == "PRem")
+        assert prem.floating_point and prem.bits == 64
+        flags = self._only(srcs, ailment.Expr.DirtyExpression, lambda e: e.callee == "x87_fprem_c3210")
+        assert flags.bits == 32
+        assert [str(o) for o in flags.operands] == [str(o) for o in prem.operands]
+        # fprem1 is the IEEE remainder
+        srcs = self._x87("d9f5")
+        self._only(srcs, ailment.Expr.BinaryOp, lambda e: e.op == "PRem1")
+        self._only(srcs, ailment.Expr.DirtyExpression, lambda e: e.callee == "x87_fprem1_c3210")
+
+    def test_fpatan(self):
+        # fpatan: atan2(ST1, ST0)
+        binop = self._only(self._x87("d9f3"), ailment.Expr.BinaryOp, lambda e: e.op == "Atan2")
+        assert binop.floating_point and binop.bits == 64
+
+    def test_fscale(self):
+        # fscale: ST0 * 2^trunc(ST1) == Scale(ST0, Conv(64F->s32 RZ, ST1))
+        binop = self._only(self._x87("d9fd"), ailment.Expr.BinaryOp, lambda e: e.op == "Scale")
+        exp = binop.operands[1]
+        assert isinstance(exp, ailment.Expr.Convert)
+        assert exp.from_type == ailment.Expr.Convert.TYPE_FP and exp.to_type == ailment.Expr.Convert.TYPE_INT
+        assert (exp.from_bits, exp.to_bits, exp.is_signed) == (64, 32, True)
+        assert exp.rounding_mode == RoundingMode.RM_TowardsZero
+
+    def test_f2xm1_and_fyl2x(self):
+        # f2xm1: 2^x - 1
+        sub = self._only(self._x87("d9f0"), ailment.Expr.BinaryOp, lambda e: e.op == "Sub")
+        assert isinstance(sub.operands[0], ailment.Expr.UnaryOp) and sub.operands[0].op == "Exp2"
+        assert isinstance(sub.operands[1], ailment.Expr.Const) and sub.operands[1].value == 1.0
+        # fyl2x: y * log2(x); fyl2xp1: y * log2(x + 1)
+        mul = self._only(self._x87("d9f1"), ailment.Expr.BinaryOp, lambda e: e.op == "Mul")
+        assert mul.floating_point
+        assert isinstance(mul.operands[1], ailment.Expr.UnaryOp) and mul.operands[1].op == "Log2"
+        mul = self._only(self._x87("d9f9"), ailment.Expr.BinaryOp, lambda e: e.op == "Mul")
+        log2 = mul.operands[1]
+        assert isinstance(log2, ailment.Expr.UnaryOp) and log2.op == "Log2"
+        assert isinstance(log2.operand, ailment.Expr.BinaryOp) and log2.operand.op == "Add"
+
+    def test_sse_sqrt_and_unordered_compare(self):
+        # sqrtpd xmm0, xmm0 ; ret -> Iop_Sqrt64Fx2(rm, x)
+        unop = self._only(self._assignments("AMD64", "660f51c0c3"), ailment.Expr.UnaryOp, lambda e: e.op == "SqrtV")
+        assert unop.floating_point and unop.bits == 128
+        # cmpunordps xmm0, xmm1 ; ret -> Iop_CmpUN32Fx4(a, b)
+        binop = self._only(self._assignments("AMD64", "0fc2c103c3"), ailment.Expr.BinaryOp, lambda e: e.op == "CmpUNV")
+        assert binop.floating_point and (binop.bits, binop.vector_count, binop.vector_size) == (128, 4, 32)

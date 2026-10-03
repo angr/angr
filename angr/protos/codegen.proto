@@ -343,6 +343,7 @@ message CVEXCCallExpressionMsg {
 // CDirtyExpression (ailment-coupled)
 message CDirtyExpressionMsg {
     bytes dirty = 1;                              // ailment Expression.to_bytes()
+    repeated uint32 operands_ids = 2;
 }
 
 // CVectorConvert (ailment-coupled)

@@ -27,6 +27,10 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+# libm-style FP ops the VEX converter emits for x87 math instructions (convert_vex.rs convert_math_*)
+_FP_MATH_UNOPS = frozenset({"Sqrt", "Sin", "Cos", "Tan", "Exp2", "Log2"})
+_FP_MATH_BINOPS = frozenset({"Atan2", "PRem", "PRem1"})
+
 
 class SimEngineVRAIL(
     SimEngineNostmtAIL["VariableRecoveryFastState", RichR[claripy.ast.BV | claripy.ast.FP], None, None],
@@ -1485,10 +1489,26 @@ class SimEngineVRAIL(
     def _handle_binop_Default(self, expr):
         arg0, arg1 = expr.operands
 
-        self._expr(arg0)
-        self._expr(arg1)
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
 
+        if expr.op in _FP_MATH_BINOPS:
+            return self._fp_math_result(expr, (r0, r1))
+        if expr.op == "Scale":
+            # ldexp(x, n): only x is a float
+            return self._fp_math_result(expr, (r0,))
         return RichR(self.state.top(expr.bits))
+
+    def _fp_math_result(self, expr: ailment.expression.BinaryOp | ailment.expression.UnaryOp, operands) -> RichR:
+        # a libm-style FP op: the given operands and the result are floats of the op width
+        ft = typeconsts.float_type(expr.bits)
+        if ft is None:
+            return RichR(self.state.top(expr.bits))
+        for r in operands:
+            self._constrain_richr_as_float(r, ft)
+        typevar = self.tv_manager.new_tv()
+        self.state.add_type_constraint(typevars.Subtype(ft, typevar))
+        return RichR(self.state.top(expr.bits), typevar=typevar)
 
     _handle_binop_AddF = _handle_binop_Default
     _handle_binop_SubF = _handle_binop_Default
@@ -1606,7 +1626,9 @@ class SimEngineVRAIL(
         )
 
     def _handle_unop_Default(self, expr: ailment.expression.UnaryOp) -> RichR[claripy.ast.BV | claripy.ast.FP]:
-        self._expr(expr.operands[0])
+        r = self._expr(expr.operands[0])
+        if expr.op in _FP_MATH_UNOPS:
+            return self._fp_math_result(expr, (r,))
         return cast(RichR[claripy.ast.BV | claripy.ast.FP], RichR(self.state.top(expr.bits)))
 
     _handle_unop_Dereference = _handle_unop_Default

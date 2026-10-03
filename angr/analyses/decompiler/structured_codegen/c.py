@@ -2241,13 +2241,48 @@ class CUnaryOp(CExpression):
             "Dereference": self._c_repr_chunks_dereference,
             "Clz": self._c_repr_chunks_clz,
             "ClzNat": self._c_repr_chunks_clz,  # libVEX 3.27+ name for the zero-defined scalar Clz
+            "Abs": self._c_repr_chunks_libm,
+            "Sqrt": self._c_repr_chunks_libm,
+            "Sin": self._c_repr_chunks_libm,
+            "Cos": self._c_repr_chunks_libm,
+            "Tan": self._c_repr_chunks_libm,
+            "Exp2": self._c_repr_chunks_libm,
+            "Log2": self._c_repr_chunks_libm,
         }
 
         handler = OP_MAP.get(self.op)
         if handler is not None:
             yield from handler()
         else:
-            yield f"UnaryOp {self.op}", self
+            yield from self._c_repr_chunks_opfirst(self.op)
+
+    # libm function per AIL op; the "f" variant is picked for float-typed operands
+    _LIBM_FUNCS = {
+        "Abs": "fabs",
+        "Sqrt": "sqrt",
+        "Sin": "sin",
+        "Cos": "cos",
+        "Tan": "tan",
+        "Exp2": "exp2",
+        "Log2": "log2",
+    }
+
+    def _is_single_precision(self) -> bool:
+        ty = self.type
+        return isinstance(ty, SimTypeFloat) and not isinstance(ty, SimTypeDouble)
+
+    def _c_repr_chunks_libm(self):
+        fn = self._LIBM_FUNCS[self.op]
+        if self._is_single_precision():
+            fn += "f"
+        yield from self._c_repr_chunks_opfirst(fn)
+
+    def _c_repr_chunks_opfirst(self, fn: str):
+        paren = CClosingObject("(")
+        yield fn, self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
 
     #
     # Handlers
@@ -2325,6 +2360,9 @@ class CBinaryOp(CExpression):
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
         if self.op.startswith("Cmp"):
             self._type = SimTypeChar().with_arch(self.codegen.project.arch)
+        elif self.op == "Scale":
+            # ldexp(x, n): the integer exponent does not take part in the result type
+            self._type = self.lhs.type
         else:
             self._type = self.common_type
 
@@ -2446,6 +2484,10 @@ class CBinaryOp(CExpression):
             "Ror": self._c_repr_chunks_ror,
             "MaxF": self._c_repr_chunks_maxf,
             "MinF": self._c_repr_chunks_minf,
+            "Atan2": self._c_repr_chunks_libm,
+            "PRem": self._c_repr_chunks_libm,
+            "PRem1": self._c_repr_chunks_libm,
+            "Scale": self._c_repr_chunks_libm,
         }
 
         handler = OP_MAP.get(self.op)
@@ -2622,6 +2664,20 @@ class CBinaryOp(CExpression):
 
     def _c_repr_chunks_minf(self):
         fn = "fminf" if isinstance(self.type, SimTypeFloat) and not isinstance(self.type, SimTypeDouble) else "fmin"
+        yield from self._c_repr_chunks_opfirst(fn)
+
+    # libm function per AIL op (x87 fpatan / fprem / fprem1 / fscale)
+    _LIBM_FUNCS = {
+        "Atan2": "atan2",
+        "PRem": "fmod",
+        "PRem1": "remainder",
+        "Scale": "ldexp",
+    }
+
+    def _c_repr_chunks_libm(self):
+        fn = self._LIBM_FUNCS[self.op]
+        if isinstance(self.type, SimTypeFloat) and not isinstance(self.type, SimTypeDouble):
+            fn += "f"
         yield from self._c_repr_chunks_opfirst(fn)
 
 
@@ -3052,13 +3108,14 @@ class CDirtyExpression(CExpression):
     AIL. Eventually this class should not be used at all.
     """
 
-    __slots__ = ("dirty",)
+    __slots__ = ("dirty", "operands")
 
     _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
-    def __init__(self, dirty, **kwargs):
+    def __init__(self, dirty, operands: list[CExpression] | None = None, **kwargs):
         super().__init__(**kwargs)
         self.dirty = dirty
+        self.operands = operands if operands is not None else []
 
     @property
     def type(self):
@@ -3080,9 +3137,14 @@ class CDirtyExpression(CExpression):
         # placeholder comment.
         name = self.intrinsic_name()
         if name is not None:
-            operands = getattr(self.dirty, "operands", None) or []
-            args = ", ".join(repr(op).replace("[D] ", "") for op in operands)
-            yield f"{name}({args})", None
+            paren = CClosingObject("(")
+            yield name, self
+            yield "(", paren
+            for i, operand in enumerate(self.operands):
+                if i > 0:
+                    yield ", ", None
+                yield from CExpression._try_c_repr_chunks(operand)
+            yield ")", paren
         else:
             yield "/* unsupported instruction */", None
 
@@ -4873,7 +4935,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return CVEXCCallExpression(expr.callee, operands, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Dirty(self, expr: Expr.DirtyExpression, **kwargs):
-        return CDirtyExpression(expr, codegen=self)
+        operands = [self._handle(operand) for operand in expr.operands]
+        return CDirtyExpression(expr, operands=operands, codegen=self)
 
     def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):
         return CITE(
@@ -5088,6 +5151,10 @@ class CStructuredCodeWalker:
         return obj
 
     def handle_CVEXCCallExpression(self, obj):
+        obj.operands = [self.handle(operand) for operand in obj.operands]
+        return obj
+
+    def handle_CDirtyExpression(self, obj):
         obj.operands = [self.handle(operand) for operand in obj.operands]
         return obj
 

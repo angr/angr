@@ -1336,13 +1336,15 @@ def _parse_cunsupported(pb, _ctx):
     return obj
 
 
-def _ser_cdirtyexpr(node, pb, _ctx):
+def _ser_cdirtyexpr(node, pb, ctx):
     pb.cdirty_expr.dirty = node.dirty.to_bytes()
+    pb.cdirty_expr.operands_ids.extend(ctx.serialize(operand) for operand in node.operands)
 
 
-def _parse_cdirtyexpr(pb, _ctx):
+def _parse_cdirtyexpr(pb, ctx):
     obj = CDirtyExpression.__new__(CDirtyExpression)
     obj.dirty = AilExpression.from_bytes(pb.cdirty_expr.dirty)
+    obj.operands = [ctx.resolve(i) for i in pb.cdirty_expr.operands_ids]
     return obj
 
 

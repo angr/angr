@@ -413,12 +413,12 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             }
             ExprKind::Binop { op, arg1, arg2 } => {
                 let bits = self.reader.result_bits(e);
-                let r = self.convert_binop(&op, &arg1, &arg2);
+                let r = self.convert_binop(&op, &arg1, &arg2, bits);
                 self.finish_op(r, op.label(), bits)
             }
             ExprKind::Triop { op, args } => {
                 let bits = self.reader.result_bits(e);
-                let r = self.convert_triop(&op, &args);
+                let r = self.convert_triop(&op, &args, bits);
                 self.finish_op(r, op.label(), bits)
             }
             ExprKind::Unsupported { label, bits } => self.unsupported_expr(label, bits),
@@ -664,7 +664,11 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         op: &OpRef,
         a1: &R::E,
         a2: &R::E,
+        bits: u32,
     ) -> Result<AilExpression, ConvErr> {
+        if let Some(e) = self.convert_math_binop(&op.label(), a1, a2, bits)? {
+            return Ok(e);
+        }
         let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let mut op_name = simop.generic_name.clone();
         if let (None, Some(vector_count)) = (op_name.as_deref(), simop.vector_count) {
@@ -993,7 +997,17 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         })
     }
 
-    fn convert_triop(&mut self, op: &OpRef, args: &[R::E]) -> Result<AilExpression, ConvErr> {
+    fn convert_triop(
+        &mut self,
+        op: &OpRef,
+        args: &[R::E],
+        bits: u32,
+    ) -> Result<AilExpression, ConvErr> {
+        if args.len() == 3
+            && let Some(e) = self.convert_math_triop(&op.label(), &args[1], &args[2], bits)?
+        {
+            return Ok(e);
+        }
         let simop = op.simop().map_err(|_| ConvErr::Unsupported)?;
         let Some(op_name) = simop.generic_name.clone() else {
             return Err(ConvErr::Unsupported);
@@ -1029,6 +1043,172 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         }
         // Non-fp triop: Python raises TypeError (unsupported in practice).
         Err(ConvErr::Unsupported)
+    }
+
+    // ---- x87 / SSE math ops without a symbolic-engine model ------------
+    //
+    // `vexop_to_simop` mirrors the symbolic engine, which has no claripy model for the x87
+    // transcendental and remainder ops (and a few SSE ones). The converter still knows their
+    // shape, so map them to AIL ops here instead of emitting an operand-less
+    // `unsupported_*` DirtyExpression that drops the inputs.
+
+    /// `Iop_XxxF64(rm, x)` binops and `Iop_CmpUN*` lane compares.
+    fn convert_math_binop(
+        &mut self,
+        label: &str,
+        a1: &R::E,
+        a2: &R::E,
+        bits: u32,
+    ) -> Result<Option<AilExpression>, ConvErr> {
+        let unary = match label {
+            "Iop_SqrtF32" | "Iop_SqrtF64" => Some("Sqrt"),
+            "Iop_Sqrt32Fx4" | "Iop_Sqrt64Fx2" | "Iop_Sqrt32Fx8" | "Iop_Sqrt64Fx4" => Some("SqrtV"),
+            "Iop_SinF64" => Some("Sin"),
+            "Iop_CosF64" => Some("Cos"),
+            "Iop_TanF64" => Some("Tan"),
+            _ => None,
+        };
+        if let Some(ail_op) = unary {
+            // the rounding mode (a1) is dropped: AIL unary ops carry none
+            let x = self.convert_expr(a2)?;
+            return Ok(Some(self.fp_unop(ail_op, x, bits)));
+        }
+        if label == "Iop_2xm1F64" {
+            // f2xm1: 2^x - 1
+            let x = self.convert_expr(a2)?;
+            let exp2 = self.fp_unop("Exp2", x, bits);
+            let one = self.make_const(ConstValue::Float(1.0), bits)?;
+            return Ok(Some(self.fp_binop("Sub", exp2, one, bits)));
+        }
+        if let Some((count, size)) = cmpun_vector_shape(label) {
+            let lhs = self.convert_expr(a1)?;
+            let rhs = self.convert_expr(a2)?;
+            let idx = self.next_atom();
+            return Ok(Some(new_binop(
+                idx,
+                "CmpUNV".to_string(),
+                lhs,
+                rhs,
+                false,
+                true,
+                None,
+                Some(bits),
+                Some(count),
+                Some(size),
+                self.tags(),
+            )));
+        }
+        Ok(None)
+    }
+
+    /// `Iop_XxxF64(rm, a, b)` triops.
+    fn convert_math_triop(
+        &mut self,
+        label: &str,
+        a: &R::E,
+        b: &R::E,
+        bits: u32,
+    ) -> Result<Option<AilExpression>, ConvErr> {
+        let binary = match label {
+            "Iop_AtanF64" => Some("Atan2"),  // fpatan: atan2(ST1, ST0)
+            "Iop_PRemF64" => Some("PRem"),   // fprem: fmod(ST0, ST1)
+            "Iop_PRem1F64" => Some("PRem1"), // fprem1: remainder(ST0, ST1)
+            _ => None,
+        };
+        if let Some(ail_op) = binary {
+            let lhs = self.convert_expr(a)?;
+            let rhs = self.convert_expr(b)?;
+            return Ok(Some(self.fp_binop(ail_op, lhs, rhs, bits)));
+        }
+        match label {
+            "Iop_ScaleF64" => {
+                // fscale: ST0 * 2^trunc(ST1) == ldexp(ST0, (int)ST1)
+                let lhs = self.convert_expr(a)?;
+                let rhs = self.convert_expr(b)?;
+                let idx = self.next_atom();
+                let exp = new_convert(
+                    idx,
+                    bits,
+                    32,
+                    true,
+                    rhs,
+                    ConvertType::TypeFp,
+                    ConvertType::TypeInt,
+                    Some(RoundingModeOrExpr::Mode(RoundingMode::RmTowardsZero)),
+                    self.tags(),
+                );
+                Ok(Some(self.fp_binop("Scale", lhs, exp, bits)))
+            }
+            "Iop_Yl2xF64" | "Iop_Yl2xp1F64" => {
+                // fyl2x: ST1 * log2(ST0); fyl2xp1: ST1 * log2(ST0 + 1)
+                let y = self.convert_expr(a)?;
+                let mut x = self.convert_expr(b)?;
+                if label == "Iop_Yl2xp1F64" {
+                    let one = self.make_const(ConstValue::Float(1.0), bits)?;
+                    x = self.fp_binop("Add", x, one, bits);
+                }
+                let log2 = self.fp_unop("Log2", x, bits);
+                Ok(Some(self.fp_binop("Mul", y, log2, bits)))
+            }
+            "Iop_PRemC3210F64" | "Iop_PRem1C3210F64" => {
+                // the C3/C2/C0 status bits of fprem/fprem1, in FPU status-word layout: an intrinsic
+                let callee = if label == "Iop_PRemC3210F64" {
+                    "x87_fprem_c3210"
+                } else {
+                    "x87_fprem1_c3210"
+                };
+                let operands = vec![self.convert_expr(a)?, self.convert_expr(b)?];
+                let idx = self.next_atom();
+                Ok(Some(AilExpression {
+                    header: ExprHeader::new(idx, 1, bits, self.tags()),
+                    inner: ExprInner::DirtyExpression(Box::new(DirtyExpr {
+                        callee: callee.to_string(),
+                        operands,
+                        guard: None,
+                        mfx: None,
+                        maddr: None,
+                        msize: None,
+                    })),
+                }))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn fp_unop(&mut self, op: &str, operand: AilExpression, bits: u32) -> AilExpression {
+        let idx = self.next_atom();
+        let depth = operand.header.depth + 1;
+        AilExpression {
+            header: ExprHeader::new(idx, depth, bits, self.tags()),
+            inner: ExprInner::UnaryOp {
+                op: op.to_string(),
+                operand: Arc::new(operand),
+                floating_point: true,
+            },
+        }
+    }
+
+    fn fp_binop(
+        &mut self,
+        op: &str,
+        lhs: AilExpression,
+        rhs: AilExpression,
+        bits: u32,
+    ) -> AilExpression {
+        let idx = self.next_atom();
+        new_binop(
+            idx,
+            op.to_string(),
+            lhs,
+            rhs,
+            true, // all floating-point operations are signed
+            true,
+            None,
+            Some(bits),
+            None,
+            None,
+            self.tags(),
+        )
     }
 
     fn finish_op(
@@ -1709,6 +1889,13 @@ fn suffix_rounding_mode(name: &str) -> Option<RoundingModeOrExpr> {
         _ => return None,
     };
     Some(RoundingModeOrExpr::Mode(mode))
+}
+
+/// `(lane count, lane bits)` of an `Iop_CmpUN<bits>F[0]x<count>` unordered lane compare.
+fn cmpun_vector_shape(label: &str) -> Option<(i64, i64)> {
+    let (size, lanes) = label.strip_prefix("Iop_CmpUN")?.split_once('F')?;
+    let count = lanes.trim_start_matches('0').strip_prefix('x')?;
+    Some((count.parse().ok()?, size.parse().ok()?))
 }
 
 /// `_new_dirty_expression` with no operands: depth is a constant 1.
