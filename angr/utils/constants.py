@@ -12,6 +12,14 @@ MAX_ACCESS_SIZE = 0x10_0000
 # leaked constants, or offsets that wrapped around, not from fields of a real object.
 MAX_FIELD_OFFSET = 0x400_000
 
+# How deeply Typehoon will nest a recovered type, counting a pointer and a struct as one level each. The solver
+# inlines each dereferenced type variable's solution into the field of the struct it points to, so a chain of N
+# dereferences becomes a type 2N+1 levels deep -- and every traversal a type constant defines (hashing it,
+# printing it) recurses once or more per level, so a few hundred levels exhaust the interpreter's stack wherever
+# the type is next touched. Past this depth the rest of the chain is reported as a pointer to an unknown type,
+# the same answer the solver already gives for a struct whose field offsets make no sense.
+MAX_TYPE_NESTING = 32
+
 #: Well-known "magic" constants that are universally recognized in hexadecimal.
 MAGIC_CONSTANTS = frozenset(
     {

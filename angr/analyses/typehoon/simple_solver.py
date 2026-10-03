@@ -13,7 +13,7 @@ import networkx
 from sortedcontainers import SortedDict
 
 import angr
-from angr.utils.constants import MAX_FIELD_OFFSET, MAX_POINTSTO_BITS
+from angr.utils.constants import MAX_FIELD_OFFSET, MAX_POINTSTO_BITS, MAX_TYPE_NESTING
 
 from ._typehash import type_tag
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -2134,7 +2134,7 @@ class SimpleSolver:
                 for idx in range(max(vals) + 1):
                     if idx in vals:
                         sol = self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=vals[idx])
-                        out.append(sol)
+                        out.append(self._bounded(sol))
                     else:
                         out.append(None)
 
@@ -2249,7 +2249,9 @@ class SimpleSolver:
                 offset = sorted_offsets[i]
 
                 child_nodes = node_by_offset[offset]
-                sol = self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=child_nodes)
+                sol = self._bounded(
+                    self._determine(the_typevar, sketch, equivalence_classes, solution, nodes=child_nodes)
+                )
                 if isinstance(sol, TopType) and offset in offset_to_sizes:
                     # make it an array if possible
                     elem_size = min(offset_to_sizes[offset])
@@ -2373,6 +2375,59 @@ class SimpleSolver:
     def _is_negative_offset(self, offset: int) -> bool:
         # offsets that wrapped around into the unsigned range are negative offsets in disguise
         return offset < 0 or offset >= 1 << (self.bits - 1)
+
+    def _bounded(self, tc: TypeConstant | None) -> TypeConstant | None:
+        """
+        ``tc``, or a pointer to an unknown type when it nests deeper than :data:`MAX_TYPE_NESTING`. ``None``,
+        which is how :meth:`_determine` says it has no solution, passes through unchanged.
+
+        Every solution this solver inlines into another one goes through here. A type variable dereferenced
+        through a chain of loads solves to a pointer to a struct whose field is the next link, so inlining one
+        into the next makes a type as deep as the chain is long: 535 nodes, alternating pointer and struct, on
+        one x86 PE sample. Nothing downstream survives that -- hashing such a type recurses four Python frames
+        per link and printing it five, so the first traversal of it exhausts the interpreter's stack and Clinic
+        drops every variable type in the function.
+        """
+        if tc is not None and self._nests_deeper_than(tc, MAX_TYPE_NESTING):
+            return self._pointer_class()(Bottom_)
+        return tc
+
+    @staticmethod
+    def _nests_deeper_than(tc: TypeConstant, limit: int) -> bool:
+        """
+        Whether ``tc`` nests more than ``limit`` levels deep.
+
+        Walked level by level and abandoned as soon as the answer is known, so asking the question is never itself
+        a deep recursion -- which is the whole point, because the types this is asked about are the ones no
+        recursive traversal survives.
+
+        It measures the shortest path to a node: a subtype reached twice is expanded the first time only. A
+        type that named one subtype both beside its root and at the end of a long chain would therefore pass
+        this bound while hashing it still exhausted the stack.
+        """
+        frontier = [tc]
+        seen = {id(tc)}
+        for _ in range(limit):
+            children = []
+            for node in frontier:
+                if isinstance(node, Pointer):
+                    nested = (node.basetype,)
+                elif isinstance(node, Struct):
+                    nested = tuple(node.fields.values())
+                elif isinstance(node, Array):
+                    nested = (node.element,)
+                elif isinstance(node, Function):
+                    nested = (*node.params, *node.outputs)
+                else:
+                    continue
+                for child in nested:
+                    if child is not None and id(child) not in seen:
+                        seen.add(id(child))
+                        children.append(child)
+            if not children:
+                return False
+            frontier = children
+        return True
 
     def _pointer_class(self) -> type[Pointer32 | Pointer64]:
         if self.bits == 32:
