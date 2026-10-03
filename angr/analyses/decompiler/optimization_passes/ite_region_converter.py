@@ -90,9 +90,9 @@ class ITERegionConverter(OptimizationPass):
 
             true_child, false_child = None, None
             for child in children:
-                if if_stmt.true_target is not None and child.addr == if_stmt.true_target.value:
+                if isinstance(if_stmt.true_target, Const) and child.addr == if_stmt.true_target.value:
                     true_child = child
-                elif if_stmt.false_target is not None and child.addr == if_stmt.false_target.value:
+                elif isinstance(if_stmt.false_target, Const) and child.addr == if_stmt.false_target.value:
                     false_child = child
 
             if (
