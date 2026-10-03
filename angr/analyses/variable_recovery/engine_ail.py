@@ -1475,16 +1475,24 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.bits))
 
     def _handle_binop_CmpLT(self, expr):
-        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
+        if expr.signed and not expr.floating_point:
+            return self._handle_binop_Cmp_Signed(expr)
+        return self._handle_binop_Cmp_Default(expr)
 
     def _handle_binop_CmpLE(self, expr):
-        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
+        if expr.signed and not expr.floating_point:
+            return self._handle_binop_Cmp_Signed(expr)
+        return self._handle_binop_Cmp_Default(expr)
 
     def _handle_binop_CmpGT(self, expr):
-        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
+        if expr.signed and not expr.floating_point:
+            return self._handle_binop_Cmp_Signed(expr)
+        return self._handle_binop_Cmp_Default(expr)
 
     def _handle_binop_CmpGE(self, expr):
-        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
+        if expr.signed and not expr.floating_point:
+            return self._handle_binop_Cmp_Signed(expr)
+        return self._handle_binop_Cmp_Default(expr)
 
     def _handle_binop_Default(self, expr):
         arg0, arg1 = expr.operands

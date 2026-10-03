@@ -129,6 +129,19 @@ class TestRemoveRedundantConversions(unittest.TestCase):
         opt = _make_peephole(RemoveRedundantConversions)
         return opt.optimize(expr)
 
+    def test_fp_widened_compare_narrows_to_a_float_constant(self):
+        """Conv(32F->64F, x) == 0.0 compares x against 0.0f, as a float comparison; 0.1 is not a float."""
+        from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
+
+        x = VirtualVariable(1, 10, 32, category=VirtualVariableCategory.REGISTER, oident=224)
+        widened = Convert(2, 32, 64, False, x, from_type=Convert.TYPE_FP, to_type=Convert.TYPE_FP)
+        (zero_bits,) = struct.unpack("<Q", struct.pack("<d", 0.0))
+        result = self._opt(BinaryOp(3, "CmpEQ", [widened, Const(4, zero_bits, 64)], False))
+        assert isinstance(result, BinaryOp) and result.op == "CmpEQ" and result.floating_point
+        assert result.operands[0].likes(x) and result.operands[1].bits == 32 and result.operands[1].value == 0
+        (tenth_bits,) = struct.unpack("<Q", struct.pack("<d", 0.1))
+        assert self._opt(BinaryOp(5, "CmpEQ", [widened, Const(6, tenth_bits, 64)], False)) is None
+
     def test_fp_narrowing_of_int_widening(self):
         """Conv(64F->32F, Conv(32I->64I, x)) should eliminate both Convs."""
         x = Const(1, 42, 32)

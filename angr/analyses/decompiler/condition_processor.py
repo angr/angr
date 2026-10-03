@@ -118,6 +118,12 @@ def _dummy_bools(condition, condition_mapping, name_suffix=""):
     return var
 
 
+_FP_FLAGGED_OPS = frozenset({"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE", "Add", "Sub", "Mul", "Div"})
+_CLARIPY_CMP_OPS = frozenset(
+    {"__eq__", "__ne__", "__lt__", "__le__", "__gt__", "__ge__", "SLT", "SLE", "SGT", "SGE", "ULT", "ULE", "UGT", "UGE"}
+)
+
+
 def _cmp_with_unified_size(op: Callable) -> Callable:
     """
     Build a comparison lambda whose operands are brought to the same width first. An AIL comparison can end up with
@@ -125,7 +131,10 @@ def _cmp_with_unified_size(op: Callable) -> Callable:
     refuses to compare those, and a decompilation should not die on a condition.
     """
 
-    def _cmp(expr, conv: Callable, _, ins_addr: int, *args):  # pylint:disable=unused-argument
+    def _cmp(expr, conv: Callable, m, ins_addr: int, *args):  # pylint:disable=unused-argument
+        if expr.floating_point and expr.operands[0].likes(expr.operands[1]):
+            # x != x is the NaN test; claripy would fold it to a constant
+            return _dummy_bools(expr, m)
         operand0 = conv(expr.operands[0], nobool=True, ins_addr=ins_addr)
         operand1 = conv(expr.operands[1], nobool=True, ins_addr=ins_addr)
         if isinstance(operand0, claripy.ast.BV) and isinstance(operand1, claripy.ast.BV):
@@ -947,6 +956,20 @@ class ConditionProcessor:
                 cond_tags = self._ast2annotations.get(claripy.Not(cond))
             else:
                 cond_tags = {}
+            if cond_tags.get("floating_point") is not True and cond.op in _CLARIPY_CMP_OPS:
+                # a comparison claripy derived by negating an FP comparison is an FP comparison too
+                negated_tags = self._ast2annotations.get(claripy.Not(cond))
+                if negated_tags is not None and negated_tags.get("floating_point") is True:
+                    cond_tags = {**cond_tags, "floating_point": True}
+            if cond_tags.get("floating_point") is True:
+                # claripy has no FP flavor of these operators; restore the flag on the rebuilt expression
+                cond_tags = {k: v for k, v in cond_tags.items() if k != "floating_point"}
+                r = _mapping[cond.op](cond, cond_tags)
+                if isinstance(r, ailment.Expr.BinaryOp) and r.op in _FP_FLAGGED_OPS and not r.floating_point:
+                    r = ailment.Expr.BinaryOp(
+                        r.idx, r.op, r.operands, r.signed, bits=r.bits, floating_point=True, **r.tags
+                    )
+                return r
             return _mapping[cond.op](cond, cond_tags)
         raise NotImplementedError(
             f"Condition variable {cond} has an unsupported operator {cond.op}. Consider implementing."
@@ -1094,8 +1117,15 @@ class ConditionProcessor:
             else:
                 r = claripy.BVS(f"ailexpr_{condition!r}", condition.bits, explicit_name=True)
             self._condition_mapping[r.args[0]] = condition
-        # don't lose tags
-        self._ast2annotations[r] = condition.tags
+        # don't lose tags, nor the floating-point flag of an FP comparison (claripy folds !(a == b) into a != b,
+        # so the negation of an FP comparison annotates that comparison)
+        tags = condition.tags
+        fp_source = condition
+        if isinstance(condition, ailment.Expr.UnaryOp) and condition.op == "Not":
+            fp_source = condition.operand
+        if isinstance(fp_source, (ailment.Expr.BinaryOp, ailment.Expr.UnaryOp)) and fp_source.floating_point:
+            tags = {**tags, "floating_point": True}
+        self._ast2annotations[r] = tags
 
         if isinstance(r, claripy.ast.BV) and r.size() == 1 and must_bool:
             # convert to a BoolS
