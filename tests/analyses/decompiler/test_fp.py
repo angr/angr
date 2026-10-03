@@ -1105,3 +1105,23 @@ class TestX87Math(unittest.TestCase):
         text = self._text("x87_exp2")
         assert "ldexp(exp2(" in text and "- 1.0 + 1.0, (int)" in text
         assert re.search(r"ldexp\(\w+, \(int\)", self._text("x87_ldexp"))
+
+
+# x87 stack tracking across calls and the fptag/fistp/fxam/long double
+# shapes seen in MSVC code (x87_call_delta_i386.o)
+# ======================================================================
+
+
+_X87_CALL_DELTA_BIN = "x87_call_delta_i386.o"
+
+
+def _assert_no_x87_leaks(text: str) -> None:
+    assert "ireg_" not in text, text
+    assert "ftop" not in text, text
+    assert "fptag" not in text, text
+    assert "fpreg[" not in text, text
+
+
+class TestX87CallDelta:
+    """IRegisterResolver must resolve every x87 stack access to a concrete st(i) regardless of how the callees
+    affect the stack."""

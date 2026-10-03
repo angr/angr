@@ -3950,6 +3950,9 @@ class Clinic(Analysis, Serializable):
 
             ite_ins_addrs = []
             cas_ins_addrs = set()
+            # the first ITE of an instruction is the one _create_triangle_for_ite_expression rewrites, so it alone
+            # decides (x87 fistp: the fptag check precedes the saturation ITE)
+            seen_ite_ins_addrs = set()
             # Build a mapping from Tmp index to its defining expression so we can
             # resolve temporaries when checking for fptag NaN ITE patterns.
             tmp_defs: dict[int, ailment.Expr.Expression] = {}
@@ -3959,15 +3962,15 @@ class Clinic(Analysis, Serializable):
                 if isinstance(stmt, ailment.Stmt.CAS):
                     # we do not rewrite ITE statements that are caused by CAS statements
                     cas_ins_addrs.add(stmt.tags["ins_addr"])
-                elif (
-                    isinstance(stmt, ailment.Stmt.Assignment)
-                    and isinstance(stmt.src, ailment.Expr.ITE)
-                    and stmt.tags["ins_addr"] not in ite_ins_addrs
-                    and stmt.tags["ins_addr"] not in cas_ins_addrs
-                    and not self._is_fptag_nan_ite(stmt.src, tmp_defs, self.project.arch)
-                    and not self._is_cmpf_ite(stmt.src, tmp_defs)
-                ):
-                    ite_ins_addrs.append(stmt.tags["ins_addr"])
+                elif isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
+                    ins_addr = stmt.tags["ins_addr"]
+                    if ins_addr in seen_ite_ins_addrs or ins_addr in cas_ins_addrs:
+                        continue
+                    seen_ite_ins_addrs.add(ins_addr)
+                    if not self._is_fptag_nan_ite(stmt.src, tmp_defs, self.project.arch) and not self._is_cmpf_ite(
+                        stmt.src, tmp_defs
+                    ):
+                        ite_ins_addrs.append(ins_addr)
 
             if ite_ins_addrs:
                 block_and_ite_ins_addrs.append((block, ite_ins_addrs))
@@ -4003,11 +4006,16 @@ class Clinic(Analysis, Serializable):
             block_addr, size=ite_ins_addr - block_addr + ite_insn_size, cross_insn_opt=False
         )
         new_head_ail = ailment.IRSBConverter.convert(new_head.vex, self._ail_manager)
-        # remove all statements between the ITE expression and the very end of the block
+        # remove all statements between the ITE expression and the very end of the block. Earlier instructions in
+        # the head may keep ITEs of their own (x87 fptag checks), so match on the instruction address.
         ite_expr_stmt_idx = None
         ite_expr_stmt = None
         for idx, stmt in enumerate(new_head_ail.statements):
-            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.ITE):
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.src, ailment.Expr.ITE)
+                and stmt.tags.get("ins_addr") == ite_ins_addr
+            ):
                 ite_expr_stmt_idx = idx
                 ite_expr_stmt = stmt
                 break
