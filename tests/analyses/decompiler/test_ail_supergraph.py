@@ -66,6 +66,16 @@ class TestAILSupergraph(unittest.TestCase):
         assert not any(isinstance(s, Jump) for s in node.statements)
         assert isinstance(node.statements[-1], Return)
 
+    def test_a_self_loop_is_not_merged(self):
+        node = Block(0x400100, 0, statements=[Return(0, [], ins_addr=0x400100)])
+        graph = networkx.DiGraph()
+        graph.add_edge(node, node)
+
+        supergraph = to_ail_supergraph(graph)
+
+        assert list(supergraph.nodes) == [node]
+        assert list(supergraph.edges) == [(node, node)]
+
 
 if __name__ == "__main__":
     unittest.main()
