@@ -46,7 +46,7 @@ _V_TO_SCALAR: dict[str, str] = {
 }
 
 
-def _unwrap_conv_or_extract(operand, n_bits: int):
+def _unwrap_conv_or_extract(operand, n_bits: int, manager):
     """Return the N-bit scalar value inside *operand*.
 
     - If *operand* is ``Conv(N->128I, x)``, return ``x`` (the original N-bit value).
@@ -63,8 +63,8 @@ def _unwrap_conv_or_extract(operand, n_bits: int):
 
     # Generic: extract the lower N bits.
     tags = operand.tags if hasattr(operand, "tags") else {}
-    zero = Const(None, 0, 64, **tags)
-    return Extract(None, n_bits, operand, zero, "Iend_LE", **tags)
+    zero = Const(manager.next_atom(), 0, 64, **tags)
+    return Extract(manager.next_atom(), n_bits, operand, zero, "Iend_LE", **tags)
 
 
 def _lane_widths(conv: Convert) -> tuple[int, int] | None:
@@ -162,7 +162,8 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
         if stripped is not None:
             if stripped.bits == n_bits:
                 return stripped
-            return Extract(expr.idx, n_bits, stripped, Const(None, 0, 64, **expr.tags), "Iend_LE", **expr.tags)
+            zero = Const(self.manager.next_atom(), 0, 64, **expr.tags)
+            return Extract(expr.idx, n_bits, stripped, zero, "Iend_LE", **expr.tags)
 
         base = expr.base
 
@@ -181,7 +182,7 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
 
         # Pattern: Extract(UnaryOp(Conv(N->128, x)), N@0) -> UnaryOp(x, fp=True)
         if isinstance(base, UnaryOp) and base.operand.bits > n_bits:
-            operand = _unwrap_conv_or_extract(base.operand, n_bits)
+            operand = _unwrap_conv_or_extract(base.operand, n_bits, self.manager)
             if operand is not base.operand:
                 return UnaryOp(
                     expr.idx,
@@ -207,8 +208,8 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
         if len(base.operands) != 2:
             return None
 
-        a = _unwrap_conv_or_extract(base.operands[0], n_bits)
-        b = _unwrap_conv_or_extract(base.operands[1], n_bits)
+        a = _unwrap_conv_or_extract(base.operands[0], n_bits, self.manager)
+        b = _unwrap_conv_or_extract(base.operands[1], n_bits, self.manager)
 
         return BinaryOp(
             expr.idx,
@@ -223,7 +224,7 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
 
 def _strip_lane0(expr, n_bits: int):
     """Return the value producing the low *n_bits* of *expr*, stripping wrappers that do not affect those
-    bits: widening integer Converts, nested lsb Extracts, and Or with a constant whose low n_bits are 0.
+    bits: widening integer Converts, nested lsb Extracts, Or with a constant whose low n_bits are 0, and Concat.
     Returns None if no simplification applies."""
     changed = False
     for _ in range(8):
@@ -251,6 +252,10 @@ def _strip_lane0(expr, n_bits: int):
             and (expr.operands[1].value & ((1 << n_bits) - 1)) == 0
         ):
             expr = expr.operands[0]
+            changed = True
+        elif isinstance(expr, BinaryOp) and expr.op == "Concat" and expr.operands[1].bits >= n_bits:
+            # the low lanes of a Concat (unpckhpd/unpcklpd lane duplication) are its second operand
+            expr = expr.operands[1]
             changed = True
         else:
             break

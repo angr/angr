@@ -462,6 +462,98 @@ class TestFloatConstGuards(unittest.TestCase):
         assert opt.optimize(stmts[2], 2, block) is None
 
 
+# ======================================================================
+# sse_vector_lane_lowering: lane-0 reads of lane-wise vector ops
+# ======================================================================
+
+
+class TestSSEVectorLaneLowering(unittest.TestCase):
+    """Lane-0 reads of ShrNV/SubV/CmpEQV/MulV/ConvV collapse to scalar ops."""
+
+    def setUp(self):
+        from angr.analyses.decompiler.peephole_optimizations.remove_redundant_ite_comparisons import (
+            RemoveRedundantITEComparisons,
+        )
+        from angr.analyses.decompiler.peephole_optimizations.sse_vector_lane_lowering import SSEVectorLaneLowering
+
+        self.opt = _make_peephole(SSEVectorLaneLowering)
+        self.ite_opt = _make_peephole(RemoveRedundantITEComparisons)
+        self.x = Tmp(1, 1, 128)
+        self.y = Tmp(2, 2, 128)
+
+    @staticmethod
+    def _lsb(bits, base):
+        return Extract(None, bits, base, Const(None, 0, 64), "Iend_LE")
+
+    def _vec(self, op, a, b, **kw):
+        return BinaryOp(None, op, [a, b], kw.pop("signed", False), bits=128, vector_count=2, vector_size=64, **kw)
+
+    def test_psrlq_exponent_extraction(self):
+        """Conv(128->16, ShrNV(x, 52)) -> Conv(64->16, lane0(x) >> 52) (psrlq + pextrw)."""
+        shr = self._vec("ShrNV", self.x, Const(None, 52, 8))
+        r = self.opt.optimize(Convert(None, 128, 16, False, shr))
+        assert isinstance(r, Convert) and (r.from_bits, r.to_bits) == (64, 16)
+        assert isinstance(r.operand, BinaryOp) and r.operand.op == "Shr" and r.operand.bits == 64
+        assert isinstance(r.operand.operands[0], Extract) and r.operand.operands[0].bits == 64
+        # a full-lane read needs no wrapper
+        r = self.opt.optimize(self._lsb(64, shr))
+        assert isinstance(r, BinaryOp) and r.op == "Shr" and r.bits == 64
+
+    def test_psubq_lane0_with_vector_constant(self):
+        """Conv(128->64, SubV(c128, Conv(64->128, t))) -> Sub(lane0(c128), t)."""
+        t = Tmp(3, 3, 64)
+        sub = self._vec("SubV", Const(None, 0x3FF00000000000003FF0000000000000, 128), Convert(None, 64, 128, False, t))
+        r = self.opt.optimize(Convert(None, 128, 64, False, sub))
+        assert isinstance(r, BinaryOp) and r.op == "Sub" and r.bits == 64 and not r.floating_point
+        assert isinstance(r.operands[0], Const) and r.operands[0].value == 0x3FF0000000000000
+        assert r.operands[1] == t
+
+    def test_cmpeqsd_mask_to_condition(self):
+        """Extract(CmpEQV(0, y), 16@0) -> ITE(0 == lane0(y), 0xffff, 0); the mask test folds to the condition."""
+        cmp = self._vec("CmpEQV", Const(None, 0, 128), self.y, floating_point=True)
+        r = self.opt.optimize(self._lsb(16, cmp))
+        assert isinstance(r, ITE) and r.bits == 16
+        assert isinstance(r.cond, BinaryOp) and r.cond.op == "CmpEQ" and r.cond.floating_point
+        assert r.iftrue.value == 0xFFFF and r.iffalse.value == 0
+        # pextrw eax, xmm, 0 ; cmp eax, 0 ; ja  ->  the condition itself
+        assert self.ite_opt.optimize(BinaryOp(None, "CmpGT", [r, Const(None, 0, 16)], False, bits=1)) == r.cond
+        # ... & 1
+        assert self.ite_opt.optimize(BinaryOp(None, "And", [r, Const(None, 1, 16)], False, bits=16)) == r.cond
+        # ... & 0xff keeps a (narrower) mask
+        masked = self.ite_opt.optimize(BinaryOp(None, "And", [r, Const(None, 0xFF, 16)], False, bits=16))
+        assert isinstance(masked, ITE) and masked.iftrue.value == 0xFF
+
+    def test_mulpd_lane0_is_scalar_fp_mul(self):
+        mul = self._vec("MulV", self.x, self.y, signed=True, floating_point=True)
+        r = self.opt.optimize(self._lsb(64, mul))
+        assert isinstance(r, BinaryOp) and r.op == "Mul" and r.bits == 64 and r.floating_point
+
+    def test_reads_above_lane0_are_left_alone(self):
+        mul = self._vec("MulV", self.x, self.y, signed=True, floating_point=True)
+        assert self.opt.optimize(self._lsb(128, mul)) is None
+        assert self.opt.optimize(Extract(None, 64, mul, Const(None, 8, 64), "Iend_LE")) is None
+
+    def test_cvtdq2ps_on_movd_lane(self):
+        """Extract(ConvV(32->s32Fx4, Conv(32->128, t)), 32@0) -> Conv(32->s32F, t); a 64-bit read zero-extends."""
+        t = Tmp(4, 4, 32)
+        cv = Convert(
+            None,
+            128,
+            128,
+            True,
+            Convert(None, 32, 128, False, t),
+            from_type=Convert.TYPE_INT,
+            to_type=Convert.TYPE_FP,
+            vector_count=4,
+        )
+        r = self.opt.optimize(self._lsb(32, cv))
+        assert isinstance(r, Convert) and (r.from_bits, r.to_bits) == (32, 32)
+        assert r.from_type == Convert.TYPE_INT and r.to_type == Convert.TYPE_FP and r.operand == t
+        r = self.opt.optimize(Convert(None, 128, 64, False, cv))
+        assert isinstance(r, Convert) and (r.from_bits, r.to_bits) == (32, 64) and r.to_type == Convert.TYPE_INT
+        assert isinstance(r.operand, Convert) and r.operand.to_type == Convert.TYPE_FP
+
+
 if __name__ == "__main__":
     unittest.main()
 

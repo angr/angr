@@ -65,6 +65,7 @@ from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 from .single_bit_xor import SingleBitXor
 from .sse_bitwise_select import SSEBitwiseSelect
 from .sse_scalar_lowering import SSEScalarLowering, SSEVectorConvertLowering
+from .sse_vector_lane_lowering import SSEVectorLaneLowering
 from .tidy_stack_addr import TidyStackAddr
 from .x87_cmpf import X87CmpF
 
@@ -133,6 +134,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     NarrowFPOperations,
     SSEScalarLowering,
     SSEVectorConvertLowering,
+    SSEVectorLaneLowering,
     SSEBitwiseSelect,
 ]
 

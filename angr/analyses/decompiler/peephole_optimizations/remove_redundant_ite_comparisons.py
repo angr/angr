@@ -16,6 +16,31 @@ class RemoveRedundantITEComparisons(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp,)
 
     def optimize(self, expr: BinaryOp, **kwargs):
+        # SSE compare masks (ITE(cond, mask, 0) from a lane-wise compare):
+        #   ITE(cond, m, 0) & 1  ==>  cond        ITE(cond, m, 0) & k  ==>  ITE(cond, m & k, 0)
+        #   ITE(cond, m, 0) >u 0 ==>  cond
+        if expr.op in {"And", "CmpGT"} and not expr.signed:
+            ite, const = expr.operands
+            if (
+                isinstance(ite, ITE)
+                and isinstance(const, Const)
+                and isinstance(ite.iftrue, Const)
+                and isinstance(ite.iffalse, Const)
+                and isinstance(ite.iftrue.value, int)
+                and isinstance(const.value, int)
+                and ite.iftrue.value != 0
+                and ite.iffalse.value == 0
+            ):
+                if expr.op == "CmpGT" and const.value == 0:
+                    return ite.cond
+                if expr.op == "And":
+                    masked = ite.iftrue.value & const.value
+                    if masked == 1:
+                        return ite.cond
+                    if masked != ite.iftrue.value:
+                        masked_const = Const(self.manager.next_atom(), masked, ite.bits)
+                        return ITE(expr.idx, ite.cond, masked_const, ite.iffalse, **expr.tags)
+
         # ITE(cond, a, b) == a  ==>  cond
         # ITE(cond, a, b) == b  ==>  !cond
         # ITE(cond, a, b) != a  ==>  !cond

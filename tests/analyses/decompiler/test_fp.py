@@ -1094,6 +1094,30 @@ class TestX87StatusWordIdioms:
         assert expected in text, text
 
 
+# ======================================================================
+# sse_lane_amd64.o: lane-wise SSE ops (psrlq/cmpeqsd/psubq/mulpd) applied to
+# scalar doubles; only lane 0 is read, so the C must use scalar operators.
+# ======================================================================
+
+
+class TestSSELaneOps:
+    def test_exponent_bits(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "exponent_bits")
+        assert "ShrNV" not in text and ">> 52" in text, text
+
+    def test_is_one(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "is_one")
+        assert "CmpEQV" not in text and "1.0 == a0" in text, text
+
+    def test_sub_lane0(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "sub_lane0")
+        assert "SubV" not in text and "a1 - a0" in text, text
+
+    def test_mulpd_lane0(self):
+        text = _decompile_asm_func("sse_lane_amd64.o", "mulpd_lane0")
+        assert "MulV" not in text and "a0 * a1" in text, text
+
+
 if __name__ == "__main__":
     unittest.main()
 
