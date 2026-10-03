@@ -432,6 +432,7 @@ class SimEngineSSARewriting(
                 from_type=expr.from_type,
                 to_type=expr.to_type,
                 rounding_mode=expr.rounding_mode,
+                vector_count=expr.vector_count,
                 **expr.tags,
             )
         return None
