@@ -67,6 +67,11 @@ def is_sane_register_variable(
     if arch_name == "RISCV64":
         return 96 <= reg_offset < 160  # a0-a7
 
+    if arch_name == "S390X":
+        if 592 <= reg_offset < 632:  # r2-r6
+            return True
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)
+
     l.critical("Unsupported architecture %s.", arch.name)
     return True
 
