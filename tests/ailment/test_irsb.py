@@ -109,6 +109,21 @@ class TestSkippedExits(unittest.TestCase):
         assert block.statements[-1].target.value == 0x1008
 
 
+class TestDirtyWithoutMemoryEffect(unittest.TestCase):
+    def test_rdmsr_dirty_helper(self):
+        # rdmsr lifts to a DIRTY helper whose pyvex mFx/mSize are None (no memory effect); the converter must
+        # accept them instead of failing on a missing str.
+        arch = archinfo.arch_from_id("AMD64")
+        irsb = pyvex.IRSB(bytes.fromhex("0f32c3"), 0x1000, _vex_arch(arch), opt_level=1)
+        dirty = next(stmt for stmt in irsb.statements if isinstance(stmt, pyvex.IRStmt.Dirty))
+        assert dirty.mFx is None
+        block = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        assert any(
+            isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.DirtyExpression)
+            for stmt in block.statements
+        )
+
+
 class TestGetITmpWidth(unittest.TestCase):
     """A tmp defined by ``GetI`` (x87 stack access) must carry the element width on the fast path."""
 
