@@ -1994,6 +1994,7 @@ class CDirtyStatement(CExpression):
 
         yield indent_str, None
         yield from self.dirty.c_repr_chunks()
+        yield ";", None
         yield "\n", None
 
 
@@ -3123,8 +3124,10 @@ class CDirtyExpression(CExpression):
 
     def intrinsic_name(self) -> str | None:
         """Return the dirty callee if it is a clean C identifier, else None."""
-        callee = getattr(self.dirty, "callee", None)
-        if isinstance(callee, str) and self._IDENT_RE.fullmatch(callee):
+        if not isinstance(self.dirty, Expr.DirtyExpression):
+            return None
+        callee = self.dirty.callee
+        if self._IDENT_RE.fullmatch(callee):
             return callee
         return None
 
@@ -3132,21 +3135,23 @@ class CDirtyExpression(CExpression):
         if self.collapsed:
             yield "...", self
             return
-        # Never leak the internal "[D] ..." diagnostic repr into emitted C. Render a clean
-        # pseudo-intrinsic call when the callee is a valid C identifier, otherwise a safe
-        # placeholder comment.
+        # Never leak the internal "[D] ..." diagnostic repr into emitted C. Render a pseudo-intrinsic call
+        # (__dirty_<callee>, or the callee itself when it is already an intrinsic name) with C operands when the
+        # callee is a valid C identifier, otherwise a safe placeholder comment.
         name = self.intrinsic_name()
-        if name is not None:
-            paren = CClosingObject("(")
-            yield name, self
-            yield "(", paren
-            for i, operand in enumerate(self.operands):
-                if i > 0:
-                    yield ", ", None
-                yield from CExpression._try_c_repr_chunks(operand)
-            yield ")", paren
-        else:
+        if name is None:
             yield "/* unsupported instruction */", None
+            return
+        if not name.startswith("__"):
+            name = f"__dirty_{name}"
+        yield name, self
+        paren = CClosingObject("(")
+        yield "(", paren
+        for i, operand in enumerate(self.operands):
+            if i:
+                yield ", ", None
+            yield from CExpression._try_c_repr_chunks(operand)
+        yield ")", paren
 
 
 class CClosingObject:
@@ -4936,7 +4941,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
     def _handle_Expr_Dirty(self, expr: Expr.DirtyExpression, **kwargs):
         operands = [self._handle(operand) for operand in expr.operands]
-        return CDirtyExpression(expr, operands=operands, codegen=self)
+        return CDirtyExpression(expr, operands, codegen=self)
 
     def _handle_Expr_ITE(self, expr: Expr.ITE, **kwargs):
         return CITE(

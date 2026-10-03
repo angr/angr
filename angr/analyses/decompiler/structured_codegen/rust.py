@@ -2792,11 +2792,12 @@ class RustDirtyExpression(RustExpression):
     AIL. Eventually this class should not be used at all.
     """
 
-    __slots__ = ("dirty",)
+    __slots__ = ("dirty", "operands")
 
-    def __init__(self, dirty, **kwargs):
+    def __init__(self, dirty, operands: list[RustExpression] | None = None, **kwargs):
         super().__init__(**kwargs)
         self.dirty = dirty
+        self.operands = operands if operands is not None else []
 
     @property
     def type(self):
@@ -2806,7 +2807,22 @@ class RustDirtyExpression(RustExpression):
         if self.collapsed:
             yield "...", self
             return
-        yield str(self.dirty), None
+        if not isinstance(self.dirty, Expr.DirtyExpression):
+            # a non-dirty expression without a handler (e.g. an unmapped virtual variable)
+            yield str(self.dirty), None
+            return
+        # an opaque intrinsic call with rendered operands; never the AIL repr
+        name = self.dirty.callee
+        if not name.startswith("__"):
+            name = f"__dirty_{name}"
+        yield name, self
+        paren = RustClosingObject("(")
+        yield "(", paren
+        for i, operand in enumerate(self.operands):
+            if i:
+                yield ", ", None
+            yield from RustExpression._try_c_repr_chunks(operand)
+        yield ")", paren
 
 
 class RustClosingObject:
@@ -4392,8 +4408,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         operands = [self._handle(arg) for arg in expr.operands]
         return RustVEXCCallExpression(expr.callee, operands, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_Dirty(self, expr, **kwargs):
-        return RustDirtyExpression(expr, codegen=self)
+    def _handle_Expr_Dirty(self, expr: Expr.DirtyExpression, **kwargs):
+        operands = [self._handle(operand) for operand in expr.operands]
+        return RustDirtyExpression(expr, operands, codegen=self)
 
     def _handle_Expr_Insert(self, expr: Expr.Insert, **kwargs):
         # should never really be used - should be handled by Assignment
