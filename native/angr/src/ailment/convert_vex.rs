@@ -716,58 +716,23 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         }
 
         let mut signed = false;
+        let mut floating_point = false;
         let mut vector_count: Option<i64> = None;
         let mut vector_size: Option<i64> = None;
         if simop.vector_zero
             && simop.float
-            && matches!(
-                op_name.as_deref(),
-                Some("Add") | Some("Sub") | Some("Mul") | Some("Div") | Some("Max") | Some("Min")
-            )
+            && let Some(scalar_op) = scalar_in_vector_op_name(op_name.as_deref())
             && let Some(scalar_bits) = simop.vector_size
         {
-            // Scalar-in-vector FP op (VEX "F0x" family, e.g. Add64F0x2): only the lowest lane participates.
-            // Emit Conv(N->128I, scalar_op) so Extract(Conv(N->128I, x), N@0) later recovers the scalar value.
             let rhs = operands.pop().unwrap();
             let lhs = operands.pop().unwrap();
-            let lhs = self.unwrap_scalar_lane(lhs, scalar_bits)?;
-            let rhs = self.unwrap_scalar_lane(rhs, scalar_bits)?;
-            let scalar_op = match op_name.as_deref() {
-                Some("Max") => "MaxF".to_string(),
-                Some("Min") => "MinF".to_string(),
-                Some(n) => n.to_string(),
-                None => unreachable!(),
-            };
-            let binop_idx = self.next_atom();
-            let conv_idx = self.next_atom();
-            let binop = new_binop(
-                binop_idx,
-                scalar_op,
-                lhs,
-                rhs,
-                false,
-                true,
-                None,
-                Some(scalar_bits),
-                None,
-                None,
-                self.tags(),
-            );
-            return Ok(new_convert(
-                conv_idx,
-                scalar_bits,
-                128,
-                false,
-                binop,
-                ConvertType::TypeInt,
-                ConvertType::TypeInt,
-                None,
-                self.tags(),
-            ));
+            return self.scalar_in_vector_op(scalar_op, lhs, rhs, scalar_bits, None);
         }
         if simop.vector_count.is_some() && simop.vector_size.is_some() {
             op_name = Some(format!("{}V", op_name.unwrap_or_default()));
             signed = simop.is_signed();
+            // lane-wise FP ops (CmpEQ64F0x2, CmpLT32Fx4, ...) keep their FP nature
+            floating_point = simop.float;
             vector_count = simop.vector_count.map(|v| v as i64);
             vector_size = simop.vector_size.map(|v| v as i64);
         } else if matches!(
@@ -960,11 +925,51 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             lhs,
             rhs,
             signed,
-            false,
+            floating_point,
             None,
             Some(bits),
             vector_count,
             vector_size,
+            self.tags(),
+        ))
+    }
+
+    /// Scalar-in-vector FP op (VEX "F0x" family, e.g. Add64F0x2): only the lowest lane participates.
+    /// Emit Conv(N->128I, scalar_op) so Extract(Conv(N->128I, x), N@0) later recovers the scalar value.
+    fn scalar_in_vector_op(
+        &mut self,
+        scalar_op: &str,
+        lhs: AilExpression,
+        rhs: AilExpression,
+        scalar_bits: u32,
+        rm: Option<RoundingModeOrExpr>,
+    ) -> Result<AilExpression, ConvErr> {
+        let lhs = self.unwrap_scalar_lane(lhs, scalar_bits)?;
+        let rhs = self.unwrap_scalar_lane(rhs, scalar_bits)?;
+        let binop_idx = self.next_atom();
+        let conv_idx = self.next_atom();
+        let binop = new_binop(
+            binop_idx,
+            scalar_op.to_string(),
+            lhs,
+            rhs,
+            false,
+            true,
+            rm,
+            Some(scalar_bits),
+            None,
+            None,
+            self.tags(),
+        );
+        Ok(new_convert(
+            conv_idx,
+            scalar_bits,
+            128,
+            false,
+            binop,
+            ConvertType::TypeInt,
+            ConvertType::TypeInt,
+            None,
             self.tags(),
         ))
     }
@@ -1031,6 +1036,23 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             let rm = vex_rm_value(&operands[0]);
             let rhs = operands.pop().unwrap();
             let lhs = operands.pop().unwrap();
+            if simop.vector_zero
+                && let Some(scalar_op) = scalar_in_vector_op_name(Some(op_name.as_str()))
+                && let Some(scalar_bits) = simop.vector_size
+            {
+                return self.scalar_in_vector_op(scalar_op, lhs, rhs, scalar_bits, Some(rm));
+            }
+            // packed FP ops (Add64Fx2, Mul32Fx4, ...) are lane-wise: keep the "V" op name and the lane layout
+            let (op_name, vector_count, vector_size) =
+                if simop.vector_count.is_some() && simop.vector_size.is_some() {
+                    (
+                        format!("{op_name}V"),
+                        simop.vector_count.map(|v| v as i64),
+                        simop.vector_size.map(|v| v as i64),
+                    )
+                } else {
+                    (op_name, None, None)
+                };
             let idx = self.next_atom();
             return Ok(new_binop(
                 idx,
@@ -1041,8 +1063,8 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 true,
                 Some(rm),
                 Some(bits),
-                None,
-                None,
+                vector_count,
+                vector_size,
                 self.tags(),
             ));
         }
@@ -1795,6 +1817,19 @@ fn new_stmt(idx: i64, tags: Tags, inner: StmtInner) -> AilStatement {
 
 /// `_new_binary_op`: depth = max(lhs, rhs) + 1; bits defaults to lhs bits.
 #[allow(clippy::too_many_arguments)]
+/// The scalar AIL op name for a VEX scalar-in-vector ("F0x") generic name, if it is one we lower.
+fn scalar_in_vector_op_name(generic: Option<&str>) -> Option<&'static str> {
+    match generic {
+        Some("Add") => Some("Add"),
+        Some("Sub") => Some("Sub"),
+        Some("Mul") => Some("Mul"),
+        Some("Div") => Some("Div"),
+        Some("Max") => Some("MaxF"),
+        Some("Min") => Some("MinF"),
+        _ => None,
+    }
+}
+
 fn new_binop(
     idx: i64,
     op: String,

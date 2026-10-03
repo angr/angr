@@ -619,3 +619,29 @@ class TestX87MathOps(unittest.TestCase):
         # cmpunordps xmm0, xmm1 ; ret -> Iop_CmpUN32Fx4(a, b)
         binop = self._only(self._assignments("AMD64", "0fc2c103c3"), ailment.Expr.BinaryOp, lambda e: e.op == "CmpUNV")
         assert binop.floating_point and (binop.bits, binop.vector_count, binop.vector_size) == (128, 4, 32)
+
+
+class TestPackedFPOps(unittest.TestCase):
+    """
+    Packed SSE FP ops keep their lane layout and FP nature: mulpd is MulV (not a 128-bit integer Mul) and cmpeqsd is
+    a floating-point CmpEQV.
+    """
+
+    def test_mulpd_cmpeqsd_psubq(self):
+        # mulpd xmm0, xmm1 ; cmpeqsd xmm0, xmm1 ; psubq xmm0, xmm1 ; ret
+        arch = archinfo.arch_from_id("AMD64")
+        block_bytes = bytes.fromhex("660f59c1f20fc2c100660ffbc1c3")
+        irsb = pyvex.IRSB(block_bytes, 0x1000, _vex_arch(arch), opt_level=1)
+        from_py = VEXIRSBConverter.convert(irsb, ailment.Manager())
+        from_lift = VEXIRSBConverter.convert_from_lift(arch, 0x1000, block_bytes, ailment.Manager(), opt_level=1)
+        assert [str(s) for s in from_lift.statements] == [str(s) for s in from_py.statements]
+        binops = [
+            stmt.src
+            for stmt in from_py.statements
+            if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.BinaryOp)
+        ]
+        mul, cmp, sub = binops[:3]
+        assert mul.op == "MulV" and mul.floating_point and (mul.vector_count, mul.vector_size) == (2, 64)
+        assert mul.rounding_mode == RoundingMode.RM_NearestTiesEven
+        assert cmp.op == "CmpEQV" and cmp.floating_point and (cmp.vector_count, cmp.vector_size) == (2, 64)
+        assert sub.op == "SubV" and not sub.floating_point and (sub.vector_count, sub.vector_size) == (2, 64)
