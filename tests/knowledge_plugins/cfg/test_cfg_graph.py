@@ -368,6 +368,45 @@ class TestPagedCfgGraph(unittest.TestCase):
         self._populate(h)
         assert not h.paged
 
+    def test_concurrent_reader_during_backend_call(self):
+        # py-lmdb releases the GIL inside put/get; a reader on another thread must wait, not raise
+        import threading
+        import time
+
+        class SlowBackend(_DictBackend):
+            def put(self, window, data):
+                time.sleep(0.0005)
+                super().put(window, data)
+
+            def get(self, window):
+                time.sleep(0.0005)
+                return super().get(window)
+
+        g = CfgGraph(window_shift=4)
+        g.attach_backend(SlowBackend(), 1)
+        errors = []
+        stop = threading.Event()
+
+        def reader():
+            try:
+                while not stop.is_set():
+                    g.stats()
+                    g.number_of_nodes()
+            except Exception as ex:  # pylint:disable=broad-exception-caught
+                errors.append(ex)
+
+        t = threading.Thread(target=reader)
+        t.start()
+        try:
+            for _ in range(20):
+                ids = self._populate(g)
+                g.remove_node(ids[0x18])
+                g.clear()
+        finally:
+            stop.set()
+            t.join()
+        assert not errors, errors[:1]
+
     def test_block_id_keys_survive_id_reuse(self):
         g = SpillingCFG(addr_type="block_id")
         nodes = [

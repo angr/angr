@@ -24,6 +24,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::sync::{Mutex, MutexGuard, TryLockError};
 
 const FORMAT_VERSION: u8 = 2;
 
@@ -1615,8 +1616,14 @@ impl Store {
 
 // --- Python class ------------------------------------------------------------------------------
 
-#[pyclass(module = "angr.rustylib.cfg_graph", skip_from_py_object)]
+#[pyclass(module = "angr.rustylib.cfg_graph", frozen, skip_from_py_object)]
 pub struct CfgGraph {
+    /// Backend calls run Python (py-lmdb releases the GIL), so another thread may call in while an operation
+    /// is in flight; a mutex (not pyo3's borrow checker) makes that wait instead of raising.
+    inner: Mutex<Inner>,
+}
+
+struct Inner {
     store: Store,
     /// Interned jumpkind strings, parallel to `Store::jumpkinds`.
     jk_py: Vec<Py<PyString>>,
@@ -1632,17 +1639,45 @@ impl CfgGraph {
             .map(|s| PyString::new(py, s).unbind())
             .collect();
         CfgGraph {
-            store,
-            jk_py,
-            policy: None,
+            inner: Mutex::new(Inner {
+                store,
+                jk_py,
+                policy: None,
+            }),
         }
     }
 
+    /// Lock without holding the GIL while waiting, so a thread blocked inside a backend call can finish.
+    fn lock(&self) -> MutexGuard<'_, Inner> {
+        loop {
+            match self.inner.try_lock() {
+                Ok(g) => return g,
+                Err(TryLockError::Poisoned(p)) => return p.into_inner(),
+                Err(TryLockError::WouldBlock) => {
+                    Python::attach(|py| py.detach(std::thread::yield_now));
+                }
+            }
+        }
+    }
+}
+
+impl Inner {
     fn sync_jk(&mut self, py: Python<'_>) {
         while self.jk_py.len() < self.store.jumpkinds.len() {
             let s = &self.store.jumpkinds[self.jk_py.len()];
             self.jk_py.push(PyString::new(py, s).unbind());
         }
+    }
+
+    fn budget_bytes(&self) -> Option<usize> {
+        self.store.is_paged().then_some(self.store.budget())
+    }
+
+    fn blobs_out<'py>(&mut self, py: Python<'py>) -> PyResult<ReduceArgs<'py>> {
+        let blobs = self.store.segment_blobs()?;
+        let header = PyBytes::new(py, &self.store.header_bytes()?);
+        let list = PyList::new(py, blobs.iter().map(|b| PyBytes::new(py, b)))?;
+        Ok((header, list))
     }
 
     fn edge_dict<'py>(&self, py: Python<'py>, e: &EdgeRec) -> PyResult<Bound<'py, PyDict>> {
@@ -1716,184 +1751,207 @@ impl CfgGraph {
         if !(1..=32).contains(&window_shift) {
             return Err(PyValueError::new_err("window_shift must be in 1..=32"));
         }
-        Ok(CfgGraph {
-            store: Store::new(window_shift),
-            jk_py: Vec::new(),
-            policy: None,
-        })
+        Python::attach(|py| Ok(Self::wrap(py, Store::new(window_shift))))
     }
 
     /// A fully resident copy (no backend, no promotion policy).
-    pub fn copy(&mut self, py: Python<'_>) -> PyResult<Self> {
-        Ok(Self::wrap(py, self.store.copy()?))
+    pub fn copy(&self, py: Python<'_>) -> PyResult<Self> {
+        let mut g = self.lock();
+        Ok(Self::wrap(py, g.store.copy()?))
     }
 
     fn __repr__(&self) -> String {
+        let g = self.lock();
         format!(
             "<CfgGraph: {} nodes, {} edges, {} segments{}>",
-            self.store.n_live,
-            self.store.n_edges,
-            self.store.segment_count(),
-            if self.store.is_paged() { ", paged" } else { "" }
+            g.store.n_live,
+            g.store.n_edges,
+            g.store.segment_count(),
+            if g.store.is_paged() { ", paged" } else { "" }
         )
     }
 
-    pub fn clear(&mut self) -> PyResult<()> {
-        Ok(self.store.clear()?)
+    pub fn clear(&self) -> PyResult<()> {
+        let mut g = self.lock();
+        Ok(g.store.clear()?)
     }
 
     #[getter]
     pub fn window_shift(&self) -> u32 {
-        self.store.shift()
+        let g = self.lock();
+        g.store.shift()
     }
 
     // --- paging ----------------------------------------------------------------------------------
 
     /// Attach a segment backend (`get(window) -> bytes | None`, `put(window, bytes)`, `delete(window)`,
     /// `delete_all()`) and keep resident segments under `budget_bytes`.
-    pub fn attach_backend(&mut self, backend: Py<PyAny>, budget_bytes: usize) -> PyResult<()> {
-        self.policy = None;
-        Ok(self
-            .store
+    pub fn attach_backend(&self, backend: Py<PyAny>, budget_bytes: usize) -> PyResult<()> {
+        let mut g = self.lock();
+        g.policy = None;
+        Ok(g.store
             .attach_backend(Box::new(PyBackend { obj: backend }), budget_bytes)?)
     }
 
     /// Attach an in-process backend (tests).
-    pub fn attach_memory_backend(&mut self, budget_bytes: usize) -> PyResult<()> {
-        self.policy = None;
-        Ok(self
-            .store
+    pub fn attach_memory_backend(&self, budget_bytes: usize) -> PyResult<()> {
+        let mut g = self.lock();
+        g.policy = None;
+        Ok(g.store
             .attach_backend(Box::new(MemoryBackend::default()), budget_bytes)?)
     }
 
     /// Load everything back and drop the backend.
-    pub fn detach_backend(&mut self) -> PyResult<()> {
-        Ok(self.store.detach_backend()?)
+    pub fn detach_backend(&self) -> PyResult<()> {
+        let mut g = self.lock();
+        Ok(g.store.detach_backend()?)
     }
 
     /// Attach a backend once the live node count reaches `threshold`; `callback()` returns
     /// `(backend, budget_bytes)` or None to stay resident.
     pub fn set_paging_policy(
-        &mut self,
+        &self,
         py: Python<'_>,
         threshold: usize,
         callback: Py<PyAny>,
     ) -> PyResult<()> {
-        self.policy = Some((threshold, callback));
-        self.maybe_promote(py)
+        let mut g = self.lock();
+        g.policy = Some((threshold, callback));
+        g.maybe_promote(py)
     }
 
-    pub fn clear_paging_policy(&mut self) {
-        self.policy = None;
+    pub fn clear_paging_policy(&self) {
+        let mut g = self.lock();
+        g.policy = None;
     }
 
     #[getter]
     pub fn paged(&self) -> bool {
-        self.store.is_paged()
+        let g = self.lock();
+        g.store.is_paged()
     }
 
     #[getter]
     pub fn budget_bytes(&self) -> Option<usize> {
-        self.store.is_paged().then_some(self.store.budget())
+        let g = self.lock();
+        g.store.is_paged().then_some(g.store.budget())
     }
 
     #[setter]
-    pub fn set_budget_bytes(&mut self, value: usize) -> PyResult<()> {
-        if !self.store.is_paged() {
+    pub fn set_budget_bytes(&self, value: usize) -> PyResult<()> {
+        let mut g = self.lock();
+        if !g.store.is_paged() {
             return Err(PyValueError::new_err("no backend attached"));
         }
-        self.store.budget = value;
-        Ok(self.store.evict_beyond_budget(&[])?)
+        g.store.budget = value;
+        Ok(g.store.evict_beyond_budget(&[])?)
     }
 
-    pub fn flush(&mut self) -> PyResult<()> {
-        Ok(self.store.flush()?)
+    pub fn flush(&self) -> PyResult<()> {
+        let mut g = self.lock();
+        Ok(g.store.flush()?)
     }
 
-    pub fn evict_all(&mut self) -> PyResult<()> {
-        Ok(self.store.evict_all()?)
+    pub fn evict_all(&self) -> PyResult<()> {
+        let mut g = self.lock();
+        Ok(g.store.evict_all()?)
     }
 
     pub fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let g = self.lock();
         let d = PyDict::new(py);
-        let s = self.store.stats();
+        let s = g.store.stats();
         d.set_item("loads", s.loads)?;
         d.set_item("evictions", s.evictions)?;
         d.set_item("writebacks", s.writebacks)?;
-        d.set_item("segments", self.store.segment_count())?;
-        d.set_item("resident_segments", self.store.resident_segments())?;
-        d.set_item("resident_bytes", self.store.resident_bytes())?;
-        d.set_item("paged", self.store.is_paged())?;
-        d.set_item("budget_bytes", self.budget_bytes())?;
+        d.set_item("segments", g.store.segment_count())?;
+        d.set_item("resident_segments", g.store.resident_segments())?;
+        d.set_item("resident_bytes", g.store.resident_bytes())?;
+        d.set_item("paged", g.store.is_paged())?;
+        d.set_item("budget_bytes", g.budget_bytes())?;
         Ok(d)
     }
 
     // --- nodes -----------------------------------------------------------------------------------
 
     pub fn number_of_nodes(&self) -> usize {
-        self.store.number_of_nodes()
+        let g = self.lock();
+        g.store.number_of_nodes()
     }
 
     pub fn number_of_edges(&self) -> usize {
-        self.store.number_of_edges()
+        let g = self.lock();
+        g.store.number_of_edges()
     }
 
     /// Insert `(addr, size)` (networkx `add_node`). Returns `(id, created)`.
-    pub fn add_node(&mut self, py: Python<'_>, addr: u64, size: i64) -> PyResult<(u64, bool)> {
-        let r = self.store.add_node(addr, size)?;
-        if r.1 && self.policy.is_some() {
-            self.maybe_promote(py)?;
+    pub fn add_node(&self, py: Python<'_>, addr: u64, size: i64) -> PyResult<(u64, bool)> {
+        let mut g = self.lock();
+        let r = g.store.add_node(addr, size)?;
+        if r.1 && g.policy.is_some() {
+            g.maybe_promote(py)?;
         }
         Ok(r)
     }
 
-    pub fn find_node(&mut self, addr: u64, size: i64) -> PyResult<Option<u64>> {
-        Ok(self.store.find_node(addr, size)?)
+    pub fn find_node(&self, addr: u64, size: i64) -> PyResult<Option<u64>> {
+        let mut g = self.lock();
+        Ok(g.store.find_node(addr, size)?)
     }
 
-    pub fn contains_node(&mut self, idx: u64) -> PyResult<bool> {
-        Ok(self.store.contains_node(idx)?)
+    pub fn contains_node(&self, idx: u64) -> PyResult<bool> {
+        let mut g = self.lock();
+        Ok(g.store.contains_node(idx)?)
     }
 
     /// `(addr, size)` of a live node id.
-    pub fn node_key(&mut self, idx: u64) -> PyResult<(u64, i64)> {
-        Ok(self.store.node_key(idx)?)
+    pub fn node_key(&self, idx: u64) -> PyResult<(u64, i64)> {
+        let mut g = self.lock();
+        Ok(g.store.node_key(idx)?)
     }
 
-    pub fn node_addr(&mut self, idx: u64) -> PyResult<u64> {
-        Ok(self.store.node_key(idx)?.0)
+    pub fn node_addr(&self, idx: u64) -> PyResult<u64> {
+        let mut g = self.lock();
+        Ok(g.store.node_key(idx)?.0)
     }
 
     /// Live node ids in insertion order.
     pub fn nodes(&self) -> Vec<u64> {
-        self.store.nodes()
+        let g = self.lock();
+        g.store.nodes()
     }
 
     /// `(addr, size)` keys of live nodes in insertion order.
-    pub fn node_keys(&mut self) -> PyResult<Vec<(u64, i64)>> {
-        Ok(self.store.node_keys()?)
+    pub fn node_keys(&self) -> PyResult<Vec<(u64, i64)>> {
+        let mut g = self.lock();
+        Ok(g.store.node_keys()?)
     }
 
     /// Remove a node and its edges. Returns False if the id is not a live node.
-    pub fn remove_node(&mut self, idx: u64) -> PyResult<bool> {
-        Ok(self.store.remove_node(idx)?)
+    pub fn remove_node(&self, idx: u64) -> PyResult<bool> {
+        let mut g = self.lock();
+        Ok(g.store.remove_node(idx)?)
     }
 
-    pub fn nodes_at_addr(&mut self, addr: u64) -> PyResult<Vec<u64>> {
-        Ok(self.store.nodes_at_addr(addr)?)
+    pub fn nodes_at_addr(&self, addr: u64) -> PyResult<Vec<u64>> {
+        let mut g = self.lock();
+        Ok(g.store.nodes_at_addr(addr)?)
     }
 
-    pub fn first_node_at_addr(&mut self, addr: u64) -> PyResult<Option<u64>> {
-        Ok(self.store.first_node_at_addr(addr)?)
+    pub fn first_node_at_addr(&self, addr: u64) -> PyResult<Option<u64>> {
+        let mut g = self.lock();
+        Ok(g.store.first_node_at_addr(addr)?)
     }
 
-    pub fn has_addr(&mut self, addr: u64) -> PyResult<bool> {
-        Ok(self.store.has_addr(addr)?)
+    pub fn has_addr(&self, addr: u64) -> PyResult<bool> {
+        let mut g = self.lock();
+        Ok(g.store.has_addr(addr)?)
     }
 
     /// Distinct addresses of live nodes.
-    pub fn addrs(&mut self) -> PyResult<Vec<u64>> {
-        Ok(self.store.addrs()?)
+    pub fn addrs(&self) -> PyResult<Vec<u64>> {
+        let mut g = self.lock();
+        Ok(g.store.addrs()?)
     }
 
     // --- edges -----------------------------------------------------------------------------------
@@ -1903,7 +1961,7 @@ impl CfgGraph {
     #[pyo3(signature = (src, dst, present=0, jumpkind=None, ins_addr=None, stmt_idx=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn add_edge(
-        &mut self,
+        &self,
         py: Python<'_>,
         src: u64,
         dst: u64,
@@ -1912,65 +1970,67 @@ impl CfgGraph {
         ins_addr: Option<u64>,
         stmt_idx: Option<i64>,
     ) -> PyResult<bool> {
-        let r = self
+        let mut g = self.lock();
+        let r = g
             .store
             .add_edge(src, dst, present, jumpkind, ins_addr, stmt_idx)?;
-        if self.jk_py.len() < self.store.jumpkinds.len() {
-            self.sync_jk(py);
+        if g.jk_py.len() < g.store.jumpkinds.len() {
+            g.sync_jk(py);
         }
         Ok(r)
     }
 
-    pub fn remove_edge(&mut self, src: u64, dst: u64) -> PyResult<bool> {
-        Ok(self.store.remove_edge(src, dst)?)
+    pub fn remove_edge(&self, src: u64, dst: u64) -> PyResult<bool> {
+        let mut g = self.lock();
+        Ok(g.store.remove_edge(src, dst)?)
     }
 
-    pub fn has_edge(&mut self, src: u64, dst: u64) -> PyResult<bool> {
-        Ok(self.store.has_edge(src, dst)?)
+    pub fn has_edge(&self, src: u64, dst: u64) -> PyResult<bool> {
+        let mut g = self.lock();
+        Ok(g.store.has_edge(src, dst)?)
     }
 
     /// The edge-data dict of an edge, or None.
     pub fn edge_data<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         src: u64,
         dst: u64,
     ) -> PyResult<Option<Bound<'py, PyDict>>> {
-        match self.store.edge_rec(src, dst)? {
-            Some(e) => Ok(Some(self.edge_dict(py, &e)?)),
+        let mut g = self.lock();
+        match g.store.edge_rec(src, dst)? {
+            Some(e) => Ok(Some(g.edge_dict(py, &e)?)),
             None => Ok(None),
         }
     }
 
     /// `(jumpkind, ins_addr, stmt_idx)` of an edge (None for absent attributes), or None.
     pub fn edge_tuple<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         src: u64,
         dst: u64,
     ) -> PyResult<Option<EdgeTuple<'py>>> {
-        Ok(self
-            .store
-            .edge_rec(src, dst)?
-            .map(|e| self.rec_tuple(py, &e)))
+        let mut g = self.lock();
+        Ok(g.store.edge_rec(src, dst)?.map(|e| g.rec_tuple(py, &e)))
     }
 
     pub fn edge_jumpkind<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         src: u64,
         dst: u64,
     ) -> PyResult<Option<Bound<'py, PyString>>> {
-        Ok(self
-            .store
+        let mut g = self.lock();
+        Ok(g.store
             .edge_rec(src, dst)?
-            .and_then(|e| (e.jk != NO_JK).then(|| self.jk_py[e.jk as usize].bind(py).clone())))
+            .and_then(|e| (e.jk != NO_JK).then(|| g.jk_py[e.jk as usize].bind(py).clone())))
     }
 
     /// `(src, dst)` pairs: nodes in insertion order, successors in insertion order.
-    pub fn edges(&mut self) -> PyResult<Vec<(u64, u64)>> {
-        Ok(self
-            .store
+    pub fn edges(&self) -> PyResult<Vec<(u64, u64)>> {
+        let mut g = self.lock();
+        Ok(g.store
             .edges_rec()?
             .into_iter()
             .map(|(s, d, _)| (s, d))
@@ -1978,41 +2038,42 @@ impl CfgGraph {
     }
 
     pub fn edges_with_data<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
     ) -> PyResult<Vec<(u64, u64, Bound<'py, PyDict>)>> {
-        self.store
+        let mut g = self.lock();
+        g.store
             .edges_rec()?
             .into_iter()
-            .map(|(s, d, e)| Ok((s, d, self.edge_dict(py, &e)?)))
+            .map(|(s, d, e)| Ok((s, d, g.edge_dict(py, &e)?)))
             .collect()
     }
 
     /// `(src, dst, jumpkind, ins_addr, stmt_idx)` for every edge; cheaper than `edges_with_data`.
-    pub fn edges_with_tuples<'py>(&mut self, py: Python<'py>) -> PyResult<Vec<EdgeRow<'py>>> {
-        Ok(self
-            .store
+    pub fn edges_with_tuples<'py>(&self, py: Python<'py>) -> PyResult<Vec<EdgeRow<'py>>> {
+        let mut g = self.lock();
+        Ok(g.store
             .edges_rec()?
             .into_iter()
             .map(|(s, d, e)| {
-                let (jk, ia, si) = self.rec_tuple(py, &e);
+                let (jk, ia, si) = g.rec_tuple(py, &e);
                 (s, d, jk, ia, si)
             })
             .collect())
     }
 
-    pub fn out_edges(&mut self, idx: u64) -> PyResult<Vec<(u64, u64)>> {
-        Ok(self
-            .store
+    pub fn out_edges(&self, idx: u64) -> PyResult<Vec<(u64, u64)>> {
+        let mut g = self.lock();
+        Ok(g.store
             .out_edges_rec(idx)?
             .into_iter()
             .map(|(d, _)| (idx, d))
             .collect())
     }
 
-    pub fn in_edges(&mut self, idx: u64) -> PyResult<Vec<(u64, u64)>> {
-        Ok(self
-            .store
+    pub fn in_edges(&self, idx: u64) -> PyResult<Vec<(u64, u64)>> {
+        let mut g = self.lock();
+        Ok(g.store
             .in_edges_rec(idx)?
             .into_iter()
             .map(|(s, _)| (s, idx))
@@ -2020,88 +2081,97 @@ impl CfgGraph {
     }
 
     pub fn out_edges_with_data<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, u64, Bound<'py, PyDict>)>> {
-        self.store
+        let mut g = self.lock();
+        g.store
             .out_edges_rec(idx)?
             .into_iter()
-            .map(|(d, e)| Ok((idx, d, self.edge_dict(py, &e)?)))
+            .map(|(d, e)| Ok((idx, d, g.edge_dict(py, &e)?)))
             .collect()
     }
 
     pub fn in_edges_with_data<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, u64, Bound<'py, PyDict>)>> {
-        self.store
+        let mut g = self.lock();
+        g.store
             .in_edges_rec(idx)?
             .into_iter()
-            .map(|(s, e)| Ok((s, idx, self.edge_dict(py, &e)?)))
+            .map(|(s, e)| Ok((s, idx, g.edge_dict(py, &e)?)))
             .collect()
     }
 
     /// `(dst, jumpkind)` of every out-edge.
     pub fn out_edges_jumpkinds<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, Option<Bound<'py, PyString>>)>> {
-        Ok(self
-            .store
+        let mut g = self.lock();
+        Ok(g.store
             .out_edges_rec(idx)?
             .into_iter()
-            .map(|(d, e)| (d, self.rec_tuple(py, &e).0))
+            .map(|(d, e)| (d, g.rec_tuple(py, &e).0))
             .collect())
     }
 
     /// `(src, jumpkind)` of every in-edge.
     pub fn in_edges_jumpkinds<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         idx: u64,
     ) -> PyResult<Vec<(u64, Option<Bound<'py, PyString>>)>> {
-        Ok(self
-            .store
+        let mut g = self.lock();
+        Ok(g.store
             .in_edges_rec(idx)?
             .into_iter()
-            .map(|(s, e)| (s, self.rec_tuple(py, &e).0))
+            .map(|(s, e)| (s, g.rec_tuple(py, &e).0))
             .collect())
     }
 
-    pub fn successors(&mut self, idx: u64) -> PyResult<Vec<u64>> {
-        Ok(self.store.successors(idx)?)
+    pub fn successors(&self, idx: u64) -> PyResult<Vec<u64>> {
+        let mut g = self.lock();
+        Ok(g.store.successors(idx)?)
     }
 
-    pub fn predecessors(&mut self, idx: u64) -> PyResult<Vec<u64>> {
-        Ok(self.store.predecessors(idx)?)
+    pub fn predecessors(&self, idx: u64) -> PyResult<Vec<u64>> {
+        let mut g = self.lock();
+        Ok(g.store.predecessors(idx)?)
     }
 
-    pub fn out_degree(&mut self, idx: u64) -> PyResult<usize> {
-        Ok(self.store.out_degree(idx)?)
+    pub fn out_degree(&self, idx: u64) -> PyResult<usize> {
+        let mut g = self.lock();
+        Ok(g.store.out_degree(idx)?)
     }
 
-    pub fn in_degree(&mut self, idx: u64) -> PyResult<usize> {
-        Ok(self.store.in_degree(idx)?)
+    pub fn in_degree(&self, idx: u64) -> PyResult<usize> {
+        let mut g = self.lock();
+        Ok(g.store.in_degree(idx)?)
     }
 
     // --- call destinations -----------------------------------------------------------------------
 
-    pub fn is_call_destination(&mut self, idx: u64) -> PyResult<bool> {
-        Ok(self.store.is_call_destination(idx)?)
+    pub fn is_call_destination(&self, idx: u64) -> PyResult<bool> {
+        let mut g = self.lock();
+        Ok(g.store.is_call_destination(idx)?)
     }
 
-    pub fn call_destinations(&mut self) -> PyResult<Vec<u64>> {
-        Ok(self.store.call_destinations()?)
+    pub fn call_destinations(&self) -> PyResult<Vec<u64>> {
+        let mut g = self.lock();
+        Ok(g.store.call_destinations()?)
     }
 
     // --- serialization ---------------------------------------------------------------------------
 
     /// One blob holding the header and every segment.
-    pub fn to_bytes<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        Ok(PyBytes::new(py, &self.store.to_bytes()?))
+    pub fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let mut g = self.lock();
+        Ok(PyBytes::new(py, &g.store.to_bytes()?))
     }
 
     #[classmethod]
@@ -2112,11 +2182,12 @@ impl CfgGraph {
     /// `(header, [segment blob, ...])`: segment blobs come straight from the backend when evicted, so
     /// saving never needs the whole graph resident.
     pub fn to_blobs<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyList>)> {
-        let blobs = self.store.segment_blobs()?;
-        let header = PyBytes::new(py, &self.store.header_bytes()?);
+        let mut g = self.lock();
+        let blobs = g.store.segment_blobs()?;
+        let header = PyBytes::new(py, &g.store.header_bytes()?);
         let list = PyList::new(py, blobs.iter().map(|b| PyBytes::new(py, b)))?;
         Ok((header, list))
     }
@@ -2134,7 +2205,7 @@ impl CfgGraph {
 
     fn __reduce__<'py>(slf: Bound<'py, Self>) -> PyResult<(Bound<'py, PyAny>, ReduceArgs<'py>)> {
         let py = slf.py();
-        let (header, blobs) = slf.borrow_mut().to_blobs(py)?;
+        let (header, blobs) = slf.get().lock().blobs_out(py)?;
         let from_blobs = slf.get_type().getattr("from_blobs")?;
         Ok((from_blobs, (header, blobs)))
     }
