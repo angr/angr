@@ -15,6 +15,7 @@ import angr
 from angr.ailment.expression import (
     ITE,
     BinaryOp,
+    Call,
     Const,
     Convert,
     Extract,
@@ -109,6 +110,14 @@ class TestEvaluateConstConversions(unittest.TestCase):
 # ======================================================================
 
 
+def _RRC():
+    from angr.analyses.decompiler.peephole_optimizations.remove_redundant_conversions import (
+        RemoveRedundantConversions,
+    )
+
+    return RemoveRedundantConversions
+
+
 class TestRemoveRedundantConversions(unittest.TestCase):
     """Test redundant Conv elimination for FP patterns."""
 
@@ -135,6 +144,29 @@ class TestRemoveRedundantConversions(unittest.TestCase):
         outer = Convert(3, 64, 32, False, inner, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_INT)
         result = self._opt(outer)
         assert result == x
+
+    def _float_call(self, idx: int) -> Call:
+        from angr.analyses.decompiler.variable_map import variable_map_of
+        from angr.sim_type import SimTypeFloat, SimTypeFunction
+
+        opt = _make_peephole(_RRC())
+        call = Call(idx, Const(None, 0x401000, 64), args=[], bits=32)
+        variable_map_of(opt.manager).set_prototype(call, SimTypeFunction([], SimTypeFloat()))
+        return opt, call
+
+    def test_float_call_widening_retyped(self):
+        """Conv(32I->64I, Call<float>) -> Conv(32F->64F, Call)."""
+        opt, call = self._float_call(1)
+        conv = Convert(2, 32, 64, False, call, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_INT)
+        result = opt.optimize(conv)
+        assert isinstance(result, Convert)
+        assert (result.from_type, result.to_type) == (Convert.TYPE_FP, Convert.TYPE_FP)
+
+    def test_float_call_int_narrowing_kept(self):
+        """Conv(32I->16I, Call<float>) reads the low 16 bits (cmp ax, ...): no 16-bit float."""
+        opt, call = self._float_call(1)
+        conv = Convert(2, 32, 16, False, call, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_INT)
+        assert opt.optimize(conv) is None
 
     def test_unary_conv_round_trip(self):
         """Conv(128->64, Neg(Conv(64->128, x))) should produce Neg(x)."""

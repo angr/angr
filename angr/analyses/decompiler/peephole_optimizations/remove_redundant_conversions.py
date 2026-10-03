@@ -8,6 +8,8 @@ from angr.sim_type import SimTypeFloat
 
 from .base import PeepholeOptimizationExprBase
 
+_FP_WIDTHS = frozenset((32, 64, 80))
+
 
 class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     __slots__ = ()
@@ -324,7 +326,14 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
         # Conv(NI->MI, Call<returns_float>) => Conv(NF->MF, Call)
         # SSA may insert integer Convs to reconcile Call result width with the
         # x87 fpreg register; retype to FP when the prototype says float.
-        if expr.from_type == Convert.TYPE_INT and expr.to_type == Convert.TYPE_INT and isinstance(operand_expr, Call):
+        # Only when both widths are FP widths: a 16-bit read of the result (cmp ax, ...) is an integer narrowing.
+        if (
+            expr.from_type == Convert.TYPE_INT
+            and expr.to_type == Convert.TYPE_INT
+            and expr.from_bits in _FP_WIDTHS
+            and expr.to_bits in _FP_WIDTHS
+            and isinstance(operand_expr, Call)
+        ):
             call_proto = variable_map_of(self.manager).prototype(operand_expr)
             if call_proto is not None and isinstance(call_proto.returnty, SimTypeFloat):
                 return Convert(
