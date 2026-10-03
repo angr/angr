@@ -193,14 +193,14 @@ _ail2claripy_op_mapping = {
     "Not": lambda expr, conv, _, ia, *args: claripy.Not(conv(expr.operand, ins_addr=ia)),
     "Neg": lambda expr, conv, _, ia, *args: -conv(expr.operand, ins_addr=ia),
     "BitwiseNeg": lambda expr, conv, _, ia, *args: ~conv(expr.operand, ins_addr=ia),
-    "Xor": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) ^ conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "Xor": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.xor, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "And": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) & conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "And": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.and_, conv, expr.operands[0], expr.operands[1], ia, am
     ),
-    "Or": lambda expr, conv, _, ia, *args: (
-        conv(expr.operands[0], nobool=True, ins_addr=ia) | conv(expr.operands[1], nobool=True, ins_addr=ia)
+    "Or": lambda expr, conv, _, ia, am: _op_with_unified_size(
+        operator.or_, conv, expr.operands[0], expr.operands[1], ia, am
     ),
     "Shr": lambda expr, conv, _, ia, am: _op_with_unified_size(
         claripy.LShR, conv, expr.operands[0], expr.operands[1], ia, am
