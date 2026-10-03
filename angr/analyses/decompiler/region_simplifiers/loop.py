@@ -155,32 +155,29 @@ class LoopSimplifier(SequenceWalker):
         if not (isinstance(cond_var, ailment.Expr.VirtualVariable) and isinstance(cond_const, ailment.Expr.Const)):
             return cond
 
-        # Find the assignment to this phi variable's back-edge definition in the body.
-        # Pattern: body has  phi_var = phi(back_def, init)  and  back_def = phi_var - C
-        phi_stmt = None
-        mod_stmt = None
+        # Pattern: body has  phi_var = phi(back_def, init)  and  back_def = phi_var - C.
+        # Dephication may have renamed the phi destination and inserted a copy
+        # (cond_var = phi_var), so follow copies from cond_var back to the phi.
+        phis: dict[int, ailment.Stmt.Assignment] = {}
+        copies: dict[int, int] = {}
+        mods: list[ailment.Stmt.Assignment] = []
 
         def _scan_body(n):
-            nonlocal phi_stmt, mod_stmt
             if isinstance(n, ailment.Block):
                 for s in n.statements:
-                    if (
-                        isinstance(s, ailment.Stmt.Assignment)
-                        and isinstance(s.dst, ailment.Expr.VirtualVariable)
-                        and s.dst.varid == cond_var.varid
-                        and isinstance(s.src, ailment.Expr.Phi)
-                    ):
-                        phi_stmt = s
-                    if (
-                        isinstance(s, ailment.Stmt.Assignment)
-                        and isinstance(s.dst, ailment.Expr.VirtualVariable)
-                        and isinstance(s.src, ailment.Expr.BinaryOp)
+                    if not (isinstance(s, ailment.Stmt.Assignment) and isinstance(s.dst, ailment.Expr.VirtualVariable)):
+                        continue
+                    if isinstance(s.src, ailment.Expr.Phi):
+                        phis[s.dst.varid] = s
+                    elif isinstance(s.src, ailment.Expr.VirtualVariable):
+                        copies[s.dst.varid] = s.src.varid
+                    elif (
+                        isinstance(s.src, ailment.Expr.BinaryOp)
                         and s.src.op in ("Sub", "Add")
                         and isinstance(s.src.operands[0], ailment.Expr.VirtualVariable)
-                        and s.src.operands[0].varid == cond_var.varid
                         and isinstance(s.src.operands[1], ailment.Expr.Const)
                     ):
-                        mod_stmt = s
+                        mods.append(s)
             for attr in ("nodes", "node"):
                 child = getattr(n, attr, None)
                 if child is not None:
@@ -188,6 +185,14 @@ class LoopSimplifier(SequenceWalker):
                         _scan_body(c)
 
         _scan_body(node.sequence_node)
+
+        aliases = {cond_var.varid}
+        varid = cond_var.varid
+        while varid not in phis and varid in copies and copies[varid] not in aliases:
+            varid = copies[varid]
+            aliases.add(varid)
+        phi_stmt = phis.get(varid)
+        mod_stmt = next((s for s in mods if s.src.operands[0].varid in aliases), None)
 
         if phi_stmt is None or mod_stmt is None:
             return cond
