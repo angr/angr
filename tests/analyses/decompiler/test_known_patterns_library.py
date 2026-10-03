@@ -666,12 +666,20 @@ class TestLibmBitPatterns(TestCase):
         ("f_isinf_bits", "libm_isinf", "isinf"),
     ]
 
+    # the FP comparison peepholes already fold the ucomis[sd] self-compare into isnan(), so there is nothing left
+    # for the template to match on these functions; the C must still read isnan(...)
+    _PEEPHOLE_FOLDED = {"f_isnan", "f_isnanf"}
+
     def test_libm_bit_idioms(self):
         for func_name, pattern_name, call_name in self._CASES:
             with self.subTest(func=func_name):
                 proj, cfg, func, dec = _decompile(LIBM_BIN, func_name)
                 finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
                 names = [m.pattern.name for m in finder.matches]
+                if func_name in self._PEEPHOLE_FOLDED:
+                    assert names == [], f"{func_name}: {names}"
+                    assert "isnan(" in dec.codegen.text
+                    continue
                 assert names == [pattern_name], f"{func_name}: {names}"
                 assert call_name + "(" in _outline_text(proj, cfg, func, dec, finder)
 
@@ -697,7 +705,8 @@ class TestLibmBitPatterns(TestCase):
         assert not finder.matches
 
     def test_isnan_wins_over_isunordered_on_a_self_compare(self):
-        proj, _, func, dec = _decompile(LIBM_BIN, "f_isnan")
+        # f_isnan_bits keeps the raw bit idiom (no ucomisd), so the template choice is still exercised there
+        proj, _, func, dec = _decompile(LIBM_BIN, "f_isnan_bits")
         finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
         assert [m.pattern.name for m in finder.matches] == ["libm_isnan"]
 

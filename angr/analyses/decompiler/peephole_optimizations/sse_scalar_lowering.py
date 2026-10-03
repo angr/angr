@@ -174,7 +174,7 @@ class SSEScalarLowering(PeepholeOptimizationExprBase):
                 return None
             from_lane, _ = lanes
             return _scalar_convert(
-                expr.idx, base, from_lane, n_bits, _unwrap_conv_or_extract(base.operand, from_lane), expr.tags
+                expr.idx, base, from_lane, n_bits, _unwrap_conv_or_extract(base.operand, from_lane, self.manager), expr.tags
             )
 
         if n_bits not in (32, 64):
