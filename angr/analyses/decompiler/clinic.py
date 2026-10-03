@@ -554,6 +554,8 @@ class Clinic(Analysis, Serializable):
         self._inline_functions = inline_functions or set()
         self._inlined_counts = {} if inlined_counts is None else inlined_counts
         self._inlining_parents = inlining_parents or set()
+        # net x87 stack effect per callee, shared by the IRegisterResolver passes
+        self._x87_callee_deltas: dict[int, int | None] = {}
         self._desired_variables = desired_variables
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
@@ -4636,7 +4638,9 @@ class Clinic(Analysis, Serializable):
         IRegReplacer optimization pass.
         """
         if IRegisterResolver.has_iregisters(ail_graph):
-            IRegisterResolver(self.project, self.kb, self.function, ail_graph).resolve()
+            IRegisterResolver(
+                self.project, self.kb, self.function, ail_graph, callee_deltas=self._x87_callee_deltas
+            ).resolve()
         return ail_graph
 
     @staticmethod

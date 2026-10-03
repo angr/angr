@@ -3265,6 +3265,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             Stmt.CAS: self._handle_Stmt_CAS,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
+            Expr.IRegister: self._handle_Expr_IRegister,
             Expr.Load: self._handle_Expr_Load,
             Expr.Tmp: self._handle_Expr_Tmp,
             Expr.Const: self._handle_Expr_Const,
@@ -4515,6 +4516,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             type_ = self.default_simtype_from_bits(expr.bits, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
         return CRegister(expr, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_IRegister(self, expr: Expr.IRegister, **kwargs):
+        # an indexed register-array access whose index could not be resolved (x87 fpreg[ftop]); render it as a
+        # pseudo register rather than failing
+        base = self.project.arch.translate_register_name(expr.array_base)
+        index = self._handle(expr.reg_offset).c_repr()
+        if expr.array_bias:
+            index = f"{index} + {expr.array_bias}"
+        type_ = SimTypeDouble() if base == "fpreg" else self.default_simtype_from_bits(expr.bits, signed=False)
+        return CFakeVariable(f"{base}[{index}]", type_, codegen=self)
 
     #: The libc functions that return ``&errno``. ``errno`` is a macro that
     #: dereferences one of them, so it never survives into a binary as a symbol;
