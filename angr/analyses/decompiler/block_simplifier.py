@@ -6,12 +6,24 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import Call, Const, Convert, Expression, Load, Phi, Register, Tmp, VirtualVariable
+from angr.ailment.expression import (
+    Call,
+    Const,
+    Convert,
+    DirtyExpression,
+    Expression,
+    Load,
+    Phi,
+    Register,
+    Tmp,
+    VirtualVariable,
+)
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Assignment, Jump, SideEffectStatement, Statement, Store
+from angr.ailment.statement import Assignment, DirtyStatement, Jump, SideEffectStatement, Statement, Store
 from angr.analyses.s_propagator import SPropagator
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
+from angr.utils.ail import dirty_has_side_effects
 from angr.utils.ssa import get_tmp_deflocs, get_tmp_uselocs, has_reference_to_vvar
 
 from .block_walkers import HasCallExprWalker, HasCallNotification
@@ -539,6 +551,12 @@ class BlockSimplifier:
                 # tmps can't execute new code
                 if (isinstance(stmt.dst, Tmp) and stmt.dst.tmp_idx not in used_tmps) or idx in dead_defs_stmt_idx:
                     # is it assigning to an unused tmp or a dead virgin?
+
+                    if isinstance(stmt.src, DirtyExpression) and dirty_has_side_effects(stmt.src):
+                        # the result is dead but the helper touches memory; keep it as a statement
+                        new_statements.append(DirtyStatement(self._ail_manager.next_atom(), stmt.src, **stmt.tags))
+                        changed = True
+                        continue
 
                     # does .src involve any Call expressions? if so, we cannot remove it
                     if not _expression_has_calls(stmt.src):

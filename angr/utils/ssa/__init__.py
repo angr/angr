@@ -448,6 +448,28 @@ def is_phi_assignment(stmt: Statement) -> bool:
     return isinstance(stmt, _RustStatement) and stmt.is_phi_assignment
 
 
+class _DirtyExprCollector(AILBlockViewer):
+    """
+    Collects all DirtyExpressions in a statement.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.dirty_exprs: list[DirtyExpression] = []
+
+    def _handle_DirtyExpression(
+        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
+        self.dirty_exprs.append(expr)
+        return super()._handle_DirtyExpression(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def get_dirty_exprs(stmt: Statement) -> list[DirtyExpression]:
+    collector = _DirtyExprCollector()
+    collector.walk_statement(stmt)
+    return collector.dirty_exprs
+
+
 def has_load_expr(stmt: Statement, skip_if_contains_vvar: int | None = None) -> bool:
     walker = AILBlacklistExprTypeWalker((Load,), skip_if_contains_vvar=skip_if_contains_vvar)
     walker.walk_statement(stmt)

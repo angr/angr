@@ -52,7 +52,7 @@ from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.propagations.states import Equivalence
 from angr.sim_variable import SimMemoryVariable, SimStackVariable, SimVariable
-from angr.utils.ail import HasExprWalker, is_expr_used_as_reg_base_value, is_phi_assignment
+from angr.utils.ail import HasExprWalker, dirty_has_side_effects, is_expr_used_as_reg_base_value, is_phi_assignment
 from angr.utils.ssa import (
     has_call_in_between_stmts,
     has_load_expr_in_between_stmts,
@@ -2310,6 +2310,17 @@ class AILSimplifier(Analysis):
                             **stmt.tags,
                         )
                         simplified = True
+
+                if (
+                    idx in stmts_to_remove
+                    and isinstance(stmt, Assignment)
+                    and isinstance(stmt.src, DirtyExpression)
+                    and dirty_has_side_effects(stmt.src)
+                ):
+                    # the result is dead but the helper touches memory; keep it as a statement
+                    new_statements.append(DirtyStatement(stmt.idx, stmt.src, **stmt.tags))
+                    simplified = True
+                    continue
 
                 if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
                     if isinstance(stmt, (Assignment, WeakAssignment, Store)):

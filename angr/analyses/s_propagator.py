@@ -26,12 +26,14 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, St
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions import Function
+from angr.utils.ail import dirty_has_side_effects
 from angr.utils.ssa import (
     CONST_VVAR_LOAD_DIRTY_WHITELIST,
     CONST_VVAR_LOAD_WHITELIST,
     CONST_VVAR_TMP_WHITELIST,
     CONST_VVAR_WHITELIST,
     AILWhitelistExprTypeWalker,
+    get_dirty_exprs,
     get_uses_defs,
     has_ite_expr,
     has_ite_stmt,
@@ -530,6 +532,11 @@ class SPropagator:
                     if len(tmp_uses) <= 2 and is_const_vvar_load_dirty_assignment(
                         stmt, walker_cached=_whitelist_walker(CONST_VVAR_LOAD_DIRTY_WHITELIST)
                     ):
+                        dirty_exprs = get_dirty_exprs(stmt)
+                        if dirty_exprs and (len(tmp_uses) > 1 or any(map(dirty_has_side_effects, dirty_exprs))):
+                            # a dirty helper is never duplicated (rdtsc), and one with side effects (fldenv) stays
+                            # where it is
+                            continue
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
                             same_inst = (
                                 block.statements[tmp_def_stmtidx].tags["ins_addr"]

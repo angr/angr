@@ -4,12 +4,25 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, Convert, Expression, VirtualVariable
+from angr.ailment.expression import BinaryOp, Const, Convert, DirtyExpression, Expression, VirtualVariable
 from angr.ailment.statement import Assignment, ConditionalJump, Statement
 from angr.rustylib.ailment import Statement as _RustStatement  # pylint:disable=import-error,no-name-in-module
 
 if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel
+
+
+# dirty helpers lifted from VEX Dirty statements that are pure functions of their operands and memory
+_PURE_DIRTY_HELPERS = frozenset({"x86g_dirtyhelper_loadF80le", "amd64g_dirtyhelper_loadF80le"})
+
+
+def dirty_has_side_effects(expr: DirtyExpression) -> bool:
+    """
+    A dirty helper lifted from a VEX Dirty statement (mfx is set) may write memory or guest state (FLDENV, FSTENV, ...)
+    or observe the outside world (IN, RDTSC): it must survive even when its result is dead, and must neither be
+    duplicated nor moved. Placeholders for unsupported operations and the 80-bit load are pure.
+    """
+    return expr.mfx is not None and expr.callee not in _PURE_DIRTY_HELPERS
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
