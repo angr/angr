@@ -482,6 +482,7 @@ class SimEngineSSARewriting(
                 expr.op,
                 new_op,
                 bits=expr.bits,
+                floating_point=expr.floating_point,
                 **expr.tags,
             )
         return None

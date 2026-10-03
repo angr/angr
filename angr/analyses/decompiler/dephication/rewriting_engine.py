@@ -376,6 +376,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 expr.op,
                 expr.operands[0] if new_op0 is None else new_op0,
                 bits=expr.bits,
+                floating_point=expr.floating_point,
                 **expr.tags,
             )
         return None
