@@ -4,6 +4,7 @@ import logging
 
 from angr import ailment
 from angr.calling_conventions import SimComboArg, SimReferenceArgument, SimRegArg, SimStructArg
+from angr.errors import AngrTypeError
 from angr.sim_type import SimTypeBottom
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -43,7 +44,13 @@ class ReturnMaker(AILGraphWalker):
                 if self.function.prototype_libname
                 else self.function.prototype.returnty
             )
-            ret_val = self.function.calling_convention.return_val(returnty, perspective_returned=True)
+            try:
+                ret_val = self.function.calling_convention.return_val(returnty, perspective_returned=True)
+            except AngrTypeError:
+                # the convention has no ABI for returning that type, and says so by raising. A prototype
+                # recovered from a binary can name any type at all, so take it as one more location this
+                # convention cannot name -- the warning below -- instead of losing the whole function.
+                ret_val = None
             deref_size = None
             if isinstance(ret_val, SimReferenceArgument):
                 # This one comes back through memory: the callee leaves a pointer to the value in the return
