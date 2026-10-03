@@ -4683,9 +4683,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         # do we need an intermediate cast?
         if orig_child_signed != expr.is_signed and expr.to_bits > expr.from_bits and child.type is not None:
             # this is a problem. sign-extension only happens when the SOURCE of the cast is signed
-            # a child whose type has no size (e.g., a function or a bottom type) is as wide as the conversion says
-            child_bits = child.type.size if child.type.size is not None else expr.from_bits
-            child_ty = self.default_simtype_from_bits(child_bits, expr.is_signed)
+            # child.type.size is None for a SimTypeBottom and 0 for a struct that reached us with no
+            # fields, and neither can be the width of an integer cast. The AIL conversion carries the
+            # source width, so fall back to it whenever the rendered type does not supply one.
+            child_size = child.type.size
+            child_ty = self.default_simtype_from_bits(child_size or expr.from_bits, expr.is_signed)
             child = CTypeCast(None, child_ty, child, codegen=self)
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
