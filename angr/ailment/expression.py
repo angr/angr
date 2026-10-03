@@ -311,6 +311,7 @@ else:
         "CmpGE": 1,
         "CmpLE": 1,
         "CmpGT": 1,
+        "CmpUN": 1,
         "ExpCmpNE": 1,
         "Carry": 8,
         "SCarry": 8,

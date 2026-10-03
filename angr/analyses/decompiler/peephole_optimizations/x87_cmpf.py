@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Insert, VirtualVariable
+from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Extract, Insert, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
+from angr.analyses.decompiler.x87_fsw import const_is_nan, evaluate_over_cmpf, fp_predicate_from_outcomes
 
 from .base import PeepholeOptimizationExprBase
 
@@ -21,9 +22,14 @@ class X87CmpF(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Simplifying CmpF on x87"
-    expr_classes = (BinaryOp, ITE)
+    expr_classes = (BinaryOp, ITE, UnaryOp)
 
-    def optimize(self, expr: BinaryOp | ITE, *, block=None, **kwargs):
+    def optimize(self, expr: BinaryOp | ITE | UnaryOp, *, block=None, **kwargs):
+        if isinstance(expr, UnaryOp):
+            # IsNaN(const) once a constant operand has been propagated in
+            if expr.op == "IsNaN" and isinstance(expr.operand, Const):
+                return Const(expr.idx, 1 if const_is_nan(expr.operand) else 0, expr.bits, **expr.tags)
+            return None
         # Build a VirtualVariable -> definition map so pattern matchers can
         # see through Tmp/VVar indirections (common on AMD64 where CmpF
         # results are assigned to temporaries before bit manipulation).
@@ -49,16 +55,20 @@ class X87CmpF(PeepholeOptimizationExprBase):
         # This is GCC's IEEE 754 equality: true iff equal AND not unordered.
         # Match condition: bit6_expr == 0
         cond = expr.cond
+        if not (isinstance(expr.iftrue, Const) and expr.iftrue.value == 0):
+            return None
+        if isinstance(cond, BinaryOp) and cond.op == "CmpNE" and cond.floating_point:
+            # the two bit tests were already folded: ITE(a != b, 0, !(isnan(a) || isnan(b)))
+            a, b = cond.operands
+            if self._is_ordered_check(expr.iffalse, a, b, vvar_defs or {}):
+                return BinaryOp(expr.idx, "CmpEQ", [a, b], False, floating_point=True, bits=8, **expr.tags)
+            return None
         if not (
             isinstance(cond, BinaryOp)
             and cond.op == "CmpEQ"
             and isinstance(cond.operands[1], Const)
             and cond.operands[1].value == 0
         ):
-            return None
-
-        # Check if iftrue is 0
-        if not (isinstance(expr.iftrue, Const) and expr.iftrue.value == 0):
             return None
 
         # Match condition operand: (CmpF & 0x45) >> 6 & 1
@@ -110,8 +120,46 @@ class X87CmpF(PeepholeOptimizationExprBase):
         # Use 8 bits to match the Extract(8bits@0) that typically wraps this.
         return BinaryOp(expr.idx, "CmpEQ", list(bit6_cmpf), False, floating_point=True, bits=8, **expr.tags)
 
+    @staticmethod
+    def _is_ordered_check(expr, a, b, vvar_defs: dict) -> bool:
+        """Match !isunordered(a, b) (or !isnan(a) when a and b are the same) through value-preserving wrappers."""
+        for _ in range(6):
+            expr = X87CmpF._resolve(expr, vvar_defs)
+            if isinstance(expr, Convert):
+                expr = expr.operand
+            elif isinstance(expr, Insert) and is_lsb_overwrite(expr):
+                expr = expr.value
+            elif isinstance(expr, Extract) and is_lsb_extract(expr):
+                expr = expr.base
+            elif (
+                isinstance(expr, BinaryOp)
+                and expr.op == "And"
+                and isinstance(expr.operands[1], Const)
+                and expr.operands[1].value == 1
+            ):
+                expr = expr.operands[0]
+            else:
+                break
+        if not (isinstance(expr, UnaryOp) and expr.op == "Not"):
+            return False
+        inner = X87CmpF._resolve(expr.operand, vvar_defs)
+        if isinstance(inner, BinaryOp) and inner.op == "CmpUN":
+            return inner.operands[0].likes(a) and inner.operands[1].likes(b)
+        if isinstance(inner, UnaryOp) and inner.op == "IsNaN":
+            return inner.operand.likes(a) or inner.operand.likes(b)
+        return False
+
     def _optimize_binop(self, expr: BinaryOp, vvar_defs: dict | None = None):
         vd = vvar_defs or {}
+        if expr.op == "CmpUN":
+            # isunordered(const, x) -> isnan(x) once a constant operand has been propagated in
+            consts = [isinstance(op, Const) and not const_is_nan(op) for op in expr.operands]
+            if all(consts):
+                return Const(expr.idx, 0, expr.bits, **expr.tags)
+            if any(consts):
+                other = expr.operands[0] if consts[1] else expr.operands[1]
+                return UnaryOp(expr.idx, "IsNaN", other, bits=expr.bits, **expr.tags)
+            return None
         # Pattern 1: ((CmpF(a,b) & 0x45 | (CmpF(a,b) & 0x45) >> 6) & 1) == 1
         #   This tests "NOT GT" (i.e., LE including unordered).
         #   == 1 -> CmpLE,  == 0 / != 1 -> CmpGT
@@ -143,6 +191,35 @@ class X87CmpF(PeepholeOptimizationExprBase):
             if cmpf_operands is not None:
                 op = "CmpEQ" if expr.op == "CmpEQ" else "CmpNE"
                 return BinaryOp(expr.idx, op, list(cmpf_operands), False, floating_point=True, **expr.tags)
+
+        return self._optimize_by_evaluation(expr, vd)
+
+    def _optimize_by_evaluation(self, expr: BinaryOp, vvar_defs: dict) -> BinaryOp | Convert | Const | None:
+        """
+        Evaluate the expression for each CmpF outcome (sees through fnstsw/sahf bit shuffling) and rebuild it as a
+        comparison when it is a test against a constant or a 0/1-valued bit test.
+        """
+        if expr.op in ("CmpEQ", "CmpNE"):
+            if not (isinstance(expr.operands[1], Const) and isinstance(expr.operands[1].value, int)):
+                return None
+            table = evaluate_over_cmpf([expr.operands[0]], vvar_defs)
+            if table is None:
+                return None
+            const_val = expr.operands[1].value
+            true_set = table.true_set(lambda vals: (vals[0] == const_val) == (expr.op == "CmpEQ"))
+            return fp_predicate_from_outcomes(true_set, table.operands, expr.idx, self.manager, expr.bits, expr.tags)
+
+        if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value in (1, 4, 0x40):
+            table = evaluate_over_cmpf([expr], vvar_defs)
+            if table is None or any(vals[0] not in (0, 1) for vals in table.values.values()):
+                return None
+            true_set = table.true_set(lambda vals: vals[0] == 1)
+            if expr.bits == 1:
+                return fp_predicate_from_outcomes(true_set, table.operands, expr.idx, self.manager, 1, expr.tags)
+            pred = fp_predicate_from_outcomes(
+                true_set, table.operands, self.manager.next_atom(), self.manager, 1, expr.tags
+            )
+            return Convert(expr.idx, 1, expr.bits, False, pred, **expr.tags)
 
         return None
 

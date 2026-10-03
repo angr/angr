@@ -439,3 +439,267 @@ class TestFloatConstGuards(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ======================================================================
+# X87CmpF / X86CCallRewriter: fnstsw ax; test ah, imm / sahf / cmp ah idioms
+# ======================================================================
+
+
+def _cmpf(a, b):
+    return BinaryOp(None, "CmpF", [a, b], False, bits=32, floating_point=True)
+
+
+def _fsw_ah(cmpf, ftop):
+    """(char)(((ftop & 7) * 0x800 | CmpF * 0x100 & 0x4500 & 0x4700) >> 8), as lifted from fnstsw ax."""
+    ftop_part = BinaryOp(
+        None,
+        "Mul",
+        [BinaryOp(None, "And", [ftop, Const(None, 7, 16)], False, bits=16), Const(None, 0x800, 16)],
+        False,
+        bits=16,
+    )
+    fc3210 = BinaryOp(
+        None,
+        "And",
+        [
+            BinaryOp(None, "Mul", [Convert(None, 32, 16, False, cmpf), Const(None, 0x100, 16)], False, bits=16),
+            Const(None, 0x4500, 16),
+        ],
+        False,
+        bits=16,
+    )
+    fsw = BinaryOp(
+        None,
+        "Or",
+        [ftop_part, BinaryOp(None, "And", [fc3210, Const(None, 0x4700, 16)], False, bits=16)],
+        False,
+        bits=16,
+    )
+    return Convert(None, 16, 8, False, BinaryOp(None, "Shr", [fsw, Const(None, 8, 8)], False, bits=16))
+
+
+def _test_ah(cmpf, ftop, mask):
+    """Conv(8->32, ah & mask): cc_dep1 of test ah, mask."""
+    return Convert(
+        None, 8, 32, False, BinaryOp(None, "And", [_fsw_ah(cmpf, ftop), Const(None, mask, 8)], False, bits=8)
+    )
+
+
+def _sahf_eflags(cmpf, ftop, old_eflags):
+    """old_eflags & 0x800 | (eax >> 8) & 0xd5 with eax = _INSERT(_INSERT(0, 0, al), 1, ah): cc_dep1 after sahf."""
+    al = BinaryOp(
+        None,
+        "Mul",
+        [
+            BinaryOp(None, "And", [Convert(None, 16, 8, False, ftop), Const(None, 7, 8)], False, bits=8),
+            Const(None, 0, 8),
+        ],
+        False,
+        bits=8,
+    )
+    eax = Insert(
+        None,
+        Insert(None, Const(None, 0, 32), Const(None, 0, 32), al, "Iend_LE"),
+        Const(None, 1, 32),
+        _fsw_ah(cmpf, ftop),
+        "Iend_LE",
+    )
+    return BinaryOp(
+        None,
+        "Or",
+        [
+            BinaryOp(None, "And", [old_eflags, Const(None, 0x800, 32)], False, bits=32),
+            BinaryOp(
+                None,
+                "And",
+                [BinaryOp(None, "Shr", [eax, Const(None, 8, 8)], False, bits=32), Const(None, 0xD5, 32)],
+                False,
+                bits=32,
+            ),
+        ],
+        False,
+        bits=32,
+    )
+
+
+def _bit(expr, shift):
+    """(expr >> shift) & 1"""
+    return BinaryOp(
+        None,
+        "And",
+        [BinaryOp(None, "Shr", [expr, Const(None, shift, 8)], False, bits=expr.bits), Const(None, 1, expr.bits)],
+        False,
+        bits=expr.bits,
+    )
+
+
+def _cmp_const(op, expr, value):
+    return BinaryOp(None, op, [expr, Const(None, value, expr.bits)], False, bits=1)
+
+
+class TestX87StatusWord(unittest.TestCase):
+    """fnstsw/sahf/test ah bit tests over CmpF fold into IEEE comparisons."""
+
+    def setUp(self):
+        from angr.analyses.decompiler.peephole_optimizations import X87CmpF
+
+        self.opt = _make_peephole(X87CmpF)
+        self.a = Tmp(None, 1, 64)
+        self.b = Tmp(None, 2, 64)
+        self.ftop = Tmp(None, 3, 16)
+        self.eflags = Tmp(None, 4, 32)
+
+    def _assert_cmp(self, result, op, a=None, b=None):
+        assert isinstance(result, BinaryOp) and result.op == op and result.floating_point, result
+        assert result.operands[0].likes(a or self.a) and result.operands[1].likes(b or self.b)
+
+    def test_test_ah_0x41_je_is_gt(self):
+        # test ah, 0x41; je  ->  a > b
+        expr = _cmp_const("CmpEQ", _test_ah(_cmpf(self.a, self.b), self.ftop, 0x41), 0)
+        self._assert_cmp(self.opt.optimize(expr), "CmpGT")
+
+    def test_test_ah_0x45_jne_is_le(self):
+        expr = _cmp_const("CmpNE", _test_ah(_cmpf(self.a, self.b), self.ftop, 0x45), 0)
+        self._assert_cmp(self.opt.optimize(expr), "CmpLE")
+
+    def test_test_ah_1_bit_is_lt(self):
+        # (fsw >> 8) & 1 used as a value: C0 set -> a < b (or unordered)
+        fsw = _fsw_ah(_cmpf(self.a, self.b), self.ftop)
+        result = self.opt.optimize(_bit(Convert(None, 8, 32, False, fsw), 0))
+        assert isinstance(result, Convert) and result.from_bits == 1 and result.to_bits == 32
+        self._assert_cmp(result.operand, "CmpLT")
+
+    def test_and_cmp_0x40_is_eq(self):
+        # and ah, 0x45; cmp ah, 0x40; setne  ->  a != b
+        masked = BinaryOp(None, "And", [_fsw_ah(_cmpf(self.a, self.b), self.ftop), Const(None, 0x45, 8)], False, bits=8)
+        self._assert_cmp(self.opt.optimize(_cmp_const("CmpNE", masked, 0x40)), "CmpNE")
+        self._assert_cmp(self.opt.optimize(_cmp_const("CmpEQ", masked, 0x40)), "CmpEQ")
+
+    def test_sahf_zf_is_eq(self):
+        # sahf; je: bit 6 of the copied flags, OF from the previous eflags stays unknown and is masked away
+        eflags = _sahf_eflags(_cmpf(self.a, self.b), self.ftop, self.eflags)
+        self._assert_cmp(self.opt.optimize(_cmp_const("CmpEQ", _bit(eflags, 6), 1)), "CmpEQ")
+
+    def test_sahf_cf_or_zf_is_le(self):
+        # sahf; jbe: (flags | flags >> 6) & 1
+        eflags = _sahf_eflags(_cmpf(self.a, self.b), self.ftop, self.eflags)
+        cf_or_zf = BinaryOp(
+            None,
+            "And",
+            [
+                BinaryOp(
+                    None,
+                    "Or",
+                    [eflags, BinaryOp(None, "Shr", [eflags, Const(None, 6, 8)], False, bits=32)],
+                    False,
+                    bits=32,
+                ),
+                Const(None, 1, 32),
+            ],
+            False,
+            bits=32,
+        )
+        self._assert_cmp(self.opt.optimize(_cmp_const("CmpEQ", cf_or_zf, 1)), "CmpLE")
+
+    def test_fcomi_pf_is_isnan(self):
+        # fucomi/ucomisd; jp: (CmpF & 0x45) >> 2 & 1
+        masked = BinaryOp(None, "And", [_cmpf(self.a, self.b), Const(None, 0x45, 32)], False, bits=32)
+        result = self.opt.optimize(_bit(masked, 2))
+        assert isinstance(result, Convert) and result.from_bits == 1
+        pred = result.operand
+        assert isinstance(pred, BinaryOp) and pred.op == "CmpUN" and pred.floating_point
+        assert pred.operands[0].likes(self.a) and pred.operands[1].likes(self.b)
+        # a constant operand cannot be NaN
+        masked = BinaryOp(None, "And", [_cmpf(self.a, Const(None, 0.0, 64)), Const(None, 0x45, 32)], False, bits=32)
+        result = self.opt.optimize(_cmp_const("CmpNE", _bit(masked, 2), 0))
+        assert isinstance(result, UnaryOp) and result.op == "IsNaN" and result.operand.likes(self.a)
+        # a self-comparison can only be EQ or unordered: CF clear -> !isnan, ZF is always set
+        masked = BinaryOp(None, "And", [_cmpf(self.a, self.a), Const(None, 0x45, 32)], False, bits=32)
+        result = self.opt.optimize(_cmp_const("CmpEQ", _bit(masked, 0), 0))
+        assert isinstance(result, UnaryOp) and result.op == "Not"
+        assert isinstance(result.operand, UnaryOp) and result.operand.op == "IsNaN"
+        result = self.opt.optimize(_cmp_const("CmpEQ", _bit(masked, 6), 1))
+        assert isinstance(result, Const) and result.value == 1
+
+    def test_propagated_constant_into_unordered(self):
+        un = BinaryOp(None, "CmpUN", [Const(None, 0.0, 64), self.b], False, floating_point=True, bits=1)
+        result = self.opt.optimize(un)
+        assert isinstance(result, UnaryOp) and result.op == "IsNaN" and result.operand.likes(self.b)
+        assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, 1.5, 64), bits=1)).value == 0
+        nan = struct.unpack("<d", struct.pack("<Q", 0x7FF8000000000000))[0]
+        assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, nan, 64), bits=1)).value == 1
+        assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, 0x7FF8000000000001, 64), bits=1)).value == 1
+
+    def test_ftop_bits_block_the_fold(self):
+        # test ah, 0x08 reads the ftop bits: not a CmpF test
+        expr = _cmp_const("CmpEQ", _test_ah(_cmpf(self.a, self.b), self.ftop, 0x08), 0)
+        assert self.opt.optimize(expr) is None
+
+    def test_two_different_cmpf_block_the_fold(self):
+        c = Tmp(None, 5, 64)
+        lhs = BinaryOp(None, "And", [_cmpf(self.a, self.b), Const(None, 1, 32)], False, bits=32)
+        rhs = BinaryOp(None, "And", [_cmpf(self.a, c), Const(None, 1, 32)], False, bits=32)
+        expr = _cmp_const("CmpEQ", BinaryOp(None, "Or", [lhs, rhs], False, bits=32), 0)
+        assert self.opt.optimize(expr) is None
+
+
+class TestX86FPConditionCCall(unittest.TestCase):
+    """x86g_calculate_condition over flags derived from an x87 status word."""
+
+    def setUp(self):
+        from angr.ailment.manager import Manager
+
+        self.proj = angr.load_shellcode(b"\xc3", "x86")
+        self.mgr = Manager()
+        self.a = Tmp(None, 1, 64)
+        self.b = Tmp(None, 2, 64)
+        self.ftop = Tmp(None, 3, 16)
+        self.eflags = Tmp(None, 4, 32)
+
+    def _rewrite(self, cond, op, dep1, dep2=0, ndep=0):
+        from angr.ailment.expression import VEXCCallExpression
+        from angr.analyses.decompiler.ccall_rewriters import X86CCallRewriter
+
+        dep2 = Const(None, dep2, 32) if isinstance(dep2, int) else dep2
+        ndep = Const(None, ndep, 32) if isinstance(ndep, int) else ndep
+        ccall = VEXCCallExpression(
+            None, "x86g_calculate_condition", [Const(None, cond, 32), Const(None, op, 32), dep1, dep2, ndep], bits=32
+        )
+        return X86CCallRewriter(ccall, self.proj, self.mgr).result
+
+    def _assert_cmp(self, result, op):
+        assert isinstance(result, Convert) and result.from_bits == 1 and result.to_bits == 32, result
+        pred = result.operand
+        assert isinstance(pred, BinaryOp) and pred.op == op and pred.floating_point, pred
+        assert pred.operands[0].likes(self.a) and pred.operands[1].likes(self.b)
+
+    def test_test_ah_5_jp_is_ge(self):
+        # MSVC `if (a < b)`: test ah, 5; jp skip  ->  skip when a >= b
+        self._assert_cmp(self._rewrite(10, 13, _test_ah(_cmpf(self.a, self.b), self.ftop, 5)), "CmpGE")
+
+    def test_test_ah_0x44_jnp_is_eq(self):
+        self._assert_cmp(self._rewrite(11, 13, _test_ah(_cmpf(self.a, self.b), self.ftop, 0x44)), "CmpEQ")
+
+    def test_test_ah_0x41_jne_is_le(self):
+        self._assert_cmp(self._rewrite(5, 13, _test_ah(_cmpf(self.a, self.b), self.ftop, 0x41)), "CmpLE")
+
+    def test_sahf_jbe_is_le(self):
+        # CondBE over copied flags (sahf)
+        self._assert_cmp(self._rewrite(6, 0, _sahf_eflags(_cmpf(self.a, self.b), self.ftop, self.eflags)), "CmpLE")
+
+    def test_fcomi_ja_is_gt(self):
+        # fcomi: cc_dep1 = CmpF & 0x45; CondNBE
+        masked = BinaryOp(None, "And", [_cmpf(self.a, self.b), Const(None, 0x45, 32)], False, bits=32)
+        self._assert_cmp(self._rewrite(7, 0, masked), "CmpGT")
+
+    def test_cmp_ah_0x40_je_is_eq(self):
+        # and ah, 0x45; cmp ah, 0x40; je  (CondZ, SUBB)
+        masked = BinaryOp(None, "And", [_fsw_ah(_cmpf(self.a, self.b), self.ftop), Const(None, 0x45, 8)], False, bits=8)
+        self._assert_cmp(self._rewrite(4, 4, Convert(None, 8, 32, False, masked), 0x40), "CmpEQ")
+
+    def test_integer_parity_is_left_alone(self):
+        # inc edi; jp with the x87 carry only in ndep: a real parity test, not a comparison
+        dep1 = BinaryOp(None, "Add", [Tmp(None, 6, 32), Const(None, 1, 32)], False, bits=32)
+        ndep = BinaryOp(None, "And", [_cmpf(self.a, self.b), Const(None, 1, 32)], False, bits=32)
+        assert self._rewrite(10, 18, dep1, 0, ndep) is None

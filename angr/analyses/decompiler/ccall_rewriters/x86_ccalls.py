@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.ailment import Expr
 from angr.ailment.expression import Call, Convert, VirtualVariable
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.analyses.decompiler.x87_fsw import CMPF_OUTCOMES, evaluate_over_cmpf, fp_predicate_from_outcomes
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 
@@ -41,16 +42,21 @@ class X86CCallRewriter(CCallRewriterBase):
     __slots__ = ()
 
     def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
-        if ccall.callee == "x86g_calculate_FXAM":
+        callee = self._original_callee(ccall)
+        if callee == "x86g_calculate_FXAM":
             return self._rewrite_fxam(ccall)
-        if ccall.callee == "x86g_calculate_condition":
+        if callee == "x86g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
             dep_1 = ccall.operands[2]
             dep_2 = ccall.operands[3]
+            ndep = ccall.operands[4]
             if isinstance(cond, Expr.Const) and isinstance(op, Expr.Const):
                 cond_v = cond.value
                 op_v = op.value
+                fp_cond = self._rewrite_fp_condition(ccall, cond_v, op_v, dep_1, dep_2, ndep)
+                if fp_cond is not None:
+                    return fp_cond
                 if cond_v == X86_CondTypes["CondLE"]:
                     if op_v in {
                         X86_OpTypes["G_CC_OP_SUBB"],
@@ -339,7 +345,7 @@ class X86CCallRewriter(CCallRewriterBase):
                         return Expr.Convert(
                             self.ail_manager.next_atom(), cmp.bits, ccall.bits, False, cmp, **ccall.tags
                         )
-        elif ccall.callee == "x86g_use_seg_selector":
+        elif callee == "x86g_use_seg_selector":
             seg_selector = ccall.operands[2]
             virtual_addr = ccall.operands[3]
             while isinstance(seg_selector, Convert):
@@ -376,6 +382,43 @@ class X86CCallRewriter(CCallRewriterBase):
                 )
         return None
 
+    def _rewrite_fp_condition(
+        self,
+        ccall: Expr.VEXCCallExpression,
+        cond_v: int,
+        op_v: int,
+        dep_1: Expr.Expression,
+        dep_2: Expr.Expression,
+        ndep: Expr.Expression,
+    ) -> Expr.Expression | None:
+        """
+        Fold a condition over flags derived from an x87 status word (fcom; fnstsw ax; test ah, imm / sahf / cmp ah)
+        into the IEEE comparison it implements.
+        """
+        if op_v == X86_OpTypes["G_CC_OP_COPY"]:
+            # only the flag bits the condition reads must be known (sahf keeps the old OF)
+            needed = _COND_FLAG_MASKS.get(cond_v & ~1)
+            if needed is None:
+                return None
+            dep_1 = Expr.BinaryOp(None, "And", [dep_1, Expr.Const(None, needed, dep_1.bits)], False, bits=dep_1.bits)
+        table = evaluate_over_cmpf([dep_1, dep_2, ndep])
+        if table is None:
+            return None
+        true_set = set()
+        for outcome in CMPF_OUTCOMES:
+            flags = _x86_flags(op_v, *table.values[outcome])
+            if flags is None:
+                return None
+            taken = _x86_condition(cond_v, flags)
+            if taken is None:
+                return None
+            if taken:
+                true_set.add(outcome)
+        pred = fp_predicate_from_outcomes(
+            frozenset(true_set), table.operands, self.ail_manager.next_atom(), self.ail_manager, 1, ccall.tags
+        )
+        return Expr.Convert(ccall.idx, 1, ccall.bits, False, pred, **ccall.tags)
+
     def _fix_size(self, expr, op_v: int, type_8bit, type_16bit, tags):
         if op_v == type_8bit:
             bits = 8
@@ -388,3 +431,90 @@ class X86CCallRewriter(CCallRewriterBase):
                 return Expr.Const(expr.idx, expr.value & ((1 << bits) - 1), bits, **tags)
             return Expr.Convert(self.ail_manager.next_atom(), 32, bits, False, expr, **tags)
         return expr
+
+
+_OP_NBITS = {
+    "B": 8,
+    "W": 16,
+    "L": 32,
+}
+_OP_NAMES = {v: k for k, v in X86_OpTypes.items() if v is not None}
+_COND_FLAG_MASKS = {
+    X86_CondTypes["CondO"]: 0x800,
+    X86_CondTypes["CondB"]: 0x1,
+    X86_CondTypes["CondZ"]: 0x40,
+    X86_CondTypes["CondBE"]: 0x41,
+    X86_CondTypes["CondS"]: 0x80,
+    X86_CondTypes["CondP"]: 0x4,
+    X86_CondTypes["CondL"]: 0x880,
+    X86_CondTypes["CondLE"]: 0x8C0,
+}
+
+
+def _parity(v: int) -> int:
+    return 1 if (v & 0xFF).bit_count() % 2 == 0 else 0
+
+
+def _x86_flags(op_v: int, dep_1: int, dep_2: int, ndep: int) -> tuple[int, int, int, int, int] | None:
+    """
+    Compute (cf, pf, zf, sf, of) for a constant cc_op with concrete dependencies. Only the ops that show up around
+    x87 comparisons are supported.
+    """
+    if op_v == X86_OpTypes["G_CC_OP_COPY"]:
+        return dep_1 & 1, (dep_1 >> 2) & 1, (dep_1 >> 6) & 1, (dep_1 >> 7) & 1, (dep_1 >> 11) & 1
+    name = _OP_NAMES.get(op_v)
+    if name is None:
+        return None
+    nbits = _OP_NBITS.get(name[-1])
+    if nbits is None:
+        return None
+    mask = (1 << nbits) - 1
+    top = 1 << (nbits - 1)
+    kind = name[len("G_CC_OP_") : -1]
+    d1, d2 = dep_1 & mask, dep_2 & mask
+    if kind == "LOGIC":
+        res = d1
+        cf = of = 0
+    elif kind == "SUB":
+        res = (d1 - d2) & mask
+        cf = 1 if d1 < d2 else 0
+        of = 1 if ((d1 ^ d2) & (d1 ^ res)) & top else 0
+    elif kind == "ADD":
+        res = (d1 + d2) & mask
+        cf = 1 if res < d1 else 0
+        of = 1 if (~(d1 ^ d2) & (d1 ^ res)) & top else 0
+    elif kind == "INC":
+        res = d1
+        cf = ndep & 1
+        of = 1 if res == top else 0
+    elif kind == "DEC":
+        res = d1
+        cf = ndep & 1
+        of = 1 if res == top - 1 else 0
+    else:
+        return None
+    return cf, _parity(res), 1 if res == 0 else 0, 1 if res & top else 0, of
+
+
+def _x86_condition(cond_v: int, flags: tuple[int, int, int, int, int]) -> bool | None:
+    cf, pf, zf, sf, of = flags
+    base = cond_v & ~1
+    if base == X86_CondTypes["CondO"]:
+        r = of
+    elif base == X86_CondTypes["CondB"]:
+        r = cf
+    elif base == X86_CondTypes["CondZ"]:
+        r = zf
+    elif base == X86_CondTypes["CondBE"]:
+        r = cf | zf
+    elif base == X86_CondTypes["CondS"]:
+        r = sf
+    elif base == X86_CondTypes["CondP"]:
+        r = pf
+    elif base == X86_CondTypes["CondL"]:
+        r = sf ^ of
+    elif base == X86_CondTypes["CondLE"]:
+        r = (sf ^ of) | zf
+    else:
+        return None
+    return bool(r ^ (cond_v & 1))

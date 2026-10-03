@@ -1040,6 +1040,60 @@ class TestI386PrototypelessCalleePushes:
         assert caller.calling_convention is not None
 
 
+class TestX87StatusWordIdioms:
+    """fcomp; fnstsw ax; test ah, imm / sahf; jcc (MSVC) and gcc -march=i386 shapes fold into IEEE comparisons."""
+
+    @pytest.mark.parametrize(
+        "func_name,taken_cond,taken_ret",
+        [
+            ("lt_test_jp", "a0 >= a1", 2),
+            ("gt_test_jne", "a0 <= a1", 2),
+            ("eq_test_jnp", "a0 == a1", 2),
+            ("lt_test_jne", "a0 < a1", 2),
+            ("ge_sahf_jb", "a0 < a1", 2),
+            ("le_sahf_ja", "a0 > a1", 2),
+            ("eq_sahf_jne", "a0 != a1", 2),
+            ("isnan_sahf_jnp", "isnan(a0)", 1),
+        ],
+    )
+    def test_msvc_branches(self, func_name, taken_cond, taken_ret):
+        text = _decompile_asm_func("x87_fnstsw_i386.o", func_name)
+        assert "CmpF" not in text and "_ccall" not in text and "ftop" not in text, text
+        # either `if (cond) return taken; return other;` or the structurer's flipped form
+        other = 3 - taken_ret
+        flipped = {
+            "a0 >= a1": "a0 < a1",
+            "a0 <= a1": "a0 > a1",
+            "a0 == a1": "a0 != a1",
+            "a0 < a1": "a0 >= a1",
+            "a0 > a1": "a0 <= a1",
+            "a0 != a1": "a0 == a1",
+            "isnan(a0)": "!isnan(a0)",
+        }[taken_cond]
+        pat_taken = rf"if \({re.escape(taken_cond)}\)\s*return {taken_ret};\s*return {other};"
+        pat_flipped = rf"if \({re.escape(flipped)}\)\s*return {other};\s*return {taken_ret};"
+        assert re.search(pat_taken, text) or re.search(pat_flipped, text), text
+
+    def test_sahf_setb(self):
+        text = _decompile_asm_func("x87_fnstsw_i386.o", "lt_sahf_setb")
+        assert "return a0 < a1;" in text, text
+
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [
+            ("lt_f64", "return a1 > a0;"),
+            ("le_f64", "return a1 >= a0;"),
+            ("gt_f64", "return a0 > a1;"),
+            ("ge_f64", "return a0 >= a1;"),
+            ("eq_f64", "return a0 == a1;"),
+            ("ne_f64", "return a0 != a1;"),
+        ],
+    )
+    def test_gcc_i386_setcc(self, func_name, expected):
+        text = _decompile_asm_func("x87_fcom_i386_O1.o", func_name)
+        assert expected in text, text
+
+
 if __name__ == "__main__":
     unittest.main()
 

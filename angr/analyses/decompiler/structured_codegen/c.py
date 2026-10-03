@@ -2249,6 +2249,7 @@ class CUnaryOp(CExpression):
             "Tan": self._c_repr_chunks_libm,
             "Exp2": self._c_repr_chunks_libm,
             "Log2": self._c_repr_chunks_libm,
+            "IsNaN": self._c_repr_chunks_isnan,
         }
 
         handler = OP_MAP.get(self.op)
@@ -2333,6 +2334,13 @@ class CUnaryOp(CExpression):
     def _c_repr_chunks_clz(self):
         paren = CClosingObject("(")
         yield "Clz", self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
+
+    def _c_repr_chunks_isnan(self):
+        paren = CClosingObject("(")
+        yield "isnan", self
         yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren
@@ -2489,6 +2497,7 @@ class CBinaryOp(CExpression):
             "PRem": self._c_repr_chunks_libm,
             "PRem1": self._c_repr_chunks_libm,
             "Scale": self._c_repr_chunks_libm,
+            "CmpUN": self._c_repr_chunks_cmpun,
         }
 
         handler = OP_MAP.get(self.op)
@@ -2680,6 +2689,17 @@ class CBinaryOp(CExpression):
         if isinstance(self.type, SimTypeFloat) and not isinstance(self.type, SimTypeDouble):
             fn += "f"
         yield from self._c_repr_chunks_opfirst(fn)
+    def _c_repr_chunks_cmpun(self):
+        # a constant operand (inlined after the peepholes ran) can never be NaN
+        for const, other in ((self.lhs, self.rhs), (self.rhs, self.lhs)):
+            if isinstance(const, CConstant) and not (isinstance(const.value, float) and math.isnan(const.value)):
+                paren = CClosingObject("(")
+                yield "isnan", self
+                yield "(", paren
+                yield from self._try_c_repr_chunks(other)
+                yield ")", paren
+                return
+        yield from self._c_repr_chunks_opfirst("isunordered")
 
 
 class CTypeCast(CExpression):
