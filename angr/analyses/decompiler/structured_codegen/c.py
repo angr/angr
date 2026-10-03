@@ -2754,7 +2754,11 @@ def _float32_repr(v: float) -> str:
         return f"{int(v)}.0"
     for precision in range(1, 10):
         s = f"{v:.{precision}g}"
-        if struct.unpack("f", struct.pack("f", float(s)))[0] == v:
+        try:
+            packed = struct.pack("f", float(s))
+        except OverflowError:
+            continue  # the rounded literal overshoots FLT_MAX
+        if struct.unpack("f", packed)[0] == v:
             break
     else:
         s = repr(v)

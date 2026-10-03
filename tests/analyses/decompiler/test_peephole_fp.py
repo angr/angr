@@ -820,3 +820,13 @@ class TestX86FPConditionCCall(unittest.TestCase):
         dep1 = BinaryOp(None, "Add", [Tmp(None, 6, 32), Const(None, 1, 32)], False, bits=32)
         ndep = BinaryOp(None, "And", [_cmpf(self.a, self.b), Const(None, 1, 32)], False, bits=32)
         assert self._rewrite(10, 18, dep1, 0, ndep) is None
+
+
+class TestFloat32Repr(unittest.TestCase):
+    def test_flt_max_does_not_overflow(self):
+        from angr.analyses.decompiler.structured_codegen.c import _float32_repr
+
+        flt_max = struct.unpack("f", struct.pack("I", 0x7F7FFFFF))[0]
+        literal = _float32_repr(flt_max)
+        assert struct.unpack("f", struct.pack("f", float(literal)))[0] == flt_max
+        assert _float32_repr(0.72) == "0.72"
