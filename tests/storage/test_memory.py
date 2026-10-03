@@ -7,7 +7,7 @@ import unittest
 
 from archinfo import ArchAMD64
 
-from angr import SIM_PROCEDURES, SimState, claripy
+from angr import SIM_PROCEDURES, Project, SimState, claripy
 from angr import options as o
 from angr.claripy.annotation import UninitializedAnnotation
 from angr.errors import SimMemoryError
@@ -25,7 +25,7 @@ from angr.storage.memory_mixins import (
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.storage.memory_mixins.paged_memory.pages.symbolic_bitmap import SymbolicBitmap
-from tests.common import minimal_project
+from tests.common import bin_location, minimal_project
 
 
 class UltraPageMemory(
@@ -623,6 +623,19 @@ class TestMemory(unittest.TestCase):
             s.registers.store("rax", claripy.BVV(0, 64), condition=claripy.BoolS("cond"))
         with self.assertRaises(SimMemoryError):
             s.memory.load(0x1000, 4, condition=claripy.BoolS("cond"))
+
+    def test_fast_memory_fp_derived_parameters(self):
+        project = Project(f"{bin_location}/tests/x86_64/all", auto_load_libs=False)
+        s = SimState(project=project, mode="fastpath")
+        fp = claripy.FPS("fp", claripy.FSORT_FLOAT)
+        fp_bits = fp.to_bv()
+
+        with self.assertRaisesRegex(SimMemoryError, "address not supported"):
+            s.registers.load(fp_bits, 1)
+        with self.assertRaisesRegex(SimMemoryError, "size not supported"):
+            s.registers.load(0, fp_bits)
+        with self.assertRaisesRegex(SimMemoryError, "condition not supported"):
+            s.registers.load(0, 1, condition=claripy.fpIsNaN(fp))
 
     def test_light_memory(self):
         s = SimState(project=minimal_project("AMD64"), plugins={"registers": SimLightRegisters()})
