@@ -79,10 +79,11 @@ class SSEBitwiseSelect(PeepholeOptimizationExprBase):
 
     @staticmethod
     def _narrow_ite(ite, out_bits, ref_expr):
-        """Narrow an ITE and its condition operands to *out_bits*."""
+        """Narrow an ITE to *out_bits*; a condition comparing whole XMM values is narrowed to the selected lane."""
         n = SSEBitwiseSelect._narrow_to
         cond = ite.cond
-        if isinstance(cond, BinaryOp) and any(op.bits > out_bits for op in cond.operands):
+        # scalar comparison operands must keep their width: Extract(8, a) != Extract(8, b) is not a != b
+        if isinstance(cond, BinaryOp) and all(op.bits > 64 for op in cond.operands):
             narrow_ops = [n(op, out_bits, ref_expr) for op in cond.operands]
             cond = BinaryOp(cond.idx, cond.op, narrow_ops, False, floating_point=cond.floating_point, **cond.tags)
         return ITE(
