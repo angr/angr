@@ -44,12 +44,8 @@ def is_sane_register_variable(
     if arch_name == "AMD64":
         if 24 <= reg_offset < 40 or 64 <= reg_offset < 104:  # rcx, rdx  # rsi, rdi, r8, r9, r10
             return True
-        # XMM/YMM registers: only accept those that belong to the CC's FP arg registers
-        if 224 <= reg_offset < 480 and def_cc is not None:
-            fp_regs = getattr(def_cc, "FP_ARG_REGS", None)
-            if fp_regs:
-                return any(arch.registers.get(rn, (-1,))[0] == (reg_offset & ~0x1F) for rn in fp_regs)
-        return False
+        # XMM registers: only accept those that belong to the CC's FP arg registers
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)
 
     if is_arm_arch(arch):
         if isinstance(arch, (ArchARMHF, ArchARMCortexM)):
@@ -73,6 +69,20 @@ def is_sane_register_variable(
 
     l.critical("Unsupported architecture %s.", arch.name)
     return True
+
+
+def _in_fp_arg_regs(arch: archinfo.Arch, reg_offset: int, def_cc: SimCC | type[SimCC]) -> bool:
+    """
+    Whether ``reg_offset`` falls inside one of ``def_cc``'s FP argument registers. The register layout comes from
+    ``arch.registers`` (the libVEX guest stride between xmm registers changed with AVX-512), never from literals.
+    """
+
+    for reg_name in def_cc.FP_ARG_REGS:
+        if reg_name in arch.registers:
+            off, size = arch.registers[reg_name]
+            if off <= reg_offset < off + size:
+                return True
+    return False
 
 
 def reg_arg_from_span(arch: archinfo.Arch, offset: int, size: int) -> SimRegArg:

@@ -14,6 +14,7 @@ import archinfo
 
 import angr
 from angr.analyses.calling_convention import FactCollector
+from angr.analyses.calling_convention.utils import is_sane_register_variable
 from angr.analyses.complete_calling_conventions import (
     DEAD_WORKER_GRACE_PERIOD,
     CallingConventionAnalysisMode,
@@ -22,6 +23,7 @@ from angr.analyses.complete_calling_conventions import (
 from angr.calling_conventions import (
     SimCC,
     SimCCCdecl,
+    SimCCMicrosoftAMD64,
     SimCCMicrosoftCdecl,
     SimCCMicrosoftFastcall,
     SimCCStdcall,
@@ -30,7 +32,7 @@ from angr.calling_conventions import (
     SimStackArg,
 )
 from angr.errors import AngrRuntimeError
-from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
+from angr.sim_type import SimTypeBottom, SimTypeDouble, SimTypeFloat, SimTypeFunction, SimTypeInt, SimTypeLongLong
 from angr.utils.ssa import get_reg_offset_base
 from tests.common import bin_location, load_project_with_scoped_cfg, requires_binaries_private
 
@@ -713,6 +715,34 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca.cc is not None and cca.prototype is not None
         arg_locs = cca.cc.arg_locs(cca.prototype)
         assert [a.reg_name for a in arg_locs if isinstance(a, SimRegArg)] == ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+
+    def test_amd64_sse_fp_arg_registers_follow_arch_layout(self):
+        """The accepted xmm range must come from arch.registers: with the AVX-512 guest layout xmm registers are 64
+        bytes apart, so a literal pre-AVX-512 range only covered xmm0-xmm3."""
+        arch = archinfo.ArchAMD64()
+        for i in range(8):
+            off = arch.registers[f"xmm{i}"][0]
+            assert is_sane_register_variable(arch, off, 8, def_cc=SimCCSystemVAMD64)
+            assert is_sane_register_variable(arch, off + 8, 8, def_cc=SimCCSystemVAMD64)  # xmmNhq
+            assert is_sane_register_variable(arch, off, 8, def_cc=SimCCMicrosoftAMD64) == (i < 4)
+        assert not is_sane_register_variable(arch, arch.registers["xmm8"][0], 8, def_cc=SimCCSystemVAMD64)
+        assert not is_sane_register_variable(arch, arch.registers["ymm0"][0] + 16, 8, def_cc=SimCCSystemVAMD64)
+
+    def test_amd64_six_double_args(self):
+        """deep_stack_f64(double x6) reads xmm0-xmm5; arguments 5 and 6 used to be dropped by the xmm range filter."""
+        binary = os.path.join(test_location, "decompiler_fp", "fp_basic_amd64_default_O1")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+        func = cfg.kb.functions["deep_stack_f64"]
+
+        facts = project.analyses.FunctionFactCollector(func)
+        assert [a.reg_name for a in facts.input_args] == [f"xmm{i}" for i in range(6)]
+
+        project.analyses.VariableRecoveryFast(func)
+        cca = project.analyses.CallingConvention(func, cfg=cfg.model, analyze_callsites=False)
+        assert cca.cc is not None and cca.prototype is not None
+        assert [a.reg_name for a in cca.cc.arg_locs(cca.prototype)] == [f"xmm{i}" for i in range(6)]
+        assert all(isinstance(a, SimTypeDouble) for a in cca.prototype.args)
 
     def test_reorder_args_merges_overlapping_register_args(self):
         binary = os.path.join(test_location, "x86_64", "fauxware")

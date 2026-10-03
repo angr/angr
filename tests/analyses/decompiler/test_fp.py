@@ -255,6 +255,7 @@ class TestFPDecompilation:
         text = _env(bin_name).get_text("deep_stack_f64")
         sig = _sig(text)
         _check_sig(sig, "double", "double", "double", "double", "double", "double", "double")
+        assert sig.split("(")[1].count("double") == 6, sig
         assert "*" in text and "+" in text
 
     def test_cast_chain_f32(self, bin_name):
