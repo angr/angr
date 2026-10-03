@@ -526,13 +526,15 @@ class _ObjKeys:
     key ``(id, 0)``.
     """
 
-    __slots__ = ("_g", "_id_to_key", "_key_to_id", "_keys_by_addr")
+    __slots__ = ("_g", "_id_to_key", "_key_to_id", "_keys_by_addr", "_next")
 
     def __init__(self, graph: CfgGraph):
         self._g = graph
         self._key_to_id: dict[K, int] = {}
-        self._id_to_key: list[K | None] = []
+        self._id_to_key: dict[int, K] = {}
         self._keys_by_addr: dict[int | SootAddressDescriptor, set[K]] = defaultdict(set)
+        # opaque "address" handed to the store; node ids may be reused after removals, this never is
+        self._next = 0
 
     def bind(self, graph: CfgGraph) -> None:
         self._g = graph
@@ -544,9 +546,9 @@ class _ObjKeys:
         idx = self._key_to_id.get(key)
         if idx is not None:
             return idx
-        idx = self._g.add_node(len(self._id_to_key), 0)[0]
-        assert idx == len(self._id_to_key)
-        self._id_to_key.append(key)
+        idx = self._g.add_node(self._next, 0)[0]
+        self._next += 1
+        self._id_to_key[idx] = key
         self._key_to_id[key] = idx
         self._keys_by_addr[addr].add(key)
         return idx
@@ -554,7 +556,7 @@ class _ObjKeys:
     def remove(self, key: K, addr: int | SootAddressDescriptor) -> None:
         idx = self._key_to_id.pop(key, None)
         if idx is not None:
-            self._id_to_key[idx] = None
+            del self._id_to_key[idx]
         keys = self._keys_by_addr.get(addr)
         if keys is not None:
             keys.discard(key)
@@ -562,13 +564,11 @@ class _ObjKeys:
                 del self._keys_by_addr[addr]
 
     def key_of(self, idx: int) -> K:
-        key = self._id_to_key[idx]
-        if key is None:
-            raise KeyError(idx)
-        return key
+        return self._id_to_key[idx]
 
     def block_keys(self) -> list[K]:
-        return [self._id_to_key[i] for i in self._g.nodes()]  # type:ignore[misc]
+        id_to_key = self._id_to_key
+        return [id_to_key[i] for i in self._g.nodes()]
 
     def keys_at(self, addr: int | SootAddressDescriptor) -> list[K]:
         return list(self._keys_by_addr.get(addr, ()))
@@ -586,23 +586,26 @@ class _ObjKeys:
         self._key_to_id.clear()
         self._id_to_key.clear()
         self._keys_by_addr.clear()
+        self._next = 0
 
     def copy(self, graph: CfgGraph) -> _ObjKeys:
         new = _ObjKeys(graph)
         new._key_to_id = dict(self._key_to_id)
-        new._id_to_key = list(self._id_to_key)
+        new._id_to_key = dict(self._id_to_key)
+        new._next = self._next
         for addr, keys in self._keys_by_addr.items():
             new._keys_by_addr[addr] = set(keys)
         return new
 
     def __getstate__(self) -> dict:
-        return {"id_to_key": self._id_to_key, "keys_by_addr": dict(self._keys_by_addr)}
+        return {"id_to_key": self._id_to_key, "keys_by_addr": dict(self._keys_by_addr), "next": self._next}
 
     def __setstate__(self, state: dict) -> None:
         self._g = None  # type:ignore[assignment]  # re-bound by SpillingCFG.__setstate__
         self._id_to_key = state["id_to_key"]
-        self._key_to_id = {key: idx for idx, key in enumerate(self._id_to_key) if key is not None}
+        self._key_to_id = {key: idx for idx, key in self._id_to_key.items()}
         self._keys_by_addr = defaultdict(set, state["keys_by_addr"])
+        self._next = state["next"]
 
 
 class _AdjacencyDict:
@@ -1195,7 +1198,7 @@ class SpillingCFG:
         if "stmt_idx" in attr:
             n_std += 1
             stmt_idx = attr["stmt_idx"]
-            if stmt_idx is None or (type(stmt_idx) is int and -(2**63) < stmt_idx < 2**63):
+            if stmt_idx is None or (type(stmt_idx) is int and -(2**31) < stmt_idx < 2**31):
                 present |= PRESENT_STMT_IDX
             else:
                 extra = extra or {}

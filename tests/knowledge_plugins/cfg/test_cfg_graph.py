@@ -62,8 +62,8 @@ class TestCfgGraph(unittest.TestCase):
         assert g.remove_node(b) and not g.remove_node(b)
         assert g.number_of_edges() == 0 and g.out_degree(a) == 0
         assert not g.has_addr(2) and g.find_node(2, 1) is None
-        b2, _ = g.add_node(2, 1)
-        assert b2 != b
+        b2, created = g.add_node(2, 1)
+        assert created
         assert g.nodes() == [a, c, b2]
         assert g.node_keys() == [(1, 1), (3, 1), (2, 1)]
 
@@ -91,7 +91,8 @@ class TestCfgGraph(unittest.TestCase):
         g2 = pickle.loads(pickle.dumps(g))
         assert g2.nodes() == [a, c]
         assert g2.edges_with_data() == [(a, c, {"jumpkind": "Ijk_FakeRet", "stmt_idx": -2})]
-        assert g2.add_node(2, -1)[0] == 3
+        assert g2.add_node(2, -1)[1]
+        assert g2.node_keys() == [(1, 1), (3, 1), (2, -1)]
 
 
 def _node(addr, size=4, name=None):
