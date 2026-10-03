@@ -17,6 +17,10 @@ replaces the Insert chain with a direct reference to the source variable::
 
     Block B:
         call(a1)
+
+The Extract definitions (and any copies between them and the Inserts) are dropped once the collapse leaves them
+without uses. They are O0 spills of the parameter halves into stack locals; the generic dead-assignment removal keeps
+unused stack variables, so they would otherwise survive as ``v0 = *((unsigned int *)&a0)``.
 """
 
 from __future__ import annotations
@@ -25,7 +29,8 @@ import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.expression import Const, Extract, Insert, VirtualVariable
-from angr.ailment.statement import Assignment
+from angr.ailment.statement import Assignment, Statement
+from angr.utils.ssa import get_vvar_uselocs
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -51,24 +56,19 @@ class InsertExtractReverter(OptimizationPass):
         if graph is None:
             return
 
-        # Build a global VVar -> definition map
-        vvar_defs: dict[int, object] = {}
-        for node in graph.nodes():
-            if not isinstance(node, Block):
-                continue
-            for s in node.statements:
-                if isinstance(s, Assignment) and isinstance(s.dst, VirtualVariable):
-                    vvar_defs[s.dst.varid] = s.src
+        blocks = [node for node in graph.nodes() if isinstance(node, Block)]
+        vvar_defs = self._collect_vvar_defs(blocks)
+        use_counts = {varid: len(uses) for varid, uses in get_vvar_uselocs(blocks).items()}
 
         changed = False
-        for node in graph.nodes():
-            if not isinstance(node, Block):
-                continue
+        # vvars whose uses a collapse removed; their definitions are dropped below if nothing else uses them
+        orphan_candidates: set[int] = set()
+        for node in blocks:
             new_stmts = list(node.statements)
             i = 0
             while i < len(new_stmts) - 1:
                 s0, s1 = new_stmts[i], new_stmts[i + 1]
-                result = self._try_collapse(s0, s1, vvar_defs)
+                result = self._try_collapse(s0, s1, vvar_defs, use_counts, orphan_candidates)
                 if result is not None:
                     new_stmts[i : i + 2] = result
                     changed = True
@@ -79,10 +79,59 @@ class InsertExtractReverter(OptimizationPass):
                 node.statements = new_stmts
 
         if changed:
+            self._remove_orphaned_defs(blocks, orphan_candidates)
             self.out_graph = graph
 
     @staticmethod
-    def _try_collapse(stmt0: object, stmt1: object, vvar_defs: dict[int, object]) -> list | None:
+    def _collect_vvar_defs(blocks: list[Block]) -> dict[int, tuple[Block, int, Assignment]]:
+        vvar_defs: dict[int, tuple[Block, int, Assignment]] = {}
+        for node in blocks:
+            for stmt_idx, s in enumerate(node.statements):
+                if isinstance(s, Assignment) and isinstance(s.dst, VirtualVariable):
+                    vvar_defs[s.dst.varid] = (node, stmt_idx, s)
+        return vvar_defs
+
+    @staticmethod
+    def _pure_copy_sources(expr) -> list[VirtualVariable] | None:
+        """Return the vvars an effect-free copy expression (vvar, Const, Extract of such) reads, or None."""
+        if isinstance(expr, VirtualVariable):
+            return [expr]
+        if isinstance(expr, Const):
+            return []
+        if isinstance(expr, Extract) and isinstance(expr.offset, Const):
+            return InsertExtractReverter._pure_copy_sources(expr.base)
+        return None
+
+    def _remove_orphaned_defs(self, blocks: list[Block], candidates: set[int]) -> None:
+        """Drop pure-copy definitions of ``candidates`` that no longer have any use, transitively."""
+        while candidates:
+            vvar_defs = self._collect_vvar_defs(blocks)
+            use_counts = {varid: len(uses) for varid, uses in get_vvar_uselocs(blocks).items()}
+            removed: dict[Block, set[int]] = {}
+            next_candidates: set[int] = set()
+            for varid in candidates:
+                if varid not in vvar_defs or use_counts.get(varid, 0) > 0:
+                    continue
+                block, stmt_idx, stmt = vvar_defs[varid]
+                srcs = self._pure_copy_sources(stmt.src)
+                if srcs is None:
+                    continue
+                removed.setdefault(block, set()).add(stmt_idx)
+                next_candidates.update(src.varid for src in srcs)
+            if not removed:
+                break
+            for block, stmt_idxs in removed.items():
+                block.statements = [s for idx, s in enumerate(block.statements) if idx not in stmt_idxs]
+            candidates = next_candidates
+
+    @staticmethod
+    def _try_collapse(
+        stmt0: Statement,
+        stmt1: Statement,
+        vvar_defs: dict[int, tuple[Block, int, Assignment]],
+        use_counts: dict[int, int],
+        orphan_candidates: set[int],
+    ) -> list[Statement] | None:
         """Try to collapse a pair of Insert assignments into a single assignment.
 
         Returns a replacement statement list or None if not matched.
@@ -107,8 +156,10 @@ class InsertExtractReverter(OptimizationPass):
         ):
             return None
 
-        # Outer Insert's base must reference the inner Insert's destination
+        # Outer Insert's base must reference the inner Insert's destination, and be its only use
         if not (isinstance(outer_insert.base, VirtualVariable) and outer_insert.base.varid == stmt0.dst.varid):
+            return None
+        if use_counts.get(stmt0.dst.varid, 0) != 1:
             return None
 
         # Resolve values through VVar definitions (follow chains to a fixed point)
@@ -116,12 +167,12 @@ class InsertExtractReverter(OptimizationPass):
         seen: set[int] = set()
         while isinstance(inner_val, VirtualVariable) and inner_val.varid in vvar_defs and inner_val.varid not in seen:
             seen.add(inner_val.varid)
-            inner_val = vvar_defs[inner_val.varid]
+            inner_val = vvar_defs[inner_val.varid][2].src
         outer_val = outer_insert.value
         seen.clear()
         while isinstance(outer_val, VirtualVariable) and outer_val.varid in vvar_defs and outer_val.varid not in seen:
             seen.add(outer_val.varid)
-            outer_val = vvar_defs[outer_val.varid]
+            outer_val = vvar_defs[outer_val.varid][2].src
 
         if not (isinstance(inner_val, Extract) and isinstance(outer_val, Extract)):
             return None
@@ -151,6 +202,10 @@ class InsertExtractReverter(OptimizationPass):
         source = inner_val.base
         if source.bits != outer_insert.bits:
             return None
+
+        for val in (inner_insert.value, outer_insert.value):
+            if isinstance(val, VirtualVariable):
+                orphan_candidates.add(val.varid)
 
         # Replace both with: vvar_B = source
         return [Assignment(stmt1.idx, stmt1.dst, source, **stmt1.tags)]
