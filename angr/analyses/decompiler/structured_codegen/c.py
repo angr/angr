@@ -2507,7 +2507,8 @@ class CBinaryOp(CExpression):
             yield from self._c_repr_chunks_opfirst(self.op)
 
     def _has_const_null_rhs(self) -> bool:
-        return isinstance(self.rhs, CConstant) and self.rhs.value == 0
+        # a comparison against 0.0 is spelled out; `!x` reads as an integer or pointer test
+        return isinstance(self.rhs, CConstant) and self.rhs.value == 0 and not isinstance(self.rhs.value, float)
 
     #
     # Handlers
@@ -4822,6 +4823,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             codegen=self,
         )
 
+    def _fp_constant(self, operand: CExpression, ail_operand: Expr.Expression) -> CExpression:
+        """An integer constant operand of an FP operation carries the bit pattern of a float or double; render it as
+        that value. Formatting flags would not do: they are shared by every constant of the same value and
+        instruction address, including the integer ones."""
+        if not (isinstance(operand, CConstant) and isinstance(operand.value, int)) or ail_operand.bits not in (32, 64):
+            return operand
+        if ail_operand.bits == 32:
+            value = struct.unpack("<f", struct.pack("<I", operand.value & 0xFFFF_FFFF))[0]
+            type_ = SimTypeFloat()
+        else:
+            value = struct.unpack("<d", struct.pack("<Q", operand.value & 0xFFFF_FFFF_FFFF_FFFF))[0]
+            type_ = SimTypeDouble()
+        return CConstant(value, type_, tags=operand.tags, codegen=self)
+
     def _handle_Expr_BinaryOp(self, expr: BinaryOp, **kwargs):
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
@@ -4830,15 +4845,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 self._get_variable_reference(cvar), self._variable_map.variable_offset(expr) or 0, None
             )
 
+        if expr.floating_point and expr.op in {"CmpEQ", "CmpNE"} and expr.operands[0].likes(expr.operands[1]):
+            # the self-compare is the NaN test
+            isnan = self._handle(Expr.Call(expr.idx, "isnan", args=[expr.operands[0]], bits=expr.bits, **expr.tags))
+            if expr.op == "CmpNE":
+                return isnan
+            return CUnaryOp("Not", isnan, tags=expr.tags, codegen=self)
+
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
-        # When an FP binop has integer-typed constant operands (e.g. a literal 0
-        # used in a comparison), force them to render as doubles.
         if expr.floating_point:
-            for operand in (lhs, rhs):
-                if isinstance(operand, CConstant):
-                    operand.fmt_double = True
+            lhs = self._fp_constant(lhs, expr.operands[0])
+            rhs = self._fp_constant(rhs, expr.operands[1])
 
         return CBinaryOp(
             expr.op,
