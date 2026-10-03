@@ -1084,8 +1084,10 @@ class SpillingCFG:
         return self._graph.stats()
 
     def flush(self) -> None:
-        """Write dirty resident segments back to the backend (no-op when not paged)."""
-        self._graph.flush()
+        """Compact resident segments and write dirty ones back to the backend (no-op when not paged)."""
+        if self._graph.paged:
+            self._graph.compact()
+            self._graph.flush()
 
     def _load_graph_blobs(self, header: bytes, blobs: list[bytes]) -> None:
         """Replace the (empty) store with one rebuilt from serialized segment blobs."""

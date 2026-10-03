@@ -557,7 +557,10 @@ impl Segment {
     }
 
     fn from_payload(p: SegPayload) -> SResult<Segment> {
-        let mut seg = Segment::default();
+        let mut seg = Segment {
+            g: StableDiGraph::with_capacity(p.nodes.len(), p.edges.len()),
+            ..Segment::default()
+        };
         let mut vacant = Vec::new();
         // per-address chains are kept verbatim (`next_at_addr`); a head is a live node nothing points to
         let mut pointed: Vec<bool> = vec![false; p.nodes.len()];
@@ -934,6 +937,23 @@ impl Store {
                 if let Slot::Resident(seg) = &mut self.slots[i] {
                     seg.dirty = false;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// Rebuild every resident segment at exact capacity (drops Vec growth slack); ids are unchanged.
+    pub fn compact(&mut self) -> SResult<()> {
+        for i in 0..self.slots.len() {
+            if let Slot::Resident(seg) = &mut self.slots[i] {
+                let mut rebuilt = Segment::from_payload(seg.to_payload())?;
+                rebuilt.by_addr.shrink_to_fit();
+                rebuilt.proxy_of.shrink_to_fit();
+                rebuilt.bytes = rebuilt.estimate_bytes();
+                rebuilt.dirty = seg.dirty;
+                rebuilt.last_used = seg.last_used;
+                self.resident_bytes = self.resident_bytes + rebuilt.bytes - seg.bytes;
+                *seg = rebuilt;
             }
         }
         Ok(())
@@ -1857,6 +1877,12 @@ impl CfgGraph {
         Ok(g.store.evict_all()?)
     }
 
+    /// Drop allocation slack in every resident segment (call once a graph stops changing).
+    pub fn compact(&self) -> PyResult<()> {
+        let mut g = self.lock();
+        Ok(g.store.compact()?)
+    }
+
     pub fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let g = self.lock();
         let d = PyDict::new(py);
@@ -2432,5 +2458,9 @@ mod tests {
         q.detach_backend().unwrap();
         assert!(!q.is_paged() && q.all_resident());
         assert_eq!(q.edges_rec().unwrap(), r.edges_rec().unwrap());
+        q.compact().unwrap();
+        assert_eq!(q.edges_rec().unwrap(), r.edges_rec().unwrap());
+        assert_eq!(q.node_keys().unwrap(), r.node_keys().unwrap());
+        assert_eq!(q.predecessors(a).unwrap(), r.predecessors(a).unwrap());
     }
 }

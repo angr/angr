@@ -55,6 +55,9 @@ class CfgGraph:
         """Write every dirty resident segment back (segments stay resident)."""
 
     def evict_all(self) -> None: ...
+    def compact(self) -> None:
+        """Drop allocation slack in every resident segment (ids unchanged)."""
+
     def stats(self) -> dict[str, Any]:
         """loads, evictions, writebacks, segments, resident_segments, resident_bytes, paged, budget_bytes."""
 
