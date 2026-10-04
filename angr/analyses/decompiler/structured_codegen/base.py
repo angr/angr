@@ -3,11 +3,21 @@ from __future__ import annotations
 
 from enum import Enum
 from itertools import count
+from typing import TYPE_CHECKING
 
 from sortedcontainers import SortedDict
 
 from angr.ailment.expression import Convert
-from angr.sim_variable import SimVariable
+from angr.sim_variable import (
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimStackVariable,
+    SimTemporaryVariable,
+    SimVariable,
+)
+
+if TYPE_CHECKING:
+    import archinfo
 
 IdentType = tuple[int, int, str]
 
@@ -226,3 +236,30 @@ def vector_convert_name(expr: Convert) -> str:
     src = f"F{from_lane}" if expr.from_type == Convert.TYPE_FP else f"I{from_lane}{sign}"
     dst = f"F{to_lane}" if expr.to_type == Convert.TYPE_FP else f"I{to_lane}{sign}"
     return f"Conv{src}to{dst}x{ct}"
+
+
+def variable_display_name(v: SimVariable) -> str:
+    """
+    The name of a variable that variable naming did not reach (e.g. a stack variable not in any unified group),
+    as an identifier rather than the SimVariable repr.
+    """
+    if v.name:
+        return v.name
+    if isinstance(v, SimTemporaryVariable):
+        return f"tmp_{v.tmp_id}"
+    if isinstance(v, SimStackVariable):
+        return f"arg_{v.offset:x}" if v.offset >= 0 else f"s_{-v.offset:x}"
+    if isinstance(v, SimRegisterVariable):
+        return f"reg_{v.reg:x}"
+    if isinstance(v, SimMemoryVariable) and isinstance(v.addr, int):
+        return f"g_{v.addr:x}"
+    return v.ident or "unnamed"
+
+
+def register_display_name(arch: archinfo.Arch, reg_offset: int, size: int) -> str:
+    """
+    The architectural name of a register, or reg_<offset> when the architecture has none.
+    """
+    name = arch.translate_register_name(reg_offset, size)
+    # translate_register_name falls back to the decimal offset
+    return name if name.isidentifier() else f"reg_{reg_offset:x}"

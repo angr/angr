@@ -78,7 +78,6 @@ from angr.sim_type import (
 )
 from angr.sim_variable import (
     SimMemoryVariable,
-    SimRegisterVariable,
     SimStackVariable,
     SimTemporaryVariable,
     SimVariable,
@@ -91,6 +90,8 @@ from .base import (
     InstructionMapping,
     PositionMapping,
     PositionMappingElement,
+    register_display_name,
+    variable_display_name,
     vector_convert_name,
 )
 
@@ -659,24 +660,6 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
 
 #: emitted for a construct the backend cannot render; never an AIL or Python repr
 UNSUPPORTED_PLACEHOLDER = "/* unsupported instruction */"
-
-
-def variable_display_name(v: SimVariable) -> str:
-    """
-    The name of a variable that variable naming did not reach (e.g. a stack variable not in any unified group),
-    as an identifier rather than the SimVariable repr.
-    """
-    if v.name:
-        return v.name
-    if isinstance(v, SimTemporaryVariable):
-        return f"tmp_{v.tmp_id}"
-    if isinstance(v, SimStackVariable):
-        return f"arg_{v.offset:x}" if v.offset >= 0 else f"s_{-v.offset:x}"
-    if isinstance(v, SimRegisterVariable):
-        return f"reg_{v.reg:x}"
-    if isinstance(v, SimMemoryVariable) and isinstance(v.addr, int):
-        return f"g_{v.addr:x}"
-    return v.ident or "unnamed"
 
 
 class RustStatement(RustConstruct):  # pylint:disable=abstract-method
@@ -4070,9 +4053,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return RustRegister(self._register_name(expr.reg_offset, expr.size), tags=expr.tags, codegen=self)
 
     def _register_name(self, reg_offset: int, size: int) -> str:
-        name = self.project.arch.translate_register_name(reg_offset, size)
-        # translate_register_name falls back to the decimal offset
-        return name if name.isidentifier() else f"reg_{reg_offset:x}"
+        return register_display_name(self.project.arch, reg_offset, size)
 
     def _handle_Expr_IRegister(self, expr: Expr.IRegister, **kwargs):
         # an indexed register-array access whose index could not be resolved (x87 fpreg[ftop])

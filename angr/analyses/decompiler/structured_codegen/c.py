@@ -92,6 +92,8 @@ from .base import (
     InstructionMapping,
     PositionMapping,
     PositionMappingElement,
+    register_display_name,
+    variable_display_name,
     vector_convert_name,
 )
 from .sse_intrinsics import (
@@ -844,12 +846,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 # this should never happen, but pylint complains
                 continue
 
-            if variable.name:
-                name = variable.name
-            elif isinstance(variable, SimTemporaryVariable):
-                name = f"tmp_{variable.tmp_id}"
-            else:
-                name = str(variable)
+            name = variable_display_name(variable)
 
             # sort by the following:
             #   * if it's a a non-basic type
@@ -2168,13 +2165,7 @@ class CVariable(CExpression):
 
     @property
     def name(self):
-        v = self.variable if self.unified_variable is None else self.unified_variable
-
-        if v.name:
-            return v.name
-        if isinstance(v, SimTemporaryVariable):
-            return f"tmp_{v.tmp_id}"
-        return str(v)
+        return variable_display_name(self.variable if self.unified_variable is None else self.unified_variable)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.name, self
@@ -3222,7 +3213,7 @@ class CConstant(CExpression):
 class CRegister(CExpression):
     __slots__ = ("reg",)
 
-    def __init__(self, reg, **kwargs):
+    def __init__(self, reg: str, **kwargs):
         super().__init__(**kwargs)
 
         self.reg = reg
@@ -3233,7 +3224,7 @@ class CRegister(CExpression):
         return SimTypeInt().with_arch(self.codegen.project.arch)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        yield str(self.reg), None
+        yield self.reg, None
 
 
 class CITE(CExpression):
@@ -5122,7 +5113,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_bits(expr.bits, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
-        return CRegister(expr, tags=expr.tags, codegen=self)
+        return CRegister(
+            register_display_name(self.project.arch, expr.reg_offset, expr.size), tags=expr.tags, codegen=self
+        )
 
     def _handle_Expr_IRegister(self, expr: Expr.IRegister, **kwargs):
         # an indexed register-array access whose index could not be resolved (x87 fpreg[ftop]); render it as a
@@ -5712,8 +5705,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             # Variable recovery does not create variables for the stack pointer, the instruction
             # pointer or the link register, so a surviving write to one of them arrives here with
             # nothing mapped. A register we could not name as a variable is still a register.
-            reg_name = self.project.arch.translate_register_name(expr.oident, expr.size)
-            return CRegister(reg_name or f"reg{expr.oident}", tags=expr.tags, codegen=self)
+            return CRegister(
+                register_display_name(self.project.arch, expr.oident, expr.size), tags=expr.tags, codegen=self
+            )
 
         return CDirtyExpression(expr, codegen=self)
 
