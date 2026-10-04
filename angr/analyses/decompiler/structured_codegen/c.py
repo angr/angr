@@ -108,6 +108,8 @@ type RenderResult = tuple[str, PositionMapping, PositionMapping, InstructionMapp
 
 INDENT_DELTA = 4
 
+_INT_BIT_OPS = frozenset({"Shl", "Shr", "Sar", "And", "Or", "Xor"})
+
 _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
     8: SimTypeChar,
     16: SimTypeShort,
@@ -3761,6 +3763,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                         return child
         return CTypeCast(None, self.default_simtype_from_bits(from_bits, signed), child, codegen=self)
 
+    def _fp_operand_bits(self, child: CExpression, bits: int) -> CExpression:
+        """
+        An integer-domain AIL operation on an FP-typed C operand reads the operand's bit pattern, not its value.
+        """
+        ty = unpack_typeref(child.type)
+        if isinstance(ty, SimTypeFloat) and bits in {32, 64} and ty.size == bits and not isinstance(child, CConstant):
+            return CReinterpret(ty, self.default_simtype_from_bits(bits, False), child, codegen=self)
+        return child
+
     def _variable(
         self, variable: SimVariable, fallback_type_size: int | None, vvar_id: int | None = None, mark_used: bool = True
     ) -> CVariable:
@@ -5055,6 +5066,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if expr.floating_point:
             lhs = self._fp_constant(lhs, expr.operands[0])
             rhs = self._fp_constant(rhs, expr.operands[1])
+        elif expr.op in _INT_BIT_OPS:
+            lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
+            rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
 
         return CBinaryOp(
             expr.op,
@@ -5091,6 +5105,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 if expr.from_type == Expr.ConvertType.TYPE_INT:
                     child = self._int_to_fp_operand(child, expr.from_bits, expr.is_signed)
                 return CTypeCast(None, fp_dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
+
+        if expr.from_type == Expr.ConvertType.TYPE_INT:
+            child = self._fp_operand_bits(child, expr.from_bits)
 
         # Use a mask to represent non-standard size conversions
         if (
