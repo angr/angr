@@ -130,6 +130,7 @@ class GoPrototypeInference(OptimizationPass):
                     idx = [words[p.varid] for p in pieces]
                     if idx == list(range(idx[0], idx[0] + span)):
                         _record(found, idx[0], go_type_repr(ty), span)
+        self._note_param_type_checks(words, found)
         if not found:
             return None
         # assemble the parameter list: typed groups where known, the guessed word type elsewhere
@@ -144,6 +145,60 @@ class GoPrototypeInference(OptimizationPass):
                 types.append("uintptr")
                 w += 1
         return types
+
+    def _note_param_type_checks(self, words: dict[int, int], found: dict) -> None:
+        """
+        A parameter word compared against an itab (``w == &go:itab.T,I``) is the first word of an ``I`` value;
+        against a type descriptor, of an ``any``. The type switch and assertion checks of an interface parameter.
+        Register parameters only: two stack words do not fuse into one parameter.
+        """
+        reg_words = {
+            words[vvar.varid]
+            for vvar, _ in self._arg_vvars.values()
+            if isinstance(vvar, VirtualVariable)
+            and vvar.varid in words
+            and vvar.category == VVC.PARAMETER
+            and vvar.parameter_category == VVC.REGISTER
+        }
+        for call in self._values.all_calls:
+            # runtime.typeAssert(&D, typ): a parameter word handed over as the type is an empty interface's
+            args = list(call.args or ())
+            name = call_target_name(self.project, call)
+            if len(args) == 2 and name is not None and normalize_go_func_name(name) == "runtime.typeAssert":
+                x = self._values.resolve(args[1])
+                if isinstance(x, VirtualVariable) and x.varid in words:
+                    word = words[x.varid]
+                    if word in reg_words and word + 1 in reg_words:
+                        _record(found, word, "any", 2)
+        for block in self._graph.nodes:
+            last = block.statements[-1] if block.statements else None
+            if not isinstance(last, ConditionalJump):
+                continue
+            cond = last.condition
+            if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
+                continue
+            for x, y in ((cond.operands[0], cond.operands[1]), (cond.operands[1], cond.operands[0])):
+                if not (isinstance(y, Const) and y.is_int and y.value_int):
+                    continue
+                x = self._values.resolve(x)
+                if not isinstance(x, VirtualVariable):
+                    continue
+                # a loop-carried type word: the parameter word is one of the phi's sources
+                src = self._values.defs.get(x.varid)
+                candidates = [x]
+                if isinstance(src, Phi):
+                    candidates += [self._values.resolve(v) for _, v in src.src_and_vvars if v is not None]
+                for cand in candidates:
+                    if not (isinstance(cand, VirtualVariable) and cand.varid in words):
+                        continue
+                    word = words[cand.varid]
+                    if word not in reg_words or word + 1 not in reg_words:
+                        continue
+                    itab = self.kb.go_types.itab_at(y.value_int)
+                    if itab is not None:
+                        _record(found, word, itab[0], 2)
+                    elif self.kb.go_types.name_at(y.value_int) is not None:
+                        _record(found, word, "any", 2)
 
     def _type_named(self, name) -> SimType | None:
         if not isinstance(name, str):

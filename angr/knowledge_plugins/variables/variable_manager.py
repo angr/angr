@@ -1260,7 +1260,8 @@ class VariableManagerInternal(Serializable):
                 var.auto_renamed = False
             elif var.name is not None and var.name != var.ident and not reset:
                 continue
-            var.name = arg_names[idx] if arg_names else f"a{idx}"
+            # a re-decompilation may see more argument variables than the (since narrowed) prototype names
+            var.name = arg_names[idx] if arg_names and idx < len(arg_names) else f"a{idx}"
             var._hash = None
 
     def _register_struct_type(self, ty: SimStruct, name: str | None = None) -> TypeRef:
