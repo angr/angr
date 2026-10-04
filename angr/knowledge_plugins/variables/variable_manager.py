@@ -28,6 +28,7 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeInt,
     SimTypeLong,
+    SimTypeLongLong,
     SimTypeNum,
     SimTypeShort,
     TypeRef,
@@ -1218,13 +1219,14 @@ class VariableManagerInternal(Serializable):
     ) -> None:
         # we fall back to assigning a default unsigned integer type for the variable
         if isinstance(ty, SimTypeBottom) and override_bot and var.size is not None:
+            arch = self.manager._kb._project.arch
             size_to_type = {
                 1: SimTypeChar,
                 2: SimTypeShort,
                 4: SimTypeInt,
-                8: SimTypeLong,
+                # long is 32 bits on 32-bit architectures (and on Windows x64)
+                8: SimTypeLong if arch.sizeof["long"] == 64 else SimTypeLongLong,
             }
-            arch = self.manager._kb._project.arch
             if var.size in size_to_type:
                 ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(arch)
             elif var.size > 0:
