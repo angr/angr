@@ -1091,7 +1091,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         paren = CClosingObject("(")
         brace = CClosingObject("{")
         yield "(", paren
-        if not self.functy.args and self.codegen.cstyle_void_param:
+        if not self.functy.args and not self.functy.variadic and self.codegen.cstyle_void_param:
             yield "void", None
         for i, (arg_type, cvariable) in enumerate(zip(self.functy.args, self.arg_list)):
             if i:
@@ -1099,6 +1099,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             variable = cvariable.unified_variable or cvariable.variable
             yield from type_to_c_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
+        if self.functy.variadic:
+            yield ", ..." if self.functy.args else "...", None
 
         yield ")", paren
         # function body

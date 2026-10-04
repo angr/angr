@@ -3063,7 +3063,8 @@ class Clinic(Analysis, Serializable):
         ):
             returnty = existing_proto.returnty
 
-        self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
+        variadic = existing_proto is not None and existing_proto.variadic
+        self.function.prototype = SimTypeFunction(func_args, returnty, variadic=variadic).with_arch(self.project.arch)
         self.function.prototype_source = PrototypeSource.CCA_DECOMPILER
 
     def _merge_adjacent_stack_args_to_doubles(
@@ -3253,7 +3254,9 @@ class Clinic(Analysis, Serializable):
                 if idx < len(proto.args):
                     new_proto_args.append(proto.args[idx])
 
-        self.function.prototype = SimTypeFunction(new_proto_args, proto.returnty).with_arch(self.project.arch)
+        self.function.prototype = SimTypeFunction(new_proto_args, proto.returnty, variadic=proto.variadic).with_arch(
+            self.project.arch
+        )
 
         return new_arg_list
 

@@ -719,6 +719,12 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca.prototype.variadic is True
         assert [a.reg_name for a in arg_locs if isinstance(a, SimRegArg)] == ["rdi", "rsi", "rdx", "rcx"]
 
+        func.prototype = cca.prototype
+        func.calling_convention = cca.cc
+        dec = project.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert re.search(r"version_etc\([^()]*, \.\.\.\)", dec.codegen.text) is not None
+
     def test_amd64_sse_fp_arg_registers_follow_arch_layout(self):
         """The accepted xmm range must come from arch.registers: with the AVX-512 guest layout xmm registers are 64
         bytes apart, so a literal pre-AVX-512 range only covered xmm0-xmm3."""
