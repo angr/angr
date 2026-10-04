@@ -722,6 +722,23 @@ class VariableManagerInternal(Serializable):
             if not self._atom_to_variable[key]:
                 del self._atom_to_variable[key]
 
+    def rebind_variable_records(self, old: SimVariable, new: SimVariable) -> None:
+        """
+        Re-point every instruction, statement and atom record of `old` to `new`.
+        """
+        for key in self._variable_to_stmt.pop(old, set()):
+            self._stmt_to_variable[key] = {(new if v is old else v, off) for v, off in self._stmt_to_variable[key]}
+            self._variable_to_stmt[new].add(key)
+            if key in self._atom_to_variable:
+                for atom_hash, entries in self._atom_to_variable[key].items():
+                    self._atom_to_variable[key][atom_hash] = {(new if v is old else v, off) for v, off in entries}
+        for ins_addr, entries in self._insn_to_variable.items():
+            if any(v is old for v, _ in entries):
+                self._insn_to_variable[ins_addr] = {(new if v is old else v, off) for v, off in entries}
+        for vvar_id in self._variable_to_vvarids.pop(old, set()):
+            self._vvarid_to_variable[vvar_id] = new
+            self._variable_to_vvarids[new].add(vvar_id)
+
     def make_phi_node(self, block_addr, *variables):
         """
         Create a phi variable for variables at block `block_addr`.
