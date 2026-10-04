@@ -1145,11 +1145,13 @@ class FactCollector(Analysis):
         ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
         # handle shadow stack args
         cc_cls = default_cc_for_project(self.project)
-        stackarg_sp_buff = cc_cls.STACKARG_SP_BUFF if cc_cls is not None else 0
+        # the first stack argument sits right after the return address and the reserved area (160(%r15) on s390x)
+        first_stackarg = (cc_cls.STACKARG_SP_DIFF + cc_cls.STACKARG_SP_BUFF) if cc_cls is not None else 0
+        first_stackarg = max(first_stackarg, 1)
         for state in end_states:
             for offset, size in state.stack_reads.items():
                 offset = u2s(offset & ((1 << self.project.arch.bits) - 1), self.project.arch.bits)
-                if offset - ret_addr_offset > stackarg_sp_buff:
+                if offset - ret_addr_offset >= first_stackarg:
                     if offset in stack_offset_created or offset in callee_saved_reg_stack_offsets:
                         continue
                     stack_offset_created.add(offset)
