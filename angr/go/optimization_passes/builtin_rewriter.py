@@ -44,6 +44,8 @@ from angr.sim_type import SimType
 from angr.utils.ail import find_call
 from angr.utils.go_runtime import normalize_go_func_name
 
+from .string_compares import LengthFacts, StringCompareFolder, StringSwitchFlattener
+
 l = logging.getLogger(__name__)
 
 _COMPARISONS = frozenset({"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE"})
@@ -405,6 +407,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         self._string_bits, self._slice_bits = 2 * bits, 3 * bits
         self._len_off, self._cap_off = ws, 2 * ws
         self.values: _Values | None = None
+        self._length_facts: LengthFacts | None = None
         self._cur_block: Block | None = None
         self._cur_stmt: Statement | None = None
         self.analyze()
@@ -420,12 +423,16 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if touched:
             self._drop_dead_defs(touched)
             self.values = _Values(self)
+        self._length_facts = None
+        cmps = StringCompareFolder(self, self.length_facts()).fold()
+        if cmps:
+            cmps += StringSwitchFlattener(self).flatten()
         rewriter = _BuiltinRewriter(self)
         for block in list(self._graph.nodes):
             rewriter.walk(block)
         folded = self._fold_returns()
         dropped = self._drop_unused_call_results()
-        if touched or rewriter.changed or folded or dropped:
+        if touched or cmps or rewriter.changed or folded or dropped:
             self.out_graph = self._graph
 
     #
@@ -436,6 +443,12 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         counter = _VVarCounter()
         for block in self._graph.nodes:
             counter.walk(block)
+        return counter.counts
+
+    @staticmethod
+    def block_use_counts(block: Block) -> Counter:
+        counter = _VVarCounter()
+        counter.walk(block)
         return counter.counts
 
     def _drop_dead_defs(self, blocks: list[Block]) -> None:
@@ -558,6 +571,67 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 proto = GoSimTypeFunction(argtys, returnty).with_arch(self.project.arch)
                 variable_map_of(self.manager).set_prototype(new_call, proto)
         return new_call
+
+    def length_facts(self) -> LengthFacts:
+        if self._length_facts is None:
+            self._length_facts = LengthFacts(self)
+        return self._length_facts
+
+    def cond_targets(self, block: Block) -> tuple[Block, Block] | None:
+        """The (true, false) target blocks of the conditional jump ending ``block``."""
+        last = block.statements[-1] if block.statements else None
+        if not isinstance(last, ConditionalJump):
+            return None
+        out = []
+        for target, idx in ((last.true_target, last.true_target_idx), (last.false_target, last.false_target_idx)):
+            succ = self._block_by_addr_and_idx.get((target.value_int, idx)) if isinstance(target, Const) else None
+            if succ is None or not self._graph.has_edge(block, succ):
+                return None
+            out.append(succ)
+        return out[0], out[1]
+
+    def string_length(
+        self, facts: list, ptr: Expression, n: int, prefix: bool = False
+    ) -> tuple[Expression, bool] | None:
+        """
+        The length word that goes with the string bytes at ``ptr`` when the guards pin it to ``n`` (or, with
+        ``prefix``, bound it below by ``n``), and whether it is pinned. The tracked string's own length when there
+        is one; else the value of the nearest such guard.
+        """
+        base = self.values.base_of(ptr, _PTR)
+        for value, interval in facts:
+            if value.bits != self.project.arch.bits:
+                continue
+            if base is not None and not self.values.is_len_of(value, base):
+                continue
+            pinned = interval.pinned()
+            if pinned == n:
+                return value, True
+            if prefix and pinned is None and interval.low() >= n:
+                return value, False
+        return None
+
+    def string_value(self, ptr: Expression, length: Expression) -> Expression:
+        """
+        The string with the given pointer and length words: a tracked register value, else spelled field by field
+        (memory may hold a []byte header; the code generator folds ``string{ptr: x.ptr, len: len(x)}`` back).
+        """
+        base = self.values.base_of(ptr, _PTR)
+        ws, endness = self.project.arch.bytes, self.project.arch.memory_endness
+        if base is not None and self.values.is_len_of(length, base):
+            if base.combo is not None:
+                value = base.value(self.manager, self.project.arch, self._string_bits // 8, ptr.tags)
+                if value is not None:
+                    return value
+            elif base.addr is not None:
+                # the header words read where they live
+                addr = base.address(self.manager, self.project.arch)
+                len_addr = BinaryOp(
+                    self.manager.next_atom(), "Add", [addr, Const(self.manager.next_atom(), ws, ws * 8)], False
+                )
+                ptr = Load(self.manager.next_atom(), addr, ws, endness, **ptr.tags)
+                length = Load(self.manager.next_atom(), len_addr, ws, endness, **ptr.tags)
+        return self._struct_of("string", [(0, ptr), (ws, length)])
 
     def to_bits(self, expr: Expression, bits: int | None) -> Expression:
         if bits is None or expr.bits == bits:
@@ -762,6 +836,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _rw_memequal(self, call: Call, args: list) -> Expression | None:
         if len(args) != 3:
             return None
+        guarded = self._guarded_memequal(call, args, self._cur_block)
+        if guarded is not None:
+            return guarded
         a = self.values.base_of(args[0], _PTR)
         b = self.values.base_of(args[1], _PTR)
         size = args[2]
@@ -781,6 +858,37 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         if lhs is None or rhs is None or not ok:
             return self._memequal_fallback(call, args, a is None, b is None)
         return self.compare("CmpEQ", lhs, rhs, call.bits, call.tags)
+
+    def _guarded_memequal(self, call: Call, args: list, block: Block | None) -> Expression | None:
+        """
+        ``memequal(p, "lit", n)`` under a guard on the length that goes with ``p``: ``s == "lit"`` when the guard
+        pins it to n, ``strings.HasPrefix(s, "lit")`` when it only bounds it below by n.
+        """
+        n = _const(args[2])
+        if not n or block is None:
+            return None
+        for p, q in ((args[0], args[1]), (args[1], args[0])):
+            lit = self.values.literal(q, args[2]) if _const(p) is None else None
+            if lit is None:
+                continue
+            hit = self.string_length(self.length_facts().at(block), p, n, prefix=True)
+            if hit is None:
+                continue
+            length, pinned = hit
+            s = self.string_value(p, length)
+            if s is None:
+                return None
+            if pinned:
+                return self.compare("CmpEQ", s, lit, call.bits, call.tags)
+            return self.builtin(
+                call,
+                "strings.HasPrefix",
+                [s, lit],
+                bits=call.bits,
+                arg_types=["string", "string"],
+                go_result_type="bool",
+            )
+        return None
 
     def _memequal_fallback(self, call: Call, args: list, a_untracked: bool, b_untracked: bool) -> Expression | None:
         """

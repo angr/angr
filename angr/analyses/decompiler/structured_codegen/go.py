@@ -2779,6 +2779,17 @@ class GoBinaryOp(GoExpression):
         yield from self._c_repr_chunks(" & ")
 
     def _c_repr_chunks_xor(self):
+        lhs = _go_unwrap_casts(self.lhs)
+        if (
+            isinstance(self.rhs, GoConstant)
+            and self.rhs.value == 1
+            and isinstance(lhs, GoFunctionCall)
+            and _go_call_name(lhs) in _GO_BOOL_CALLS
+        ):
+            # a bool flipped by the compiler's xor
+            yield "!", self
+            yield from GoExpression._try_c_repr_chunks(lhs)
+            return
         yield from self._c_repr_chunks(" ^ ")
 
     def _c_repr_chunks_or(self):
@@ -3798,6 +3809,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
         CopyCleanup(self, self.cfunc).run()
         self.cfunc.statements = _StructLiteralCollapser(self).handle(self.cfunc.statements)
+        self.cfunc.statements = StringSwitchRecovery(self).handle(self.cfunc.statements)
         ITEHoisting(self, self.cfunc).run()
         NamedFieldRetyping(self, self.cfunc).run()
         self.cfunc.statements = _TypedCopies(self).handle(self.cfunc.statements)
@@ -6659,6 +6671,9 @@ class _FieldRetyper(GoStructuredCodeWalker):
         return obj
 
 
+_GO_BOOL_CALLS = frozenset({"strings.HasPrefix"})
+
+
 def _go_call_name(call) -> str | None:
     """The callee's name for a direct call, whichever node carries it."""
     if getattr(call, "callee_func", None) is not None:
@@ -6907,6 +6922,9 @@ class _StructLiteralCollapser(GoStructuredCodeWalker):
 
     def handle_GoStructLiteral(self, obj):
         obj = super().handle_GoStructLiteral(obj)
+        header = self._header(obj)
+        if header is not None:
+            return header
         holder = None
         for offset, node in obj.fields.items():
             base = node
@@ -6926,6 +6944,118 @@ class _StructLiteralCollapser(GoStructuredCodeWalker):
         if not isinstance(ty, GoSimStruct) or ty.go_repr() != obj.name or len(obj.fields) != len(ty.fields):
             return obj
         return holder
+
+    def _header(self, obj):
+        """``string{ptr: x.ptr, len: len(x)}`` is ``x`` for a string ``x`` and ``string(x)`` for a ``[]byte``."""
+        if obj.name != "string" or obj.type is None:
+            return None
+        names = [obj.field_names.get(off) for off in obj.fields]
+        if names != ["ptr", "len"]:
+            return None
+        holder = None
+        for node, name in zip(obj.fields.values(), names):
+            node = _go_unwrap_casts(node)
+            if not _go_is_seq_field(node, name) or not _go_pure(node.variable):
+                return None
+            if holder is None:
+                holder = node.variable
+            elif _go_text(node.variable) != _go_text(holder):
+                return None
+        ty = unpack_typeref(holder.type)
+        if isinstance(ty, GoSimTypeString):
+            return holder
+        if isinstance(ty, GoSimTypeSlice):
+            return GoTypeCast(holder.type, obj.type, holder, codegen=self._codegen)
+        return None
+
+
+class StringSwitchRecovery(GoStructuredCodeWalker):
+    """An if/else-if chain whose conditions all compare one string with literals is a ``switch`` on it."""
+
+    def __init__(self, codegen):
+        self._codegen = codegen
+
+    def handle_GoIfElse(self, obj):
+        obj = super().handle_GoIfElse(obj)
+        arms = list(obj.condition_and_nodes)
+        default = obj.else_node
+        while True:
+            inner = default
+            if isinstance(inner, GoStatements) and len(inner.statements) == 1:
+                inner = inner.statements[0]
+            if not isinstance(inner, GoIfElse):
+                break
+            arms += inner.condition_and_nodes
+            default = inner.else_node
+        # `... else if s != "x" { A } else { B }` ends the chain with case "x": B, default: A
+        if default is not None and len(arms) > 1:
+            cond, node = arms[-1]
+            if isinstance(cond, GoBinaryOp) and cond.op == "CmpNE":
+                flipped = GoBinaryOp("CmpEQ", cond.lhs, cond.rhs, codegen=self._codegen)
+                if self._literals(flipped) is not None:
+                    arms[-1] = (flipped, default)
+                    default = node
+        subject = None
+        cases = []
+        for cond, node in arms:
+            hit = self._literals(cond)
+            if hit is None:
+                return obj
+            value, lits = hit
+            if subject is None:
+                subject = value
+            elif _go_text(value) != _go_text(subject):
+                return obj
+            cases.append(([json.dumps(x, ensure_ascii=False) for x in lits], self._body(node)))
+        seen = [x for ids, _ in cases for x in ids]
+        if len(cases) + (default is not None) < 3 or len(set(seen)) != len(seen) or not _go_pure(subject):
+            return obj
+        # a case that only jumps to the label opening another case is that case
+        labels = {
+            body.statements[0].name: i
+            for i, (_, body) in enumerate(cases)
+            if body.statements and isinstance(body.statements[0], GoLabel)
+        }
+        for i, (ids, body) in enumerate(cases):
+            if len(body.statements) == 1 and isinstance(body.statements[0], GoGoto):
+                j = labels.get(_go_text(body.statements[0]).split()[-1])
+                if j is not None and j != i and cases[j][0]:
+                    cases[j][0].extend(ids)
+                    ids.clear()
+        # cases with the same body share it
+        merged: dict[str, tuple[list, GoStatements]] = {}
+        for ids, body in cases:
+            if ids:
+                merged.setdefault(_go_text(body), ([], body))[0].extend(ids)
+        cases = [(tuple(ids), body) for ids, body in merged.values()]
+        default = self._body(default) if default is not None else None
+        return GoSwitchCase(subject, cases, default=default, tags=obj.tags, codegen=self._codegen)
+
+    def _literals(self, cond):
+        """``s == "a" || s == "b"`` -> (s, ["a", "b"])."""
+        if isinstance(cond, GoBinaryOp) and cond.op == "LogicalOr":
+            lhs, rhs = self._literals(cond.lhs), self._literals(cond.rhs)
+            if lhs is None or rhs is None or _go_text(lhs[0]) != _go_text(rhs[0]):
+                return None
+            return lhs[0], lhs[1] + rhs[1]
+        if isinstance(cond, GoBinaryOp) and cond.op == "CmpEQ":
+            for value, lit in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+                if isinstance(lit, GoStringLiteral) and not isinstance(value, GoStringLiteral):
+                    return value, [lit.data]
+        return None
+
+    def _body(self, node):
+        # switch cases end in an implicit break; without it the renderer spells out a fallthrough
+        stmts = _go_stmt_list(node) if node is not None else []
+        if not stmts or not isinstance(stmts[-1], (GoBreak, GoReturn, GoGoto, GoContinue)):
+            stmts = [*stmts, GoBreak(codegen=self._codegen)]
+        return GoStatements(stmts, codegen=self._codegen)
+
+
+def _go_unwrap_casts(expr):
+    while isinstance(expr, GoTypeCast):
+        expr = expr.expr
+    return expr
 
 
 class _NamedFieldFixer(GoStructuredCodeWalker):

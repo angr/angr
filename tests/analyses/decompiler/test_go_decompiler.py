@@ -424,6 +424,19 @@ class TestStructValueReceiver386(unittest.TestCase):
         assert "os.Exit(len(main.gitHubRecipientError.Error(" in dec.codegen.text
 
 
+class TestStringCompares386(GoDecompilationTarget):
+    """386 compares strings four bytes at a time: the switch cases of SetTraceback still come back as strings."""
+
+    BINARY = go_binary("go1.27.1", "recv", arch="i386")
+    FUNCS = ("runtime/debug.SetTraceback",)
+
+    def test_switch_cases_are_string_compares(self):
+        text = self.texts["runtime/debug.SetTraceback"]
+        for lit in ("all", "none", "crash", "single", "system"):
+            assert re.search(rf' [!=]= "{lit}"', text), lit
+        assert "1701736302" not in text and "1935766115" not in text
+
+
 if __name__ == "__main__":
     unittest.main()
 
