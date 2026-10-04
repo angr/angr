@@ -18,17 +18,21 @@ replaces the Insert chain with a direct reference to the source variable::
     Block B:
         call(a1)
 
-The Extract definitions (and any copies between them and the Inserts) are dropped once the collapse leaves them
-without uses. They are O0 spills of the parameter halves into stack locals; the generic dead-assignment removal keeps
+When the two Inserts overwrite the whole base but their values are not halves of one source (MSVC spilling two
+dword arguments into a qword slot for ``fild qword``), the pair becomes ``hi Concat lo``.
+
+The Extract definitions (and any copies between them and the Inserts, or the overwritten base) are dropped once the
+collapse leaves them without uses. They are O0 spills of the parameter halves into stack locals; the generic dead-assignment removal keeps
 unused stack variables, so they would otherwise survive as ``v0 = *((unsigned int *)&a0)``.
 """
 
 from __future__ import annotations
 
+import archinfo
 import networkx
 
 from angr.ailment.block import Block
-from angr.ailment.expression import Const, Extract, Insert, VirtualVariable
+from angr.ailment.expression import BinaryOp, Const, Expression, Extract, Insert, VirtualVariable
 from angr.ailment.statement import Assignment, Statement
 from angr.utils.ssa import get_vvar_uselocs
 
@@ -162,50 +166,65 @@ class InsertExtractReverter(OptimizationPass):
         if use_counts.get(stmt0.dst.varid, 0) != 1:
             return None
 
-        # Resolve values through VVar definitions (follow chains to a fixed point)
-        inner_val = inner_insert.value
-        seen: set[int] = set()
-        while isinstance(inner_val, VirtualVariable) and inner_val.varid in vvar_defs and inner_val.varid not in seen:
-            seen.add(inner_val.varid)
-            inner_val = vvar_defs[inner_val.varid][2].src
-        outer_val = outer_insert.value
-        seen.clear()
-        while isinstance(outer_val, VirtualVariable) and outer_val.varid in vvar_defs and outer_val.varid not in seen:
-            seen.add(outer_val.varid)
-            outer_val = vvar_defs[outer_val.varid][2].src
-
-        if not (isinstance(inner_val, Extract) and isinstance(outer_val, Extract)):
-            return None
-        if not (isinstance(inner_val.offset, Const) and isinstance(outer_val.offset, Const)):
-            return None
-
-        # Both Extracts must reference the same source
-        if not inner_val.base.likes(outer_val.base):
-            return None
-
         inner_off = inner_insert.offset.value
         outer_off = outer_insert.offset.value
-
-        # Extract offsets must match their Insert offsets
-        if inner_val.offset.value != inner_off or outer_val.offset.value != outer_off:
+        if inner_insert.endness != outer_insert.endness:
             return None
 
         # The two inserts must cover the full width
-        lo_off = min(outer_off, inner_off)
-        hi_off = max(outer_off, inner_off)
-        lo_size = (outer_val.bits if outer_off <= inner_off else inner_val.bits) // 8
-        hi_size = (inner_val.bits if outer_off <= inner_off else outer_val.bits) // 8
-
-        if lo_off != 0 or lo_off + lo_size != hi_off or hi_off + hi_size != outer_insert.bits // 8:
+        (lo_off, lo_ins), (hi_off, hi_ins) = sorted(
+            [(inner_off, inner_insert), (outer_off, outer_insert)], key=lambda item: item[0]
+        )
+        lo_bits = lo_ins.value.bits
+        hi_bits = hi_ins.value.bits
+        if lo_bits % 8 or hi_bits % 8:
+            return None
+        if lo_off != 0 or lo_bits // 8 != hi_off or lo_bits + hi_bits != outer_insert.bits:
             return None
 
-        source = inner_val.base
-        if source.bits != outer_insert.bits:
-            return None
+        # Resolve values through VVar definitions (follow chains to a fixed point)
+        inner_val = InsertExtractReverter._resolve(inner_insert.value, vvar_defs)
+        outer_val = InsertExtractReverter._resolve(outer_insert.value, vvar_defs)
 
-        for val in (inner_insert.value, outer_insert.value):
-            if isinstance(val, VirtualVariable):
-                orphan_candidates.add(val.varid)
+        if (
+            isinstance(inner_val, Extract)
+            and isinstance(outer_val, Extract)
+            and isinstance(inner_val.offset, Const)
+            and isinstance(outer_val.offset, Const)
+            and inner_val.base.likes(outer_val.base)
+            and inner_val.offset.value == inner_off
+            and outer_val.offset.value == outer_off
+            and inner_val.base.bits == outer_insert.bits
+        ):
+            for val in (inner_insert.value, outer_insert.value):
+                if isinstance(val, VirtualVariable):
+                    orphan_candidates.add(val.varid)
+            # Replace both with: vvar_B = source
+            return [Assignment(stmt1.idx, stmt1.dst, inner_val.base, **stmt1.tags)]
 
-        # Replace both with: vvar_B = source
-        return [Assignment(stmt1.idx, stmt1.dst, source, **stmt1.tags)]
+        # Otherwise the two pieces still overwrite the whole base: vvar_B = hi Concat lo
+        orphan_candidates.update(vvar.varid for vvar in InsertExtractReverter._vvars_in(inner_insert.base))
+        # (offset 0 is the least significant piece on little-endian)
+        if outer_insert.endness == archinfo.Endness.LE:
+            high, low = hi_ins.value, lo_ins.value
+        else:
+            high, low = lo_ins.value, hi_ins.value
+        concat = BinaryOp(outer_insert.idx, "Concat", [high, low], False, bits=outer_insert.bits, **outer_insert.tags)
+        return [Assignment(stmt1.idx, stmt1.dst, concat, **stmt1.tags)]
+
+    @staticmethod
+    def _vvars_in(expr: Expression) -> list[VirtualVariable]:
+        """The vvars of an Insert base built by ssailification (a vvar, possibly widened with a Concat)."""
+        if isinstance(expr, VirtualVariable):
+            return [expr]
+        if isinstance(expr, BinaryOp) and expr.op == "Concat":
+            return [vvar for op in expr.operands for vvar in InsertExtractReverter._vvars_in(op)]
+        return []
+
+    @staticmethod
+    def _resolve(expr: Expression, vvar_defs: dict[int, tuple[Block, int, Assignment]]) -> Expression:
+        seen: set[int] = set()
+        while isinstance(expr, VirtualVariable) and expr.varid in vvar_defs and expr.varid not in seen:
+            seen.add(expr.varid)
+            expr = vvar_defs[expr.varid][2].src
+        return expr
