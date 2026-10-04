@@ -20,6 +20,7 @@ import pyvex
 from archinfo import Endness
 from archinfo.arch_arm import get_real_address_if_arm, is_arm_arch
 from archinfo.arch_soot import SootAddressDescriptor
+from capstone.mips_const import MIPS_OP_IMM, MIPS_OP_REG, MIPS_REG_AT, MIPS_REG_GP, MIPS_REG_RA, MIPS_REG_T9
 from cle.address_translator import AT
 from sortedcontainers import SortedDict
 
@@ -6854,6 +6855,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         with the wrong `$t9`. The other took its value out of memory, which the prologue never
         does: `ld $gp, -0x7f60($at)` reads a GOT slot, and the bytes in the image are the
         link-time placeholder, not what the loader will put there.
+
+        Finally, VEX writes to $gp are accepted only when Capstone reports the same number of
+        canonical ABI setup instructions. Ordinary ALU and store-conditional instructions may
+        also use $gp as their destination, but their concrete results are not global pointers.
         """
         gp_offset = self.project.arch.registers["gp"][0]
 
@@ -6889,7 +6894,43 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     and not (isinstance(stmt.data, pyvex.IRExpr.RdTmp) and stmt.data.tmp in loaded)
                 ):
                     writes.add(insn_ctr)
-            return writes, insn_ctr
+            # A Put to gp is not necessarily a gp setup. In particular, arbitrary code may use
+            # gp as the destination of an ALU or store-conditional instruction. Count the VEX
+            # writes only when Capstone sees the same number of standard ABI setup operations.
+            prologue_writes = 0
+            lifted = self.project.factory.block(block.addr, size=block.size)
+            for wrapped_insn in lifted.capstone.insns:
+                insn = wrapped_insn.insn
+                operands = insn.operands
+                if not operands or operands[0].type != MIPS_OP_REG or operands[0].reg != MIPS_REG_GP:
+                    continue
+                if (
+                    (insn.mnemonic == "lui" and len(operands) == 2 and operands[1].type == MIPS_OP_IMM)
+                    or (
+                        insn.mnemonic in {"addiu", "daddiu"}
+                        and len(operands) == 3
+                        and operands[1].type == MIPS_OP_REG
+                        and operands[1].reg == MIPS_REG_GP
+                        and operands[2].type == MIPS_OP_IMM
+                    )
+                    or (
+                        insn.mnemonic in {"addu", "daddu"}
+                        and len(operands) == 3
+                        and operands[1].type == MIPS_OP_REG
+                        and operands[2].type == MIPS_OP_REG
+                        and (
+                            (operands[1].reg == MIPS_REG_GP and operands[2].reg in {MIPS_REG_T9, MIPS_REG_RA})
+                            or (
+                                insn.mnemonic == "daddu"
+                                and operands[1].reg == MIPS_REG_AT
+                                and operands[2].reg == MIPS_REG_T9
+                            )
+                        )
+                    )
+                ):
+                    prologue_writes += 1
+
+            return (writes if len(writes) == prologue_writes else set()), insn_ctr
 
         def run(start: int, num_inst: int, gp_in: int | None):
             """$gp after executing `num_inst` instructions from `start`; None if it is not concrete."""
