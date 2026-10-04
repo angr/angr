@@ -5,6 +5,7 @@ import pyvex
 from angr import sim_options as o
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol, value
 from angr.engines.vex.light.resilience import VEXResilienceMixin, raiseme
+from angr.errors import UnsupportedIROpError
 
 from .concretizers import concretizers
 
@@ -50,11 +51,12 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
 
         self.state.history.add_event("resilience", resilience_type="irop", op=op, message="unsupported IROp")
         if o.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
-            try:
-                concretizer = concretizers[op]
-                return concretizer(self.state, args)
-            except KeyError:
-                pass
+            concretizer = concretizers.get(op)
+            if concretizer is not None:
+                try:
+                    return concretizer(self.state, args)
+                except UnsupportedIROpError:
+                    pass
 
         return self.__make_default(ty, o.UNSUPPORTED_BYPASS_ZERO_DEFAULT not in self.state.options, "unsupported_" + op)
 

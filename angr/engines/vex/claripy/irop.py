@@ -219,7 +219,19 @@ rm_map = {
     1: claripy.fp.RM.RM_TowardsNegativeInf,
     2: claripy.fp.RM.RM_TowardsPositiveInf,
     3: claripy.fp.RM.RM_TowardsZero,
+    4: claripy.fp.RM.RM_NearestTiesAwayFromZero,
 }
+
+
+def translate_rm(rm_num):
+    if rm_num.symbolic:
+        l.warning("symbolic rounding mode found, using default")
+        return claripy.fp.RM.default()
+    rm = rm_map.get(rm_num.concrete_value)
+    if rm is None:
+        raise UnsupportedIROpError(f"unsupported rounding mode {rm_num.concrete_value}")
+    return rm
+
 
 generic_names = set()
 conversions = collections.defaultdict(list)
@@ -564,10 +576,7 @@ class SimIROp:
         return getattr(claripy.ast.BV, o)(*sized_args)
 
     def _translate_rm(self, rm_num):
-        if not rm_num.symbolic:
-            return rm_map[rm_num.concrete_value]
-        l.warning("symbolic rounding mode found, using default")
-        return claripy.fp.RM.default()
+        return translate_rm(rm_num)
 
     NO_RM = {"Neg", "Abs"}
 
