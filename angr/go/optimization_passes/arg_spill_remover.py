@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from angr.ailment import AILBlockViewer
-from angr.ailment.expression import Const, VirtualVariable
+from angr.ailment.expression import Const, StackBaseOffset, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -22,7 +22,8 @@ class _VVarUseCollector(AILBlockViewer):
 
 class GoArgSpillRemover(OptimizationPass):
     """
-    Drop stores into the incoming-argument spill area that the function never reads back.
+    Drop stores into the incoming-argument spill area that the function never reads back, and unread prologue saves
+    of the link register and the frame pointer (arm64 stores x30 and x29 into its own frame).
 
     Under Go's register ABI the caller reserves a spill slot per register argument in its own frame, and the callee
     spills into those slots whenever it needs them (the morestack path, or every argument in unoptimized code). The
@@ -51,7 +52,7 @@ class GoArgSpillRemover(OptimizationPass):
         for block in self._graph.nodes:
             kept = []
             for stmt in block.statements:
-                if self._is_dead_spill(stmt, collector.used):
+                if self._is_dead_spill(stmt, collector.used) or self._is_dead_frame_save(stmt, collector.used):
                     changed = True
                     continue
                 kept.append(stmt)
@@ -71,3 +72,29 @@ class GoArgSpillRemover(OptimizationPass):
         if dst.stack_offset <= 0 or dst.varid in used:
             return False
         return isinstance(stmt.src, (VirtualVariable, Const))
+
+    def _is_dead_frame_save(self, stmt, used: set[int]) -> bool:
+        if not isinstance(stmt, Assignment):
+            return False
+        dst = stmt.dst
+        if not (isinstance(dst, VirtualVariable) and dst.was_stack and dst.stack_offset is not None):
+            return False
+        if dst.stack_offset >= 0 or dst.varid in used:
+            return False
+        src = stmt.src
+        if isinstance(src, VirtualVariable) and src.was_reg:
+            arch = self.project.arch
+            if src.reg_offset == getattr(arch, "lr_offset", None):
+                return True
+            # 386 Go code uses ebp as a general-purpose register
+            return src.reg_offset == arch.bp_offset and arch.name in {"AARCH64", "AMD64"}
+        # the caller's frame pointer, which angr models as the address of the stack base
+        if isinstance(src, StackBaseOffset):
+            return src.offset == 0
+        return (
+            isinstance(src, UnaryOp)
+            and src.op == "Reference"
+            and isinstance(src.operand, VirtualVariable)
+            and src.operand.was_stack
+            and src.operand.stack_offset == 0
+        )

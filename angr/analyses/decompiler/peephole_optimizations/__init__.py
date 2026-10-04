@@ -21,6 +21,7 @@ from .bt_rflags_merge import BTRflagsMergeBitExtraction
 from .cas_intrinsics import CASIntrinsics
 from .cmp_masked_shift import CmpMaskedShift
 from .cmp_sub_const import CmpSubConst
+from .cmpf_flag_tests import CmpFFlagTests
 from .cmpord_rewriter import CmpORDRewriter
 from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
@@ -36,6 +37,7 @@ from .fp_exact_identities import FPExactIdentities
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .known_pattern_call_info import KnownPatternCallInfo
 from .masked_insert import SimplifyMaskedInsert
+from .magic_div_simplifier import MagicDivisionSimplifier
 from .modulo_simplifier import ModuloSimplifier
 from .narrow_fp_ops import NarrowFPOperations
 from .one_sub_bool import OneSubBool
@@ -67,6 +69,7 @@ from .rol_ror import RolRorRewriter
 from .sar_to_signed_div import SarToSignedDiv
 from .sbb_mask_to_ite import SbbMaskToITE
 from .shl_to_mul import ShlToMul
+from .sign_bit_test import SignBitTest
 from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
 from .single_bit_xor import SingleBitXor
@@ -95,6 +98,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     CoalesceSameCascadingIfs,
     ConcatSimplifier,
     ConstantDereferences,
+    MagicDivisionSimplifier,
     OptimizedDivisionSimplifier,
     ExtendedByteAndMask,
     RemoveEmptyIfBody,
@@ -127,11 +131,13 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveNoopConversions,
     RewriteBitExtractions,
     RemoveRedundantITEComparisons,
+    SignBitTest,
     SingleBitCondToBoolExpr,
     SarToSignedDiv,
     TidyStackAddr,
     InvertNegatedLogicalConjunctionsAndDisjunctions,
     RolRorRewriter,
+    CmpFFlagTests,
     CmpORDRewriter,
     CmpMaskedShift,
     CmpSubConst,
