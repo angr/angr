@@ -6107,7 +6107,7 @@ class TestDecompiler(unittest.TestCase):
             return __indword(3324)
             """) in decomp("test_io_inl")
         assert normalize_whitespace("""
-                if (!(char)__inbyte(233))
+                if (!__inbyte(233))
                     return 456;
                 return 123;
                 """) in decomp("test_in_cond")
