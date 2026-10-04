@@ -356,8 +356,7 @@ class RewritingAnalysis:
                     state.registers[suboff] = func_arg
             elif func_arg.category == VirtualVariableCategory.STACK:
                 stack_offset = func_arg.stack_offset
-                for suboff in range(stack_offset, stack_offset + func_arg.size):
-                    state.stackvars[suboff] = func_arg
+                state.stackvars.assign(stack_offset, stack_offset + func_arg.size, func_arg)
             elif func_arg.parameter_category == VirtualVariableCategory.REGISTER:
                 reg_offset = func_arg.parameter_reg_offset
                 assert reg_offset is not None
@@ -366,8 +365,7 @@ class RewritingAnalysis:
             elif func_arg.parameter_category == VirtualVariableCategory.STACK:
                 stack_offset = func_arg.parameter_stack_offset
                 assert stack_offset is not None
-                for suboff in range(stack_offset, stack_offset + func_arg.size):
-                    state.stackvars[suboff] = func_arg
+                state.stackvars.assign(stack_offset, stack_offset + func_arg.size, func_arg)
             elif func_arg.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
                 for reg_vvar in func_arg.reg_vvars:
                     for suboff in range(reg_vvar.reg_offset, reg_vvar.reg_offset + reg_vvar.size):

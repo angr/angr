@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 
 from angr.ailment.expression import StackBaseOffset
 from angr.code_location import AILCodeLocation
-from angr.utils.cowdict import ChainMapCOW, DefaultChainMapCOW, merge_candidate_keys
+from angr.utils.cow_interval_map import COWIntervalMap
+from angr.utils.cowdict import DefaultChainMapCOW, merge_candidate_keys
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def
@@ -47,9 +48,9 @@ class TraversalState:
         live_stackvars: DefaultChainMapCOW[int, Value] | None = None,
         register_blackout: Mapping[int, frozenset[AILCodeLocation]] | None = None,
         live_vvars: DefaultChainMapCOW[int, Value] | None = None,
-        stackvar_bases: ChainMapCOW[int, tuple[int, int]] | None = None,
+        stackvar_bases: COWIntervalMap[tuple[int, int]] | None = None,
         register_bases: MutableMapping[int, tuple[int, int]] | None = None,
-        stackvar_defs: DefaultChainMapCOW[int, set[Def]] | None = None,
+        stackvar_defs: COWIntervalMap[set[Def]] | None = None,
         register_defs: MutableMapping[int, set[Def]] | None = None,
         pending_ptr_defines_nonlocal_live: set[int] | None = None,
     ):
@@ -74,43 +75,39 @@ class TraversalState:
             set
         )  # tmps are internal to a block only and never propagated from another state
 
-        self.stackvar_bases: ChainMapCOW[int, tuple[int, int]] = (
-            stackvar_bases.copy() if stackvar_bases is not None else ChainMapCOW(collapse_threshold=50)
+        # stack byte offset -> (offset, size) of the variable covering it
+        self.stackvar_bases: COWIntervalMap[tuple[int, int]] = (
+            stackvar_bases.copy() if stackvar_bases is not None else COWIntervalMap(coalesce_equal=True)
         )
         self.register_bases: MutableMapping[int, tuple[int, int]] = register_bases if register_bases is not None else {}
         self.pending_ptr_defines: dict[int, list[tuple[AILCodeLocation, StackBaseOffset]]] = {}
         self.pending_ptr_defines_nonlocal_live = pending_ptr_defines_nonlocal_live or set()
-        self.stackvar_defs = (
-            DefaultChainMapCOW(default_factory=set, collapse_threshold=50)
-            if stackvar_defs is None
-            else stackvar_defs.copy()
+        # stack byte offset -> reaching defs. bytes of one variable share a set object, which merge() updates in place
+        self.stackvar_defs: COWIntervalMap[set[Def]] = (
+            COWIntervalMap() if stackvar_defs is None else stackvar_defs.copy()
         )
         self.register_defs = defaultdict(set, {} if register_defs is None else register_defs)
 
     def stackvar_unify(self, offset: int, size: int) -> tuple[int, int, set[int]]:
-        seen = (offset, offset + size)
-        queue = [(offset, offset + size)]
+        lo, hi = offset, offset + size
+        queue = [(lo, hi)]
         popped: set[int] = set()
+        bases = self.stackvar_bases
         while queue:
-            offset, eoffset = queue.pop()
-            for suboffset in range(offset, eoffset):
-                noffset, nsize = self.stackvar_bases.get(suboffset, (suboffset, 0))
+            qlo, qhi = queue.pop()
+            for _, _, (noffset, nsize) in bases.overlapping(qlo, qhi):
                 neoffset = noffset + nsize
-                if noffset < seen[0]:
-                    queue.append((noffset, seen[0]))
-                    seen = (noffset, seen[1])
-                if neoffset > seen[1]:
-                    queue.append((seen[1], neoffset))
-                    seen = (seen[0], neoffset)
+                if noffset < lo:
+                    queue.append((noffset, lo))
+                    lo = noffset
+                if neoffset > hi:
+                    queue.append((hi, neoffset))
+                    hi = neoffset
                 if nsize != 0:
                     popped.add(noffset)
 
-        final_offset, final_size = (seen[0], seen[1] - seen[0])
-        self.stackvar_bases = self.stackvar_bases.clean()
-        for suboffset in range(*seen):
-            self.stackvar_bases[suboffset] = (final_offset, final_size)
-
-        return (final_offset, final_size, popped)
+        bases.assign(lo, hi, (lo, hi - lo))
+        return lo, hi - lo, popped
 
     def register_unify(self, offset: int, size: int) -> tuple[int, int, set[int]]:
         seen = (offset, offset + size)
@@ -187,20 +184,27 @@ class TraversalState:
                 dst.update(v)
                 merge_occurred |= len(dst) > old_len
 
-            self.stackvar_bases = self.stackvar_bases.clean()
-            for k0 in merge_candidate_keys(self.stackvar_bases, o.stackvar_bases):
-                if k0 not in o.stackvar_bases:
-                    # only fold keys that `o` actually binds (matches the original
-                    # "iterate o.stackvar_bases" semantics; a self-only key must not be
-                    # merged against the (k0, 0) default).
-                    continue
-                k1, s1 = o.stackvar_bases[k0]
-                k2, s2 = self.stackvar_bases.get(k0, (k0, 0))
-                k3 = min(k1, k2)
-                s3 = max(k1 + s1, k2 + s2) - k3
-                if (k2, s2) != (k3, s3):
+            # every byte of a segment lies inside its (offset, size) value, so the hull with an unbound byte's
+            # (byte, 0) default is the other value itself
+            bases = self.stackvar_bases
+            for lo, hi, (k1, s1) in list(bases.unshared_segments(o.stackvar_bases)):
+                pieces = []
+                cur = lo
+                for slo, shi, (k2, s2) in bases.overlapping(lo, hi):
+                    slo, shi = max(slo, lo), min(shi, hi)
+                    if cur < slo:
+                        pieces.append((cur, slo, (k1, s1)))
+                    k3 = min(k1, k2)
+                    s3 = max(k1 + s1, k2 + s2) - k3
+                    if (k2, s2) != (k3, s3):
+                        pieces.append((slo, shi, (k3, s3)))
+                    cur = shi
+                if cur < hi:
+                    pieces.append((cur, hi, (k1, s1)))
+                if pieces:
                     merge_occurred = True
-                    self.stackvar_bases[k0] = (k3, s3)
+                    for plo, phi, v in pieces:
+                        bases.assign(plo, phi, v)
 
             for k0, (k1, s1) in o.register_bases.items():
                 k2, s2 = self.register_bases.get(k0, (k0, 0))
@@ -210,15 +214,23 @@ class TraversalState:
                     merge_occurred = True
                     self.register_bases[k0] = (k3, s3)
 
-            self.stackvar_defs = self.stackvar_defs.clean()
-            for k in merge_candidate_keys(self.stackvar_defs, o.stackvar_defs):
-                d = o.stackvar_defs.get(k)
-                if d is None:
-                    continue
-                dst = self.stackvar_defs[k]
-                old_len = len(dst)
-                dst.update(d)
-                merge_occurred |= len(dst) > old_len
+            # sets are updated in place, so the update reaches every byte (and every state) sharing the set
+            sdefs = self.stackvar_defs
+            for lo, hi, d in list(sdefs.unshared_segments(o.stackvar_defs)):
+                gaps = []
+                cur = lo
+                for slo, shi, dst in sdefs.overlapping(lo, hi):
+                    if cur < slo:
+                        gaps.append((cur, slo))
+                    old_len = len(dst)
+                    dst.update(d)
+                    merge_occurred |= len(dst) > old_len
+                    cur = shi
+                if cur < hi:
+                    gaps.append((cur, hi))
+                for glo, ghi in gaps:
+                    sdefs.assign(glo, ghi, set(d))
+                    merge_occurred |= bool(d)
 
             for k, d in o.register_defs.items():
                 dst = self.register_defs[k]

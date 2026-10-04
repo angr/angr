@@ -4,7 +4,7 @@ from angr.ailment.block import Block
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Statement
 from angr.code_location import AILCodeLocation
-from angr.utils.cowdict import ChainMapCOW
+from angr.utils.cow_interval_map import COWIntervalMap
 
 
 class RewritingState:
@@ -19,14 +19,15 @@ class RewritingState:
         func,
         original_block: Block,
         registers: dict[int, VirtualVariable] | None = None,
-        stackvars: ChainMapCOW[int, VirtualVariable] | None = None,
+        stackvars: COWIntervalMap[VirtualVariable] | None = None,
     ):
         self.loc = loc
         self.arch = arch
         self.func = func
 
         self.registers = registers or {}
-        self.stackvars = stackvars if stackvars is not None else ChainMapCOW(collapse_threshold=200)
+        # stack byte offset -> the vvar covering it
+        self.stackvars: COWIntervalMap[VirtualVariable] = stackvars if stackvars is not None else COWIntervalMap()
         self.tmps: dict[int, VirtualVariable] = {}
         self.original_block = original_block
         self.out_block = None
