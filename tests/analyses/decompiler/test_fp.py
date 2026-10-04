@@ -972,6 +972,25 @@ class TestFtopConflict:
         assert "ireg_" not in text, f"IRegister leaked into output: {text[:400]}"
 
 
+class TestFpNegationThroughPhi:
+    def test_go_printfloat_entry_phi(self):
+        # runtime.printfloat in a Windows Go binary: the stack-check back edge makes the entry a loop head, so the
+        # xmm0 parameter reaches the sign-flip XOR through an entry phi; FpNegation must see through it.
+        bin_path = os.path.join(
+            bin_location,
+            "tests",
+            "x86_64",
+            "windows",
+            "131252a8059fdbb12d77cd4711e597c45bb48e6d4bc3ddc808697a5e0488ff2c",
+        )
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x436B40, expand_call_tree=False, run_ccc=False)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x436B40], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "fneg(" not in text, text
+        assert re.search(r"(\w+) = -\(\1\);", text), text
+
+
 class TestX87ConstantLiterals:
     """80-bit x87 constants outside the double range must render as long double literals."""
 

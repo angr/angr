@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.expression import BinaryOp, Const, Convert, Expression, Extract, UnaryOp, VirtualVariable
+from angr.ailment.expression import BinaryOp, Const, Convert, Expression, Extract, Phi, UnaryOp, VirtualVariable
 from angr.ailment.statement import Assignment, Statement
 from angr.ailment.utils import is_lsb_extract
 from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
@@ -129,13 +129,24 @@ class FpNegation(OptimizationPass):
         # trace FP-ness through locals (e.g. a local that holds the result of an
         # earlier FP negation is itself FP, even though typehoon types it as int).
         vvar_defs: dict[int, Expression] = {}
+        # Phi-defined register vvars in the function's entry block whose register holds an FP argument: when the
+        # entry is a loop head (e.g. Go's stack-check back edge), the incoming parameter is the phi's implicit
+        # entry source.
+        entry_fp_params: set[int] = set()
         for block in self._graph.nodes():
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     vvar_defs[stmt.dst.varid] = stmt.src
+                    if (
+                        block.addr == self._func.addr
+                        and isinstance(stmt.src, Phi)
+                        and stmt.dst.was_reg
+                        and stmt.dst.reg_offset in fp_arg_offsets
+                    ):
+                        entry_fp_params.add(stmt.dst.varid)
 
         def is_fp(expr: Expression) -> bool:
-            return self._value_is_fp(expr, fp_arg_offsets, vvar_defs, set())
+            return self._value_is_fp(expr, fp_arg_offsets, vvar_defs, entry_fp_params, set())
 
         for block in list(self._graph.nodes()):
             rewriter = _SignFlipRewriter(is_fp)
@@ -166,6 +177,7 @@ class FpNegation(OptimizationPass):
         expr: Expression,
         fp_arg_offsets: set[int],
         vvar_defs: dict[int, Expression],
+        entry_fp_params: set[int],
         seen: set[int],
     ) -> bool:
         # FP provenance in the expression itself.
@@ -187,20 +199,47 @@ class FpNegation(OptimizationPass):
             # result of an earlier FP op / sign flip is itself FP).
             if expr.varid not in seen and expr.varid in vvar_defs:
                 seen.add(expr.varid)
-                return cls._value_is_fp(vvar_defs[expr.varid], fp_arg_offsets, vvar_defs, seen)
+                src = vvar_defs[expr.varid]
+                if isinstance(src, Phi):
+                    return cls._phi_is_fp(
+                        src, expr.varid in entry_fp_params, fp_arg_offsets, vvar_defs, entry_fp_params, seen
+                    )
+                return cls._value_is_fp(src, fp_arg_offsets, vvar_defs, entry_fp_params, seen)
 
         # Unwrap widening/narrowing Converts and Extracts.
         if isinstance(expr, Convert):
-            return cls._value_is_fp(expr.operand, fp_arg_offsets, vvar_defs, seen)
+            return cls._value_is_fp(expr.operand, fp_arg_offsets, vvar_defs, entry_fp_params, seen)
         if isinstance(expr, Extract):
-            return cls._value_is_fp(expr.base, fp_arg_offsets, vvar_defs, seen)
+            return cls._value_is_fp(expr.base, fp_arg_offsets, vvar_defs, entry_fp_params, seen)
 
         # A sign-flip XOR of an FP value is itself FP.
         inner = _SignFlipRewriter._match_xor_sign(expr)
         if inner is not None:
-            return cls._value_is_fp(inner, fp_arg_offsets, vvar_defs, seen)
+            return cls._value_is_fp(inner, fp_arg_offsets, vvar_defs, entry_fp_params, seen)
 
         return False
+
+    @classmethod
+    def _phi_is_fp(
+        cls,
+        phi: Phi,
+        fp_entry_source: bool,
+        fp_arg_offsets: set[int],
+        vvar_defs: dict[int, Expression],
+        entry_fp_params: set[int],
+        seen: set[int],
+    ) -> bool:
+        # FP iff at least one source is FP and every other source is FP, cyclic (already being traced), or undefined.
+        found_fp = fp_entry_source
+        for _, vvar in phi.src_and_vvars:
+            if vvar is None or vvar.varid in seen:
+                continue
+            if vvar.varid not in vvar_defs and not vvar.was_parameter:
+                continue
+            if not cls._value_is_fp(vvar, fp_arg_offsets, vvar_defs, entry_fp_params, seen):
+                return False
+            found_fp = True
+        return found_fp
 
 
 def _subexprs(node) -> list:
