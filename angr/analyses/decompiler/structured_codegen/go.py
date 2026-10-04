@@ -4214,7 +4214,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # the case where we don't need a cast is handled at the start
         # if we've requested the result be an lvalue we have to do a pointer cast
         # if the value is not a trivial reference we have to do a pointer cast (?)
-        if lvalue or not base_expr:
+        # a string/slice header read out of a scalar field is a reinterpretation, not a conversion: string(x.f)
+        # would convert an int
+        reinterpret = qualifies_for_width_cast(base_type) and isinstance(data_type, (GoSimTypeString, GoSimTypeSlice))
+        if lvalue or not base_expr or reinterpret:
             return GoUnaryOp(
                 "Dereference", GoTypeCast(expr.type, SimTypePointer(data_type), expr, codegen=self), codegen=self
             )
