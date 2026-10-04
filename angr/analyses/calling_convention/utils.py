@@ -39,7 +39,9 @@ def is_sane_register_variable(
 
     # VEX
     if arch_name == "AARCH64":
-        return 16 <= reg_offset < 80  # x0-x7
+        if 16 <= reg_offset < 80:  # x0-x7
+            return True
+        return def_cc is not None and _in_fp_arg_regs(arch, reg_offset, def_cc)  # d0-d7
 
     if arch_name == "AMD64":
         if 24 <= reg_offset < 40 or 64 <= reg_offset < 104:  # rcx, rdx  # rsi, rdi, r8, r9, r10

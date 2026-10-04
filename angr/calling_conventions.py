@@ -2511,9 +2511,11 @@ class SimCCARMWindowsSyscall(SimCCSyscall):
 
 class SimCCAArch64(SimCC):
     ARG_REGS = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
-    FP_ARG_REGS = []  # TODO: ???
+    # AAPCS64: each floating-point argument takes one of v0-v7 (s/d for float/double)
+    FP_ARG_REGS = ["d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7"]
     RETURN_ADDR = SimRegArg("lr", 8)
     RETURN_VAL = SimRegArg("x0", 8)
+    FP_RETURN_VAL = SimRegArg("d0", 8)
     ARCH = archinfo.ArchAArch64
 
 

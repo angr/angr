@@ -1108,12 +1108,11 @@ class CallingConventionAnalysis(Analysis):
 
     def _consolidate_input_args(self, input_args: set[SimRegArg | SimStackArg]) -> set[SimRegArg | SimStackArg]:
         """
-        Consolidate register arguments on AMD64/X86: expand GPR sub-registers
-        (``edi`` -> ``rdi``) and normalize FP sub-registers (``xmm0lq`` ->
-        ``xmm0``) so they match FP_ARG_REGS.
+        Normalize FP sub-registers (``xmm0lq`` -> ``xmm0``, ``s0`` -> ``d0``) so they match FP_ARG_REGS, and on
+        AMD64/X86 expand GPR sub-registers (``edi`` -> ``rdi``).
         """
 
-        if self.project.arch.name in {"AMD64", "X86"}:
+        if self.project.arch.name in {"AMD64", "X86", "AARCH64"}:
             new_input_args = set()
             for a in input_args:
                 if not isinstance(a, SimRegArg):
@@ -1127,7 +1126,7 @@ class CallingConventionAnalysis(Analysis):
                         if arg not in new_input_args:
                             new_input_args.add(arg)
                         continue
-                elif a.size < self.project.arch.bytes:
+                elif a.size < self.project.arch.bytes and self.project.arch.name != "AARCH64":
                     full_reg_offset, full_reg_size = get_reg_offset_base_and_size(
                         reg_offset, self.project.arch, size=reg_size
                     )
