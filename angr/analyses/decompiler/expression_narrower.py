@@ -31,7 +31,7 @@ class ExprNarrowingInfo:
     Stores the analysis result of _narrowing_needed().
     """
 
-    __slots__ = ("narrowable", "phi_vars", "to_size", "use_exprs")
+    __slots__ = ("insert_deps", "narrowable", "phi_vars", "to_size", "use_exprs")
 
     def __init__(
         self,
@@ -39,11 +39,15 @@ class ExprNarrowingInfo:
         to_size: int | None = None,
         use_exprs: list[tuple[atoms.VirtualVariable, AILCodeLocation]] | None = None,
         phi_vars: set[VirtualVariable] | None = None,
+        insert_deps: list[tuple[int, int]] | None = None,
     ):
         self.narrowable = narrowable
         self.to_size = to_size
         self.use_exprs = use_exprs
         self.phi_vars = phi_vars
+        # (varid, max_size): the variable is the base of ``varid = Insert(base, lsb, value)`` with |value| = max_size
+        # bytes; such a use reads no bits of the base only if varid is narrowed to at most max_size bytes
+        self.insert_deps = insert_deps
 
     def __repr__(self):
         if self.narrowable:

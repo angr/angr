@@ -41,6 +41,7 @@ from angr.ailment.statement import (
     Store,
     WeakAssignment,
 )
+from angr.ailment.utils import is_lsb_overwrite
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_propagator import SPropagator
 from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitions
@@ -592,22 +593,38 @@ class AILSimplifier(Analysis):
 
         blacklist_varids = set()
         while True:
-            repeat, narrowables = self._compute_narrowables_once(
-                rd, narrowing_candidates, vvar_to_narrowing_size, blacklist_varids
-            )
-            if not repeat:
+            while True:
+                repeat, narrowables = self._compute_narrowables_once(
+                    rd, narrowing_candidates, vvar_to_narrowing_size, blacklist_varids
+                )
+                if not repeat:
+                    break
+
+            if not narrowables:
+                # nothing to narrow
+                return False
+
+            # one more step: compute the maximum size we can narrow to for each variable equivalence class defined by
+            # phi equivalence.
+            narrowables = self._update_narrowing_sizes_for_phi_classes(narrowables, rd, dict(vvar_to_narrowing_size))
+            if not narrowables:
+                # nothing to narrow
+                return False
+
+            # a use as the base of an lsb Insert is only ignorable if the Insert result is narrowed to the inserted bits
+            final_sizes = {def_.atom.varid: info.to_size for def_, info in narrowables}
+            unsatisfied = {
+                def_.atom.varid
+                for def_, info in narrowables
+                if info.insert_deps
+                and any(
+                    (size := final_sizes.get(dep_varid)) is None or size > max_size
+                    for dep_varid, max_size in info.insert_deps
+                )
+            }
+            if not unsatisfied:
                 break
-
-        if not narrowables:
-            # nothing to narrow
-            return False
-
-        # one more step: compute the maximum size we can narrow to for each variable equivalence class defined by
-        # phi equivalence.
-        narrowables = self._update_narrowing_sizes_for_phi_classes(narrowables, rd, vvar_to_narrowing_size)
-        if not narrowables:
-            # nothing to narrow
-            return False
+            blacklist_varids |= unsatisfied
 
         # let's narrow them (finally)
 
@@ -810,6 +827,7 @@ class AILSimplifier(Analysis):
         noncall_used_sizes = set()
         used_by: list[tuple[atoms.VirtualVariable, AILCodeLocation]] = []
         used_by_loc = defaultdict(list)
+        insert_deps: list[tuple[int, int]] = []
 
         for atom, loc, expr in use_and_exprs:
             old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx))
@@ -840,6 +858,10 @@ class AILSimplifier(Analysis):
             # of two expressions where one of them is the high bits of expr, and expr is a phi var that relies on
             # vvar A, then we skip it.
             if is_expr_used_as_reg_base_value(stmt, expr, rd):
+                continue
+            insert_dep = self._lsb_insert_base_dependency(stmt, expr, loc, extractor_cache)
+            if insert_dep is not None:
+                insert_deps.append(insert_dep)
                 continue
 
             expr_size, use_type = self._extract_expression_effective_size(stmt, expr, loc, extractor_cache)
@@ -895,9 +917,44 @@ class AILSimplifier(Analysis):
             for loc, atom_list in used_by_loc.items():
                 used_by += [(atom, loc) for atom in atom_list]
 
-            return ExprNarrowingInfo(True, to_size=target_size, use_exprs=used_by, phi_vars=phi_vars)
+            return ExprNarrowingInfo(
+                True, to_size=target_size, use_exprs=used_by, phi_vars=phi_vars, insert_deps=insert_deps
+            )
 
         return ExprNarrowingInfo(False)
+
+    def _lsb_insert_base_dependency(
+        self,
+        stmt: Statement,
+        expr: Expression | None,
+        loc: AILCodeLocation,
+        extractor_cache: dict[AILCodeLocation, EffectiveSizeExtractor] | None,
+    ) -> tuple[int, int] | None:
+        """
+        For ``dst = Insert(expr, lsb, value)`` where expr occurs nowhere else in the statement, return
+        (dst.varid, value size in bytes): the base contributes no bits to dst once dst is at most that wide.
+        """
+        if not (
+            isinstance(expr, VirtualVariable)
+            and isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
+            and isinstance(stmt.src, Insert)
+            and is_lsb_overwrite(stmt.src)
+            and isinstance(stmt.src.base, VirtualVariable)
+            and stmt.src.base.varid == expr.varid
+            and stmt.src.value.bits % self.project.arch.byte_width == 0
+        ):
+            return None
+        walker = extractor_cache.get(loc) if extractor_cache is not None else None
+        if walker is None:
+            walker = EffectiveSizeExtractor()
+            walker.walk_statement(stmt)
+            if extractor_cache is not None:
+                extractor_cache[loc] = walker
+        occurrences = walker.vvar_effective_bits.get(expr.varid, {})
+        if set(occurrences) != {stmt.src.base.idx} or expr.varid in walker.vvar_call_arg_effective_bits:
+            return None
+        return stmt.dst.varid, stmt.src.value.bits // self.project.arch.byte_width
 
     @staticmethod
     def _exprs_from_used_by_exprs(used_by_exprs) -> set[Expression]:
