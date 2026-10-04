@@ -120,7 +120,12 @@ class TestGoCorpusStringCompares(_Corpus):
     """``s == "lit"`` lowered to a length check plus little-endian word compares of the bytes folds back."""
 
     PATH = LINUX
-    FUNCS = ("strconv.ParseBool", "internal/runtime/cgroup.parseCPUMount", "runtime/debug.SetTraceback")
+    FUNCS = (
+        "strconv.ParseBool",
+        "internal/runtime/cgroup.parseCPUMount",
+        "runtime/debug.SetTraceback",
+        "fmt.(*pp).missingArg",
+    )
 
     def test_string_switch_cases(self):
         text = self.decompile("strconv.ParseBool")
@@ -137,6 +142,13 @@ class TestGoCorpusStringCompares(_Corpus):
             assert re.search(rf'^\s+case "{lit}":$', text, re.MULTILINE), lit
         assert 'level != ""' in text and 'level != "single"' in text
         assert "len(level)" not in text and "*(*int" not in text
+
+    def test_appended_constant_bytes(self):
+        # buffer.writeString("%!") appends two bytes stored as one 16-bit word
+        text = self.decompile("fmt.(*pp).missingArg")
+        assert re.search(r'= append\(\w+\.buf, "%!"\.\.\.\)$', text, re.MULTILINE)
+        assert '"(MISSING)"...)' in text
+        assert "not recovered" not in text and "8485" not in text
 
     def test_substring_compare_and_prefix(self):
         text = self.decompile("internal/runtime/cgroup.parseCPUMount")

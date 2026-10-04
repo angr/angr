@@ -1576,6 +1576,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
     def _match_elements(self, g: _Growth) -> None:
         window = self._window(g)
         found: dict[int, dict[int, tuple[Store, Expression]]] = {}  # element k -> byte offset -> store
+        packed: list[tuple[int, Store]] = []  # (byte position in the appended bytes, store)
         for stmt in window:
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
                 if self._match_copy(g, stmt):
@@ -1590,6 +1591,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if hit is None:
                 continue
             k, at = hit
+            if g.width == 1 and 1 <= k <= g.count and k >= stmt.size:
+                packed.append((g.count - k, stmt))
             if k == g.count and at == 0 and stmt.size == g.width * g.count and g.count > 1:
                 # one wide store of every appended element: append(s, src...)
                 src = self._wide_source(g, stmt.data)
@@ -1600,6 +1603,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             if 1 <= k <= g.count and at + stmt.size <= g.width and at not in found.setdefault(k, {}):
                 found[k][at] = (stmt, stmt.data)
         if g.count is None or len(found) != g.count:
+            if g.count is not None and g.count > 1:
+                self._match_packed_text(g, packed)
             return
         elems = []
         elem_name = self.type_name(g.et) or ""
@@ -1613,6 +1618,28 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             elems.append(self._element_value(g, [(at, v) for (at, _, _), v in zip(pieces, values)]))
         g.elems = elems
         g.stores = list({id(st): st for k in found for st, _ in found[k].values()}.values())
+
+    def _match_packed_text(self, g: _Growth, packed: list) -> None:
+        """Bytes appended as constant words (``WriteString("Notify{")``): ``append(s, "Notify{"...)``."""
+        buf: dict[int, int] = {}
+        endness = "little" if self.project.arch.memory_endness == "Iend_LE" else "big"
+        for pos, stmt in packed:
+            value = _const(self.values.resolve(stmt.data))
+            if value is None:
+                return
+            for i, byte in enumerate((value & ((1 << (8 * stmt.size)) - 1)).to_bytes(stmt.size, endness)):
+                if buf.setdefault(pos + i, byte) != byte:
+                    return
+        if sorted(buf) != list(range(g.count)):
+            return
+        try:
+            text = bytes(buf[i] for i in range(g.count)).decode("utf-8")
+        except UnicodeDecodeError:
+            return
+        if not all(ch.isprintable() for ch in text):
+            return
+        g.src = StringLiteral(self.manager.next_atom(), text, self._string_bits, **packed[0][1].tags)
+        g.stores = [stmt for _, stmt in packed]
 
     def _covers(self, pieces: list, size: int, name: str) -> bool:
         """The (offset, size, ...) pieces fill ``size`` bytes, or every field of the struct ``name`` (padding aside)."""
