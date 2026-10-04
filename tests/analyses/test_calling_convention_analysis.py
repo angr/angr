@@ -744,6 +744,47 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert [a.reg_name for a in cca.cc.arg_locs(cca.prototype)] == [f"xmm{i}" for i in range(6)]
         assert all(isinstance(a, SimTypeDouble) for a in cca.prototype.args)
 
+    def test_amd64_fp_arg_width_from_scalar_lane(self):
+        """addss reads xmm0/xmm1 as V128; the Add32F0x4 lane width (4) is the argument width, not the register width."""
+        binary = os.path.join(test_location, "decompiler_fp", "fp_basic_amd64_default_O1")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+
+        facts = project.analyses.FunctionFactCollector(cfg.kb.functions["add_f32"])
+        assert [(a.reg_name, a.size) for a in facts.input_args] == [("xmm0", 4), ("xmm1", 4)]
+        facts = project.analyses.FunctionFactCollector(cfg.kb.functions["add_f64"])
+        assert [(a.reg_name, a.size) for a in facts.input_args] == [("xmm0", 8), ("xmm1", 8)]
+
+        cca = project.analyses.CallingConvention(cfg.kb.functions["add_f32"], cfg=cfg.model, collect_facts=True)
+        assert cca.prototype is not None
+        assert all(isinstance(a, SimTypeFloat) for a in cca.prototype.args)
+
+    def test_microsoft_amd64_float_arg_copied_whole(self):
+        """fmt_float(void **, unsigned *, float): the float arrives in xmm2, is copied whole into xmm6 (movaps) and
+        only consumed as 32-bit lanes. Microsoft x64 slots are positional, so rcx, rdx, xmm2 are three arguments
+        (no padding xmm0/xmm1), and the lane width makes the third one a float."""
+        binary = os.path.join(test_location, "decompiler_fp", "float_arg_copy_win64.exe")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True, data_references=True)
+        project.analyses.CompleteCallingConventions(cfg=cfg.model)
+
+        func = cfg.kb.functions["fmt_float"]
+        assert isinstance(func.calling_convention, SimCCMicrosoftAMD64)
+        assert func.prototype is not None
+        assert len(func.prototype.args) == 3
+        assert isinstance(func.prototype.args[2], SimTypeFloat)
+        assert [a.reg_name for a in func.calling_convention.arg_locs(func.prototype)] == ["rcx", "rdx", "xmm2"]
+
+        sgn = cfg.kb.functions["sgn"]
+        assert sgn.prototype is not None
+        assert len(sgn.prototype.args) == 1
+        assert isinstance(sgn.prototype.args[0], SimTypeDouble)
+
+        dec = project.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None
+        assert "float a2)" in dec.codegen.text
+        assert "a3" not in dec.codegen.text
+
     def test_reorder_args_merges_overlapping_register_args(self):
         binary = os.path.join(test_location, "x86_64", "fauxware")
         project = angr.Project(binary, auto_load_libs=False)

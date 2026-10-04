@@ -698,6 +698,9 @@ class SimCC:
     # Whether an undefined use of a caller-saved register rules this convention out. Turn it off for
     # conventions with pinned registers that are legitimately read before being written.
     STRICT_CALLER_SAVED_MATCH = True
+    # Whether integer and FP argument registers share positional slots (Microsoft x64: the i-th argument goes to
+    # ARG_REGS[i] or FP_ARG_REGS[i]) instead of being allocated from two independent register sequences.
+    SHARED_ARG_SLOTS = False
 
     @classmethod
     def arg_reg_offsets(cls, arch: archinfo.Arch) -> frozenset[int]:
@@ -1599,6 +1602,7 @@ class SimCCMicrosoftAMD64(SimCC):
     RETURN_ADDR = SimStackArg(0, 8)
     ARCH = archinfo.ArchAMD64
     STACK_ALIGNMENT = 16
+    SHARED_ARG_SLOTS = True
 
     ArgSession = MicrosoftAMD64ArgSession
 

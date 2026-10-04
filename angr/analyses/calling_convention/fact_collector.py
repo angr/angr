@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import defaultdict
 from collections.abc import Container, Iterator
 from typing import TYPE_CHECKING
@@ -56,6 +57,9 @@ def _caller_saved_reg_spans(arch, reg_names: list[str]) -> list[tuple[int, int]]
     return entry[1]
 
 
+SCALAR_IN_VECTOR_OP_RE = re.compile(r"Iop_[A-Za-z]+(\d+)F0x\d+$")
+
+
 class FactCollectorState:
     """
     The abstract state for FactCollector.
@@ -66,6 +70,7 @@ class FactCollectorState:
         "callee_stored_regs",
         "ins_addr",
         "pointer_arg_derefs",
+        "reg_lane_reads",
         "reg_reads",
         "reg_reads_count",
         "reg_writes",
@@ -87,6 +92,9 @@ class FactCollectorState:
         self.callee_stored_regs: dict[int, int] = {}  # reg offset -> stack offset
         self.reg_reads = {}
         self.reg_reads_count = defaultdict(int)
+        #: widest scalar (<= 8-byte) lane consumed from an FP argument register, directly or through a full-register
+        #: copy; it narrows a vector-wide read (movaps xmm6, xmm2) to the width the function actually uses
+        self.reg_lane_reads: dict[int, int] = {}
         self.reg_writes: set[int] = set()
         self.stack_reads = {}
         self.stack_reads_fp = set()
@@ -103,6 +111,11 @@ class FactCollectorState:
             self.reg_reads[offset] = size_in_bytes
         else:
             self.reg_reads[offset] = max(self.reg_reads[offset], size_in_bytes)
+
+    def register_lane_read(self, offset: int, size_in_bytes: int):
+        if offset in self.reg_writes:
+            return
+        self.reg_lane_reads[offset] = max(self.reg_lane_reads.get(offset, 0), size_in_bytes)
 
     def register_read_undo(self, offset: int) -> None:
         if offset not in self.reg_reads or offset not in self.reg_reads_count:
@@ -141,6 +154,7 @@ class FactCollectorState:
         new_state.simple_stack = self.simple_stack.copy()
         new_state.simple_regs = self.simple_regs.copy()
         new_state.reg_reads_count = self.reg_reads_count.copy()
+        new_state.reg_lane_reads = self.reg_lane_reads.copy()
         new_state.pointer_arg_derefs = self.pointer_arg_derefs.copy()
         new_state.ins_addr = self.ins_addr
         if with_tmps:
@@ -165,6 +179,12 @@ class SimEngineFactCollectorVEX(
         self.track_arg_uses = track_arg_uses
         self.seen_reg_uses = seen_reg_uses
         super().__init__(project)
+        cc_cls = default_cc_for_project(project)
+        self._fp_arg_reg_offsets: frozenset[int] = frozenset(
+            self.arch.registers[r][0]
+            for r in (cc_cls.FP_ARG_REGS if cc_cls is not None else ())
+            if r in self.arch.registers
+        )
 
     def _process_block_end(self, stmt_result: list, whitelist: set[int] | None) -> None:
         if self.block.vex.jumpkind == "Ijk_Call" and self.arch.ret_offset is not None:
@@ -296,9 +316,13 @@ class SimEngineFactCollectorVEX(
             return (KIND_SP, 0, self.state.sp_value)
         if expr.offset == self.arch.bp_offset and not self.bp_as_gpr:
             return (KIND_SP, 0, self.state.bp_value)
-        bits = expr.result_size(self.tyenv)
-        self.state.register_read(expr.offset, bits // self.arch.byte_width)
-        return self.state.simple_regs.get(expr.offset, (KIND_REG, expr.offset, 0))
+        size = expr.result_size(self.tyenv) // self.arch.byte_width
+        self.state.register_read(expr.offset, size)
+        v = self.state.simple_regs.get(expr.offset, (KIND_REG, expr.offset, 0))
+        if size <= 8 and v is not None and v[0] == KIND_REG and v[2] == 0 and v[1] in self._fp_arg_reg_offsets:
+            # a scalar lane of an FP argument register, read directly or through a register copy
+            self.state.register_lane_read(v[1], size)
+        return v
 
     def _handle_expr_GetI(self, expr):
         return None
@@ -321,6 +345,28 @@ class SimEngineFactCollectorVEX(
 
     def _handle_expr_RdTmp(self, expr):
         return self.state.tmps.get(expr.tmp, None)
+
+    def _handle_expr_Unop(self, expr: pyvex.expr.Unop):
+        self._record_scalar_in_vector_lanes(expr)
+        return super()._handle_expr_Unop(expr)
+
+    def _handle_expr_Binop(self, expr: pyvex.expr.Binop):
+        self._record_scalar_in_vector_lanes(expr)
+        return super()._handle_expr_Binop(expr)
+
+    def _record_scalar_in_vector_lanes(self, expr: pyvex.expr.Unop | pyvex.expr.Binop) -> None:
+        """Scalar-in-vector SSE ops (Add32F0x4 = addss, Sqrt64F0x2 = sqrtsd, ...) consume only the low lane of their
+        operands; record that lane width for FP argument registers."""
+        m = SCALAR_IN_VECTOR_OP_RE.match(expr.op)
+        if m is None:
+            return
+        lane_size = int(m.group(1)) // self.arch.byte_width
+        for arg in expr.args:
+            if not isinstance(arg, pyvex.expr.RdTmp):
+                continue
+            v = self.state.tmps.get(arg.tmp)
+            if v is not None and v[0] == KIND_REG and v[2] == 0 and v[1] in self._fp_arg_reg_offsets:
+                self.state.register_lane_read(v[1], lane_size)
 
     def _handle_expr_VECRET(self, expr):
         return None
@@ -1248,6 +1294,7 @@ class FactCollector(Analysis):
 
         arg_reg_cc = default_cc_for_project(self.project)
         reg_reads: dict[int, int] = {}
+        reg_lane_reads: dict[int, int] = {}
         for state in end_states:
             for offset, size in state.reg_reads.items():
                 if (
@@ -1257,9 +1304,14 @@ class FactCollector(Analysis):
                 ):
                     continue
                 reg_reads[offset] = max(reg_reads.get(offset, 0), size)
+            for offset, size in state.reg_lane_reads.items():
+                reg_lane_reads[offset] = max(reg_lane_reads.get(offset, 0), size)
         # reads of overlapping sub-registers (e.g., ch and cx) describe one argument
         for offset, size in merge_overlapping_register_spans(self.project.arch, reg_reads.items()):
             arg = reg_arg_from_span(self.project.arch, offset, size)
+            if size > 8 and offset in reg_lane_reads:
+                # vector-wide read of an FP argument register; the scalar lane width is the argument width
+                arg = SimRegArg(arg.reg_name, reg_lane_reads[offset])
             self.input_args.append(arg)
             if offset in unused_hint_offsets:
                 self.unused_args.append(arg)

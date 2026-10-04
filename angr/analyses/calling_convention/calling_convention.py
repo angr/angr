@@ -1518,6 +1518,33 @@ class CallingConventionAnalysis(Analysis):
             stack_args = initial_stack_args
 
         stack_int_args = [a for a in stack_args if not a.is_fp]
+
+        if cc.SHARED_ARG_SLOTS:
+            # slot i is ARG_REGS[i] or FP_ARG_REGS[i]; an unread slot before a later argument is padded
+            slots = list(zip(cc.ARG_REGS, cc.FP_ARG_REGS))
+            slot_args: list[SimRegArg | None] = []
+            for int_reg_name, fp_reg_name in slots:
+                arg = next(
+                    (
+                        a
+                        for a in int_args + fp_args
+                        if _is_same_reg(a.reg_name, int_reg_name) or _is_same_reg(a.reg_name, fp_reg_name)
+                    ),
+                    None,
+                )
+                slot_args.append(arg)
+                if arg in int_args:
+                    int_args.remove(arg)
+                elif arg in fp_args:
+                    fp_args.remove(arg)
+            used = (
+                len(slots) if stack_args else max((i + 1 for i, a in enumerate(slot_args) if a is not None), default=0)
+            )
+            reg_args = [
+                a if a is not None else SimRegArg(slots[i][0], cc.arg_slot_size) for i, a in enumerate(slot_args[:used])
+            ]
+            return reg_args + int_args + fp_args + stack_args
+
         # match int args first
         for reg_name in cc.ARG_REGS:
             try:
