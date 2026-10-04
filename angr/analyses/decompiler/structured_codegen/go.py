@@ -3437,24 +3437,6 @@ class GoBoxedValue(GoExpression):
 
     __slots__ = ("concrete", "expr", "iface_name")
 
-    _INT_NAMES = frozenset(
-        {
-            "int",
-            "int8",
-            "int16",
-            "int32",
-            "int64",
-            "uint",
-            "uint8",
-            "uint16",
-            "uint32",
-            "uint64",
-            "uintptr",
-            "byte",
-            "rune",
-        }
-    )
-
     def __init__(self, expr, iface_name: str, concrete: str | None, tags=None, **kwargs):
         super().__init__(tags=tags, **kwargs)
         self.expr = expr
@@ -3468,12 +3450,36 @@ class GoBoxedValue(GoExpression):
     def type(self):
         return self._type
 
+    def _bool_literal(self) -> str | None:
+        expr = self.expr
+        if self.concrete == "bool" and isinstance(expr, GoConstant) and expr.value in (0, 1):
+            return "true" if expr.value else "false"
+        return None
+
+    def _bool_condition(self):
+        """A comparison boxed as a bool, without the integer casts around it."""
+        if self.concrete != "bool":
+            return None
+        expr = self.expr
+        while isinstance(expr, GoTypeCast):
+            expr = expr.expr
+        if isinstance(expr, GoBinaryOp) and (expr.op.startswith("Cmp") or expr.op in ("LogicalAnd", "LogicalOr")):
+            return expr
+        return None
+
     def _needs_conversion(self) -> bool:
         if self.concrete is None:
             return False
         expr = self.expr
-        if isinstance(expr, GoConstant) and self.concrete in self._INT_NAMES:
+        if self._bool_literal() is not None or self._bool_condition() is not None:
             return False
+        # an untyped constant boxes as its default type
+        if isinstance(expr, GoConstant):
+            value = expr.value
+            return not (
+                (self.concrete == "int" and isinstance(value, int) and not isinstance(value, bool))
+                or (self.concrete == "float64" and isinstance(value, float))
+            )
         if isinstance(expr, GoStringLiteral) and self.concrete == "string":
             return False
         ty = unpack_typeref(expr.type)
@@ -3486,6 +3492,14 @@ class GoBoxedValue(GoExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
             yield "...", self
+            return
+        literal = self._bool_literal()
+        if literal is not None:
+            yield literal, self
+            return
+        cond = self._bool_condition()
+        if cond is not None:
+            yield from GoExpression._try_c_repr_chunks(cond)
             return
         if not self._needs_conversion():
             yield from GoExpression._try_c_repr_chunks(self.expr)
@@ -4839,8 +4853,15 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if isinstance(expr.target, str):
             kind = expr.tags.get("go_render")
             if kind == "box" and expr.args:
+                # the boxed value is read as its dynamic type
+                site_proto = self._variable_map.prototype(expr)
+                value_type = site_proto.args[0].with_arch(self.project.arch) if site_proto and site_proto.args else None
                 return GoBoxedValue(
-                    self._handle(expr.args[0]), expr.target, expr.tags.get("go_box_type"), tags=expr.tags, codegen=self
+                    self._handle(expr.args[0], type_=value_type),
+                    expr.target,
+                    expr.tags.get("go_box_type"),
+                    tags=expr.tags,
+                    codegen=self,
                 )
             if kind == "slice_literal":
                 elems = [self._handle(arg) for arg in expr.args or []]

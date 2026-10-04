@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections import Counter
+import struct
+from collections import Counter, OrderedDict
 
 import networkx
 
@@ -11,6 +12,7 @@ from angr.ailment.expression import (
     BinaryOp,
     Call,
     Const,
+    Convert,
     Expression,
     Extract,
     Load,
@@ -25,9 +27,13 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Label, Ret
 from angr.analyses.decompiler.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.variable_map import variable_map_of
+from angr.go.analyses.runtime_globals import is_readonly_data, runtime_global_addr
 from angr.go.sim_type import (
+    GoSimTypeBool,
     GoSimTypeChan,
+    GoSimTypeFloat,
     GoSimTypeFunc,
+    GoSimTypeInt,
     GoSimTypeInterface,
     GoSimTypeMap,
     GoSimTypePointer,
@@ -49,6 +55,7 @@ _CONVT_VALUE = frozenset(
 # runtime.convT(typ, ptr) / convTnoptr(typ, ptr) copy *ptr
 _CONVT_POINTER = frozenset({"runtime.convT", "runtime.convTnoptr"})
 _ANY_SLICE_NAMES = frozenset({"[]any", "[]interface {}", "[]interface{}"})
+_CONTEXT_CTORS = {"context.backgroundCtx": "context.Background", "context.todoCtx": "context.TODO"}
 # callees whose descriptor arguments are not interface values
 _NO_PAIR_CALLEES = ("runtime.", "internal/", "reflect.", "unsafe.")
 
@@ -81,7 +88,9 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
         self._combo_of: dict[int, tuple[VirtualVariable, int]] = {}
         self._uses: Counter = Counter()
         self._dead: set[int] = set()  # varids of slot definitions folded into literals
+        self._folded_defs: set[int] = set()  # varids of data-word definitions folded into boxes
         self._static_ints: tuple[int, int] | None = None
+        self._zerobase_addr: int | None = None
         self._stmt_tags: dict = {}
         self._idoms: dict | None = None
         self.analyze()
@@ -170,7 +179,8 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                     if (
                         isinstance(stmt, Assignment)
                         and isinstance(stmt.dst, VirtualVariable)
-                        and not stmt.dst.was_stack  # stack slots may be read through memory
+                        # stack slots may be read through memory, except data words folded into boxes
+                        and (not stmt.dst.was_stack or stmt.dst.varid in self._folded_defs)
                         and (not isinstance(stmt.src, Call) or self._is_box_alloc(stmt.src))
                         and counts[stmt.dst.varid] <= 1
                     ):
@@ -382,7 +392,17 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                     return None
             box = self._box(pair[0].src, pair[1].src, "any")
             if box is None:
-                return None
+                # an interface value whose dynamic type is not known here: keep its two words
+                if not (_is_plain_value(pair[0].src) and _is_plain_value(pair[1].src)):
+                    return None
+                box = Struct(
+                    self.manager.next_atom(),
+                    "any",
+                    OrderedDict(((0, pair[0].src), (self._ws, pair[1].src))),
+                    OrderedDict((("tab", 0), ("data", self._ws))),
+                    2 * self.project.arch.bits,
+                    **self._stmt_tags,
+                )
             elems.append(box)
             slots += pair
         for slot in slots:
@@ -540,12 +560,24 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             concrete = self._concrete_type_name(type_word.value)
             if concrete is None:
                 return None
-            value = self._unbox_data(data_word, concrete)
+            ctor = _CONTEXT_CTORS.get(concrete)
+            if ctor is not None:
+                # the empty contexts are zero-sized: only the type word matters
+                call = Call(self.manager.next_atom(), ctor, [], bits=2 * self.project.arch.bits, **self._stmt_tags)
+                self._set_result_type(call, "context.Context")
+                if iface_name == "context.Context":
+                    return call
+                value, concrete = call, None
+            if value is None:
+                value = self._unbox_data(data_word, concrete)
         else:
             # eface from iface: the type word is itab.Type (nil when the itab is nil) and the data word is carried over
             tab_word = self._itab_of_type_word(type_word)
             if tab_word is not None:
                 value = self._interface_value(tab_word, self._resolve_copies(data_word))
+            elif iface_name == "any":
+                # the two words of an eface carried over unchanged (an iface's would go through itab.Type)
+                value = self._eface_of_words(self._resolve_copies(type_word), self._resolve_copies(data_word))
         if value is None:
             return None
         box = Call(
@@ -557,7 +589,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             go_box_type=concrete,
             **{**{k: v for k, v in data_word.tags.items() if not k.startswith("go_")}, **self._stmt_tags},
         )
-        self._set_result_type(box, iface_name)
+        self._set_result_type(box, iface_name, arg_type=concrete)
         return box
 
     def _resolve_copies(self, expr: Expression) -> Expression:
@@ -652,6 +684,28 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                     )
         return None
 
+    def _eface_of_words(self, type_word: Expression, data_word: Expression) -> Expression | None:
+        if isinstance(type_word, VirtualVariable) and isinstance(data_word, VirtualVariable):
+            return self._interface_value(type_word, data_word)
+        # adjacent words of one tuple-valued result
+        if (
+            isinstance(type_word, Extract)
+            and isinstance(data_word, Extract)
+            and type_word.bits == data_word.bits == self.project.arch.bits
+            and type_word.base.likes(data_word.base)
+            and isinstance(type_word.offset, Const)
+            and isinstance(data_word.offset, Const)
+            and data_word.offset.value == type_word.offset.value + self._ws
+        ):
+            return Extract(
+                self.manager.next_atom(),
+                2 * self.project.arch.bits,
+                type_word.base,
+                type_word.offset,
+                type_word.endness,
+            )
+        return None
+
     def _unbox_data(self, data_word: Expression, concrete: str) -> Expression | None:
         ty = self._type_named(concrete)
         resolved = self._resolve_copies(data_word)
@@ -661,6 +715,7 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
             src = definition.src if definition is not None else None
             if isinstance(src, Call) and self._callee(src) in _CONVT_VALUE | _CONVT_POINTER:
                 data_word = src
+                self._folded_defs.add(resolved.varid)
         if isinstance(data_word, Call):
             name = self._callee(data_word)
             args = list(data_word.args or [])
@@ -674,23 +729,34 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
                     self.project.arch.memory_endness,
                     **data_word.tags,
                 )
-            return None
+            # a pointer-shaped value is its own data word
+            return data_word if _is_pointer_shaped(ty, concrete) else None
         if isinstance(data_word, Const) and isinstance(data_word.value, int):
             addr = data_word.value
             small = self._static_int(addr)
             if small is not None and ty is not None and ty.size and not _is_pointer_shaped(ty, concrete):
                 return Const(self.manager.next_atom(), small, ty.size, **data_word.tags)
-            zerobase = self.project.loader.find_symbol("runtime.zerobase")
-            if zerobase is not None and addr == zerobase.rebased_addr:
+            if addr == self._zerobase():
                 if isinstance(ty, GoSimTypeString):
                     return StringLiteral(self.manager.next_atom(), "", self._string_bits, **data_word.tags)
+                if ty is not None and ty.size == 0:
+                    # a zero-sized value: T{}
+                    return Struct(self.manager.next_atom(), concrete, OrderedDict(), OrderedDict(), 0, **data_word.tags)
                 return Const(self.manager.next_atom(), 0, ty.size if ty is not None and ty.size else 64)
             if isinstance(ty, GoSimTypeString):
                 literal = self._static_string(addr)
                 if literal is not None:
                     return StringLiteral(self.manager.next_atom(), literal, self._string_bits, **data_word.tags)
+            scalar = self._static_scalar(addr, ty)
+            if scalar is not None:
+                return Const(self.manager.next_atom(), scalar, ty.size, **data_word.tags)
         if _is_pointer_shaped(ty, concrete):
             return data_word
+        indexed = self._static_int_index(resolved)
+        if indexed is not None and ty is not None and ty.size:
+            if indexed.bits != ty.size and not (indexed.bits == 1 and isinstance(ty, GoSimTypeBool)):
+                indexed = Convert(self.manager.next_atom(), indexed.bits, ty.size, False, indexed, **indexed.tags)
+            return indexed
         if ty is not None and ty.size:
             size = ty.size // self.project.arch.byte_width
             # the value sits in memory: its address is the data word
@@ -728,18 +794,72 @@ class GoBoxingRewriter(OptimizationPass, CFGTransformationMixin):
     def _static_int(self, addr: int) -> int | None:
         """The value ``runtime.staticuint64s[i]`` at ``addr`` (used to box small integers without allocating)."""
         if self._static_ints is None:
-            sym = self.project.loader.find_symbol("runtime.staticuint64s")
-            self._static_ints = (sym.rebased_addr, 256 * 8) if sym is not None else (0, 0)
+            start = runtime_global_addr(self.project, "runtime.staticuint64s", kb=self.kb)
+            self._static_ints = (start, 256 * 8) if start is not None else (0, 0)
         start, size = self._static_ints
         if size and start <= addr < start + size and (addr - start) % 8 == 0:
             return (addr - start) // 8
         return None
+
+    def _static_int_index(self, expr: Expression) -> Expression | None:
+        """``x`` for ``&runtime.staticuint64s[x]``: a byte-sized value boxed without allocating."""
+        vvar = None
+        if isinstance(expr, VirtualVariable):
+            definition = self._defs.get(expr.varid)
+            if definition is None:
+                return None
+            vvar, expr = expr, definition.src
+        if not (isinstance(expr, BinaryOp) and expr.op == "Add"):
+            return None
+        for base, offset in (expr.operands, expr.operands[::-1]):
+            if not (isinstance(base, Const) and isinstance(base.value, int) and self._static_int(base.value) == 0):
+                continue
+            if not (isinstance(offset, BinaryOp) and isinstance(offset.operands[1], Const)):
+                return None
+            scale = offset.operands[1].value
+            if not ((offset.op == "Mul" and scale == 8) or (offset.op == "Shl" and scale == 3)):
+                return None
+            index = offset.operands[0]
+            if vvar is not None:
+                self._folded_defs.add(vvar.varid)
+            return _low_byte(index)
+        return None
+
+    def _zerobase(self) -> int | None:
+        if self._zerobase_addr is None:
+            self._zerobase_addr = runtime_global_addr(self.project, "runtime.zerobase", kb=self.kb) or -1
+        return self._zerobase_addr
+
+    def _static_scalar(self, addr: int, ty) -> int | float | None:
+        """The number or boolean stored in a read-only global the data word of a boxed constant points at."""
+        if not isinstance(ty, (GoSimTypeInt, GoSimTypeFloat)) or ty.size not in (8, 16, 32, 64):
+            return None
+        if not is_readonly_data(self.project, addr):
+            return None
+        size = ty.size // self.project.arch.byte_width
+        try:
+            data = self.project.loader.memory.load(addr, size)
+        except KeyError:
+            return None
+        if len(data) != size:
+            return None
+        endian = "little" if self.project.arch.memory_endness == "Iend_LE" else "big"
+        if isinstance(ty, GoSimTypeFloat):
+            if size not in (4, 8):
+                return None
+            return struct.unpack(("<" if endian == "little" else ">") + ("f" if size == 4 else "d"), data)[0]
+        value = int.from_bytes(data, endian, signed=bool(getattr(ty, "signed", False)))
+        if isinstance(ty, GoSimTypeBool) and value not in (0, 1):
+            return None
+        return value
 
     def _static_string(self, addr: int) -> str | None:
         """The literal behind a static ``string`` header at ``addr``."""
         try:
             ptr = self.project.loader.memory.unpack_word(addr, size=self._ws)
             length = self.project.loader.memory.unpack_word(addr + self._ws, size=self._ws)
+            if ptr == 0 and length == 0:
+                return ""
             if not 0 < length < 4096 or self.project.loader.find_object_containing(ptr) is None:
                 return None
             data = self.project.loader.memory.load(ptr, length)
@@ -858,6 +978,25 @@ class _AssertionSubstituter(AILBlockRewriter):
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
+def _low_byte(expr: Expression) -> Expression:
+    """The value whose low byte ``expr`` holds, without the masks and zero extensions around it."""
+    while True:
+        if isinstance(expr, BinaryOp) and expr.op == "And":
+            mask = expr.operands[1]
+            if isinstance(mask, Const) and mask.value == 0xFF:
+                expr = expr.operands[0]
+                # setcc into a register still holding another value: only its (zero) low byte survives the mask
+                if isinstance(expr, BinaryOp) and expr.op == "Or":
+                    a, b = expr.operands
+                    if isinstance(b, Const) and isinstance(b.value, int) and b.value & 0xFF == 0:
+                        expr = a
+                continue
+        if isinstance(expr, Convert) and expr.to_bits > expr.from_bits and not expr.is_signed:
+            expr = expr.operand
+            continue
+        return expr
+
+
 def _is_plain_value(expr: Expression) -> bool:
     """Constants, variables and string literals: values a literal can spell without a statement."""
     return isinstance(expr, (Const, VirtualVariable, StringLiteral))
@@ -915,6 +1054,12 @@ class _BoxingRewriter:
             expr = stmt.expr
             new_expr = self._rewrite_expr(expr)
             return SideEffectStatement(stmt.idx, new_expr, **stmt.tags) if new_expr is not expr else None
+        if isinstance(stmt, Store):
+            data = stmt.data
+            new_data = self._rewrite_expr(data)
+            if new_data is data:
+                return None
+            return Store(stmt.idx, stmt.addr, new_data, stmt.size, stmt.endness, guard=stmt.guard, **stmt.tags)
         if isinstance(stmt, Return) and stmt.ret_exprs:
             exprs = list(stmt.ret_exprs)
             new_exprs = self._pass.fuse_pairs([self._rewrite_expr(e) for e in exprs], stmt)
@@ -951,5 +1096,40 @@ class _BoxingRewriter:
                 new_args = self._pass.fuse_pairs(new_args, self._stmt)
             if len(new_args) != len(args) or any(a is not b for a, b in zip(args, new_args)):
                 return Call(expr.idx, expr.target, new_args, bits=expr.bits, **expr.tags)
+            return expr
+        # calls nested in a condition or an operation
+        if isinstance(expr, BinaryOp):
+            operands = list(expr.operands)
+            new_ops = [self._rewrite_expr(o) for o in operands]
+            if any(a is not b for a, b in zip(operands, new_ops)):
+                new_expr = expr.copy()
+                new_expr.operands = tuple(new_ops)
+                new_expr.depth = max(o.depth for o in new_ops) + 1
+                return new_expr
+            return expr
+        if isinstance(expr, UnaryOp):
+            operand = expr.operand
+            new_op = self._rewrite_expr(operand)
+            if new_op is not operand:
+                new_expr = expr.copy()
+                new_expr.operand = new_op
+                return new_expr
+            return expr
+        if isinstance(expr, Convert):
+            operand = expr.operand
+            new_op = self._rewrite_expr(operand)
+            if new_op is not operand:
+                return Convert(
+                    expr.idx,
+                    expr.from_bits,
+                    expr.to_bits,
+                    expr.is_signed,
+                    new_op,
+                    from_type=expr.from_type,
+                    to_type=expr.to_type,
+                    rounding_mode=expr.rounding_mode,
+                    vector_count=expr.vector_count,
+                    **expr.tags,
+                )
             return expr
         return expr
