@@ -9,7 +9,7 @@ import os
 import unittest
 
 import angr
-from angr.ailment.expression import BinaryOp, Const, Extract, Insert, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import BinaryOp, Const, Convert, Extract, Insert, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment
 from angr.analyses.decompiler.expression_narrower import EffectiveSizeExtractor
 from tests.common import WORKER, bin_location, print_decompilation_result
@@ -43,6 +43,18 @@ class TestNarrowingExpressions(unittest.TestCase):
         # ...while the byte-1 Extract occurrence stays narrow
         assert occurrences[ah_vvar.idx] == (8, 16)
         assert 44 in walker.vvars_used_as_insert_base
+
+    def test_shared_node_keeps_widest_use(self):
+        # v + Conv(8->32, Conv(32->8, v)) where both occurrences of v are the same AIL node (same idx): the
+        # narrow use must not hide the full-width one
+        v = VirtualVariable(1, 44, 32, VirtualVariableCategory.REGISTER, oident=16)
+        low_byte = Convert(3, 8, 32, False, Convert(2, 32, 8, False, v))
+        dst = VirtualVariable(5, 48, 32, VirtualVariableCategory.REGISTER, oident=16)
+        stmt = Assignment(6, dst, BinaryOp(4, "Add", [low_byte, v], False, bits=32))
+
+        walker = EffectiveSizeExtractor()
+        walker.walk_statement(stmt)
+        assert walker.vvar_effective_bits[44] == {v.idx: (0, 32)}
 
     def test_narrowing_expressions_after_making_callsite_only(self):
         # narrowing expressions before making callsites may incorrectly remove some definitions that the calls use

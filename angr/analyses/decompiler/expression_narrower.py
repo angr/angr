@@ -67,15 +67,17 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
     A single walk records information for all virtual variables in the statement, so one walker instance can be
     queried for many different variables without re-walking the statement. Constraints that parent expressions impose
-    on their children are tracked per expression node (keyed by the node's ``idx``) during the walk; results are
-    aggregated per (varid, expression idx) so that repeated occurrences of the same variable are kept separate.
+    on their children are handed down per visit, not keyed by node ``idx``: AIL nodes (and their idx) may be shared
+    between several parents in one statement. Results are aggregated per (varid, expression idx); occurrences that
+    share an idx are merged by taking the union of their bit ranges.
     """
 
     def __init__(self, ignore_call_args: bool = True):
         super().__init__()
         self._ignore_call_args = ignore_call_args
-        # transient per-node constraints established during the walk, keyed by the expression node's ``idx``.
-        self._node_effective_bits: dict[int, tuple[int, int]] = {}
+        # constraint the parent imposes on the next visited child, and the one in effect for the current node
+        self._pending_bits: tuple[int, int] | None = None
+        self._cur_bits: tuple[int, int] | None = None
         # varid -> {occurrence idx -> (lo_bits, hi_bits)}
         self.vvar_effective_bits: dict[int, dict[int, tuple[int, int]]] = {}
         # varid -> (lo_bits, hi_bits) for vvars that are (possibly narrowed) call arguments
@@ -83,16 +85,19 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         # varids of vvars that are used as the base expression of an Insert
         self.vvars_used_as_insert_base: set[int] = set()
 
-    def _update_effective_bits(self, expr, lo_bits: int, hi_bits: int):
-        key = expr.idx
-        existing = self._node_effective_bits.get(key)
-        if existing is None:
-            self._node_effective_bits[key] = lo_bits, hi_bits
-        else:
-            self._node_effective_bits[key] = max(existing[0], lo_bits), min(existing[1], hi_bits)
+    def _visit(
+        self,
+        expr_idx: int,
+        expr: Expression,
+        bits: tuple[int, int] | None,
+        stmt_idx: int,
+        stmt: Statement | None,
+        block: Block | None,
+    ) -> None:
+        self._pending_bits = bits
+        self._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _record_vvar_occurrence(self, expr: VirtualVariable) -> None:
-        constraint = self._node_effective_bits.get(expr.idx)
+    def _record_vvar_occurrence(self, expr: VirtualVariable, constraint: tuple[int, int] | None) -> None:
         per_idx = self.vvar_effective_bits.get(expr.varid)
         if per_idx is None:
             per_idx = {}
@@ -104,7 +109,8 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         elif existing is None:
             per_idx[expr.idx] = constraint
         else:
-            per_idx[expr.idx] = max(existing[0], constraint[0]), min(existing[1], constraint[1])
+            # a shared node with several consumers: it must keep every bit any of them reads
+            per_idx[expr.idx] = min(existing[0], constraint[0]), max(existing[1], constraint[1])
 
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         pass
@@ -118,9 +124,11 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
+        self._cur_bits = self._pending_bits
+        self._pending_bits = None
         if isinstance(expr, VirtualVariable):
             # we are done!
-            self._record_vvar_occurrence(expr)
+            self._record_vvar_occurrence(expr, self._cur_bits)
             return
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -137,8 +145,9 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         if isinstance(expr.offset, Const) and isinstance(expr.offset.value, int):
             # Extract offsets are in bytes
             offset_bits = expr.offset.value * 8
-            self._update_effective_bits(expr.base, offset_bits, offset_bits + expr.bits)
-        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+            self._visit(0, expr.base, (offset_bits, offset_bits + expr.bits), stmt_idx, stmt, block)
+        else:
+            self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
@@ -180,9 +189,11 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        effective_bits = self._node_effective_bits.get(expr.idx)
+        effective_bits = self._cur_bits
         if effective_bits is None:
             effective_bits = 0, expr.bits
+        op0_bits: tuple[int, int] | None = None
+        op1_bits: tuple[int, int] | None = None
         if expr.op == "And" and isinstance(expr.operands[1], Const):
             match expr.operands[1].value:
                 case 0xFF:
@@ -195,25 +206,18 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
                     lo_bits, hi_bits = 0, 64
                 case _:
                     lo_bits, hi_bits = effective_bits
-
-            self._update_effective_bits(expr.operands[0], lo_bits, hi_bits)
+            op0_bits = lo_bits, hi_bits
 
         elif expr.op in {"Add", "Sub", "Mul", "Xor", "Or", "And"}:
             # Mod is excluded: truncating the operands does not preserve the result
-            self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
-            self._update_effective_bits(expr.operands[1], effective_bits[0], effective_bits[1])
+            op0_bits = op1_bits = effective_bits
         elif expr.op == "Shl":
-            self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
+            op0_bits = effective_bits
 
-        self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
+        self._visit(0, expr.operands[0], op0_bits, stmt_idx, stmt, block)
+        self._visit(1, expr.operands[1], op1_bits, stmt_idx, stmt, block)
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        if expr.op == "Reference":
-            # we really only need 1 byte of the target variable :)
-            pass
-        else:
-            self._update_effective_bits(expr, 0, expr.bits)
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
@@ -221,14 +225,13 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
             # FP conversions are value conversions, not bit extractions; the operand needs its full width
             effective_bits = 0, expr.from_bits
         else:
-            effective_bits = self._node_effective_bits.get(expr.idx)
+            effective_bits = self._cur_bits
             if expr.vector_count is not None:
                 # every lane of the operand feeds the result
                 effective_bits = 0, expr.from_bits
             elif effective_bits is None or effective_bits[1] > expr.to_bits:
                 effective_bits = 0, expr.to_bits
-        self._update_effective_bits(expr.operand, effective_bits[0], effective_bits[1])
-        self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
+        self._visit(expr_idx, expr.operand, effective_bits, stmt_idx, stmt, block)
 
     def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None):
         self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
