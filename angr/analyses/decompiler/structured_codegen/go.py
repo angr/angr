@@ -8516,6 +8516,15 @@ class CopyCleanup:
             if not (isinstance(stmt, GoAssignment) and not stmt.declares):
                 return None
             lhs, rhs = stmt.lhs, stmt.rhs
+            if (
+                isinstance(lhs, GoVariableField)
+                and not lhs.var_is_ptr
+                and isinstance(rhs, GoConstant)
+                and rhs.value == 0
+                and header(lhs.variable) is not None
+            ):
+                # a zeroed header word: ``s.ptr = 0; s.len = 0; s.cap = 0`` is ``s = nil``
+                return _UseCounter.key(lhs.variable), None, lhs.field.field
             if isinstance(lhs, GoVariable) and isinstance(rhs, GoVariable) and header(lhs) and header(rhs):
                 # an earlier fusion's result: the stray word copies after it still go
                 if _UseCounter.key(lhs) == _UseCounter.key(rhs):
@@ -8561,8 +8570,16 @@ class CopyCleanup:
                     i = j
                     continue
                 fields = {f[1] if isinstance(f, tuple) else f for f in fields}
-                dst, src = run[0].lhs.variable, run[0].rhs.variable
+                dst = run[0].lhs.variable
                 dst_ty, dst_fields = header(dst)
+                if first[1] is None:
+                    if fields == dst_fields and isinstance(dst_ty, GoSimTypeSlice):
+                        nil = GoConstant(0, dst_ty, codegen=self._codegen)
+                        self._replace_stmt(run[0], GoAssignment(dst, nil, tags=run[0].tags, codegen=self._codegen))
+                        self._remove(run[1:])
+                    i = j
+                    continue
+                src = run[0].rhs.variable
                 src_ty, _ = header(src)
                 if fields == dst_fields and type(dst_ty) is type(src_ty) and dst_ty.size == src_ty.size:
                     fused = GoAssignment(dst, src, tags=run[0].tags, codegen=self._codegen)
@@ -8811,6 +8828,12 @@ class ShortDeclarations:
             for src in self._sources(stmt):
                 counter.handle(src)
             if counter.counts[key]:
+                continue
+            # ``x := nil`` does not type-check
+            if any(
+                isinstance(src, GoConstant) and src.value == 0 and _go_is_nilable(src.type)
+                for src in self._sources(stmt)
+            ):
                 continue
             candidates[key] = loc
         # a statement declares only when every variable it assigns is fresh there

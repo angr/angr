@@ -490,7 +490,9 @@ class TestSpilledHeadersGo127Stripped(GoDecompilationTarget):
         assert returns and all("{" not in line and "unsafe.Pointer" not in line for line in returns)
         # the fields the append reads are the variable itself, and the grown header is written back in one piece
         assert re.search(r"(\w+) = append\(\1, \w+\.\.\.\)", text)
-        assert not re.search(r"\w+\.(ptr|len|cap) = ", text.split("main.keep(")[1])
+        assert not re.search(r"\w+\.(ptr|len|cap) = ", text)
+        # zeroed word by word (one word plus a 16-byte store) before its address escapes
+        assert re.search(r"^\s+\w+ = nil$", text, re.MULTILINE)
 
     def test_string_header_is_one_variable(self):
         text = self.texts["main.joined"]

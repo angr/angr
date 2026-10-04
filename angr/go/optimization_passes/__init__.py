@@ -12,7 +12,7 @@ from .header_word_types import GoHeaderWordTypes
 from .multi_value import GoComboRegisterRewriter, GoRetExprRewriter
 from .parameter_types import GoParameterTypes
 from .pinned_register_namer import GoPinnedRegisterNamer
-from .pinned_register_rewriter import GoPinnedRegisterRewriter
+from .pinned_register_rewriter import GoPinnedRegisterRewriter, GoWideZeroStoreSplitter
 from .prototype_inference import GoPrototypeInference
 from .prototypes import GoPrototypes
 from .result_widener import GoResultWidener
@@ -33,6 +33,8 @@ def get_go_optimization_passes():
         GoPinnedRegisterRewriter,
         GoRetExprRewriter,
         GoResultWidener,
+        # BEFORE_SSA_LEVEL1_TRANSFORMATION
+        GoWideZeroStoreSplitter,
         # BEFORE_VARIABLE_RECOVERY
         GoParameterTypes,
         GoGlobalTypes,
