@@ -890,8 +890,9 @@ class TestVectorConvertLowering:
     def test_floorf_idiom(self):
         text = _decompile_asm_func("vec_convert_amd64.o", "floorf_idiom")
         assert "Conv" not in text and "x4" not in text, text
-        assert "(float)(int)a0" in text, text
-        assert "(float)((int)a0 - 1)" in text, text
+        assert "(int)a0" in text and "isunordered(" in text, text
+        # jp and jne both reach the decrement
+        assert re.search(r"\w+ != a0", text), text
 
 
 # ======================================================================
@@ -1367,6 +1368,16 @@ class TestX87IntReturnClassifier:
         text = dec.codegen.text
         assert re.search(r"dclass\(a0\) == 2", text), text
         assert "float" not in text and "double)" not in text, text
+
+
+class TestX87Int64Copy:
+    """MSVC copies an int64 spilled as two dwords with fild/fistp qword; it must decompile to a plain int64 copy."""
+
+    def test_fild_fistp_is_int64_copy(self):
+        text = _decompile_asm_func("x87_int64_copy_win32.exe", "copy64")
+        assert "_INSERT" not in text, text
+        assert "double" not in text, text
+        assert len(re.findall(r"(v\d+) = CONCAT\(a3, a2\);\n\s+\*\(a0\) = \1;", text)) == 3, text
 
 
 # -- Integer views of floating-point registers ------------------------

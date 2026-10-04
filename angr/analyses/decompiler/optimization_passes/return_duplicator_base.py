@@ -313,6 +313,12 @@ class ReturnDuplicatorBase:
                 new_src_and_vvars = [
                     (src, vvar) for src, vvar in stmt.src.src_and_vvars if src != (pred.addr, pred.idx)
                 ]
+                if len(new_src_and_vvars) == 1 and new_src_and_vvars[0][1] is not None:
+                    # a single remaining source is a plain copy, which later propagation can see through
+                    node.statements[idx] = Assignment(
+                        stmt.idx, stmt.dst, new_src_and_vvars[0][1], **stmt.tags, dephi=True
+                    )
+                    continue
                 new_phi = Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
                 node.statements[idx] = Assignment(stmt.idx, stmt.dst, new_phi, **stmt.tags)
 
