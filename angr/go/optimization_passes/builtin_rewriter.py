@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import re
 from collections import Counter, OrderedDict
 
 from angr.ailment import AILBlockRewriter, AILBlockViewer
@@ -414,7 +415,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _analyze(self, cache=None):
         self.values = _Values(self)
-        touched = self._fold_growslice()
+        touched = self._fold_log_calls()
+        touched += self._fold_growslice()
         touched += self._fold_map_slots()
         touched += self._fold_move_slice()
         if touched:
@@ -524,6 +526,127 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return folded
 
     #
+    # log.Printf and friends
+    #
+
+    def _fold_log_calls(self) -> list[Block]:
+        """
+        ``log.Printf(format, v...)`` inlines to ``std.output(0, 2, func(b) { return fmt.Appendf(b, format, v...) })``:
+        the closure's name says which function it came from and its captures are the arguments.
+        """
+        touched = []
+        counts = None
+        for block in list(self._graph.nodes):
+            stmts = list(block.statements)
+            changed = False
+            for i, stmt in enumerate(stmts):
+                if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
+                    call = stmt.src
+                elif isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
+                    call = stmt.expr
+                else:
+                    continue
+                if self.callee_name(call) != "log.(*Logger).output":
+                    continue
+                folded = self._log_call(call)
+                if folded is None:
+                    continue
+                if isinstance(stmt, Assignment):
+                    # output's error result must be unused
+                    if not isinstance(stmt.dst, VirtualVariable) or stmt.dst.was_stack:
+                        continue
+                    counts = counts if counts is not None else self._use_counts()
+                    uses = counts[stmt.dst.varid] - 1 + sum(counts[rv.varid] for rv in stmt.dst.reg_vvars or ())
+                    if uses > 0:
+                        continue
+                tags = {**stmt.tags, **{k: v for k, v in folded.tags.items() if k.startswith("go_")}}
+                stmts[i] = SideEffectStatement(stmt.idx, folded, **tags)
+                changed = True
+                if folded.target.startswith(("log.Fatal", "log.(*Logger).Fatal")):
+                    # Fatal* is output followed by os.Exit(1)
+                    for j in range(i + 1, len(stmts)):
+                        nxt = stmts[j]
+                        if isinstance(nxt, Label):
+                            continue
+                        exit_call = find_call(nxt) if isinstance(nxt, (SideEffectStatement, Assignment)) else None
+                        if (
+                            isinstance(exit_call, Call)
+                            and self.callee_name(exit_call) == "os.Exit"
+                            and len(exit_call.args or ()) == 1
+                            and _const(exit_call.args[0]) == 1
+                        ):
+                            stmts[j] = None
+                        break
+            if changed:
+                block.statements = [st for st in stmts if st is not None]
+                touched.append(block)
+        return touched
+
+    def _log_call(self, call: Call) -> Call | None:
+        args = list(call.args or [])
+        if len(args) != 4 or _const(args[1]) != 0 or _const(args[2]) != 2:
+            return None
+        closure = args[3]
+        if not (
+            isinstance(closure, Call)
+            and closure.target == "closure"
+            and closure.args
+            and isinstance(closure.args[0], Const)
+        ):
+            return None
+        code = closure.args[0].value_int
+        func = self.kb.functions.get_by_addr(code) if self.kb.functions.contains_addr(code) else None
+        m = _LOG_CLOSURE.match(normalize_go_func_name(func.name)) if func is not None else None
+        if m is None:
+            return None
+        caps = list(closure.args[1:])
+        new_args = [args[0]] if m.group(1) else []
+        if m.group(2).endswith("f"):
+            fmt_str, caps = self._take_capture(caps, 2, "string")
+            if fmt_str is None:
+                return None
+            new_args.append(fmt_str)
+        v, caps = self._take_capture(caps, 3, "[]any")
+        if v is None or caps:
+            return None
+        new_args.append(v)
+        name = func.name[: -len(".func1")]
+        # a slice not spelled as a literal is passed on with v...
+        extra = {"go_variadic": True}
+        tags = {k: v for k, v in call.tags.items() if not k.startswith("go_")}
+        new_call = Call(call.idx, name, new_args, bits=call.bits, **tags, **extra)
+        proto = self.kb.go_signatures.prototype(name)
+        if proto is None:
+            with contextlib.suppress(Exception):
+                argtys = [self.kb.go_signatures.type(t) for t in (["*log.Logger"] if m.group(1) else [])]
+                if m.group(2).endswith("f"):
+                    argtys.append(self.kb.go_signatures.type("string"))
+                argtys.append(self.kb.go_signatures.type("[]any"))
+                proto = GoSimTypeFunction(argtys, None, variadic=True)
+        if proto is not None:
+            variable_map_of(self.manager).set_prototype(new_call, proto.with_arch(self.project.arch))
+        return new_call
+
+    def _take_capture(self, caps: list, words: int, name: str) -> tuple[Expression | None, list]:
+        """The first capture of ``words`` machine words: one fused value or its separate words."""
+        ws_bits = self.project.arch.bits
+        if not caps:
+            return None, caps
+        if caps[0].bits == words * ws_bits:
+            return caps[0], caps[1:]
+        if len(caps) < words or any(c.bits != ws_bits for c in caps[:words]):
+            return None, caps
+        pieces = caps[:words]
+        ws = self.project.arch.bytes
+        if words == 2:
+            value = self.values.string(pieces[0], pieces[1])
+        else:
+            value = self.values.whole(words * ws, *((p, k * ws) for k, p in enumerate(pieces)))
+        if value is None:
+            value = self._struct_of(name, [(k * ws, p) for k, p in enumerate(pieces)])
+        return value, caps[words:]
+
+    #
     # Helpers
     #
 
@@ -580,6 +703,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return self._rw_map_key_pointer(call, block, stmt)
         self._cur_block, self._cur_stmt = block, stmt
         rule = _CALL_RULES.get(name)
+        if rule is None:
+            rule = self._public_alias_rule(name)
         if rule is None and name.startswith("runtime.mallocgc"):
             # go1.25+ inlines newobject into size-class specialized mallocgc variants
             rule = GoBuiltinRewriter._rw_mallocgc
@@ -591,6 +716,15 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         except Exception:  # pylint:disable=broad-exception-caught
             l.debug("Rewriting %s failed", name, exc_info=True)
             return None
+
+    @staticmethod
+    def _public_alias_rule(name: str):
+        for prefix, public in _PUBLIC_ALIASES.items():
+            if name.startswith(prefix):
+                rest = name[len(prefix) :]
+                if rest[:1].isupper() and rest.isidentifier():
+                    return lambda p, c, a: p._rw_public(c, a, public + rest)
+        return None
 
     def _rw_itab_target(self, call: Call) -> Expression | None:
         """``itab.fun[i](data, ...)`` through a constant itab is a direct call of the concrete method."""
@@ -812,6 +946,76 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _rw_rename(self, call: Call, args: list, name: str) -> Expression | None:
         return self.builtin(call, name, args)
+
+    def _callee_prototype(self, call: Call):
+        proto = variable_map_of(self.manager).prototype(call)
+        if proto is None and isinstance(call.target, Const) and self.kb.functions.contains_addr(call.target.value_int):
+            proto = self.kb.functions.get_by_addr(call.target.value_int).prototype
+        if not isinstance(proto, GoSimTypeFunction):
+            name = self.callee_name(call)
+            with contextlib.suppress(Exception):
+                proto = self.kb.go_signatures.prototype(name) if name is not None else None
+        return proto
+
+    def _rw_public(self, call: Call, args: list, name: str, nargs: int | None = None) -> Expression | None:
+        """An unexported helper the compiler inlined a public wrapper into: call it by the wrapper's name."""
+        proto = self._callee_prototype(call)
+        if nargs is not None:
+            if len(args) < nargs:
+                return None
+            args = args[:nargs]
+        new_call = self.builtin(call, name, args)
+        if proto is not None:
+            if nargs is not None:
+                proto = GoSimTypeFunction(
+                    proto.args[:nargs],
+                    proto.returnty,
+                    arg_names=list(proto.arg_names)[:nargs] if proto.arg_names else None,
+                ).with_arch(self.project.arch)
+            variable_map_of(self.manager).set_prototype(new_call, proto)
+        return new_call
+
+    def _rw_gensplit(self, call: Call, args: list) -> Expression | None:
+        """``genSplit(s, sep, sepSave, n)``: ``Split``/``SplitN`` (sepSave 0) or ``SplitAfter``/``SplitAfterN``."""
+        if len(args) != 4:
+            return None
+        sep_save, n = _const(args[2]), _const(args[3])
+        if sep_save is None:
+            return None
+        if sep_save == 0:
+            base = "strings.Split"
+        else:
+            sep = self.values.literal_value(args[1])
+            if sep is None or len(sep.data.encode("utf-8")) != sep_save:
+                return None
+            base = "strings.SplitAfter"
+        if n is not None and n & ((1 << args[3].bits) - 1) == (1 << args[3].bits) - 1:
+            return self._rw_public(call, args, base, nargs=2)
+        new_call = self._rw_public(call, [args[0], args[1], args[3]], base + "N")
+        if new_call is not None:
+            proto = self._callee_prototype(call)
+            if proto is not None and len(proto.args) == 4:
+                variable_map_of(self.manager).set_prototype(
+                    new_call,
+                    GoSimTypeFunction([proto.args[0], proto.args[1], proto.args[3]], proto.returnty).with_arch(
+                        self.project.arch
+                    ),
+                )
+        return new_call
+
+    def _rw_format_int(self, call: Call, args: list) -> Expression | None:
+        # strconv.Itoa(i) is FormatInt(int64(i), 10)
+        if len(args) == 2 and _const(args[1]) == 10:
+            return self._rw_public(call, args, "strconv.Itoa", nargs=1)
+        return self._rw_public(call, args, "strconv.FormatInt")
+
+    def _rw_concatbyte(self, call: Call, args: list) -> Expression | None:
+        # concatbyteN(buf, a0, ...) is []byte(a0 + ...)
+        # the concatenation carries a fresh atom of its own
+        concat = self._rw_concatstring(call, args)
+        if concat is None:
+            return None
+        return self.builtin(call, "[]byte", [concat], bits=self._slice_bits, go_result_type="[]uint8")
 
     def _rw_slicebytetostring(self, call: Call, args: list) -> Expression | None:
         if len(args) != 3:
@@ -1037,12 +1241,31 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             lhs, rhs = rhs, lhs
             op = _SWAPPED[op]
         call = _strip_converts(lhs)
+        if _const(rhs) == 0 and isinstance(call, Call) and call.target == "strings.Index":
+            return self._contains(call, op, expr)
         if _const(rhs) != 0 or not isinstance(call, Call) or self.callee_name(call) != "runtime.cmpstring":
             return None
         args = list(call.args or [])
         if len(args) != 2 or any(a.bits != self._string_bits for a in args):
             return None
         return self.compare(op, args[0], args[1], expr.bits, expr.tags)
+
+    def _contains(self, call: Call, op: str, expr: BinaryOp) -> Expression | None:
+        """``strings.Index(s, sub) >= 0`` is ``strings.Contains(s, sub)`` (``< 0``: its negation)."""
+        if op not in ("CmpGE", "CmpLT") or not expr.signed or len(call.args or ()) != 2:
+            return None
+        contains = self.builtin(
+            call, "strings.Contains", list(call.args), bits=1, arg_types=["string", "string"], go_result_type="bool"
+        )
+        contains = Call(self.manager.next_atom(), contains.target, contains.args, bits=1, **contains.tags)
+        with contextlib.suppress(Exception):
+            proto = GoSimTypeFunction(
+                [self.kb.go_signatures.type("string")] * 2, self.kb.go_signatures.type("bool")
+            ).with_arch(self.project.arch)
+            variable_map_of(self.manager).set_prototype(contains, proto)
+        if op == "CmpLT":
+            contains = UnaryOp(self.manager.next_atom(), "Not", contains, bits=1, **expr.tags)
+        return self.to_bits(contains, expr.bits)
 
     def rewrite_ite(self, expr: ITE) -> Expression | None:
         # len(a) == len(b) ? a == b : false  ->  a == b   (also the tab words of two interface values)
@@ -2445,6 +2668,7 @@ class _Growth:
 
 
 _GROWSLICE_NAMES = frozenset({"runtime.growslice", "runtime.growsliceBuf"})
+_LOG_CLOSURE = re.compile(r"^log\.(\(\*Logger\)\.)?(Print|Printf|Println|Fatal|Fatalf|Fatalln)\.func1$")
 
 # runtime calls nothing downstream matches by argument position: a surviving one spells its descriptor as a type
 _DESCRIPTOR_CALLS = (
@@ -2498,6 +2722,23 @@ _CALL_RULES = {
     "runtime.memmove": GoBuiltinRewriter._rw_memmove,
     "runtime.gopanic": GoBuiltinRewriter._rw_gopanic,
     "runtime.makemap_small": GoBuiltinRewriter._rw_makemap_small,
+    "runtime.concatbyte2": GoBuiltinRewriter._rw_concatbyte,
+    "runtime.concatbyte3": GoBuiltinRewriter._rw_concatbyte,
+    "runtime.concatbyte4": GoBuiltinRewriter._rw_concatbyte,
+    "runtime.concatbyte5": GoBuiltinRewriter._rw_concatbyte,
+    # unexported helpers that public wrappers inline into
+    "strings.genSplit": GoBuiltinRewriter._rw_gensplit,
+    "internal/bytealg.IndexByteString": lambda p, c, a: p._rw_public(c, a, "strings.IndexByte"),
+    "internal/bytealg.IndexByte": lambda p, c, a: p._rw_public(c, a, "bytes.IndexByte"),
+    "internal/strconv.FormatInt": GoBuiltinRewriter._rw_format_int,
+    # os.IsNotExist/IsExist/IsPermission(err); the target global is usually unnamed, errors.Is reads alike
+    "os.underlyingErrorIs": lambda p, c, a: p._rw_public(c, a, "errors.Is"),
+}
+# internal packages whose exported functions are the public package's functions under the same name
+_PUBLIC_ALIASES = {
+    "internal/stringslite.": "strings.",
+    "internal/strconv.": "strconv.",
+    "internal/filepathlite.": "path/filepath.",
 }
 
 

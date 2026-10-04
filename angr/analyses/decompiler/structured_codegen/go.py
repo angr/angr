@@ -2125,13 +2125,18 @@ class GoFunctionCall(GoExpression):
                 yield from arg.elem_chunks()
                 continue
             yield from GoExpression._try_c_repr_chunks(arg)
-        if self.args and call_tag(self, "go_ellipsis", False):
-            # append(s, t...)
+        if self.args and (
+            call_tag(self, "go_ellipsis", False)
+            or (call_tag(self, "go_variadic", False) and not isinstance(self.args[-1], GoSliceLiteral))
+        ):
+            # append(s, t...); f(format, v...)
             yield "...", None
 
         yield ")", paren
 
     def _is_variadic(self) -> bool:
+        if call_tag(self, "go_variadic", False):
+            return True
         proto = self.callee_func.prototype if self.callee_func is not None else None
         return bool(getattr(proto, "variadic", False))
 
@@ -4714,6 +4719,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return GoAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
+        if not is_expr and stmt.expr.target == "memset":
+            cleared = self._whole_variable_clear(stmt.expr)
+            if cleared is not None:
+                return cleared
         try:
             # Try to handle it as a normal function call
             target = (
@@ -4800,6 +4809,20 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # Standalone call statement
         return GoExpressionStatement(call_expr, returning=returning, tags=stmt.tags, codegen=self)
+
+    def _whole_variable_clear(self, call: Expr.Call) -> GoAssignment | None:
+        """``memset(&v, 0, sizeof(v))`` of a struct variable is ``v = T{}``."""
+        args = list(call.args or [])
+        if len(args) != 3 or not all(isinstance(a, Expr.Const) for a in args[1:]) or args[1].value != 0:
+            return None
+        ref = self._handle(args[0])
+        if not (isinstance(ref, GoUnaryOp) and ref.op == "Reference" and isinstance(ref.operand, GoVariable)):
+            return None
+        ty = unpack_typeref(ref.operand.type)
+        if not isinstance(ty, GoSimStruct) or not ty.fields or ty.size != args[2].value * self.project.arch.byte_width:
+            return None
+        literal = GoStructLiteral(ty.go_repr(), OrderedDict(), {}, tags=call.tags, codegen=self)
+        return GoAssignment(ref.operand, literal, tags=call.tags, codegen=self)
 
     def _handle_Expr_Call(self, expr: Expr.Call, **kwargs):
         """Handle a Call expression (not wrapped in SideEffectStatement)."""

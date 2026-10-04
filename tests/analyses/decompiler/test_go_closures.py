@@ -83,6 +83,12 @@ class TestClosuresStrippedGo127(GoDecompilationTarget):
         assert re.search(r"main\.var_\d+ = v\d+$", text, re.MULTILINE), text
         assert "g_" not in text[text.index("func main.init") :], text
 
+    def test_split_by_public_name(self):
+        # strings.Split inlines to strings.genSplit(s, sep, 0, -1)
+        text = self.texts["main.init"]
+        assert 'strings.Split("carol,alice,bob", ",")' in text, text
+        assert "genSplit" not in text
+
     def test_closures(self):
         assert re.search(r"return main\.scaler\.func1\{X0: \w+\}", self.texts["main.scaler"])
         assert "var ctx *struct { F uintptr; X0 int }" in self.texts["main.scaler.func1"]
