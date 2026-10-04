@@ -2526,7 +2526,7 @@ class AILSimplifier(Analysis):
         if rewriter_cls is None:
             return False
 
-        walker = AILBlockRewriter()
+        walker = AILBlockRewriter(update_block=False)
 
         class _any_update:
             """
@@ -2552,16 +2552,17 @@ class AILSimplifier(Analysis):
                 return rewriter.result
             return r_expr
 
-        blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[VEXCCallExpression] = _handle_VEXCCallExpression
 
         updated = False
-        for block in blocks_by_addr_and_idx.values():
+        for node in self.func_graph.nodes():
+            # key by the graph node (not a pre-walk copy, which equals no node once rewritten) so _rebuild_func_graph
+            # replaces the node and records the block in simplified_blocks
+            block = self.blocks.get(node, node)
             _any_update.v = False
-            old_block = block.copy()
-            walker.walk(block)
+            new_block = walker.walk(block)
             if _any_update.v:
-                self.blocks[old_block] = block
+                self.blocks[node] = new_block
                 updated = True
 
         return updated
