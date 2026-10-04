@@ -21,7 +21,7 @@ from angr.analyses.complete_calling_conventions import (
     CompleteCallingConventionsAnalysis,
 )
 from angr.analyses.decompiler.edits import set_variable_type
-from angr.analyses.decompiler.structured_codegen.c import _decode_binary128
+from angr.analyses.decompiler.structured_codegen.c import CFunctionCall, _decode_binary128
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.calling_conventions import SimCCMicrosoftFastcall
 from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
@@ -32,6 +32,7 @@ from tests.common import bin_location, load_project_with_scoped_cfg
 # -- Paths & binary matrix --------------------------------------------
 
 _fp_dir = os.path.join(bin_location, "tests", "decompiler_fp")
+_LIBM_BITS = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
 
 I386_BINS = ["i386_O0", "i386_O1"]
 AMD64_BINS = ["amd64_O0", "amd64_O1"]
@@ -1296,6 +1297,37 @@ def test_sse_phi_insert_narrowing():
     assert "CmpEQV" not in text and "_INSERT" not in text and "uint128_t" not in text, text
     assert "a0 != 0.0" in text or "a0 == 0.0" in text, text
     assert "a0 * a0" in text, text
+
+
+# ======================================================================
+# Codegen serialization: string-target calls (known patterns, intrinsics) keep their call-site prototype, so the
+# parsed codegen re-renders identically.
+# ======================================================================
+
+
+@pytest.mark.parametrize(
+    ("bin_path", "addr", "extra", "call_types"),
+    [
+        (_LIBM_BITS, 0x4013D0, (), {"copysignf": "float"}),
+        (os.path.join(_fp_dir, "x87_env_amd64"), 0x4011CD, (), {"__inbyte": "uint8_t", "__outbyte": "void"}),
+    ],
+)
+def test_codegen_round_trip_rerenders(bin_path, addr, extra, call_types):
+    proj, cfg = load_project_with_scoped_cfg(
+        bin_path, addr, extra_func_addrs=extra, window=0x200, expand_call_tree=False, include_plt=True
+    )
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[addr], cfg=cfg.model)
+    assert dec.codegen is not None and dec.codegen.text is not None
+    parsed = parse_codegen(serialize_codegen(dec.codegen), project=proj, kb=dec.kb, func=dec.func)
+    calls = {
+        n.obj.callee_target: repr(n.obj.type)
+        for _, n in parsed.map_pos_to_node.items()
+        if isinstance(n.obj, CFunctionCall) and isinstance(n.obj.callee_target, str)
+    }
+    assert calls == call_types
+    text = dec.codegen.text
+    parsed.regenerate_text()
+    assert parsed.text == text
 
 
 # ======================================================================

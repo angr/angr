@@ -26,7 +26,7 @@ from angr.protos import codegen_pb2
 from angr.rustylib.ailment import Block as AilBlock
 from angr.rustylib.ailment import Expression as AilExpression
 from angr.rustylib.ailment import Statement as AilStatement
-from angr.sim_type import SimType
+from angr.sim_type import SimType, SimTypeFunction
 from angr.sim_variable import SimVariable
 
 from .base import InstructionMapping, PositionMapping
@@ -1259,6 +1259,7 @@ def _ser_cfuncall(node, pb, ctx):
         body.callee_func_addr = node.callee_func.addr
     for a in node.args:
         body.args_ids.append(ctx.serialize(a))
+    body.callsite_prototype_type_ref = ctx.intern_type(node.callsite_prototype)
     # show_demangled_name / show_disambiguated_name default to True; only record an override when either is False.
     if not (node.show_demangled_name and node.show_disambiguated_name):
         ctx.add_cfuncall_config(pb.node_id, node.show_demangled_name, node.show_disambiguated_name)
@@ -1281,6 +1282,9 @@ def _parse_cfuncall(pb, ctx):
     else:
         obj.callee_func = None
     obj.args = [ctx.resolve(i) for i in body.args_ids]
+    proto = ctx.resolve_type(body.callsite_prototype_type_ref)
+    assert proto is None or isinstance(proto, SimTypeFunction)
+    obj.callsite_prototype = proto
     obj.show_demangled_name, obj.show_disambiguated_name = ctx.cfuncall_config(pb.node_id)
     return obj
 

@@ -220,6 +220,7 @@ message CFunctionCallMsg {
     repeated uint32 args_ids = 5;
     // show_demangled_name / show_disambiguated_name live in Codegen.node_config; only nodes that override the
     // defaults store a NodeConfigEntry.
+    uint32 callsite_prototype_type_ref = 6;      // declared prototype of a call with no callee function; 0 = none
 }
 
 // Per-node display configuration, stored out-of-line so the common default never occupies node bodies.
