@@ -22,8 +22,8 @@ from angr.analyses.complete_calling_conventions import (
 )
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.calling_conventions import SimCCMicrosoftFastcall
-from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeNum
-from angr.sim_variable import SimStackVariable
+from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeLongLong, SimTypeNum
+from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 # -- Paths & binary matrix --------------------------------------------
@@ -1331,6 +1331,8 @@ class TestX87CallDelta:
         text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_merge", cca=True)
         _assert_no_x87_leaks(text)
         assert len(re.findall(r"\w+ = ret_double\(", text)) == 2, text
+        # fsubr/fstp qword [ecx]: a dereference of the double * held in ecx, never the address of the register
+        assert "*)&" not in text, text
 
     def test_callee_pops_argument(self):
         text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop")
@@ -1414,6 +1416,8 @@ class TestX87ReturnPrototype:
         m = re.search(r"(\w+) = fast_ret_double\(", text)
         assert m is not None, text
         assert re.search(rf"= {m.group(1)} \+ ", text), text
+        # fadd/fstp qword [esi]: a dereference of the pointer in esi, never the address of the register
+        assert "*)&" not in text, text
 
     def test_caller_stores_st0(self):
         assert re.search(r"\*\(?a0\)? = cdecl_ret_double\(a0\);", self._text("caller_consume_int"))
@@ -1483,7 +1487,8 @@ class TestFPRegisterBitPatterns(unittest.TestCase):
         sig = _sig(text)
         _check_sig(sig, "double", "unsigned int *|int *", "double")
         # fmov x2, d0; ubfx x1, x2, #52, #11
-        assert re.search(r"= \*\(\(unsigned long long \*\)&a\d\);", text), text
+        # a1 is held in d0: the helper form, not the address of a register
+        assert re.search(r"= __double_as_longlong\(a\d\);", text), text
         assert re.search(r"\(int\)\(?a\d\)? (>>|\*)", text) is None, text
         # fmul d1, d0, d1; fmov x2, d1
         assert "__double_as_longlong(a1 * " in text, text
@@ -1496,7 +1501,7 @@ class TestFPRegisterBitPatterns(unittest.TestCase):
         sig = _sig(text)
         _check_sig(sig, "double", "unsigned int *|int *", "double")
         # movq rcx, xmm0
-        assert "= *((unsigned long long *)&a1);" in text, text
+        assert "= __double_as_longlong(a1);" in text, text
         # movq xmm0, rax
         assert "a1 = __longlong_as_double(" in text, text
         assert "__double_as_longlong(a1 * " in text, text
@@ -1576,3 +1581,24 @@ class TestX87LongDoubleLocal:
         assert "(uint80_t)" not in text, text
         assert "*((long double *)&v1) = a0 * 3.0L;" in text, text
         assert "(float)*((long double *)&v1)" in text, text
+
+
+def test_int_typed_register_variable_uses_reinterpret_helpers():
+    # a register variable has no address: its bit-pattern views use __double_as_longlong / __longlong_as_double
+    path = os.path.join(_fp_dir, "fp_reg_view_amd64.o")
+    if not os.path.exists(path):
+        pytest.skip(f"{path} not found")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+    func = cfg.functions["int_sq"]
+    proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+    vm = proj.kb.dec_variables[func.addr]
+    xmm1 = proj.arch.registers["xmm1"][0]
+    var = next(v for v in vm.get_variables() if isinstance(v, SimRegisterVariable) and v.reg == xmm1)
+    vm.set_variable_type(var, SimTypeLongLong(signed=False).with_arch(proj.arch), mark_manual=True)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+    assert dec.codegen is not None and dec.codegen.text is not None
+    text = dec.codegen.text
+    assert "*)&" not in text, text
+    assert "v1 = __double_as_longlong((double)a0);" in text, text
+    assert "return __longlong_as_double(v1) * __longlong_as_double(v1) + __longlong_as_double(v1);" in text, text

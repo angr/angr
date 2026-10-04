@@ -2809,10 +2809,26 @@ class CTypeCast(CExpression):
             yield ")", paren
 
 
+def is_addressable_lvalue(cexpr: CExpression) -> bool:
+    """
+    Whether the expression names memory: a stack or global variable, an array element, a dereference, or a field of
+    one of those. Register variables and register-held parameters are not.
+    """
+    if isinstance(cexpr, CUnaryOp):
+        return cexpr.op == "Dereference"
+    if isinstance(cexpr, CIndexedVariable):
+        return True
+    if isinstance(cexpr, CVariableField):
+        return cexpr.var_is_ptr or is_addressable_lvalue(cexpr.variable)
+    if isinstance(cexpr, CVariable):
+        return isinstance(cexpr.variable, SimMemoryVariable)
+    return False
+
+
 class CReinterpret(CExpression):
     """
-    A bit-pattern view of an expression as another type of the same width: ``*((T *)&x)`` for an lvalue,
-    ``__double_as_longlong(x)`` (the CUDA intrinsic names) otherwise.
+    A bit-pattern view of an expression as another type of the same width: ``*((T *)&x)`` for a memory-backed
+    lvalue, ``__double_as_longlong(x)`` (the CUDA intrinsic names) for register variables and other values.
     """
 
     __slots__ = (
@@ -2856,8 +2872,10 @@ class CReinterpret(CExpression):
                 yield from CExpression._try_c_repr_chunks(self.expr)
                 return
         paren = CClosingObject("(")
-        if isinstance(self.expr, (CVariable, CIndexedVariable, CVariableField)) or (
-            isinstance(self.expr, CUnaryOp) and self.expr.op == "Dereference"
+        name = self.INTRINSICS.get(self._type_key(self.src_type) + self._type_key(self.dst_type))
+        if is_addressable_lvalue(self.expr) or (
+            # no helper for this width (e.g. long double): a named variable still has an address in C
+            name is None and isinstance(self.expr, (CVariable, CVariableField))
         ):
             ptr_type = SimTypePointer(self.dst_type).with_arch(self.codegen.project.arch)
             yield "*", self
@@ -2870,7 +2888,6 @@ class CReinterpret(CExpression):
             yield ")", paren
             return
 
-        name = self.INTRINSICS.get(self._type_key(self.src_type) + self._type_key(self.dst_type))
         if name is None:
             yield "(", paren
             yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
@@ -3747,9 +3764,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
     def _fp_view_of_int_lvalue(self, cexpr: CExpression, bits: int) -> CExpression:
         """
-        An FP conversion reads or writes its operand as a floating-point value. When variable typing left that operand
-        an integer variable, view its bits as the FP type of the same width (``*((long double *)&v)``) instead of
-        letting C convert the integer value.
+        An FP operation reads or writes its operand as a floating-point value. When variable typing left that operand
+        an integer variable, view its bits as the FP type of the same width (see CReinterpret) instead of letting C
+        convert the integer value.
         """
         if not isinstance(cexpr, (CVariable, CIndexedVariable, CVariableField)):
             return cexpr
@@ -3904,7 +3921,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     return base_expr
 
                 if not type_equals(base_type, data_type):
-                    return _force_type_cast(base_type, data_type, expr)
+                    # expr is the pointer itself: cast it, do not take its address
+                    return CUnaryOp(
+                        "Dereference",
+                        CTypeCast(
+                            expr.type, SimTypePointer(data_type).with_arch(self.project.arch), expr, codegen=self
+                        ),
+                        codegen=self,
+                    )
                 return CUnaryOp("Dereference", expr, codegen=self)
 
         stride = 1 if base_type.size is None else base_type.size // self.project.arch.byte_width or 1
@@ -4468,6 +4492,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 and stmt.src.vector_count is None
             ):
                 cdst = self._fp_view_of_int_lvalue(cdst, stmt.dst.bits)
+                if (
+                    isinstance(cdst, CReinterpret)
+                    and not is_addressable_lvalue(cdst.expr)
+                    and (CReinterpret._type_key(cdst.dst_type) + CReinterpret._type_key(cdst.src_type))
+                    in CReinterpret.INTRINSICS
+                ):
+                    # a register variable has no address: reinterpret the FP value into it instead
+                    csrc = CReinterpret(cdst.dst_type, cdst.src_type, csrc, codegen=self)
+                    return CAssignment(cdst.expr, csrc, tags=stmt.tags, codegen=self)
                 if isinstance(cdst.type, SimTypeFloat) and isinstance(csrc.type, SimTypeFloat):
                     # FP->FP assignment converts implicitly
                     return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
@@ -5104,8 +5137,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
         if expr.floating_point:
-            lhs = self._fp_constant(lhs, expr.operands[0])
-            rhs = self._fp_constant(rhs, expr.operands[1])
+            lhs = self._fp_view_of_int_lvalue(self._fp_constant(lhs, expr.operands[0]), expr.operands[0].bits)
+            rhs = self._fp_view_of_int_lvalue(self._fp_constant(rhs, expr.operands[1]), expr.operands[1].bits)
         elif expr.op in _INT_BIT_OPS:
             lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
