@@ -380,6 +380,8 @@ def describe(node: dsl.PatternNode) -> str:
         return _named(f"load{node.size}" if node.size is not None else "load", node.name)
     if isinstance(node, dsl.PConv):
         return "convert"
+    if isinstance(node, dsl.PReinterpret):
+        return "reinterpret"
     if isinstance(node, dsl.PExtract):
         return "extract"
     if isinstance(node, dsl.PCall):
@@ -416,6 +418,7 @@ _NAMED = (
     dsl.PBinOp,
     dsl.PUnaryOp,
     dsl.PConv,
+    dsl.PReinterpret,
     dsl.PExtract,
     dsl.PLoad,
     dsl.PCall,

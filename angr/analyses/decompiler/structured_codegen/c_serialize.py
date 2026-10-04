@@ -56,6 +56,7 @@ from .c import (
     CLabel,
     CMultiStatementExpression,
     CRegister,
+    CReinterpret,
     CReturn,
     CStatements,
     CStructField,
@@ -1010,6 +1011,20 @@ def _parse_ctypecast(pb, ctx):
     return obj
 
 
+def _ser_creinterpret(node, pb, ctx):
+    pb.creinterpret.src_type_ref = ctx.intern_type(node.src_type)
+    pb.creinterpret.dst_type_ref = ctx.intern_type(node.dst_type)
+    pb.creinterpret.expr_id = ctx.serialize(node.expr)
+
+
+def _parse_creinterpret(pb, ctx):
+    obj = CReinterpret.__new__(CReinterpret)
+    obj.src_type = ctx.resolve_type(pb.creinterpret.src_type_ref)
+    obj.dst_type = ctx.resolve_type(pb.creinterpret.dst_type_ref)
+    obj.expr = ctx.resolve(pb.creinterpret.expr_id)
+    return obj
+
+
 def _ser_cite(node, pb, ctx):
     pb.cite.cond_id = ctx.serialize(node.cond)
     pb.cite.iftrue_id = ctx.serialize(node.iftrue)
@@ -1389,6 +1404,7 @@ def register_all() -> None:
     _register(CUnaryOp, codegen_pb2.CCK_UNARY_OP, _ser_cunop, _parse_cunop)
     _register(CBinaryOp, codegen_pb2.CCK_BINARY_OP, _ser_cbinop, _parse_cbinop)
     _register(CTypeCast, codegen_pb2.CCK_TYPE_CAST, _ser_ctypecast, _parse_ctypecast)
+    _register(CReinterpret, codegen_pb2.CCK_REINTERPRET, _ser_creinterpret, _parse_creinterpret)
     _register(CITE, codegen_pb2.CCK_ITE, _ser_cite, _parse_cite)
     _register(CMultiStatementExpression, codegen_pb2.CCK_MULTI_STATEMENT_EXPRESSION, _ser_cmulti, _parse_cmulti)
     _register(CVEXCCallExpression, codegen_pb2.CCK_VEX_CCALL_EXPRESSION, _ser_cvex, _parse_cvex)

@@ -21,7 +21,7 @@ from angr.analyses.complete_calling_conventions import (
     CompleteCallingConventionsAnalysis,
 )
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
-from tests.common import bin_location
+from tests.common import bin_location, load_project_with_scoped_cfg
 
 # -- Paths & binary matrix --------------------------------------------
 
@@ -1278,3 +1278,49 @@ class TestX87CallDelta:
         _assert_no_x87_leaks(text)
         assert "__fxam(" in text
         assert "_ccall" not in text
+
+
+# -- Integer views of floating-point registers ------------------------
+
+_AARCH64_LIBC = os.path.join(bin_location, "tests", "aarch64", "libc.so.6")
+_AMD64_LIBC = os.path.join(bin_location, "tests", "x86_64", "libc.so.6")
+
+
+def _decompile_scoped(bin_path: str, addr: int) -> str:
+    proj, cfg = load_project_with_scoped_cfg(bin_path, addr, window=0x200, expand_call_tree=False)
+    dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[addr], cfg=cfg.model)
+    assert dec.codegen is not None and dec.codegen.text is not None
+    # the reinterpret nodes must survive a serialization round trip
+    parsed = parse_codegen(serialize_codegen(dec.codegen), project=proj, kb=dec.kb, func=dec.func)
+    assert parsed.text == dec.codegen.text
+    return dec.codegen.text
+
+
+class TestFPRegisterBitPatterns(unittest.TestCase):
+    """
+    An integer move out of or into a floating-point register (``fmov x2, d0`` / ``movq rax, xmm0``) views the bit
+    pattern of the double; the bit operations must not be applied to the double itself.
+    """
+
+    def test_frexp_aarch64(self):
+        text = _decompile_scoped(_AARCH64_LIBC, 0x432E30)  # frexp
+        sig = _sig(text)
+        _check_sig(sig, "double", "unsigned int *|int *", "double")
+        # fmov x2, d0; ubfx x1, x2, #52, #11
+        assert re.search(r"= \*\(\(unsigned long long \*\)&a\d\);", text), text
+        assert re.search(r"\(int\)\(?a\d\)? (>>|\*)", text) is None, text
+        # fmul d1, d0, d1; fmov x2, d1
+        assert "__double_as_longlong(a1 * " in text, text
+        # and x2, ...; orr x2, ...; fmov d0, x2
+        assert "__longlong_as_double(" in text, text
+        assert "CmpF(a1, 0.0)" in text or "isnan(a1)" in text or "isunordered(" in text, text
+
+    def test_frexp_amd64(self):
+        text = _decompile_scoped(_AMD64_LIBC, 0x436310)  # frexp
+        sig = _sig(text)
+        _check_sig(sig, "double", "unsigned int *|int *", "double")
+        # movq rcx, xmm0
+        assert "= *((unsigned long long *)&a1);" in text, text
+        # movq xmm0, rax
+        assert "a1 = __longlong_as_double(" in text, text
+        assert "__double_as_longlong(a1 * " in text, text

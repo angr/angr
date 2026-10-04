@@ -2786,6 +2786,80 @@ class CTypeCast(CExpression):
             yield ")", paren
 
 
+class CReinterpret(CExpression):
+    """
+    A bit-pattern view of an expression as another type of the same width: ``*((T *)&x)`` for an lvalue,
+    ``__double_as_longlong(x)`` (the CUDA intrinsic names) otherwise.
+    """
+
+    __slots__ = (
+        "dst_type",
+        "expr",
+        "src_type",
+    )
+
+    INTRINSICS = {
+        ("I", 32, "F", 32): "__int_as_float",
+        ("F", 32, "I", 32): "__float_as_int",
+        ("I", 64, "F", 64): "__longlong_as_double",
+        ("F", 64, "I", 64): "__double_as_longlong",
+    }
+
+    def __init__(self, src_type: SimType, dst_type: SimType, expr: CExpression, **kwargs):
+        super().__init__(**kwargs)
+
+        self.src_type = src_type.with_arch(self.codegen.project.arch)
+        self.dst_type = dst_type.with_arch(self.codegen.project.arch)
+        self.expr = expr
+
+    @property
+    def type(self):
+        return self.dst_type
+
+    @staticmethod
+    def _type_key(ty: SimType) -> tuple[str, int | None]:
+        return ("F" if isinstance(ty, SimTypeFloat) else "I"), ty.size
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield "...", self
+            return
+        if isinstance(self.expr, (CFunctionCall, CTypeCast)):
+            # an explicitly typed operand that already has the target type (e.g. an outlined call returning double)
+            operand_type = self.expr.type
+            if operand_type is not None and self._type_key(unpack_typeref(operand_type)) == self._type_key(
+                self.dst_type
+            ):
+                yield from CExpression._try_c_repr_chunks(self.expr)
+                return
+        paren = CClosingObject("(")
+        if isinstance(self.expr, (CVariable, CIndexedVariable, CVariableField)) or (
+            isinstance(self.expr, CUnaryOp) and self.expr.op == "Dereference"
+        ):
+            ptr_type = SimTypePointer(self.dst_type).with_arch(self.codegen.project.arch)
+            yield "*", self
+            yield "(", paren
+            yield "(", paren
+            yield f"{ptr_type.c_repr(name=None)}", ptr_type
+            yield ")", paren
+            yield "&", self
+            yield from CExpression._try_c_repr_chunks(self.expr)
+            yield ")", paren
+            return
+
+        name = self.INTRINSICS.get(self._type_key(self.src_type) + self._type_key(self.dst_type))
+        if name is None:
+            yield "(", paren
+            yield f"{self.dst_type.c_repr(name=None)}", self.dst_type
+            yield ")", paren
+            yield from CExpression._try_c_repr_chunks(self.expr)
+            return
+        yield name, self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.expr)
+        yield ")", paren
+
+
 def _float32_repr(v: float) -> str:
     """The shortest decimal literal that round-trips through a 32-bit float (0.72 rather than 0.7200000286102295)."""
     if not math.isfinite(v):
@@ -5105,9 +5179,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         def _to_type(bits, typestr):
             if typestr == "I":
                 if bits == 32:
-                    r = SimTypeInt()
+                    r = SimTypeInt(signed=False)
                 elif bits == 64:
-                    r = SimTypeLongLong()
+                    r = SimTypeLongLong(signed=False)
                 else:
                     raise TypeError(f"Unsupported integer type with bits {bits} in Reinterpret")
             elif typestr == "F":
@@ -5123,7 +5197,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         src_type = _to_type(expr.from_bits, expr.from_type)
         dst_type = _to_type(expr.to_bits, expr.to_type)
-        return CTypeCast(src_type, dst_type, self._handle(expr.operand), tags=expr.tags, codegen=self)
+        return CReinterpret(src_type, dst_type, self._handle(expr.operand), tags=expr.tags, codegen=self)
 
     def _handle_MultiStatementExpression(self, expr: Expr.MultiStatementExpression, **kwargs):
         cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)

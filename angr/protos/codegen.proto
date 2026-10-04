@@ -74,6 +74,7 @@ enum CConstructKind {
     CCK_VEX_CCALL_EXPRESSION = 33;
     CCK_DIRTY_EXPRESSION = 34;
     CCK_VECTOR_CONVERT = 35;
+    CCK_REINTERPRET = 36;
 }
 
 // =====================================================================================================================
@@ -286,7 +287,7 @@ message CBinaryOpMsg {
     uint32 common_type_ref = 4;
 }
 
-// CTypeCast
+// CTypeCast and CReinterpret (a bit-pattern view between two types of the same width)
 message CTypeCastMsg {
     uint32 src_type_ref = 1;
     uint32 dst_type_ref = 2;
@@ -401,6 +402,7 @@ message CConstructNode {
         CVEXCCallExpressionMsg cvex_ccall = 132;
         CDirtyExpressionMsg cdirty_expr = 133;
         CVectorConvertMsg cvector_convert = 134;
+        CTypeCastMsg creinterpret = 135;
     }
 }
 

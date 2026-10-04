@@ -10,7 +10,7 @@
 //! Both share one conversion core ([`Conv`]) over the [`IrReader`] trait;
 //! only the IR-reading layer differs.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
@@ -99,6 +99,8 @@ enum ExprKind<E> {
     Get {
         offset: i64,
         bits: u32,
+        /// The VEX access type is a floating-point type (``Ity_F*``).
+        float: bool,
     },
     /// Indexed register-array read (x87 stack, etc.).
     GetI {
@@ -248,6 +250,8 @@ trait IrReader {
     fn expr_kind(&self, py: Python<'_>, e: &Self::E) -> PyResult<ExprKind<Self::E>>;
     /// VEX `result_size` (in bits) of an expression; 0 if undeterminable.
     fn result_bits(&self, e: &Self::E) -> u32;
+    /// Whether the VEX result type of an expression is a floating-point type (``Ity_F*``).
+    fn result_is_float(&self, e: &Self::E) -> bool;
 }
 
 // ===========================================================================
@@ -259,18 +263,68 @@ struct ArchCtx<'py> {
     byte_width: u32,
     bits: u32,
     reg_name_memo: HashMap<(i64, u32), Option<String>>,
+    /// Offsets of floating-point data registers and their sub-registers (scalar lanes).
+    fp_data_reg_offsets: HashSet<i64>,
 }
+
+/// FP-flagged registers that VEX accesses as integers: the x87 register file (MMX aliases it with I64
+/// accesses), the x87 status word and the AVX-512 mask registers.
+const NON_DATA_FP_REGS: &[&str] = &[
+    "fpreg", "fc3210", "k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7",
+];
 
 impl<'py> ArchCtx<'py> {
     fn new(arch: Bound<'py, PyAny>) -> PyResult<Self> {
         let byte_width: u32 = arch.getattr("byte_width")?.extract()?;
         let bits: u32 = arch.getattr("bits")?.extract()?;
+        let fp_data_reg_offsets = Self::collect_fp_data_reg_offsets(&arch)?;
         Ok(Self {
             arch,
             byte_width,
             bits,
             reg_name_memo: HashMap::new(),
+            fp_data_reg_offsets,
         })
+    }
+
+    /// Registers that hold floating-point data: vector/FP registers of at least 8 bytes that are neither
+    /// artificial nor control registers (control registers carry a default value).
+    fn collect_fp_data_reg_offsets(arch: &Bound<'py, PyAny>) -> PyResult<HashSet<i64>> {
+        let mut offsets = HashSet::new();
+        let Ok(register_list) = arch.getattr("register_list") else {
+            return Ok(offsets);
+        };
+        for reg in register_list.try_iter()? {
+            let reg = reg?;
+            let vector: bool = reg.getattr("vector")?.extract()?;
+            let floating_point: bool = reg.getattr("floating_point")?.extract()?;
+            let artificial: bool = reg.getattr("artificial")?.extract()?;
+            let size: i64 = reg.getattr("size")?.extract()?;
+            let name: String = reg.getattr("name")?.extract()?;
+            if !(vector || floating_point)
+                || artificial
+                || size < 8
+                || !reg.getattr("default_value")?.is_none()
+                || NON_DATA_FP_REGS.contains(&name.as_str())
+            {
+                continue;
+            }
+            let offset: i64 = reg.getattr("vex_offset")?.extract()?;
+            offsets.insert(offset);
+            for sub in reg.getattr("subregisters")?.try_iter()? {
+                let (_, sub_offset, sub_size): (String, i64, i64) = sub?.extract()?;
+                if sub_size >= 4 {
+                    offsets.insert(offset + sub_offset);
+                }
+            }
+        }
+        Ok(offsets)
+    }
+
+    /// An integer-typed VEX access of this width at this offset reads or writes the bit pattern of a scalar FP
+    /// register.
+    fn is_fp_scalar_slot(&self, offset: i64, bits: u32) -> bool {
+        (bits == 32 || bits == 64) && self.fp_data_reg_offsets.contains(&offset)
     }
 
     fn reg_name(&mut self, offset: i64, size: u32) -> PyResult<Option<String>> {
@@ -312,6 +366,8 @@ struct Conv<'py, 'r, R: IrReader> {
     ins_addr: Option<i64>,
     block_addr: i64,
     vex_stmt_idx: i64,
+    /// tmps holding a scalar zero-extended to vector width (``64UtoV128``): tmp -> (scalar, from_bits, to_bits)
+    zext_tmps: HashMap<i64, (Arc<AilExpression>, u32, u32)>,
 }
 
 impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
@@ -338,7 +394,19 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
         let kind = self.reader.expr_kind(self.py, e)?;
         match kind {
             ExprKind::RdTmp { tmp, bits } => self.make_tmp(tmp as i64, bits),
-            ExprKind::Get { offset, bits } => self.make_register(offset, bits),
+            ExprKind::Get {
+                offset,
+                bits,
+                float,
+            } => {
+                if !float && self.arch.is_fp_scalar_slot(offset, bits) {
+                    // an integer read of an FP register (fmov x0, d0 / movq rax, xmm0) is a bit-pattern view
+                    let idx = self.next_atom();
+                    let reg = self.make_register(offset, bits)?;
+                    return Ok(self.make_reinterpret(idx, reg, "F", "I", bits));
+                }
+                self.make_register(offset, bits)
+            }
             ExprKind::GetI {
                 ix,
                 bits,
@@ -458,6 +526,59 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             header: ExprHeader::new(idx, 0, bits, tags),
             inner: ExprInner::Register { reg_offset: offset },
         })
+    }
+
+    /// ``Reinterpret`` between an integer and a floating-point view of the same ``bits``.
+    fn make_reinterpret(
+        &self,
+        idx: i64,
+        operand: AilExpression,
+        from_type: &str,
+        to_type: &str,
+        bits: u32,
+    ) -> AilExpression {
+        let depth = operand.header.depth + 1;
+        AilExpression {
+            header: ExprHeader::new(idx, depth, bits, self.tags()),
+            inner: ExprInner::Reinterpret {
+                operand: Arc::new(operand),
+                from_bits: bits,
+                from_type: from_type.to_string(),
+                to_bits: bits,
+                to_type: to_type.to_string(),
+            },
+        }
+    }
+
+    /// The integer scalar that the VEX expression ``data`` (converted to ``val``) zero-extends to vector width
+    /// (``Iop_64UtoV128``, or a tmp holding one), as (scalar, from_bits, to_bits).
+    fn vector_zext(
+        &self,
+        data: &R::E,
+        val: &AilExpression,
+    ) -> PyResult<Option<(Arc<AilExpression>, u32, u32)>> {
+        match self.reader.expr_kind(self.py, data)? {
+            ExprKind::RdTmp { tmp, .. } => Ok(self.zext_tmps.get(&(tmp as i64)).cloned()),
+            ExprKind::Unop { op, .. } => {
+                let Ok(simop) = op.simop() else {
+                    return Ok(None);
+                };
+                if !matches!(simop.name.as_str(), "Iop_32UtoV128" | "Iop_64UtoV128") {
+                    return Ok(None);
+                }
+                if let ExprInner::Convert {
+                    operand,
+                    from_bits,
+                    to_bits,
+                    ..
+                } = &val.inner
+                {
+                    return Ok(Some((operand.clone(), *from_bits, *to_bits)));
+                }
+                Ok(None)
+            }
+            _ => Ok(None),
+        }
     }
 
     /// GetI/PutI target: ``IRegister`` over the converted index expression.
@@ -1272,6 +1393,9 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             } => {
                 let var = self.make_tmp(tmp as i64, data_bits)?;
                 let val = self.convert_expr(&data)?;
+                if let Some(zext) = self.vector_zext(&data, &val)? {
+                    self.zext_tmps.insert(tmp as i64, zext);
+                }
                 let idx = self.next_atom();
                 out.push(new_stmt(
                     idx,
@@ -1284,8 +1408,35 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                 Ok(false)
             }
             StmtKind::Put { offset, data } => {
-                let val = self.convert_expr(&data)?;
+                let mut val = self.convert_expr(&data)?;
                 let bits = val.header.bits;
+                if !self.reader.result_is_float(&data) && self.arch.is_fp_scalar_slot(offset, bits)
+                {
+                    // an integer write into an FP register (fmov d0, x0 / movq xmm0, rax) stores a bit pattern
+                    let idx = self.next_atom();
+                    val = self.make_reinterpret(idx, val, "I", "F", bits);
+                } else {
+                    if let Some((scalar, from_bits, to_bits)) = self.vector_zext(&data, &val)?
+                        && self.arch.is_fp_scalar_slot(offset, from_bits)
+                    {
+                        // a scalar zero-extended into a vector register (movq xmm0, rax) stores a bit pattern in lane 0
+                        let idx = self.next_atom();
+                        let lane =
+                            self.make_reinterpret(idx, (*scalar).clone(), "I", "F", from_bits);
+                        let idx = self.next_atom();
+                        val = new_convert(
+                            idx,
+                            from_bits,
+                            to_bits,
+                            false,
+                            lane,
+                            ConvertType::TypeInt,
+                            ConvertType::TypeInt,
+                            None,
+                            self.tags(),
+                        );
+                    }
+                }
                 let reg = self.make_register(offset, bits)?;
                 let idx = self.next_atom();
                 out.push(new_stmt(
@@ -2374,6 +2525,7 @@ impl IrReader for CReader {
                 IEX_GET => ExprKind::Get {
                     offset: iex.get.offset as i64,
                     bits: type_size_bits(iex.get.ty),
+                    float: vex_ffi::ity_float_name(iex.get.ty).is_some(),
                 },
                 IEX_LOAD => ExprKind::Load {
                     end: endness_str(iex.load.end).to_string(),
@@ -2451,6 +2603,10 @@ impl IrReader for CReader {
     fn result_bits(&self, e: &Self::E) -> u32 {
         unsafe { result_bits_c(self.irsb, *e) }
     }
+
+    fn result_is_float(&self, e: &Self::E) -> bool {
+        vex_ffi::ity_float_name(unsafe { result_ty_c(self.irsb, *e) }).is_some()
+    }
 }
 
 /// VEX `result_size` (bits) for a C expression.
@@ -2461,20 +2617,53 @@ unsafe fn result_bits_c(irsb: *mut IRSB, e: *mut IRExpr) -> u32 {
     }
     let tag = unsafe { (*e).tag };
     let iex = unsafe { &(*e).iex };
+    // Const has no IRType; its tag decides the width
+    if tag == IEX_CONST {
+        return const_bits(unsafe { (*iex.con.con).tag });
+    }
+    type_size_bits(unsafe { result_ty_c(irsb, e) })
+}
+
+/// VEX `result_type` (an ``Ity_*`` tag) for a C expression; ``ITY_INVALID`` if undeterminable.
+unsafe fn result_ty_c(irsb: *mut IRSB, e: *mut IRExpr) -> u32 {
+    use vex_ffi::*;
+    if e.is_null() {
+        return ITY_INVALID;
+    }
+    let tag = unsafe { (*e).tag };
+    let iex = unsafe { &(*e).iex };
     unsafe {
         match tag {
-            IEX_RDTMP => type_size_bits((*(*irsb).tyenv).lookup(iex.rdtmp.tmp)),
-            IEX_GET => type_size_bits(iex.get.ty),
-            IEX_LOAD => type_size_bits(iex.load.ty),
-            IEX_GETI => type_size_bits((*iex.geti.descr).elem_ty),
-            IEX_CONST => const_bits((*iex.con.con).tag),
-            IEX_CCALL => type_size_bits(iex.ccall.retty),
-            IEX_UNOP => type_size_bits(vex_ffi::op_result_type(iex.unop.op)),
-            IEX_BINOP => type_size_bits(vex_ffi::op_result_type(iex.binop.op)),
-            IEX_TRIOP => type_size_bits(vex_ffi::op_result_type((*iex.triop.details).op)),
-            IEX_ITE => result_bits_c(irsb, iex.ite.iftrue),
-            _ => 0,
+            IEX_RDTMP => (*(*irsb).tyenv).lookup(iex.rdtmp.tmp),
+            IEX_GET => iex.get.ty,
+            IEX_LOAD => iex.load.ty,
+            IEX_GETI => (*iex.geti.descr).elem_ty,
+            IEX_CONST => const_ty((*iex.con.con).tag),
+            IEX_CCALL => iex.ccall.retty,
+            IEX_UNOP => vex_ffi::op_result_type(iex.unop.op),
+            IEX_BINOP => vex_ffi::op_result_type(iex.binop.op),
+            IEX_TRIOP => vex_ffi::op_result_type((*iex.triop.details).op),
+            IEX_ITE => result_ty_c(irsb, iex.ite.iftrue),
+            _ => ITY_INVALID,
         }
+    }
+}
+
+fn const_ty(tag: u32) -> u32 {
+    use vex_ffi::*;
+    match tag {
+        ICO_U1 => ITY_I1,
+        ICO_U8 => ITY_I8,
+        ICO_U16 => ITY_I16,
+        ICO_U32 => ITY_I32,
+        ICO_U64 => ITY_I64,
+        ICO_U128 => ITY_I128,
+        ICO_F32 | ICO_F32I => ITY_F32,
+        ICO_F64 | ICO_F64I => ITY_F64,
+        ICO_V128 => ITY_V128,
+        ICO_V256 => ITY_V256,
+        ICO_V512 => ITY_V512,
+        _ => ITY_INVALID,
     }
 }
 
@@ -2573,6 +2762,7 @@ impl VEXIRSBConverter {
             ins_addr: None,
             block_addr,
             vex_stmt_idx: DEFAULT_STATEMENT,
+            zext_tmps: HashMap::new(),
         };
         let block = conv.convert_block()?;
         manager.borrow_mut().atom_ctr = conv.atom;
@@ -2956,6 +3146,11 @@ impl<'py> IrReader for PyReader<'py> {
             "Get" => ExprKind::Get {
                 offset: expr.getattr("offset")?.extract()?,
                 bits: self.result_size(expr),
+                float: expr
+                    .getattr("ty")?
+                    .extract::<String>()
+                    .map(|t| t.starts_with("Ity_F"))
+                    .unwrap_or(false),
             },
             "GetI" => {
                 let descr = expr.getattr("descr")?;
@@ -3039,5 +3234,17 @@ impl<'py> IrReader for PyReader<'py> {
 
     fn result_bits(&self, e: &Self::E) -> u32 {
         Python::attach(|py| self.result_size(e.bind(py)))
+    }
+
+    fn result_is_float(&self, e: &Self::E) -> bool {
+        Python::attach(
+            |py| match e.bind(py).call_method1("result_type", (&self.tyenv,)) {
+                Ok(v) => v
+                    .extract::<String>()
+                    .map(|t| t.starts_with("Ity_F"))
+                    .unwrap_or(false),
+                Err(_) => false,
+            },
+        )
     }
 }

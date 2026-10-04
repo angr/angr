@@ -30,6 +30,7 @@ from angr.ailment.expression import (
     Extract,
     Load,
     Phi,
+    Reinterpret,
     StackBaseOffset,
     UnaryOp,
     VirtualVariable,
@@ -67,7 +68,7 @@ class MatchState:
     # region instead; see KnownPatternFinder._resolve_remote_def.
     remote_defs: tuple[tuple[int, Expression], ...] = ()
     # Convert wrappers that were skipped over during structural matching
-    skipped_converts: tuple[Convert, ...] = ()
+    skipped_converts: tuple[Convert | Reinterpret, ...] = ()
     # (varid, root varid, displacement) for virtual variables PField resolved to
     # `root + displacement`. The definition is left exactly where it is; the
     # outliner only needs to know the value so it can spell the same address
@@ -141,8 +142,8 @@ class MatchCtx:
 
 
 def _unwrap_leaf(expr: Expression, state: MatchState, ctx: MatchCtx) -> tuple[Expression, MatchState]:
-    """Step over Convert wrappers above a leaf when the context asks for it."""
-    while ctx.skip_conversions_at_leaves and isinstance(expr, Convert):
+    """Step over Convert/Reinterpret wrappers above a leaf when the context asks for it."""
+    while ctx.skip_conversions_at_leaves and isinstance(expr, (Convert, Reinterpret)):
         state = replace(state, skipped_converts=(*state.skipped_converts, expr))
         expr = expr.operand
     return expr, state
@@ -180,7 +181,7 @@ class PatternExpr(PatternNode):
         """
         chased_varids: set[int] = set()
         while True:
-            while ctx.skip_conversions and isinstance(expr, Convert):
+            while ctx.skip_conversions and isinstance(expr, (Convert, Reinterpret)):
                 state = replace(state, skipped_converts=(*state.skipped_converts, expr))
                 expr = expr.operand
             if not isinstance(expr, VirtualVariable) or (ctx.chase_fn is None and ctx.remote_chase_fn is None):
@@ -375,6 +376,26 @@ class PConv(PatternExpr):
 
 
 @dataclass(frozen=True)
+class PReinterpret(PatternExpr):
+    """Matches a Reinterpret explicitly (never skipped): the bit pattern of a floating-point value read as an
+    integer (``from_type="F"``), or an integer's bits viewed as a floating-point value (``from_type="I"``)."""
+
+    operand: PatternExpr
+    from_type: str | None = None
+    name: str | None = None
+
+    def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
+        if not isinstance(expr, Reinterpret):
+            return None
+        if self.from_type is not None and expr.from_type != self.from_type:
+            return None
+        st = self.operand.match(expr.operand, state, ctx)
+        if st is None:
+            return None
+        return self._bind_if_named(self.name, expr, st)
+
+
+@dataclass(frozen=True)
 class PExtract(PatternExpr):
     """Matches an ``Extract``, a bit-slice of a wider value.
 
@@ -464,7 +485,7 @@ class PCall(PatternExpr):
         # not _prepare on purpose: chasing a virtual variable to its definition
         # marks that definition consumed, which would let the outliner move the
         # call. See PCallResult for the read-only way to reach a call's result.
-        while ctx.skip_conversions and isinstance(expr, Convert):
+        while ctx.skip_conversions and isinstance(expr, (Convert, Reinterpret)):
             expr = expr.operand
         if not isinstance(expr, Call) or ctx.call_target_fn is None:
             return None
@@ -510,7 +531,7 @@ class PCallResult(PatternExpr):
         return ctx.call_target_fn is not None and bool(self.names & ctx.call_target_fn(call))
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
-        while ctx.skip_conversions and isinstance(expr, Convert):
+        while ctx.skip_conversions and isinstance(expr, (Convert, Reinterpret)):
             expr = expr.operand
         if isinstance(expr, Call):
             return self._bind_if_named(self.name, expr, state) if self._target_matches(expr, ctx) else None
@@ -557,7 +578,7 @@ class PDefOf(PatternExpr):
         # wholesale, and identifying the idiom fails for a reason that has
         # nothing to do with the idiom.
         stripped = expr
-        while ctx.skip_conversions and isinstance(stripped, Convert):
+        while ctx.skip_conversions and isinstance(stripped, (Convert, Reinterpret)):
             stripped = stripped.operand
         if isinstance(stripped, VirtualVariable) and ctx.def_fn is not None:
             definition = ctx.def_fn(stripped.varid)
@@ -678,7 +699,7 @@ class PField(PatternExpr):
         return replace(st, base_aliases=(*st.base_aliases, (expr.varid, root.varid, disp)))
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
-        while ctx.skip_conversions and isinstance(expr, Convert):
+        while ctx.skip_conversions and isinstance(expr, (Convert, Reinterpret)):
             expr = expr.operand
         # Take the address as written first and chase only as a fallback: a bare
         # field address is a virtual variable, and _prepare would helpfully
@@ -740,7 +761,7 @@ class PStackField(PatternExpr):
     name: str | None = None
 
     def match(self, expr: Expression, state: MatchState, ctx: MatchCtx) -> MatchState | None:
-        while ctx.skip_conversions and isinstance(expr, Convert):
+        while ctx.skip_conversions and isinstance(expr, (Convert, Reinterpret)):
             expr = expr.operand
         if self.as_address:
             if not (isinstance(expr, UnaryOp) and expr.op == "Reference"):
@@ -1103,6 +1124,8 @@ def pattern_anchor_key(node: PatternNode) -> tuple[str, str | None] | None:
         return ("UnaryOp", node.op if isinstance(node.op, str) else None)
     if isinstance(node, PConv):
         return ("Convert", None)
+    if isinstance(node, PReinterpret):
+        return ("Reinterpret", None)
     if isinstance(node, PExtract):
         return ("Extract", None)
     if isinstance(node, PCall):

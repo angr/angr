@@ -31,7 +31,7 @@ import archinfo
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 
 from .context import INTEL
-from .dsl import PBinOp, PChoice, PConst, PConv, PExtract, PUnaryOp, PVVar
+from .dsl import PBinOp, PChoice, PConst, PConv, PExtract, PReinterpret, PUnaryOp, PVVar
 from .pattern import KnownPattern, PatternParam
 from .templates import make_template
 
@@ -63,8 +63,16 @@ def _sse_operand(cap: str) -> PChoice:
     The Extract arm is what a computed operand looks like, ``isinf(a * b)``
     rather than ``isinf(x)``. The product stays in a vector vvar and ``movq
     %xmm2,%rax`` lifts to ``Extract(vvar_128, 64bits@0)``; without this arm every
-    such site is silent, which is why isinf scored 4%."""
-    return PChoice(PVVar(cap), PConv(PVVar(cap), to_bits=128), PExtract(PVVar(cap), offset=0))
+    such site is silent, which is why isinf scored 4%.
+
+    The Reinterpret arm is ``movq %xmm0,%rax`` on a scalar: the bits of the
+    double read as an integer."""
+    return PChoice(
+        PVVar(cap),
+        PConv(PVVar(cap), to_bits=128),
+        PExtract(PVVar(cap), offset=0),
+        PReinterpret(PVVar(cap), from_type="F"),
+    )
 
 
 def _scalar_mask(value: int) -> PChoice:

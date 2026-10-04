@@ -31,6 +31,7 @@ from .conv_shl_shr import ConvShlShr
 from .eager_eval import EagerEvaluation
 from .evaluate_const_conversions import EvaluateConstConversions
 from .extended_byte_and_mask import ExtendedByteAndMask
+from .float_const_bits import FloatConstBits
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .known_pattern_call_info import KnownPatternCallInfo
 from .modulo_simplifier import ModuloSimplifier
@@ -53,6 +54,7 @@ from .remove_redundant_nots import RemoveRedundantNots
 from .remove_redundant_reinterprets import RemoveRedundantReinterprets
 from .remove_redundant_shifts import RemoveRedundantShifts
 from .remove_redundant_shifts_around_comparators import RemoveRedundantShiftsAroundComparators
+from .remove_reinterprets_at_stores import RemoveReinterpretsAtStores
 from .rewrite_bit_extractions import RewriteBitExtractions
 from .rewrite_conv_mul import RewriteConvMul
 from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
@@ -102,6 +104,8 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveRedundantDerefs,
     RemoveRedundantNots,
     RemoveRedundantReinterprets,
+    RemoveReinterpretsAtStores,
+    FloatConstBits,
     RemoveRedundantShifts,
     RemoveRedundantShiftsAroundComparators,
     SimplifyBitwiseInserts,
