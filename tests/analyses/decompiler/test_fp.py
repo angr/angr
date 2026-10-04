@@ -1324,3 +1324,43 @@ class TestFPRegisterBitPatterns(unittest.TestCase):
         # movq xmm0, rax
         assert "a1 = __longlong_as_double(" in text, text
         assert "__double_as_longlong(a1 * " in text, text
+
+
+class TestFusedMultiplyAddDecompilation:
+    """
+    Fused multiply-add is a VEX Qop that never reached the AIL op mapper, so FMA-using functions decompiled to
+    `return a0;` with their whole body gone; the PPC single-precision ops (`fmuls`, `frsp`, `stfs`) lost their
+    operand the same way.
+    """
+
+    @staticmethod
+    def _decompile(arch_dir: str, bin_name: str, addr: int) -> str:
+        bin_path = os.path.join(bin_location, "tests", arch_dir, bin_name)
+        if not os.path.exists(bin_path):
+            pytest.skip(f"{bin_path} not found")
+        proj, cfg = load_project_with_scoped_cfg(
+            bin_path, addr, expand_call_tree=False, project_kwargs={"auto_load_libs": False}
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[addr], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "unsupported_" not in dec.codegen.text
+        return dec.codegen.text
+
+    def test_s390x_fmaf64(self):
+        # fmaf64: madbr %f4, %f0, %f2 ; ldr %f0, %f4 ; br %r14
+        text = self._decompile("s390x", "libm.so.6", 0x440990)
+        assert text.startswith("double fmaf64(double a0, double a1, double a2)"), text
+        assert re.search(r"return a\d \* a\d \+ a\d;", text), text
+
+    def test_ppc64_fmadd_frsp(self):
+        # std r3 ; fcfid f1 ; lfd f0 ; fcfid f0 ; fmadd f1, f1, f12, f0 ; frsp f1, f1 ; blr
+        # the single-precision result travels in f1 as a double: a float return, not the low word of fpr1
+        text = self._decompile("ppc64", "libc.so.6", 0x572930)
+        assert text.startswith("float sub_572930(double a0, "), text
+        assert re.search(r"return \(float\)\(.* \* .* \+ .*\);", text), text
+
+    def test_ppc64_signbitf(self):
+        # __signbitf: stfs f1, -0x10(r1) ; lwz r9, -0x10(r1) ; rlwinm r3, r9, 0, 0, 0
+        text = self._decompile("ppc64", "libc.so.6", 0x45F768)
+        assert "(float)" in text, text
+        assert "0x80000000" in text, text

@@ -2963,11 +2963,12 @@ class SimCCN32LinuxSyscall(SimCCN64LinuxSyscall):
 
 class SimCCPowerPC(SimCC):
     ARG_REGS = ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"]
-    FP_ARG_REGS = []  # TODO: ???
+    FP_ARG_REGS = ["fpr1", "fpr2", "fpr3", "fpr4", "fpr5", "fpr6", "fpr7", "fpr8"]
     STACKARG_SP_BUFF = 8
     RETURN_ADDR = SimRegArg("lr", 4)
     RETURN_VAL = SimRegArg("r3", 4)
     OVERFLOW_RETURN_VAL = SimRegArg("r4", 4)
+    FP_RETURN_VAL = SimLyingRegArg("fpr1")  # single-precision values travel as doubles
     ARCH = archinfo.ArchPPC32
 
 
@@ -2994,10 +2995,11 @@ class SimCCPowerPCLinuxSyscall(SimCCSyscall):
 
 class SimCCPowerPC64(SimCC):
     ARG_REGS = ["r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"]
-    FP_ARG_REGS = []  # TODO: ???
+    FP_ARG_REGS = [f"fpr{i}" for i in range(1, 14)]
     STACKARG_SP_BUFF = 0x70
     RETURN_ADDR = SimRegArg("lr", 8)
     RETURN_VAL = SimRegArg("r3", 8)
+    FP_RETURN_VAL = SimLyingRegArg("fpr1")  # single-precision values travel as doubles
     ARCH = archinfo.ArchPPC64
 
 
@@ -3055,6 +3057,7 @@ class SimCCS390X(SimCC):
     STACKARG_SP_BUFF = 0xA0
     RETURN_ADDR = SimRegArg("r14", 8)
     RETURN_VAL = SimRegArg("r2", 8)
+    FP_RETURN_VAL = SimRegArg("f0", 8)
     ARCH = archinfo.ArchS390X
 
 
