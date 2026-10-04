@@ -2239,21 +2239,39 @@ class CallingConventionAnalysis(Analysis):
                 continue
             idx = allowed_spilled_regs.index(insn.operands[1].reg)
             base, disp = insn.operands[0].mem.base, insn.operands[0].mem.disp
-            if stores and stores[-1] != (i - 1, idx - 1, base, disp - 8):
-                return False, None
             stores.append((i, idx, base, disp))
 
-        if not stores:
+        if not stores or stores[-1][1] != len(allowed_spilled_regs) - 1:
             return False, None
 
-        if stores[-1][1] != len(allowed_spilled_regs) - 1:
-            return False, None
+        # the register save area run: contiguous +8 stores of consecutive arg registers ending at r9
+        run_start = len(stores) - 1
+        while run_start > 0:
+            pi, pidx, pbase, pdisp = stores[run_start - 1]
+            ci, cidx, cbase, cdisp = stores[run_start]
+            if (pi, pidx, pbase, pdisp) != (ci - 1, cidx - 1, cbase, cdisp - 8):
+                break
+            run_start -= 1
+        named_spills = stores[:run_start]
+        run = stores[run_start:]
 
-        base = stores[0][2]
-        disp_min = stores[0][3]
-        disp_max = stores[-1][3]
-        num_fixed = stores[0][1]
-        zero_disp = stores[0][3] - 8 * num_fixed
+        base = run[0][2]
+        disp_min = run[0][3]
+        disp_max = run[-1][3]
+        num_fixed = run[0][1]
+        zero_disp = run[0][3] - 8 * num_fixed
+
+        # earlier stores (gcc -O0) may only spill the named args, once each, outside the save area
+        spilled_named: set[int] = set()
+        for _, idx, sbase, sdisp in named_spills:
+            if idx >= num_fixed or idx in spilled_named:
+                return False, None
+            if sbase == base and zero_disp <= sdisp < disp_max + 8:
+                return False, None
+            spilled_named.add(idx)
+        if named_spills and len(run) < 2 and not self.has_va_xmm_save_area_amd64(func):
+            # a lone r9 store after named spills also matches a plain six-arg -O0 prologue
+            return False, None
 
         for blk in func.blocks:
             for insn in blk.capstone.insns:

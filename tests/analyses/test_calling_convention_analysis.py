@@ -714,7 +714,10 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca.has_va_xmm_save_area_amd64(func)
         assert cca.cc is not None and cca.prototype is not None
         arg_locs = cca.cc.arg_locs(cca.prototype)
-        assert [a.reg_name for a in arg_locs if isinstance(a, SimRegArg)] == ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+        # gcc -O0 spills the four named args first, then r8/r9 into the register save area
+        assert cca.is_va_start_amd64(func) == (True, 4)
+        assert cca.prototype.variadic is True
+        assert [a.reg_name for a in arg_locs if isinstance(a, SimRegArg)] == ["rdi", "rsi", "rdx", "rcx"]
 
     def test_amd64_sse_fp_arg_registers_follow_arch_layout(self):
         """The accepted xmm range must come from arch.registers: with the AVX-512 guest layout xmm registers are 64
