@@ -518,6 +518,21 @@ class TestStructValueReceiver386(unittest.TestCase):
         print_decompilation_result(dec)
         assert "os.Exit(len(main.gitHubRecipientError.Error(" in dec.codegen.text
 
+    def test_fields_of_a_partially_read_struct_receiver(self):
+        # reflect.Value spans three stack words; IsNil reads ptr and flag (not typ_) and takes the receiver's address.
+        # Each word used to be an unassigned local ([bp+0x8], [bp+0xc]) instead of a field of the receiver.
+        binary = go_binary("go1.27.1", "atomics", arch="i386")
+        name = "reflect.Value.IsNil"
+        addr = go_func_addrs(binary, name)[name]
+        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
+        dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+        assert "func (v reflect.Value) IsNil() bool {" in text
+        assert "reflect.flag.kind(v.flag)" in text and "v.ptr" in text, text
+        assert not re.search(r"^    var .*// \[bp\+0x(8|c)\]$", text, re.MULTILINE), text
+
 
 class TestStringCompares386(GoDecompilationTarget):
     """386 compares strings four bytes at a time: the switch cases of SetTraceback still come back as strings."""
@@ -688,3 +703,16 @@ class TestReceiverFromName(unittest.TestCase):
         assert receiver_type_from_name(kb, arch, "main.describe") is None
         assert receiver_type_from_name(kb, arch, "main.(*Rect).Area.func1") is None
         assert receiver_type_from_name(kb, arch, "main.(*Nope).Area") is None
+        # a method value wrapper gets its receiver through the closure context, not its first argument
+        assert receiver_type_from_name(kb, arch, "main.(*Rect).Area-fm") is None
+
+    def test_closures_are_not_methods(self):
+        from angr.analyses.decompiler.structured_codegen.go import _go_method_name
+        from angr.go.utils.names import is_go_closure_name
+
+        # a closure in a function with an exported name looks like a method of a type with that name
+        assert _go_method_name("github.com/junegunn/fzf/src.NewTerminal.func2") is None
+        assert _go_method_name("main.Rect.Area") == "Area"
+        for name in ("pkg.F.func1", "pkg.F.func1.2", "pkg.F.func1.gowrap3", "pkg.(*T).M-fm", "pkg.F-range1"):
+            assert is_go_closure_name(name), name
+        assert not is_go_closure_name("pkg.(*T).funcName")

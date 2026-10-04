@@ -291,11 +291,19 @@ class RewritingAnalysis:
         # argument (e.g., a wide stack argument slot accessed as two narrower slices), the argument must stay
         # full-width, and the narrower reads extract from it
         arg_extern_coverage: dict[int, set[int]] = {}
+        # stack arguments read as more than one slice (fields of a by-value aggregate) also stay full-width:
+        # resizing to one slice would leave every other slice an undefined stack variable
+        multi_slice_stack_args: set[int] = set()
+        arg_first_slice: dict[int, tuple[int, int]] = {}
         for kind, offset, size in self._extern_defs:
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
             arg_vvar = func_args_map.get((category, offset))
             if arg_vvar is not None and arg_vvar.varid not in combo_reg_vvar_to_arg:
                 arg_extern_coverage.setdefault(arg_vvar.varid, set()).update(range(offset, offset + size))
+                if category == VirtualVariableCategory.STACK:
+                    first = arg_first_slice.setdefault(arg_vvar.varid, (offset, size))
+                    if first != (offset, size):
+                        multi_slice_stack_args.add(arg_vvar.varid)
 
         state = RewritingState(
             AILCodeLocation(node.addr, node.idx, 0, node.addr),
@@ -317,7 +325,8 @@ class RewritingAnalysis:
                     (arg_offset := arg_offset_by_varid[arg_vvar.varid]) <= offset
                     and offset + size <= arg_offset + arg_vvar.size
                     and (
-                        arg_extern_coverage[arg_vvar.varid] >= set(range(arg_offset, arg_offset + arg_vvar.size))
+                        arg_vvar.varid in multi_slice_stack_args
+                        or arg_extern_coverage[arg_vvar.varid] >= set(range(arg_offset, arg_offset + arg_vvar.size))
                         # a register argument resized to a slice that does not start at the register would no longer
                         # be the argument the prototype names (movmskpd reads only the high half of a double)
                         or (category == VirtualVariableCategory.REGISTER and offset != arg_offset)

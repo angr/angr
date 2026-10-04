@@ -2317,6 +2317,13 @@ class SimCCGoAArch64(SimCCGoAMD64):
     ARG_REG_SANITY_FILTER = True
     STRICT_CALLER_SAVED_MATCH = False
 
+    @classmethod
+    def _match(cls, arch, args, sp_delta, unused_hint=None, extra_pop=None, **kwargs):
+        # BL pushes nothing (sp_delta 0); STACKARG_SP_DIFF is the reserved 0(RSP) slot, not a call-time SP change
+        if sp_delta == 0:
+            sp_delta = cls.STACKARG_SP_DIFF
+        return super()._match(arch, args, sp_delta, unused_hint, extra_pop, **kwargs)
+
 
 class SimCCGoAArch64ABI0(SimCCGoAArch64):
     """

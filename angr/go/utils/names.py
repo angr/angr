@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from angr.ailment.expression import Call, Const
 from angr.utils.go_runtime import normalize_go_func_name
 
@@ -25,3 +27,11 @@ def call_target_name(project, call: Call) -> str | None:
         if sym is not None:
             return sym.name
     return None
+
+
+_CLOSURE_SUFFIX = re.compile(r"\.(?:func|gowrap|deferwrap)\d+(?:\.\d+)*$|-range\d+(?:\.\d+)*$|-fm$")
+
+
+def is_go_closure_name(name: str | None) -> bool:
+    """``pkg.f.func1``, ``pkg.f.gowrap2``, ``pkg.T.M-fm``: bodies that receive a closure context."""
+    return name is not None and _CLOSURE_SUFFIX.search(name) is not None

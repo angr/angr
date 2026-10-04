@@ -226,7 +226,12 @@ class TestGoCorpusStringComparesArm64(_Corpus):
 
 class TestGoCorpusDarwinArm64(_Corpus):
     PATH = DARWIN
-    FUNCS = ("filippo.io/age.(*HybridRecipient).String", "filippo.io/age.(*ScryptIdentity).Unwrap")
+    FUNCS = (
+        "filippo.io/age.(*HybridRecipient).String",
+        "filippo.io/age.(*ScryptIdentity).Unwrap",
+        "filippo.io/age/internal/format.splitArgs",
+        "main.printfToTerminal.func1",
+    )
 
     def test_method_receiver_and_sinks(self):
         text = self.decompile("filippo.io/age.(*HybridRecipient).String")
@@ -244,6 +249,22 @@ class TestGoCorpusDarwinArm64(_Corpus):
             re.MULTILINE,
         )
         assert re.search(r"for \w+ := 0; len\(a1\) > \w+; \w+\+\+ \{", text)
+
+    def test_register_parameters_are_bound(self):
+        # arm64 calls push nothing: the Go ABIInternal convention must still match (it used to print "() int32" and
+        # read x0/x1 as unassigned locals)
+        text = self.decompile("filippo.io/age/internal/format.splitArgs")
+        assert re.search(
+            r"^func filippo\.io/age/internal/format\.splitArgs\(\w+ [^,()]+, \w+ [^,()]+, \w+ [^,()]+\)",
+            text,
+            re.MULTILINE,
+        )
+        assert not re.search(r"^    var .*// x[0-7]$", text, re.MULTILINE), text
+
+    def test_closure_context_is_a_parameter(self):
+        text = self.decompile("main.printfToTerminal.func1")
+        assert re.search(r"^func main\.printfToTerminal\.func1\(ctx \*\w+, ", text, re.MULTILINE), text
+        assert not re.search(r"// x(26|[0-7])$", text, re.MULTILINE), text
 
 
 if __name__ == "__main__":

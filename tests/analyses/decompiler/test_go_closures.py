@@ -41,8 +41,9 @@ class TestClosuresGo127(GoDecompilationTarget):
 
     def test_closure_body_reads_captures_through_ctx(self):
         text = self.texts["main.scaler.func1"]
-        assert "var ctx *struct { F uintptr; X0 int }" in text, text
-        assert "return ctx.X0 * x" in text, text
+        # the context register is a hidden first parameter, not an unassigned local
+        assert self.header(text) == "func main.scaler.func1(ctx *struct { F uintptr; X0 int }, x int) int {", text
+        assert "var ctx" not in text and "return ctx.X0 * x" in text, text
         text = self.texts["main.counter.func1"]
         assert "*ctx.X0 = " in text, text
         assert "field_" not in text
@@ -52,7 +53,9 @@ class TestClosuresGo127(GoDecompilationTarget):
         text = self.texts["main.sortItems"]
         assert "sort.Slice(items, main.sortItems.func1{cap_0: items})" in text, text
         text = self.texts["main.sortItems.func1"]
-        assert "var ctx *struct { F uintptr; cap_0 []main.item }" in text, text
+        assert "func main.sortItems.func1(ctx *struct { F uintptr; cap_0 []main.item }, i int, j int) bool" in text, (
+            text
+        )
         assert "ctx.cap_0[j].score < ctx.cap_0[i].score" in text, text
 
     def test_calls_through_func_values(self):
@@ -85,7 +88,7 @@ class TestClosuresStrippedGo127(GoDecompilationTarget):
 
     def test_closures(self):
         assert re.search(r"return main\.scaler\.func1\{X0: \w+\}", self.texts["main.scaler"])
-        assert "var ctx *struct { F uintptr; X0 int }" in self.texts["main.scaler.func1"]
+        assert "func main.scaler.func1(ctx *struct { F uintptr; X0 int }, " in self.texts["main.scaler.func1"]
         assert re.search(
             r"return main\.counter\.func1\{X0: (\w+)\}, main\.counter\.func2\{X0: \1\}", self.texts["main.counter"]
         )
@@ -101,7 +104,7 @@ class TestStackClosuresConc(GoDecompilationTarget):
     def test_address_capture_is_typed(self):
         assert re.search(r"defer main\.safeDiv\.func1\{cap_0: &\w+\}\(\)", self.texts["main.safeDiv"])
         text = self.texts["main.safeDiv.func1"]
-        assert "var ctx *struct { F uintptr; cap_0 *any }" in text, text
+        assert "func main.safeDiv.func1(ctx *struct { F uintptr; cap_0 *any }) {" in text, text
         assert "field_" not in text and "recover()" in text, text
 
 
