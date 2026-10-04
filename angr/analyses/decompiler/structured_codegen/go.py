@@ -1155,6 +1155,31 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         return reg_vars + stack_vars + mem_vars
 
 
+_GO_REASSOCIABLE = {
+    ("Add", "Add"),
+    ("Add", "Sub"),
+    ("Mul", "Mul"),
+    ("And", "And"),
+    ("Or", "Or"),
+    ("Xor", "Xor"),
+    ("LogicalAnd", "LogicalAnd"),
+    ("LogicalOr", "LogicalOr"),
+}
+
+_GO_CMP_SWAP = {
+    "CmpEQ": "CmpEQ",
+    "CmpNE": "CmpNE",
+    "CmpLT": "CmpGT",
+    "CmpGT": "CmpLT",
+    "CmpLE": "CmpGE",
+    "CmpGE": "CmpLE",
+    "CmpLTs": "CmpGTs",
+    "CmpGTs": "CmpLTs",
+    "CmpLEs": "CmpGEs",
+    "CmpGEs": "CmpLEs",
+}
+
+
 def _go_block_chunks(body, indent_str: str, indent: int, codegen):
     """Render ``{`` body ``}`` with Go's brace placement; an empty body renders as ``{ }``."""
     brace = GoClosingObject("{")
@@ -1332,7 +1357,7 @@ class GoWhileLoop(GoLoop):
 
         yield indent_str, None
         yield "for", self
-        if self.condition is not None:
+        if self.condition is not None and not _go_is_true_const(self.condition):
             yield " ", None
             yield from self.condition.c_repr_chunks()
         yield from _go_block_chunks(self.body, indent_str, indent, self.codegen)
@@ -1366,7 +1391,7 @@ class GoDoWhileLoop(GoLoop):
         yield "\n", None
         if self.body is not None:
             yield from self.body.c_repr_chunks(indent=inner_indent)
-        if self.condition is not None:
+        if self.condition is not None and not _go_is_true_const(self.condition):
             # the loop condition is tested at the end of the body
             yield inner_str, None
             yield "if ", self
@@ -1413,17 +1438,18 @@ class GoForLoop(GoStatement):
         del brace, paren
         yield indent_str, None
         yield "for", self
+        cond = None if _go_is_true_const(self.condition) else self.condition
         if self.initializer is None and self.iterator is None:
-            if self.condition is not None:
+            if cond is not None:
                 yield " ", None
-                yield from self.condition.c_repr_chunks(indent=0)
+                yield from cond.c_repr_chunks(indent=0)
         else:
             yield " ", None
             if self.initializer is not None:
                 yield from self.initializer.c_repr_chunks(indent=0, asexpr=True)
             yield "; ", None
-            if self.condition is not None:
-                yield from self.condition.c_repr_chunks(indent=0)
+            if cond is not None:
+                yield from cond.c_repr_chunks(indent=0)
             yield ";", None
             if self.iterator is not None:
                 yield " ", None
@@ -2521,6 +2547,10 @@ class GoUnaryOp(GoExpression):
     #
 
     def _c_repr_chunks_not(self):
+        negated = self._negated_comparison()
+        if negated is not None:
+            yield from negated.c_repr_chunks()
+            return
         yield "!", self
         if isinstance(self.operand, GoBinaryOp):
             paren = GoClosingObject("(")
@@ -2529,6 +2559,31 @@ class GoUnaryOp(GoExpression):
             yield ")", paren
         else:
             yield from GoExpression._try_c_repr_chunks(self.operand)
+
+    _CMP_NEGATION = {
+        "CmpEQ": "CmpNE",
+        "CmpNE": "CmpEQ",
+        "CmpLT": "CmpGE",
+        "CmpGE": "CmpLT",
+        "CmpLE": "CmpGT",
+        "CmpGT": "CmpLE",
+        "CmpLTs": "CmpGEs",
+        "CmpGEs": "CmpLTs",
+        "CmpLEs": "CmpGTs",
+        "CmpGTs": "CmpLEs",
+    }
+
+    def _negated_comparison(self) -> GoBinaryOp | None:
+        """``!(a != b)`` as ``a == b``; ordered float comparisons keep the ``!`` (NaN)."""
+        cmp = self.operand
+        if not isinstance(cmp, GoBinaryOp) or cmp.collapsed or cmp.op not in self._CMP_NEGATION:
+            return None
+        if cmp.op not in {"CmpEQ", "CmpNE"}:
+            for side in (cmp.lhs, cmp.rhs):
+                ty = unpack_typeref(side.type) if side.type is not None else None
+                if ty is None or isinstance(ty, (SimTypeFloat, SimTypeDouble)):
+                    return None
+        return GoBinaryOp(self._CMP_NEGATION[cmp.op], cmp.lhs, cmp.rhs, tags=cmp.tags, codegen=self.codegen)
 
     def _c_repr_chunks_bitwiseneg(self):
         yield "^", self
@@ -2568,7 +2623,7 @@ class GoBinaryOp(GoExpression):
     Binary operations.
     """
 
-    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
+    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs", "signed")
 
     def __init__(self, op, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
@@ -2576,6 +2631,8 @@ class GoBinaryOp(GoExpression):
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
+        # signedness of Div/Mod; None when unknown
+        self.signed: bool | None = None
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
@@ -2734,9 +2791,11 @@ class GoBinaryOp(GoExpression):
         # operator
         yield op, self
 
-        # rhs
-        if isinstance(self.rhs, GoBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
-            1 if self.op in ["Sub", "Div"] else 0
+        # rhs: Go operators are left-associative, so an equal-precedence rhs needs parentheses unless regrouping is
+        # harmless (a + (b - c), a * (b * c))
+        if isinstance(self.rhs, GoBinaryOp) and (
+            self.op_precedence > self.rhs.op_precedence
+            or (self.op_precedence == self.rhs.op_precedence and (self.op, self.rhs.op) not in _GO_REASSOCIABLE)
         ):
             paren = GoClosingObject("(")
             yield "(", paren
@@ -2767,13 +2826,34 @@ class GoBinaryOp(GoExpression):
         yield from self._c_repr_chunks(" * ")
 
     def _c_repr_chunks_div(self):
-        yield from self._c_repr_chunks(" / ")
+        yield from self._c_repr_chunks_signed_divmod(" / ")
+
+    def _c_repr_chunks_signed_divmod(self, op: str):
+        # Go picks signed or unsigned division from the operand type: cast a mismatching lhs
+        lhs_ty = self.lhs.type
+        if (
+            self.signed is not None
+            and isinstance(self.rhs, GoConstant)
+            and isinstance(lhs_ty, (SimTypeInt, SimTypeChar, SimTypeNum))
+            and lhs_ty.size is not None
+            and getattr(lhs_ty, "signed", None) is (not self.signed)
+        ):
+            cast_ty = self.codegen.default_simtype_from_bits(lhs_ty.size, signed=self.signed)
+            paren = GoClosingObject("(")
+            yield go_type_str(cast_ty), cast_ty
+            yield "(", paren
+            yield from self._try_c_repr_chunks(self.lhs)
+            yield ")", paren
+            yield op, self
+            yield from self._try_c_repr_chunks(self.rhs)
+            return
+        yield from self._c_repr_chunks(op)
 
     def _c_repr_chunks_divmod(self):
         yield from self._c_repr_chunks(" /m ")
 
     def _c_repr_chunks_mod(self):
-        yield from self._c_repr_chunks(" % ")
+        yield from self._c_repr_chunks_signed_divmod(" % ")
 
     def _c_repr_chunks_and(self):
         yield from self._c_repr_chunks(" & ")
@@ -3798,6 +3878,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
         CopyCleanup(self, self.cfunc).run()
         self.cfunc.statements = _StructLiteralCollapser(self).handle(self.cfunc.statements)
+        SingleTripLoops(self, self.cfunc).run()
         ITEHoisting(self, self.cfunc).run()
         NamedFieldRetyping(self, self.cfunc).run()
         self.cfunc.statements = _TypedCopies(self).handle(self.cfunc.statements)
@@ -5205,6 +5286,12 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if isinstance(rhs, GoConstant) and expr.op in {"Shl", "Shr", "Sar", "Rol", "Ror"}:
             # a shift count is a number, never a rune
             rhs.fmt_char = False
+        if expr.op in _GO_CMP_SWAP and isinstance(lhs, GoConstant) and not isinstance(rhs, GoConstant):
+            # `0x10 > x` reads as `x < 0x10`
+            lhs, rhs = rhs, lhs
+            op = _GO_CMP_SWAP[expr.op]
+        else:
+            op = expr.op
         if expr.op.startswith("Cmp"):
             # `x > 0` with a nilable-typed zero on one side and an integer on the other is an integer comparison
             for const, other in ((lhs, rhs), (rhs, lhs)):
@@ -5217,14 +5304,17 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ):
                     const._type = other.type
 
-        return GoBinaryOp(
-            expr.op,
+        r = GoBinaryOp(
+            op,
             lhs,
             rhs,
             tags=expr.tags,
             codegen=self,
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
+        if expr.op in {"Div", "Mod"}:
+            r.signed = expr.signed
+        return r
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         child = self._handle(expr.operand)
@@ -7395,6 +7485,8 @@ def _go_referenced_var(expr):
 
 
 def _go_is_true_const(expr) -> bool:
+    while isinstance(expr, GoTypeCast):
+        expr = expr.expr
     return isinstance(expr, GoConstant) and isinstance(expr.value, int) and expr.value != 0
 
 
@@ -7715,6 +7807,163 @@ class ChannelRangeRecovery(GoStructuredCodeWalker):
                 if _go_var_named(a) and _UseCounter.key(a) == _UseCounter.key(ok) and isinstance(b, GoConstant):
                     return b.value == 0
         return False
+
+
+class _EscapingJumps(GoStructuredCodeWalker):
+    """Finds breaks, continues, gotos and labels that bind to (or jump across) the construct being walked."""
+
+    def __init__(self):
+        self.found = False
+        self._loops = 0
+        self._breakables = 0
+
+    def _nested(self, handler, obj, loop: bool):
+        self._breakables += 1
+        self._loops += loop
+        try:
+            return handler(obj)
+        finally:
+            self._breakables -= 1
+            self._loops -= loop
+
+    def handle_GoForLoop(self, obj):
+        return self._nested(super().handle_GoForLoop, obj, True)
+
+    def handle_GoWhileLoop(self, obj):
+        return self._nested(super().handle_GoWhileLoop, obj, True)
+
+    def handle_GoDoWhileLoop(self, obj):
+        return self._nested(super().handle_GoDoWhileLoop, obj, True)
+
+    def handle_GoRangeLoop(self, obj):
+        return self._nested(super().handle_GoRangeLoop, obj, True)
+
+    def handle_GoSwitchCase(self, obj):
+        return self._nested(super().handle_GoSwitchCase, obj, False)
+
+    def handle_GoTypeSwitch(self, obj):
+        return self._nested(super().handle_GoTypeSwitch, obj, False)
+
+    def handle_GoSelect(self, obj):
+        return self._nested(super().handle_GoSelect, obj, False)
+
+    def handle_GoBreak(self, obj):
+        self.found |= self._breakables == 0
+        return obj
+
+    def handle_GoIfBreak(self, obj):
+        self.found |= self._breakables == 0
+        return obj
+
+    def handle_GoContinue(self, obj):
+        self.found |= self._loops == 0
+        return obj
+
+    def handle_GoGoto(self, obj):
+        self.found = True
+        return obj
+
+    def handle_GoLabel(self, obj):
+        self.found = True
+        return obj
+
+
+_CMP_EVAL = {
+    "CmpLT": lambda a, b: a < b,
+    "CmpLTs": lambda a, b: a < b,
+    "CmpLE": lambda a, b: a <= b,
+    "CmpLEs": lambda a, b: a <= b,
+    "CmpGT": lambda a, b: a > b,
+    "CmpGTs": lambda a, b: a > b,
+    "CmpGE": lambda a, b: a >= b,
+    "CmpGEs": lambda a, b: a >= b,
+    "CmpEQ": lambda a, b: a == b,
+    "CmpNE": lambda a, b: a != b,
+}
+_CMP_FLIP = {"CmpLT": "CmpGT", "CmpLE": "CmpGE", "CmpGT": "CmpLT", "CmpGE": "CmpLE"}
+
+
+class SingleTripLoops(GoStructuredCodeWalker):
+    """
+    ``for i = 0; i <= 0; i = 1 { body }`` runs its body exactly once (a range over a one-element array, e.g. an
+    inlined ``append`` of one value): emit the body (and the iterator) without the loop. The flag variable must be
+    written only by the initializer and unconditional constant stores, and read only by the condition.
+    """
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._counts = None
+
+    def run(self):
+        counter = _UseCounter()
+        counter.handle(self._cfunc.statements)
+        self._counts = counter.counts
+        self._cfunc.statements = self.handle(self._cfunc.statements)
+
+    def handle_GoStatements(self, obj):
+        out = []
+        for stmt in obj.statements:
+            stmt = self.handle(stmt)
+            if isinstance(stmt, GoForLoop):
+                replaced = self._try_collapse(stmt)
+                if replaced is not None:
+                    out.extend(replaced)
+                    continue
+            out.append(stmt)
+        obj.statements = out
+        return obj
+
+    @staticmethod
+    def _const_store(stmt, key):
+        if (
+            isinstance(stmt, GoAssignment)
+            and _go_var_named(stmt.lhs)
+            and _UseCounter.key(stmt.lhs) == key
+            and isinstance(stmt.rhs, GoConstant)
+            and type(stmt.rhs.value) is int
+        ):
+            return stmt.rhs.value
+        return None
+
+    def _try_collapse(self, loop: GoForLoop):
+        cond = loop.condition
+        if not (isinstance(cond, GoBinaryOp) and cond.op in _CMP_EVAL):
+            return None
+        op = cond.op
+        if _go_var_named(cond.lhs) and isinstance(cond.rhs, GoConstant):
+            var, bound = cond.lhs, cond.rhs.value
+        elif _go_var_named(cond.rhs) and isinstance(cond.lhs, GoConstant):
+            var, bound = cond.rhs, cond.lhs.value
+            op = _CMP_FLIP.get(op.rstrip("s"), op.rstrip("s"))
+        else:
+            return None
+        if type(bound) is not int:
+            return None
+        key = _UseCounter.key(var)
+        init = self._const_store(loop.initializer, key) if loop.initializer is not None else None
+        if init is None or not _CMP_EVAL[op](init, bound):
+            return None
+
+        body = _go_stmt_list(loop.body)
+        stores = [st for st in body if self._const_store(st, key) is not None]
+        iter_store = self._const_store(loop.iterator, key) if loop.iterator is not None else None
+        exits = [self._const_store(st, key) for st in stores]
+        if iter_store is not None:
+            exits.append(iter_store)
+        if not exits or any(_CMP_EVAL[op](v, bound) for v in exits):
+            return None
+        # the variable occurs only in the initializer, the condition and the stores
+        if self._counts[key] != 2 + len(exits):
+            return None
+        jumps = _EscapingJumps()
+        jumps.handle(loop.body)
+        if jumps.found:
+            return None
+        kept = [st for st in body if all(st is not s for s in stores)]
+        if loop.iterator is not None and iter_store is None:
+            kept.append(loop.iterator)
+        return kept
 
 
 class _VarSubstituter(GoStructuredCodeWalker):

@@ -288,6 +288,57 @@ class TestBasicsGo122AArch64(GoDecompilationTarget):
         assert "for i < len(s) {" in self.texts["main.count"] or "range s" in self.texts["main.count"]
 
 
+class TestCIsmsGo127AArch64(GoDecompilationTarget):
+    BINARY = go_binary("go1.27.1", "basics", arch="aarch64")
+    FUNCS = ("main.divmod", "main.parse", "main.fib", "main.manhattan")
+
+    def test_no_frame_saves(self):
+        # the prologue's x30/x29 stores are not program state
+        for name in ("main.divmod", "main.parse", "main.fib"):
+            text = self.texts[name]
+            assert "// x30" not in text and "[bp+0x0]" not in text, text
+
+    def test_arithmetic_and_comparisons(self):
+        divmod = self.texts["main.divmod"]
+        assert "return a / b, a - b * (a / b)" in divmod, divmod
+        parse = self.texts["main.parse"]
+        assert "} else if num < 0 {" in parse, parse
+        assert "if n > 1 {" in self.texts["main.fib"], self.texts["main.fib"]
+        manhattan = self.texts["main.manhattan"]
+        assert "if p.x >= 0 {" in manhattan and "0 <=" not in manhattan, manhattan
+
+
+class TestDivisionByConstantsGo127(GoDecompilationTarget):
+    BINARY = go_binary("go1.27.1", "compare")
+    FUNCS = ("main.digits",)
+
+    def test_signed_modulo_and_unsigned_division(self):
+        digits = self.texts["main.digits"]
+        assert re.search(r"^\s+\w+ := n % 8 \+ 1$", digits, re.MULTILINE), digits
+        assert re.search(r"uint64\(\w+\) / 10$", digits, re.MULTILINE), digits
+        assert ">> 63" not in digits, digits
+
+
+class TestEndlessLoopGo127(GoDecompilationTarget):
+    BINARY = go_binary("go1.27.1", "basics")
+    FUNCS = ("os.ignoringEINTR",)
+
+    def test_endless_loop_has_no_condition(self):
+        text = self.texts["os.ignoringEINTR"]
+        assert re.search(r"^\s+for \{$", text, re.MULTILINE), text
+        assert "for 1" not in text, text
+
+
+class TestSignedHalvingGo127(GoDecompilationTarget):
+    BINARY = go_binary("go1.27.1", "typeswitch")
+    FUNCS = ("fmt.(*pp).fmtComplex",)
+
+    def test_signed_division_by_two(self):
+        text = self.texts["fmt.(*pp).fmtComplex"]
+        assert re.search(r"^\s+\w+ := size / 2$", text, re.MULTILINE), text
+        assert ">> 63" not in text, text
+
+
 class TestLangdetectWindowsPE(GoDecompilationTarget):
     BINARY = os.path.join(test_location, "x86_64", "windows", "langdetect_go.exe")
     FUNCS = ("main.fibonacci", "main.main")
