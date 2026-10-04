@@ -4829,6 +4829,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return v1v == v2v
 
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
+        if stmt.tags.get("fp_exception_probe", False):
+            # the result is dead; the op only raises an FPU exception
+            csrc = self._handle(stmt.src, lvalue=False)
+            void = CTypeCast(csrc.type, SimTypeBottom(label="void"), csrc, codegen=self)
+            return CExpressionStatement(void, tags=stmt.tags, codegen=self)
         if (
             isinstance(stmt.dst, Expr.VirtualVariable)
             and stmt.dst.was_stack

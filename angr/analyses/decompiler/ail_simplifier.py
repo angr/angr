@@ -265,6 +265,26 @@ class VVarToCondJumpRewriter(AILBlockRewriter):
         return super().walk_statement(stmt, block)
 
 
+class _FPOpOriginFinder(AILBlockViewer):
+    """
+    Collect the origins (ins_addr, vex_stmt_idx) of FP BinaryOps that come from a given set of origins.
+    """
+
+    def __init__(self, origins: set[tuple[int | None, int | None]]) -> None:
+        super().__init__()
+        self.origins = origins
+        self.found: set[tuple[int | None, int | None]] = set()
+
+    def _handle_expr(
+        self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> None:
+        if isinstance(expr, BinaryOp) and expr.floating_point:
+            origin = (expr.tags.get("ins_addr"), expr.tags.get("vex_stmt_idx"))
+            if origin in self.origins:
+                self.found.add(origin)
+        super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
@@ -2405,6 +2425,8 @@ class AILSimplifier(Analysis):
             assert codeloc.block_addr is not None and codeloc.stmt_idx is not None
             stmts_to_remove_per_block[codeloc.block_addr, codeloc.block_idx].add(codeloc.stmt_idx)
 
+        fp_probes = self._find_fp_exception_probes(blocks, stmts_to_remove_per_block)
+
         simplified = False
         changed_block_keys: set[tuple[int, int | None]] = set()
 
@@ -2521,6 +2543,11 @@ class AILSimplifier(Analysis):
                                 else:
                                     # we can't change this stmt at all because it has an expression with Calls inside
                                     pass
+                        elif (block.addr, block.idx, idx) in fp_probes:
+                            # keep the FP op for the exception it raises
+                            if not stmt.tags.get("fp_exception_probe", False):
+                                stmt = Assignment(stmt.idx, stmt.dst, stmt.src, **stmt.tags, fp_exception_probe=True)
+                                simplified = True
                         else:
                             # no calls. remove it
                             new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
@@ -2559,6 +2586,61 @@ class AILSimplifier(Analysis):
         self._assignments_to_remove.clear()
 
         return simplified, changed_block_keys
+
+    @staticmethod
+    def _is_fp_exception_probe(stmt: Statement) -> bool:
+        """
+        A register write of an FP arithmetic op on constants only (e.g., 1.0 / 0.0) that originates at its own
+        instruction. When dead, such an op only exists to raise an FPU exception, so it must not be removed.
+        """
+        if stmt.tags.get("fp_exception_probe", False):
+            return True
+        if not (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg):
+            return False
+        src = stmt.src
+        return (
+            isinstance(src, BinaryOp)
+            and src.floating_point
+            and src.op in {"Add", "Sub", "Mul", "Div"}
+            and all(isinstance(op, Const) and isinstance(op.value, float) for op in src.operands)
+            # a copy propagated from another instruction is not the original op
+            and src.tags.get("ins_addr") == stmt.tags.get("ins_addr")
+        )
+
+    def _find_fp_exception_probes(
+        self, blocks: dict[Address, Block], stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]]
+    ) -> set[tuple[int, int | None, int]]:
+        candidates: dict[tuple[int, int | None, int], Assignment] = {}
+        for (block_addr, block_idx), stmt_ids in stmts_to_remove_per_block.items():
+            block = blocks[(block_addr, block_idx)]
+            for stmt_idx in stmt_ids:
+                stmt = block.statements[stmt_idx]
+                if self._is_fp_exception_probe(stmt):
+                    assert isinstance(stmt, Assignment)
+                    candidates[(block_addr, block_idx, stmt_idx)] = stmt
+        if not candidates:
+            return set()
+
+        # the op is not a probe if its result was propagated into a surviving statement. propagated copies may be
+        # rebuilt with new atom ids, so match them by their origin.
+        origins = {
+            (stmt.src.tags.get("ins_addr"), stmt.src.tags.get("vex_stmt_idx"))
+            for stmt in candidates.values()
+            if not stmt.tags.get("fp_exception_probe", False)
+        }
+        finder = _FPOpOriginFinder(origins)
+        if origins:
+            for block_key, block in blocks.items():
+                stmt_ids = stmts_to_remove_per_block.get(block_key, set())
+                for stmt_idx, stmt in enumerate(block.statements):
+                    if stmt_idx not in stmt_ids:
+                        finder.walk_statement(stmt, block=block, stmt_idx=stmt_idx)
+        return {
+            key
+            for key, stmt in candidates.items()
+            if stmt.tags.get("fp_exception_probe", False)
+            or (stmt.src.tags.get("ins_addr"), stmt.src.tags.get("vex_stmt_idx")) not in finder.found
+        }
 
     @staticmethod
     def _get_vvar_used_by(

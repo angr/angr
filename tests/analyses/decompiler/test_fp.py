@@ -1582,6 +1582,37 @@ class TestX87Fptan:
         assert re.search(r"return .*\? tan\(a0\) : a0\) \+ a1;", text), text
 
 
+class TestX87ExceptionProbe:
+    """A dead FP op on constants (fldz; fld1; fdivrp; fstp st0) only raises an FPU exception and is kept as an
+    expression statement; a used one is not duplicated (x87_fp_probe_i386.o)."""
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "x87_fp_probe_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True)
+
+    def _text(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        return dec.codegen.text
+
+    def test_dead_division_kept(self):
+        text = self._text("fp_raise")
+        assert re.search(r"if \(a0 & 4\)\s+\(void\)\(1\.0 / 0\.0\);", text), text
+        assert text.count("1.0 / 0.0") == 1, text
+        for flag in (1, 8, 16, 32):
+            assert f"if (a0 & {flag})" in text, text
+
+    def test_used_division_not_duplicated(self):
+        for name in ("fp_div_used", "fp_div_stored"):
+            text = self._text(name)
+            assert "(void)(" not in text, text
+            assert text.count("1.0 / 0.0") == 1, text
+
+
 class TestX87StackArgs:
     """Functions that take their arguments on the x87 stack and pop them (MSVC _CI* and _ftol helpers) list them in
     their prototypes, and their callers pass them and keep the st(0) results (x87_stack_args_i386.o)."""
