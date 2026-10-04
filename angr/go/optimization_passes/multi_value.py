@@ -130,8 +130,6 @@ class GoCallResultBinder(OptimizationPass):
         self._names: list[str] = list(cc_cls.ARG_REGS)
         self._regs: list[int] = [arch.registers[r][0] for r in self._names]
         self._index = {off: i for i, off in enumerate(self._regs)}
-        sigs = self.kb.go_signatures
-        own_results_known = not sigs.results_guessed(self._func)
         self._widths: dict = {}
 
         # backward liveness of result registers; a call kills all of them
@@ -141,7 +139,7 @@ class GoCallResultBinder(OptimizationPass):
         while worklist and rounds < 50 * len(live_in):
             rounds += 1
             block = worklist.pop()
-            state = self._transfer(block, self._live_out(block, live_in), own_results_known)
+            state = self._transfer(block, self._live_out(block, live_in))
             if state != live_in[block]:
                 live_in[block] = state
                 worklist.extend(self._graph.predecessors(block))
@@ -150,7 +148,7 @@ class GoCallResultBinder(OptimizationPass):
         changed = False
         for block in list(self._graph.nodes):
             sites = []
-            self._transfer(block, self._live_out(block, live_in), own_results_known, sites=sites)
+            self._transfer(block, self._live_out(block, live_in), sites=sites)
             for idx, live in sites:
                 stmt = block.statements[idx]
                 new = self._bind(stmt, live, applier)
@@ -184,7 +182,7 @@ class GoCallResultBinder(OptimizationPass):
             widths = self._widths[key] = v.widths
         return widths
 
-    def _transfer(self, block: Block, live: _Live, own_results_known: bool, sites: list | None = None) -> _Live:
+    def _transfer(self, block: Block, live: _Live, sites: list | None = None) -> _Live:
         for idx in range(len(block.statements) - 1, -1, -1):
             stmt = block.statements[idx]
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
@@ -214,9 +212,9 @@ class GoCallResultBinder(OptimizationPass):
                     live = _union(live, self._reads(stmt.dst))
                 live = _union(live, self._reads(stmt.src))
             elif isinstance(stmt, Return):
-                if own_results_known:
-                    for e in stmt.ret_exprs or ():
-                        live = _union(live, self._reads(e))
+                # `return f()`: the results pass through (as many words as the prototype returns so far)
+                for e in stmt.ret_exprs or ():
+                    live = _union(live, self._reads(e))
             else:
                 v = _RegReads(self._word_of)
                 v.walk_statement(stmt)

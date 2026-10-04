@@ -330,7 +330,9 @@ class GoPrototypeInference(OptimizationPass):
         if len(wanted) != span or len(got) != span:
             return None
         if all(isinstance(g, VirtualVariable) and g.varid == v for g, v in zip(got, wanted)):
-            return go_type_repr(ty), span
+            repr_ = go_type_repr(ty)
+            # "uintptr" spells a word nobody typed (a guessed or caller-bound result): no evidence
+            return (repr_, span) if repr_ != "uintptr" else None
         if isinstance(ty, GoSimTypeSlice) and span == 3:
             return self._classify_resliced(leaves, i, combo, word, ty)
         return None
