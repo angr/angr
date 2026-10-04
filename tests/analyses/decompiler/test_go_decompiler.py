@@ -611,8 +611,11 @@ class TestSpilledHeadersGo127Stripped(GoDecompilationTarget):
         assert re.search(r"return \w+, \S+$", text, re.MULTILINE)
         returns = [line for line in text.splitlines() if line.strip().startswith("return ")]
         assert returns and all("{" not in line and "unsafe.Pointer" not in line for line in returns)
-        # the fields the append reads are the variable itself
-        assert re.search(r"append\(\w+, \w+\.\.\.\)", text)
+        # the fields the append reads are the variable itself, and the grown header is written back in one piece
+        assert re.search(r"(\w+) = append\(\1, \w+\.\.\.\)", text)
+        assert not re.search(r"\w+\.(ptr|len|cap) = ", text)
+        # zeroed word by word (one word plus a 16-byte store) before its address escapes
+        assert re.search(r"^\s+\w+ = nil$", text, re.MULTILINE)
 
     def test_string_header_is_one_variable(self):
         text = self.texts["main.joined"]
@@ -677,8 +680,9 @@ class TestHeaderWordPinsGo127Stripped(unittest.TestCase):
         print_decompilation_result(dec)
         assert pinned and all(go_type_repr(t) == "int" for t in pinned.values())
         text = dec.codegen.text
-        # the slice header is returned (or fed to the folded append) with its len and cap words as plain ints
-        assert re.search(r"return (?:append\()?\[\]int\{ptr: \w+, len: \w+, cap: \w+\}", text)
+        # the slice header is returned (or fed to the folded append) with its len and cap words as plain ints, or
+        # is the parameter itself
+        assert re.search(r"return (?:append\()?(?:\[\]int\{ptr: \w+, len: \w+, cap: \w+\}|a0, a1\))", text)
         assert "(*int8)(&" not in text
         assert self.header(text).endswith(") []int {")
 
@@ -753,3 +757,26 @@ class TestInferredResultWords(unittest.TestCase):
         again = GoInferredSignature()
         again.merge(dict(rec)["params"], dict(rec)["results"], dict(rec)["caller_results"], dict(rec)["result_words"])
         assert again.result_words == 3
+
+
+class TestAppendAbi0Go127(GoDecompilationTarget):
+    """
+    386 (ABI0): growslice returns its slice in one stack-held value whose words are read back through memory. The
+    appended element stored past the growslice merge is the append's argument, and the grown header is stored back
+    into the receiver's field in one piece.
+    """
+
+    BINARY = go_binary("go1.27.1", "typeswitch", arch="i386")
+    FUNCS = ("fmt.(*buffer).writeByte", "reflect.(*bitVector).append", "strconv.appendQuotedWith")
+
+    def test_appended_element_recovered(self):
+        for name, elem in (("fmt.(*buffer).writeByte", "c"), ("reflect.(*bitVector).append", "0")):
+            text = self.texts[name]
+            assert "not recovered" not in text
+            assert re.search(rf"= append\(.+, {elem}\)$", text, re.MULTILINE), name
+            # no word-by-word write-back of the grown header
+            assert "cap(" not in text and ".ptr = " not in text, name
+
+    def test_constant_bytes_are_a_string(self):
+        # append(buf, `\x`...) stores both bytes with one 16-bit constant store
+        assert re.search(r'= append\(.+, "\\\\x"\.\.\.\)$', self.texts["strconv.appendQuotedWith"], re.MULTILINE)

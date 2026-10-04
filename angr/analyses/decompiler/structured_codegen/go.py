@@ -4389,7 +4389,10 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # the case where we don't need a cast is handled at the start
         # if we've requested the result be an lvalue we have to do a pointer cast
         # if the value is not a trivial reference we have to do a pointer cast (?)
-        if lvalue or not base_expr:
+        # a string/slice header read out of a scalar field is a reinterpretation, not a conversion: string(x.f)
+        # would convert an int
+        reinterpret = qualifies_for_width_cast(base_type) and isinstance(data_type, (GoSimTypeString, GoSimTypeSlice))
+        if lvalue or not base_expr or reinterpret:
             return GoUnaryOp(
                 "Dereference", GoTypeCast(expr.type, SimTypePointer(data_type), expr, codegen=self), codegen=self
             )
@@ -9421,6 +9424,7 @@ class CopyCleanup:
         if collapser.retyped:
             self._cfunc.statements = _Retyper(collapser.retyped).handle(self._cfunc.statements)
         self._fuse_split_stores(_Scan(self._cfunc))
+        self._fuse_header_writebacks(_Scan(self._cfunc))
         for _ in range(self.MAX_ROUNDS):
             if not self._fold_calls(_Scan(self._cfunc)):
                 break
@@ -9439,6 +9443,18 @@ class CopyCleanup:
                     and isinstance(obj.rhs, GoVariable)
                     and _go_var_named(obj.lhs)
                     and _UseCounter.key(obj.lhs) == _UseCounter.key(obj.rhs)
+                ) or (
+                    # ``s.ptr = s.ptr``: a phi copy of a header word into its own slot
+                    not obj.declares
+                    and isinstance(obj.lhs, GoVariableField)
+                    and isinstance(obj.rhs, GoVariableField)
+                    and not obj.lhs.var_is_ptr
+                    and not obj.rhs.var_is_ptr
+                    and obj.lhs.field.field == obj.rhs.field.field
+                    and obj.lhs.field.offset == obj.rhs.field.offset
+                    and _go_var_named(obj.lhs.variable)
+                    and _go_var_named(obj.rhs.variable)
+                    and _UseCounter.key(obj.lhs.variable) == _UseCounter.key(obj.rhs.variable)
                 ):
                     dead.append(obj)
                 return obj
@@ -9709,6 +9725,119 @@ class CopyCleanup:
                         continue
                 i += 1
 
+    # -- rule 4b: a header written back word by word from another value of its type
+    def _fuse_header_writebacks(self, scan: _Scan) -> None:
+        """``s.cap = cap(t); s.ptr = t.ptr; s.len = len(t)`` (any order, repeats allowed) -> ``s = t``."""
+
+        def header(var):
+            ty = unpack_typeref(var.type) if _go_var_named(var) else None
+            if isinstance(ty, GoSimTypeSlice):
+                return ty, {"ptr", "len", "cap"}
+            if isinstance(ty, GoSimTypeString):
+                return ty, {"ptr", "len"}
+            return None
+
+        def word_copy(stmt):
+            if not (isinstance(stmt, GoAssignment) and not stmt.declares):
+                return None
+            lhs, rhs = stmt.lhs, stmt.rhs
+            if (
+                isinstance(lhs, GoVariableField)
+                and not lhs.var_is_ptr
+                and header(lhs.variable) is not None
+                and (
+                    (isinstance(rhs, GoConstant) and isinstance(rhs.value, int))
+                    or (
+                        lhs.field.field == "ptr"
+                        and isinstance(rhs, GoUnaryOp)
+                        and rhs.op == "Reference"
+                        and _go_var_named(rhs.operand)
+                    )
+                )
+            ):
+                # literal header words: ``s = nil`` when all are zero, ``s = arr[:n]`` for (&arr, n, n)
+                return _UseCounter.key(lhs.variable), None, lhs.field.field
+            if isinstance(lhs, GoVariable) and isinstance(rhs, GoVariable) and header(lhs) and header(rhs):
+                # an earlier fusion's result: the stray word copies after it still go
+                if _UseCounter.key(lhs) == _UseCounter.key(rhs):
+                    return None
+                return _UseCounter.key(lhs), _UseCounter.key(rhs), "*"
+            if not isinstance(rhs, GoVariableField) or rhs.var_is_ptr or header(rhs.variable) is None:
+                return None
+            if isinstance(lhs, GoVariableField):
+                if lhs.field.field != rhs.field.field or lhs.var_is_ptr or header(lhs.variable) is None:
+                    return None
+                dst, field = lhs.variable, lhs.field.field
+            elif _go_var_named(lhs):
+                # ``s = t.ptr``: a phi copy of one word into its slot of ``s`` that lost the field on the way; only
+                # taken after a field copy of ``s`` in the same run
+                dst, field = lhs, ("~", rhs.field.field)
+            else:
+                return None
+            if _UseCounter.key(dst) == _UseCounter.key(rhs.variable):
+                return None
+            return _UseCounter.key(dst), _UseCounter.key(rhs.variable), field
+
+        for stmts in list(scan.scopes.values()):
+            i = 0
+            while i < len(stmts):
+                first = word_copy(stmts[i])
+                if first is None or isinstance(first[2], tuple):
+                    i += 1
+                    continue
+                run = [stmts[i]]
+                fields = {first[2]}
+                j = i + 1
+                while j < len(stmts):
+                    nxt = word_copy(stmts[j])
+                    if nxt is None or nxt[:2] != first[:2]:
+                        break
+                    run.append(stmts[j])
+                    fields.add(nxt[2])
+                    j += 1
+                if first[2] == "*" or "*" in fields:
+                    if first[2] == "*" and len(run) > 1:
+                        # words of t copied again after ``s = t``
+                        self._remove(run[1:])
+                    i = j
+                    continue
+                fields = {f[1] if isinstance(f, tuple) else f for f in fields}
+                dst = run[0].lhs.variable
+                dst_ty, dst_fields = header(dst)
+                if first[1] is None:
+                    value = self._literal_header(run, dst_ty) if fields == dst_fields else None
+                    if value is not None:
+                        self._replace_stmt(run[0], GoAssignment(dst, value, tags=run[0].tags, codegen=self._codegen))
+                        self._remove(run[1:])
+                    i = j
+                    continue
+                src = run[0].rhs.variable
+                src_ty, _ = header(src)
+                if fields == dst_fields and type(dst_ty) is type(src_ty) and dst_ty.size == src_ty.size:
+                    fused = GoAssignment(dst, src, tags=run[0].tags, codegen=self._codegen)
+                    self._replace_stmt(run[0], fused)
+                    self._remove(run[1:])
+                i = j
+
+    def _literal_header(self, run, ty):
+        """The slice a run of literal header word writes spells: nil, or ``arr[:n]`` over an array variable."""
+        if not isinstance(ty, GoSimTypeSlice):
+            return None
+        words = {}
+        for stmt in run:
+            words.setdefault(stmt.lhs.field.field, stmt.rhs)
+        consts = {f: w.value for f, w in words.items() if isinstance(w, GoConstant)}
+        if len(consts) == 3 and not any(consts.values()):
+            return GoConstant(0, ty, codegen=self._codegen)
+        ptr = words.get("ptr")
+        n = consts.get("len")
+        if not isinstance(ptr, GoUnaryOp) or n is None or consts.get("cap") != n or n <= 0:
+            return None
+        # the backing array starts at that variable (spelled like the builtin rewriter's arr[:n])
+        arr = ptr.operand
+        high = GoConstant(n, SimTypeInt(), codegen=self._codegen)
+        return GoFunctionCall("[:]", None, [arr, high], tags={"go_slice": "[:j]"}, codegen=self._codegen)
+
     def _replace_stmt(self, old, new):
         class _Replacer(GoStructuredCodeWalker):
             def handle_GoStatements(inner, obj):
@@ -9950,6 +10079,12 @@ class ShortDeclarations:
             for src in self._sources(stmt):
                 counter.handle(src)
             if counter.counts[key]:
+                continue
+            # ``x := nil`` does not type-check
+            if any(
+                isinstance(src, GoConstant) and src.value == 0 and _go_is_nilable(src.type)
+                for src in self._sources(stmt)
+            ):
                 continue
             candidates[key] = loc
         # a statement declares only when every variable it assigns is fresh there

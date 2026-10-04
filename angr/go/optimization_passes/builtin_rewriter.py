@@ -14,6 +14,7 @@ from angr.ailment.expression import (
     Convert,
     Expression,
     Extract,
+    Insert,
     Load,
     Phi,
     StringLiteral,
@@ -466,6 +467,8 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                     if (
                         isinstance(stmt, Assignment)
                         and isinstance(stmt.dst, VirtualVariable)
+                        # an address parked in a stack slot is read through memory (a closure capturing &s)
+                        and not (stmt.dst.was_stack and isinstance(stmt.src, UnaryOp) and stmt.src.op == "Reference")
                         and not isinstance(stmt.src, (Call, Phi))
                         and counts[stmt.dst.varid] <= 1
                     ):
@@ -1293,8 +1296,22 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _match_growslice(self, block: Block) -> _Growth | None:
         call_stmt = None
-        for stmt in block.statements:
-            if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
+        for stmt in list(block.statements):
+            if (
+                isinstance(stmt, SideEffectStatement)
+                and isinstance(stmt.expr, Call)
+                and self.callee_name(stmt.expr) in _GROWSLICE_NAMES
+            ):
+                stmt = self._bind_stack_result(block, stmt)
+                if stmt is None:
+                    return None
+            inserted = _inserted_call(stmt)
+            if inserted is not None and self.callee_name(inserted[0]) in _GROWSLICE_NAMES:
+                # ABI0: the result lands inside a larger stack region
+                if call_stmt is not None:
+                    return None
+                call_stmt = stmt
+            elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
                 if call_stmt is not None or self.callee_name(stmt.src) not in _GROWSLICE_NAMES:
                     return None
                 call_stmt = stmt
@@ -1304,9 +1321,13 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                     return None
             elif not isinstance(stmt, (Label, Jump)):
                 return None
-        if call_stmt is None or not isinstance(call_stmt.dst, VirtualVariable) or not call_stmt.dst.reg_vvars:
+        if call_stmt is None or not isinstance(call_stmt.dst, VirtualVariable):
             return None
-        args = list(call_stmt.src.args or [])
+        call, roff = _inserted_call(call_stmt) or (call_stmt.src, 0)
+        words = self._result_words(call_stmt.dst, roff)
+        if _PTR not in words:
+            return None
+        args = list(call.args or [])
         if len(args) not in (5, 7):
             return None
         old_ptr, new_len, old_cap, num, et = args[:5]
@@ -1324,8 +1345,9 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return None
         ws = self.project.arch.bytes
         g = _Growth(block, call_stmt, base, count, num, et, old_len, new_len, self.type_size(et) or ws)
-        g.ptrs = [call_stmt.dst.reg_vvars[0]]
-        g.len_new = [call_stmt.dst.reg_vvars[1], self.values.resolve(new_len)]
+        g.call, g.roff = call, roff
+        g.ptrs = list(words[_PTR])
+        g.len_new = [*words.get(self._len_off, ()), self.values.resolve(new_len)]
         g.len_old = [self.values.resolve(old_len)]
         self._match_diamond(g, base, old_cap, new_len)
         if g.join is not None:
@@ -1342,17 +1364,15 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 if grown_side is None or old_side is None:
                     continue
                 grown_side = self.values.resolve(grown_side)
-                grown_hit = (
-                    self.values.combo_of.get(grown_side.varid) if isinstance(grown_side, VirtualVariable) else None
-                )
-                if grown_hit is None or grown_hit[0].varid != call_stmt.dst.varid:
+                grown_off = self._result_offset(grown_side, call_stmt.dst, roff)
+                if grown_off is None:
                     if self._is_alias(grown_side, g.len_old) and self._is_alias(old_side, g.len_old):
                         g.len_old.append(dst)
                     continue
                 old_piece = self.values.piece(old_side, base)
-                if grown_hit[1] == _PTR and old_piece == _PTR:
+                if grown_off == _PTR and old_piece == _PTR:
                     g.ptrs.append(dst)
-                elif grown_hit[1] == self._len_off and self.values.same(old_side, new_len):
+                elif grown_off == self._len_off and self.values.same(old_side, new_len):
                     g.len_new.append(dst)
         self._match_elements(g)
         if g.elems is None and g.src is None:
@@ -1360,6 +1380,90 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             for dst, _ in g.phis.values():
                 self.values.aliases.pop(dst.varid, None)
         return g
+
+    def _bind_stack_result(self, block: Block, stmt: SideEffectStatement) -> Assignment | None:
+        """
+        ABI0: a growslice whose result SSA left unbound (the callee writes it into the caller's frame) is read back
+        right after the call from a stack variable nothing defines; that variable is the call's result.
+        """
+        size = self._slice_bits // 8
+        succs = list(self._graph.successors(block))
+        if len(succs) != 1:
+            return None
+        found = None
+        for st in succs[0].statements:
+            if not (isinstance(st, Assignment) and isinstance(st.dst, VirtualVariable)):
+                continue
+            src = st.src
+            hit = extract_piece(src)
+            var = hit[0] if hit is not None else None
+            if var is None and isinstance(src, Load):
+                base, _ = _addr_and_offset(src.addr)
+                if isinstance(base, UnaryOp) and base.op == "Reference" and isinstance(base.operand, VirtualVariable):
+                    var = base.operand
+            if (
+                var is None
+                or not var.was_stack
+                or var.size != size
+                or var.varid in self.values.defs
+                or (found is not None and found.varid != var.varid)
+            ):
+                continue
+            found = var
+        if found is None:
+            return None
+        bound = Assignment(stmt.idx, found, stmt.expr, **stmt.tags)
+        block.statements = [bound if st is stmt else st for st in block.statements]
+        self.values.defs[found.varid] = stmt.expr
+        return bound
+
+    def _result_words(self, dst: VirtualVariable, roff: int = 0) -> dict[int, list[Expression]]:
+        """
+        byte offset -> the expressions holding that word of a call result (combo registers, or ABI0 extracts of the
+        stack variable holding it at byte ``roff``).
+        """
+        out: dict[int, list[Expression]] = {}
+        if dst.reg_vvars:
+            off = 0
+            for rv in dst.reg_vvars:
+                out[off] = [rv]
+                off += rv.size
+            return out
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    off = self._word_of(stmt.src, dst, roff)
+                    if off is not None:
+                        out.setdefault(off, []).extend([stmt.dst, stmt.src])
+        return out
+
+    def _word_of(self, expr: Expression, dst: VirtualVariable, roff: int = 0) -> int | None:
+        """``Extract(dst, roff + k)`` or ``*(&dst + roff + k)``, a word of a stack-held result -> k."""
+        off = None
+        hit = extract_piece(expr)
+        if hit is not None:
+            off = hit[1] if hit[0].varid == dst.varid else None
+        elif isinstance(expr, Load) and expr.size == self.project.arch.bytes:
+            base, at = _addr_and_offset(expr.addr)
+            if (
+                isinstance(base, UnaryOp)
+                and base.op == "Reference"
+                and isinstance(base.operand, VirtualVariable)
+                and base.operand.varid == dst.varid
+            ):
+                off = at
+        if off is None or not 0 <= off - roff < self._slice_bits // 8:
+            return None
+        return off - roff
+
+    def _result_offset(self, expr: Expression, dst: VirtualVariable, roff: int = 0) -> int | None:
+        """The byte offset of the word of call result ``dst`` that ``expr`` holds."""
+        resolved = self.values.resolve(expr)
+        if isinstance(resolved, VirtualVariable):
+            hit = self.values.combo_of.get(resolved.varid)
+            if hit is not None:
+                return hit[1] if hit[0].varid == dst.varid else None
+        return self._word_of(self.values.expand(expr), dst, roff)
 
     def _old_length(self, new_len, old_cap, num, count: int | None) -> Expression | None:
         """The old length word: ``new_len`` is ``old_len + num``."""
@@ -1454,7 +1558,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         seen = set()
         while cur not in seen:
             seen.add(cur)
-            if self._graph.in_degree(cur) != 1 or not self._copies_only(cur):
+            if self._graph.in_degree(cur) != 1 or not (self._copies_only(cur) or self._clears_buffer(cur)):
                 return None
             succs = list(self._graph.successors(cur))
             if len(succs) != 1:
@@ -1463,6 +1567,21 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
                 return cur
             cur = succs[0]
         return None
+
+    def _clears_buffer(self, block: Block) -> bool:
+        """A block that only zeroes memory (the stack buffer a small append result lives in, go1.25+)."""
+        calls = [st for st in block.statements if find_call(st) is not None]
+        if len(calls) != 1 or not isinstance(calls[0], SideEffectStatement) or not isinstance(calls[0].expr, Call):
+            return False
+        if not all(isinstance(st, (Label, Jump)) or st is calls[0] for st in block.statements):
+            return False
+        call = calls[0].expr
+        if self.callee_name(call) in ("runtime.memclrNoHeapPointers", "runtime.duffzero"):
+            return True
+        if not isinstance(call.target, Const):
+            return False
+        sym = self.project.loader.find_symbol(call.target.value_int, fuzzy=True)
+        return sym is not None and normalize_go_func_name(sym.name) == "runtime.duffzero"
 
     @staticmethod
     def _copies_only(block: Block) -> bool:
@@ -1566,11 +1685,18 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
 
     def _match_elements(self, g: _Growth) -> None:
         window = self._window(g)
+        if g.width == 1 and g.count is not None and g.count > 1 and self._match_text(g, window):
+            return
         found: dict[int, dict[int, tuple[Store, Expression]]] = {}  # element k -> byte offset -> store
         packed: list[tuple[int, Store]] = []  # (byte position in the appended bytes, store)
         for stmt in window:
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
-                if self._match_copy(g, stmt):
+                if self._match_copy(g, stmt, stmt.expr):
+                    return
+                continue
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
+                # the copy's count result is usually dead
+                if self._use_counts()[stmt.dst.varid] <= 1 and self._match_copy(g, stmt, stmt.src):
                     return
                 continue
             if not isinstance(stmt, Store) or g.count is None:
@@ -1631,6 +1757,52 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return
         g.src = StringLiteral(self.manager.next_atom(), text, self._string_bits, **packed[0][1].tags)
         g.stores = [stmt for _, stmt in packed]
+
+    def _match_text(self, g: _Growth, window: list[Statement]) -> bool:
+        """
+        Constant bytes appended to a []byte with (possibly overlapping) wide constant stores past the old end:
+        ``append(b, "..."...)``.
+        """
+        buf: list[int | None] = [None] * g.count
+        stores = []
+        little = self.project.arch.memory_endness == "Iend_LE"
+        for stmt in window:
+            if find_call(stmt) is not None:
+                break
+            if not isinstance(stmt, Store):
+                continue
+            parsed = self._store_offset(stmt.addr, g)
+            if parsed is None:
+                continue
+            kind, pos = parsed
+            if kind == "new":
+                pos += g.count
+            elif kind == "abs":
+                n = _const(g.new_len)
+                if n is None:
+                    return False
+                pos -= n - g.count
+            if pos < 0 or pos + stmt.size > g.count:
+                continue
+            if not (isinstance(stmt.data, Const) and stmt.data.is_int):
+                return False
+            raw = stmt.data.value_int.to_bytes(stmt.size, "little" if little else "big")
+            for i, byte in enumerate(raw):
+                if buf[pos + i] is not None and buf[pos + i] != byte:
+                    return False
+                buf[pos + i] = byte
+            stores.append(stmt)
+        if not stores or any(b is None for b in buf):
+            return False
+        try:
+            text = bytes(buf).decode("utf-8")
+        except UnicodeDecodeError:
+            return False
+        if not _looks_like_text(text):
+            return False
+        g.src = StringLiteral(self.manager.next_atom(), text, self._string_bits, **stores[0].tags)
+        g.stores = stores
+        return True
 
     def _covers(self, pieces: list, size: int, name: str) -> bool:
         """The (offset, size, ...) pieces fill ``size`` bytes, or every field of the struct ``name`` (padding aside)."""
@@ -1697,7 +1869,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         elem_name = self.type_name(g.et) or ""
         ws = self.project.arch.bytes
         if (elem_name == "string" or elem_name.startswith("[]")) and all(at % ws == 0 for at, _ in pieces):
-            value = self.values.whole(g.width, *pieces)
+            value = self.values.whole(g.width, *((v, at) for at, v in pieces))
             if value is None and elem_name == "string" and len(pieces) == 2:
                 value = self.values.literal(pieces[0][1], pieces[1][1])
             if value is not None:
@@ -1734,22 +1906,22 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             **pieces[0][1].tags,
         )
 
-    def _match_copy(self, g: _Growth, stmt: SideEffectStatement) -> bool:
+    def _match_copy(self, g: _Growth, stmt: Statement, call: Call) -> bool:
         """``memmove(end, src, n*w)`` / ``typedslicecopy(T, end, n, src, n)`` after the growth: ``append(s, src...)``."""
-        call = stmt.expr
         name = self.callee_name(call)
         args = list(call.args or [])
+        dst_len = None
         if name == "runtime.memmove" and len(args) == 3:
             dst, src, n = args
             if not self._is_count_bytes(n, g):
                 return False
         elif name == "runtime.typedslicecopy" and len(args) == 5:
-            _, dst, _, src, n = args
+            _, dst, dst_len, src, n = args
             if not self._is_num(n, g):
                 return False
         else:
             return False
-        if not self._is_end(dst, g):
+        if not self._is_end(dst, g) and not (dst_len is not None and self._is_tail(dst, dst_len, g)):
             return False
         value = self.values.slice(src, g.num)
         if value is None:
@@ -1757,11 +1929,34 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         g.src, g.stores = value, [stmt]
         return True
 
+    def _is_tail(self, dst, dst_len, g: _Growth) -> bool:
+        """``copy(s[x:newLen], t)``: ``x`` is the old length when ``newLen`` was computed as ``x + n`` by other means."""
+        e = self.values.expand(dst_len)
+        if not (isinstance(e, BinaryOp) and e.op == "Sub" and self._is_alias(e.operands[0], g.len_new)):
+            return False
+        old = self.values.resolve(e.operands[1])
+        g.len_old.append(old)
+        if self._is_end(dst, g):
+            if g.base.words is not None and len(g.base.words) == 3:
+                ptr, _, cap = g.base.words
+                g.base = _Base(words=(ptr, old, cap), name=g.base.name)
+            return True
+        g.len_old.pop()
+        return False
+
     def _slice_literal(self, g: _Growth, ptr: Expression, length: Expression) -> Expression:
         return self._struct_of(g.base.name or "[]byte", [(0, ptr), (self.project.arch.bytes, length)])
 
     def _wide_source(self, g: _Growth, data: Expression) -> Expression | None:
         data = self.values.expand(data)
+        if isinstance(data, Const) and data.is_int and g.width == 1:
+            # bytes of a short constant string stored at once: append(b, "..."...)
+            raw = data.value_int.to_bytes(g.count, "little" if self.project.arch.memory_endness == "Iend_LE" else "big")
+            with contextlib.suppress(UnicodeDecodeError):
+                text = raw.decode("utf-8")
+                if _looks_like_text(text):
+                    return StringLiteral(self.manager.next_atom(), text, self._string_bits, **data.tags)
+            return None
         if isinstance(data, Load):
             count = Const(self.manager.next_atom(), g.count, self.project.arch.bits)
             return Call(
@@ -1945,28 +2140,47 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         return phis
 
     def _apply_append(self, g: _Growth) -> list[Block]:
-        call = g.call_stmt.src
+        call = g.call
         s = g.base.value(self.manager, self.project.arch, self._slice_bits // 8, call.tags)
         if s is None:
             return []
         s = self._array_slice(g, s)
         ty = self.type_name(g.et)
         extra = {"go_result_type": f"[]{ty}"} if ty else {}
+        arg_types = None
         if g.src is not None:
             args = [s, g.src]
             extra["go_ellipsis"] = True
+            if ty:
+                arg_types = [f"[]{ty}", "string" if isinstance(g.src, StringLiteral) else f"[]{ty}"]
         elif g.elems is not None:
             args = [s, *g.elems]
+            if ty:
+                # types the element values for type inference (a string loaded as one wide word)
+                arg_types = [f"[]{ty}"] + [ty] * len(g.elems)
         else:
             args = [s]
             num = g.count if g.count is not None else "n"
             extra["go_comment"] = f"{num} element(s) not recovered"
-        new_call = self.builtin(call, "append", args, bits=self._slice_bits, **extra)
+        new_call = self.builtin(call, "append", args, bits=self._slice_bits, arg_types=arg_types, **extra)
+        src = new_call
+        if isinstance(g.call_stmt.src, Insert):
+            ins = g.call_stmt.src
+            src = Insert(ins.idx, ins.base, ins.offset, new_call, ins.endness, **ins.tags)
         g.block.statements = [
-            Assignment(stmt.idx, stmt.dst, new_call, **stmt.tags) if stmt is g.call_stmt else stmt
+            Assignment(stmt.idx, stmt.dst, src, **stmt.tags) if stmt is g.call_stmt else stmt
             for stmt in g.block.statements
         ]
         touched = [g.block]
+        # the copies on the grow path feed phis whose users (the element stores) go away
+        blk = g.block
+        while True:
+            succs = list(self._graph.successors(blk))
+            if len(succs) != 1 or succs[0] is g.join or succs[0] in touched or self._graph.in_degree(succs[0]) != 1:
+                break
+            blk = succs[0]
+            touched.append(blk)
+        self._len_word_copies(g, touched)
         store_ids = {id(st) for st in g.stores}
         for other_block in list(self._graph.nodes):
             if any(id(st) in store_ids for st in other_block.statements):
@@ -1978,6 +2192,52 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             touched += self._fold_header_writeback(g)
         l.debug("Folded growslice at %#x of %s into append", g.block.addr, self._func.name)
         return touched
+
+    def _len_word_copies(self, g: _Growth, blocks: list[Block]) -> None:
+        """
+        A constant new length written next to the result's pointer word (``s.ptr = t.ptr; s.len = 5``) is the
+        result's length word, so the header written back reads as one copy of the result.
+        """
+        n = _const(g.new_len)
+        words = self._result_words(g.call_stmt.dst, g.roff)
+        if n is None or not words.get(_PTR):
+            return
+        ws = self.project.arch.bytes
+        ptr_slots = set()
+        for block in blocks:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_stack
+                    and self._is_alias(stmt.src, words[_PTR])
+                ):
+                    ptr_slots.add(stmt.dst.stack_offset)
+        if not ptr_slots:
+            return
+        if words.get(self._len_off):
+            len_word = words[self._len_off][0]
+        elif not g.call_stmt.dst.reg_vvars:
+            # ABI0: nothing reads the length word back (it is the constant); spell it as a word of the result
+            dst = g.call_stmt.dst
+            at = Const(self.manager.next_atom(), g.roff + self._len_off, self.project.arch.bits)
+            len_word = Extract(self.manager.next_atom(), ws * 8, dst, at, self.project.arch.memory_endness, **dst.tags)
+        else:
+            return
+        for block in blocks:
+            new_stmts = []
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_stack
+                    and stmt.dst.stack_offset - ws in ptr_slots
+                    and _const(stmt.src) == n
+                    and stmt.dst.size == ws
+                ):
+                    stmt = Assignment(stmt.idx, stmt.dst, len_word, **stmt.tags)
+                new_stmts.append(stmt)
+            block.statements = new_stmts
 
     def _array_slice(self, g: _Growth, s: Expression) -> Expression:
         """A constant header over an array (``&arr``/``new([N]T)``, len, cap) is the slicing ``arr[:len]``."""
@@ -2033,18 +2293,30 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
         """``p.s.ptr = t.array; p.s.cap = t.cap; p.s.len = t.len`` after the growth -> ``p.s = t``."""
         ws = self.project.arch.bytes
         result = g.call_stmt.dst
-        pieces = {i * ws: rv.varid for i, rv in enumerate(result.reg_vvars)}
+        pieces = {i * ws for i in range(result.size // ws)}
+        if len(pieces) != 3 or isinstance(g.call_stmt.src, Insert):
+            return []
+
+        def piece_of(data) -> int | None:
+            off = self._result_offset(data, result)
+            if off is not None:
+                return off
+            if self._is_alias(data, g.ptrs):
+                return _PTR
+            if self._is_alias(data, g.len_new):
+                return self._len_off
+            return None
+
         found: dict[int, tuple[Block, Store]] = {}
         for block in self._chain(g):
             for stmt in block.statements:
                 if not isinstance(stmt, Store) or stmt.size != ws:
                     continue
                 addr_base, off = _addr_and_offset(stmt.addr)
-                if addr_base is None or not self.values.resolve(addr_base).likes(g.base.addr):
+                if addr_base is None or not self.values.same(addr_base, g.base.addr):
                     continue
                 k = off - g.base.off
-                data = self.values.resolve(stmt.data)
-                if k in pieces and isinstance(data, VirtualVariable) and data.varid == pieces[k] and k not in found:
+                if k in pieces and k not in found and piece_of(stmt.data) == k:
                     found[k] = (block, stmt)
         if len(found) != len(pieces):
             return []
@@ -2529,6 +2801,7 @@ class _Growth:
         "arms",
         "base",
         "block",
+        "call",
         "call_stmt",
         "cond_block",
         "count",
@@ -2543,6 +2816,7 @@ class _Growth:
         "phis",
         "post_grow",
         "ptrs",
+        "roff",
         "src",
         "stores",
         "width",
@@ -2551,6 +2825,8 @@ class _Growth:
     def __init__(self, block, call_stmt, base, count, num, et, old_len, new_len, width):
         self.block = block
         self.call_stmt = call_stmt
+        self.call = call_stmt.src
+        self.roff = 0
         self.base = base
         self.count = count
         self.num = num
@@ -2571,6 +2847,17 @@ class _Growth:
 
 
 _GROWSLICE_NAMES = frozenset({"runtime.growslice", "runtime.growsliceBuf"})
+
+
+def _inserted_call(stmt) -> tuple[Call, int] | None:
+    """``v = Insert(base, k, call)`` -> (call, k)."""
+    if not (isinstance(stmt, Assignment) and isinstance(stmt.src, Insert) and isinstance(stmt.src.value, Call)):
+        return None
+    off = stmt.src.offset
+    if not (isinstance(off, Const) and off.is_int):
+        return None
+    return stmt.src.value, off.value_int
+
 
 # runtime calls nothing downstream matches by argument position: a surviving one spells its descriptor as a type
 _DESCRIPTOR_CALLS = (
