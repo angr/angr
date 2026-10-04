@@ -736,6 +736,22 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
                     self.tags(),
                 ));
             }
+            if simop.from_side.as_deref() == Some("LO") {
+                // F128LOtoF64: the low half of the bit pattern, not a value conversion
+                let idx = self.next_atom();
+                let operand = self.convert_expr(arg)?;
+                return Ok(new_convert(
+                    idx,
+                    from_size,
+                    to_size,
+                    false,
+                    operand,
+                    ConvertType::TypeInt,
+                    ConvertType::TypeInt,
+                    None,
+                    self.tags(),
+                ));
+            }
             // Python arg eval order: Convert(next_atom(), ..., convert(arg)).
             // Type the conversion by the op's operand types so FP widenings like
             // Iop_F32toF64 (a unary, rounding-free conversion) are tagged floating point.

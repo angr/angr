@@ -249,7 +249,10 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                     floating_point=operand_expr.floating_point,
                     ins_addr=operand_expr.tags.get("ins_addr"),
                 )
-        if isinstance(operand_expr, BinaryOp):
+        if isinstance(operand_expr, BinaryOp) and not (
+            operand_expr.floating_point and expr.from_type == Convert.TYPE_INT
+        ):
+            # (an integer truncation of an FP result extracts bits; none of the integer identities below apply)
             if operand_expr.op in {
                 "Mul",
                 "Shl",
@@ -347,7 +350,12 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                 if operand_expr.op in {"Shr", "Sar"} and isinstance(operand_expr.operands[0], Convert):
                     op0, op1 = operand_expr.operands
                     assert isinstance(op0, Convert)
-                    if op0.to_bits > op0.from_bits and op0.to_bits == expr.from_bits:
+                    if (
+                        op0.to_bits > op0.from_bits
+                        and op0.to_bits == expr.from_bits
+                        and op0.from_type == Convert.TYPE_INT
+                        and op0.to_type == Convert.TYPE_INT
+                    ):
                         new_operand = BinaryOp(
                             self.manager.next_atom(),
                             operand_expr.op,
