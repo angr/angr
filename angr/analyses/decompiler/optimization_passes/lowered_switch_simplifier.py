@@ -293,6 +293,14 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 ]
                 redundant_nodes = [nn for nn in redundant_nodes if nn is not original_head]
                 existing_nodes_by_addr_and_idx = {(nn.addr, nn.idx): nn for nn in graph_copy}
+                if any(
+                    case.original_node not in graph_copy
+                    or (case.target, case.target_idx) not in existing_nodes_by_addr_and_idx
+                    for case in cases
+                ):
+                    # an earlier cluster's rewrite already consumed some of these nodes
+                    self.out_graph = None
+                    return False
 
                 case_addrs: list[tuple[Block, int | str, int, int | None, int]] = []
                 delayed_edges = []
