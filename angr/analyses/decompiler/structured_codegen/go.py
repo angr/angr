@@ -3596,14 +3596,15 @@ class GoBoxedValue(GoExpression):
 
 
 class GoTypeAssertion(GoExpression):
-    """``x.(T)``"""
+    """``x.(T)``, or the interface conversion ``T(x)`` when ``conversion`` is set."""
 
-    __slots__ = ("expr", "type_name")
+    __slots__ = ("conversion", "expr", "type_name")
 
-    def __init__(self, expr, type_name: str, tags=None, **kwargs):
+    def __init__(self, expr, type_name: str, tags=None, conversion: bool = False, **kwargs):
         super().__init__(tags=tags, **kwargs)
         self.expr = expr
         self.type_name = type_name
+        self.conversion = conversion
         self._type = None
         with contextlib.suppress(Exception):
             self._type = self.codegen.kb.go_signatures.type(type_name).with_arch(self.codegen.project.arch)
@@ -3615,6 +3616,13 @@ class GoTypeAssertion(GoExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
             yield "...", self
+            return
+        if self.conversion:
+            paren = GoClosingObject("(")
+            yield self.type_name, self
+            yield "(", paren
+            yield from GoExpression._try_c_repr_chunks(self.expr)
+            yield ")", paren
             return
         compound = isinstance(self.expr, (GoUnaryOp, GoBinaryOp, GoTypeCast))
         if compound:
@@ -3927,6 +3935,11 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ITEHoisting(self, self.cfunc).run()
         NamedFieldRetyping(self, self.cfunc).run()
         self.cfunc.statements = _TypedCopies(self).handle(self.cfunc.statements)
+        assertions = InterfaceAssertionRecovery(self, self.cfunc)
+        assertions.run()
+        if assertions.changed:
+            # calls through the asserted value's itab are its method calls
+            self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
         ShortDeclarations(self, self.cfunc).run()
         StringLiteralLengths(self, self.cfunc).run()
 
@@ -4100,6 +4113,13 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if mark_used:
             self._variables_in_use[variable] = cvar
         return cvar
+
+    def _is_descriptor_addr(self, addr) -> bool:
+        """Whether ``addr`` is a runtime type descriptor or itab."""
+        if not isinstance(addr, int) or not self.project.is_go_binary:
+            return False
+        go_types = self.kb.go_types
+        return go_types.itab_at(addr) is not None or go_types.name_at(addr) is not None
 
     def _get_variable_reference(self, cvar: GoVariable) -> GoExpression:
         """
@@ -5294,11 +5314,22 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             elif function_pointer:
                 self._function_pointers.add(expr_reference_variable)
 
+        if variable is None and not reference_values and self._is_descriptor_addr(expr.value):
+            # a descriptor address variable recovery did not link (arm64 builds it with adrp/add)
+            variable = next(
+                (v for v in self.kb.dec_variables["global"].get_global_variables(expr.value) if v.addr == expr.value),
+                None,
+            )
+
         var_access = None
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
             offset = self._variable_map.reference_variable_offset(expr)
-            var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
+            if not offset and self._is_descriptor_addr(expr.value):
+                # the descriptor itself, not its first field (&type:string, not &type:string.Size_)
+                var_access = self._get_variable_reference(cvar)
+            else:
+                var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
         if var_access is not None:
             if expr.value >= self.min_data_addr:
@@ -6466,6 +6497,12 @@ class _DataReadSubstituter(GoStructuredCodeWalker):
         self._replacement = replacement  # None counts the reads without changing anything
         self._holder_type = holder_type  # set when the holder is untyped: its second word is the data word
         self.count = 0
+        # (pointer-shaped?, size) of the asserted type: a pointer-shaped value is the data word itself, any other
+        # value sits behind it and only a whole read through the word is the value
+        self._shape = None
+        rty = unpack_typeref(getattr(replacement, "type", None)) if replacement is not None else None
+        if rty is not None and not isinstance(rty, SimTypeBottom):
+            self._shape = (isinstance(rty, (SimTypePointer, GoSimTypeMap, GoSimTypeChan, GoSimTypeFunc)), rty.size)
 
     def _is_data_of_value(self, expr) -> bool:
         holder = _go_iface_word(expr, ("data",))
@@ -6480,12 +6517,71 @@ class _DataReadSubstituter(GoStructuredCodeWalker):
             inner = obj.operand
             target = inner.expr if isinstance(inner, GoTypeCast) else inner
             if self._is_data_of_value(target):
+                if self._shape is not None:
+                    pointer_shaped, size = self._shape
+                    if pointer_shaped:
+                        # *x: the word itself is replaced below
+                        return super().handle_GoUnaryOp(obj)
+                    if obj.type is not None and size is not None and obj.type.size != size:
+                        # a part of the value: its field, when the value is a struct
+                        return self._field_read(obj, 0, obj.type)
                 self.count += 1
                 return obj if self._replacement is None else self._replacement
         return super().handle_GoUnaryOp(obj)
 
+    def handle_GoIndexedVariable(self, obj):
+        if (
+            self._shape is not None
+            and not self._shape[0]
+            and isinstance(obj.index, GoConstant)
+            and isinstance(obj.index.value, int)
+            and obj.type is not None
+            and obj.type.size
+            and self._is_data_of_value(obj.variable)
+        ):
+            return self._field_read(obj, obj.index.value * obj.type.size // 8, obj.type)
+        return super().handle_GoIndexedVariable(obj)
+
+    def handle_GoTypeCast(self, obj):
+        # T(v.data[k]): a T-sized read at byte k
+        inner = obj.expr
+        if (
+            self._shape is not None
+            and not self._shape[0]
+            and isinstance(inner, GoIndexedVariable)
+            and isinstance(inner.index, GoConstant)
+            and isinstance(inner.index.value, int)
+            and obj.dst_type is not None
+            and obj.dst_type.size
+            and self._is_data_of_value(inner.variable)
+        ):
+            elem = inner.type
+            stride = elem.size // 8 if elem is not None and elem.size else 1
+            field = self._field_read(None, inner.index.value * stride, obj.dst_type)
+            if field is not None:
+                return field
+        return super().handle_GoTypeCast(obj)
+
+    def _field_read(self, obj, offset: int, ty):
+        """``x.f`` for a read of ``ty`` at ``offset`` into the struct value ``x``; ``obj`` itself otherwise."""
+        struct = unpack_typeref(self._replacement.type) if self._replacement is not None else None
+        if not isinstance(struct, SimStruct) or not ty.size:
+            return obj
+        retyper = _FieldRetyper(self._replacement.codegen, self._replacement)
+        path = retyper._path(struct, offset, ty.size // 8)
+        if path is None:
+            return obj
+        self.count += 1
+        expr = self._replacement
+        for owner, off, name in path:
+            expr = GoVariableField(expr, GoStructField(owner, off, name, codegen=expr.codegen), codegen=expr.codegen)
+        return expr
+
     def handle_GoVariableField(self, obj):
         if self._is_data_of_value(obj):
+            if self._shape is not None and not self._shape[0]:
+                # the address of the value, not the value
+                return obj
             self.count += 1
             return obj if self._replacement is None else self._replacement
         return super().handle_GoVariableField(obj)
@@ -6514,10 +6610,10 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
 
     def handle_GoStatements(self, obj):
         out = []
-        for stmt in obj.statements:
+        for i, stmt in enumerate(obj.statements):
             stmt = self.handle(stmt)
             if isinstance(stmt, GoIfElse):
-                replaced = self._try_assertion(stmt)
+                replaced = self._try_assertion(stmt, obj.statements[i + 1 :])
                 if replaced is not None:
                     out.extend(replaced)
                     continue
@@ -6562,7 +6658,7 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
         self._taken.add(name)
         return name
 
-    def _try_assertion(self, stmt: GoIfElse):
+    def _try_assertion(self, stmt: GoIfElse, rest=()):
         if len(stmt.condition_and_nodes) != 1:
             return None
         cond, node = stmt.condition_and_nodes[0]
@@ -6570,6 +6666,9 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
         if match is None:
             return None
         value, concrete, equal = match
+        if self._checks_again(value, [node, stmt.else_node, *rest]):
+            # one link of a chain of checks on the value: a type switch
+            return None
         assertion = GoTypeAssertion(value, concrete, codegen=self._codegen)
 
         # panicking form: the failing branch only panics
@@ -6589,12 +6688,23 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
             self._fresh("ok"), SimTypeBool().with_arch(self._codegen.project.arch), codegen=self._codegen
         )
         ty = assertion.type
-        reads = self._count_reads(value)
-        if reads and ty is not None:
+        # the asserted value only replaces data reads on the success path
+        scope = [node] if equal else [stmt.else_node, *(rest if _go_leaves(node) else ())]
+        scope = [n for n in scope if n is not None]
+        target = None
+        if ty is not None:
             target = GoFakeVariable(self._fresh(_go_assertion_var_name(concrete)), ty, codegen=self._codegen)
-            self._substitute(value, target)
-            self._cfunc.extra_decls.append((target.name, ty))
-        else:
+            reads = 0
+            for n in scope:
+                sub = _DataReadSubstituter(value, target)
+                sub.handle(n)
+                reads += sub.count
+            if reads:
+                self._cfunc.extra_decls.append((target.name, ty))
+            else:
+                self._taken.discard(target.name)
+                target = None
+        if target is None:
             target = GoFakeVariable("_", SimTypeBottom(), codegen=self._codegen)
         self._cfunc.extra_decls.append((ok.name, ok.type))
         assign = GoMultiAssignment([target, ok], assertion, tags=stmt.tags, codegen=self._codegen)
@@ -6602,13 +6712,266 @@ class TypeAssertionRecovery(GoStructuredCodeWalker):
         stmt.condition_and_nodes = [(new_cond, node)]
         return [assign, stmt]
 
-    def _count_reads(self, value) -> int:
-        counter = _DataReadSubstituter(value, None)
-        counter.handle(self._cfunc.statements)
-        return counter.count
+    def _checks_again(self, value, nodes) -> bool:
+        """Whether any of ``nodes`` compares the type word of ``value`` against a descriptor."""
+        found = []
+        recovery = self
+
+        class _Finder(GoStructuredCodeWalker):
+            def handle_GoBinaryOp(inner, obj):
+                if obj.op in ("CmpEQ", "CmpNE") and not found:
+                    eq = GoBinaryOp("CmpEQ", obj.lhs, obj.rhs, codegen=recovery._codegen)
+                    match = recovery._match_check(eq)
+                    if match is not None and _go_same_value(match[0], value):
+                        found.append(obj)
+                return super().handle_GoBinaryOp(obj)
+
+        finder = _Finder()
+        for n in nodes:
+            if n is not None and not found:
+                finder.handle(n)
+        return bool(found)
 
     def _substitute(self, value, replacement) -> None:
         _DataReadSubstituter(value, replacement).handle(self._cfunc.statements)
+
+
+class InterfaceAssertionRecovery(TypeAssertionRecovery):
+    """
+    Assertions and conversions to interface types, which go through ``runtime.typeAssert``. Runs late: the holder
+    needs its interface type and the spill copies around the call must be gone.
+    """
+
+    changed = False
+
+    def handle_GoStatements(self, obj):
+        out = []
+        for stmt in obj.statements:
+            stmt = self.handle(stmt)
+            if isinstance(stmt, (GoIfElse, GoAssignment)):
+                replaced = self._try_iface_assertion(stmt, out)
+                if replaced is not None:
+                    self.changed = True
+                    out.extend(replaced)
+                    continue
+            out.append(stmt)
+        obj.statements = out
+        return obj
+
+    def _type_assert_call(self, stmt):
+        """(itab variable, descriptor address) for ``t = runtime.typeAssert(&D, t.Type)``."""
+        if not (isinstance(stmt, GoAssignment) and _go_var_named(stmt.lhs) and isinstance(stmt.rhs, GoFunctionCall)):
+            return None
+        name = _go_call_name(stmt.rhs)
+        if name is None or normalize_go_func_name(name) != "runtime.typeAssert" or len(stmt.rhs.args) != 2:
+            return None
+        addr = _go_descriptor_addr(stmt.rhs.args[0])
+        return (stmt.lhs, addr, stmt.rhs.args[1]) if addr is not None else None
+
+    def _type_assert_descriptor(self, addr: int):
+        """(interface type name, can fail?) of an ``internal/abi.TypeAssert`` descriptor: Cache, Inter, CanFail."""
+        project = self._codegen.project
+        ws = project.arch.bytes
+        try:
+            inter = project.loader.memory.unpack_word(addr + ws, size=ws)
+            can_fail = project.loader.memory.load(addr + 2 * ws, 1)[0]
+        except Exception:  # pylint:disable=broad-exception-caught
+            return None
+        name = self._codegen.kb.go_types.name_at(inter)
+        return (name, bool(can_fail)) if name is not None else None
+
+    def _try_iface_assertion(self, stmt, preceding: list):
+        """
+        ``t := h.tab; [d := h.data;] if t != nil { t = runtime.typeAssert(&D, t.Type) }``: a conversion ``I(h)``,
+        or ``r, ok := h.(I)`` when the descriptor says the assertion can fail; without the nil guard (its panicking
+        sink is gone) the assertion ``h.(I)``.
+        """
+        guarded = isinstance(stmt, GoIfElse)
+        guard = None
+        body_copies = []
+        if guarded:
+            if len(stmt.condition_and_nodes) != 1 or stmt.else_node is not None:
+                return None
+            guard, node = stmt.condition_and_nodes[0]
+            body = _go_stmt_list(node)
+            if not body:
+                return None
+            call = self._type_assert_call(body[-1])
+            # re-reads of the data word may sit ahead of the call
+            body_copies = body[:-1]
+            if not all(
+                isinstance(st, GoAssignment) and _go_var_named(st.lhs) and _go_iface_word(st.rhs, ("data",))
+                for st in body_copies
+            ):
+                return None
+        else:
+            call = self._type_assert_call(stmt)
+        if call is None:
+            return None
+        itab_var, addr, type_arg = call
+        desc = self._type_assert_descriptor(addr)
+        if desc is None:
+            return None
+        iface_name, can_fail = desc
+        if not guarded and can_fail:
+            return None
+        key = _UseCounter.key(itab_var)
+        # the holder: from the itab word's copy just ahead, or from the type word read inline
+        flat = _go_stmt_list(GoStatements(list(preceding), codegen=self._codegen))
+        tab_def = holder = None
+        for prev in reversed(flat):
+            if not isinstance(prev, GoAssignment) or not _go_var_named(prev.lhs):
+                break
+            if _UseCounter.key(prev.lhs) == key:
+                holder = _go_iface_word(prev.rhs, ("tab", "_type"))
+                if holder is None:
+                    return None
+                tab_def = prev
+                break
+        if holder is None:
+            while isinstance(type_arg, GoTypeCast):
+                type_arg = type_arg.expr
+            if isinstance(type_arg, GoVariableField) and type_arg.field.field == "Type":
+                holder = _go_iface_word(type_arg.variable, ("tab",))
+            else:
+                holder = _go_iface_word(type_arg, ("_type", "tab"))
+            if holder is None:
+                return None
+        if guarded and not self._is_holder_nil_check(guard, itab_var, holder):
+            return None
+        if any(not _go_same_value(_go_iface_word(st.rhs, ("data",)), holder) for st in body_copies):
+            return None
+        iface = None
+        with contextlib.suppress(Exception):
+            iface = self._codegen.kb.go_signatures.type(iface_name).with_arch(self._codegen.project.arch)
+        if not isinstance(iface, GoSimTypeInterface):
+            return None
+        codegen = self._codegen
+        result = GoFakeVariable(self._fresh(_go_assertion_var_name(iface_name)), iface, codegen=codegen)
+        self._cfunc.extra_decls.append((result.name, iface))
+        tab = GoVariableField(result, GoStructField(iface, 0, "tab", codegen=codegen), codegen=codegen)
+        data = GoVariableField(
+            result, GoStructField(iface, codegen.project.arch.bytes, "data", codegen=codegen), codegen=codegen
+        )
+        scan = _Scan(self._cfunc)
+        doomed = []
+        out = []
+        defs = scan.assigns.get(key, ())
+        if all(d is tab_def or d is (body[-1] if guarded else stmt) for d in defs) and key not in scan.addressed:
+            # the itab variable only ever holds this value: its reads are the result's itab word
+            if tab_def is not None:
+                doomed.append(tab_def)
+            self._cfunc.statements = _VarSubstituter(key, tab).handle(self._cfunc.statements)
+        else:
+            out.append(GoAssignment(itab_var, tab, codegen=codegen))
+        # variables only ever assigned the holder's data word read the result's
+        data_keys = {_UseCounter.key(st.lhs) for st in flat + body_copies if self._reads_data(st, holder)}
+        for dkey in data_keys:
+            ddefs = scan.assigns.get(dkey, ())
+            if dkey not in scan.addressed and ddefs and all(self._reads_data(d, holder) for d in ddefs):
+                doomed.extend(d for d in ddefs if any(d is st for st in flat))
+                self._cfunc.statements = _VarSubstituter(dkey, data).handle(self._cfunc.statements)
+        if doomed:
+            remover = _StmtRemover(doomed, lists_only=True)
+            preceding[:] = [remover.handle(st) for st in preceding if all(st is not d for d in doomed)]
+        flags = None
+        if guarded and can_fail:
+            ok = GoFakeVariable(self._fresh("ok"), SimTypeBool().with_arch(codegen.project.arch), codegen=codegen)
+            flags = _ItabNilChecks(result, ok, skip=stmt)
+            self._cfunc.statements = flags.handle(self._cfunc.statements)
+            if not flags.count:
+                # nobody checks the outcome: an interface conversion (nil converts to nil), not an assertion
+                self._taken.discard(ok.name)
+        if flags is not None and flags.count:
+            self._cfunc.extra_decls.append((ok.name, ok.type))
+            new = GoMultiAssignment(
+                [result, ok], GoTypeAssertion(holder, iface_name, codegen=codegen), tags=stmt.tags, codegen=codegen
+            )
+        else:
+            new = GoAssignment(
+                result,
+                GoTypeAssertion(holder, iface_name, conversion=guarded, codegen=codegen),
+                tags=stmt.tags,
+                codegen=codegen,
+            )
+        self._cfunc.statements = _IfaceLiteralCollapser(result).handle(self._cfunc.statements)
+        return [new, *out]
+
+    @staticmethod
+    def _reads_data(stmt, holder) -> bool:
+        if not (isinstance(stmt, GoAssignment) and _go_var_named(stmt.lhs)):
+            return False
+        h = _go_iface_word(stmt.rhs, ("data",))
+        return h is not None and _go_same_value(h, holder)
+
+    @staticmethod
+    def _is_holder_nil_check(cond, itab_var, holder) -> bool:
+        """``t != nil``, ``h != nil`` or ``h.tab != nil``."""
+        if not (isinstance(cond, GoBinaryOp) and cond.op == "CmpNE"):
+            return False
+        for a, b in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+            if not (isinstance(b, GoConstant) and b.value == 0):
+                continue
+            if _go_var_named(a) and _UseCounter.key(a) == _UseCounter.key(itab_var):
+                return True
+            if _go_same_value(a, holder):
+                return True
+            h = _go_iface_word(a, ("tab", "_type"))
+            if h is not None and _go_same_value(h, holder):
+                return True
+        return False
+
+
+class _ItabNilChecks(GoStructuredCodeWalker):
+    """``r.tab == nil`` / ``r.tab != nil`` on an asserted value become ``!ok`` / ``ok``."""
+
+    def __init__(self, result, ok, skip=None):
+        self._key = _UseCounter.key(result)
+        self._ok = ok
+        self._skip = skip  # the guard being replaced
+        self.count = 0
+
+    def handle_GoIfElse(self, obj):
+        if obj is self._skip:
+            return obj
+        return super().handle_GoIfElse(obj)
+
+    def _is_tab(self, expr) -> bool:
+        return (
+            isinstance(expr, GoVariableField)
+            and expr.field.field == "tab"
+            and _go_var_named(expr.variable)
+            and _UseCounter.key(expr.variable) == self._key
+        )
+
+    def handle_GoBinaryOp(self, obj):
+        if obj.op in ("CmpEQ", "CmpNE"):
+            for a, b in ((obj.lhs, obj.rhs), (obj.rhs, obj.lhs)):
+                if self._is_tab(a) and isinstance(b, GoConstant) and b.value == 0:
+                    self.count += 1
+                    return self._ok if obj.op == "CmpNE" else GoUnaryOp("Not", self._ok, codegen=obj.codegen)
+        return super().handle_GoBinaryOp(obj)
+
+
+class _IfaceLiteralCollapser(GoStructuredCodeWalker):
+    """``I{tab: r.tab, data: r.data}`` is ``r``."""
+
+    def __init__(self, result):
+        self._result = result
+        self._key = _UseCounter.key(result)
+
+    def handle_GoStructLiteral(self, obj):
+        obj = super().handle_GoStructLiteral(obj)
+        fields = [obj.fields[off] for off in sorted(obj.fields)]
+        if len(fields) == 2 and all(
+            isinstance(f, GoVariableField)
+            and f.field.field == name
+            and _go_var_named(f.variable)
+            and _UseCounter.key(f.variable) == self._key
+            for f, name in zip(fields, ("tab", "data"))
+        ):
+            return self._result
+        return obj
 
 
 def _go_interface_switch_cases(codegen, addr: int) -> list[str] | None:
@@ -7335,19 +7698,24 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
 
     def handle_GoStatements(self, obj):
         out = []
-        for stmt in obj.statements:
-            stmt = self.handle(stmt)
+        stmts = [self.handle(stmt) for stmt in obj.statements]
+        i = 0
+        while i < len(stmts):
+            stmt = stmts[i]
             if isinstance(stmt, GoSwitchCase):
                 # the structurer's switch over descriptor addresses: name them, then treat it as the if-chain it is
                 chain = self._descriptor_switch_to_chain(stmt)
                 if chain is not None:
-                    stmt = chain
+                    stmt = stmts[i] = chain
             if isinstance(stmt, GoIfElse):
-                replaced = self._try_switch(stmt)
+                replaced = self._try_switch(stmts[i:])
                 if replaced is not None:
-                    out.append(replaced)
+                    switch, consumed = replaced
+                    out.append(switch)
+                    i += consumed
                     continue
             out.append(stmt)
+            i += 1
         obj.statements = out
         return obj
 
@@ -7357,8 +7725,8 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         chain = self._descriptor_switch_to_chain(obj)
         if chain is None:
             return obj
-        replaced = self._try_switch(chain)
-        return replaced if replaced is not None else chain
+        replaced = self._try_switch([chain])
+        return replaced[0] if replaced is not None else chain
 
     def _descriptor_reference(self, addr: int):
         """``&type:T`` / ``&go:itab.C,I`` for a descriptor address, as a reference to its global variable."""
@@ -7377,10 +7745,10 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         for id_or_ids, _ in stmt.cases:
             values = id_or_ids if isinstance(id_or_ids, tuple) else (id_or_ids,)
             ids.append(values)
-        if not ids or any(len(v) != 1 for v in ids):
+        if not ids:
             return None
-        refs = [self._descriptor_reference(v[0]) for v in ids]
-        if any(r is None for r in refs):
+        refs = [[self._descriptor_reference(x) for x in v] for v in ids]
+        if any(r is None for group in refs for r in group):
             return None
 
         def without_switch_break(body):
@@ -7389,10 +7757,14 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
                 stmts = stmts[:-1]
             return GoStatements(stmts, codegen=self._codegen)
 
-        conditions = [
-            (GoBinaryOp("CmpEQ", stmt.switch, ref, codegen=self._codegen), without_switch_break(body))
-            for ref, (_, body) in zip(refs, stmt.cases)
-        ]
+        def any_of(group):
+            cond = None
+            for ref in group:
+                eq = GoBinaryOp("CmpEQ", stmt.switch, ref, codegen=self._codegen)
+                cond = eq if cond is None else GoBinaryOp("LogicalOr", cond, eq, codegen=self._codegen)
+            return cond
+
+        conditions = [(any_of(group), without_switch_break(body)) for group, (_, body) in zip(refs, stmt.cases)]
         default = without_switch_break(stmt.default) if stmt.default is not None else None
         return GoIfElse(conditions, else_node=default, tags=stmt.tags, codegen=self._codegen)
 
@@ -7400,13 +7772,49 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         """(holder, concrete type, interface type or None) for ``v.tab == descriptor``."""
         if not isinstance(cond, GoBinaryOp) or cond.op != "CmpEQ":
             return None
-        for word, desc in ((cond.lhs, cond.rhs), (cond.rhs, cond.lhs)):
+        return self._match_operands(cond.lhs, cond.rhs)
+
+    def _nil_check(self, lhs, rhs):
+        """(holder, None, None) for ``v == nil`` / ``v.tab == nil`` on an interface-typed ``v``."""
+        for word, other in ((lhs, rhs), (rhs, lhs)):
+            if not (isinstance(other, GoConstant) and other.value == 0):
+                continue
+            value = _go_iface_word(word, ("tab", "_type")) or self._typed_holder(word)
+            if value is None and _go_var_named(word) and isinstance(unpack_typeref(word.type), GoSimTypeInterface):
+                value = word
+            if value is not None:
+                return value, None, None
+        return None
+
+    def _check_terms(self, cond, positive: bool):
+        """
+        The checks of ``cond``, an ``||`` of ``==`` checks (positive) or an ``&&`` of ``!=`` checks: a list of
+        (holder, concrete type or None for nil, interface type or None), or None.
+        """
+        join, cmp = ("LogicalOr", "CmpEQ") if positive else ("LogicalAnd", "CmpNE")
+        terms = []
+
+        def walk(c) -> bool:
+            if isinstance(c, GoBinaryOp) and c.op == join:
+                return walk(c.lhs) and walk(c.rhs)
+            if isinstance(c, GoBinaryOp) and c.op == cmp:
+                term = self._match_operands(c.lhs, c.rhs) or self._nil_check(c.lhs, c.rhs)
+                if term is None:
+                    return False
+                terms.append(term)
+                return True
+            return False
+
+        return terms if walk(cond) else None
+
+    def _match_operands(self, lhs, rhs):
+        for word, desc in ((lhs, rhs), (rhs, lhs)):
             addr = _go_descriptor_addr(desc)
             if addr is None:
                 continue
             go_types = self._codegen.kb.go_types
             itab = go_types.itab_at(addr)
-            value = _go_iface_word(word, ("tab", "_type"))
+            value = _go_iface_word(word, ("tab", "_type")) or self._typed_holder(word)
             iface_name = None
             if value is None and itab is not None:
                 # the first word of an untyped holder compared against an itab: the holder is that interface
@@ -7434,6 +7842,15 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
                 expr = sources[0]
         if isinstance(expr, GoVariableField) and expr.field.offset == offset and _go_var_named(expr.variable):
             return expr.variable
+        return None
+
+    def _typed_holder(self, word):
+        """The interface-typed variable whose type word a copy ``t := v.tab`` holds."""
+        if not _go_var_named(word):
+            return None
+        holder = self._word_of(word, 0)
+        if holder is not None and isinstance(unpack_typeref(holder.type), GoSimTypeInterface):
+            return holder
         return None
 
     def _untyped_holder(self, word):
@@ -7481,17 +7898,91 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         self._taken.add(name)
         return name
 
-    def _try_switch(self, stmt: GoIfElse):
-        checks = [self._match_check(cond) for cond, _ in stmt.condition_and_nodes]
-        if not checks or any(c is None for c in checks):
+    def _dispatch(self, stmts: list):
+        """
+        ([(checks, body)], default, tail used?) for a statement list that starts with a chain of type checks; bodies
+        and the default are statement lists. ``if v.tab != A && ... {X}`` sends A (and whatever X lets through) on
+        to the statements after it. The paths that fall off the chain continue with the rest of the list: it joins
+        the one such path, or the caller keeps it after the switch (tail used = False).
+        """
+        if not stmts or not isinstance(stmts[0], GoIfElse):
+            return None
+        first, tail = stmts[0], list(stmts[1:])
+        conds = first.condition_and_nodes
+        entries = []
+        for cond, node in conds[:-1]:
+            terms = self._check_terms(cond, True)
+            if terms is None:
+                return None
+            entries.append((terms, _go_stmt_list(node)))
+        cond, node = conds[-1]
+        terms = self._check_terms(cond, True)
+        if terms is not None:
+            entries.append((terms, _go_stmt_list(node)))
+            rest = _go_stmt_list(first.else_node)
+        else:
+            # the last link fails into its body: the checked types take the else branch (or fall through)
+            terms = self._check_terms(cond, False)
+            if terms is None:
+                return None
+            entries.append((terms, _go_stmt_list(first.else_node)))
+            rest = _go_stmt_list(node)
+        sub = self._dispatch(rest) if rest else None
+        if sub is not None and sub[2]:
+            entries += sub[0]
+            default = sub[1]
+        else:
+            default = rest
+        # every path through the chain that does not leave falls through: an empty one only to the tail
+        empties = [i for i, (_, body) in enumerate(entries) if not body]
+        if len(empties) > 1:
+            merged = [term for i in empties for term in entries[i][0]]
+            entries = [e for i, e in enumerate(entries) if i not in empties[1:]]
+            entries[empties[0]] = (merged, [])
+        if not tail:
+            return entries, default, True
+        open_ = [i for i, (_, body) in enumerate(entries) if not _go_leaves(GoStatements(body, codegen=self._codegen))]
+        default_open = not _go_leaves(GoStatements(default, codegen=self._codegen))
+        if len(open_) + int(default_open) != 1:
+            return entries, default, False
+        if default_open:
+            default = default + tail
+        else:
+            terms, body = entries[open_[0]]
+            entries[open_[0]] = (terms, body + tail)
+        return entries, default, True
+
+    @staticmethod
+    def _has_interface_switch(node) -> bool:
+        for st in _go_stmt_list(node):
+            if isinstance(st, GoMultiAssignment) and isinstance(st.rhs, GoFunctionCall):
+                name = _go_call_name(st.rhs)
+                if name is not None and normalize_go_func_name(name) == "runtime.interfaceSwitch":
+                    return True
+        return False
+
+    def _try_switch(self, stmts: list):
+        """``(switch, statements consumed)`` for the type-check chain heading ``stmts``, or None."""
+        found = self._dispatch(stmts)
+        if found is None:
+            return None
+        entries, default, tail_used = found
+        consumed = len(stmts) if tail_used else 1
+        stmt = stmts[0]
+        default = GoStatements(default, codegen=self._codegen) if default else None
+        checks = [term for terms, _ in entries for term in terms]
+        if not checks:
             return None
         value = checks[0][0]
         if not all(_go_same_value(c[0], value) for c in checks[1:]):
             return None
-        concretes = [c[1] for c in checks]
-        if len(set(concretes)) != len(concretes):
+        concretes = [c[1] for c in checks if c[1] is not None]
+        if not concretes or len(set(concretes)) != len(concretes) or len(checks) - len(concretes) > 1:
             return None
-        iface_names = {c[2] for c in checks}
+        if len(concretes) < 2 and not self._has_interface_switch(default):
+            # a single check is an assertion, not a switch
+            return None
+        iface_names = {c[2] for c in checks if c[1] is not None}
         if len(iface_names) != 1:
             return None
         iface_name = next(iter(iface_names))
@@ -7505,8 +7996,14 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         bound = self._fresh("x")
         cases = []
         reads = 0
-        for (_, node), concrete in zip(stmt.condition_and_nodes, concretes):
-            body = node if isinstance(node, GoStatements) else GoStatements([node], codegen=self._codegen)
+        for terms, node in entries:
+            names = [t[1] if t[1] is not None else "nil" for t in terms]
+            body = GoStatements(list(node), codegen=self._codegen)
+            if len(terms) != 1 or terms[0][1] is None:
+                # several types (or nil): the bound value keeps the interface type, nothing to substitute
+                cases.append((", ".join(names), body))
+                continue
+            concrete = names[0]
             ty = None
             with contextlib.suppress(Exception):
                 ty = self._codegen.kb.go_signatures.type(concrete).with_arch(self._codegen.project.arch)
@@ -7542,7 +8039,6 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
             self._cfunc.statements = _Retyper({_UseCounter.key(value): holder_type}).handle(self._cfunc.statements)
             if isinstance(value, GoVariable):
                 value.variable_type = holder_type
-        default = stmt.else_node
         iface_cases, default, iface_reads = self._interface_cases(default, value, bound)
         cases += iface_cases
         reads += iface_reads
@@ -7553,7 +8049,7 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
         if reads == 0:
             self._taken.discard(bound)
             bound = None
-        return GoTypeSwitch(value, bound, cases, default, tags=stmt.tags, codegen=self._codegen)
+        return GoTypeSwitch(value, bound, cases, default, tags=stmt.tags, codegen=self._codegen), consumed
 
     def _interface_cases(self, node, value, bound: str):
         """``c, itab = runtime.interfaceSwitch(&sw, v.tab); if c == k {...}`` in ``node`` -> interface cases."""
@@ -7655,6 +8151,17 @@ class TypeSwitchRecovery(GoStructuredCodeWalker):
             if _go_var_named(a) and _UseCounter.key(a) in case_keys and isinstance(b, GoConstant):
                 return b.value
         return None
+
+
+def _go_leaves(node) -> bool:
+    """Whether ``node`` always ends by leaving (return, goto, break, continue or a call that does not return)."""
+    stmts = _go_stmt_list(node)
+    if not stmts:
+        return False
+    last = stmts[-1]
+    if isinstance(last, (GoReturn, GoGoto, GoBreak, GoContinue)):
+        return True
+    return isinstance(last, GoExpressionStatement) and last.returning is False
 
 
 def _go_call_named(stmt, name):
