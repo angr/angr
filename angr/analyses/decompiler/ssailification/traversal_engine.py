@@ -220,7 +220,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             or self.def_info[def_].loc == loc
             or self.def_info[def_].loc.is_extern
         ), "claiming an expression defines at two different locs"
-        if (definfo := self.def_info.get(def_)) is None or definfo.loc.is_extern:
+        # re-traversing a block re-defines its extern defs; keep the extents widened by later reads
+        if (definfo := self.def_info.get(def_)) is None or (definfo.loc.is_extern and not loc.is_extern):
             definfo = DefInfo(
                 def_,
                 kind,
