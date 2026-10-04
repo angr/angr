@@ -67,12 +67,12 @@ class X87Tracker:
                 self.ftop = self.eval(stmt.data)
                 return self.ftop is not None
         elif isinstance(stmt, Dirty):
-            # FLDENV/FRSTOR/FXRSTOR reload the x87 state; FSAVE reinitializes it
+            # FLDENV/FRSTOR/FXRSTOR reload the x87 state; F(N)SAVE and FINIT reinitialize it (empty stack)
             name = stmt.cee.name
             if "RSTOR" in name or "FLDENV" in name:
                 self.ftop = None
                 return False
-            if "FSAVE" in name:
+            if "FSAVE" in name or "FNSAVE" in name or "FINIT" in name:
                 self.ftop = 0
         return True
 
