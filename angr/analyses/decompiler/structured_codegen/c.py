@@ -3720,6 +3720,22 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
 
+    def _fp_view_of_int_lvalue(self, cexpr: CExpression, bits: int) -> CExpression:
+        """
+        An FP conversion reads or writes its operand as a floating-point value. When variable typing left that operand
+        an integer variable, view its bits as the FP type of the same width (``*((long double *)&v)``) instead of
+        letting C convert the integer value.
+        """
+        if not isinstance(cexpr, (CVariable, CIndexedVariable, CVariableField)):
+            return cexpr
+        ty = unpack_typeref(cexpr.type)
+        if not isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum)) or ty.size != bits:
+            return cexpr
+        fp_cls = {32: SimTypeFloat, 64: SimTypeDouble, 80: SimTypeLongDouble}.get(bits)
+        if fp_cls is None:
+            return cexpr
+        return CReinterpret(ty, fp_cls(), cexpr, codegen=self)
+
     def _int_to_fp_operand(self, child: CExpression, from_bits: int, signed: bool) -> CExpression:
         """
         cvtsi2sd and friends read the integer with the signedness of the conversion. When the operand's C type says
@@ -4412,6 +4428,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         else:
             csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
+            if (
+                isinstance(stmt.src, Expr.Convert)
+                and stmt.src.to_type == Expr.ConvertType.TYPE_FP
+                and stmt.src.vector_count is None
+            ):
+                cdst = self._fp_view_of_int_lvalue(cdst, stmt.dst.bits)
+                if isinstance(cdst.type, SimTypeFloat) and isinstance(csrc.type, SimTypeFloat):
+                    # FP->FP assignment converts implicitly
+                    return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
             if csrc.type is not None and cdst.type is not None and cdst.type != csrc.type:
                 csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
 
@@ -5045,6 +5070,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             child = self._handle(expr.operand)
             return CVectorConvert(expr, child, tags=expr.tags, codegen=self)
 
+        child = self._handle(expr.operand)
+        if expr.from_type == Expr.ConvertType.TYPE_FP:
+            child = self._fp_view_of_int_lvalue(child, expr.operand.bits)
+
         is_fp = expr.to_type == Expr.ConvertType.TYPE_FP
         if is_fp:
             # FP->FP or INT->FP
@@ -5054,17 +5083,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 fp_dst_type = SimTypeDouble()
             elif expr.to_bits == 80:
                 # VEX models x87 as F64; the widening to 80 bits is implicit in C
-                return self._handle(expr.operand)
+                return child
             else:
                 # no C float type of this width: fall back to an integer cast of the same width
                 is_fp = False
             if is_fp:
-                child = self._handle(expr.operand)
                 if expr.from_type == Expr.ConvertType.TYPE_INT:
                     child = self._int_to_fp_operand(child, expr.from_bits, expr.is_signed)
                 return CTypeCast(None, fp_dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
-
-        child = self._handle(expr.operand)
 
         # Use a mask to represent non-standard size conversions
         if (

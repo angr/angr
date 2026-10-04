@@ -21,6 +21,8 @@ from angr.analyses.complete_calling_conventions import (
     CompleteCallingConventionsAnalysis,
 )
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
+from angr.sim_type import SimTypeNum
+from angr.sim_variable import SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 # -- Paths & binary matrix --------------------------------------------
@@ -1364,3 +1366,39 @@ class TestFusedMultiplyAddDecompilation:
         text = self._decompile("ppc64", "libc.so.6", 0x45F768)
         assert "(float)" in text, text
         assert "0x80000000" in text, text
+
+
+class TestX87LongDoubleLocal:
+    """
+    ``long double t = x * 3.0L; float y = (float)t;`` at -O0 (x87_ld_local_i386_O0.o): fstpt/fldt go through a
+    10-byte stack local, which must be a long double and never be converted as an integer.
+    """
+
+    _BIN = "x87_ld_local_i386_O0.o"
+
+    def test_local_is_long_double(self):
+        text = _decompile_asm_func(self._BIN, "ld_local_to_f32")
+        assert "uint80_t" not in text, text
+        assert re.search(r"long double v\d+;", text), text
+        assert re.search(r"v\d+ = a0 \* 3\.0L;", text), text
+        assert re.search(r"v\d+ = \(float\)v\d+;", text), text
+
+    def test_int_typed_local_is_viewed_as_long_double(self):
+        # an 80-bit local forced to an integer type is read and written through its long double bit pattern
+        path = os.path.join(_fp_dir, self._BIN)
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        func = cfg.functions["ld_local_to_f32"]
+        proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        vm = proj.kb.dec_variables[func.addr]
+        local = next(v for v in vm.get_variables() if isinstance(v, SimStackVariable) and v.size == 10 and v.offset < 0)
+        vm.set_variable_type(local, SimTypeNum(80, signed=False).with_arch(proj.arch), mark_manual=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "uint80_t v1;" in text, text
+        assert "(uint80_t)" not in text, text
+        assert "*((long double *)&v1) = a0 * 3.0L;" in text, text
+        assert "(float)*((long double *)&v1)" in text, text
