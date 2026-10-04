@@ -2071,6 +2071,9 @@ class Clinic(Analysis, Serializable):
             for slot_name, target in slots:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
                     continue
+                if target.value == self.function.addr:
+                    # a jump back to the current function is a loop back edge, not a call to other functions
+                    continue
 
                 target_func = self.kb.functions.get_by_addr(target.value)
 
