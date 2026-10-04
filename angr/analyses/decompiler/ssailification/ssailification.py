@@ -77,6 +77,13 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
 
         bp_as_gpr = self._function.info.get("bp_as_gpr", False)
 
+        # Compute the dominance frontier for each node in the graph
+        df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
+        frontiers = df.frontiers
+        # phi placement only reads start states of blocks in an iterated dominance frontier, which is a subset of the
+        # union of all frontiers
+        frontier_blocks: set[Block] = set().union(*frontiers.values())
+
         # collect defs
         traversal = TraversalAnalysis(
             self.project,
@@ -90,6 +97,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self.kb.functions.get,
             variable_map=variable_map_of(self._ail_manager) if self._ail_manager is not None else None,
             ail_manager=self._ail_manager,
+            start_state_blocks=frontier_blocks,
         )
 
         # calculate virtual variables and phi nodes
@@ -114,10 +122,6 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 blockkey = (definfo.loc.addr, definfo.loc.block_idx)
                 def_to_udef[def_] = udef
                 udef_to_blockkeys[udef].add(blockkey)
-
-        # Computer the dominance frontier for each node in the graph
-        df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
-        frontiers = df.frontiers
 
         phi_id_ctr = count(vvar_id_start)
 

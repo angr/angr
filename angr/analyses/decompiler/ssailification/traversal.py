@@ -39,6 +39,7 @@ class TraversalAnalysis:
         functions: Callable[[int | str], Function | None] | None,
         variable_map=None,
         ail_manager=None,
+        start_state_blocks: set[ailment.Block] | None = None,
     ):
         self.project = project
         self._stackvars = stackvars
@@ -48,6 +49,8 @@ class TraversalAnalysis:
         self._func_args = func_args
         self.input_states: dict[ailment.Block, dict[ailment.Block | None, TraversalState]] = {}
         self.start_states: dict[ailment.Block, TraversalState] = {}
+        # blocks whose start states are retained; None retains all. Retaining every state pins its COW layers.
+        self._start_state_blocks = start_state_blocks
         self._pending: set[ailment.Block] = set()
 
         self._engine_ail = SimEngineSSATraversal(
@@ -106,6 +109,10 @@ class TraversalAnalysis:
                     state.stackvar_unify(offset, func_arg.size)
         return state
 
+    def _record_start_state(self, node: ailment.Block, state: TraversalState) -> None:
+        if self._start_state_blocks is None or node in self._start_state_blocks:
+            self.start_states[node] = state
+
     def _run_on_node(self, node: ailment.Block):
         """
 
@@ -118,7 +125,7 @@ class TraversalAnalysis:
         if input_states is None:
             state = self._initial_abstract_state()
             self.input_states[node] = {None: state}
-            self.start_states[node] = state
+            self._record_start_state(node, state)
         else:
             if node not in self._pending:
                 return
@@ -126,13 +133,13 @@ class TraversalAnalysis:
 
             if len(input_states) == 1:
                 state = next(iter(input_states.values()))
-                self.start_states[node] = state
+                self._record_start_state(node, state)
             else:
                 all_states = list(input_states.values())
                 state = all_states[0].copy()
                 for other_state in all_states[1:]:
                     state.merge(other_state)
-                self.start_states[node] = state
+                self._record_start_state(node, state)
         state = state.copy()
         self._engine_ail.process(state, block=node)
 
