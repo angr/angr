@@ -3815,10 +3815,13 @@ class Clinic(Analysis, Serializable):
         # 140017162     jz      short 1400171e1
         """
 
+        cc_reg_offsets = {
+            self.project.arch.registers[name][0]
+            for name in ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
+            if name in self.project.arch.registers
+        }
         for block in list(ail_graph):
-            if len(block.statements) > 1 and block.statements[0].tags.get("ins_addr") == block.statements[-1].tags.get(
-                "ins_addr"
-            ):
+            if len(block.statements) > 1 and self._is_orphaned_cond_jump_block(block, cc_reg_offsets):
                 preds = list(ail_graph.predecessors(block))
                 if len(preds) > 1 and block not in preds:
                     has_ccall = any(
@@ -3842,6 +3845,33 @@ class Clinic(Analysis, Serializable):
                                 ail_graph.add_edge(new_block, succ if succ is not block else new_block)
 
         return ail_graph
+
+    @staticmethod
+    def _is_orphaned_cond_jump_block(block: ailment.Block, cc_reg_offsets: set[int], max_extra_insns: int = 2) -> bool:
+        """
+        The block is the conditional jump instruction alone, or it is preceded by at most *max_extra_insns* instructions
+        that only write registers other than the flag thunk (e.g., ``lea esp, [esp+8]; jne``), so its condition still
+        reads the flags computed in its predecessors.
+        """
+        last_ins = block.statements[-1].tags.get("ins_addr")
+        if block.statements[0].tags.get("ins_addr") == last_ins:
+            return True
+        if not isinstance(block.statements[-1], ailment.Stmt.ConditionalJump):
+            return False
+        extra_insns = set()
+        for stmt in block.statements:
+            ins_addr = stmt.tags.get("ins_addr")
+            if ins_addr == last_ins or isinstance(stmt, ailment.Stmt.Label):
+                continue
+            if not isinstance(stmt, ailment.Stmt.Assignment):
+                return False
+            if isinstance(stmt.dst, ailment.Expr.Register):
+                if stmt.dst.reg_offset in cc_reg_offsets:
+                    return False
+            elif not isinstance(stmt.dst, ailment.Expr.Tmp):
+                return False
+            extra_insns.add(ins_addr)
+        return len(extra_insns) <= max_extra_insns
 
     def _rewrite_jump_rax_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """

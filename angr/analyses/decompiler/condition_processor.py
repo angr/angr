@@ -1009,6 +1009,9 @@ class ConditionProcessor:
                 must_bool=must_bool,
             )
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
+            if isinstance(condition, ailment.Expr.VirtualVariable):
+                # SSA: the same vvar holds the same value at every instruction
+                ins_addr = 0
             # does it have a variable associated?
             condition_var = variable_map_of(self.ail_manager).variable(condition)
             if condition_var is not None:

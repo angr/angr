@@ -1186,6 +1186,27 @@ class TestX87FxamAndStoredStatusWord:
         assert re.search(pat, text) or re.search(pat_flipped, text), text
 
 
+class TestFlagJoin:
+    """flag_join_i386.o: a jcc reached from two compares (`cmp; jne .join; ...; cmp; .join: lea; jne`). The join block is
+    duplicated per predecessor so each copy's condition folds, and the copy whose condition contradicts the jump into
+    it is threaded through."""
+
+    def test_sse2_dispatch(self):
+        text = _decompile_asm_func("flag_join_i386.o", "sse2_dispatch")
+        assert "_ccall" not in text and "cc_op" not in text, text
+        m = re.search(r"(\w+) = _mm_getcsr\(\);\s*if \(\(\1 & 0x7f80\) == 8064\)", text)
+        assert m is not None and m.group(1) != "ch", text
+        assert re.search(r"(\w+) = __fnstcw\(\);\s*if \(\(\1 & 127\) == 127\)\s*\{\s*sse2_path\(\);", text), text
+        assert text.count("sse2_path();") == 1 and text.count("x87_path();") == 1, text
+
+    def test_int_flag_join(self):
+        text = _decompile_asm_func("flag_join_i386.o", "int_flag_join")
+        assert "cc_dep" not in text and "_ccall" not in text, text
+        assert "a0 != 5" in text and "a1 == 7" in text, text
+        # `a0 != 5 && a0 == 5` must not survive as a dead branch
+        assert "a0 == 5" not in text, text
+
+
 class TestStackLoadAcrossSpUpdate:
     """`push eax; test byte [esp+1], imm; lea esp, [esp+4]; jne`: the load is inlined into the jump condition past the
     sp update, and must keep the offset of the esp value it was computed from (entry - 3, not entry + 1)."""
