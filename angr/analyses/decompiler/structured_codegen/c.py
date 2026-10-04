@@ -15,6 +15,7 @@ from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.block_walker import _dispatch_key
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import BinaryOp, StackBaseOffset
+from angr.ailment.utils import is_lsb_extract
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
@@ -5125,7 +5126,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             field = next((name for name, off in child_type.offsets.items() if off == offset), None)
             if field is not None and expr.bits == child_type.fields[field].size:
                 return CVariableField(child, CStructField(child_type, offset, field, codegen=self), codegen=self)
-        if isinstance(child_type, SimTypeInt) and offset == 0:  # TODO not big-endian safe
+        if isinstance(child_type, (SimTypeInt, SimTypePointer)) and is_lsb_extract(expr):
             return CTypeCast(child_type, target_type, child, codegen=self)
 
         voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)

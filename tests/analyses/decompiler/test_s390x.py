@@ -93,7 +93,10 @@ class TestS390XDecompilation(unittest.TestCase):
         text = dec.codegen.text
         a3 = func.prototype.arg_names[3] if func.prototype.arg_names else "a3"
         # the 4th parameter stays full-width and reaches the call to sub_4084f8 unchanged
-        assert f"sub_4084f8(&v23, &v29, v37, {a3});" in text.replace("\n", "")
+        assert f"sub_4084f8(&v23, &v29, v37, {a3});" in text
+        # the narrowed call argument is the low half of r5, i.e., a truncation (not a load at &a3 + 4)
+        assert f"(unsigned int){a3}," in text
+        assert f"&{a3} + 4" not in text
 
 
 if __name__ == "__main__":
