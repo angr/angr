@@ -303,13 +303,14 @@ class AILSimplifier(Analysis):
         self._simplify()
 
     def _simplify(self):
-        if self._narrow_expressions:
-            _l.debug("Removing dead assignments before narrowing expressions")
-            r = self._iteratively_remove_dead_assignments()
-            if r:
+        if not self._only_consts:
+            # narrowing and folding walk every statement, so retire the dead ones first
+            _l.debug("Removing dead assignments")
+            if self._iteratively_remove_dead_assignments():
                 _l.debug("... dead assignments removed")
                 self.simplified = True
 
+        if self._narrow_expressions:
             _l.debug("Narrowing expressions")
             narrowed_exprs = self._narrow_exprs()
             self.simplified |= narrowed_exprs
@@ -1170,8 +1171,11 @@ class AILSimplifier(Analysis):
         # gather constant assignments
 
         vvar_values: dict[int, tuple[int, int]] = {}
+        has_phi = False
         for block in self.func_graph:
             for stmt in block.statements:
+                if not has_phi and is_phi_assignment(stmt):
+                    has_phi = True
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
@@ -1180,6 +1184,10 @@ class AILSimplifier(Analysis):
                     and isinstance(stmt.src.value, int)
                 ):
                     vvar_values[stmt.dst.varid] = stmt.src.value, stmt.src.bits
+
+        if not has_phi or not vvar_values:
+            # nothing to rewrite; do not pay for a reaching-definitions model
+            return False
 
         srda = self._compute_reaching_definitions()
         # compute vvar reachability for phi variables
