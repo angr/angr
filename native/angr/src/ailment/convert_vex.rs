@@ -892,8 +892,13 @@ impl<'py, 'r, R: IrReader> Conv<'py, 'r, R> {
             return self.scalar_in_vector_op(scalar_op, lhs, rhs, scalar_bits, None);
         }
         if simop.vector_count.is_some() && simop.vector_size.is_some() {
+            // a saturating narrow reads signed lanes either way (16Sto8S vs 16Sto8U); keep the result's signedness
+            signed = if op_name.as_deref() == Some("QNarrowBin") {
+                simop.vector_signed_is_s
+            } else {
+                simop.is_signed()
+            };
             op_name = Some(format!("{}V", op_name.unwrap_or_default()));
-            signed = simop.is_signed();
             // lane-wise FP ops (CmpEQ64F0x2, CmpLT32Fx4, ...) keep their FP nature
             floating_point = simop.float;
             vector_count = simop.vector_count.map(|v| v as i64);
