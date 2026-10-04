@@ -556,6 +556,8 @@ class Clinic(Analysis, Serializable):
         self._inlining_parents = inlining_parents or set()
         # net x87 stack effect per callee, shared by the IRegisterResolver passes
         self._x87_callee_deltas: dict[int, int | None] = {}
+        # st(0) register offset after each call (by call instruction address), filled by IRegisterResolver
+        self._x87_call_st0: dict[int, int] = {}
         self._desired_variables = desired_variables
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
@@ -2897,7 +2899,8 @@ class Clinic(Analysis, Serializable):
         """
         On x87, the FP return register (ST0) uses PutI/GetI (indexed array), so
         fp_ret_offset is None and fp_ret_expr is never set on call statements.
-        Fix this by scanning successor blocks for fpreg reads after calls whose
+        Fix this with the st(0) register the IRegisterResolver tracked after the
+        call, or by scanning successor blocks for fpreg reads, for calls whose
         callees return float/double.
         """
         fpreg_info = self.project.arch.registers.get("fpreg")
@@ -2922,8 +2925,11 @@ class Clinic(Analysis, Serializable):
             if proto is None or not isinstance(proto.returnty, (SimTypeFloat, SimTypeDouble)):
                 continue
 
-            # Find the fpreg read in a successor block
-            fp_reg_offset = self._find_fp_ret_in_successors(ail_graph, block, fpreg_offset, fpreg_size)
+            ins_addr = call_expr.tags.get("ins_addr")
+            fp_reg_offset = self._x87_call_st0.get(ins_addr) if isinstance(ins_addr, int) else None
+            if fp_reg_offset is None:
+                # Find the fpreg read in a successor block
+                fp_reg_offset = self._find_fp_ret_in_successors(ail_graph, block, fpreg_offset, fpreg_size)
             if fp_reg_offset is None:
                 continue
 
@@ -4639,7 +4645,12 @@ class Clinic(Analysis, Serializable):
         """
         if IRegisterResolver.has_iregisters(ail_graph):
             IRegisterResolver(
-                self.project, self.kb, self.function, ail_graph, callee_deltas=self._x87_callee_deltas
+                self.project,
+                self.kb,
+                self.function,
+                ail_graph,
+                callee_deltas=self._x87_callee_deltas,
+                call_st0=self._x87_call_st0,
             ).resolve()
         return ail_graph
 

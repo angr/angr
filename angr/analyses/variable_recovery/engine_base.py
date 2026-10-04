@@ -528,16 +528,20 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             elif isinstance(richr.typevar, typeconsts.Float) or (
                 richr.type_constraints
                 and any(
-                    isinstance(tc, typevars.Subtype) and isinstance(tc.sub_type, typeconsts.Float)
+                    isinstance(tc, typevars.Subtype)
+                    and (isinstance(tc.sub_type, typeconsts.Float) or isinstance(tc.super_type, typeconsts.Float))
                     for tc in richr.type_constraints
                 )
             ):
-                # The incoming value has float type constraints -- propagate
-                # them to the destination typevar so the solver knows this
-                # variable holds FP data.
+                # The incoming value has float type constraints (an FP constant, or a value bounded by an FP type
+                # such as the result of an FP-returning call) -- propagate them to the destination typevar so the
+                # solver knows this variable holds FP data.
                 for tc in richr.type_constraints or ():
-                    if isinstance(tc, typevars.Subtype) and isinstance(tc.sub_type, typeconsts.Float):
-                        self.state.add_type_constraint(typevars.Subtype(tc.sub_type, typevar))
+                    if isinstance(tc, typevars.Subtype):
+                        if isinstance(tc.sub_type, typeconsts.Float):
+                            self.state.add_type_constraint(typevars.Subtype(tc.sub_type, typevar))
+                        elif isinstance(tc.super_type, typeconsts.Float):
+                            self.state.add_type_constraint(typevars.Subtype(tc.super_type, typevar))
             else:
                 # the constraint below is a default constraint that may conflict with more specific ones with different
                 # sizes; we post-process at the very end of VRA to remove conflicting default constraints.

@@ -4,14 +4,12 @@ from collections import Counter
 from typing import TYPE_CHECKING
 
 import networkx
-import pyvex
 
 from angr.ailment.block import Block
 from angr.ailment.block_walker import AILBlockRewriter, AILBlockViewer
 from angr.ailment.expression import BinaryOp, Call, Const, Convert, Expression, IRegister, Register, Tmp
 from angr.ailment.statement import Assignment, Return, SideEffectStatement, Statement
-from angr.calling_conventions import SimLyingRegArg, SimRegArg
-from angr.sim_type import SimTypeFloat
+from angr.utils.x87 import X87StackModel
 
 from .ailgraph_walker import AILGraphWalker
 
@@ -25,8 +23,6 @@ if TYPE_CHECKING:
 RegState = dict[tuple[int, int], int]
 BlockKey = tuple[int, int | None]
 
-# callee functions larger than this are not scanned for their net x87 stack effect
-MAX_CALLEE_BLOCKS = 256
 # how many blocks after a call site are scanned for the first x87 stack access
 MAX_CALLER_SCAN_BLOCKS = 4
 
@@ -62,6 +58,7 @@ class IRegisterResolver:
         function: Function,
         ail_graph: networkx.DiGraph,
         callee_deltas: dict[int, int | None] | None = None,
+        call_st0: dict[int, int] | None = None,
     ):
         self.project = project
         self.kb = kb
@@ -71,7 +68,9 @@ class IRegisterResolver:
         self._ftop_key: tuple[int, int] | None = self._arch.registers.get("ftop")
         self._fpreg_base: int | None = self._arch.registers["fpreg"][0] if "fpreg" in self._arch.registers else None
         self._fptag_base: int | None = self._arch.registers["fptag"][0] if "fptag" in self._arch.registers else None
-        self._callee_delta_cache: dict[int, int | None] = callee_deltas if callee_deltas is not None else {}
+        self._stack_model = X87StackModel(project, kb, callee_deltas=callee_deltas)
+        # call instruction address -> register offset of st(0) right after the call
+        self._call_st0: dict[int, int] = call_st0 if call_st0 is not None else {}
         self._caller_delta_cache: dict[tuple[BlockKey, int], int] = {}
         self._blocks_by_key: dict[BlockKey, Block] = {}
 
@@ -257,134 +256,17 @@ class IRegisterResolver:
             ftop = 0
         delta = None
         if isinstance(call.target, Const) and isinstance(call.target.value, int):
-            delta = self._callee_ftop_delta(call.target.value)
+            delta = self._stack_model.callee_delta(call.target.value)
         if delta is None:
             cache_key = ((block.addr, block.idx), stmt_idx)
             if cache_key not in self._caller_delta_cache:
                 self._caller_delta_cache[cache_key] = self._infer_call_delta_from_caller(block, stmt_idx)
             delta = self._caller_delta_cache[cache_key]
-        regs[self._ftop_key] = (ftop + delta) % 8
-
-    def _callee_ftop_delta(self, callee_addr: int) -> int | None:
-        """
-        The callee's net effect on ftop (-1: returns a value on the x87 stack; +1: pops its x87 argument), or None
-        when it cannot be determined.
-        """
-        if callee_addr in self._callee_delta_cache:
-            return self._callee_delta_cache[callee_addr]
-        self._callee_delta_cache[callee_addr] = None  # recursion guard
-        result: int | None = None
-        callee = self.kb.functions.function(addr=callee_addr)
-        if callee is not None:
-            if self._prototype_returns_x87(callee):
-                result = -1
-            elif not callee.is_simprocedure and not callee.is_plt and callee.block_addrs_set:
-                result = self._function_ftop_delta(callee)
-        self._callee_delta_cache[callee_addr] = result
-        return result
-
-    @staticmethod
-    def _prototype_returns_x87(func: Function) -> bool:
-        if func.prototype is None or not isinstance(func.prototype.returnty, SimTypeFloat):
-            return False
-        cc = func.calling_convention
-        # a concrete (non-lying) FP return register means the value is not returned on the x87 stack
-        return cc is None or not isinstance(cc.FP_RETURN_VAL, SimRegArg) or isinstance(cc.FP_RETURN_VAL, SimLyingRegArg)
-
-    def _function_ftop_delta(self, func: Function) -> int | None:
-        """Forward-track ftop through the callee's VEX blocks; the delta is the ftop value at its return sites."""
-        assert self._ftop_key is not None
-        if len(func.block_addrs_set) > MAX_CALLEE_BLOCKS:
-            return None
-        ftop_off, ftop_size = self._ftop_key
-        graph = func.graph
-        entry_node = func.get_node(func.addr)
-        if entry_node is None:
-            return None
-
-        # entry/exit ftop per block address; a block absent from `entry` is unvisited, None means unknown
-        entry: dict[int, int | None] = {entry_node.addr: 0}
-        exit_vals: dict[int, int | None] = {}
-        ret_vals: set[int | None] = set()
-        worklist = [entry_node]
-        while worklist:
-            node = worklist.pop(0)
-            ftop = entry[node.addr]
-            try:
-                irsb = self.project.factory.block(node.addr, size=node.size).vex
-            except Exception:  # pylint:disable=broad-exception-caught
-                irsb = None
-            if irsb is None:
-                ftop = None
-            else:
-                if ftop is not None:
-                    ftop = self._run_vex_block(irsb, ftop, ftop_off, ftop_size)
-                if irsb.jumpkind == "Ijk_Ret":
-                    ret_vals.add(ftop)
-                elif irsb.jumpkind == "Ijk_Call" and ftop is not None:
-                    target = func.get_call_target(node.addr)
-                    delta = self._callee_ftop_delta(target) if isinstance(target, int) else None
-                    ftop = None if delta is None else (ftop + delta) % 8
-            if node.addr in exit_vals and exit_vals[node.addr] == ftop:
-                continue
-            exit_vals[node.addr] = ftop
-            for succ in graph.successors(node):
-                if succ.addr not in entry:
-                    entry[succ.addr] = ftop
-                    worklist.append(succ)
-                elif entry[succ.addr] is not None and entry[succ.addr] != ftop:
-                    entry[succ.addr] = None
-                    worklist.append(succ)
-
-        if len(ret_vals) != 1:
-            return None
-        value = next(iter(ret_vals))
-        if value is None:
-            return None
-        return value - 8 if value > 4 else value
-
-    @staticmethod
-    def _run_vex_block(irsb: pyvex.IRSB, ftop: int, ftop_off: int, ftop_size: int) -> int | None:
-        tmps: dict[int, int] = {}
-
-        def eval_expr(expr) -> int | None:
-            if isinstance(expr, pyvex.IRExpr.RdTmp):
-                return tmps.get(expr.tmp)
-            if isinstance(expr, pyvex.IRExpr.Const):
-                return expr.con.value
-            if isinstance(expr, pyvex.IRExpr.Get):
-                return ftop if expr.offset == ftop_off else None
-            if isinstance(expr, pyvex.IRExpr.Binop) and expr.op in ("Iop_Add32", "Iop_Sub32"):
-                a, b = eval_expr(expr.args[0]), eval_expr(expr.args[1])
-                if a is None or b is None:
-                    return None
-                return (a + b if expr.op == "Iop_Add32" else a - b) & 0xFFFFFFFF
-            return None
-
-        for stmt in irsb.statements:
-            if isinstance(stmt, pyvex.IRStmt.WrTmp):
-                v = eval_expr(stmt.data)
-                if v is None:
-                    tmps.pop(stmt.tmp, None)
-                else:
-                    tmps[stmt.tmp] = v
-            elif isinstance(stmt, pyvex.IRStmt.Put):
-                if (
-                    stmt.offset < ftop_off + ftop_size
-                    and ftop_off < stmt.offset + stmt.data.result_size(irsb.tyenv) // 8
-                ):
-                    v = eval_expr(stmt.data)
-                    if v is None or ftop is None:
-                        return None
-                    ftop = v % 8
-            elif isinstance(stmt, pyvex.IRStmt.Dirty):
-                # FLDENV/FRSTOR/FXRSTOR reload the x87 state; FSAVE reinitializes it
-                name = stmt.cee.name
-                if "RSTOR" in name or "FLDENV" in name:
-                    return None
-                if "FSAVE" in name:
-                    ftop = 0
-        return ftop
+        ftop = (ftop + delta) % 8
+        regs[self._ftop_key] = ftop
+        ins_addr = call.tags.get("ins_addr")
+        if self._fpreg_base is not None and isinstance(ins_addr, int):
+            self._call_st0[ins_addr] = self._fpreg_base + (ftop << 3)
 
     def _infer_call_delta_from_caller(self, block: Block, stmt_idx: int) -> int:
         """
@@ -431,7 +313,7 @@ class IRegisterResolver:
         for i in range(start, len(block.statements)):
             stmt = block.statements[i]
             if isinstance(stmt, Return):
-                return -1 if self._prototype_returns_x87(self.function) else 0
+                return -1 if X87StackModel.prototype_returns_x87(self.function) else 0
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
                 return 0
             viewer.walk_statement(stmt, block, i)

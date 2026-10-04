@@ -16,7 +16,7 @@ from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.sim_type import SimTypeBottom, SimTypeFunction
+from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -923,7 +923,7 @@ class FactCollector(Analysis):
                         func.calling_convention is not None
                         and func.prototype is not None
                         and func.prototype.returnty is not None
-                        and not isinstance(func.prototype.returnty, SimTypeBottom)
+                        and not isinstance(func.prototype.returnty, (SimTypeBottom, SimTypeFloat))
                     ):
                         # assume the function overwrites the return variable
                         returnty_size = func.prototype.returnty.with_arch(self.project.arch).size
@@ -953,7 +953,7 @@ class FactCollector(Analysis):
                             func_succ.calling_convention is not None
                             and func_succ.prototype is not None
                             and func_succ.prototype.returnty is not None
-                            and not isinstance(func_succ.prototype.returnty, SimTypeBottom)
+                            and not isinstance(func_succ.prototype.returnty, (SimTypeBottom, SimTypeFloat))
                         ):
                             # assume the function overwrites the return variable
                             proto = func_succ.prototype
@@ -978,10 +978,10 @@ class FactCollector(Analysis):
                         if (
                             func_succ.prototype is not None
                             and func_succ.prototype.returnty is not None
-                            and isinstance(func_succ.prototype.returnty, SimTypeBottom)
+                            and isinstance(func_succ.prototype.returnty, (SimTypeBottom, SimTypeFloat))
                         ):
-                            # callee is void - don't scan VEX for return values since the call
-                            # just clobbers rax without returning anything meaningful
+                            # callee is void or returns in an FP register - don't scan VEX for return values since
+                            # the call just clobbers rax without returning anything meaningful
                             continue
 
                 block = self.project.factory.block(node.addr, size=node.size)

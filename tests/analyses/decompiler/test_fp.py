@@ -23,6 +23,10 @@ from angr.analyses.complete_calling_conventions import (
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.sim_type import SimTypeNum
 from angr.sim_variable import SimStackVariable
+
+
+from angr.calling_conventions import SimCCMicrosoftFastcall
+from angr.sim_type import SimTypeDouble, SimTypeFloat
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 # -- Paths & binary matrix --------------------------------------------
@@ -826,13 +830,15 @@ class TestDualPathPrototype:
 # ======================================================================
 
 
-def _decompile_asm_func(filename: str, func_name: str) -> str:
+def _decompile_asm_func(filename: str, func_name: str, cca: bool = False) -> str:
     """Decompile a function from an object file in the fp test directory."""
     path = os.path.join(_fp_dir, filename)
     if not os.path.exists(path):
         pytest.skip(f"{path} not found")
     proj = angr.Project(path, auto_load_libs=False)
     cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+    if cca:
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
     func = cfg.functions[func_name]
     dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
     assert dec.codegen is not None
@@ -1237,10 +1243,10 @@ class TestX87CallDelta:
     affect the stack."""
 
     def test_callee_pushes_despite_int_prototype(self):
-        # ret_double writes eax, so its prototype returns int; the push must come from the callee's own code
-        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_merge")
+        # ret_double also writes eax; the push comes from the callee's own code and the caller consumes st(0)
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_merge", cca=True)
         _assert_no_x87_leaks(text)
-        assert "ret_double(" in text
+        assert len(re.findall(r"\w+ = ret_double\(", text)) == 2, text
 
     def test_callee_pops_argument(self):
         text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop")
@@ -1280,6 +1286,49 @@ class TestX87CallDelta:
         _assert_no_x87_leaks(text)
         assert "__fxam(" in text
         assert "_ccall" not in text
+
+
+class TestX87ReturnPrototype:
+    """A value left on the x87 stack is the return value even when eax holds a scratch value; callers consume it
+    (x87_ret_proto_win32.exe, __fastcall and __cdecl)."""
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "x87_ret_proto_win32.exe")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        cls.proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cls.cfg.model)
+
+    def _proto(self, name: str):
+        return self.cfg.functions[name].prototype
+
+    def _text(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        _assert_no_x87_leaks(dec.codegen.text)
+        return dec.codegen.text
+
+    def test_x87_push_beats_eax_scratch(self):
+        for name in ("fast_ret_double", "cdecl_ret_double", "caller_pass"):
+            assert isinstance(self._proto(name).returnty, SimTypeDouble), name
+        assert isinstance(self.cfg.functions["fast_ret_double"].calling_convention, SimCCMicrosoftFastcall)
+        assert "double fast_ret_double(" in self._text("fast_ret_double")
+
+    def test_balanced_x87_use_returns_int(self):
+        # fld/fstp, or a push consumed by the callee, leaves nothing on the x87 stack
+        for name in ("store_ret_int", "trunc_int", "caller_consume_int"):
+            assert not isinstance(self._proto(name).returnty, SimTypeFloat), name
+
+    def test_caller_consumes_st0_after_jmp(self):
+        text = self._text("caller_fast_add")
+        m = re.search(r"(\w+) = fast_ret_double\(", text)
+        assert m is not None, text
+        assert re.search(rf"= {m.group(1)} \+ ", text), text
+
+    def test_caller_stores_st0(self):
+        assert re.search(r"\*\(?a0\)? = cdecl_ret_double\(a0\);", self._text("caller_consume_int"))
 
 
 # -- Integer views of floating-point registers ------------------------

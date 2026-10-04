@@ -1520,6 +1520,7 @@ class SimCCMicrosoftFastcall(SimCC):
     STACKARG_SP_DIFF = 4  # Return address is pushed on to stack by call
     RETURN_VAL = SimRegArg("eax", 4)
     OVERFLOW_RETURN_VAL = SimRegArg("edx", 4)  # 64-bit return values use EAX:EDX, same as cdecl
+    FP_RETURN_VAL = SimLyingRegArg("st0")
     RETURN_ADDR = SimStackArg(0, 4)
     ARCH = archinfo.ArchX86
 

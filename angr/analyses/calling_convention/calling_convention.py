@@ -59,6 +59,7 @@ from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
 from angr.utils.vex import block_branch_ins_addr
+from angr.utils.x87 import X87StackModel
 
 from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector, FactData
 from .utils import is_sane_register_variable, merge_overlapping_register_spans, reg_arg_from_span
@@ -144,6 +145,8 @@ class CallingConventionAnalysis(Analysis):
         self._unused_args: list[SimRegArg] = []
         self._retval_size = retval_size
         self._retval_incidental: bool | None = None
+        # x87 stack pointer at each return site, computed on demand by _x87_ret_ftop
+        self._x87_ret_ftops: dict[int, int | None] | None = None
         self._extra_pop: int | None = extra_pop
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
@@ -1663,6 +1666,20 @@ class CallingConventionAnalysis(Analysis):
         # Unsupported for now
         return SimTypeBottom()
 
+    def _x87_ret_ftop(self, ret_block_addr: int) -> int | None:
+        """
+        The x87 stack pointer at a return site of the function (0 at its entry; 7 when it leaves one value on the
+        stack), or None when unknown or when the function takes values on the x87 stack, so that its depth at the
+        return does not tell whether it returns one.
+        """
+        if self._x87_ret_ftops is None:
+            assert self._function is not None
+            ret_ftops, reads_incoming = X87StackModel(
+                self.project, self.kb, max_callee_blocks=32, assume_balanced=True
+            ).scan(self._function)
+            self._x87_ret_ftops = {} if ret_ftops is None or reads_incoming else ret_ftops
+        return self._x87_ret_ftops.get(ret_block_addr)
+
     def _is_retval_incidental(self) -> bool:
         """See :attr:`FactCollector.retval_incidental`. Collected with the other facts in fact-collecting mode;
         computed on demand when the return value size came from variable recovery instead."""
@@ -1693,6 +1710,7 @@ class CallingConventionAnalysis(Analysis):
                 except SimTranslationError:
                     # failed to lift the block
                     continue
+                x87_pushed = False
                 # Collect tmp definitions so we can trace what feeds the return reg
                 tmp_defs: dict[int, object] = {}
                 for stmt in irsb.statements:
@@ -1741,8 +1759,11 @@ class CallingConventionAnalysis(Analysis):
                         # x87 PutI to the FP register array indicates an FP return value
                         if stmt.descr.base == fpreg_offset:
                             fpreg_puti = True
-                            fpretval_updated = True
-                            fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
+                            ret_ftop = self._x87_ret_ftop(ret_block.addr)
+                            if ret_ftop is None or ret_ftop == 7:
+                                x87_pushed = ret_ftop == 7
+                                fpretval_updated = True
+                                fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
 
                 # If the return block itself has no FP write, check predecessors.
                 # This handles cases like fp_recursive where the FP return value is
@@ -1762,9 +1783,12 @@ class CallingConventionAnalysis(Analysis):
                         for stmt in pred_irsb.statements:
                             # x87: PutI to the FP register file
                             if fpreg_offset is not None and isinstance(stmt, PutI) and stmt.descr.base == fpreg_offset:
-                                fpretval_updated = True
                                 fpreg_puti = True
-                                fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
+                                ret_ftop = self._x87_ret_ftop(ret_block.addr)
+                                if ret_ftop is None or ret_ftop == 7:
+                                    x87_pushed = ret_ftop == 7
+                                    fpretval_updated = True
+                                    fp_reg_size = {"Ity_F64": 8, "Ity_F32": 4}.get(stmt.descr.elemTy, 8)
                                 break
                             # Vector Put to the FP return register (e.g. xmm0) or a sub-register
                             if (
@@ -1795,8 +1819,16 @@ class CallingConventionAnalysis(Analysis):
                                     and callee_func.prototype is not None
                                     and isinstance(callee_func.prototype.returnty, (SimTypeFloat, SimTypeDouble))
                                 ):
-                                    fpretval_updated = True
-                                    fp_reg_size = 8
+                                    ret_ftop = (
+                                        self._x87_ret_ftop(ret_block.addr)
+                                        if X87StackModel.prototype_returns_x87(callee_func)
+                                        else None
+                                    )
+                                    # an x87 return value that is popped before our return is not passed through
+                                    if ret_ftop is None or ret_ftop == 7:
+                                        x87_pushed = ret_ftop == 7
+                                        fpretval_updated = True
+                                        fp_reg_size = 8
                         if fpretval_updated:
                             break
 
@@ -1812,7 +1844,7 @@ class CallingConventionAnalysis(Analysis):
                         fpretval_updated = True
                         fp_reg_size = elem_size
 
-                if fpretval_updated and not retval_updated:
+                if fpretval_updated and (not retval_updated or x87_pushed):
                     if fp_reg_size == 4:
                         return SimTypeFloat()
                     # x87 always uses F64 internally.  An explicit F64->F32
