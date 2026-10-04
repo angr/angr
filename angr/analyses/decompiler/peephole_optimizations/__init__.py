@@ -38,6 +38,7 @@ from .modulo_simplifier import ModuloSimplifier
 from .narrow_fp_ops import NarrowFPOperations
 from .one_sub_bool import OneSubBool
 from .optimized_div_simplifier import OptimizedDivisionSimplifier
+from .recombine_split_halves import RecombineSplitHalves
 from .remove_cascading_conversions import RemoveCascadingConversions
 from .remove_const_insert import RemoveConstInsert
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
@@ -129,6 +130,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     CmpSubConst,
     CoalesceAdjacentShiftRights,
     ShlToMul,
+    RecombineSplitHalves,
     RewriteCxxOperatorCalls,
     RemoveCxxDestructorCalls,
     KnownPatternCallInfo,

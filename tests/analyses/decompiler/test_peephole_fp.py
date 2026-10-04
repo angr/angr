@@ -554,6 +554,28 @@ class TestSSEVectorLaneLowering(unittest.TestCase):
         assert isinstance(r.operand, Convert) and r.operand.to_type == Convert.TYPE_FP
 
 
+class TestRecombineSplitHalves(unittest.TestCase):
+    def _opt(self, expr):
+        from angr.analyses.decompiler.peephole_optimizations.recombine_split_halves import RecombineSplitHalves
+
+        return _make_peephole(RecombineSplitHalves).optimize(expr)
+
+    def _recombine(self, a):
+        lo = BinaryOp(None, "And", [a, Const(None, 0xFFFFFFFF, 64)], False, bits=64)
+        shr = BinaryOp(None, "Shr", [a, Const(None, 32, 8)], False, bits=64)
+        hi = BinaryOp(None, "Mul", [shr, Const(None, 0x100000000, 64)], False, bits=64)
+        return BinaryOp(None, "Or", [lo, hi], False, bits=64)
+
+    def test_mask_or_shifted_high_half(self):
+        a = Tmp(None, 1, 64)
+        r = self._opt(self._recombine(a))
+        assert r is not None and r.likes(a)
+
+    def test_call_is_not_folded(self):
+        # each half re-issues the call
+        assert self._opt(self._recombine(Call(None, "f", args=[], bits=64))) is None
+
+
 if __name__ == "__main__":
     unittest.main()
 

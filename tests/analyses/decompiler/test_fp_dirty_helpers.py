@@ -81,11 +81,12 @@ def test_x87_state_intrinsics(bin_name, func_name):
         assert leak not in text, text
 
 
-def test_rdtsc_result_split_without_duplicate_reads():
-    # rax/rdx are taken from one 64-bit result; the helper must not be re-issued per use
+def test_rdtsc_result_recombined():
+    # edx:eax is put back together into the single 64-bit __rdtsc() result, which is read once
     text = _decompile("x87_env_amd64", "read_tsc")
     assert text.count("__rdtsc(") == 1
-    assert ">> 32" in text
+    assert ">> 32" not in text and "0xffffffff" not in text, text
+    assert "unsigned long long v1;" in text and "return v1;" in text, text
 
 
 def test_inbyte_result_is_a_byte():
