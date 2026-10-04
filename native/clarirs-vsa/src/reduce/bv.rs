@@ -37,6 +37,17 @@ fn fold_si(
     Ok(result)
 }
 
+/// Reduce a bitvector computed from float or string operands. The operands are
+/// not tracked, so only a concrete node can be folded to a constant.
+fn from_opaque(ast: &AstRef<'_>) -> Result<StridedInterval, ClarirsError> {
+    if ast.concrete()
+        && let AstOp::BVV(bv) = ast.simplify()?.op()
+    {
+        return Ok(StridedInterval::constant(bv.len(), bv.to_biguint()));
+    }
+    Ok(StridedInterval::top(ast.size()))
+}
+
 /// Reduce a AstRef to a StridedInterval
 pub(crate) fn reduce_bv(
     ast: &AstRef<'_>,
@@ -91,16 +102,12 @@ pub(crate) fn reduce_bv(
         AstOp::Extract(_, high, low) => child_si(children, 0)?.extract(*high, *low),
         AstOp::Concat(..) => fold_si(children, StridedInterval::concat)?,
         AstOp::ByteReverse(..) => child_si(children, 0)?.reverse_bytes()?,
-        AstOp::FpToIEEEBV(..) | AstOp::FpToUBV(..) | AstOp::FpToSBV(..) => {
-            return Err(ClarirsError::UnsupportedOperation(
-                "Floating point operations are not supported".to_string(),
-            ));
-        }
-        AstOp::StrLen(..) | AstOp::StrIndexOf(..) | AstOp::StrToBV(..) => {
-            return Err(ClarirsError::UnsupportedOperation(
-                "String operations are not supported".to_string(),
-            ));
-        }
+        AstOp::FpToIEEEBV(..)
+        | AstOp::FpToUBV(..)
+        | AstOp::FpToSBV(..)
+        | AstOp::StrLen(..)
+        | AstOp::StrIndexOf(..)
+        | AstOp::StrToBV(..) => from_opaque(ast)?,
         AstOp::ITE(..) => match child(children, 0)? {
             ComparisonResult::True => child_si(children, 1)?,
             ComparisonResult::False => child_si(children, 2)?,

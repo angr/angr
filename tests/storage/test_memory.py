@@ -7,7 +7,7 @@ import unittest
 
 from archinfo import ArchAMD64
 
-from angr import SIM_PROCEDURES, Project, SimState, claripy
+from angr import SIM_PROCEDURES, SimState, claripy
 from angr import options as o
 from angr.claripy.annotation import UninitializedAnnotation
 from angr.errors import SimMemoryError
@@ -25,7 +25,7 @@ from angr.storage.memory_mixins import (
 )
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.storage.memory_mixins.paged_memory.pages.symbolic_bitmap import SymbolicBitmap
-from tests.common import bin_location, minimal_project
+from tests.common import minimal_project
 
 
 class UltraPageMemory(
@@ -625,8 +625,12 @@ class TestMemory(unittest.TestCase):
             s.memory.load(0x1000, 4, condition=claripy.BoolS("cond"))
 
     def test_fast_memory_fp_derived_parameters(self):
-        project = Project(f"{bin_location}/tests/x86_64/all", auto_load_libs=False)
-        s = SimState(project=project, mode="fastpath")
+        s = SimState(project=minimal_project("AMD64"), mode="fastpath")
+        s.registers.store(16, claripy.BVV(0x41, 8))
+        # concrete FP-derived parameters are single-valued
+        addr = claripy.FPV(2.2e-44, claripy.FSORT_FLOAT).to_bv()
+        assert s.solver.eval(s.registers.load(addr, 1)) == 0x41
+
         fp = claripy.FPS("fp", claripy.FSORT_FLOAT)
         fp_bits = fp.to_bv()
 

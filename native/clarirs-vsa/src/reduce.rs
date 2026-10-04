@@ -11,6 +11,8 @@ use clarirs_core::prelude::*;
 pub enum ReduceResult {
     BitVec(StridedInterval),
     Bool(ComparisonResult),
+    /// A float or string value; VSA does not track these.
+    Opaque,
 }
 
 impl ReduceResult {
@@ -38,7 +40,8 @@ impl ReduceResult {
 /// Reduces expressions into abstract domains:
 /// - BitVec expressions are reduced to StridedIntervals
 /// - Bool expressions are reduced to ComparisonResults
-/// - Float and String expressions return errors
+/// - Float and String expressions reduce to [`ReduceResult::Opaque`]; operations
+///   that turn them into bitvectors or bools yield top/Maybe unless concrete
 ///
 /// The result is wrapped in a [`ReduceResult`]; callers extract the relevant
 /// variant via [`ReduceResult::into_bv`]/[`ReduceResult::into_bool`].
@@ -55,9 +58,7 @@ impl<'c> Reduce<'c> for AstRef<'c> {
             |node, children| match node.ast_type() {
                 AstType::BitVec(_) => bv::reduce_bv(&node, children).map(ReduceResult::BitVec),
                 AstType::Bool => bool::reduce_bool(&node, children).map(ReduceResult::Bool),
-                _ => Err(ClarirsError::UnsupportedOperation(
-                    "Unsupported operation for reduction".to_string(),
-                )),
+                AstType::Float(_) | AstType::String => Ok(ReduceResult::Opaque),
             },
             &cache,
         )
