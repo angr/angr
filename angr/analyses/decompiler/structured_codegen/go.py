@@ -6529,9 +6529,74 @@ def _go_itab_slot(expr):
             return None
     else:
         return None
-    if _go_is_iface_word(base) and isinstance(offset, int):
+    if not isinstance(offset, int):
+        return None
+    if _go_is_iface_word(base):
         return base.variable, offset
+    if _go_is_iface_ptr_word(base):
+        # p.tab with p a *iface (a range over []iface): the receiver is *p
+        return GoUnaryOp("Dereference", base.variable, codegen=base.codegen), offset
     return None
+
+
+def _go_is_iface_ptr_word(expr) -> bool:
+    """``expr`` is the itab word of the interface value a pointer points to."""
+    if not (isinstance(expr, GoVariableField) and expr.field.field == "tab"):
+        return False
+    ty = unpack_typeref(expr.variable.type)
+    return isinstance(ty, SimTypePointer) and isinstance(unpack_typeref(ty.pts_to), GoSimTypeInterface)
+
+
+class _TabWordPointers(GoStructuredCodeWalker):
+    """
+    Variables that only ever point at the itab word of an interface value: ``p = &x.tab`` (x an interface or a pointer
+    to one), optionally advanced by ``p = p + k`` (a walk over a []iface). Maps the variable key to the interface type.
+    """
+
+    def __init__(self):
+        self.found: dict = {}
+        self.bad: set = set()
+
+    def handle_GoAssignment(self, obj):
+        obj = super().handle_GoAssignment(obj)
+        lhs = obj.lhs
+        if not isinstance(lhs, GoVariable):
+            return obj
+        key = _go_var_key(lhs)
+        rhs = obj.rhs
+        while isinstance(rhs, GoTypeCast):
+            rhs = rhs.expr
+        if isinstance(rhs, GoUnaryOp) and rhs.op == "Reference" and isinstance(rhs.operand, GoVariableField):
+            field = rhs.operand
+            iface = None
+            if field.field.field == "tab":
+                ty = unpack_typeref(field.variable.type)
+                if isinstance(ty, SimTypePointer):
+                    ty = unpack_typeref(ty.pts_to)
+                if isinstance(ty, GoSimTypeInterface):
+                    iface = ty
+            if iface is not None and self.found.get(key, iface) is iface:
+                self.found[key] = iface
+                return obj
+        elif (
+            isinstance(rhs, GoBinaryOp)
+            and rhs.op == "Add"
+            and isinstance(rhs.lhs, GoVariable)
+            and isinstance(rhs.rhs, GoConstant)
+            and _go_var_key(rhs.lhs) == key
+        ) or (isinstance(rhs, GoVariable) and _go_var_key(rhs) == key):
+            return obj
+        self.bad.add(key)
+        return obj
+
+    def result(self) -> dict:
+        return {k: v for k, v in self.found.items() if k not in self.bad}
+
+
+def _go_strip_casts(expr):
+    while isinstance(expr, GoTypeCast):
+        expr = expr.expr
+    return expr
 
 
 class InterfaceMethodCalls(GoStructuredCodeWalker):
@@ -6539,12 +6604,58 @@ class InterfaceMethodCalls(GoStructuredCodeWalker):
 
     def __init__(self, codegen):
         self._codegen = codegen
+        self._tab_ptrs: dict = {}
+
+    def handle_GoFunction(self, obj):
+        scan = _TabWordPointers()
+        scan.handle(obj.statements)
+        self._tab_ptrs = scan.result()
+        return super().handle_GoFunction(obj)
+
+    def _tab_ptr_slot(self, expr):
+        """``*(*p + k)`` with p pointing at an interface's itab word: (``*(*I)(p)``, k, p)."""
+        expr = _go_strip_casts(expr)
+        if not (isinstance(expr, GoUnaryOp) and expr.op == "Dereference"):
+            return None
+        inner = _go_strip_casts(expr.operand)
+        if not (isinstance(inner, GoBinaryOp) and inner.op == "Add" and isinstance(inner.rhs, GoConstant)):
+            return None
+        tab = _go_strip_casts(inner.lhs)
+        if not (isinstance(tab, GoUnaryOp) and tab.op == "Dereference"):
+            return None
+        ptr = _go_strip_casts(tab.operand)
+        if not isinstance(ptr, GoVariable) or not isinstance(inner.rhs.value, int):
+            return None
+        iface = self._tab_ptrs.get(_go_var_key(ptr))
+        if iface is None:
+            return None
+        arch = self._codegen.project.arch
+        cast = GoTypeCast(None, SimTypePointer(iface).with_arch(arch), ptr, codegen=self._codegen)
+        receiver = GoUnaryOp("Dereference", cast, codegen=self._codegen)
+        return receiver, inner.rhs.value, ptr
+
+    def _is_data_word_of(self, arg, ptr) -> bool:
+        """``p[1]`` / ``*(p + ws)``: the data word next to the itab word p points at."""
+        arg = _go_strip_casts(arg)
+        if isinstance(arg, GoIndexedVariable) and isinstance(arg.index, GoConstant):
+            base = _go_strip_casts(arg.variable)
+            return isinstance(base, GoVariable) and _same_variable(base, ptr) and arg.index.value == 1
+        return False
 
     def handle_GoFunctionCall(self, obj):
         obj = super().handle_GoFunctionCall(obj)
         if obj.callee_func is not None or isinstance(obj.callee_target, str):
             return obj
         slot = _go_itab_slot(obj.callee_target)
+        if slot is None and self._tab_ptrs:
+            hit = self._tab_ptr_slot(obj.callee_target)
+            if hit is not None:
+                receiver, offset, ptr = hit
+                args = list(obj.args)
+                if not (args and self._is_data_word_of(args[0], ptr)):
+                    return obj
+                iface = unpack_typeref(receiver.type)
+                return self._method_call(obj, receiver, iface, offset, args[1:])
         if slot is None:
             return obj
         receiver, offset = slot
@@ -6556,6 +6667,16 @@ class InterfaceMethodCalls(GoStructuredCodeWalker):
         args = list(obj.args)
         if args and isinstance(args[0], GoVariableField) and args[0].field.field == "data":
             args = args[1:]
+        return GoMethodCall(receiver, name, args, signature=sig, tags=obj.tags, codegen=self._codegen)
+
+    def _method_call(self, obj, receiver, iface, offset: int, args):
+        arch = self._codegen.project.arch
+        if not isinstance(iface, GoSimTypeInterface):
+            return obj
+        index, rem = divmod(offset - _go_itab_fun_offset(arch), arch.bytes)
+        if rem or index < 0 or index >= len(iface.methods):
+            return obj
+        name, sig = iface.methods[index]
         return GoMethodCall(receiver, name, args, signature=sig, tags=obj.tags, codegen=self._codegen)
 
 

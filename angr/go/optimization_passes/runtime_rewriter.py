@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 
 import networkx
 
@@ -1037,7 +1037,10 @@ class GoRuntimeRewriter(OptimizationPass):
                     if off in stores:
                         return False
                     stores[off] = (block, i, stmt)
-        if set(stores) != set(record.offsets.values()) or 0 not in stores:
+        if 0 not in stores:
+            return False
+        values = self._closure_field_values(record, stores)
+        if values is None:
             return False
         code_expr = stores[0][2].data
         if not isinstance(code_expr, Const) or not is_function_addr(self.project, code_expr.value_int):
@@ -1079,7 +1082,7 @@ class GoRuntimeRewriter(OptimizationPass):
             elif not self._dominates(last_block, block):
                 return False
         names = [name for name, off in sorted(record.offsets.items(), key=lambda kv: kv[1]) if off != 0]
-        captures = [stores[record.offsets[name]][2].data for name in names]
+        captures = [values[name] for name in names]
         func_ty, _ = self._func_type_at(code)
         closure = self._closure_expr(code, captures, names, func_ty)
         if len(uses) == 1 and uses[0][0] is last_block and not aliases:
@@ -1102,6 +1105,56 @@ class GoRuntimeRewriter(OptimizationPass):
             block.statements = new_stmts
         self._changed = True
         return True
+
+    def _closure_field_values(self, record: GoSimStruct, stores: dict) -> dict[str, Expression] | None:
+        """
+        The value stored into each field of a heap closure record, or None unless the stores cover the fields exactly.
+        A multi-word field (a string, slice or interface capture) filled word by word becomes the multi-word value the
+        words come from, or a struct literal of its words.
+        """
+        out: dict[str, Expression] = {}
+        covered: set[int] = set()
+        words = None
+        for name, off in record.offsets.items():
+            fty = record.fields.get(name)
+            size = (fty.size or 0) // self.project.arch.byte_width if fty is not None else 0
+            if size <= 0:
+                return None
+            parts = sorted((o, st) for o, (_, _, st) in stores.items() if off <= o < off + size)
+            pos = off
+            for o, st in parts:
+                if o != pos:
+                    return None
+                pos += st.size
+            if pos != off + size:
+                return None
+            covered.update(o for o, _ in parts)
+            if len(parts) == 1:
+                out[name] = parts[0][1].data
+                continue
+            if words is None:
+                words = self._word_sources()
+            datas = [st.data for _, st in parts]
+            out[name] = self._multiword_capture(fty, off, parts, datas, words)
+        if covered != set(stores):
+            return None
+        return out
+
+    def _multiword_capture(self, fty, off: int, parts, datas, words) -> Expression:
+        infos = [words.get(d.varid) if isinstance(d, VirtualVariable) else None for d in datas]
+        if all(i is not None for i in infos):
+            whole = infos[0][3]
+            if all(i[3] is whole and i[1] == k and i[2] == len(datas) for k, i in enumerate(infos)):
+                return whole
+        rel = [o - off for o, _ in parts]
+        names = None
+        if isinstance(fty, GoSimStruct) and sorted(fty.offsets.values()) == rel:
+            names = OrderedDict(sorted(fty.offsets.items(), key=lambda kv: kv[1]))
+        if names is None:
+            names = OrderedDict((f"f{i}", r) for i, r in enumerate(rel))
+        fields = OrderedDict(zip(rel, datas))
+        type_name = fty.go_repr() if isinstance(fty, GoSimType) else str(fty)
+        return Struct(self._new_idx(), type_name, fields, names, fty.size, **parts[0][1].tags)
 
     def _fold_stack_closure(self, block: Block, stmt: Statement) -> None:
         """
@@ -1355,7 +1408,7 @@ class GoRuntimeRewriter(OptimizationPass):
         fv = target.addr
         func_ty = self._func_type_of(fv)
         if func_ty is None:
-            return None
+            return self._drop_code_pointer_args(call)
         sig = func_ty.signature
         args = list(call.args or [])
         if call.tags.get("is_prototype_guessed", True) and len(args) > len(sig.args):
@@ -1365,6 +1418,23 @@ class GoRuntimeRewriter(OptimizationPass):
         new_call = Call(call.idx, fv.copy(), args=args, bits=call.bits, **tags)
         variable_map_of(self.manager).set_prototype(new_call, sig.with_arch(self.project.arch))
         return new_call
+
+    @staticmethod
+    def _drop_code_pointer_args(call: Call) -> Call | None:
+        """
+        ``(*f)(a, b, *f)`` / ``(*f)(a, b, f)`` with a guessed prototype: the trailing argument is the register holding
+        the code pointer or the closure context (the funcval itself), not an argument.
+        """
+        if not call.tags.get("is_prototype_guessed", True):
+            return None
+        args = list(call.args or [])
+        fv = call.target.addr
+        n = len(args)
+        while n and (args[n - 1].likes(call.target) or args[n - 1].likes(fv)):
+            n -= 1
+        if n == len(args):
+            return None
+        return Call(call.idx, call.target, args=args[:n], bits=call.bits, **call.tags)
 
     #
     # Goroutines and defer
@@ -1448,8 +1518,13 @@ class GoRuntimeRewriter(OptimizationPass):
             return
         drop: set[int] = set()
         replace: dict[int, Statement] = {}
+        phis: dict[int, list[Statement]] = {}  # phi slot varid -> its phi and zero-init statements
         for bits_stmt, call_stmt, slot_varid in exits:
             bits_offset = bits_stmt.dst.stack_offset
+            merged = self._phi_defer_slot(slot_varid)
+            if merged is not None:
+                phis[slot_varid] = merged[1]
+                slot_varid = merged[0]
             setup = self._find_defer_setup(slot_varid, bits_offset)
             if setup is None:
                 continue
@@ -1460,6 +1535,10 @@ class GoRuntimeRewriter(OptimizationPass):
             drop |= self._defer_scaffolding(slot_varid, bits_offset)
         if not replace:
             return
+        # a slot the compiler zeroed on entry merges with the filled one; the merge goes once its exit calls go
+        for phi_varid, stmts in phis.items():
+            if all(block.statements[i].idx in drop for block, i in self._index.sites.get(phi_varid, [])):
+                drop.update(stmt.idx for stmt in stmts)
         drop -= set(replace)
         for block in self._graph.nodes:
             block.statements = [replace.get(stmt.idx, stmt) for stmt in block.statements if stmt.idx not in drop]
@@ -1480,6 +1559,36 @@ class GoRuntimeRewriter(OptimizationPass):
         else:
             slot = target if isinstance(target, VirtualVariable) else None
         return slot if slot is not None and slot.was_stack else None
+
+    def _phi_defer_slot(self, slot_varid: int) -> tuple[int, list[Statement]] | None:
+        """
+        A closure slot that is a phi of its entry zeroing and the one real fill: (the filled vvar, [the phi and the
+        zeroing assignments]).
+        """
+        assert self._index is not None
+        loc = self._index.defs.get(slot_varid)
+        if loc is None:
+            return None
+        phi = loc[0].statements[loc[1]]
+        if not (isinstance(phi, Assignment) and phi.is_phi_assignment and hasattr(phi.src, "src_and_vvars")):
+            return None
+        filled = None
+        stmts: list[Statement] = [phi]
+        for _, vvar in phi.src.src_and_vvars:
+            if vvar is None:
+                return None
+            vloc = self._index.defs.get(vvar.varid)
+            if vloc is None:
+                return None
+            vdef = vloc[0].statements[vloc[1]]
+            if isinstance(vdef, Assignment) and isinstance(vdef.src, Const) and vdef.src.value_int == 0:
+                if self._index.total.get(vvar.varid, 0) == 1:
+                    stmts.append(vdef)
+                continue
+            if filled is not None and filled != vvar.varid:
+                return None
+            filled = vvar.varid
+        return (filled, stmts) if filled is not None else None
 
     @staticmethod
     def _is_bits_assign(stmt) -> bool:

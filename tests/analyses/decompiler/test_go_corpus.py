@@ -224,6 +224,28 @@ class TestGoCorpusStringComparesArm64(_Corpus):
         assert "int32" not in text and "struct_" not in text
 
 
+class TestGoCorpusFuncValueCalls(_Corpus):
+    """Calls through func values and itab slots whose callee type is not known."""
+
+    PATH = LINUX
+    FUNCS = ("flag.commandLineUsage", "slices.medianCmpFunc[go.shape.*uint8]", "io.ReadAtLeast")
+
+    def test_code_pointer_and_context_are_not_arguments(self):
+        # the register holding the code pointer (or the funcval as context) is not a trailing argument
+        text = self.decompile("flag.commandLineUsage")
+        assert re.search(r"^\s+\(\*g_\w+\)\(\)$", text, re.MULTILINE), text
+        text = self.decompile("slices.medianCmpFunc[go.shape.*uint8]")
+        calls = re.findall(r"\(\*(a\d+)\)\((.*)\) [<>]=? 0", text)
+        assert len(calls) == 3, text
+        for fv, args in calls:
+            assert not re.search(rf"\*?{fv}$", args), text
+
+    def test_itab_slot_call_is_a_method_call(self):
+        text = self.decompile("io.ReadAtLeast")
+        assert re.search(r"\br\.Read\(", text), text
+        assert ".Fun" not in text, text
+
+
 class TestGoCorpusDarwinArm64(_Corpus):
     PATH = DARWIN
     FUNCS = (
