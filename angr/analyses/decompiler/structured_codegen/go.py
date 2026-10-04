@@ -8711,6 +8711,16 @@ class ShortDeclarations:
         scope = paths[0][depth - 1][0]
         return (scope, first)
 
+    def _all_within(self, key, loc) -> bool:
+        """Every use of ``key`` is inside the statement at ``loc``."""
+        for path in self._refs[key]:
+            for scope, ordinal in path:
+                if scope == loc[0]:
+                    if ordinal != loc[1]:
+                        return False
+                    break
+        return True
+
     @staticmethod
     def _targets(stmt) -> list:
         """The variables a statement assigns directly."""
@@ -8745,6 +8755,9 @@ class ShortDeclarations:
             stmt = self._stmt_at.get(loc)
             targets = [t for t in self._targets(stmt) if self._is_local(t)]
             if not any(self._key(t) == key for t in targets):
+                continue
+            if isinstance(stmt, (GoForLoop, GoRangeLoop)) and not self._all_within(key, loc):
+                # a loop's own variables are scoped to the loop
                 continue
             # the value must not read the variable being declared
             counter = _UseCounter()

@@ -60,10 +60,15 @@ class _Index(AILBlockViewer):
         super().__init__()
         self.counts: dict[int, int] = {}
         self.refs: dict[int, list] = {}  # varid -> [(block, stmt_idx)]
+        self.reads: dict[int, list] = {}  # varid -> [(block, stmt_idx)] of plain value reads
         self.calls: list[Call] = []
+        self._in_ref = False
 
     def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
         self.counts[expr.varid] = self.counts.get(expr.varid, 0) + 1
+        is_dst = isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == expr.varid
+        if not self._in_ref and not (is_dst and expr_idx == 0):
+            self.reads.setdefault(expr.varid, []).append((block, stmt_idx))
 
     def _handle_Phi(self, expr_idx, expr: Phi, stmt_idx, stmt, block):
         for _, vvar in expr.src_and_vvars:
@@ -74,7 +79,9 @@ class _Index(AILBlockViewer):
         ref = _stack_ref(expr)
         if ref is not None:
             self.refs.setdefault(ref.varid, []).append((block, stmt_idx))
+        self._in_ref, saved = ref is not None, self._in_ref
         super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+        self._in_ref = saved
 
     def _handle_Call(self, expr_idx, expr, stmt_idx, stmt, block):
         self.calls.append(expr)
@@ -82,10 +89,18 @@ class _Index(AILBlockViewer):
 
 
 class _RefReplacer(AILBlockRewriter):
-    def __init__(self, varids: set[int], new: VirtualVariable):
+    """``&header`` -> ``m``; reads of the header's first word (``m.used``) -> ``len(m)``."""
+
+    def __init__(self, varids: set[int], new: VirtualVariable, len_ids: set[int] | None = None):
         super().__init__()
         self._varids = varids
         self._new = new
+        self._len_ids = len_ids or set()
+
+    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
+        if expr.varid in self._len_ids:
+            return Call(expr.idx, "len", [self._new], bits=expr.bits, go_result_type="int", **expr.tags)
+        return expr
 
     def _handle_UnaryOp(self, expr_idx, expr, stmt_idx, stmt, block):
         ref = _stack_ref(expr)
@@ -395,6 +410,7 @@ class SmallMapFolder(_StackScan):
             return None
 
         drop: dict[Block, set[int]] = {}  # block -> statement indexes to drop
+        len_ids: set[int] = set()
 
         def mark(block, i):
             drop.setdefault(block, set()).add(i)
@@ -406,8 +422,14 @@ class SmallMapFolder(_StackScan):
                 continue
             if not (isinstance(st.src, Const) and st.src.value == 0) and v.varid != dir_def.dst.varid:
                 return None
-            if self.index.counts.get(v.varid, 0) - len(self.index.refs.get(v.varid, ())) != 1:
+            reads = self.index.reads.get(v.varid, [])
+            if self.index.counts.get(v.varid, 0) - len(self.index.refs.get(v.varid, ())) - len(reads) != 1:
                 return None
+            if reads:
+                # the element count is the header's first word: len(m)
+                if v.stack_offset != header or v.size != 8:
+                    return None
+                len_ids.add(v.varid)
             mark(block, i)
         if self.index.counts.get(seed.dst.varid, 0) != 1:
             return None
@@ -434,7 +456,9 @@ class SmallMapFolder(_StackScan):
                 return None
             mark(block, i)
         # the m := make(...) at the seed must come before every use of &header
-        if not self._dominates_refs(seed_block, seed_i, base_ids):
+        uses = [loc for varid in base_ids for loc in self.index.refs.get(varid, [])]
+        uses += [loc for varid in len_ids for loc in self.index.reads.get(varid, [])]
+        if not self._dominates(seed_block, seed_i, uses):
             return None
 
         touched = set(drop)
@@ -452,7 +476,7 @@ class SmallMapFolder(_StackScan):
             block.statements = [st for k, st in enumerate(block.statements) if k not in idxs]
         if loop is not None:
             self._remove_loop(loop)
-        replacer = _RefReplacer(base_ids, m.dst)
+        replacer = _RefReplacer(base_ids, m.dst, len_ids)
         for block in list(self.graph.nodes):
             replacer.walk(block)
         touched.add(seed_block)
@@ -534,23 +558,22 @@ class SmallMapFolder(_StackScan):
         slot = _align(_align(ks, va) + vs, max(ka, va))
         return 8 + 8 * slot
 
-    def _dominates_refs(self, seed_block: Block, seed_i: int, base_ids: set[int]) -> bool:
+    def _dominates(self, seed_block: Block, seed_i: int, uses: list) -> bool:
         entry = next((b for b in self.graph.nodes if self.graph.in_degree(b) == 0), None)
         if entry is None:
             return False
         idoms = networkx.immediate_dominators(self.graph, entry)
-        for varid in base_ids:
-            for block, stmt_idx in self.index.refs.get(varid, []):
-                if block is seed_block:
-                    if stmt_idx <= seed_i:
-                        return False
-                    continue
-                b = block
-                while b is not seed_block:
-                    nxt = idoms.get(b)
-                    if nxt is None or nxt is b:
-                        return False
-                    b = nxt
+        for block, stmt_idx in uses:
+            if block is seed_block:
+                if stmt_idx <= seed_i:
+                    return False
+                continue
+            b = block
+            while b is not seed_block:
+                nxt = idoms.get(b)
+                if nxt is None or nxt is b:
+                    return False
+                b = nxt
         return True
 
     #
