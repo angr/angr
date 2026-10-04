@@ -3287,12 +3287,19 @@ class CITE(CExpression):
             return
         paren = CClosingObject("(")
         yield "(", paren
+        yield from self._c_repr_chunks_chain()
+        yield ")", paren
+
+    def _c_repr_chunks_chain(self):
         yield from self.cond.c_repr_chunks()
         yield " ? ", self
         yield from self.iftrue.c_repr_chunks()
         yield " : ", self
-        yield from self.iffalse.c_repr_chunks()
-        yield ")", paren
+        if isinstance(self.iffalse, CITE) and not self.iffalse.collapsed:
+            # ?: is right-associative: a ? x : b ? y : z
+            yield from self.iffalse._c_repr_chunks_chain()
+        else:
+            yield from self.iffalse.c_repr_chunks()
 
 
 class CMultiStatementExpression(CExpression):
