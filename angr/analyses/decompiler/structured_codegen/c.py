@@ -138,6 +138,46 @@ def qualifies_for_width_cast(ty):
     return isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum, SimTypePointer, SimTypeBottom))
 
 
+def int_width_and_signedness(ty: SimType | None) -> tuple[int, bool] | None:
+    """The (bits, signed) of an integer-like C type, or None when the type is not an integer or has no size."""
+    if isinstance(ty, TypeRef):
+        ty = ty.type
+    if not isinstance(ty, (SimTypeInt, SimTypeChar, SimTypeNum)):
+        return None
+    if isinstance(ty, SimTypeNum) and ty._size is None:
+        return None
+    return ty.size, ty.signed
+
+
+def int_operand_signedness(expr: CExpression) -> bool | None:
+    """
+    The signedness of an integer expression as C reads it. Constants are neutral (None): an int literal does not make
+    (int)a - 1 unsigned, even though the common type the codegen computes for it is.
+    """
+    if isinstance(expr, CConstant):
+        return None
+    if isinstance(expr, CBinaryOp) and expr.op in {"Add", "Sub", "Mul", "And", "Or", "Xor", "Shl"}:
+        lhs = int_operand_signedness(expr.lhs)
+        rhs = int_operand_signedness(expr.rhs)
+        if lhs is None:
+            return rhs
+        if rhs is None:
+            return lhs
+        return lhs and rhs
+    ws = int_width_and_signedness(unpack_typeref(expr.type))
+    return None if ws is None else ws[1]
+
+
+def is_sign_fixing_cast(cast: CTypeCast) -> bool:
+    """A same-width integer cast whose operand C reads with the other signedness, e.g. (long long)x for unsigned x."""
+    s = int_width_and_signedness(cast.src_type)
+    d = int_width_and_signedness(cast.dst_type)
+    if s is None or d is None or s[0] != d[0]:
+        return False
+    sign = int_operand_signedness(cast.expr)
+    return sign is not None and sign != d[1]
+
+
 def qualifies_for_implicit_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen without a cast?
     # used to decide whether to omit typecasts from output during promotion
@@ -3605,6 +3645,31 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
 
+    def _int_to_fp_operand(self, child: CExpression, from_bits: int, signed: bool) -> CExpression:
+        """
+        cvtsi2sd and friends read the integer with the signedness of the conversion. When the operand's C type says
+        otherwise (a pointer, an unsigned field, ...), (double)x in C would convert the other way, so cast through the
+        integer type of the conversion first.
+        """
+        ty = unpack_typeref(child.type)
+        if isinstance(ty, (SimTypeBool, SimTypeFloat, SimTypeBottom)):
+            return child
+        ws = int_width_and_signedness(ty)
+        if ws is not None and ws[0] <= from_bits:
+            width = ws[0]
+            is_signed = int_operand_signedness(child)
+            if is_signed is None or is_signed == signed:
+                return child
+            if not is_signed:
+                # a zero-extended narrower value never has the sign bit set
+                if width < from_bits:
+                    return child
+                if isinstance(child, CTypeCast):
+                    inner = int_width_and_signedness(child.expr.type)
+                    if inner is not None and inner[0] < from_bits:
+                        return child
+        return CTypeCast(None, self.default_simtype_from_bits(from_bits, signed), child, codegen=self)
+
     def _variable(
         self, variable: SimVariable, fallback_type_size: int | None, vvar_id: int | None = None, mark_used: bool = True
     ) -> CVariable:
@@ -4920,6 +4985,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 is_fp = False
             if is_fp:
                 child = self._handle(expr.operand)
+                if expr.from_type == Expr.ConvertType.TYPE_INT:
+                    child = self._int_to_fp_operand(child, expr.from_bits, expr.is_signed)
                 return CTypeCast(None, fp_dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
 
         child = self._handle(expr.operand)
@@ -5320,12 +5387,21 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 
     def handle_CTypeCast(self, obj: CTypeCast):
         # note that the expression that this method returns may no longer be a CTypeCast
-        obj = super().handle_CTypeCast(obj)
+        return self._collapse_cast(obj, under_fp_cast=False)
+
+    def _collapse_cast(self, obj: CTypeCast, under_fp_cast: bool) -> CExpression:
+        if isinstance(obj.dst_type, SimTypeFloat) and isinstance(obj.expr, CTypeCast):
+            obj.expr = self._collapse_cast(obj.expr, under_fp_cast=True)
+        else:
+            obj.expr = self.handle(obj.expr)
         inner = self.collapse(obj.dst_type, obj.expr)
         assert inner.type is not None
         if inner is not obj.expr:
             obj.src_type = inner.type
             obj.expr = inner
+        if under_fp_cast and is_sign_fixing_cast(obj):
+            # the int->FP conversion reads its operand with this signedness; the cast is not implicit
+            return obj
         if obj.src_type == obj.dst_type or qualifies_for_implicit_cast(obj.src_type, obj.dst_type):
             return obj.expr
         return obj

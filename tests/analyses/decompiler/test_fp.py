@@ -1118,6 +1118,36 @@ class TestSSELaneOps:
         assert "MulV" not in text and "a0 * a1" in text, text
 
 
+# ======================================================================
+# cvtsi2sd_signed_amd64.o: cvtsi2sd reads its operand as a signed integer. The
+# operand is typed signed when nothing contradicts it; otherwise the C must cast
+# through the signed integer type, since (double)x of an unsigned or pointer x
+# converts differently for values with the sign bit set.
+# ======================================================================
+
+
+class TestSignedIntToFP:
+    def test_field_typed_signed(self):
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", "field_to_double")
+        assert "long long *a0" in text, text
+        assert "(double)(long long)" not in text, text
+
+    @pytest.mark.parametrize("func_name,param", [("s64_to_double", "long long a0"), ("s32_to_double", "int a0")])
+    def test_param_typed_signed(self, func_name, param):
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", func_name)
+        assert param in text, text
+        assert "(double)a0" in text, text
+
+    def test_pointer_operand_is_cast(self):
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", "ptr_to_double")
+        assert re.search(r"\(double\)\(long long\)a\d", text), text
+
+    def test_unsigned_operand_is_cast(self):
+        # shr types the operand unsigned; the 32-bit cvtsi2sd still converts it as int
+        text = _decompile_asm_func("cvtsi2sd_signed_amd64.o", "shr_to_double")
+        assert "(double)(int)(a1 >> 3)" in text, text
+
+
 if __name__ == "__main__":
     unittest.main()
 
