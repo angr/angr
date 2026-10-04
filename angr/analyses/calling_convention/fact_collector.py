@@ -20,7 +20,12 @@ from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
 
-from .utils import is_sane_register_variable, merge_overlapping_register_spans, reg_arg_from_span
+from .utils import (
+    fold_fp_lane_reads,
+    is_sane_register_variable,
+    merge_overlapping_register_spans,
+    reg_arg_from_span,
+)
 
 if TYPE_CHECKING:
     from angr.codenode import CodeNode
@@ -1341,6 +1346,7 @@ class FactCollector(Analysis):
                 reg_reads[offset] = max(reg_reads.get(offset, 0), size)
             for offset, size in state.reg_lane_reads.items():
                 reg_lane_reads[offset] = max(reg_lane_reads.get(offset, 0), size)
+        reg_reads = fold_fp_lane_reads(self.project.arch, reg_reads, arg_reg_cc)
         # reads of overlapping sub-registers (e.g., ch and cx) describe one argument
         for offset, size in merge_overlapping_register_spans(self.project.arch, reg_reads.items()):
             arg = reg_arg_from_span(self.project.arch, offset, size)

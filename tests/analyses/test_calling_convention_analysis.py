@@ -768,6 +768,18 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca.prototype is not None
         assert all(isinstance(a, SimTypeFloat) for a in cca.prototype.args)
 
+    def test_amd64_movmsk_lane_reads_are_one_arg(self):
+        """movmskps/movmskpd read xmm0 as GET:I32 lanes at +0/+4/+8/+12; the upper lanes are not extra arguments."""
+        binary = os.path.join(test_location, "decompiler_fp", "sse_movmsk_amd64.o")
+        project = angr.Project(binary, auto_load_libs=False)
+        cfg = project.analyses.CFGFast(normalize=True)
+
+        for name, arg_ty in (("sign_f", SimTypeFloat), ("sign_d", SimTypeDouble)):
+            cca = project.analyses.CallingConvention(cfg.kb.functions[name], cfg=cfg.model, collect_facts=True)
+            assert cca.cc is not None and cca.prototype is not None
+            assert [a.reg_name for a in cca.cc.arg_locs(cca.prototype)] == ["xmm0"]
+            assert isinstance(cca.prototype.args[0], arg_ty)
+
     def test_microsoft_amd64_float_arg_copied_whole(self):
         """fmt_float(void **, unsigned *, float): the float arrives in xmm2, is copied whole into xmm6 (movaps) and
         only consumed as 32-bit lanes. Microsoft x64 slots are positional, so rcx, rdx, xmm2 are three arguments

@@ -118,6 +118,30 @@ def reg_arg_from_span(arch: archinfo.Arch, offset: int, size: int) -> SimRegArg:
     return SimRegArg(canonical if arch.registers.get(canonical) == (off, sz) else n, sz)
 
 
+def fold_fp_lane_reads(
+    arch: archinfo.Arch, reg_reads: dict[int, int], def_cc: SimCC | type[SimCC] | None
+) -> dict[int, int]:
+    """
+    On AMD64, fold reads of upper lanes of an FP argument register (movmskps reads xmm0+4/+8/+12) into the register
+    itself: one xmm register holds one argument. When the low lane is read, its width is the argument width;
+    otherwise the folded read covers the lanes up to the scalar width (8 bytes).
+    """
+
+    if arch.name != "AMD64" or def_cc is None:
+        return reg_reads
+    folded = dict(reg_reads)
+    for reg_name in def_cc.FP_ARG_REGS:
+        base, reg_size = arch.registers[reg_name]
+        lane_reads = [(off, sz) for off, sz in reg_reads.items() if base < off < base + reg_size]
+        if not lane_reads:
+            continue
+        for off, _ in lane_reads:
+            del folded[off]
+        if base not in folded:
+            folded[base] = min(max(off + sz for off, sz in lane_reads) - base, 8)
+    return folded
+
+
 def merge_overlapping_register_spans(arch: archinfo.Arch, spans: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
     """
     Merge register reads that belong to the same base register into one span per base register.
