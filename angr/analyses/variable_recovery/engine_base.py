@@ -1289,11 +1289,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                     self.state.delayed_type_constraints.pop(var)
 
                 if var not in self.state.typevars:
-                    # a stack slot whose address was taken earlier already has a type variable for its contents
-                    if isinstance(var, SimStackVariable) and var.offset in self.state.stack_offset_typevars:
-                        typevar = self.state.stack_offset_typevars[var.offset]
-                    else:
-                        typevar = self.tv_manager.new_tv()
+                    typevar = self.tv_manager.new_tv()
                     self.state.typevars.add_type_variable(var, typevar)
                 else:
                     # FIXME: This is an extremely stupid hack. Fix it later.
