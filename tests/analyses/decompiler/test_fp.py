@@ -1638,3 +1638,16 @@ def test_int_typed_register_variable_uses_reinterpret_helpers():
     assert "*)&" not in text, text
     assert "v1 = __double_as_longlong((double)a0);" in text, text
     assert "return __longlong_as_double(v1) * __longlong_as_double(v1) + __longlong_as_double(v1);" in text, text
+
+
+class TestClampThroughSlotPointers:
+    """
+    A [-1, 1] clamp that picks its result through pointers to two stack slots (lea/lea/cmovbe; movsd xmm0, [eax]). The
+    upper-bound slot is only written with 1.0 and only read through the selected pointer.
+    """
+
+    def test_slot_written_by_movsd_is_double(self):
+        text = _decompile_asm_func("fp_clamp_ref_i386.o", "clamp_ref")
+        assert re.search(r"double v\d+;  // \[bp-0xc\]", text), text
+        assert re.search(r"v\d+ = 1\.0;", text), text
+        assert "0x3ff0000000000000" not in text and "unsigned long long" not in text, text

@@ -56,7 +56,7 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypePointer,
 )
-from angr.utils.constants import MAX_TYPE_NESTING
+from angr.utils.constants import MAX_POINTSTO_BITS, MAX_TYPE_NESTING
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -187,6 +187,18 @@ class TestTypehoon(unittest.TestCase):
         )
 
         assert isinstance(typehoon.solution[v0], Int32)
+
+    def test_float_lower_bound_survives_reference_of_unknown_size(self):
+        # a stack slot written with a double whose address is taken: float64 <: v <: ref.load.<MAX_POINTSTO_BITS>@0
+        func_f = TypeVariable(name="F")
+        v = TypeVariable(name="v")
+        ref = TypeVariable(name="ref")
+        ref_load = DerivedTypeVariable(ref, None, labels=[Load(), HasField(MAX_POINTSTO_BITS, 0)])
+        type_constraints = {func_f: {Subtype(Float64(), v), Subtype(v, ref_load)}}
+        proj = angr.load_shellcode(b"\x90\x90", "X86")
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
+
+        assert isinstance(typehoon.solution[v], Float64)
 
     def test_type_inference_basic_case_1(self):
         func_f = TypeVariable(name="F")

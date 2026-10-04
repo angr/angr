@@ -644,6 +644,12 @@ def map_offsets_to_bases(candidate_bases: SortedDict) -> SortedDict:
 #
 
 
+def _is_float_bound(constraint: TypeConstraint) -> bool:
+    return isinstance(constraint, Subtype) and (
+        isinstance(constraint.sub_type, Float) or isinstance(constraint.super_type, Float)
+    )
+
+
 class SimpleSolver:
     """
     SimpleSolver is, by its name, a simple solver. Most of this solver is based on the (complex) simplification logic
@@ -1757,6 +1763,11 @@ class SimpleSolver:
             max_size = MAX_POINTSTO_BITS if MAX_POINTSTO_BITS in tv_sizes else max(tv_sizes)
             for size, cs in tv_sizes.items():
                 if size != max_size:
+                    if max_size == MAX_POINTSTO_BITS:
+                        # a referenced variable may be the base of an aggregate, which overrides integer accesses to
+                        # its first element; a float bound, however, is the only type evidence for a slot that is
+                        # written with a float and read back through a pointer of unknown access size
+                        cs = {c for c in cs if not _is_float_bound(c)}
                     to_drop |= cs
 
         return constraints.difference(to_drop)
