@@ -76,6 +76,7 @@ from .sse_scalar_lowering import SSEScalarLowering, SSEVectorConvertLowering
 from .sse_vector_lane_lowering import SSEVectorLaneLowering
 from .tidy_stack_addr import TidyStackAddr
 from .x87_cmpf import X87CmpF
+from .x87_narrowing_store import X87NarrowingStore
 
 ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveFptagNanITE,
@@ -144,6 +145,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     EvaluateConstConversions,
     RemoveRedundantInsert,
     RemoveIntFPIntRoundTrip,
+    X87NarrowingStore,
     NarrowFPOperations,
     FPExactIdentities,
     SSEScalarLowering,

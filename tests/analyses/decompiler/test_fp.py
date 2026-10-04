@@ -1910,6 +1910,24 @@ class TestX87LongDoubleLocal:
         assert "(float)*((long double *)&v1)" in text, text
 
 
+class TestX87NarrowStore:
+    """``fld m80`` followed by ``fstp m64`` / ``fistp m32`` (x87_narrow_store_i386.o)."""
+
+    _BIN = "x87_narrow_store_i386.o"
+
+    def test_fstp_qword_narrows_to_double(self):
+        # one double for the 8-byte slot; the narrowing (which raises overflow/underflow) stays visible
+        text = _decompile_asm_func(self._BIN, "narrow_store")
+        assert "uint80_t" not in text, text
+        assert len(re.findall(r"double v\d+;", text)) == 1, text
+        assert len(re.findall(r"v0 = \(double\)\S+L;", text)) == 2, text
+        assert "v0 = 3.141592653589793;" in text, text
+
+    def test_fistp_converts_long_double_directly(self):
+        text = _decompile_asm_func(self._BIN, "narrow_fistp")
+        assert re.search(r"v\d+ = \(int\)9\.\d+e\+3999L;", text), text
+
+
 def test_int_typed_register_variable_uses_reinterpret_helpers():
     # a register variable has no address: its bit-pattern views use __double_as_longlong / __longlong_as_double
     path = os.path.join(_fp_dir, "fp_reg_view_amd64.o")
