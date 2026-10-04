@@ -1784,6 +1784,7 @@ class CFunctionCall(CExpression):
         "args",
         "callee_func",
         "callee_target",
+        "callsite_prototype",
         "show_demangled_name",
         "show_disambiguated_name",
     )
@@ -1798,12 +1799,15 @@ class CFunctionCall(CExpression):
         tags=None,
         *,
         codegen,
+        callsite_prototype: SimTypeFunction | None = None,
         **kwargs,
     ):
         super().__init__(tags=tags, codegen=codegen, **kwargs)
 
         self.callee_target = callee_target
         self.callee_func: Function | None = callee_func
+        # declared prototype of a call with no callee function (e.g. a known-pattern call)
+        self.callsite_prototype = callsite_prototype
         self.args = args if args is not None else []
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
@@ -1818,6 +1822,8 @@ class CFunctionCall(CExpression):
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
         if self.callee_func is not None and self.callee_func.prototype is not None:
             return self.callee_func.prototype
+        if self.callsite_prototype is not None:
+            return self.callsite_prototype
         returnty = SimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
 
@@ -1829,6 +1835,8 @@ class CFunctionCall(CExpression):
         """
         if self.callee_func is not None and self.callee_func.prototype is not None:
             return self.prototype.returnty  # type: ignore
+        if self.callsite_prototype is not None and self.callsite_prototype.returnty is not None:
+            return self.callsite_prototype.returnty
         return SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
 
     @property
@@ -4514,6 +4522,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             show_demangled_name=self.show_demangled_name,
             show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
+            callsite_prototype=self._variable_map.prototype(stmt.expr) if isinstance(target, str) else None,
         )
 
         if is_expr:
@@ -4586,6 +4595,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             show_demangled_name=self.show_demangled_name,
             show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
+            callsite_prototype=self._variable_map.prototype(expr) if isinstance(target, str) else None,
         )
 
         # a call narrower than a byte is a predicate (a known-pattern call standing in for a 1-bit comparison);
