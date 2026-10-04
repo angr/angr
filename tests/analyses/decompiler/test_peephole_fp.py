@@ -926,6 +926,73 @@ class TestRemoveIntFPIntRoundTrip(unittest.TestCase):
         assert result is None
 
 
+class TestSimplifyMaskedInsert(unittest.TestCase):
+    """Masked reads of Insert drop the part of the Insert they cannot see."""
+
+    def setUp(self):
+        from angr.analyses.decompiler.peephole_optimizations import SimplifyMaskedInsert
+
+        self.opt = _make_peephole(SimplifyMaskedInsert)
+        self.base = Tmp(None, 1, 32)
+        self.byte = Tmp(None, 2, 8)
+
+    def _ins(self, offset, value=None):
+        return Insert(None, self.base, Const(None, offset, 64), value or self.byte, "Iend_LE")
+
+    @staticmethod
+    def _and(expr, mask):
+        return BinaryOp(None, "And", [expr, Const(None, mask, expr.bits)], False, bits=expr.bits)
+
+    def test_and_sees_only_the_value(self):
+        # mov al, [m]; and eax, 0xf: _INSERT(x, 0, byte) & 0xffff & 15 -> byte & 15
+        result = self.opt.optimize(self._and(self._and(self._ins(0), 0xFFFF), 15))
+        assert isinstance(result, BinaryOp) and result.op == "And" and result.operands[1].value == 15, result
+        conv = result.operands[0]
+        assert (
+            isinstance(conv, Convert) and conv.from_bits == 8 and conv.to_bits == 32 and conv.operand.likes(self.byte)
+        )
+        # at byte 1 the value is shifted into place
+        result = self.opt.optimize(self._and(self._ins(1), 0xF00))
+        assert isinstance(result, BinaryOp) and result.op == "And" and result.operands[1].value == 0xF00, result
+        shl = result.operands[0]
+        assert isinstance(shl, BinaryOp) and shl.op == "Shl" and shl.operands[1].value == 8, shl
+
+    def test_and_sees_only_the_base(self):
+        result = self.opt.optimize(self._and(self._ins(1), 0xFFFF00FF))
+        assert isinstance(result, BinaryOp) and result.operands[0].likes(self.base), result
+        assert result.operands[1].value == 0xFFFF00FF
+
+    def test_and_sees_both(self):
+        assert self.opt.optimize(self._and(self._ins(0), 0x1FF)) is None
+        assert self.opt.optimize(self._and(self.base, 0xF)) is None
+
+    def test_fp_value_is_not_converted(self):
+        fp = UnaryOp(None, "Neg", Tmp(None, 3, 32), bits=32, floating_point=True)
+        ins = Insert(None, Tmp(None, 4, 64), Const(None, 0, 64), fp, "Iend_LE")
+        assert self.opt.optimize(self._and(ins, 0xFF)) is None
+
+    def test_extract(self):
+        ins = Insert(None, self.base, Const(None, 1, 64), Tmp(None, 5, 16), "Iend_LE")
+        # the whole value
+        result = self.opt.optimize(Extract(None, 16, ins, Const(None, 1, 64), "Iend_LE"))
+        assert isinstance(result, Tmp) and result.tmp_idx == 5, result
+        # one byte of the value
+        result = self.opt.optimize(Extract(None, 8, ins, Const(None, 2, 64), "Iend_LE"))
+        assert isinstance(result, Extract) and result.base.likes(ins.value) and result.offset.value == 1, result
+        # bytes of the base only
+        result = self.opt.optimize(Extract(None, 8, ins, Const(None, 3, 64), "Iend_LE"))
+        assert isinstance(result, Extract) and result.base.likes(self.base) and result.offset.value == 3, result
+        # straddling
+        assert self.opt.optimize(Extract(None, 16, ins, Const(None, 0, 64), "Iend_LE")) is None
+
+    def test_truncation(self):
+        result = self.opt.optimize(Convert(None, 32, 8, False, self._ins(0)))
+        assert isinstance(result, Tmp) and result.likes(self.byte), result
+        result = self.opt.optimize(Convert(None, 32, 8, False, self._ins(1)))
+        assert isinstance(result, Convert) and result.operand.likes(self.base), result
+        assert self.opt.optimize(Convert(None, 32, 16, False, self._ins(0))) is None
+
+
 class TestFloat32Repr(unittest.TestCase):
     def test_flt_max_does_not_overflow(self):
         from angr.analyses.decompiler.structured_codegen.c import _float32_repr
