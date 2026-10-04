@@ -377,6 +377,50 @@ class TestUninitializedStackReadGo127(GoDecompilationTarget):
         assert "make([]*int" in text
 
 
+class TestStringLiteralLengthsGo122(GoDecompilationTarget):
+    """
+    Go string data is not NUL-terminated: a data pointer stored next to its length word prints only those bytes,
+    not the rest of the string pool.
+    """
+
+    BINARY = go_binary("go1.22.5", "conc")
+    FUNCS = ("os.(*file).close",)
+
+    def test_header_store_pair_is_clipped(self):
+        text = self.texts["os.(*file).close"]
+        assert re.search(r'\.Op\.ptr = "close"\n', text), "the data pointer is not clipped to its length word"
+        assert '"close1' not in text
+
+    def test_clip_is_exact_utf8(self):
+        from angr.analyses.decompiler.structured_codegen.go import GoConstant, StringLiteralLengths
+        from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+        from angr.sim_type import SimTypeChar, SimTypeLongLong, SimTypePointer
+
+        dec = self.proj.analyses.Decompiler(self.addrs["os.(*file).close"], cfg=self.cfg.model, flavor="go")
+        codegen = dec.codegen
+        loader = self.proj.loader
+        addr = next(loader.memory.find("héllo".encode()))
+        md = MemoryData(addr, 0, MemoryDataSort.String)
+        md.content = loader.memory.load(addr, 32)
+        assert md.content.startswith(b"h\xc3\xa9llosysmon")  # the pool runs on
+        ptr_ty = SimTypePointer(SimTypeChar()).with_arch(self.proj.arch)
+        clipper = StringLiteralLengths(codegen, codegen.cfunc)
+
+        def clip(n):
+            ptr = GoConstant(addr, ptr_ty, reference_values={ptr_ty: md}, codegen=codegen)
+            length = GoConstant(n, SimTypeLongLong(), reference_values={}, codegen=codegen)
+            clipper._clip(ptr, length)
+            return "".join(c for c, _ in ptr.c_repr_chunks())
+
+        assert clip(6) == '"héllo"'
+        assert clip(3) == '"hé"'
+        # a cut inside a character, an empty or an overlong length is not this pointer's length
+        unclipped = clip(1000)
+        assert unclipped.startswith('"héllosysmon')
+        assert clip(2) == unclipped
+        assert clip(0) == unclipped
+
+
 class TestStructValueReceiver386(unittest.TestCase):
     """
     386 lays string headers out as two 4-byte words: a struct holding one is 8 bytes, its ``len`` sits at 4, a
