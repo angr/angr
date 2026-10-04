@@ -165,6 +165,13 @@ class CallSiteMaker:
             if prototype_libname is not None:
                 prototype = cast(SimTypeFunction, dereference_simtype_by_lib(prototype, prototype_libname))
 
+        if func is None and prototype is not None:
+            # a result type an earlier pass bound to this indirect call (the result registers the caller reads)
+            bound_returnty = variable_map_of(self._ail_manager).returnty(call_expr)
+            if bound_returnty is not None:
+                prototype = prototype.copy()
+                prototype.returnty = bound_returnty
+
         args = []
         arg_vvars = []
         arg_locs = None

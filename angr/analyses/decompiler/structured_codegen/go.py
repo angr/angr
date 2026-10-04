@@ -3967,6 +3967,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if assertions.changed:
             # calls through the asserted value's itab are its method calls
             self.cfunc = InterfaceMethodCalls(self).handle(self.cfunc)
+        self.cfunc = UnreachableAfterReturn().handle(self.cfunc)
         ShortDeclarations(self, self.cfunc).run()
         StringLiteralLengths(self, self.cfunc).run()
 
@@ -4948,9 +4949,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
         )
-        if isinstance(stmt.expr.target, str) and target_func is None:
+        if target_func is None:
             site_proto = self._variable_map.prototype(stmt.expr)
-            if site_proto is not None and site_proto.returnty is not None:
+            if (
+                site_proto is not None
+                and site_proto.returnty is not None
+                # indirect calls: only the result tuple GoCallResultBinder bound
+                and (isinstance(stmt.expr.target, str) or isinstance(site_proto.returnty, GoSimTypeTuple))
+            ):
                 call_expr.site_returnty = site_proto.returnty.with_arch(self.project.arch)
 
         if is_expr:
@@ -5134,7 +5140,35 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
         if not stmt.ret_exprs:
             return GoReturn(None, tags=stmt.tags, codegen=self)
-        return GoReturn([self._handle(ret_expr) for ret_expr in stmt.ret_exprs], tags=stmt.tags, codegen=self)
+        # constants take the declared result type of their position (type inference merges all result positions)
+        proto = self._func.prototype
+        returnty = unpack_typeref(proto.returnty) if proto is not None else None
+        result_types = (
+            [unpack_typeref(t) for t in returnty.elems] if isinstance(returnty, GoSimTypeTuple) else [returnty]
+        )
+        if len(result_types) != len(stmt.ret_exprs):
+            result_types = [None] * len(stmt.ret_exprs)
+        return GoReturn(
+            [
+                self._handle_Expr_Const(e, type_=ty.with_arch(self.project.arch))
+                if isinstance(e, Expr.Const) and isinstance(ty, GoSimType) and not isinstance(ty, GoSimStruct)
+                # a fused load of a whole struct result (``*p``, not its first field)
+                else self._whole_struct_load(e, ty)
+                if isinstance(e, Expr.Load) and isinstance(ty, GoSimStruct) and ty.size == e.bits
+                else self._handle(e)
+                for e, ty in zip(stmt.ret_exprs, result_types)
+            ],
+            tags=stmt.tags,
+            codegen=self,
+        )
+
+    def _whole_struct_load(self, load: Expr.Load, ty: SimType):
+        """``*p`` for a load of a whole struct through a pointer to it."""
+        addr = self._handle(load.addr)
+        pointee = unpack_typeref(addr.type.pts_to) if isinstance(addr.type, SimTypePointer) else None
+        if pointee is not None and pointee.size == ty.size and go_type_str(pointee) == go_type_str(ty):
+            return GoUnaryOp("Dereference", addr, codegen=self)
+        return self._handle(load)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
         clabel = GoLabel(stmt.name, tags=stmt.tags, codegen=self)
@@ -6319,6 +6353,19 @@ class TupleDestructuring(GoStructuredCodeWalker):
             if fakes is not None and tup is not None and obj.field.field in tup.names:
                 return fakes[tup.names.index(obj.field.field)]
         return super().handle_GoVariableField(obj)
+
+    def handle_GoBinaryOp(self, obj):
+        obj = super().handle_GoBinaryOp(obj)
+        # `ok == 0` on a destructured bool result: `!ok`
+        if obj.op in ("CmpEQ", "CmpNE") and isinstance(obj.rhs, GoConstant) and obj.rhs.value == 0:
+            inner = obj.lhs
+            while isinstance(inner, GoTypeCast):
+                inner = inner.expr
+            if isinstance(inner, GoFakeVariable) and isinstance(
+                unpack_typeref(inner.type), (SimTypeBool, GoSimTypeBool)
+            ):
+                return inner if obj.op == "CmpNE" else GoUnaryOp("Not", inner, codegen=self._codegen)
+        return obj
 
 
 def _go_node_attr_names(node) -> list[str]:
@@ -7696,6 +7743,9 @@ class _NamedFieldFixer(GoStructuredCodeWalker):
         if struct is None or pointee is not struct:
             return obj
         size = (obj.type.size or 0) // self._codegen.project.arch.byte_width if obj.type is not None else None
+        if offset == 0 and struct.size and size == struct.size // self._codegen.project.arch.byte_width:
+            # the whole struct (``*p``), not its first field
+            return obj
         helper = _FieldRetyper(self._codegen, inner)
         path = helper._path(struct, offset, size or None)
         if path is None:
@@ -9021,6 +9071,26 @@ def _go_children(node):
                     yield from (x for x in item if isinstance(x, GoConstruct))
         elif isinstance(child, dict):
             yield from (x for x in child.values() if isinstance(x, GoConstruct))
+
+
+def _go_has_label(node) -> bool:
+    if isinstance(node, GoLabel):
+        return True
+    return any(_go_has_label(c) for c in _go_children(node))
+
+
+class UnreachableAfterReturn(GoStructuredCodeWalker):
+    """Statements after a ``return`` in the same block that no goto can reach are dropped."""
+
+    def handle_GoStatements(self, obj):
+        obj = super().handle_GoStatements(obj)
+        for i, stmt in enumerate(obj.statements):
+            if isinstance(stmt, GoReturn):
+                rest = obj.statements[i + 1 :]
+                if rest and not any(_go_has_label(x) for x in rest):
+                    obj.statements = obj.statements[: i + 1]
+                break
+        return obj
 
 
 def _go_mem_reads(expr, addressed) -> list:

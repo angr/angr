@@ -46,7 +46,7 @@ class GoInferredSignature(dict):
     """
 
     def __init__(self, params=None, results=None, caller_results=None):
-        super().__init__(params=list(params) if params else None, results={}, caller_results={})
+        super().__init__(params=list(params) if params else None, results={}, caller_results={}, result_words=0)
         self.merge(params=None, results=results, caller_results=caller_results)
 
     @property
@@ -62,10 +62,15 @@ class GoInferredSignature(dict):
         return self["caller_results"]
 
     @property
-    def has_results(self) -> bool:
-        return bool(self["results"] or self["caller_results"])
+    def result_words(self) -> int:
+        """How many result registers callers read after a call, typed or not."""
+        return self.get("result_words", 0)
 
-    def merge(self, params=None, results=None, caller_results=None) -> None:
+    @property
+    def has_results(self) -> bool:
+        return bool(self["results"] or self["caller_results"] or self.result_words)
+
+    def merge(self, params=None, results=None, caller_results=None, result_words: int = 0) -> None:
         """
         Parameter types replace the earlier ones; result types accumulate (over callers, and over passes as callees
         get typed), the first to type a word wins unless a later one types a wider value there.
@@ -77,6 +82,8 @@ class GoInferredSignature(dict):
                 old = self[table].get(word)
                 if old is None or old[1] < span:
                     self[table][word] = (ty, span)
+        if result_words > self.result_words:
+            self["result_words"] = result_words
 
     def result_types(self, floor: int) -> list[str]:
         """
@@ -85,7 +92,7 @@ class GoInferredSignature(dict):
         """
         results, caller = self.results, self.caller_results
         ends = [w + n for w, (_, n) in (*results.items(), *caller.items())]
-        count = max(floor, *ends) if ends else floor
+        count = max(floor, self.result_words, *ends)
         types: list[str] = []
         w = 0
         while w < count:
@@ -326,6 +333,7 @@ class GoSignatures(KnowledgeBasePlugin):
         param_types: list[str] | dict | None = None,
         results: dict[int, tuple[str, int]] | None = None,
         caller_results: dict[int, tuple[str, int]] | None = None,
+        result_words: int = 0,
     ) -> GoInferredSignature:
         """
         Record what was inferred for ``name`` (kept until a real signature appears): parameter types, callee-side
@@ -338,9 +346,11 @@ class GoSignatures(KnowledgeBasePlugin):
             rec = self._inferred[name] = GoInferredSignature()
         if isinstance(param_types, dict):
             other = param_types
-            rec.merge(other.get("params"), other.get("results"), other.get("caller_results"))
+            rec.merge(
+                other.get("params"), other.get("results"), other.get("caller_results"), other.get("result_words", 0)
+            )
             param_types = None
-        rec.merge(param_types, results, caller_results)
+        rec.merge(param_types, results, caller_results, result_words)
         self._prototypes.pop(name, None)
         return rec
 

@@ -9,7 +9,8 @@ from angr.ailment.expression import VirtualVariableCategory as VVC
 from angr.ailment.statement import Assignment
 from angr.analyses.typehoon.typeconsts import BottomType, TopType
 from angr.go.runtime_types import CONTEXT_REGISTERS
-from angr.go.sim_type import GoSimTypeFunction
+from angr.go.sim_type import GoSimTypeFunction, GoSimTypeTuple
+from angr.sim_type import SimTypeFunction
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typeconsts import TypeConstant
@@ -38,7 +39,10 @@ def collect_call_result_hints(project, graph, variable_map, type_lifter) -> dict
                 target = call.target.value if hasattr(call.target, "value") else None
                 if isinstance(target, int) and target in functions:
                     proto = functions[target].prototype
-            if not isinstance(proto, GoSimTypeFunction) or proto.returnty is None:
+            if not isinstance(proto, SimTypeFunction) or proto.returnty is None:
+                continue
+            if not isinstance(proto, GoSimTypeFunction) and not isinstance(proto.returnty, GoSimTypeTuple):
+                # a recovered call-site prototype says nothing, unless a result tuple was bound to it
                 continue
             if proto.returnty.size != stmt.dst.bits:
                 continue
