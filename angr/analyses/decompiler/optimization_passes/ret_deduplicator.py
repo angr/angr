@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Block
+from angr.ailment.expression import Const
 from angr.ailment.statement import ConditionalJump, Return
 from angr.analyses.decompiler.structuring import DreamStructurer, SAILRStructurer
 from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, update_labels
@@ -136,9 +137,9 @@ class ReturnDeduplicator(OptimizationPass):
             # find the true and false child of the if-stmt
             true_child, false_child = None, None
             for child in children:
-                if child.addr == if_stmt.true_target.value:
+                if isinstance(if_stmt.true_target, Const) and child.addr == if_stmt.true_target.value:
                     true_child = child
-                elif child.addr == if_stmt.false_target.value:
+                elif isinstance(if_stmt.false_target, Const) and child.addr == if_stmt.false_target.value:
                     false_child = child
             # children must exist
             if (
