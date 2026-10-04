@@ -8199,6 +8199,7 @@ class CopyCleanup:
         if collapser.retyped:
             self._cfunc.statements = _Retyper(collapser.retyped).handle(self._cfunc.statements)
         self._fuse_split_stores(_Scan(self._cfunc))
+        self._fuse_header_writebacks(_Scan(self._cfunc))
         for _ in range(self.MAX_ROUNDS):
             if not self._fold_calls(_Scan(self._cfunc)):
                 break
@@ -8217,6 +8218,18 @@ class CopyCleanup:
                     and isinstance(obj.rhs, GoVariable)
                     and _go_var_named(obj.lhs)
                     and _UseCounter.key(obj.lhs) == _UseCounter.key(obj.rhs)
+                ) or (
+                    # ``s.ptr = s.ptr``: a phi copy of a header word into its own slot
+                    not obj.declares
+                    and isinstance(obj.lhs, GoVariableField)
+                    and isinstance(obj.rhs, GoVariableField)
+                    and not obj.lhs.var_is_ptr
+                    and not obj.rhs.var_is_ptr
+                    and obj.lhs.field.field == obj.rhs.field.field
+                    and obj.lhs.field.offset == obj.rhs.field.offset
+                    and _go_var_named(obj.lhs.variable)
+                    and _go_var_named(obj.rhs.variable)
+                    and _UseCounter.key(obj.lhs.variable) == _UseCounter.key(obj.rhs.variable)
                 ):
                     dead.append(obj)
                 return obj
@@ -8486,6 +8499,76 @@ class CopyCleanup:
                         i += 1
                         continue
                 i += 1
+
+    # -- rule 4b: a header written back word by word from another value of its type
+    def _fuse_header_writebacks(self, scan: _Scan) -> None:
+        """``s.cap = cap(t); s.ptr = t.ptr; s.len = len(t)`` (any order, repeats allowed) -> ``s = t``."""
+
+        def header(var):
+            ty = unpack_typeref(var.type) if _go_var_named(var) else None
+            if isinstance(ty, GoSimTypeSlice):
+                return ty, {"ptr", "len", "cap"}
+            if isinstance(ty, GoSimTypeString):
+                return ty, {"ptr", "len"}
+            return None
+
+        def word_copy(stmt):
+            if not (isinstance(stmt, GoAssignment) and not stmt.declares):
+                return None
+            lhs, rhs = stmt.lhs, stmt.rhs
+            if isinstance(lhs, GoVariable) and isinstance(rhs, GoVariable) and header(lhs) and header(rhs):
+                # an earlier fusion's result: the stray word copies after it still go
+                if _UseCounter.key(lhs) == _UseCounter.key(rhs):
+                    return None
+                return _UseCounter.key(lhs), _UseCounter.key(rhs), "*"
+            if not isinstance(rhs, GoVariableField) or rhs.var_is_ptr or header(rhs.variable) is None:
+                return None
+            if isinstance(lhs, GoVariableField):
+                if lhs.field.field != rhs.field.field or lhs.var_is_ptr or header(lhs.variable) is None:
+                    return None
+                dst, field = lhs.variable, lhs.field.field
+            elif _go_var_named(lhs):
+                # ``s = t.ptr``: a phi copy of one word into its slot of ``s`` that lost the field on the way; only
+                # taken after a field copy of ``s`` in the same run
+                dst, field = lhs, ("~", rhs.field.field)
+            else:
+                return None
+            if _UseCounter.key(dst) == _UseCounter.key(rhs.variable):
+                return None
+            return _UseCounter.key(dst), _UseCounter.key(rhs.variable), field
+
+        for stmts in list(scan.scopes.values()):
+            i = 0
+            while i < len(stmts):
+                first = word_copy(stmts[i])
+                if first is None or isinstance(first[2], tuple):
+                    i += 1
+                    continue
+                run = [stmts[i]]
+                fields = {first[2]}
+                j = i + 1
+                while j < len(stmts):
+                    nxt = word_copy(stmts[j])
+                    if nxt is None or nxt[:2] != first[:2]:
+                        break
+                    run.append(stmts[j])
+                    fields.add(nxt[2])
+                    j += 1
+                if first[2] == "*" or "*" in fields:
+                    if first[2] == "*" and len(run) > 1:
+                        # words of t copied again after ``s = t``
+                        self._remove(run[1:])
+                    i = j
+                    continue
+                fields = {f[1] if isinstance(f, tuple) else f for f in fields}
+                dst, src = run[0].lhs.variable, run[0].rhs.variable
+                dst_ty, dst_fields = header(dst)
+                src_ty, _ = header(src)
+                if fields == dst_fields and type(dst_ty) is type(src_ty) and dst_ty.size == src_ty.size:
+                    fused = GoAssignment(dst, src, tags=run[0].tags, codegen=self._codegen)
+                    self._replace_stmt(run[0], fused)
+                    self._remove(run[1:])
+                i = j
 
     def _replace_stmt(self, old, new):
         class _Replacer(GoStructuredCodeWalker):
