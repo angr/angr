@@ -37,7 +37,8 @@ class IRegisterResolver:
     prototype, and the first x87 stack access that follows the call in the caller. Blocks whose entry ``ftop``
     cannot be determined exactly (conflicting predecessors, e.g. an unbalanced path) fall back to the most common
     value among their predecessors, so that every x87 access still resolves to a concrete ``st(i)``. Reads of
-    ``ftop`` outside of register-array indices (``fnstsw``) are replaced with the tracked constant.
+    ``ftop`` outside of register-array indices (``fnstsw``) are replaced with the tracked constant. ``fptan``'s
+    conditional push (``ftop - 1Uto32(in_range)``) is treated as unconditional.
     """
 
     _BINOPS = {
@@ -188,10 +189,11 @@ class IRegisterResolver:
     def _run_block(self, block: Block, entry_state: RegState, rewrite: bool) -> tuple[RegState, Block | None]:
         regs: RegState = dict(entry_state)
         tmps: dict[int, int] = {}
+        flag_tmps: set[int] = set()
         rewriter = AILBlockRewriter(update_block=False)
 
         def handle_ireg(expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block_: Block | None):
-            resolved = self._resolve_ireg(expr, tmps, regs)
+            resolved = self._resolve_ireg(expr, tmps, regs, flag_tmps)
             return resolved if resolved is not None else expr
 
         def handle_register(expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block_: Block | None):
@@ -206,18 +208,15 @@ class IRegisterResolver:
             new_src = rewriter._handle_expr(1, stmt.src, stmt_idx, stmt, block_)
             new_stmt = stmt
             if isinstance(dst, IRegister):
-                resolved = self._resolve_ireg(dst, tmps, regs)
+                resolved = self._resolve_ireg(dst, tmps, regs, flag_tmps)
                 if resolved is not None or new_src is not stmt.src:
                     new_stmt = Assignment(stmt.idx, resolved if resolved is not None else dst, new_src, **stmt.tags)
             elif new_src is not stmt.src:
                 new_stmt = Assignment(stmt.idx, dst, new_src, **stmt.tags)
 
-            value = self._eval(stmt.src, tmps, regs)
+            value = self._eval(stmt.src, tmps, regs, flag_tmps)
             if isinstance(dst, Tmp):
-                if value is not None:
-                    tmps[dst.tmp_idx] = value
-                else:
-                    tmps.pop(dst.tmp_idx, None)
+                self._update_tmp(tmps, flag_tmps, dst.tmp_idx, stmt.src, value)
             elif isinstance(dst, Register):
                 self._write_register(regs, dst.reg_offset, dst.size, value)
             return new_stmt
@@ -298,12 +297,13 @@ class IRegisterResolver:
 
     def _scan_block_for_x87(self, block: Block, start: int, regs: RegState) -> int | None:
         tmps: dict[int, int] = {}
+        flag_tmps: set[int] = set()
         found: int | None = None
 
         def handle_ireg(expr_idx: int, expr: IRegister, stmt_idx: int, stmt: Statement | None, block_: Block | None):
             nonlocal found
             if found is None and expr.array_base in (self._fpreg_base, self._fptag_base):
-                ix = self._eval(expr.reg_offset, tmps, regs)
+                ix = self._eval(expr.reg_offset, tmps, regs, flag_tmps)
                 if ix is not None:
                     if ix >= 0x80000000:
                         ix -= 0x100000000
@@ -320,19 +320,29 @@ class IRegisterResolver:
             if found is not None:
                 return found
             if isinstance(stmt, Assignment):
-                value = self._eval(stmt.src, tmps, regs)
+                value = self._eval(stmt.src, tmps, regs, flag_tmps)
                 if isinstance(stmt.dst, Tmp):
-                    if value is not None:
-                        tmps[stmt.dst.tmp_idx] = value
-                    else:
-                        tmps.pop(stmt.dst.tmp_idx, None)
+                    self._update_tmp(tmps, flag_tmps, stmt.dst.tmp_idx, stmt.src, value)
                 elif isinstance(stmt.dst, Register):
                     self._write_register(regs, stmt.dst.reg_offset, stmt.dst.size, value)
         return None
 
     # ---- expression evaluation --------------------------------------------
 
-    def _eval(self, expr: Expression, tmps: dict[int, int], regs: RegState) -> int | None:
+    @staticmethod
+    def _update_tmp(tmps: dict[int, int], flag_tmps: set[int], tmp_idx: int, src: Expression, value: int | None):
+        if value is not None:
+            tmps[tmp_idx] = value
+        else:
+            tmps.pop(tmp_idx, None)
+        if value is None and isinstance(src, Convert) and src.from_bits == 1:
+            flag_tmps.add(tmp_idx)
+        else:
+            flag_tmps.discard(tmp_idx)
+
+    def _eval(
+        self, expr: Expression, tmps: dict[int, int], regs: RegState, flag_tmps: set[int] | None = None
+    ) -> int | None:
         if isinstance(expr, Const):
             return expr.value & ((1 << expr.bits) - 1) if isinstance(expr.value, int) else None
         if isinstance(expr, Tmp):
@@ -340,18 +350,34 @@ class IRegisterResolver:
         if isinstance(expr, Register):
             return regs.get((expr.reg_offset, expr.size))
         if isinstance(expr, Convert):
-            v = self._eval(expr.operand, tmps, regs)
+            v = self._eval(expr.operand, tmps, regs, flag_tmps)
             return v & ((1 << expr.to_bits) - 1) if v is not None else None
         if isinstance(expr, BinaryOp) and expr.op in self._BINOPS:
-            a = self._eval(expr.operands[0], tmps, regs)
-            b = self._eval(expr.operands[1], tmps, regs)
+            a = self._eval(expr.operands[0], tmps, regs, flag_tmps)
+            b = self._eval(expr.operands[1], tmps, regs, flag_tmps)
+            if a is not None and b is None and self._is_conditional_push(expr, flag_tmps):
+                # VEX fptan: ftop - 1Uto32(in_range). Assume the push happened; the out-of-range case only sets
+                # C2 and leaves the stack alone, which compiled code never relies on without testing C2.
+                b = 1
             if a is None or b is None:
                 return None
             return self._BINOPS[expr.op](a, b) & ((1 << expr.bits) - 1)
         return None
 
-    def _resolve_ireg(self, ireg: IRegister, tmps: dict[int, int], regs: RegState) -> Register | None:
-        ix = self._eval(ireg.reg_offset, tmps, regs)
+    @staticmethod
+    def _is_conditional_push(expr: BinaryOp, flag_tmps: set[int] | None) -> bool:
+        # the maybe_fp_push shape: x Sub Conv(1->N, cond), possibly through a tmp
+        if expr.op != "Sub":
+            return False
+        rhs = expr.operands[1]
+        if isinstance(rhs, Tmp):
+            return flag_tmps is not None and rhs.tmp_idx in flag_tmps
+        return isinstance(rhs, Convert) and rhs.from_bits == 1
+
+    def _resolve_ireg(
+        self, ireg: IRegister, tmps: dict[int, int], regs: RegState, flag_tmps: set[int] | None = None
+    ) -> Register | None:
+        ix = self._eval(ireg.reg_offset, tmps, regs, flag_tmps)
         if ix is None:
             return None
         if ix >= 0x80000000:

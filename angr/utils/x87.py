@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from pyvex import IRSB
-from pyvex.expr import Binop, Const, Get, GetI, RdTmp
+from pyvex.expr import Binop, Const, Get, GetI, RdTmp, Unop
 from pyvex.stmt import Dirty, Put, WrTmp
 
 from angr.calling_conventions import SimLyingRegArg, SimRegArg
@@ -32,6 +32,8 @@ class X87Tracker:
         self._ftop_size = ftop_size
         self._array_bases = array_bases
         self._tmps: dict[int, int] = {}
+        # tmps holding an unknown 1Uto32(cond)
+        self._flag_tmps: set[int] = set()
         # set when an x87 register below the function-entry stack top (a value of the caller) is read
         self.reads_incoming = False
 
@@ -44,6 +46,16 @@ class X87Tracker:
             return self.ftop if expr.offset == self._ftop_off else None
         if isinstance(expr, Binop) and expr.op in ("Iop_Add32", "Iop_Sub32"):
             a, b = self.eval(expr.args[0]), self.eval(expr.args[1])
+            if (
+                a is not None
+                and b is None
+                and expr.op == "Iop_Sub32"
+                and isinstance(expr.args[1], RdTmp)
+                and expr.args[1].tmp in self._flag_tmps
+            ):
+                # VEX fptan: ftop - 1Uto32(in_range). Assume the push happened; the out-of-range case only sets
+                # C2 and leaves the stack alone, which compiled code never relies on without testing C2.
+                b = 1
             if a is None or b is None:
                 return None
             return (a + b if expr.op == "Iop_Add32" else a - b) & 0xFFFFFFFF
@@ -59,6 +71,8 @@ class X87Tracker:
                 self._tmps.pop(stmt.tmp, None)
             else:
                 self._tmps[stmt.tmp] = v
+            if isinstance(stmt.data, Unop) and stmt.data.op == "Iop_1Uto32":
+                self._flag_tmps.add(stmt.tmp)
         elif isinstance(stmt, Put):
             if (
                 stmt.offset < self._ftop_off + self._ftop_size

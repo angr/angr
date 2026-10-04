@@ -1448,6 +1448,24 @@ class TestX87CallDelta:
             assert "__fxam(" in text, text
 
 
+class TestX87Fptan:
+    """fptan pushes 1.0 only when the argument is in range (VEX maybe_fp_push); ftop is tracked as if it always
+    pushed (x87_fptan_i386.o)."""
+
+    _BIN = "x87_fptan_i386.o"
+
+    def test_store_after_fptan(self):
+        text = _decompile_asm_func(self._BIN, "tan_store", cca=True)
+        _assert_no_x87_leaks(text)
+        assert re.search(r"\*\(\(double \*\)a0\) = .*\? tan\(v0\) : v0\);", text), text
+        assert not text.startswith("double "), text
+
+    def test_fadd_after_fptan(self):
+        text = _decompile_asm_func(self._BIN, "tan_plus", cca=True)
+        _assert_no_x87_leaks(text)
+        assert re.search(r"return .*\? tan\(a0\) : a0\) \+ a1;", text), text
+
+
 class TestX87ReturnPrototype:
     """A value left on the x87 stack is the return value even when eax holds a scratch value; callers consume it
     (x87_ret_proto_win32.exe, __fastcall and __cdecl)."""
