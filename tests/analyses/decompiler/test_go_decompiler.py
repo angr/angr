@@ -423,6 +423,21 @@ class TestStructValueReceiver386(unittest.TestCase):
         print_decompilation_result(dec)
         assert "os.Exit(len(main.gitHubRecipientError.Error(" in dec.codegen.text
 
+    def test_fields_of_a_partially_read_struct_receiver(self):
+        # reflect.Value spans three stack words; IsNil reads ptr and flag (not typ_) and takes the receiver's address.
+        # Each word used to be an unassigned local ([bp+0x8], [bp+0xc]) instead of a field of the receiver.
+        binary = go_binary("go1.27.1", "atomics", arch="i386")
+        name = "reflect.Value.IsNil"
+        addr = go_func_addrs(binary, name)[name]
+        proj, cfg = load_project_with_scoped_cfg(binary, addr, call_tree_depth=1)
+        dec = proj.analyses.Decompiler(addr, cfg=cfg.model, flavor="go", fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text
+        print_decompilation_result(dec)
+        text = dec.codegen.text
+        assert "func (v reflect.Value) IsNil() bool {" in text
+        assert "reflect.flag.kind(v.flag)" in text and "v.ptr" in text, text
+        assert not re.search(r"^    var .*// \[bp\+0x(8|c)\]$", text, re.MULTILINE), text
+
 
 if __name__ == "__main__":
     unittest.main()

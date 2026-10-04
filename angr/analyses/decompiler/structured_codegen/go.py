@@ -5063,6 +5063,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return proposed_ty
             return old_ty
 
+        param_slice = self._stack_parameter_slice(expr.addr, expr_size)
+        if param_slice is not None:
+            # a field of a by-value aggregate parameter whose address is taken
+            cvar, offset = param_slice
+            return self._access_constant_offset(
+                GoUnaryOp("Reference", cvar, codegen=self), offset, ty, False, negotiate
+            )
+
         expr_var = self._variable_map.variable(expr)
         if expr_var is not None:
             cvar = self._variable(expr_var, expr_size)
@@ -5075,6 +5083,31 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         addr_expr = self._handle(expr.addr)
         return self._access(addr_expr, ty, False, negotiate)
+
+    def _stack_parameter_slice(self, addr, size: int) -> tuple[GoVariable, int] | None:
+        """``&param + k`` for a stack parameter wider than ``k + size``: (the parameter's variable, k)."""
+        offset = 0
+        if (
+            isinstance(addr, Expr.BinaryOp)
+            and addr.op == "Add"
+            and isinstance(addr.operands[1], Expr.Const)
+            and isinstance(addr.operands[1].value, int)
+        ):
+            offset = addr.operands[1].value
+            addr = addr.operands[0]
+        if not (isinstance(addr, Expr.UnaryOp) and addr.op == "Reference"):
+            return None
+        vvar = addr.operand
+        if not (
+            isinstance(vvar, Expr.VirtualVariable) and vvar.was_parameter and vvar.parameter_stack_offset is not None
+        ):
+            return None
+        if offset < 0 or offset + size > vvar.size:
+            return None
+        var = self._variable_map.variable(vvar)
+        if not isinstance(var, SimStackVariable) or var.size is None or var.size < offset + size:
+            return None
+        return self._variable(var, None, vvar_id=vvar.varid), offset
 
     def _handle_Expr_Tmp(self, expr: Tmp, **kwargs):
         l.warning("FIXME: Leftover Tmp expressions are found.")
@@ -5327,6 +5360,14 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             expr.offset.value if isinstance(expr.offset, Expr.Const) and isinstance(expr.offset.value, int) else None
         )
         base = expr.base
+        if (
+            isinstance(base, Expr.Convert)
+            and offset is not None
+            and base.to_bits > base.from_bits
+            and (offset + expr.size) * self.project.arch.byte_width <= base.from_bits
+        ):
+            # a slice of the unwidened part of a widened value
+            base = base.operand
         if isinstance(base, Expr.VirtualVariable) and offset is not None:
             base_var = self._variable_map.variable(base)
             base_off = self._variable_map.variable_offset(base) or 0
