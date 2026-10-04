@@ -5138,7 +5138,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         if expr.floating_point:
             lhs = self._fp_view_of_int_lvalue(self._fp_constant(lhs, expr.operands[0]), expr.operands[0].bits)
-            rhs = self._fp_view_of_int_lvalue(self._fp_constant(rhs, expr.operands[1]), expr.operands[1].bits)
+            if expr.op != "Scale":  # ldexp's exponent operand is an integer
+                rhs = self._fp_view_of_int_lvalue(self._fp_constant(rhs, expr.operands[1]), expr.operands[1].bits)
         elif expr.op in _INT_BIT_OPS:
             lhs = self._fp_operand_bits(lhs, expr.operands[0].bits)
             rhs = self._fp_operand_bits(rhs, expr.operands[1].bits)
