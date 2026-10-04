@@ -2947,6 +2947,7 @@ class GoTypeCast(GoExpression):
 class GoConstant(GoExpression):
     __slots__ = (
         "reference_values",
+        "string_data",
         "value",
     )
 
@@ -2956,6 +2957,8 @@ class GoConstant(GoExpression):
         self.value: int | float | str = value
         self._type = type_.with_arch(self.codegen.project.arch)
         self.reference_values = reference_values
+        # the exact Go string a constant data pointer starts, once its paired length is known
+        self.string_data: str | None = None
 
     @property
     def _ident(self) -> IdentType:
@@ -3083,6 +3086,10 @@ class GoConstant(GoExpression):
 
         if self._is_rune_literal():
             yield "'" + chr(self.value).replace("\\", "\\\\").replace("'", "\\'") + "'", self
+            return
+
+        if self.string_data is not None:
+            yield json.dumps(self.string_data, ensure_ascii=False), self
             return
 
         if self.reference_values is not None:
@@ -3816,6 +3823,7 @@ class GoStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         NamedFieldRetyping(self, self.cfunc).run()
         self.cfunc.statements = _TypedCopies(self).handle(self.cfunc.statements)
         ShortDeclarations(self, self.cfunc).run()
+        StringLiteralLengths(self, self.cfunc).run()
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -8759,6 +8767,165 @@ class ShortDeclarations:
                 stmt.initializer.declares = True
             for t in targets:
                 self._cfunc.short_declared.add(t.name if isinstance(t, GoFakeVariable) else _go_var_key(t))
+
+
+class StringLiteralLengths:
+    """
+    Go string data is not NUL-terminated, so a constant data pointer renders the rest of the string pool. Clip it to
+    the length it travels with: the next word of a struct literal, the next call argument or result, or the length
+    word stored next to it (``x.len = n; x.ptr = p`` or two adjacent stack slots).
+    """
+
+    _WINDOW = 3
+
+    def __init__(self, codegen, cfunc: GoFunction):
+        self._codegen = codegen
+        self._cfunc = cfunc
+        self._word = codegen.project.arch.bytes
+
+    def run(self):
+        seen = set()
+        todo = [self._cfunc.statements]
+        while todo:
+            node = todo.pop()
+            if node is None or id(node) in seen:
+                continue
+            seen.add(id(node))
+            if isinstance(node, GoStatements):
+                self._stores(node.statements)
+            elif isinstance(node, (GoFunctionCall, GoMethodCall)):
+                self._sequence(node.args)
+            elif isinstance(node, GoReturn):
+                self._sequence(node.retvals)
+            elif isinstance(node, GoStructLiteral):
+                for off, field in node.fields.items():
+                    if isinstance(off, int) and off + self._word in node.fields:
+                        self._clip(field, node.fields[off + self._word])
+            todo.extend(_go_expr_children(node))
+
+    @staticmethod
+    def _uncast(expr):
+        while isinstance(expr, GoTypeCast):
+            expr = expr.expr
+        return expr
+
+    def _string_pointer(self, expr):
+        """(constant, MemoryData) when ``expr`` is a constant rendered as a string from the string pool."""
+        expr = self._uncast(expr)
+        if not isinstance(expr, GoConstant) or expr.string_data is not None or not expr.reference_values:
+            return None
+        if not isinstance(expr.value, int) or isinstance(expr.value, bool):
+            return None
+        for v in expr.reference_values.values():
+            if (
+                isinstance(v, MemoryData)
+                and v.sort == MemoryDataSort.String
+                and v.addr == expr.value
+                and v.content
+                and _go_text(expr).startswith('"')
+            ):
+                return expr, v
+        return None
+
+    def _length(self, expr) -> int | None:
+        expr = self._uncast(expr)
+        if not isinstance(expr, GoConstant) or not isinstance(expr.value, int) or isinstance(expr.value, bool):
+            return None
+        if _go_text(expr).startswith('"'):
+            return None
+        return expr.value
+
+    def _clip(self, ptr_expr, len_expr) -> bool:
+        found = self._string_pointer(ptr_expr)
+        n = self._length(len_expr)
+        if found is None or n is None:
+            return False
+        const, md = found
+        content = md.content if isinstance(md.content, bytes) else None
+        # a paired length past the NUL or mid-character is not this pointer's length
+        if content is None or not 0 < n <= len(content):
+            return False
+        try:
+            data = self._codegen.project.loader.memory.load(md.addr, n)
+            if data != content[:n]:
+                return False
+            const.string_data = data.decode("utf-8")
+        except (KeyError, UnicodeDecodeError):
+            return False
+        return True
+
+    def _sequence(self, exprs):
+        for i in range(len(exprs) - 1):
+            self._clip(exprs[i], exprs[i + 1])
+
+    def _word_of(self, lhs):
+        """(holder key, byte offset) of the word an assignment target writes, or None."""
+        if isinstance(lhs, GoVariable):
+            var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
+            if isinstance(var, SimStackVariable) and isinstance(var.offset, int):
+                return ("stack", var.base), var.offset
+            if isinstance(var, SimMemoryVariable) and isinstance(var.addr, int):
+                return ("global", None), var.addr
+            return None
+        if isinstance(lhs, GoUnaryOp) and lhs.op == "Dereference":
+            ref = self._uncast(lhs.operand)
+            if not (isinstance(ref, GoUnaryOp) and ref.op == "Reference"):
+                # *p = x: the word p points to, p[k] the ones after it
+                return ("value", "*" + _go_text(ref)), 0
+            # *(**T)(&x) = p
+            lhs = ref.operand
+            if isinstance(lhs, GoIndexedVariable) and _go_is_seq_field(lhs.variable, "ptr"):
+                # &s.ptr[0] stands for the data word of s itself
+                if not (isinstance(lhs.index, GoConstant) and lhs.index.value == 0):
+                    return None
+                lhs = lhs.variable
+        loc = self._location(lhs)
+        return (("value", loc[0]), loc[1]) if loc is not None else None
+
+    def _location(self, expr):
+        """(root text, byte offset) of a field or constant-index access, or None."""
+        if isinstance(expr, GoVariableField):
+            off = expr.field.offset
+            base = self._location(expr.variable)
+            if not isinstance(off, int):
+                return None
+            if base is None:
+                return _go_text(expr.variable), off
+            return base[0], base[1] + off
+        if isinstance(expr, GoIndexedVariable):
+            index = expr.index
+            elem = unpack_typeref(expr.type)
+            if not isinstance(index, GoConstant) or not isinstance(index.value, int) or elem is None or not elem.size:
+                return None
+            holder = unpack_typeref(expr.variable.type)
+            if isinstance(holder, SimTypePointer):
+                base = "*" + _go_text(expr.variable), 0
+            elif isinstance(holder, (SimTypeArray, SimTypeFixedSizeArray)):
+                base = self._location(expr.variable) or (_go_text(expr.variable), 0)
+            else:
+                return None
+            return base[0], base[1] + index.value * (elem.size // self._codegen.project.arch.byte_width)
+        return None
+
+    def _stores(self, stmts: list):
+        words = [self._word_of(s.lhs) if isinstance(s, GoAssignment) else None for s in stmts]
+        for i, stmt in enumerate(stmts):
+            if words[i] is None or self._string_pointer(stmt.rhs) is None:
+                continue
+            key, off = words[i]
+            n = len(stmts)
+            # nearest first on each side; a side ends at a non-store or a rewrite of the data word
+            for side in (range(i + 1, min(n, i + 1 + self._WINDOW)), range(i - 1, max(-1, i - 1 - self._WINDOW), -1)):
+                if self._paired(stmt, stmts, words, side, key, off):
+                    break
+
+    def _paired(self, stmt, stmts, words, side, key, off) -> bool:
+        for j in side:
+            if words[j] is None or words[j] == (key, off):
+                return False
+            if words[j] == (key, off + self._word):
+                return self._clip(stmt.rhs, stmts[j].rhs)
+        return False
 
 
 def _go_exits(stmts: list) -> bool:
