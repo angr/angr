@@ -21,12 +21,9 @@ from angr.analyses.complete_calling_conventions import (
     CompleteCallingConventionsAnalysis,
 )
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
-from angr.sim_type import SimTypeNum
-from angr.sim_variable import SimStackVariable
-
-
 from angr.calling_conventions import SimCCMicrosoftFastcall
-from angr.sim_type import SimTypeDouble, SimTypeFloat
+from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeNum
+from angr.sim_variable import SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
 # -- Paths & binary matrix --------------------------------------------
@@ -1342,6 +1339,33 @@ class TestX87ReturnPrototype:
 
     def test_caller_stores_st0(self):
         assert re.search(r"\*\(?a0\)? = cdecl_ret_double\(a0\);", self._text("caller_consume_int"))
+
+
+class TestX87IntReturnClassifier:
+    """An integer-returning classifier that reads its double argument via the x87 stack and writes `mov ax, imm16` on
+    one path is not a float-returning function (x87_dclass_win32.exe)."""
+
+    def test_dclass_returns_int(self):
+        path = os.path.join(_fp_dir, "x87_dclass_win32.exe")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cfg.model)
+        dclass = cfg.functions["dclass"]
+        assert not isinstance(dclass.prototype.returnty, SimTypeFloat)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(dclass, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "float" not in dec.codegen.text, dec.codegen.text
+        # the decompiler's refined prototype must not turn the int return into a float either
+        assert not isinstance(dclass.prototype.returnty, SimTypeFloat)
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions["caller"], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert re.search(r"dclass\(a0\) == 2", text), text
+        assert "float" not in text and "double)" not in text, text
 
 
 # -- Integer views of floating-point registers ------------------------

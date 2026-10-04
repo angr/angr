@@ -858,7 +858,8 @@ class SimEngineVRAIL(
         # for struct stores) must fall through to avoid leaking integer type constraints.
         if is_lsb_overwrite(expr) and r_value.typevar is not None:
             ft = typeconsts.float_type(expr.bits)
-            if ft is not None:
+            # only an FP-sized value can be an FP value widened in place; `mov ax, imm16` is an integer write
+            if ft is not None and (expr.bits == r_value.bits or typeconsts.float_type(r_value.bits) is not None):
                 if expr.bits > r_value.bits:
                     typevar = self.tv_manager.new_tv()
                     self.state.add_type_constraint(typevars.Subtype(ft, typevar))
