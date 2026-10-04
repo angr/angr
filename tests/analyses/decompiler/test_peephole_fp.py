@@ -844,6 +844,42 @@ class TestX86FPConditionCCall(unittest.TestCase):
         assert self._rewrite(10, 18, dep1, 0, ndep) is None
 
 
+class TestRemoveIntFPIntRoundTrip(unittest.TestCase):
+    """Conv(F->sN, Conv(sN->F, x)) folds only when the int -> FP conversion is exact."""
+
+    @staticmethod
+    def _opt(arch, int_bits, fp_bits=64):
+        from angr.ailment.manager import Manager
+        from angr.analyses.decompiler.peephole_optimizations.remove_int_fp_int_roundtrip import (
+            RemoveIntFPIntRoundTrip,
+        )
+
+        proj = angr.load_shellcode(b"\xc3", arch)
+        opt = RemoveIntFPIntRoundTrip(proj, proj.kb, ail_manager=Manager(), func_addr=0)
+        x = Tmp(1, 0, int_bits)
+        inner = Convert(2, int_bits, fp_bits, True, x, from_type=Convert.TYPE_INT, to_type=Convert.TYPE_FP)
+        outer = Convert(3, fp_bits, int_bits, True, inner, from_type=Convert.TYPE_FP, to_type=Convert.TYPE_INT)
+        return opt.optimize(outer), x
+
+    def test_int64_x87(self):
+        # 32-bit x86: I64StoF64 is fild, exact through the 80-bit format
+        result, x = self._opt("x86", 64)
+        assert result is not None and result.likes(x)
+
+    def test_int64_sse_not_folded(self):
+        # amd64: cvtsi2sd rax rounds int64 values beyond 2**53
+        result, _ = self._opt("amd64", 64)
+        assert result is None
+
+    def test_int32_exact_in_double(self):
+        result, x = self._opt("amd64", 32)
+        assert result is not None and result.likes(x)
+
+    def test_int32_not_exact_in_float(self):
+        result, _ = self._opt("amd64", 32, fp_bits=32)
+        assert result is None
+
+
 class TestFloat32Repr(unittest.TestCase):
     def test_flt_max_does_not_overflow(self):
         from angr.analyses.decompiler.structured_codegen.c import _float32_repr

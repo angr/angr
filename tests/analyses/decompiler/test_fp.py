@@ -1230,7 +1230,8 @@ class TestX87Math(unittest.TestCase):
         # exp2(x) = ldexp(f2xm1(x - rint(x)) + 1, (int)rint(x))
         text = self._text("x87_exp2")
         assert "ldexp(exp2(" in text and "- 1.0 + 1.0, (int)" in text
-        assert re.search(r"ldexp\(\w+, \(int\)", self._text("x87_ldexp"))
+        # the int -> double -> int round trip of the exponent is exact
+        assert re.search(r"ldexp\(\w+, \w+\)", self._text("x87_ldexp"))
 
 
 # x87 stack tracking across calls and the fptag/fistp/fxam/long double

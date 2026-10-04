@@ -44,6 +44,7 @@ from .remove_const_insert import RemoveConstInsert
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .remove_empty_if_body import RemoveEmptyIfBody
 from .remove_fptag_nan_ite import RemoveFptagNanITE
+from .remove_int_fp_int_roundtrip import RemoveIntFPIntRoundTrip
 from .remove_noop_conversions import RemoveNoopConversions
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks
 from .remove_redundant_conversions import RemoveRedundantConversions
@@ -137,6 +138,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RewriteConvMul,
     EvaluateConstConversions,
     RemoveRedundantInsert,
+    RemoveIntFPIntRoundTrip,
     NarrowFPOperations,
     SSEScalarLowering,
     SSEVectorConvertLowering,
