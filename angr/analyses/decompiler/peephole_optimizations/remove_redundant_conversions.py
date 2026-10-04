@@ -112,8 +112,9 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                             **expr.tags,
                         )
 
-                elif expr.op in {"Add", "Sub"}:
+                elif expr.op in {"Add", "Sub"} and from_bits >= 8:
                     # Add(Conv(32->64, expr), A) ==> Conv(32->64, Add(expr, A))
+                    # sub-byte operands (booleans) have no C type of that width; keep the wider add
                     op0, op1 = expr.operands
                     con = Const(op1.idx, op1.value, op0.from_bits)
                     return Convert(

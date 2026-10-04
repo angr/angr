@@ -1118,6 +1118,15 @@ class TestX87StatusWordIdioms:
         text = _decompile_asm_func("x87_fcom_i386_O1.o", func_name)
         assert expected in text, text
 
+    @pytest.mark.parametrize(
+        "func_name,expected",
+        [("br_lt_f64", "return (a1 <= a0) + 1;"), ("br_eq_f64", "return (a0 != a1) + 1;")],
+    )
+    def test_gcc_i386_setcc_inc(self, func_name, expected):
+        # setne al; movzx eax,al; inc eax: the add stays 32-bit (a 1-bit add would wrap true + 1 to 0)
+        text = _decompile_asm_func("x87_fcom_i386_O1.o", func_name)
+        assert expected in text and "unsigned int" not in text, text
+
 
 class TestX87FxamAndStoredStatusWord:
     """fxam status bits fold into classification tests; a status word stored by fnstsw and reloaded is folded too."""
