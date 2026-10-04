@@ -467,6 +467,15 @@ class CallingConventionAnalysis(Analysis):
         if not parsed or len(parsed) != 1:
             return None
         proto = next(iter(parsed.values()))
+        if isinstance(self.project.arch, archinfo.ArchS390X) and isinstance(proto, SimTypeFunction):
+            # GCC mangles the 128-bit s390x long double as "g" (__float128); "e" ("long double") only comes from
+            # -mlong-double-64 code (e.g., libstdc++'s compat symbols), where it is a plain double
+            proto = proto.copy()
+            proto.args = tuple(
+                SimTypeDouble(label=arg.label) if isinstance(arg, SimTypeLongDouble) else arg for arg in proto.args
+            )
+            if isinstance(proto.returnty, SimTypeLongDouble):
+                proto.returnty = SimTypeDouble(label=proto.returnty.label)
         if (
             isinstance(proto, SimTypeCppFunction)
             and self.project.simos.name == "Win32"

@@ -53,6 +53,17 @@ class TestS390XDecompilation(unittest.TestCase):
         # only the pointer occupies an argument location
         assert set(locs[0].get_footprint()) == {SimRegArg("r2", 8)}
 
+    def test_decompile_libstdcxx_hash_long_double(self):
+        # std::hash<long double>::operator()(long double) used to crash SimCC.next_arg ("doesn't know how to store
+        # large types"). "e"-mangled long double on s390x is the -mlong-double-64 one, so it arrives in f0.
+        bin_path = os.path.join(test_location, "s390x", "libstdc++.so.6")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x4A5F50, window=0x200, expand_call_tree=False)
+        func = cfg.functions[0x4A5F50]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "operator()(double a0)" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
