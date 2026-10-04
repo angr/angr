@@ -5032,6 +5032,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             if isinstance(type_, SimTypePointer) and not isinstance(type_.pts_to, SimTypeBottom):
                 data_type = type_.pts_to
 
+        if expr.op in {"SignBit", "MovMskPD", "MovMskPS"}:
+            return self._handle_sign_mask(expr)
+
         operand = self._handle(expr.operand, lvalue=expr.op == "Reference", type_=data_type, ref=ref)
 
         if expr.op == "Reference" and isinstance(operand, CUnaryOp) and operand.op == "Dereference":
@@ -5043,6 +5046,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             tags=expr.tags,
             codegen=self,
         )
+
+    def _handle_sign_mask(self, expr: Expr.UnaryOp) -> CExpression:
+        """SignBit(x) -> signbit(x); MovMskPD/PS(v) -> _mm[256]_movemask_pd/ps(v), or signbit(v) when v is a scalar
+        float variable (its upper lanes carry nothing in a scalar context)."""
+        name = "signbit"
+        if expr.op != "SignBit":
+            operand = self._handle(expr.operand)
+            if not isinstance(operand.type, SimTypeFloat):
+                prefix = "_mm256" if expr.operand.bits == 256 else "_mm"
+                name = f"{prefix}_movemask_{expr.op[-2:].lower()}"
+        call = Expr.Call(expr.idx, name, args=[expr.operand], bits=max(expr.bits, 32), **expr.tags)
+        return self._handle(call)
 
     def _fp_constant(self, operand: CExpression, ail_operand: Expr.Expression) -> CExpression:
         """An integer constant operand of an FP operation carries the bit pattern of a float or double; render it as

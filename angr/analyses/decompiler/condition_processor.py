@@ -236,6 +236,9 @@ _ail2claripy_op_mapping = {
     "ExpCmpNE": lambda expr, _, m, *args: _dummy_bools(expr, m),
     "CmpUN": lambda expr, _, m, *args: _dummy_bools(expr, m),
     "IsNaN": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "SignBit": lambda expr, _, m, *args: _dummy_bools(expr, m),
+    "MovMskPD": lambda expr, _, m, *args: _dummy_bvs(expr, m),
+    "MovMskPS": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "CmpORD": lambda expr, _, m, *args: _dummy_bvs(expr, m),  # in case CmpORDRewriter fails
     "CmpEQV": lambda expr, _, m, *args: _dummy_bvs(expr, m),
     "GetMSBs": lambda expr, _, m, *args: _dummy_bvs(expr, m),

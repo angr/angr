@@ -1125,6 +1125,33 @@ class TestSSELaneOps:
 
 
 # ======================================================================
+# movmskpd / movmskps: lane-wise sign-bit gathering. A genuine vector renders as the intrinsic; lane 0 of a scalar
+# (the upper lanes masked off by the consumer) renders as signbit().
+# ======================================================================
+
+
+class TestSSEMoveMask:
+    _LIBM_BITS = os.path.join(bin_location, "tests", "x86_64", "decompiler", "known_patterns_libm_bits")
+
+    def test_vector_movemask(self):
+        assert "return _mm_movemask_pd(*(a0));" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_pd")
+        assert "return _mm_movemask_ps(*(a0));" in _decompile_asm_func("sse_movmsk_amd64.o", "mask_ps")
+
+    def test_scalar_signbit(self):
+        assert "return signbit(a0);" in _decompile_asm_func("sse_movmsk_amd64.o", "sign_d")
+        assert "return signbit(a0);" in _decompile_asm_func("sse_movmsk_amd64.o", "sign_f")
+
+    def test_libm_isinf_signbit(self):
+        # f_isinf: andpd/ucomisd, then movmskpd; and 1; cmp 1; sbb; and 2; sub 1
+        text = _decompile_scoped(self._LIBM_BITS, 0x401430)
+        assert "v1 = (signbit(a0) ? 0xffffffff : 1);" in text, text
+        assert "(a0 & 0x7fffffffffffffff) > 1.7976931348623157e+308" in text, text
+        # f_signbit: movmskpd reads only the high half of the double argument, which must stay a double
+        text = _decompile_scoped(self._LIBM_BITS, 0x4013F0)
+        assert "int f_signbit(double a0)" in text and "return signbit(a0);" in text, text
+
+
+# ======================================================================
 # sse_phi_insert_i386.o: a cmpeqsd mask whose lane 0 is tested also flows, with a movlpd lane-0 Insert, into a phi
 # read only at lane 0 (CRT log()). The phi class must narrow to 64 bits so the compare lowers to a scalar test.
 # ======================================================================

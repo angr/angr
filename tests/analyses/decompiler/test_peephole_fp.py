@@ -677,6 +677,33 @@ def _cmp_const(op, expr, value):
     return BinaryOp(None, op, [expr, Const(None, value, expr.bits)], False, bits=1)
 
 
+class TestSSEMoveMask(unittest.TestCase):
+    """vmovmskpd's per-lane sign-bit Or-tree folds into MovMskPD; a bit-0 read becomes SignBit(lane 0)."""
+
+    def test_vmovmskpd_ymm(self):
+        from angr.analyses.decompiler.peephole_optimizations.sse_movemask import SSEMoveMask
+
+        opt = _make_peephole(SSEMoveMask)
+        y = Tmp(1, 1, 256)
+
+        def term(i):
+            word = Extract(None, 32, y, Const(None, (i + 1) * 8 - 4, 64), "Iend_LE")
+            shr = BinaryOp(None, "Shr", [word, Const(None, 31 - i, 8)], False, bits=32)
+            return BinaryOp(None, "And", [shr, Const(None, 1 << i, 32)], False, bits=32)
+
+        def or_(a, b):
+            return BinaryOp(None, "Or", [a, b], False, bits=32)
+
+        r = opt.optimize(or_(or_(term(0), term(1)), or_(term(2), term(3))))
+        assert isinstance(r, UnaryOp) and r.op == "MovMskPD" and r.operand.likes(y)
+        # a lane missing or out of place is not a movemask
+        assert opt.optimize(or_(or_(term(0), term(1)), or_(term(2), term(2)))) is None
+        r = opt.optimize(BinaryOp(None, "And", [r, Const(None, 1, 32)], False, bits=32))
+        assert isinstance(r, Convert) and (r.from_bits, r.to_bits) == (1, 32)
+        sign = r.operand
+        assert isinstance(sign, UnaryOp) and sign.op == "SignBit" and sign.operand.bits == 64
+
+
 class TestSbbMaskToITE(unittest.TestCase):
     """cmp x, 1; sbb eax, eax; and eax, K; sub eax, D  ->  ITE."""
 
