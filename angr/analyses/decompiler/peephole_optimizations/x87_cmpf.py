@@ -26,6 +26,9 @@ from angr.analyses.decompiler.x87_fsw import (
 
 from .base import PeepholeOptimizationExprBase
 
+_GUARD_CHAIN_OPS = frozenset({"And", "Or", "LogicalAnd", "LogicalOr"})
+_FP_COMPARISONS = frozenset({"CmpEQ", "CmpNE", "CmpLT", "CmpLE", "CmpGT", "CmpGE"})
+
 
 class _FswContext(NamedTuple):
     """Block context for evaluating status-word tests: Tmp definitions and earlier stores."""
@@ -184,6 +187,8 @@ class X87CmpF(PeepholeOptimizationExprBase):
 
     def _optimize_binop(self, expr: BinaryOp, vvar_defs: dict | None = None, ctx: _FswContext | None = None):
         vd = vvar_defs or {}
+        if expr.op in _GUARD_CHAIN_OPS and (r := self._drop_redundant_unordered_guards(expr)) is not None:
+            return r
         if expr.op == "CmpUN":
             if expr.operands[0].likes(expr.operands[1]):
                 # isunordered(x, x) -> isnan(x) once both operands resolved to the same value
@@ -258,6 +263,85 @@ class X87CmpF(PeepholeOptimizationExprBase):
             return Convert(expr.idx, 1, expr.bits, False, pred, **expr.tags)
 
         return None
+
+    def _drop_redundant_unordered_guards(self, expr: BinaryOp) -> Expression | None:
+        """
+        A comparison is already false (==, <, <=, >, >=) or true (!=) when unordered, so an ordered/unordered guard on
+        the same operands is redundant: (a == b) & !isunordered(a, b) -> a == b, (a != b) | isunordered(a, b) -> a != b.
+        """
+        is_and = expr.op in ("And", "LogicalAnd")
+        terms = self._flatten(expr)
+        cmp_pairs: list[tuple[Expression, Expression]] = []
+        # (term index, x, y); y is None for a single-operand NaN test
+        guards: list[tuple[int, Expression, Expression | None]] = []
+        for i, term in enumerate(terms):
+            core = self._peel_bool_convert(term)
+            negated = isinstance(core, UnaryOp) and core.op == "Not"
+            inner = core.operand if isinstance(core, UnaryOp) and negated else core
+            if isinstance(inner, UnaryOp) and inner.op == "IsNaN":
+                if negated == is_and:
+                    guards.append((i, inner.operand, None))
+                continue
+            if not (isinstance(inner, BinaryOp) and inner.floating_point):
+                continue
+            a, b = inner.operands
+            if inner.op == "CmpUN" or (inner.op in ("CmpEQ", "CmpNE") and a.likes(b)):
+                # isunordered(a, b); a != a is isnan(a), a == a is !isnan(a)
+                tests_nan = (inner.op != "CmpEQ") != negated
+                if tests_nan != is_and:
+                    guards.append((i, a, None if a.likes(b) else b))
+                continue
+            if inner.op not in _FP_COMPARISONS:
+                continue
+            true_if_unordered = (inner.op == "CmpNE") != negated
+            if true_if_unordered != is_and:
+                cmp_pairs.append((a, b))
+        if not cmp_pairs or not guards:
+            return None
+
+        dropped: set[int] = set()
+        for a, b in cmp_pairs:
+            for i, x, y in guards:
+                if y is not None and ((x.likes(a) and y.likes(b)) or (x.likes(b) and y.likes(a))):
+                    dropped.add(i)
+            # isnan(a) alone covers the pair when b cannot be NaN, else together with isnan(b)
+            nan_a = [i for i, x, y in guards if y is None and x.likes(a)]
+            nan_b = [i for i, x, y in guards if y is None and x.likes(b)]
+            if nan_a and (nan_b or self._is_ordered_const(b)):
+                dropped.update(nan_a + nan_b)
+            elif nan_b and self._is_ordered_const(a):
+                dropped.update(nan_b)
+        if not dropped:
+            return None
+        kept = [term for i, term in enumerate(terms) if i not in dropped]
+        result = kept[0]
+        for term in kept[1:]:
+            result = BinaryOp(self.manager.next_atom(), expr.op, [result, term], False, bits=expr.bits, **expr.tags)
+        return result if result.bits == expr.bits else None
+
+    @staticmethod
+    def _flatten(expr: BinaryOp) -> list[Expression]:
+        """The operands of a chain of expr's operator."""
+        terms: list[Expression] = []
+        stack: list[Expression] = [expr]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, BinaryOp) and node.op == expr.op and node.bits == expr.bits:
+                stack.extend(reversed(node.operands))
+            else:
+                terms.append(node)
+        return terms
+
+    @staticmethod
+    def _peel_bool_convert(expr: Expression) -> Expression:
+        return expr.operand if isinstance(expr, Convert) and expr.from_bits == 1 else expr
+
+    @staticmethod
+    def _is_ordered_const(expr: Expression) -> bool:
+        """A non-NaN constant, possibly behind an FP widening."""
+        while isinstance(expr, Convert) and expr.from_type == Convert.TYPE_FP and expr.to_type == Convert.TYPE_FP:
+            expr = expr.operand
+        return isinstance(expr, Const) and not const_is_nan(expr)
 
     @staticmethod
     def _match_not_gt_pattern(expr, vvar_defs: dict | None = None):

@@ -991,6 +991,21 @@ class TestFpNegationThroughPhi:
         assert re.search(r"(\w+) = -\(\1\);", text), text
 
 
+class TestSSECompareResidualFolds:
+    def test_go_printfloat(self):
+        # runtime.printfloat: one ucomisd 0.0, x status word is tested by jne/jp and jbe in different blocks, and the
+        # jne/jp re-test of x == x + x is merged with 0.0 > x by the cascading-ifs simplifier
+        bin_path = os.path.join(bin_location, "tests", "x86_64", "langdetect_go")
+        proj, cfg = load_project_with_scoped_cfg(bin_path, 0x434EA0, expand_call_tree=False, run_ccc=False)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[0x434EA0], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "CmpF(" not in text, text
+        assert "isunordered(" not in text, text
+        assert re.search(r"else if \(i == v\d+ && 0\.0 > i\)", text), text
+        assert "0.0 <= i" in text and "!isnan(i)" in text, text
+
+
 class TestX87ConstantLiterals:
     """80-bit x87 constants outside the double range must render as long double literals."""
 

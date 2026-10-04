@@ -816,6 +816,55 @@ class TestX87StatusWord(unittest.TestCase):
         assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, nan, 64), bits=1)).value == 1
         assert self.opt.optimize(UnaryOp(None, "IsNaN", Const(None, 0x7FF8000000000001, 64), bits=1)).value == 1
 
+    def _fp(self, op, a, b):
+        return BinaryOp(None, op, [a, b], False, floating_point=True, bits=1)
+
+    def test_redundant_unordered_guard(self):
+        # ucomisd; sete; setnp; and: (a == b) & !isunordered(a, b) is a == b
+        eq = self._fp("CmpEQ", self.a, self.b)
+        ordered = UnaryOp(None, "Not", self._fp("CmpUN", self.a, self.b), bits=1)
+        expr = BinaryOp(
+            None, "And", [Convert(None, 1, 8, False, eq), Convert(None, 1, 8, False, ordered)], False, bits=8
+        )
+        result = self.opt.optimize(expr)
+        assert isinstance(result, Convert) and result.from_bits == 1 and result.to_bits == 8
+        self._assert_cmp(result.operand, "CmpEQ")
+        # jne/jp: a != b || isnan(a) || isnan(b) is a != b
+        ne = self._fp("CmpNE", self.a, self.b)
+        nan_a = UnaryOp(None, "IsNaN", self.a, bits=1)
+        nan_b = UnaryOp(None, "IsNaN", self.b, bits=1)
+        expr = BinaryOp(
+            None, "LogicalOr", [BinaryOp(None, "LogicalOr", [ne, nan_a], False, bits=1), nan_b], False, bits=1
+        )
+        self._assert_cmp(self.opt.optimize(expr), "CmpNE")
+        # !isnan(a) alone guards a comparison against a constant
+        zero = Const(None, 0.0, 64)
+        lt = self._fp("CmpLT", self.a, zero)
+        not_nan_a = UnaryOp(None, "Not", nan_a, bits=1)
+        self._assert_cmp(
+            self.opt.optimize(BinaryOp(None, "LogicalAnd", [not_nan_a, lt], False, bits=1)), "CmpLT", b=zero
+        )
+
+    def test_needed_unordered_guard_is_kept(self):
+        nan_a = UnaryOp(None, "IsNaN", self.a, bits=1)
+        un = self._fp("CmpUN", self.a, self.b)
+        # b may be NaN
+        expr = BinaryOp(
+            None, "LogicalAnd", [self._fp("CmpLT", self.a, self.b), UnaryOp(None, "Not", nan_a, bits=1)], False, bits=1
+        )
+        assert self.opt.optimize(expr) is None
+        # a == b is false when unordered: a == b || isunordered(a, b) is not a == b
+        assert (
+            self.opt.optimize(BinaryOp(None, "LogicalOr", [self._fp("CmpEQ", self.a, self.b), un], False, bits=1))
+            is None
+        )
+        # !(a < b) is true when unordered
+        not_lt = UnaryOp(None, "Not", self._fp("CmpLT", self.a, self.b), bits=1)
+        assert (
+            self.opt.optimize(BinaryOp(None, "LogicalAnd", [not_lt, UnaryOp(None, "Not", un, bits=1)], False, bits=1))
+            is None
+        )
+
     def test_ftop_bits_block_the_fold(self):
         # test ah, 0x08 reads the ftop bits: not a CmpF test
         expr = _cmp_const("CmpEQ", _test_ah(_cmpf(self.a, self.b), self.ftop, 0x08), 0)
