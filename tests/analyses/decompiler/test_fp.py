@@ -1659,3 +1659,22 @@ class TestClampThroughSlotPointers:
         assert "0x3ff0000000000000" not in text, text
         # the store goes through the pointer argument, not into the argument variable
         assert re.search(r"\*\(\(double \*\)a\d\) = ", text), text
+
+    def test_int_typed_slot_keeps_bit_pattern(self):
+        # a double constant stored to a slot forced to an integer type is a bit copy, not a value conversion
+        path = os.path.join(_fp_dir, "fp_clamp_ref_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        func = cfg.functions["clamp_ref"]
+        proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        vm = proj.kb.dec_variables[func.addr]
+        slot = vm.unified_variable(next(iter(vm.find_variables_by_stack_offset(-0xC))))
+        assert slot is not None
+        vm.set_variable_type(slot, SimTypeNum(64, signed=False).with_arch(proj.arch), mark_manual=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, use_cache=False)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert re.search(r"v\d+ = 0x3ff0000000000000;", text), text
+        assert ")1.0;" not in text, text

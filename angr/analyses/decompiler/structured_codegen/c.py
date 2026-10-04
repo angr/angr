@@ -3775,6 +3775,36 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
 
+    def _bit_pattern_constant_for_dst(self, csrc: CExpression, dst_type: SimType | None) -> CExpression:
+        """
+        A constant written to a location of the same width but the other FP/integer class is a bit pattern (e.g., mov
+        dword [x], 0; mov dword [x+4], 0x3ff00000 into a double). Retype the constant to the destination type so it
+        renders as an FP literal or as the integer bits, instead of being value-converted by a cast.
+        """
+        dst_type = unpack_typeref(dst_type)
+        if not isinstance(csrc, CConstant) or csrc.type is None or dst_type is None or csrc.type.size != dst_type.size:
+            return csrc
+        if (
+            type(csrc.value) is int
+            and not csrc.reference_values
+            and isinstance(dst_type, SimTypeFloat)
+            and not isinstance(dst_type, SimTypeLongDouble)
+            and dst_type.size in {32, 64}
+        ):
+            # a nonzero pattern with a zero exponent (a denormal) is far more likely an address or a small integer
+            exp_mask = 0x7F80_0000 if dst_type.size == 32 else 0x7FF0_0000_0000_0000
+            if csrc.value == 0 or csrc.value & exp_mask:
+                return CConstant(csrc.value, dst_type, tags=csrc.tags, codegen=self)
+        if (
+            isinstance(csrc.value, float)
+            and isinstance(dst_type, (SimTypeInt, SimTypeNum))
+            and dst_type.size in {32, 64}
+        ):
+            fmt = ("<f", "<I") if dst_type.size == 32 else ("<d", "<Q")
+            bits = struct.unpack(fmt[1], struct.pack(fmt[0], csrc.value))[0]
+            return CConstant(bits, dst_type, tags=csrc.tags, codegen=self)
+        return csrc
+
     def _fp_view_of_int_lvalue(self, cexpr: CExpression, bits: int) -> CExpression:
         """
         An FP operation reads or writes its operand as a floating-point value. When variable typing left that operand
@@ -4446,6 +4476,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             cvar = self._variable(stmt_var, stmt.size)
             offset = self._variable_map.variable_offset(stmt) or 0
             assert type(offset) is int  # I refuse to deal with the alternative
+            if offset == 0:
+                cdata = self._bit_pattern_constant_for_dst(cdata, cvar.type)
 
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
@@ -4518,7 +4550,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                     # FP->FP assignment converts implicitly
                     return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
             if csrc.type is not None and cdst.type is not None and cdst.type != csrc.type:
-                csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
+                csrc = self._bit_pattern_constant_for_dst(csrc, cdst.type)
+                if cdst.type != csrc.type:
+                    csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
