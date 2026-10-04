@@ -41,6 +41,8 @@ from angr.analyses.decompiler.variable_map import VariableMap
 from angr.errors import UnsupportedNodeTypeError
 from angr.go.codegen_builtins import render_builtin_call
 from angr.go.codegen_builtins_values import call_tag, render_builtin_call_value
+from angr.go.optimization_passes.closure_context import CLOSURE_CONTEXT_NAME
+from angr.go.runtime_types import CONTEXT_REGISTERS
 from angr.go.sim_type import (
     GoSimStruct,
     GoSimType,
@@ -55,6 +57,7 @@ from angr.go.sim_type import (
     GoSimTypeString,
     GoSimTypeTuple,
 )
+from angr.go.utils.names import is_go_closure_name
 from angr.go.utils.types import go_type_name_at
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.knowledge_plugins.functions import Function
@@ -723,7 +726,8 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
         unified_to_var_and_types: dict[SimVariable, set[tuple[GoVariable, SimType]]] = defaultdict(set)
 
         arg_set: set[SimVariable] = set()
-        for arg in self.arg_list:
+        ctx = self._closure_context_param()
+        for arg in [*self.arg_list, *([ctx[0]] if ctx is not None else [])]:
             # TODO: Handle GoIndexedVariable
             if isinstance(arg, GoVariable):
                 if arg.unified_variable is not None:
@@ -754,6 +758,23 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
             unified_to_var_and_types[key].add((cvar, var_type))
 
         return unified_to_var_and_types
+
+    def _closure_context_param(self) -> tuple[GoVariable, SimType] | None:
+        """The incoming closure context register variable (named by GoClosureContextNamer), shown as a parameter."""
+        reg_name = CONTEXT_REGISTERS.get(self.codegen.project.arch.name)
+        if reg_name is None or reg_name not in self.codegen.project.arch.registers:
+            return None
+        reg = self.codegen.project.arch.registers[reg_name][0]
+        for var, cvar in self.variables_in_use.items():
+            if not isinstance(cvar, GoVariable):
+                continue
+            v = cvar.unified_variable or var
+            if isinstance(v, SimRegisterVariable) and v.reg == reg and v.name == CLOSURE_CONTEXT_NAME:
+                ty = self.variable_manager.get_variable_type(var)
+                if ty is None:
+                    ty = SimTypePointer(SimTypeBottom()).with_arch(self.codegen.project.arch)
+                return cvar, ty
+        return None
 
     def _referenced_variables(self) -> set:
         referenced = set()
@@ -1083,6 +1104,10 @@ class GoFunction(GoConstruct):  # pylint:disable=abstract-method
             yield self.name, self
         # argument list
         yield "(", paren
+        ctx = self._closure_context_param()
+        if ctx is not None:
+            # the closure context register is a hidden first parameter
+            params.insert(0, (ctx[1], ctx[0]))
         for i, (arg_type, cvariable) in enumerate(params):
             if i:
                 yield ", ", None
@@ -1185,7 +1210,9 @@ def _go_method_name(func_name: str, codegen=None) -> str | None:
             if sig is not None:
                 return func_name.rsplit(".", 1)[-1] if sig.recv is not None else None
     m = _GO_METHOD_RE.match(func_name)
-    return None if m is None else m.group("method")
+    if m is None or is_go_closure_name(func_name):
+        return None
+    return m.group("method")
 
 
 def _same_variable(a, b) -> bool:

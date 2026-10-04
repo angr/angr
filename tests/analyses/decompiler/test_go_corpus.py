@@ -122,6 +122,7 @@ class TestGoCorpusDarwinArm64(_Corpus):
         "filippo.io/age.(*HybridRecipient).String",
         "filippo.io/age.(*ScryptIdentity).Unwrap",
         "filippo.io/age/internal/format.splitArgs",
+        "main.printfToTerminal.func1",
     )
 
     def test_method_receiver_and_sinks(self):
@@ -151,6 +152,11 @@ class TestGoCorpusDarwinArm64(_Corpus):
             re.MULTILINE,
         )
         assert not re.search(r"^    var .*// x[0-7]$", text, re.MULTILINE), text
+
+    def test_closure_context_is_a_parameter(self):
+        text = self.decompile("main.printfToTerminal.func1")
+        assert re.search(r"^func main\.printfToTerminal\.func1\(ctx \*\w+, ", text, re.MULTILINE), text
+        assert not re.search(r"// x(26|[0-7])$", text, re.MULTILINE), text
 
 
 if __name__ == "__main__":

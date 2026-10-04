@@ -580,3 +580,16 @@ class TestReceiverFromName(unittest.TestCase):
         assert receiver_type_from_name(kb, arch, "main.describe") is None
         assert receiver_type_from_name(kb, arch, "main.(*Rect).Area.func1") is None
         assert receiver_type_from_name(kb, arch, "main.(*Nope).Area") is None
+        # a method value wrapper gets its receiver through the closure context, not its first argument
+        assert receiver_type_from_name(kb, arch, "main.(*Rect).Area-fm") is None
+
+    def test_closures_are_not_methods(self):
+        from angr.analyses.decompiler.structured_codegen.go import _go_method_name
+        from angr.go.utils.names import is_go_closure_name
+
+        # a closure in a function with an exported name looks like a method of a type with that name
+        assert _go_method_name("github.com/junegunn/fzf/src.NewTerminal.func2") is None
+        assert _go_method_name("main.Rect.Area") == "Area"
+        for name in ("pkg.F.func1", "pkg.F.func1.2", "pkg.F.func1.gowrap3", "pkg.(*T).M-fm", "pkg.F-range1"):
+            assert is_go_closure_name(name), name
+        assert not is_go_closure_name("pkg.(*T).funcName")

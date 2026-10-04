@@ -7,7 +7,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.analyses.decompiler.structured_codegen.c import type_equals
 from angr.calling_conventions import GO_ABI0_CC, SimCC, default_cc_for_project
 from angr.go.sim_type import GoSimStruct, GoSimTypeFunction
-from angr.go.utils.names import call_target_name
+from angr.go.utils.names import call_target_name, is_go_closure_name
 from angr.knowledge_plugins.functions.function import Function, PrototypeSource
 from angr.sim_type import SimTypeFunction
 from angr.utils.ail import CallFinder
@@ -28,7 +28,13 @@ def receiver_type_from_name(kb, arch, name: str):
     a type the binary describes. Closures (``.func1``) and plain functions give None.
     """
     m = _METHOD_NAME.match(name)
-    if m is None or ("(" in name) != (m.group("ptr") is not None) or _CLOSURE_NAME.match(m.group("method")):
+    if (
+        m is None
+        or ("(" in name) != (m.group("ptr") is not None)
+        or _CLOSURE_NAME.match(m.group("method"))
+        or is_go_closure_name(name)
+    ):
+        # closures and method values (``pkg.(*T).M-fm``) receive the receiver through the context register
         return None
     tyname = f"{m.group('pkg')}.{m.group('type')}"
     if kb.go_signatures.named_type(tyname) is None:
