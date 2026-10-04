@@ -1287,11 +1287,11 @@ class TestX87Math(unittest.TestCase):
         assert re.search(r"atan2\(\w+, \w+\)", self._text("x87_atan2"))
 
     def test_fprem_loop(self):
-        # gcc's fmod: do { fprem } while (C2)
+        # gcc's fmod: do { fprem } while (C2) is one complete fmod()
         text = self._text("x87_fmod")
-        assert re.search(r"fmod\(\w+, \w+\)", text)
-        assert re.search(r"x87_fprem_c3210\(\w+, \w+\)", text)
-        # the intrinsic's operands survive codegen serialization
+        assert re.search(r"fmod\(\w+, a1\)", text), text
+        assert "x87_fprem_c3210" not in text and "while" not in text, text
+        # the codegen survives serialization
         assert self._env is not None
         dec = self._env.project.analyses[Decompiler].prep()(
             self._env.cfg.functions["x87_fmod"], cfg=self._env.cfg.model
@@ -1300,8 +1300,8 @@ class TestX87Math(unittest.TestCase):
         parsed = parse_codegen(serialize_codegen(dec.codegen), project=dec.project, kb=dec.kb, func=dec.func)
         assert parsed.text == dec.codegen.text
         text = self._text("x87_remainder")
-        assert re.search(r"remainder\(\w+, \w+\)", text)
-        assert re.search(r"x87_fprem1_c3210\(\w+, \w+\)", text)
+        assert re.search(r"remainder\(\w+, a1\)", text), text
+        assert "x87_fprem1_c3210" not in text and "while" not in text, text
 
     def test_log2_and_log1p(self):
         # fld1; fyl2x: 1.0 * log2(x) folds to log2(x)
@@ -1337,6 +1337,30 @@ class TestRoundToInt:
     def test_round(self, func_name, expected):
         text = _decompile_asm_func("sse_round_amd64.o", func_name)
         assert expected in text, text
+
+
+class TestX87FpremLoop:
+    """fprem/fprem1 loops that repeat until C2 (partial remainder) clears are one complete fmod()/remainder()."""
+
+    def test_sin_reduce(self):
+        # MSVC _CIsin: fsin sets C2 when out of range; reduce by (pi/2)*2^63 with fprem1, then fsin again
+        text = _decompile_asm_func("x87_fprem_i386.o", "sin_reduce")
+        assert re.search(r"if \(.*> 1085\)\n", text), text
+        assert text.count("sin(") == 3 and "remainder(" in text, text
+        assert "while" not in text and "x87_fprem1_c3210" not in text and "_ccall" not in text, text
+
+    def test_fmod_test_ah(self):
+        text = _decompile_asm_func("x87_fprem_i386.o", "fmod_test_ah")
+        assert "return fmod(a0, a1);" in text, text
+
+    def test_quotient_bits_keep_intrinsic(self):
+        text = _decompile_asm_func("x87_fprem_i386.o", "fmod_quotient_bits")
+        assert "while" not in text and "x87_fprem_c3210(a0, a1)" in text, text
+
+    def test_live_counter_keeps_loop(self):
+        # the iteration count is stored after the loop: one iteration is not equivalent
+        text = _decompile_asm_func("x87_fprem_i386.o", "fmod_count")
+        assert "while" in text, text
 
 
 # x87 stack tracking across calls and the fptag/fistp/fxam/long double

@@ -54,6 +54,7 @@ from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
 from .tag_slicer import TagSlicer
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
+from .x87_fprem_loop import X87FpremLoopSimplifier
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -105,6 +106,7 @@ ALL_OPTIMIZATION_PASSES = [
     PostStructuringPeepholeOptimizationPass,
     RegisterSaveAreaSimplifierAdvanced,
     InlinedStrlenSimplifier,
+    X87FpremLoopSimplifier,
     FpNegation,
     KnownPatternOutliner,
     PatternOutliner,
@@ -204,6 +206,7 @@ __all__ = (
     "TagSlicer",
     "WinStackCanarySimplifier",
     "X86GccGetPcSimplifier",
+    "X87FpremLoopSimplifier",
     "get_optimization_passes",
     "register_optimization_pass",
 )

@@ -8,6 +8,8 @@ domain once per outcome; the ``ftop`` contribution and the preserved OF bit of `
 the final mask discards. The resulting outcome -> value table is then turned into an IEEE comparison.
 
 ``__fxam(x)`` is handled the same way over its outcomes: the C3/C2/C0 class bits (Intel SDM, FXAM) times the C1 sign.
+``x87_fprem[1]_c3210(a, b)`` has every C3/C2/C1/C0 combination as an outcome (C2: the remainder is partial). A boolean
+placed at the C2 position (``cond * 0x400``, how fsin/fcos/fptan report an out-of-range operand) has two outcomes.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from angr.ailment.expression import (
     Call,
     Const,
     Convert,
+    DirtyExpression,
     Expression,
     Extract,
     Insert,
@@ -56,8 +59,19 @@ FXAM_SIGN = 0x200
 FXAM_CLASSES = frozenset({FXAM_NAN, FXAM_NORMAL, FXAM_INF, FXAM_ZERO, FXAM_DENORMAL})
 FXAM_OUTCOMES = tuple(c | s for c in sorted(FXAM_CLASSES) for s in (0, FXAM_SIGN))
 
+# fprem/fprem1 status bits: C3 0x4000, C2 0x400 (partial remainder), C1 0x200, C0 0x100
+FSW_C2 = 0x400
+FPREM_OUTCOMES = tuple(
+    c3 | c2 | c1 | c0 for c3 in (0, 0x4000) for c2 in (0, FSW_C2) for c1 in (0, 0x200) for c0 in (0, 0x100)
+)
+BOOL_OUTCOMES = (0, 1)
+
 SOURCE_CMPF = "CmpF"
 SOURCE_FXAM = "__fxam"
+SOURCE_FPREM = "x87_fprem_c3210"
+SOURCE_FPREM1 = "x87_fprem1_c3210"
+SOURCE_C2_BOOL = "c2_bool"
+_FPREM_SOURCES = frozenset({SOURCE_FPREM, SOURCE_FPREM1})
 _FXAM_CCALLS = frozenset({"x86g_calculate_FXAM", "amd64g_calculate_FXAM"})
 
 # known-bits value: (mask of known bits, value of the known bits)
@@ -181,6 +195,9 @@ class _KnownBitsEvaluator:
         if isinstance(expr, BinaryOp):
             return self._eval_binop(expr, bits, mask, depth)
 
+        if isinstance(expr, DirtyExpression) and expr.callee in _FPREM_SOURCES and len(expr.operands) == 2:
+            return self._source_value(expr.callee, (expr.operands[0], expr.operands[1]), mask)
+
         if isinstance(expr, Call) and expr.target == SOURCE_FXAM and expr.args is not None and len(expr.args) == 1:
             return self._source_value(SOURCE_FXAM, (expr.args[0],), mask)
 
@@ -197,6 +214,19 @@ class _KnownBitsEvaluator:
                 return self._source_value(SOURCE_FXAM, (value.operand,), mask)
 
         return _UNKNOWN
+
+    @staticmethod
+    def _c2_bool(expr: BinaryOp) -> Expression | None:
+        """The 1-bit comparison in ``Conv(1->N, cond) * 0x400`` (or ``<< 10``), else None."""
+        lhs, rhs = expr.operands
+        if not (isinstance(rhs, Const) and rhs.value == (FSW_C2 if expr.op == "Mul" else 10)):
+            return None
+        if not (isinstance(lhs, Convert) and lhs.from_bits == 1 and lhs.from_type == Convert.TYPE_INT):
+            return None
+        cond = lhs.operand
+        if isinstance(cond, BinaryOp) and cond.bits == 1 and cond.op.startswith("Cmp") and cond.op != "CmpF":
+            return cond
+        return None
 
     @staticmethod
     def _byte_offset_to_shift(offset: int, part_bits: int, whole_bits: int, endness: str) -> int | None:
@@ -229,7 +259,21 @@ class _KnownBitsEvaluator:
             return _UNKNOWN
 
         lhs, rhs = expr.operands
+        if expr.op in {"Mul", "Shl"} and (c2_bool := self._c2_bool(expr)) is not None:
+            k_bool, v_bool = self.eval(c2_bool, depth + 1)
+            if not k_bool & 1:
+                k_bool, v_bool = self._source_value(SOURCE_C2_BOOL, (c2_bool,), 1)
+            return (mask & ~FSW_C2) | (k_bool & 1) << 10, (v_bool & 1) << 10
         k0, v0 = self.eval(lhs, depth + 1)
+
+        if expr.op in {"CmpEQ", "CmpNE"}:
+            k1, v1 = self.eval(rhs, depth + 1)
+            both = k0 & k1
+            if (v0 ^ v1) & both:
+                return 1, int(expr.op == "CmpNE")
+            if both == self._mask(lhs.bits):
+                return 1, int(expr.op == "CmpEQ")
+            return _UNKNOWN
 
         if expr.op == "And":
             k1, v1 = self.eval(rhs, depth + 1)
@@ -280,7 +324,8 @@ def evaluate_over_fsw(
     tmp_defs: dict[int, Expression] | None = None,
 ) -> FswTable | None:
     """
-    Evaluate integer expressions that depend on a single CmpF(a, b) or __fxam(x) for each of its outcomes.
+    Evaluate integer expressions that depend on a single CmpF(a, b), __fxam(x), x87_fprem[1]_c3210(a, b) or C2 boolean
+    for each of its outcomes.
 
     :param load_resolver:   Maps a Load to the expression it reads (e.g., a status word stored earlier), or None.
     :return:    The table of values, or None if no source is found or any expression has unknown bits for some outcome.
@@ -292,7 +337,7 @@ def evaluate_over_fsw(
     if evaluator.source is None:
         return None
     values: dict[int, tuple[int, ...]] = {}
-    for outcome in CMPF_OUTCOMES if evaluator.source == SOURCE_CMPF else FXAM_OUTCOMES:
+    for outcome in _SOURCE_OUTCOMES[evaluator.source]:
         evaluator.outcome = outcome
         vals = []
         for expr in exprs:
@@ -304,6 +349,15 @@ def evaluate_over_fsw(
     return FswTable(evaluator.source, evaluator.source_operands, values)
 
 
+_SOURCE_OUTCOMES: dict[str, tuple[int, ...]] = {
+    SOURCE_CMPF: CMPF_OUTCOMES,
+    SOURCE_FXAM: FXAM_OUTCOMES,
+    SOURCE_FPREM: FPREM_OUTCOMES,
+    SOURCE_FPREM1: FPREM_OUTCOMES,
+    SOURCE_C2_BOOL: BOOL_OUTCOMES,
+}
+
+
 def fsw_predicate(
     table: FswTable, true_set: frozenset[int], idx: int | None, ail_manager: Manager, bits: int, tags: dict
 ) -> Expression | None:
@@ -311,7 +365,16 @@ def fsw_predicate(
     if table.source == SOURCE_CMPF:
         a, b = table.operands
         return fp_predicate_from_outcomes(true_set, (a, b), idx, ail_manager, bits, tags)
-    return fxam_predicate(true_set, table.operands[0], idx, ail_manager, bits, tags)
+    if table.source == SOURCE_FXAM:
+        return fxam_predicate(true_set, table.operands[0], idx, ail_manager, bits, tags)
+    if table.source == SOURCE_C2_BOOL:
+        if len(true_set) != 1:
+            return Const(idx, int(bool(true_set)), bits, **tags)
+        cond = table.operands[0]
+        if 0 in true_set:
+            cond = UnaryOp(idx if cond.bits == bits else ail_manager.next_atom(), "Not", cond, bits=cond.bits, **tags)
+        return cond if cond.bits == bits else Convert(idx, cond.bits, bits, False, cond, **tags)
+    return None
 
 
 # fxam class sets with a C spelling; the complement of each is spelled with a negation

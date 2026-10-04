@@ -42,6 +42,7 @@ from angr.analyses.decompiler.optimization_passes import (
     SwitchReusedEntryRewriter,
     WinStackCanarySimplifier,
     X86GccGetPcSimplifier,
+    X87FpremLoopSimplifier,
 )
 
 from .preset import DecompilationPreset
@@ -82,6 +83,7 @@ preset_fast = DecompilationPreset(
         InlinedStrcpySimplifierLate,
         InlinedWcscpySimplifierLate,
         InlinedStrlenSimplifier,
+        X87FpremLoopSimplifier,
         FpNegation,
         KnownPatternOutliner,
         PatternOutliner,
