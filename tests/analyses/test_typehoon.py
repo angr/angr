@@ -660,6 +660,19 @@ class TestSimpleSolverPointerPropagation(unittest.TestCase):
         # tv_0 should still be a pointer despite the spurious float constraint
         assert isinstance(sol[tv_0], Pointer32), f"Expected Pointer32, got {sol[tv_0]}"
 
+    def test_fp_variable_survives_degradation_merge(self):
+        """Degrading a large constraint set merges a double-holding variable into a pointer it flows into; the
+        variable's only own bound is float64, so it stays a double."""
+        func_f = TypeVariable(name="F")
+        x = TypeVariable(name="x")
+        y = TypeVariable(name="y")
+        constraints = {Subtype(Float64(), x), Subtype(x, y)}
+        for off in range(0, 24, 4):
+            constraints.add(Subtype(DerivedTypeVariable(y, None, labels=[Load(), HasField(32, off)]), Int32()))
+        proj = angr.load_shellcode(b"\x90\x90", "x86")
+        typehoon = proj.analyses.Typehoon({func_f: constraints}, func_f, constraint_set_degradation_threshold=1)
+        assert isinstance(typehoon.solution[x], Float64), typehoon.solution[x]
+
 
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):

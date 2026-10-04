@@ -11,8 +11,8 @@ from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
 
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Array, Pointer, Struct, TopType, TypeConstant
-from .typevars import DerivedTypeVariable, Equivalence, Subtype, TypeVariable, TypeVariableManager
+from .typeconsts import Array, BottomType, Float, Int, Pointer, Struct, TopType, TypeConstant
+from .typevars import Add, DerivedTypeVariable, Equivalence, Sub, Subtype, TypeVariable, TypeVariableManager
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
@@ -211,7 +211,10 @@ class Typehoon(Analysis):
 
         # self.pp_constraints()
 
+        # the solver rewrites constraints in place; collect the FP bounds first
+        fp_bounds = self._sole_fp_bounds()
         self._solve()
+        self._prefer_fp_for_conflicts(fp_bounds)
         self._specialize()
         self._translate_to_simtypes()
 
@@ -251,6 +254,53 @@ class Typehoon(Analysis):
         self.solution = solver.solution
         self.processed_constraints_count = solver.processed_constraints_count
         self.eqclass_constraints_count = solver.eqclass_constraints_count
+
+    def _sole_fp_bounds(self) -> dict[TypeVariable, Float]:
+        """
+        Type variables whose only type-constant bound is a single sized FP type and that are never used as an address
+        (the base of a load, store or field, or an operand of an addition or subtraction).
+        """
+        const_bounds: dict[TypeVariable, set[TypeConstant]] = defaultdict(set)
+        address_tvs: set[TypeVariable] = set()
+        for constraints in self._constraints.values():
+            for c in constraints:
+                if isinstance(c, (Add, Sub)):
+                    address_tvs |= {t for t in (c.type_0, c.type_1, c.type_r) if type(t) is TypeVariable}
+                    continue
+                if not isinstance(c, Subtype):
+                    continue
+                for t in (c.sub_type, c.super_type):
+                    if isinstance(t, DerivedTypeVariable):
+                        address_tvs.add(t.type_var)
+                if isinstance(c.sub_type, TypeConstant) and type(c.super_type) is TypeVariable:
+                    const_bounds[c.super_type].add(c.sub_type)
+                elif isinstance(c.super_type, TypeConstant) and type(c.sub_type) is TypeVariable:
+                    const_bounds[c.sub_type].add(c.super_type)
+        result = {}
+        for tv, bounds in const_bounds.items():
+            if tv in address_tvs:
+                continue
+            bounds = {b for b in bounds if not isinstance(b, (TopType, BottomType))}
+            if len(bounds) == 1 and isinstance(fp := next(iter(bounds)), Float) and fp.SIZE is not None:
+                result[tv] = fp
+        return result
+
+    def _prefer_fp_for_conflicts(self, fp_bounds: dict[TypeVariable, Float]) -> None:
+        """
+        A variable whose only type-constant bound is one FP type, but whose solution is TOP or an integer of another
+        width, holds FP values: the conflict came in through other variables (e.g. a struct field punned as a pointer,
+        an integer and a double). Keep the FP type instead of an integer type, which would convert every value stored
+        in it.
+        """
+        assert self.solution is not None
+        for tv, fp in fp_bounds.items():
+            sol = self.solution.get(tv)
+            if sol is None or isinstance(sol, Float):
+                continue
+            if isinstance(sol, TopType) or (
+                isinstance(sol, (Int, Pointer)) and sol.SIZE is not None and sol.SIZE != fp.SIZE
+            ):
+                self.solution[tv] = fp
 
     def _specialize(self):
         """
