@@ -8519,11 +8519,18 @@ class CopyCleanup:
             if (
                 isinstance(lhs, GoVariableField)
                 and not lhs.var_is_ptr
-                and isinstance(rhs, GoConstant)
-                and rhs.value == 0
                 and header(lhs.variable) is not None
+                and (
+                    (isinstance(rhs, GoConstant) and isinstance(rhs.value, int))
+                    or (
+                        lhs.field.field == "ptr"
+                        and isinstance(rhs, GoUnaryOp)
+                        and rhs.op == "Reference"
+                        and _go_var_named(rhs.operand)
+                    )
+                )
             ):
-                # a zeroed header word: ``s.ptr = 0; s.len = 0; s.cap = 0`` is ``s = nil``
+                # literal header words: ``s = nil`` when all are zero, ``s = arr[:n]`` for (&arr, n, n)
                 return _UseCounter.key(lhs.variable), None, lhs.field.field
             if isinstance(lhs, GoVariable) and isinstance(rhs, GoVariable) and header(lhs) and header(rhs):
                 # an earlier fusion's result: the stray word copies after it still go
@@ -8573,9 +8580,9 @@ class CopyCleanup:
                 dst = run[0].lhs.variable
                 dst_ty, dst_fields = header(dst)
                 if first[1] is None:
-                    if fields == dst_fields and isinstance(dst_ty, GoSimTypeSlice):
-                        nil = GoConstant(0, dst_ty, codegen=self._codegen)
-                        self._replace_stmt(run[0], GoAssignment(dst, nil, tags=run[0].tags, codegen=self._codegen))
+                    value = self._literal_header(run, dst_ty) if fields == dst_fields else None
+                    if value is not None:
+                        self._replace_stmt(run[0], GoAssignment(dst, value, tags=run[0].tags, codegen=self._codegen))
                         self._remove(run[1:])
                     i = j
                     continue
@@ -8586,6 +8593,25 @@ class CopyCleanup:
                     self._replace_stmt(run[0], fused)
                     self._remove(run[1:])
                 i = j
+
+    def _literal_header(self, run, ty):
+        """The slice a run of literal header word writes spells: nil, or ``arr[:n]`` over an array variable."""
+        if not isinstance(ty, GoSimTypeSlice):
+            return None
+        words = {}
+        for stmt in run:
+            words.setdefault(stmt.lhs.field.field, stmt.rhs)
+        consts = {f: w.value for f, w in words.items() if isinstance(w, GoConstant)}
+        if len(consts) == 3 and not any(consts.values()):
+            return GoConstant(0, ty, codegen=self._codegen)
+        ptr = words.get("ptr")
+        n = consts.get("len")
+        if not isinstance(ptr, GoUnaryOp) or n is None or consts.get("cap") != n or n <= 0:
+            return None
+        # the backing array starts at that variable (spelled like the builtin rewriter's arr[:n])
+        arr = ptr.operand
+        high = GoConstant(n, SimTypeInt(), codegen=self._codegen)
+        return GoFunctionCall("[:]", None, [arr, high], tags={"go_slice": "[:j]"}, codegen=self._codegen)
 
     def _replace_stmt(self, old, new):
         class _Replacer(GoStructuredCodeWalker):
