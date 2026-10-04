@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from angr import ailment
-from angr.sim_type import SimTypeDouble, SimTypeFunction, SimTypeInt
+from angr.sim_type import SimTypeDouble, SimTypeFunction, SimTypeInt, SimTypeShort
 
 if TYPE_CHECKING:
     from angr.ailment.manager import Manager
@@ -64,6 +64,34 @@ class CCallRewriterBase:
             bits=ccall.bits,
             **ccall.tags,
         )
+
+    def _rewrite_control_word_read(
+        self, ccall: ailment.Expr.VEXCCallExpression, helper: str
+    ) -> ailment.Expr.Expression | None:
+        """
+        ``create_mxcsr(sseround)`` (stmxcsr) -> ``_mm_getcsr()`` and ``create_fpucw(fpround)`` (fnstcw) ->
+        ``__fnstcw()``: VEX rebuilds the register from the modelled rounding mode, so read the real one instead.
+        """
+        if helper == "create_mxcsr":
+            name, ret_ty = "_mm_getcsr", SimTypeInt(signed=False)
+        elif helper == "create_fpucw":
+            name, ret_ty = "__fnstcw", SimTypeShort(signed=False)
+        else:
+            return None
+        ret_bits = ret_ty.with_arch(self.project.arch).size
+        assert ret_bits is not None and ret_bits <= ccall.bits
+        call = ailment.Expr.Call(
+            ccall.idx if ret_bits == ccall.bits else self.ail_manager.next_atom(),
+            name,
+            calling_convention=None,
+            prototype=SimTypeFunction([], ret_ty).with_arch(self.project.arch),
+            args=(),
+            bits=ret_bits,
+            **ccall.tags,
+        )
+        if ret_bits == ccall.bits:
+            return call
+        return ailment.Expr.Convert(ccall.idx, ret_bits, ccall.bits, False, call, **ccall.tags)
 
     def _rewrite(self, ccall: ailment.Expr.VEXCCallExpression) -> ailment.Expr.Expression | None:
         raise NotImplementedError

@@ -1089,6 +1089,44 @@ class TestCmpFValueLowering(unittest.TestCase):
         assert self._lower(Tmp(None, 3, 32)) is None
 
 
+class TestControlWordReadCCall(unittest.TestCase):
+    """stmxcsr / fnstcw: create_mxcsr(sseround) and create_fpucw(fpround) become _mm_getcsr() and __fnstcw()."""
+
+    def _rewrite(self, arch: str, callee: str, rename: bool = False):
+        from angr.ailment.expression import Call, VEXCCallExpression
+        from angr.ailment.manager import Manager
+        from angr.analyses.decompiler.ccall_rewriters import CCALL_REWRITERS
+
+        proj = angr.load_shellcode(b"\xc3", arch)
+        bits = proj.arch.bits
+        ccall = VEXCCallExpression(None, callee, [Tmp(None, 1, bits)], bits=bits)
+        if rename:
+            ccall = VEXCCallExpression(None, "_ccall", [Tmp(None, 1, bits)], bits=bits, vex_callee=callee)
+        result = CCALL_REWRITERS[proj.arch.name](ccall, proj, Manager()).result
+        assert result is not None and result.bits == bits
+        call = result.operand if isinstance(result, Convert) else result
+        assert isinstance(call, Call) and not call.args, result
+        return result, call
+
+    def test_x86_mxcsr(self):
+        result, call = self._rewrite("x86", "x86g_create_mxcsr")
+        assert call is result and call.target == "_mm_getcsr"
+
+    def test_x86_fpucw(self):
+        result, call = self._rewrite("x86", "x86g_create_fpucw")
+        assert isinstance(result, Convert) and result.from_bits == 16 and call.target == "__fnstcw"
+
+    def test_x86_renamed_ccall(self):
+        _, call = self._rewrite("x86", "x86g_create_fpucw", rename=True)
+        assert call.target == "__fnstcw"
+
+    def test_amd64(self):
+        result, call = self._rewrite("amd64", "amd64g_create_mxcsr")
+        assert isinstance(result, Convert) and result.from_bits == 32 and call.target == "_mm_getcsr"
+        _, call = self._rewrite("amd64", "amd64g_create_fpucw")
+        assert call.target == "__fnstcw"
+
+
 class TestX86FPConditionCCall(unittest.TestCase):
     """x86g_calculate_condition over flags derived from an x87 status word."""
 

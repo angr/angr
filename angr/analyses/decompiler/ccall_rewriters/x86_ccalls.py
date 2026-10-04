@@ -68,6 +68,8 @@ class X86CCallRewriter(CCallRewriterBase):
         callee = self._original_callee(ccall)
         if callee == "x86g_calculate_FXAM":
             return self._rewrite_fxam(ccall)
+        if callee in {"x86g_create_mxcsr", "x86g_create_fpucw"}:
+            return self._rewrite_control_word_read(ccall, callee[len("x86g_") :])
         if callee == "x86g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
