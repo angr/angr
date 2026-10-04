@@ -1234,6 +1234,55 @@ class TestSSEMoveMask:
 
 
 # ======================================================================
+# sse_m128_amd64.o: genuine 128-bit vectors render as __m128i/__m128 variables and _mm_* intrinsics.
+# ======================================================================
+
+
+class TestSSEM128Intrinsics:
+    @staticmethod
+    def _decompile(func_name: str) -> str:
+        path = os.path.join(_fp_dir, "sse_m128_amd64.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(cfg.functions[func_name], cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        parsed = parse_codegen(serialize_codegen(dec.codegen), project=proj, kb=dec.kb, func=dec.func)
+        assert parsed.text == dec.codegen.text
+        return dec.codegen.text
+
+    def test_signed_64bit_compare(self):
+        # MSVC's lane-wise int64 compare: pxor/pshufd/pcmpeqd/pcmpgtd/pand/por, then packssdw + packsswb
+        text = self._decompile("lt88_mask")
+        assert "uint128_t v" not in text and "__m128i v1;" in text, text
+        assert "v1 = _mm_xor_si128(*(a0), _mm_set1_epi32(0x80000000));" in text, text
+        cmp = "_mm_cmpgt_epi32(_mm_set_epi32(0x80000000, 0x80000058, 0x80000000, 0x80000058), v1)"
+        assert (
+            "v2 = _mm_or_si128(_mm_and_si128(_mm_cmpeq_epi32(_mm_set1_epi32(0x80000000), _mm_shuffle_epi32(v1, 0xf5)), "
+            f"_mm_shuffle_epi32({cmp}, 0xa0)), _mm_shuffle_epi32({cmp}, 0xf5));"
+        ) in text, text
+        assert "*(a2) = _mm_packs_epi16(_mm_packs_epi32(v2, v4), _mm_packs_epi32(v2, v4));" in text, text
+        assert "_mm_cvtsi128_si32(" in text, text
+        assert not any(op in text for op in ("CmpEQV", "CmpGTV", "QNarrowBinV", "CONCAT")), text
+
+    def test_add_epi64(self):
+        text = self._decompile("add16")
+        assert "*(a0) = _mm_add_epi64(v1, _mm_set1_epi64x(16));" in text, text
+
+    def test_packus_unpacklo(self):
+        # packuswb saturates to unsigned bytes; VEX's InterleaveLO / QNarrowBin take their operands swapped
+        text = self._decompile("pack_unpack")
+        assert "v2 = _mm_packus_epi16(*(a0), *(a1));" in text, text
+        assert "*(a2) = _mm_unpacklo_epi32(v2, v1);" in text, text
+
+    def test_float_lanes(self):
+        text = self._decompile("addmul_ps")
+        assert "__m128 v2;" in text, text
+        assert "v2 = _mm_add_ps(*(a0), *(a1));" in text and "*(a0) = _mm_mul_ps(v2, v1);" in text, text
+
+
+# ======================================================================
 # sse_phi_insert_i386.o: a cmpeqsd mask whose lane 0 is tested also flows, with a movlpd lane-0 Insert, into a phi
 # read only at lane 0 (CRT log()). The phi class must narrow to 64 bits so the compare lowers to a scalar test.
 # ======================================================================

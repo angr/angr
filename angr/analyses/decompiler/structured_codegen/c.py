@@ -20,6 +20,7 @@ from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.peephole_optimizations.cas_intrinsics import cas_intrinsic_name
 from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.stl_field_accessors import stl_accessor_name
 from angr.analyses.decompiler.structurer_nodes import (
     BreakNode,
@@ -61,6 +62,7 @@ from angr.sim_type import (
     SimTypeLength,
     SimTypeLongDouble,
     SimTypeLongLong,
+    SimTypeM128,
     SimTypeNum,
     SimTypePointer,
     SimTypeReg,
@@ -92,6 +94,18 @@ from .base import (
     PositionMappingElement,
     vector_convert_name,
 )
+from .sse_intrinsics import (
+    BITWISE_SUFFIX,
+    VECTOR_BITS,
+    LaneKind,
+    SSEVectorTyping,
+    concat_constant,
+    is_vector_op,
+    lane_of,
+    match_shuffle_epi32,
+    vector_op_intrinsic,
+    vector_op_kind,
+)
 
 if TYPE_CHECKING:
     import archinfo
@@ -119,6 +133,14 @@ _CAST_TYPES_BY_BITS: dict[int, type[SimTypeInt | SimTypeChar]] = {
     256: SimTypeInt256,
     512: SimTypeInt512,
 }
+
+
+def _is_m128_reinterpretation(vec_ty: SimType | None, other_ty: SimType | None) -> bool:
+    """Whether *vec_ty* is an SSE vector type and *other_ty* the 128-bit integer (or vector) it stands for."""
+    if not isinstance(vec_ty, SimTypeM128) or other_ty is None:
+        return False
+    other_ty = unpack_typeref(other_ty)
+    return isinstance(other_ty, (SimTypeM128, SimTypeNum, SimTypeInt)) and other_ty.size == VECTOR_BITS
 
 
 def qualifies_for_simple_cast(ty1, ty2):
@@ -796,6 +818,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             if var_type is None:
                 var_type = SimTypeBottom().with_arch(self.codegen.project.arch)
+            elif _is_m128_reinterpretation(cvar.variable_type, var_type):
+                # codegen retyped the 128-bit integer by the vector ops that use it
+                var_type = cvar.variable_type
 
             entry = (cvar, var_type)
             if entry not in unified_to_var_and_types[key]:  # keeps the set's de-duplication
@@ -2443,7 +2468,8 @@ class CBinaryOp(CExpression):
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
-        if self.op.startswith("Cmp"):
+        if self.op.startswith("Cmp") and not self.op.endswith("V"):
+            # a lane-wise compare (CmpEQV, ...) yields a vector mask
             self._type = SimTypeChar().with_arch(self.codegen.project.arch)
         elif self.op == "Scale":
             # ldexp(x, n): the integer exponent does not take part in the result type
@@ -3548,6 +3574,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         self.cfunc: CFunction | None = None
         self.cexterns: set[CVariable] | None = None
         self._array_length_cexprs: dict[SimVariable, CExpression] = {}
+        self._sse_typing: SSEVectorTyping | None = None
         self.display_notes = display_notes
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
@@ -3596,6 +3623,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         arg_list = [self._variable(arg, None) for arg in self._func_args] if self._func_args else []
 
         self.reset_ident_counters()
+        self._sse_typing = self._collect_sse_vector_kinds()
         obj = self._handle(self._sequence)
 
         # render the runtime dimension of every variable-length array (e.g. ``blk[e->bs]``) through the
@@ -3720,6 +3748,222 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             lines += [f"// {line}" for line in note_lines]
         return "\n".join(lines) + "\n\n"
 
+    #
+    # SSE vectors
+    #
+
+    def _collect_sse_vector_kinds(self) -> SSEVectorTyping | None:
+        if self._sequence is None:
+            return None
+        blocks: list[Block] = []
+        SequenceWalker(handlers={Block: lambda node, **kw: blocks.append(node)}).walk(self._sequence)
+        vmi = self.kb.dec_variables[self._func.addr]
+
+        def variable_key(expr) -> SimVariable | None:
+            var = self._variable_map.variable(expr)
+            if var is None:
+                return None
+            return vmi.unified_variable(var) or var
+
+        def eligible(var: SimVariable) -> bool:
+            ty = unpack_typeref(vmi.get_variable_type(var))
+            return isinstance(ty, (SimTypeNum, SimTypeInt)) and ty.size == VECTOR_BITS
+
+        typing = SSEVectorTyping(variable_key, eligible)
+        typing.collect(blocks)
+        return typing
+
+    def _sse_vector_kind(self, expr) -> LaneKind | None:
+        return self._sse_typing.kind(expr) if self._sse_typing is not None else None
+
+    def _sse_variable_kind(self, variable: SimVariable) -> LaneKind | None:
+        if self._sse_typing is None:
+            return None
+        unified = self.kb.dec_variables[self._func.addr].unified_variable(variable)
+        return self._sse_typing.kinds.get(unified or variable)
+
+    def _m128_type(self, kind: LaneKind) -> SimTypeM128:
+        return SimTypeM128(kind).with_arch(self.project.arch)  # type: ignore[return-value]
+
+    def _sse_call(self, name: str, args: list[CExpression], ret_ty: SimType, tags=None) -> CFunctionCall:
+        arg_types = [a.type if a.type is not None else SimTypeBottom() for a in args]
+        proto = SimTypeFunction(arg_types, ret_ty).with_arch(self.project.arch)
+        return CFunctionCall(name, None, args, tags=tags, codegen=self, callsite_prototype=proto)
+
+    def _sse_const(self, value: int, kind: LaneKind, lane: int | None, tags=None) -> CExpression:
+        """A 128-bit vector constant as _mm_set*: set1 when every lane is equal."""
+        if value == 0:
+            return self._sse_call(f"_mm_setzero_{BITWISE_SUFFIX[kind]}", [], self._m128_type(kind), tags)
+
+        def split(n: int) -> list[int]:  # low to high
+            return [(value >> (i * n)) & ((1 << n) - 1) for i in range(VECTOR_BITS // n)]
+
+        if lane not in (8, 16, 32, 64):
+            lane = 32 if len(set(split(32))) == 1 else 64
+        lanes = split(lane)
+        sfx = "epi64x" if lane == 64 else f"epi{lane}"
+        if len(set(lanes)) == 1:
+            name, values = f"_mm_set1_{sfx}", lanes[:1]
+        else:
+            name, values = f"_mm_set_{sfx}", lanes[::-1]
+
+        def lane_const(v: int) -> CConstant:
+            sv = u2s(v, lane)
+            if -0x10000 <= sv < 0:  # small negative lanes (e.g. a psubq by -8) read best as signed
+                return CConstant(sv, self.default_simtype_from_bits(lane, signed=True), tags=tags, codegen=self)
+            return CConstant(v, self.default_simtype_from_bits(lane, signed=False), tags=tags, codegen=self)
+
+        args: list[CExpression] = [lane_const(v) for v in values]
+        call: CExpression = self._sse_call(name, args, self._m128_type("int"), tags)
+        if kind != "int":
+            call = self._sse_call(f"_mm_castsi128_{BITWISE_SUFFIX[kind]}", [call], self._m128_type(kind), tags)
+        return call
+
+    def _sse_operand(self, expr, kind: LaneKind, lane: int | None = None) -> CExpression:
+        """A 128-bit operand used as a vector of *kind*."""
+        if isinstance(expr, Expr.Const) and isinstance(expr.value, int) and expr.bits == VECTOR_BITS:
+            return self._sse_const(expr.value, kind, lane, expr.tags)
+        if isinstance(expr, BinaryOp) and expr.op == "Concat" and expr.bits == VECTOR_BITS:
+            value = concat_constant(expr)
+            if value is not None:
+                return self._sse_const(value, kind, lane, expr.tags)
+        if isinstance(expr, BinaryOp) and expr.op in {"And", "Or", "Xor"} and expr.bits == VECTOR_BITS:
+            return self._sse_bitwise(expr, kind)
+        return self._handle(expr)
+
+    def _sse_bitwise(self, expr: BinaryOp, kind: LaneKind) -> CExpression:
+        lhs, rhs = expr.operands
+        op = expr.op.lower()
+        if expr.op == "And":
+            if isinstance(lhs, Expr.UnaryOp) and lhs.op == "Not":
+                op, lhs = "andnot", lhs.operand
+            elif isinstance(rhs, Expr.UnaryOp) and rhs.op == "Not":
+                op, lhs, rhs = "andnot", rhs.operand, lhs
+        args = [self._sse_operand(lhs, kind), self._sse_operand(rhs, kind)]
+        return self._sse_call(f"_mm_{op}_{BITWISE_SUFFIX[kind]}", args, self._m128_type(kind), expr.tags)
+
+    def _handle_sse_binop(self, expr: BinaryOp) -> CExpression | None:
+        """Render a 128-bit vector BinaryOp as an Intel intrinsic, or None."""
+        if is_vector_op(expr):
+            kind = vector_op_kind(expr)
+            info = vector_op_intrinsic(expr)
+            assert expr.vector_size is not None
+            # no exact intrinsic: keep the AIL op name, e.g. CmpGTV(a, b) for an unsigned compare
+            name, swap, lane = info if info is not None else (expr.op, False, expr.vector_size)
+            operands = expr.operands[::-1] if swap else expr.operands
+            args = [
+                self._sse_operand(op, kind, lane) if op.bits == VECTOR_BITS else self._handle(op) for op in operands
+            ]
+            return self._sse_call(name, args, self._m128_type(kind), expr.tags)
+
+        if expr.bits != VECTOR_BITS or self._sse_typing is None:
+            return None
+
+        if expr.op in {"And", "Or", "Xor"}:
+            kind = self._sse_vector_kind(expr)
+            return self._sse_bitwise(expr, kind) if kind is not None else None
+
+        if (
+            expr.op in {"Shl", "Shr"}
+            and isinstance(expr.operands[1], Expr.Const)
+            and isinstance(expr.operands[1].value, int)
+            and expr.operands[1].value % 8 == 0
+            and 0 < expr.operands[1].value < VECTOR_BITS
+            and self._sse_vector_kind(expr.operands[0]) == "int"
+        ):
+            # whole-register byte shift (pslldq / psrldq)
+            name = "_mm_slli_si128" if expr.op == "Shl" else "_mm_srli_si128"
+            nbytes = CConstant(expr.operands[1].value // 8, SimTypeInt(), tags=expr.tags, codegen=self)
+            return self._sse_call(name, [self._handle(expr.operands[0]), nbytes], self._m128_type("int"), expr.tags)
+
+        if expr.op == "Concat":
+            shuffle = match_shuffle_epi32(expr)
+            if shuffle is None:
+                return None
+            base, imm = shuffle
+            kind = self._sse_vector_kind(base)
+            if kind not in ("int", "float"):
+                return None
+            cimm = CConstant(imm, SimTypeInt(), tags=expr.tags, codegen=self)
+            cimm.fmt_hex = True
+            cbase = self._handle(base)
+            if kind == "int":
+                return self._sse_call("_mm_shuffle_epi32", [cbase, cimm], self._m128_type(kind), expr.tags)
+            return self._sse_call("_mm_shuffle_ps", [cbase, cbase, cimm], self._m128_type(kind), expr.tags)
+
+        return None
+
+    def _sse_lane_call(self, base, off: int, bits: int, tags, narrow: bool = True) -> CExpression:
+        """Read the *bits*-wide lane at bit offset *off* (a multiple of *bits*) of an integer vector."""
+        cbase = self._handle(base)
+        if off == 0 and bits >= 32:
+            name, args = f"_mm_cvtsi128_si{bits}", [cbase]
+        else:
+            name, args = (
+                f"_mm_extract_epi{bits}",
+                [cbase, CConstant(off // bits, SimTypeInt(), tags=tags, codegen=self)],
+            )
+        call: CExpression = self._sse_call(
+            name, args, self.default_simtype_from_bits(64 if bits == 64 else 32, signed=True), tags
+        )
+        if bits < 32 and narrow:
+            call = CTypeCast(None, self.default_simtype_from_bits(bits, signed=False), call, codegen=self)
+        return call
+
+    def _handle_sse_lane_read(self, expr: Expr.Convert) -> CExpression | None:
+        """A truncation of an integer vector: the lane extract / movd intrinsic."""
+        if (
+            self._sse_typing is None
+            or expr.vector_count is not None
+            or not (expr.from_type == expr.to_type == Expr.ConvertType.TYPE_INT)
+            or expr.from_bits != VECTOR_BITS
+        ):
+            return None
+        to_bits = expr.to_bits
+        if to_bits == 1:
+            # a bit test: read the widest lane holding the bit
+            lane = lane_of(expr.operand, VECTOR_BITS, any_offset=True)
+            if lane is None or self._sse_vector_kind(lane[0]) != "int":
+                return None
+            base, off = lane
+            bits = next(b for b in (32, 16, 8, 1) if off % b == 0)
+            if bits == 1:
+                return None
+            one = CConstant(1, SimTypeInt(), tags=expr.tags, codegen=self)
+            lane_read = self._sse_lane_call(base, off, bits, expr.tags, narrow=False)
+            return CBinaryOp("And", lane_read, one, tags=expr.tags, codegen=self)
+        if to_bits not in (8, 16, 32, 64):
+            return None
+        lane = lane_of(expr, to_bits)
+        if lane is not None and self._sse_vector_kind(lane[0]) == "int":
+            return self._sse_lane_call(lane[0], lane[1], to_bits, expr.tags)
+        if self._sse_vector_kind(expr.operand) == "int":
+            name = "_mm_cvtsi128_si64" if to_bits == 64 else "_mm_cvtsi128_si32"
+            call: CExpression = self._sse_call(
+                name,
+                [self._handle(expr.operand)],
+                self.default_simtype_from_bits(64 if to_bits == 64 else 32, signed=True),
+                expr.tags,
+            )
+            if to_bits < 32:
+                call = CTypeCast(None, self.default_simtype_from_bits(to_bits, signed=False), call, codegen=self)
+            return call
+        return None
+
+    def _handle_sse_extract(self, expr: Expr.Extract) -> CExpression | None:
+        """A lane-aligned Extract of an integer vector."""
+        if (
+            self._sse_typing is None
+            or expr.base.bits != VECTOR_BITS
+            or expr.bits not in (8, 16, 32, 64)
+            or not isinstance(expr.offset, Expr.Const)
+            or not isinstance(expr.offset.value, int)
+            or (expr.offset.value * 8) % expr.bits
+            or self._sse_vector_kind(expr.base) != "int"
+        ):
+            return None
+        return self._sse_lane_call(expr.base, expr.offset.value * 8, expr.bits, expr.tags)
+
     def _get_variable_type(self, var, is_global=False):
         if is_global:
             return self.kb.dec_variables["global"].get_variable_type(var)
@@ -3739,11 +3983,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         if self._variables_in_use is not None:
             for var in self._variables_in_use.values():
                 if isinstance(var, CVariable):
-                    var.variable_type = self._get_variable_type(
+                    new_type = self._get_variable_type(
                         var.variable,
                         is_global=isinstance(var.variable, SimMemoryVariable)
                         and not isinstance(var.variable, SimStackVariable),
                     )
+                    if not _is_m128_reinterpretation(var.variable_type, new_type):
+                        var.variable_type = new_type
 
         if self.cexterns is not None:
             for var in self.cexterns:
@@ -3868,6 +4114,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             variable_type = self.default_simtype_from_bits(
                 (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
             )
+        else:
+            sse_kind = self._sse_variable_kind(variable)
+            if sse_kind is not None:
+                variable_type = self._m128_type(sse_kind)
         cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self, vvar_id=vvar_id)
         if mark_used:
             self._variables_in_use[variable] = cvar
@@ -4439,7 +4689,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
     #
 
     def _handle_Stmt_Store(self, stmt: Stmt.Store, **kwargs):
-        cdata = self._handle(stmt.data)
+        store_kind = self._sse_vector_kind(stmt.data)
+        if store_kind is None and self._sse_typing is not None:
+            store_var = self._variable_map.variable(stmt)
+            store_kind = self._sse_variable_kind(store_var) if store_var is not None else None
+        cdata = self._sse_operand(stmt.data, store_kind) if store_kind is not None else self._handle(stmt.data)
 
         store_bits = stmt.size * self.project.arch.byte_width
         if cdata.type is not None and cdata.type.size != store_bits:
@@ -4482,7 +4736,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
         else:
             addr_expr = self._handle(stmt.addr)
-            cdst = self._access(addr_expr, cdata.type if cdata.type is not None else SimTypeBottom(), True, negotiate)
+            data_type = cdata.type if cdata.type is not None else SimTypeBottom()
+            if isinstance(data_type, SimTypeM128) and isinstance(addr_expr.type, SimTypePointer):
+                pointee = unpack_typeref(addr_expr.type.pts_to)
+                if _is_m128_reinterpretation(data_type, pointee):
+                    # store the vector through the 128-bit integer pointer without a pointer cast
+                    data_type = pointee
+            cdst = self._access(addr_expr, data_type, True, negotiate)
 
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
@@ -4529,7 +4789,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
             assert dst_type is not None
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, dst_type, True, negotiate)
         else:
-            csrc = self._handle(stmt.src, lvalue=False)
+            dst_kind = self._sse_vector_kind(stmt.dst)
+            if dst_kind is not None:
+                csrc = self._sse_operand(stmt.src, dst_kind)
+            else:
+                csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
             if (
                 isinstance(stmt.src, Expr.Convert)
@@ -4549,7 +4813,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 if isinstance(cdst.type, SimTypeFloat) and isinstance(csrc.type, SimTypeFloat):
                     # FP->FP assignment converts implicitly
                     return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
-            if csrc.type is not None and cdst.type is not None and cdst.type != csrc.type:
+            if (
+                csrc.type is not None
+                and cdst.type is not None
+                and cdst.type != csrc.type
+                and not _is_m128_reinterpretation(cdst.type, csrc.type)
+                and not _is_m128_reinterpretation(csrc.type, cdst.type)
+            ):
                 csrc = self._bit_pattern_constant_for_dst(csrc, cdst.type)
                 if cdst.type != csrc.type:
                     csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
@@ -5184,6 +5454,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
                 self._get_variable_reference(cvar), self._variable_map.variable_offset(expr) or 0, None
             )
 
+        sse = self._handle_sse_binop(expr)
+        if sse is not None:
+            return sse
+
         if expr.floating_point and expr.op in {"CmpEQ", "CmpNE"} and expr.operands[0].likes(expr.operands[1]):
             # the self-compare is the NaN test
             isnan = self._handle(Expr.Call(expr.idx, "isnan", args=[expr.operands[0]], bits=expr.bits, **expr.tags))
@@ -5217,6 +5491,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         )
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
+        sse = self._handle_sse_lane_read(expr)
+        if sse is not None:
+            return sse
         if expr.vector_count is not None:
             child = self._handle(expr.operand)
             return CVectorConvert(expr, child, tags=expr.tags, codegen=self)
@@ -5293,6 +5570,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Extract(self, expr: Expr.Extract, **kwargs):
+        sse = self._handle_sse_extract(expr)
+        if sse is not None:
+            return sse
         child = self._handle(expr.base)
         target_type = self.default_simtype_from_bits(expr.bits, False)
         offset = (
@@ -5378,7 +5658,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
 
         src_type = _to_type(expr.from_bits, expr.from_type)
         dst_type = _to_type(expr.to_bits, expr.to_type)
-        return CReinterpret(src_type, dst_type, self._handle(expr.operand), tags=expr.tags, codegen=self)
+        operand = self._handle(expr.operand)
+        if (
+            expr.to_type == "I"
+            and isinstance(operand, CFunctionCall)
+            and isinstance(operand.callee_target, str)
+            and operand.callee_target.startswith("_mm_")
+            and isinstance(operand.type, SimTypeInt)
+            and operand.type.size == expr.to_bits
+        ):
+            # an SSE lane read already yields the integer bits; keep its own C type
+            return operand
+        return CReinterpret(src_type, dst_type, operand, tags=expr.tags, codegen=self)
 
     def _handle_MultiStatementExpression(self, expr: Expr.MultiStatementExpression, **kwargs):
         cstmts = CStatements([self._handle(stmt, is_expr=False) for stmt in expr.stmts], codegen=self)
