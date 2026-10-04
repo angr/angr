@@ -1796,7 +1796,7 @@ class GoMethodCall(GoExpression):
         if self.collapsed:
             yield "...", self
             return
-        yield from GoExpression._try_c_repr_chunks(self.receiver)
+        yield from _go_selector_base_chunks(self.receiver)
         yield ".", None
         yield self.method, self
         paren = GoClosingObject("(")
@@ -1806,6 +1806,17 @@ class GoMethodCall(GoExpression):
                 yield ", ", None
             yield from GoExpression._try_c_repr_chunks(arg)
         yield ")", paren
+
+
+def _go_selector_base_chunks(expr):
+    # `*p.f` and `a + b.f` bind the selector first
+    if isinstance(expr, (GoUnaryOp, GoBinaryOp)):
+        paren = GoClosingObject("(")
+        yield "(", paren
+        yield from GoExpression._try_c_repr_chunks(expr)
+        yield ")", paren
+    else:
+        yield from GoExpression._try_c_repr_chunks(expr)
 
 
 class GoMultiAssignment(GoStatement):
@@ -2459,7 +2470,7 @@ class GoVariableField(GoExpression):
             yield from self.variable.c_repr_chunks()
             yield ")", paren
             return
-        yield from self.variable.c_repr_chunks()
+        yield from _go_selector_base_chunks(self.variable)
         yield ".", self
         yield from self.field.c_repr_chunks()
 
@@ -2534,22 +2545,25 @@ class GoUnaryOp(GoExpression):
         yield "^", self
         yield from self._operand_chunks()
 
-    def _operand_chunks(self):
-        if isinstance(self.operand, (GoBinaryOp, GoITE)):
+    def _operand_chunks(self, op: str = ""):
+        chunks = list(GoExpression._try_c_repr_chunks(self.operand))
+        # `- -x` and `& &x` must not lex as `--` / `&&`
+        first = next((c for c, _ in chunks if c), "")
+        if isinstance(self.operand, (GoBinaryOp, GoITE)) or (op and first.startswith(op)):
             paren = GoClosingObject("(")
             yield "(", paren
-            yield from GoExpression._try_c_repr_chunks(self.operand)
+            yield from chunks
             yield ")", paren
         else:
-            yield from GoExpression._try_c_repr_chunks(self.operand)
+            yield from chunks
 
     def _c_repr_chunks_neg(self):
         yield "-", self
-        yield from self._operand_chunks()
+        yield from self._operand_chunks("-")
 
     def _c_repr_chunks_reference(self):
         yield "&", self
-        yield from self._operand_chunks()
+        yield from self._operand_chunks("&")
 
     def _c_repr_chunks_dereference(self):
         yield "*", self
@@ -2569,6 +2583,8 @@ class GoBinaryOp(GoExpression):
     """
 
     __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
+
+    _ASSOCIATIVE_OPS = frozenset(("Add", "Mul", "And", "Or", "Xor", "LogicalAnd", "LogicalOr"))
 
     def __init__(self, op, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
@@ -2664,7 +2680,7 @@ class GoBinaryOp(GoExpression):
                 "LogicalXor",
             ],
             ["Add", "Sub", "Or", "Xor"],
-            ["Mul", "Div", "Mod", "Shl", "Shr", "Sar", "And"],
+            ["Mul", "Mull", "Div", "Mod", "Shl", "Shr", "Sar", "And"],
             ["SBorrow", "SCarry", "Carry"],
         ]
         for i, sublist in enumerate(precedence_list):
@@ -2721,29 +2737,33 @@ class GoBinaryOp(GoExpression):
     # Handlers
     #
 
+    def _rhs_needs_parens(self) -> bool:
+        # Go binary operators are left-associative; an equal-precedence right operand keeps its parentheses unless
+        # regrouping is a no-op (the same associative operator; float + and * are not associative)
+        rhs = self.rhs
+        if not isinstance(rhs, GoBinaryOp):
+            return False
+        if self.op_precedence != rhs.op_precedence:
+            return self.op_precedence > rhs.op_precedence
+        if rhs.op != self.op or self.op not in self._ASSOCIATIVE_OPS:
+            return True
+        return self.op in ("Add", "Mul") and isinstance(unpack_typeref(self.type), (SimTypeFloat, SimTypeDouble))
+
+    def _operand_chunks(self, operand, parens: bool):
+        if parens:
+            paren = GoClosingObject("(")
+            yield "(", paren
+            yield from self._try_c_repr_chunks(operand)
+            yield ")", paren
+        else:
+            yield from self._try_c_repr_chunks(operand)
+
     def _c_repr_chunks(self, op):
-        # lhs
-        if isinstance(self.lhs, GoBinaryOp) and self.op_precedence > self.lhs.op_precedence:
-            paren = GoClosingObject("(")
-            yield "(", paren
-            yield from self._try_c_repr_chunks(self.lhs)
-            yield ")", paren
-        else:
-            yield from self._try_c_repr_chunks(self.lhs)
-
-        # operator
+        yield from self._operand_chunks(
+            self.lhs, isinstance(self.lhs, GoBinaryOp) and self.op_precedence > self.lhs.op_precedence
+        )
         yield op, self
-
-        # rhs
-        if isinstance(self.rhs, GoBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
-            1 if self.op in ["Sub", "Div"] else 0
-        ):
-            paren = GoClosingObject("(")
-            yield "(", paren
-            yield from self._try_c_repr_chunks(self.rhs)
-            yield ")", paren
-        else:
-            yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._operand_chunks(self.rhs, self._rhs_needs_parens())
 
     def _c_repr_chunks_opfirst(self, op):
         yield op, self
@@ -2809,13 +2829,7 @@ class GoBinaryOp(GoExpression):
             yield from self._try_c_repr_chunks(self.lhs)
             yield ")", paren
             yield " >> ", self
-            if isinstance(self.rhs, GoBinaryOp) and self.op_precedence > self.rhs.op_precedence:
-                paren2 = GoClosingObject("(")
-                yield "(", paren2
-                yield from self._try_c_repr_chunks(self.rhs)
-                yield ")", paren2
-            else:
-                yield from self._try_c_repr_chunks(self.rhs)
+            yield from self._operand_chunks(self.rhs, self._rhs_needs_parens())
             return
         yield from self._c_repr_chunks(" >> ")
 

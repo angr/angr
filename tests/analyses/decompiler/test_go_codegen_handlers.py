@@ -11,7 +11,7 @@ import archinfo
 
 import angr
 from angr.ailment import Manager
-from angr.ailment.expression import Const, DirtyExpression, Register
+from angr.ailment.expression import BinaryOp, Const, DirtyExpression, Register, UnaryOp
 from angr.ailment.statement import CAS, DirtyStatement, WeakAssignment
 from angr.analyses.decompiler.structured_codegen.go import GoStructuredCodeGenerator, go_type_str
 from angr.sim_type import (
@@ -134,6 +134,51 @@ class TestGoCodegenHandlers(unittest.TestCase):
         out = _render(self.codegen._handle(stmt, is_expr=False))
         assert "atomic_compare_exchange" in out
         assert PLACEHOLDER not in out
+
+    def test_operator_precedence(self):
+        m = Manager()
+        regs = {n: self._reg(m, r) for n, r in (("a", "rax"), ("b", "rbx"), ("c", "rcx"))}
+        names = {_render(self.codegen._handle(r, is_expr=True)): n for n, r in regs.items()}
+
+        def bop(op, lhs, rhs):
+            return BinaryOp(m.next_atom(), op, [lhs, rhs], False, bits=1 if op.startswith("Cmp") else 64)
+
+        def render(expr):
+            out = _render(self.codegen._handle(expr, is_expr=True))
+            for rendered, name in names.items():
+                out = out.replace(rendered, name)
+            return out
+
+        a, b, c = regs["a"], regs["b"], regs["c"]
+        c63 = Const(m.next_atom(), 63, 64)
+        cases = [
+            # same level, right nesting: Go is left-associative
+            (bop("And", a, bop("Sar", b, c63)), "a & (b >> 63)"),
+            (bop("Sar", bop("And", a, b), c63), "a & b >> 63"),
+            (bop("Shl", a, bop("Shl", b, c)), "a << (b << c)"),
+            (bop("Mul", a, bop("Mod", b, c)), "a * (b % c)"),
+            (bop("Sub", a, bop("Add", b, c)), "a - (b + c)"),
+            (bop("Add", a, bop("Sub", b, c)), "a + (b - c)"),
+            (bop("Or", a, bop("Xor", b, c)), "a | (b ^ c)"),
+            (bop("Sub", bop("Sub", a, b), c), "a - b - c"),
+            # same associative operator
+            (bop("Add", a, bop("Add", b, c)), "a + b + c"),
+            (bop("And", a, bop("And", b, c)), "a & b & c"),
+            (bop("Xor", a, bop("Xor", b, c)), "a ^ b ^ c"),
+            # different levels
+            (bop("Add", a, bop("And", b, bop("Sar", c, c63))), "a + b & (c >> 63)"),
+            (bop("Mul", bop("Add", a, b), c), "(a + b) * c"),
+            (bop("Add", a, bop("Mul", b, c)), "a + b * c"),
+            (bop("CmpLT", a, bop("Add", b, c)), "a < b + c"),
+            (bop("CmpNE", bop("And", a, b), c), "a & b != c"),
+            (bop("LogicalAnd", bop("CmpLT", a, b), bop("CmpLT", b, c)), "a < b && b < c"),
+            (bop("CmpEQ", a, bop("CmpEQ", b, c)), "a == (b == c)"),
+            # unary operators must not fuse into `--`
+            (UnaryOp(m.next_atom(), "Neg", UnaryOp(m.next_atom(), "Neg", a, bits=64), bits=64), "-(-a)"),
+            (UnaryOp(m.next_atom(), "Neg", bop("Add", a, b), bits=64), "-(a + b)"),
+        ]
+        for expr, expected in cases:
+            assert render(expr) == expected
 
 
 if __name__ == "__main__":
