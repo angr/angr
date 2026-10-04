@@ -1217,6 +1217,7 @@ class TestFlagsLiveIn:
             ("flags_livein_amd64.o", "livein_je", r"if \(!\(__readeflags\(\) & 64\)\)"),
             ("flags_livein_amd64.o", "livein_jle", r"!\(__readeflags\(\) & 64\) && !\("),
             ("flags_livein_amd64.o", "livein_adc", r"__readeflags\(\) & 1"),
+            ("flags_livein_amd64.o", "livein_setz", r"= \(__readeflags\(\) & 64\) != 0;"),
             ("flags_livein_i386.o", "livein_jb", r"if \(!\(__readeflags\(\) & 1\)\)"),
             ("flags_livein_i386.o", "livein_jnl", r"if \(__readeflags\(\) >> 7 & 1 \^ __readeflags\(\) >> 11 & 1\)"),
         ],

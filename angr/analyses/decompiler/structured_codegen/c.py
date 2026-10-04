@@ -5630,6 +5630,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis, Serializab
         child = self._handle(expr.operand)
         if expr.from_type == Expr.ConvertType.TYPE_FP:
             child = self._fp_view_of_int_lvalue(child, expr.operand.bits)
+        if expr.from_bits == 1 and expr.to_bits > 1 and isinstance(child, CBinaryOp) and child.op == "CmpNE":
+            # a bool used as an integer value: `x != 0` must not be shortened to `x`
+            child._cstyle_null_cmp = False
 
         is_fp = expr.to_type == Expr.ConvertType.TYPE_FP
         if is_fp:
