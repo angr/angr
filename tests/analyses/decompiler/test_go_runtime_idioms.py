@@ -205,6 +205,22 @@ class TestMapBuiltinsGo127(MapBuiltinIdioms):
     BINARY = MAPS_127
 
 
+class TestStackMapGo127(GoDecompilationTarget):
+    """A map literal that does not escape: go1.24+ puts the header and one group on the stack."""
+
+    BINARY = MAPS_127
+    FUNCS = ("main.main",)
+
+    def test_make_map_on_stack(self):
+        text = self.texts["main.main"]
+        m = re.search(r"(\w+) :?= make\(map\[int\]string\)$", text, re.MULTILINE)
+        assert m, text
+        assert re.search(rf'^\s+{m.group(1)}\[1\] = "x"$', text, re.MULTILINE), text
+        assert re.search(rf"main\.byInt\({m.group(1)}, 1\)", text), text
+        # the group clear, the empty control word and the hash seed are gone
+        assert "0x8080808080808080" not in text and "runtime.rand" not in text and "memset" not in text
+
+
 class TestChannelsGo122(ChannelIdioms):
     BINARY = CONC_122
 

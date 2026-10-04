@@ -18,6 +18,8 @@ from .prototypes import GoPrototypes
 from .result_widener import GoResultWidener
 from .runtime_rewriter import GoRuntimeRewriter
 from .stack_check_remover import GoStackCheckRemover
+from .stack_inits import GoSmallMapFolder
+from .stdlib_folder import GoStdlibFolder
 from .type_switch_simplifier import GoTypeSwitchSimplifier
 from .value_fuser import GoValueFuser
 
@@ -44,8 +46,10 @@ def get_go_optimization_passes():
         GoTypeSwitchSimplifier,
         GoValueFuser,
         GoAtomicCasFolder,
+        GoSmallMapFolder,
         GoRuntimeRewriter,
         GoBuiltinRewriter,
+        GoStdlibFolder,
         GoBoxingRewriter,
         GoHeaderWordTypes,
         GoPrototypeInference,

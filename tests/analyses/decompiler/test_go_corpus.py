@@ -82,6 +82,19 @@ class TestGoCorpusLinuxAmd64(_Corpus):
         assert not re.search(r"!\w+ >= ", text)
 
 
+class TestGoCorpusStdlibInlines(_Corpus):
+    """Standard-library bodies the compiler inlined fold back into the calls they came from."""
+
+    PATH = LINUX
+    FUNCS = ("main.errorf",)
+
+    def test_inlined_log_printf(self):
+        # std.output(0, 2, log.Printf.func1{format, v}) is log.Printf(format, v...)
+        text = self.decompile("main.errorf")
+        assert re.search(r'log\.Printf\("age-keygen: error: " \+ ', text), text
+        assert "log.(*Logger).output" not in text and "func1{" not in text
+
+
 class TestGoCorpusInferredResults(_Corpus):
     """
     Once ParseIdentities is typed ([]Identity, error) by the result inference, main.convert's loop walks a pointer to
@@ -253,6 +266,7 @@ class TestGoCorpusDarwinArm64(_Corpus):
         "filippo.io/age.(*ScryptIdentity).Unwrap",
         "filippo.io/age/internal/format.splitArgs",
         "main.printfToTerminal.func1",
+        "filippo.io/age.(*ScryptRecipient).Wrap",
     )
 
     def test_method_receiver_and_sinks(self):
@@ -287,6 +301,12 @@ class TestGoCorpusDarwinArm64(_Corpus):
         text = self.decompile("main.printfToTerminal.func1")
         assert re.search(r"^func main\.printfToTerminal\.func1\(ctx \*\w+, ", text, re.MULTILINE), text
         assert not re.search(r"// x(26|[0-7])$", text, re.MULTILINE), text
+
+    def test_inlined_itoa(self):
+        # internal/strconv.FormatInt(x, 10) is what strconv.Itoa inlines to
+        text = self.decompile("filippo.io/age.(*ScryptRecipient).Wrap")
+        assert re.search(r"strconv\.Itoa\(\w+\)", text), text
+        assert "internal/strconv" not in text
 
 
 if __name__ == "__main__":
