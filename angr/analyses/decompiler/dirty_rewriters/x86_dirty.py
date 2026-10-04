@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from angr import sim_type
-from angr.ailment.expression import Call, Const, DirtyExpression, Expression, Load, Reinterpret
+from angr.ailment.expression import Call, Const, Convert, DirtyExpression, Expression, Load, Reinterpret
 from angr.ailment.statement import DirtyStatement, SideEffectStatement, Statement, Store
 from angr.analyses.decompiler.variable_map import variable_map_of
 
@@ -55,7 +55,9 @@ class X86DirtyRewriter(DirtyRewriterBase):
             call_expr = self._make_call(dirty.dirty, "_mm_mfence", (), (), "void")
         else:
             call_expr = self._rewrite_expr_to_call(dirty.dirty)
-        if call_expr is None:
+            if isinstance(call_expr, Convert):
+                call_expr = call_expr.operand
+        if not isinstance(call_expr, Call):
             return None
         return SideEffectStatement(self.manager.next_atom(), call_expr, **dirty.tags)
 
@@ -70,7 +72,7 @@ class X86DirtyRewriter(DirtyRewriterBase):
             return dirty.callee[len(self.HELPER_PREFIX) :]
         return None
 
-    def _rewrite_expr_to_call(self, dirty: DirtyExpression) -> Call | None:
+    def _rewrite_expr_to_call(self, dirty: DirtyExpression) -> Call | Convert | None:
         name = self._helper_name(dirty)
         if name is None:
             return None
@@ -84,7 +86,15 @@ class X86DirtyRewriter(DirtyRewriterBase):
                 if not isinstance(size, Const):
                     return None
                 bits = size.value_int * self.arch.byte_width
-                return self._make_call(dirty, f"__in{self._inout_intrinsic_suffix(bits)}", (portno,), ("u16",), "auto")
+                if not dirty.bits or bits > dirty.bits:
+                    return None
+                # the helper returns the port value zero-extended to its own width
+                call = self._make_call(
+                    dirty, f"__in{self._inout_intrinsic_suffix(bits)}", (portno,), ("u16",), "auto", bits=bits
+                )
+                if bits == dirty.bits:
+                    return call
+                return Convert(self.manager.next_atom(), bits, dirty.bits, False, call, **dirty.tags)
             case "OUT":
                 if len(operands) != 3:
                     return None
@@ -92,6 +102,9 @@ class X86DirtyRewriter(DirtyRewriterBase):
                 if not isinstance(size, Const):
                     return None
                 bits = size.value_int * self.arch.byte_width
+                if data.bits > bits:
+                    # the helper takes the value zero-extended to its own width
+                    data = Convert(self.manager.next_atom(), data.bits, bits, False, data, **data.tags)
                 return self._make_call(
                     dirty, f"__out{self._inout_intrinsic_suffix(bits)}", (portno, data), ("u16", "int"), "void"
                 )
@@ -122,17 +135,23 @@ class X86DirtyRewriter(DirtyRewriterBase):
         args: tuple[Expression, ...],
         param_kinds: tuple[str, ...],
         ret_kind: str,
+        bits: int | None = None,
     ) -> Call:
+        if bits is None:
+            bits = dirty.bits
+        # intrinsic prototypes are exact
+        tags = dict(dirty.tags)
+        tags["is_prototype_guessed"] = False
         call = Call(
             self.manager.next_atom(),
             target,
             args=args,
-            bits=dirty.bits or None,
-            **dirty.tags,
+            bits=bits or None,
+            **tags,
         )
         prototype = sim_type.SimTypeFunction(
             [self._param_type(kind, arg) for kind, arg in zip(param_kinds, args)],
-            self._return_type(ret_kind, dirty.bits),
+            self._return_type(ret_kind, bits),
         ).with_arch(self.arch)
         variable_map_of(self.manager).set_prototype(call, prototype)
         return call

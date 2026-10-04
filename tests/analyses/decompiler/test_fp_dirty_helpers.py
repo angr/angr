@@ -88,6 +88,13 @@ def test_rdtsc_result_split_without_duplicate_reads():
     assert ">> 32" in text
 
 
+def test_inbyte_result_is_a_byte():
+    # __inbyte returns an 8-bit value: no 64-bit local and no leftover mask when it is passed to __outbyte
+    text = _decompile("x87_env_amd64", "io_roundtrip")
+    assert "char v1;" in text, text
+    assert "__outbyte(112, v1);" in text, text
+
+
 def test_dirty_expression_codegen_renders_c_operands():
     # a dirty expression no rewriter handles is rendered as __dirty_<callee>(<C operands>)
     from angr.analyses.decompiler.structured_codegen.c import CDirtyExpression  # pylint:disable=import-outside-toplevel

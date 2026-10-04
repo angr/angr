@@ -592,15 +592,20 @@ class AILSimplifier(Analysis):
 
         narrowing_candidates: dict[int, tuple[Definition, ExprNarrowingInfo]] = {}
         for def_ in sorted_defs:
-            if isinstance(def_.atom, atoms.VirtualVariable) and (def_.atom.was_reg or def_.atom.was_parameter):
+            if isinstance(def_.atom, atoms.VirtualVariable) and (
+                def_.atom.was_reg
+                or def_.atom.was_parameter
+                or (def_.atom.was_tmp and self._is_zero_extended_call_def(def_, addr_and_idx_to_block))
+            ):
                 # only do this for general purpose register
                 skip_def = False
                 reg = None
-                for reg in self.project.arch.register_list:
-                    if reg.vex_offset == def_.atom.reg_offset:
-                        if not reg.artificial and not reg.general_purpose and not reg.vector:
-                            skip_def = True
-                        break
+                if not def_.atom.was_tmp:
+                    for reg in self.project.arch.register_list:
+                        if reg.vex_offset == def_.atom.reg_offset:
+                            if not reg.artificial and not reg.general_purpose and not reg.vector:
+                                skip_def = True
+                            break
 
                 if skip_def:
                     continue
@@ -684,6 +689,27 @@ class AILSimplifier(Analysis):
                             self._arg_vvars[func_arg_idx] = new_vvar, simvar_new
 
         return narrowed
+
+    def _is_zero_extended_call_def(self, def_: Definition, addr_and_idx_to_block: dict[Address, Block]) -> bool:
+        """
+        Whether the definition is `vvar = Conv(N->M, Call(...))`: a narrow call result (e.g., an intrinsic) widened
+        into a wider VEX tmp.
+        """
+        old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
+        if old_block is None:
+            return False
+        block = self.blocks.get(old_block, old_block)
+        if def_.codeloc.stmt_idx is None or def_.codeloc.stmt_idx >= len(block.statements):
+            return False
+        stmt = block.statements[def_.codeloc.stmt_idx]
+        return (
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.src, Convert)
+            and not stmt.src.is_signed
+            and stmt.src.from_type == stmt.src.to_type == Convert.TYPE_INT
+            and stmt.src.from_bits < stmt.src.to_bits
+            and isinstance(stmt.src.operand, Call)
+        )
 
     def _compute_effective_sizes(self, rd, defs, addr_and_idx_to_block: dict[Address, Block]) -> dict[int, int]:
         vvar_effective_sizes: dict[int, int] = {}
