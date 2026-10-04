@@ -1154,6 +1154,19 @@ class TestX87FxamAndStoredStatusWord:
         assert re.search(pat, text) or re.search(pat_flipped, text), text
 
 
+class TestStackLoadAcrossSpUpdate:
+    """`push eax; test byte [esp+1], imm; lea esp, [esp+4]; jne`: the load is inlined into the jump condition past the
+    sp update, and must keep the offset of the esp value it was computed from (entry - 3, not entry + 1)."""
+
+    @pytest.mark.parametrize(
+        "func_name,slot", [("int_test_lea", "a0"), ("int_test_lea_2blk", "a0"), ("fcomp_local_lea_2blk", "v0")]
+    )
+    def test_load_offset(self, func_name, slot):
+        text = _decompile_asm_func("sp_lea_i386.o", func_name, cca=True)
+        assert "[bp+0x1]" not in text, text
+        assert f"if (*((char *)((void*)&{slot} + 1)) & 65)" in text, text
+
+
 # ======================================================================
 # sse_lane_amd64.o: lane-wise SSE ops (psrlq/cmpeqsd/psubq/mulpd) applied to
 # scalar doubles; only lane 0 is read, so the C must use scalar operators.

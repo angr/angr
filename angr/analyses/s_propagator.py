@@ -162,6 +162,73 @@ class SPropagator:
     def dead_vvar_ids(self):
         return self.model.dead_vvar_ids
 
+    def _stack_base_offset_at_use(
+        self,
+        vvar_id: int,
+        useloc: AILCodeLocation,
+        reg_offset: int,
+        vvar_deflocs: Mapping[int, tuple[VirtualVariable, AILCodeLocation]],
+        blocks: Mapping[tuple[int, int | None], Block],
+    ) -> int | None:
+        """
+        Stack offset held by an sp/bp vvar at one of its uses. An SSA vvar holds what its definition wrote, which is
+        not necessarily the offset before the use's instruction: the use may have been propagated past a later sp
+        update (`test byte [esp+1], 0x41; lea esp, [esp+4]; jne`). So take the offset after the defining instruction,
+        or at the entry of the use's block (or function) when the vvar is defined outside the analyzed blocks.
+        Phi sources and definitions that do not end their instruction's writes of the register (`leave` writes esp
+        twice) fall back to the offset before the use's instruction.
+        """
+        assert self._sp_tracker is not None
+        use_ins = useloc.ins_addr
+        use_block = blocks.get((useloc.block_addr, useloc.block_idx))
+        if use_block is None or is_phi_assignment(use_block.statements[useloc.stmt_idx]):
+            return self._sp_tracker.offset_before(use_ins, reg_offset)
+
+        sb_offset = None
+        def_entry = vvar_deflocs.get(vvar_id)
+        if def_entry is None or def_entry[1].is_extern:
+            if self.mode == "function" and self.func_addr is not None:
+                # live-in at function entry
+                sb_offset = self._sp_tracker.offset_before(self.func_addr, reg_offset)
+            else:
+                # defined in another block: live-in at the entry of the use's block
+                entry_ins = next(
+                    (stmt.tags["ins_addr"] for stmt in use_block.statements if "ins_addr" in stmt.tags), None
+                )
+                if entry_ins is not None:
+                    sb_offset = self._sp_tracker.offset_before(entry_ins, reg_offset)
+        else:
+            defloc = def_entry[1]
+            def_ins = defloc.ins_addr
+            def_block = blocks.get((defloc.block_addr, defloc.block_idx))
+            if (
+                def_block is not None
+                and def_ins is not None
+                and def_ins != use_ins
+                and self._is_last_reg_write_in_insn(def_block, defloc.stmt_idx, def_ins, reg_offset)
+            ):
+                sb_offset = self._sp_tracker.offset_after(def_ins, reg_offset)
+        if sb_offset is not None:
+            return sb_offset
+        return self._sp_tracker.offset_before(use_ins, reg_offset)
+
+    @staticmethod
+    def _is_last_reg_write_in_insn(block: Block, stmt_idx: int, ins_addr: int, reg_offset: int) -> bool:
+        stmt = block.statements[stmt_idx]
+        if not isinstance(stmt, Assignment) or isinstance(stmt.src, Phi):
+            return False
+        for later in block.statements[stmt_idx + 1 :]:
+            if later.tags.get("ins_addr") != ins_addr:
+                break
+            if (
+                isinstance(later, Assignment)
+                and isinstance(later.dst, VirtualVariable)
+                and later.dst.was_reg
+                and later.dst.reg_offset == reg_offset
+            ):
+                return False
+        return True
+
     def _analyze(self):
         blocks: dict[tuple[int, int | None], Block]
         match self.mode:
@@ -470,7 +537,9 @@ class SPropagator:
                         else None
                     )
                     for vvar_at_use, useloc in vvar_uselocs_set:
-                        sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
+                        sb_offset = self._stack_base_offset_at_use(
+                            vvar_id, useloc, self.project.arch.sp_offset, vvar_deflocs, blocks
+                        )
                         if sb_offset is not None:
                             v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if sp_bits is not None and vvar.bits < sp_bits:
@@ -485,7 +554,9 @@ class SPropagator:
                         else None
                     )
                     for vvar_at_use, useloc in vvar_uselocs_set:
-                        sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
+                        sb_offset = self._stack_base_offset_at_use(
+                            vvar_id, useloc, self.project.arch.bp_offset, vvar_deflocs, blocks
+                        )
                         if sb_offset is not None:
                             v = StackBaseOffset(self._ail_manager.next_atom(), self.project.arch.bits, sb_offset)
                             if bp_bits is not None and vvar.bits < bp_bits:
