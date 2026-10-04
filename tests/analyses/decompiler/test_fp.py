@@ -25,10 +25,7 @@ from angr.analyses.decompiler.structured_codegen.c import _decode_binary128
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.calling_conventions import SimCCMicrosoftFastcall
 from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
-from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeInt, SimTypeLongLong, SimTypeNum
-
-
-from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeFloat128, SimTypeLongLong, SimTypeNum
+from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeFloat128, SimTypeInt, SimTypeLongLong, SimTypeNum
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
