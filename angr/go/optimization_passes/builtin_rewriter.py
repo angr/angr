@@ -1433,7 +1433,7 @@ class GoBuiltinRewriter(OptimizationPass, CFGTransformationMixin):
             return None
         # the pieces of one combo-register value, in order: the value itself
         first = self.values.base_of(fields[0], 0)
-        if first is not None and first.combo is not None:
+        if first is not None and first.combo is not None and first.combo.reg_vvars:
             combo = first.combo
             pieces = [self.values.resolve(f) for f in fields]
             ids = [rv.varid for rv in combo.reg_vvars]
