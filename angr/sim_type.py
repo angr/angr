@@ -1702,6 +1702,48 @@ class SimTypeLongDouble(SimTypeFloat):
         return SimTypeLongDouble(label=self.label, qualifier=self.qualifier)
 
 
+class SimTypeM128(SimTypeReg):
+    """
+    A 128-bit SSE vector, printed by its Intel-intrinsics name: ``__m128i`` (integer lanes), ``__m128`` (float lanes)
+    or ``__m128d`` (double lanes).
+    """
+
+    LANE_NAMES = {"int": "__m128i", "float": "__m128", "double": "__m128d"}
+
+    _fields = ("lane",)
+    _args = ("lane", "label", "qualifier")
+    _ident = "m128"
+
+    def __init__(self, lane: str = "int", label=None, qualifier: Iterable | None = None):
+        if lane not in self.LANE_NAMES:
+            raise ValueError(f"Unknown lane kind {lane}")
+        super().__init__(128, label=label, qualifier=qualifier)
+        self.lane = lane
+
+    @property
+    def size(self) -> int:
+        return 128
+
+    @property
+    def alignment(self):
+        return 16
+
+    def __repr__(self):
+        return self.LANE_NAMES[self.lane]
+
+    def c_repr(self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True):  # pylint: disable=unused-argument
+        out = self.LANE_NAMES[self.lane]
+        if self.qualifier:
+            out = f"{' '.join(self.qualifier)} {out}"
+        return out if name is None else f"{out} {name}"
+
+    def _init_str(self):
+        return f'{self.__class__.__name__}("{self.lane}")'
+
+    def copy(self):
+        return SimTypeM128(self.lane, label=self.label, qualifier=self.qualifier)
+
+
 class SimStruct(NamedTypeMixin, SimType):
     # note: def_order is NOT in _fields; it must not participate in equality/hashing
     _fields = ("name", "fields", "anonymous")
@@ -2862,6 +2904,7 @@ BASIC_TYPES: dict[str, SimType] = {
     "void": SimTypeBottom(label="void"),
 }
 ALL_TYPES.update(BASIC_TYPES)
+ALL_TYPES.update({name: SimTypeM128(lane) for lane, name in SimTypeM128.LANE_NAMES.items()})
 
 STDINT_TYPES = {
     "int8_t": SimTypeNum(8, True),
