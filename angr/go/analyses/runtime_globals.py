@@ -164,6 +164,15 @@ def find_staticuint64s(project: Project) -> int | None:
     return None
 
 
+def runtime_global_addr(project: Project, name: str, kb=None) -> int | None:
+    """The address of a runtime global: its data symbol, else the shape-located one (stripped/PE binaries)."""
+    sym = project.loader.find_symbol(name)
+    if sym is not None:
+        return sym.rebased_addr
+    go_globals = getattr(kb if kb is not None else project.kb, "go_globals", None)
+    return go_globals.addr_of(name) if go_globals is not None else None
+
+
 def find_runtime_globals(project: Project) -> dict[str, GoVariable]:
     """Every runtime global recognized by shape, keyed by its Go name."""
     out: dict[str, GoVariable] = {}
@@ -199,4 +208,5 @@ __all__ = [
     "find_zerobase",
     "is_readonly_data",
     "is_writable_data",
+    "runtime_global_addr",
 ]

@@ -308,3 +308,56 @@ class TestAtomicsAmd64Go127(AtomicIdioms):
         for name in ("main.setFlag", "main.clearFlag"):
             body = self.texts[name]
             assert "for {" in body and "atomic_compare_exchange(" in body, body
+
+
+class BoxedValueIdioms(GoDecompilationTarget):
+    """
+    Interface values built in place: bytes boxed through runtime.staticuint64s, convT* results, an eface carried over
+    from a call result, and the variadic ``...any`` array of (type word, data word) pairs on the stack.
+    """
+
+    FUNCS = ("main.main",)
+
+    def test_no_spelled_out_interface_values(self):
+        text = self.texts["main.main"]
+        for gone in ("staticuint64s", "any{tab:", "[]any{", "convT"):
+            assert gone not in text, (gone, text)
+
+    def test_bools_and_tuple_results_are_spread(self):
+        text = self.texts["main.main"]
+        assert re.search(r"fmt\.Println\(.+ != nil, .+ != nil\)$", text, re.MULTILINE), text
+        assert re.search(r"fmt\.Println\(\w+, ok\)$", text, re.MULTILINE), text
+
+
+class TestBoxedValuesAmd64Go127(BoxedValueIdioms):
+    BINARY = go_binary("go1.27.1", "typeswitch")
+
+    def test_pointer_boxed_into_any(self):
+        text = self.texts["main.main"]
+        assert 'fmt.Println(main.asReader(strings.NewReader("x")) != nil, main.toWriter(os.Stdout) != nil)' in text
+
+
+class TestBoxedValuesI386Go127(BoxedValueIdioms):
+    BINARY = go_binary("go1.27.1", "typeswitch", arch="i386")
+
+
+class TestBoxedSmallIntStrippedGo127(GoDecompilationTarget):
+    # no runtime.staticuint64s symbol: the table is located by shape
+    BINARY = go_binary("go1.27.1", "typeswitch_stripped")
+    FUNCS = ("main.main",)
+
+    def test_small_int_constant(self):
+        text = self.texts["main.main"]
+        assert re.search(r'\w+\["b"\] = 1$', text, re.MULTILINE), text
+        assert "staticuint64s" not in text, text
+
+
+class TestBoxedByteI386Go127(GoDecompilationTarget):
+    # &runtime.staticuint64s[b] for a bool result read back from the stack
+    BINARY = go_binary("go1.27.1", "atomics", arch="i386")
+    FUNCS = ("main.main",)
+
+    def test_bool_through_staticuint64s(self):
+        text = self.texts["main.main"]
+        assert "staticuint64s" not in text, text
+        assert text.count("fmt.Println(") == 3, text
