@@ -697,6 +697,19 @@ class TestLibmBitPatterns(TestCase):
                 finder = _find(proj, func, dec, ALL_LIBM_TEMPLATES)
                 assert [m.pattern.name for m in finder.matches] == [pattern_name]
 
+    def test_copysign_takes_the_declared_return_width(self):
+        # the idiom is matched at the 128-bit xmm width; the call must take the template's double, not uint128_t
+        proj = angr.Project(LIBM_BIN, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg.model)
+        func = cfg.functions.function(name="f_copysign")
+        assert func is not None
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        text = dec.codegen.text
+        assert "return copysign(a0, a1);" in text, text
+        assert "uint128_t" not in text, text
+
     def test_computed_argument_does_not_match(self):
         # a call argument must bind a virtual variable, so fabs(a - b) must not
         # produce a match that could never be outlined

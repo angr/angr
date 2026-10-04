@@ -48,6 +48,7 @@ from angr.analyses.decompiler.utils import copy_graph
 from angr.analyses.outliner import Outliner
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.functions import Function
+from angr.sim_type import SimTypeFloat, SimTypeInt
 from angr.utils.ssa import is_phi_assignment
 
 from .block_split import split_ail_block
@@ -67,7 +68,7 @@ from .dsl import (
     stmt_pattern_anchor_key,
 )
 from .gating import GateContext
-from .pattern import KnownPattern
+from .pattern import KnownPattern, resolve_typeref
 from .registry import (
     TEMPLATE_BY_CALL_NAME,
     partition_templates,
@@ -1616,11 +1617,12 @@ class KnownPatternFinder(Analysis):
             post_head: list[Statement] = []
         else:
             assert match.matched_expr is not None
+            narrowing = self._result_narrowing(match, anchor)
             vvar_id = self._next_vvar_id()
             result_vvar = VirtualVariable(
                 self._next_idx(),
                 vvar_id,
-                match.matched_expr.bits,
+                narrowing[0] if narrowing is not None else match.matched_expr.bits,
                 VirtualVariableCategory.TMP,
                 oident=vvar_id,  # TMP-category vvars must carry a tmp idx
                 ins_addr=ins_addr,
@@ -1629,8 +1631,15 @@ class KnownPatternFinder(Analysis):
             for old_varid, new_vvar in subst:
                 region_expr = self._substitute_vvar(region_expr, old_varid, new_vvar)
             (region_expr,) = self._apply_exprs(self._apply_bases([region_expr], rebases, match.base_aliases), lifts)
-            lifted = Assignment(self._next_idx(), result_vvar, region_expr, ins_addr=ins_addr)
-            replaced, new_anchor = anchor.replace(match.matched_expr, result_vvar.copy())
+            if narrowing is not None:
+                region_expr = Convert(
+                    self._next_idx(), region_expr.bits, narrowing[0], False, region_expr, ins_addr=ins_addr
+                )
+                lifted = Assignment(self._next_idx(), result_vvar, region_expr, ins_addr=ins_addr)
+                replaced, new_anchor = self._place_narrow_result(anchor, match, narrowing[1], result_vvar.copy())
+            else:
+                lifted = Assignment(self._next_idx(), result_vvar, region_expr, ins_addr=ins_addr)
+                replaced, new_anchor = anchor.replace(match.matched_expr, result_vvar.copy())
             if not replaced:
                 raise UnsupportedOutlineError("failed to replace the matched expression in the anchor statement")
             mid_stmts = dup_stmts + moved_stmts + [lifted]
@@ -2119,6 +2128,54 @@ class KnownPatternFinder(Analysis):
                         return UnaryOp(self._next_idx(), "Reference", expr.copy(), bits=sbo.bits, **sbo.tags)
         return sbo.copy()
 
+    def _result_narrowing(self, match: KnownPatternMatch, anchor: Statement) -> tuple[int, Expression | None] | None:
+        """Narrow the synthesized call to the template's declared return width.
+
+        A scalar idiom computed in a vector register (copysign via andpd/orpd)
+        matches at the register's 128-bit width. Returns ``(ret_bits, consumer)``:
+        ``consumer`` is the matched expression's parent when it reads exactly the
+        low ``ret_bits`` (and can be replaced by the narrow result outright);
+        otherwise None, and the result is zero-extended back in place. Integer
+        results only narrow when the consumer drops the high bits anyway.
+        """
+        assert match.matched_expr is not None
+        pattern = match.pattern
+        if pattern.returnty_factory is not None:
+            return None
+        ret_ty = resolve_typeref(pattern.returnty, self.project.arch)
+        if not isinstance(ret_ty, (SimTypeFloat, SimTypeInt)) or ret_ty.size is None:
+            return None
+        ret_bits = ret_ty.size
+        if ret_bits < 8 or ret_bits >= match.matched_expr.bits:
+            return None
+        consumer: Expression | None = None
+        if len(match.expr_path) > 1:
+            parent_path = match.expr_path[:-1]
+            parent = next((expr for path, expr in _iter_stmt_subexprs(anchor) if path == parent_path), None)
+            if (
+                isinstance(parent, Extract)
+                and parent.bits == ret_bits
+                and isinstance(parent.offset, Const)
+                and parent.offset.value == 0
+                and parent.endness == "Iend_LE"
+            ) or (isinstance(parent, Convert) and parent.to_bits == ret_bits and parent.from_bits > ret_bits):
+                consumer = parent
+        if consumer is None and not isinstance(ret_ty, SimTypeFloat):
+            return None
+        return ret_bits, consumer
+
+    def _place_narrow_result(
+        self, anchor: Statement, match: KnownPatternMatch, consumer: Expression | None, result: Expression
+    ) -> tuple[bool, Statement]:
+        """Put a narrowed result into ``anchor`` in place of the matched expression."""
+        assert match.matched_expr is not None
+        if consumer is not None:
+            return anchor.replace(consumer, result)
+        widened = Convert(
+            self._next_idx(), result.bits, match.matched_expr.bits, False, result, **match.matched_expr.tags
+        )
+        return anchor.replace(match.matched_expr, widened)
+
     def _call_args_of(self, match: KnownPatternMatch, blocks: Iterable[Block]) -> list[Expression]:
         """The synthesized call's arguments, from the pattern's captures."""
         blocks = list(blocks)
@@ -2148,16 +2205,20 @@ class KnownPatternFinder(Analysis):
 
         args = self._call_args_of(match, [block])
 
+        narrowing = self._result_narrowing(match, anchor)
         call = Call(
             self._next_idx(),
             match.pattern.call_name,
             args=args,
-            bits=match.matched_expr.bits,
+            bits=narrowing[0] if narrowing is not None else match.matched_expr.bits,
             ins_addr=anchor.tags.get("ins_addr"),
             known_pattern=match.pattern.name,
             is_prototype_guessed=False,
         )
-        replaced, new_anchor = anchor.replace(match.matched_expr, call)
+        if narrowing is not None:
+            replaced, new_anchor = self._place_narrow_result(anchor, match, narrowing[1], call)
+        else:
+            replaced, new_anchor = anchor.replace(match.matched_expr, call)
         if not replaced:
             raise UnsupportedOutlineError("failed to replace the matched expression in the anchor statement")
         stmts[match.anchor_stmt_idx] = new_anchor

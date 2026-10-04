@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 
-from angr.ailment.expression import Call
-from angr.ailment.statement import SideEffectStatement
+import networkx
+
+from angr.ailment.expression import Call, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, Label, SideEffectStatement, Statement
 from angr.analyses.decompiler.known_patterns import (
     GateContext,
     KnownPatternFinder,
@@ -13,6 +16,8 @@ from angr.analyses.decompiler.known_patterns import (
     resolve_pattern_selection,
 )
 from angr.analyses.decompiler.known_patterns.apply import apply_call_info_to_graph
+from angr.analyses.decompiler.known_patterns.finder import _iter_stmt_subexprs
+from angr.utils.ssa import is_phi_assignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -98,6 +103,7 @@ class KnownPatternOutliner(OptimizationPass):
             # simplification rounds have all run by this stage, so the dead
             # assignments are ours to remove.
             graph = self._remove_dead_definitions(graph)
+            self._fold_lifted_results(graph)
             if pure_calls and finder is not None:
                 self._drop_pure_calls(graph, pure_calls, finder)
             self.out_graph = graph
@@ -124,6 +130,63 @@ class KnownPatternOutliner(OptimizationPass):
                 break
             graph = simp.func_graph
         return graph
+
+    @staticmethod
+    def _fold_lifted_results(graph: networkx.DiGraph) -> None:
+        """Fold ``tmp = known_call(...)`` into its single use when that use is the next statement
+        (not a jump condition).
+
+        The finder lifts a matched sub-expression into a TMP vvar so the
+        Outliner can see a live-out; putting the call back where the
+        expression was undoes only that, nothing the clinic folded.
+        """
+        uses: Counter[int] = Counter()
+        for block in graph:
+            for stmt in block.statements:
+                for _, expr in _iter_stmt_subexprs(stmt, uses_only=True):
+                    if isinstance(expr, VirtualVariable):
+                        uses[expr.varid] += 1
+
+        for block in list(graph):
+            if not block.statements:
+                continue
+            stmt = block.statements[-1]
+            if not (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.category == VirtualVariableCategory.TMP
+                and isinstance(stmt.src, Call)
+                and stmt.src.tags.get("known_pattern") is not None
+                and stmt.src.bits >= 8
+                and uses[stmt.dst.varid] == 1
+            ):
+                continue
+            succs = list(graph.successors(block))
+            if len(succs) != 1 or succs[0] is block or graph.in_degree(succs[0]) != 1:
+                continue
+            succ = succs[0]
+            user_idx = next((i for i, s in enumerate(succ.statements) if not isinstance(s, Label)), None)
+            if user_idx is None:
+                continue
+            user: Statement = succ.statements[user_idx]
+            # a jump condition must stay a comparison for structuring
+            if is_phi_assignment(user) or isinstance(user, ConditionalJump):
+                continue
+            use = next(
+                (
+                    e
+                    for _, e in _iter_stmt_subexprs(user, uses_only=True)
+                    if isinstance(e, VirtualVariable) and e.varid == stmt.dst.varid
+                ),
+                None,
+            )
+            if use is None:
+                continue
+            replaced, new_user = user.replace(use, stmt.src)
+            if not replaced:
+                continue
+            succ.statements[user_idx] = new_user
+            block.statements = block.statements[:-1]
 
     @staticmethod
     def _drop_pure_calls(graph, pure_calls: set[str], finder) -> None:
