@@ -14,6 +14,7 @@ from angr.calling_conventions import (
     SimCC,
     SimComboArg,
     SimFunctionArgument,
+    SimLyingRegArg,
     SimReferenceArgument,
     SimRegArg,
     SimStackArg,
@@ -57,6 +58,7 @@ class CallSiteMaker:
         ail_manager: Manager,
         reaching_definitions: SRDAModel | None = None,
         stack_pointer_tracker=None,
+        x87_call_ftop: dict[int, int] | None = None,
     ):
         self.project = project
         self.kb = project.kb
@@ -65,6 +67,7 @@ class CallSiteMaker:
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
         self._ail_manager: Manager = ail_manager
+        self._x87_call_ftop = x87_call_ftop
 
         self.result_block = None
         # block addr, call ins addr, stack offset, arg size (in bytes)
@@ -190,10 +193,13 @@ class CallSiteMaker:
                 else:
                     dereference_size = None
 
+                x87_offset = None
+                if isinstance(arg_loc, SimLyingRegArg) and arg_loc.x87_index is not None:
+                    x87_offset = self._x87_arg_offset(arg_loc.x87_index, last_stmt)
                 if isinstance(arg_loc, SimRegArg):
                     size = arg_loc.size
-                    offset = arg_loc.check_offset(cc.arch)
-                    value_and_def = self._resolve_register_argument(arg_loc)
+                    offset = arg_loc.check_offset(cc.arch) if x87_offset is None else x87_offset
+                    value_and_def = self._resolve_register_argument(arg_loc, offset=x87_offset)
                     if value_and_def is not None:
                         vvar_def = value_and_def[1]
                         arg_vvars.append(vvar_def)
@@ -245,7 +251,9 @@ class CallSiteMaker:
                             self._atom_idx(),
                             offset,
                             size * 8,
-                            reg_name=arg_loc.reg_name,
+                            reg_name=arg_loc.reg_name
+                            if x87_offset is None
+                            else self.project.arch.translate_register_name(offset, size),
                             ins_addr=last_stmt.tags["ins_addr"],
                         )
                         arg_expr = reg
@@ -455,8 +463,19 @@ class CallSiteMaker:
         )
         return None
 
-    def _resolve_register_argument(self, arg_loc) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
-        offset = arg_loc.check_offset(self.project.arch)
+    def _x87_arg_offset(self, index: int, call_stmt: Stmt.Statement) -> int:
+        """The register holding st(index) at the call site (ftop is 0 there unless IRegisterResolver says otherwise)."""
+        ins_addr = call_stmt.tags.get("ins_addr")
+        ftop = 0
+        if self._x87_call_ftop is not None and isinstance(ins_addr, int):
+            ftop = self._x87_call_ftop.get(ins_addr, 0)
+        return self.project.arch.registers["fpreg"][0] + ((ftop + index) % 8) * 8
+
+    def _resolve_register_argument(
+        self, arg_loc, offset: int | None = None
+    ) -> tuple[Expr.Expression | None, Expr.VirtualVariable] | None:
+        if offset is None:
+            offset = arg_loc.check_offset(self.project.arch)
 
         if self._reaching_definitions is not None:
             # Find its definition

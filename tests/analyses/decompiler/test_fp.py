@@ -22,7 +22,8 @@ from angr.analyses.complete_calling_conventions import (
 )
 from angr.analyses.decompiler.structured_codegen.c_serialize import parse_codegen, serialize_codegen
 from angr.calling_conventions import SimCCMicrosoftFastcall
-from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeLongLong, SimTypeNum
+from angr.knowledge_plugins.functions.function_parser import CallingConventionSerializer
+from angr.sim_type import SimTypeDouble, SimTypeFloat, SimTypeInt, SimTypeLongLong, SimTypeNum
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from tests.common import bin_location, load_project_with_scoped_cfg
 
@@ -1472,6 +1473,9 @@ class TestX87CallDelta:
         text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop")
         _assert_no_x87_leaks(text)
         assert "1.0" in text
+        # the value pop_arg consumes is its x87 stack argument
+        text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_pop", cca=True)
+        assert re.search(r"pop_arg\(\*\(?\(double \*\)a0\)?\)", text), text
 
     def test_extern_callee_inferred_from_caller(self):
         text = _decompile_asm_func(_X87_CALL_DELTA_BIN, "caller_extern")
@@ -1528,6 +1532,62 @@ class TestX87Fptan:
         text = _decompile_asm_func(self._BIN, "tan_plus", cca=True)
         _assert_no_x87_leaks(text)
         assert re.search(r"return .*\? tan\(a0\) : a0\) \+ a1;", text), text
+
+
+class TestX87StackArgs:
+    """Functions that take their arguments on the x87 stack and pop them (MSVC _CI* and _ftol helpers) list them in
+    their prototypes, and their callers pass them and keep the st(0) results (x87_stack_args_i386.o)."""
+
+    @classmethod
+    def setup_class(cls):
+        path = os.path.join(_fp_dir, "x87_stack_args_i386.o")
+        if not os.path.exists(path):
+            pytest.skip(f"{path} not found")
+        cls.proj = angr.Project(path, auto_load_libs=False)
+        cls.cfg = cls.proj.analyses[CFGFast].prep()(normalize=True, data_references=True)
+        cls.proj.analyses[CompleteCallingConventionsAnalysis].prep()(cfg=cls.cfg.model)
+
+    def _text(self, name: str) -> str:
+        dec = self.proj.analyses[Decompiler].prep(fail_fast=True)(self.cfg.functions[name], cfg=self.cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        _assert_no_x87_leaks(dec.codegen.text)
+        return dec.codegen.text
+
+    def test_prototypes(self):
+        for name, n, ret in (
+            ("ci_sin", 1, SimTypeDouble),
+            ("drop2_one", 2, SimTypeDouble),
+            ("tail_drop2", 2, SimTypeDouble),
+            ("pop_int", 1, SimTypeInt),
+            ("ftol_disp", 1, SimTypeInt),
+        ):
+            func = self.cfg.functions[name]
+            assert func.calling_convention is not None and func.calling_convention.x87_args == n, name
+            assert func.prototype is not None and isinstance(func.prototype.returnty, ret), name
+            assert all(isinstance(arg, SimTypeDouble) for arg in func.prototype.args[:n]), name
+
+    def test_callee_reads_arguments(self):
+        assert "return (int)a0;" in self._text("pop_int")
+        assert "sin(a0)" in self._text("ci_sin")
+        assert "return drop2_one(a0, a1);" in self._text("tail_drop2")
+        assert "return pop_int(a0);" in self._text("ftol_disp")
+
+    def test_in_place_return_is_used(self):
+        text = self._text("caller_sin")
+        m = re.search(r"(\w+) = ci_sin\(\*", text)
+        assert m is not None, text
+        assert f"{m.group(1)} + {m.group(1)};" in text, text
+
+    def test_two_arguments_in_stack_order(self):
+        assert re.search(r"a0\[2\] = tail_drop2\(a0\[1\], \*\(?a0\)?\);", self._text("caller_two"))
+
+    def test_cc_serialization_keeps_x87_args(self):
+        cc = self.cfg.functions["drop2_one"].calling_convention
+        restored = CallingConventionSerializer.from_json(CallingConventionSerializer.to_json(cc), self.proj.arch)
+        assert restored == cc and restored is not None and restored.x87_args == 2
+
+    def test_ftol_argument(self):
+        assert re.search(r"return ftol_disp\(\*.*a0\)\) \+ 1;", self._text("caller_ftol"))
 
 
 class TestX87ReturnPrototype:

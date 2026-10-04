@@ -9,7 +9,7 @@ from archinfo.arch_arm import is_arm_arch
 from angr import claripy
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.block import Block
-from angr.calling_conventions import SimRegArg, SimStackArg, SimTypeFunction, default_cc
+from angr.calling_conventions import SimRegArg, SimStackArg, SimTypeFunction, default_cc, is_x87_stack_arg
 from angr.engines.light import SimEngineNostmtVEX
 from angr.engines.vex.claripy.datalayer import value as claripy_value
 from angr.errors import SimMemoryMissingError
@@ -221,6 +221,8 @@ class SimEngineVRVEX(
 
         for arg_loc in arg_locs:
             for loc in arg_loc.get_footprint():
+                if is_x87_stack_arg(loc):
+                    continue
                 if isinstance(loc, SimRegArg):
                     self._read_from_register(self.arch.registers[loc.reg_name][0] + loc.reg_offset, loc.size)
                 elif isinstance(loc, SimStackArg):

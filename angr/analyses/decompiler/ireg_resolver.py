@@ -60,6 +60,7 @@ class IRegisterResolver:
         ail_graph: networkx.DiGraph,
         callee_deltas: dict[int, int | None] | None = None,
         call_st0: dict[int, int] | None = None,
+        call_ftop: dict[int, int] | None = None,
     ):
         self.project = project
         self.kb = kb
@@ -72,6 +73,8 @@ class IRegisterResolver:
         self._stack_model = X87StackModel(project, kb, callee_deltas=callee_deltas)
         # call instruction address -> register offset of st(0) right after the call
         self._call_st0: dict[int, int] = call_st0 if call_st0 is not None else {}
+        # call instruction address -> ftop right before the call (locates the callee's x87 stack arguments)
+        self._call_ftop: dict[int, int] = call_ftop if call_ftop is not None else {}
         self._caller_delta_cache: dict[tuple[BlockKey, int], int] = {}
         self._blocks_by_key: dict[BlockKey, Block] = {}
 
@@ -253,29 +256,31 @@ class IRegisterResolver:
             return
         if ftop is None:
             ftop = 0
+        ins_addr = call.tags.get("ins_addr")
+        if isinstance(ins_addr, int):
+            self._call_ftop[ins_addr] = ftop
         delta = None
         if isinstance(call.target, Const) and isinstance(call.target.value, int):
             delta = self._stack_model.callee_delta(call.target.value)
         if delta is None:
             cache_key = ((block.addr, block.idx), stmt_idx)
             if cache_key not in self._caller_delta_cache:
-                self._caller_delta_cache[cache_key] = self._infer_call_delta_from_caller(block, stmt_idx)
+                self._caller_delta_cache[cache_key] = self._infer_call_delta_from_caller(block, stmt_idx, ftop)
             delta = self._caller_delta_cache[cache_key]
         ftop = (ftop + delta) % 8
         regs[self._ftop_key] = ftop
-        ins_addr = call.tags.get("ins_addr")
         if self._fpreg_base is not None and isinstance(ins_addr, int):
             self._call_st0[ins_addr] = self._fpreg_base + (ftop << 3)
 
-    def _infer_call_delta_from_caller(self, block: Block, stmt_idx: int) -> int:
+    def _infer_call_delta_from_caller(self, block: Block, stmt_idx: int, ftop: int) -> int:
         """
         Infer whether a callee left a value on the x87 stack from the caller: the first x87 stack access after the
         call touching st(0) or above (relative to ftop at the return site) means it did; a push first means it did
-        not. A return reached first defers to this function's own FP return.
+        not. A return reached first defers to this function's own x87 arguments and FP return.
         """
         assert self._ftop_key is not None
         probe: RegState = {self._ftop_key: 0}
-        result = self._scan_block_for_x87(block, stmt_idx + 1, probe)
+        result = self._scan_block_for_x87(block, stmt_idx + 1, probe, ftop)
         if result is not None:
             return result
 
@@ -289,13 +294,13 @@ class IRegisterResolver:
                 continue
             visited.add(key)
             scanned += 1
-            result = self._scan_block_for_x87(succ, 0, dict(probe))
+            result = self._scan_block_for_x87(succ, 0, dict(probe), ftop)
             if result is not None:
                 return result
             frontier.extend(self.graph.successors(succ))
         return 0
 
-    def _scan_block_for_x87(self, block: Block, start: int, regs: RegState) -> int | None:
+    def _scan_block_for_x87(self, block: Block, start: int, regs: RegState, call_ftop: int) -> int | None:
         tmps: dict[int, int] = {}
         flag_tmps: set[int] = set()
         found: int | None = None
@@ -313,7 +318,10 @@ class IRegisterResolver:
         for i in range(start, len(block.statements)):
             stmt = block.statements[i]
             if isinstance(stmt, Return):
-                return -1 if X87StackModel.prototype_returns_x87(self.function) else 0
+                # ftop at our return: our x87 arguments are popped and an x87 return value pushed
+                ret_ftop = X87StackModel.prototype_delta(self.function) or 0
+                delta = (ret_ftop - call_ftop) % 8
+                return delta - 8 if delta > 4 else delta
             if isinstance(stmt, SideEffectStatement) and isinstance(stmt.expr, Call):
                 return 0
             viewer.walk_statement(stmt, block, i)

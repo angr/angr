@@ -40,12 +40,12 @@ class ReturnMaker(AILGraphWalker):
             return self.arch.registers[ret_val.reg_name]
 
         # SimLyingRegArg ("st0"): resolve from the calling convention.
-        # x86 cdecl initializes ftop=0; returning via ST0 decrements ftop by 1,
-        # so at the return site st0 = fpreg[(-1 % 8)] = fpreg[7] = mm7.
+        # ftop is 0 at the entry; the callee pops its x87 arguments and pushes the return value, so at the return
+        # site st0 = fpreg[(x87_args - 1) % 8] (mm7 without x87 arguments).
         if isinstance(ret_val, SimLyingRegArg):
             fpreg = self.arch.registers.get("fpreg")
             if fpreg is not None:
-                fp_ret_offset = fpreg[0] + ((-1 % 8) << 3)
+                fp_ret_offset = fpreg[0] + (((self.function.calling_convention.x87_args - 1) % 8) << 3)
                 return (fp_ret_offset, ret_val.size)
 
         l.warning("Cannot resolve return register %s to a concrete offset.", ret_val.reg_name)

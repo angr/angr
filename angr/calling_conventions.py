@@ -645,11 +645,14 @@ class SimCC:
     This is the base class for all calling conventions.
     """
 
-    def __init__(self, arch: archinfo.Arch):
+    def __init__(self, arch: archinfo.Arch, x87_args: int = 0):
         """
         :param arch:        The Archinfo arch for this CC
+        :param x87_args:    How many leading arguments are passed on the x87 stack (st(0), st(1), ...) and popped by
+                            the callee, as by MSVC's _CI* and _ftol helpers.
         """
         self.arch = arch
+        self.x87_args = x87_args
 
     #
     # Here are all the things a subclass needs to specify!
@@ -657,6 +660,7 @@ class SimCC:
 
     ARG_REGS: list[str] = []  # A list of all the registers used for integral args, in order (names or offsets)
     FP_ARG_REGS: list[str] = []  # A list of all the registers used for floating point args, in order
+    x87_args: int = 0  # class default for instances unpickled from before the attribute existed
     # Whether calling-convention analysis may scan the whole function body (not just ret-block predecessors) for an
     # FP return value. Safe on x86/amd64 where FP registers are dedicated; false on arches (e.g. ARM VFP) where FP
     # registers are used for general computation and a function-wide scan yields false positives.
@@ -951,7 +955,15 @@ class SimCC:
         if prototype._arch is None:
             prototype = prototype.with_arch(self.arch)
         session = self.arg_session(prototype.returnty)
-        return [self.next_arg(session, arg_ty) for arg_ty in prototype.args]
+        x87_locs = self.x87_arg_locs(prototype)
+        return x87_locs + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[len(x87_locs) :]]
+
+    def x87_arg_locs(self, prototype) -> list[SimFunctionArgument]:
+        """Locations of the leading arguments passed on the x87 stack."""
+        return [
+            SimLyingRegArg(f"st{i}", arg_ty.size // self.arch.byte_width if arg_ty.size is not None else 8)
+            for i, arg_ty in enumerate(prototype.args[: self.x87_args])
+        ]
 
     def get_args(self, state, prototype, stack_base=None):
         arg_locs = self.arg_locs(prototype)
@@ -1240,10 +1252,12 @@ class SimCC:
         raise TypeError(f"I don't know how to serialize {arg!r}.")
 
     def __repr__(self):
+        if self.x87_args:
+            return f"<{self.__class__.__name__} x87_args={self.x87_args}>"
         return f"<{self.__class__.__name__}>"
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__)
+        return isinstance(other, self.__class__) and self.x87_args == other.x87_args
 
     @classmethod
     def _match(
@@ -1414,6 +1428,19 @@ class SimLyingRegArg(SimRegArg):
 
     def refine(self, size, arch=None, offset=None, is_fp=None):
         return SimLyingRegArg(self.reg_name, size)
+
+    @property
+    def x87_index(self) -> int | None:
+        """i for an x87 stack slot st(i), None for any other register."""
+        name = self.reg_name
+        if len(name) == 3 and name.startswith("st") and name[2].isdigit():
+            return int(name[2])
+        return None
+
+
+def is_x87_stack_arg(loc: SimFunctionArgument) -> bool:
+    """Whether the argument location is an x87 stack slot, whose register depends on the caller's x87 stack top."""
+    return isinstance(loc, SimLyingRegArg) and loc.x87_index is not None
 
 
 class SimCCUsercall(SimCC):

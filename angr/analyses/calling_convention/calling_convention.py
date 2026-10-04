@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import logging
 from collections import defaultdict
 from collections.abc import Mapping
@@ -146,8 +147,9 @@ class CallingConventionAnalysis(Analysis):
         self._unused_args: list[SimRegArg] = []
         self._retval_size = retval_size
         self._retval_incidental: bool | None = None
-        # x87 stack pointer at each return site, computed on demand by _x87_ret_ftop
+        # x87 stack pointer at each return site and x87 arguments, computed on demand by _x87_scan
         self._x87_ret_ftops: dict[int, int | None] | None = None
+        self._x87_args: tuple[int, bool] | None = None
         self._extra_pop: int | None = extra_pop
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
@@ -322,6 +324,8 @@ class CallingConventionAnalysis(Analysis):
 
             if cpp_symbol_result is not None and prototype is not None:
                 prototype = self._refine_cpp_symbol_prototype(prototype, cpp_symbol_result[1])
+            if prototype is not None:
+                prototype = self._apply_x87_args(cc, prototype)
             self.cc = cc
             self.prototype = prototype
 
@@ -1739,19 +1743,48 @@ class CallingConventionAnalysis(Analysis):
         # Unsupported for now
         return SimTypeBottom()
 
-    def _x87_ret_ftop(self, ret_block_addr: int) -> int | None:
-        """
-        The x87 stack pointer at a return site of the function (0 at its entry; 7 when it leaves one value on the
-        stack), or None when unknown or when the function takes values on the x87 stack, so that its depth at the
-        return does not tell whether it returns one.
-        """
+    def _x87_scan(self) -> dict[int, int | None]:
         if self._x87_ret_ftops is None:
             assert self._function is not None
-            ret_ftops, reads_incoming = X87StackModel(
-                self.project, self.kb, max_callee_blocks=32, assume_balanced=True
-            ).scan(self._function)
-            self._x87_ret_ftops = {} if ret_ftops is None or reads_incoming else ret_ftops
-        return self._x87_ret_ftops.get(ret_block_addr)
+            ret_ftops, depth = X87StackModel(self.project, self.kb, max_callee_blocks=32, assume_balanced=True).scan(
+                self._function
+            )
+            self._x87_args = X87StackModel.classify_x87_args(ret_ftops, depth)
+            if ret_ftops is None or (depth and self._x87_args is None):
+                # unknown, or values taken on the x87 stack with an inconsistent stack effect
+                self._x87_ret_ftops = {}
+            else:
+                # relative to the stack top after the callee popped its x87 arguments
+                n = self._x87_args[0] if self._x87_args is not None else 0
+                self._x87_ret_ftops = {
+                    addr: None if ftop is None else (ftop - n) % 8 for addr, ftop in ret_ftops.items()
+                }
+        return self._x87_ret_ftops
+
+    def _x87_ret_ftop(self, ret_block_addr: int) -> int | None:
+        """
+        The x87 stack pointer at a return site of the function after its x87 arguments are popped (0 at its entry
+        when it takes none; 7 when it leaves one value on the stack), or None when unknown.
+        """
+        return self._x87_scan().get(ret_block_addr)
+
+    def _apply_x87_args(self, cc: SimCC, prototype: SimTypeFunction) -> SimTypeFunction:
+        """Prepend the arguments the function takes on the x87 stack."""
+        if self.project.arch.name != "X86":
+            return prototype
+        self._x87_scan()
+        if self._x87_args is None:
+            return prototype
+        n = self._x87_args[0]
+        cc.x87_args = n
+        new_proto = copy.copy(prototype)
+        new_proto.args = tuple(SimTypeDouble().with_arch(self.project.arch) for _ in range(n)) + tuple(prototype.args)
+        if prototype.arg_names:
+            new_proto.arg_names = ("",) * n + tuple(prototype.arg_names)
+        if self._x87_args[1] and (prototype.returnty is None or isinstance(prototype.returnty, SimTypeBottom)):
+            # the result is left in st(0), e.g. by a tail call, where the return-site scan does not see it
+            new_proto.returnty = SimTypeDouble().with_arch(self.project.arch)
+        return new_proto
 
     def _is_retval_incidental(self) -> bool:
         """See :attr:`FactCollector.retval_incidental`. Collected with the other facts in fact-collecting mode;

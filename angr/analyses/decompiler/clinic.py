@@ -52,6 +52,7 @@ from angr.calling_conventions import (
     SimCCUsercall,
     SimComboArg,
     SimFunctionArgument,
+    SimLyingRegArg,
     SimReferenceArgument,
     SimRegArg,
     SimStackArg,
@@ -558,6 +559,8 @@ class Clinic(Analysis, Serializable):
         self._x87_callee_deltas: dict[int, int | None] = {}
         # st(0) register offset after each call (by call instruction address), filled by IRegisterResolver
         self._x87_call_st0: dict[int, int] = {}
+        # ftop right before each call (by call instruction address), filled by IRegisterResolver
+        self._x87_call_ftop: dict[int, int] = {}
         self._desired_variables = desired_variables
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
@@ -2772,7 +2775,16 @@ class Clinic(Analysis, Serializable):
             if args:
                 arg_names = self.function.prototype.arg_names or ()
                 for idx, arg in enumerate(args):
-                    if isinstance(arg, SimRegArg):
+                    if isinstance(arg, SimLyingRegArg) and arg.x87_index is not None:
+                        # st(i) at the function entry, where ftop is 0
+                        argvar = SimRegisterVariable(
+                            self.project.arch.registers["fpreg"][0] + arg.x87_index * 8,
+                            arg.size,
+                            ident=f"arg_{idx}",
+                            name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
+                            region=self.function.addr,
+                        )
+                    elif isinstance(arg, SimRegArg):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
                             arg.size,
@@ -2868,6 +2880,7 @@ class Clinic(Analysis, Serializable):
                 reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
+                x87_call_ftop=self._x87_call_ftop,
             )
             stackarg_offset_manager.merge(csm.stackarg_offset_manager)
             if csm.removed_vvar_ids:
@@ -4654,6 +4667,7 @@ class Clinic(Analysis, Serializable):
                 ail_graph,
                 callee_deltas=self._x87_callee_deltas,
                 call_st0=self._x87_call_st0,
+                call_ftop=self._x87_call_ftop,
             ).resolve()
         return ail_graph
 

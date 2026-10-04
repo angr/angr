@@ -11,7 +11,7 @@ import pyvex
 
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.block import Block
-from angr.calling_conventions import SimRegArg, SimStackArg, default_cc_for_project
+from angr.calling_conventions import SimRegArg, SimStackArg, default_cc_for_project, is_x87_stack_arg
 from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
@@ -747,6 +747,8 @@ class FactCollector(Analysis):
         for arg_loc in arg_locs:
             val: FactData = None
             for loc in arg_loc.get_footprint():
+                if is_x87_stack_arg(loc):
+                    continue
                 if isinstance(loc, SimRegArg):
                     base_offset = self.project.arch.registers[loc.reg_name][0]
                     state.register_read(base_offset + loc.reg_offset, loc.size)
