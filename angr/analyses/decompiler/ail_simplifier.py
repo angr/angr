@@ -13,12 +13,14 @@ import networkx
 from angr.ailment import Address, AILBlockRewriter, AILBlockViewer
 from angr.ailment.block import Block
 from angr.ailment.expression import (
+    ITE,
     BinaryOp,
     Call,
     Const,
     Convert,
     DirtyExpression,
     Expression,
+    Extract,
     FunctionLikeMacro,
     Insert,
     Load,
@@ -240,6 +242,29 @@ class InsertLowBitsReadRewriter(AILBlockRewriter):
         return super()._handle_Convert(expr_idx, expr, stmt_idx, stmt, block)
 
 
+class VVarToCondJumpRewriter(AILBlockRewriter):
+    """
+    Replaces uses of vvars in the conditions of ConditionalJump statements with their (pure) definitions.
+    """
+
+    def __init__(self, vvar_values: dict[int, Expression]):
+        super().__init__(update_block=False)
+        self.vvar_values = vvar_values
+
+    def _handle_VirtualVariable(  # type: ignore
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        value = self.vvar_values.get(expr.varid)
+        if value is not None and value.bits == expr.bits:
+            return value
+        return expr
+
+    def walk_statement(self, stmt: Statement, block: Block | None = None):  # type: ignore
+        if not isinstance(stmt, ConditionalJump):
+            return stmt
+        return super().walk_statement(stmt, block)
+
+
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
@@ -362,6 +387,14 @@ class AILSimplifier(Analysis):
             _l.debug("... low-bits reads of Insert definitions propagated")
             self._rebuild_func_graph()
             # reaching definition analysis results are no longer reliable
+            self._clear_cache()
+
+        _l.debug("Propagating compare masks into conditional jumps")
+        masks_propagated = self._propagate_compare_masks_into_conditions()
+        self.simplified |= masks_propagated
+        if masks_propagated:
+            _l.debug("... compare masks propagated")
+            self._rebuild_func_graph()
             self._clear_cache()
 
         _l.debug("Removing dead assignments")
@@ -1224,6 +1257,44 @@ class AILSimplifier(Analysis):
 
         return changed
 
+    def _propagate_compare_masks_into_conditions(self) -> bool:
+        """
+        A compare mask ``vvar = ITE(cond, C0, C1)`` (e.g., a lowered SSE compare) that has other uses is not folded by
+        the propagator. Its uses in branch conditions are better served by cond itself, so substitute the definition
+        there; mask comparisons then simplify to cond.
+        """
+
+        vvar_values: dict[int, Expression] = {}
+        for block in self.func_graph:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, ITE)
+                    and isinstance(stmt.src.iftrue, Const)
+                    and isinstance(stmt.src.iffalse, Const)
+                    and self._is_pure_timeless_expr(stmt.src.cond)
+                ):
+                    vvar_values[stmt.dst.varid] = stmt.src
+
+        if not vvar_values:
+            return False
+
+        rewriter = VVarToCondJumpRewriter(vvar_values)
+        changed = False
+        for original_block in self.func_graph:
+            block = self.blocks.get(original_block, original_block)
+            if not block.statements or not isinstance(block.statements[-1], ConditionalJump):
+                continue
+            new_stmt = rewriter.walk_statement(block.statements[-1], block)
+            if new_stmt is not None and new_stmt is not block.statements[-1]:
+                statements = block.statements[::]
+                statements[-1] = new_stmt
+                self.blocks[original_block] = block.copy(statements=statements)
+                changed = True
+
+        return changed
+
     @staticmethod
     def _is_pure_timeless_expr(expr: Expression) -> bool:
         """
@@ -1234,6 +1305,8 @@ class AILSimplifier(Analysis):
             return True
         if isinstance(expr, Convert):
             return AILSimplifier._is_pure_timeless_expr(expr.operand)
+        if isinstance(expr, Extract):
+            return AILSimplifier._is_pure_timeless_expr(expr.base) and isinstance(expr.offset, Const)
         if isinstance(expr, UnaryOp):
             return AILSimplifier._is_pure_timeless_expr(expr.operand)
         if isinstance(expr, BinaryOp):

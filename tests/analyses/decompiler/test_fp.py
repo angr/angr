@@ -1127,6 +1127,19 @@ class TestSSELaneOps:
 
 
 # ======================================================================
+# sse_phi_insert_i386.o: a cmpeqsd mask whose lane 0 is tested also flows, with a movlpd lane-0 Insert, into a phi
+# read only at lane 0 (CRT log()). The phi class must narrow to 64 bits so the compare lowers to a scalar test.
+# ======================================================================
+
+
+def test_sse_phi_insert_narrowing():
+    text = _decompile_asm_func("sse_phi_insert_i386.o", "lane_cmp_phi")
+    assert "CmpEQV" not in text and "_INSERT" not in text and "uint128_t" not in text, text
+    assert "a0 != 0.0" in text or "a0 == 0.0" in text, text
+    assert "a0 * a0" in text, text
+
+
+# ======================================================================
 # cvtsi2sd_signed_amd64.o: cvtsi2sd reads its operand as a signed integer. The
 # operand is typed signed when nothing contradicts it; otherwise the C must cast
 # through the signed integer type, since (double)x of an unsigned or pointer x
