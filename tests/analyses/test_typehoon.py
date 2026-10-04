@@ -27,6 +27,7 @@ from angr.analyses.typehoon.typeconsts import (
     Int8,
     Int32,
     IntVar,
+    Pointer32,
     Pointer64,
     SInt32,
     SInt64,
@@ -55,6 +56,7 @@ from angr.sim_type import (
     SimTypeNum,
     SimTypePointer,
 )
+from angr.utils.constants import MAX_TYPE_NESTING
 from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
@@ -290,6 +292,52 @@ class TestTypehoon(unittest.TestCase):
 
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "typedef struct" not in dec.codegen.text
+
+    @staticmethod
+    def _dereference_chain_constraints(length: int):
+        """A type variable loaded through ``length`` chained ``*p`` dereferences, with a second field at
+        offset 4 so that each link of the chain is a struct rather than a scalar."""
+        func = TypeVariable(name="F")
+        t0 = TypeVariable(name="T0")
+        labels = []
+        for _ in range(length):
+            labels += [Load(), HasField(32, 0)]
+        return (
+            func,
+            t0,
+            {
+                func: {
+                    Subtype(DerivedTypeVariable(t0, None, labels=labels), Int32()),
+                    Subtype(DerivedTypeVariable(t0, None, labels=[Load(), HasField(32, 4)]), Int32()),
+                }
+            },
+        )
+
+    def test_long_dereference_chain_is_not_inlined_without_bound(self):
+        # the solver inlines each dereferenced type variable's solution into the field of the struct the
+        # previous one points to, so without a bound the finished type is as deep as the chain is long --
+        # 2 * length + 1 levels, measured. Every traversal a type constant defines recurses once or more
+        # per level, so a long chain is a type nothing downstream can hash or print.
+        func, t0, constraints = self._dereference_chain_constraints(MAX_TYPE_NESTING * 2)
+        solver = SimpleSolver(32, constraints, {func: {t0}})
+
+        sol = solver.solution[t0]
+        assert isinstance(sol, Pointer32)
+        assert not SimpleSolver._nests_deeper_than(sol, MAX_TYPE_NESTING + 2)
+        # and what the bound is for: the finished type can be hashed and printed
+        assert isinstance(hash(sol), int)
+        assert repr(sol)
+
+    def test_dereference_chain_past_the_recursion_limit_still_solves(self):
+        # 256 links is 513 levels unbounded, and the solver does not get that far: it hashes a solution it
+        # is assembling, which costs four Python frames per level, and dies of RecursionError inside
+        # SimpleSolver itself. Clinic then drops every variable type in the function.
+        func, t0, constraints = self._dereference_chain_constraints(256)
+        solver = SimpleSolver(32, constraints, {func: {t0}})
+
+        sol = solver.solution[t0]
+        assert isinstance(sol, Pointer32)
+        assert not SimpleSolver._nests_deeper_than(sol, MAX_TYPE_NESTING + 2)
 
     def test_solving_cascading_type_constraints(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "tiny_aes_test.elf"), auto_load_libs=False)
