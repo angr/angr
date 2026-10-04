@@ -776,3 +776,22 @@ class TestFPOperations(unittest.TestCase):
         inf_bv = self.fp_inf.to_bv()
         neg_inf_bv = self.fp_neg_inf.to_bv()
         self.assertNotEqual(self.z3.eval(inf_bv, 1)[0], self.z3.eval(neg_inf_bv, 1)[0])
+
+    def test_cardinality(self):
+        """singlevalued never raises on FP ASTs or on BVs/Bools derived from them"""
+        fps = claripy.FPS("fp", FSORT_FLOAT)
+        for e in (self.fp1, self.fp1.to_bv(), claripy.fpIsNaN(self.fp_nan), self.fp1 == self.fp2):
+            self.assertEqual(e.cardinality, 1)
+            self.assertTrue(e.singlevalued)
+
+        bvs = claripy.BVS("x", 32)
+        self.assertFalse((bvs + self.fp1.to_bv()).singlevalued)
+        self.assertEqual((claripy.BVV(1, 32) + self.fp1.to_bv()).cardinality, 1)
+
+        self.assertEqual(fps.cardinality, 2**32)
+        self.assertEqual(fps.to_bv().cardinality, 2**32)
+        self.assertEqual((claripy.BVV(1, 32) + fps.to_bv()).cardinality, 2**32)
+        for b in (claripy.fpIsNaN(fps), fps == self.fp1, claripy.fpLT(fps, self.fp1)):
+            self.assertEqual(b.cardinality, 2)
+            self.assertFalse(b.singlevalued)
+            self.assertTrue(b.multivalued)

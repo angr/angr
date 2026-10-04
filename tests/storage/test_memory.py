@@ -624,6 +624,23 @@ class TestMemory(unittest.TestCase):
         with self.assertRaises(SimMemoryError):
             s.memory.load(0x1000, 4, condition=claripy.BoolS("cond"))
 
+    def test_fast_memory_fp_derived_parameters(self):
+        s = SimState(project=minimal_project("AMD64"), mode="fastpath")
+        s.registers.store(16, claripy.BVV(0x41, 8))
+        # concrete FP-derived parameters are single-valued
+        addr = claripy.FPV(2.2e-44, claripy.FSORT_FLOAT).to_bv()
+        assert s.solver.eval(s.registers.load(addr, 1)) == 0x41
+
+        fp = claripy.FPS("fp", claripy.FSORT_FLOAT)
+        fp_bits = fp.to_bv()
+
+        with self.assertRaisesRegex(SimMemoryError, "address not supported"):
+            s.registers.load(fp_bits, 1)
+        with self.assertRaisesRegex(SimMemoryError, "size not supported"):
+            s.registers.load(0, fp_bits)
+        with self.assertRaisesRegex(SimMemoryError, "condition not supported"):
+            s.registers.load(0, 1, condition=claripy.fpIsNaN(fp))
+
     def test_light_memory(self):
         s = SimState(project=minimal_project("AMD64"), plugins={"registers": SimLightRegisters()})
         assert type(s.registers) is SimLightRegisters
