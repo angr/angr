@@ -1300,8 +1300,8 @@ def test_sse_phi_insert_narrowing():
 
 
 # ======================================================================
-# Codegen serialization: string-target calls (known patterns, intrinsics) keep their call-site prototype, so the
-# parsed codegen re-renders identically.
+# Codegen serialization: string-target calls (known patterns, intrinsics) keep their call-site prototype, and
+# constants keep their Function references, so the parsed codegen re-renders identically.
 # ======================================================================
 
 
@@ -1310,6 +1310,7 @@ def test_sse_phi_insert_narrowing():
     [
         (_LIBM_BITS, 0x4013D0, (), {"copysignf": "float"}),
         (os.path.join(_fp_dir, "x87_env_amd64"), 0x4011CD, (), {"__inbyte": "uint8_t", "__outbyte": "void"}),
+        (_LIBM_BITS, 0x401280, (0x401050,), {}),  # _start passes main by reference
     ],
 )
 def test_codegen_round_trip_rerenders(bin_path, addr, extra, call_types):
