@@ -63,6 +63,7 @@ from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
 from .rewrite_mips_gp_loads import RewriteMipsGpLoads
 from .rol_ror import RolRorRewriter
 from .sar_to_signed_div import SarToSignedDiv
+from .sbb_mask_to_ite import SbbMaskToITE
 from .shl_to_mul import ShlToMul
 from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .single_bit_cond_to_boolexpr import SingleBitCondToBoolExpr
@@ -144,6 +145,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     SSEVectorConvertLowering,
     SSEVectorLaneLowering,
     SSEBitwiseSelect,
+    SbbMaskToITE,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [

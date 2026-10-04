@@ -677,6 +677,25 @@ def _cmp_const(op, expr, value):
     return BinaryOp(None, op, [expr, Const(None, value, expr.bits)], False, bits=1)
 
 
+class TestSbbMaskToITE(unittest.TestCase):
+    """cmp x, 1; sbb eax, eax; and eax, K; sub eax, D  ->  ITE."""
+
+    def test_sbb_select(self):
+        from angr.analyses.decompiler.peephole_optimizations.sbb_mask_to_ite import SbbMaskToITE
+
+        opt = _make_peephole(SbbMaskToITE)
+        b = Tmp(1, 1, 1)
+        lt = opt.optimize(BinaryOp(None, "CmpLT", [b, Const(None, 1, 1)], False, bits=1))
+        assert isinstance(lt, UnaryOp) and lt.op == "Not" and lt.operand.likes(b)
+        neg = UnaryOp(None, "Neg", Convert(None, 1, 32, False, lt), bits=32)
+        ite = opt.optimize(BinaryOp(None, "And", [neg, Const(None, 2, 32)], False, bits=32))
+        assert isinstance(ite, ITE) and ite.iftrue.value == 2 and ite.iffalse.value == 0
+        ite = opt.optimize(BinaryOp(None, "Sub", [ite, Const(None, 1, 32)], False, bits=32))
+        assert isinstance(ite, ITE) and ite.iftrue.value == 1 and ite.iffalse.value == 0xFFFFFFFF
+        ite = opt.optimize(ite)
+        assert ite.cond.likes(b) and ite.iftrue.value == 0xFFFFFFFF and ite.iffalse.value == 1
+
+
 class TestX87StatusWord(unittest.TestCase):
     """fnstsw/sahf/test ah bit tests over CmpF fold into IEEE comparisons."""
 
