@@ -664,5 +664,87 @@ class TestAMD64CCallRewriterRealBinaries(unittest.TestCase):
         self._assert_no_ccall("gzip_gcc13.3.0_O2", [0x409B60])
 
 
+class TestLiveInFlagsRewriting(unittest.TestCase):
+    """A flags thunk whose cc_op/cc_dep1/cc_dep2/cc_ndep are all live-in vvars becomes a __readeflags() test."""
+
+    _THUNK = ("cc_op", "cc_dep1", "cc_dep2", "cc_ndep")
+
+    @staticmethod
+    def _eval(expr, flags: int) -> int:
+        if isinstance(expr, Expr.Const):
+            return expr.value_int
+        if isinstance(expr, Expr.Call):
+            assert expr.target == "__readeflags" and not expr.args
+            return _mask(flags, expr.bits)
+        if isinstance(expr, Expr.Convert):
+            return _mask(TestLiveInFlagsRewriting._eval(expr.operand, flags), expr.to_bits)
+        assert isinstance(expr, Expr.BinaryOp), expr
+        a, b = (TestLiveInFlagsRewriting._eval(op, flags) for op in expr.operands)
+        return {
+            "And": lambda: a & b,
+            "Xor": lambda: a ^ b,
+            "Shr": lambda: a >> b,
+            "CmpEQ": lambda: int(a == b),
+            "CmpNE": lambda: int(a != b),
+            "LogicalAnd": lambda: int(bool(a) and bool(b)),
+            "LogicalOr": lambda: int(bool(a) or bool(b)),
+        }[expr.op]()
+
+    def _rewrite(self, arch: str, callee: str, leading: tuple, livein: set[int]):
+        from angr.analyses.decompiler.ccall_rewriters import CCALL_REWRITERS
+
+        proj = angr.load_shellcode(b"\x90", arch=arch)
+        bits = proj.arch.bits
+        thunk = tuple(
+            Expr.VirtualVariable(
+                10 + i, 100 + i, bits, Expr.VirtualVariableCategory.REGISTER, oident=proj.arch.registers[name][0]
+            )
+            for i, name in enumerate(self._THUNK)
+        )
+        ccall = Expr.VEXCCallExpression(0, callee, (*leading, *thunk), bits)
+        return CCALL_REWRITERS[arch](ccall, proj, Manager(), livein_vvar_ids=livein).result
+
+    def test_conditions_match_oracle(self):
+        all_flags = [
+            sum(bit for i, bit in enumerate((0x1, 0x4, 0x10, 0x40, 0x80, 0x800)) if combo >> i & 1)
+            for combo in range(64)
+        ]
+        for arch, prefix in (("AMD64", "amd64g_"), ("X86", "x86g_")):
+            bits = 64 if arch == "AMD64" else 32
+            copy = cast("dict[str, int]", data[arch]["OpTypes"])["G_CC_OP_COPY"]
+            for cond in range(16):
+                r = self._rewrite(
+                    arch, f"{prefix}calculate_condition", (Expr.Const(0, cond, bits),), {100, 101, 102, 103}
+                )
+                assert r is not None and r.bits == bits, (arch, cond)
+                for flags in all_flags:
+                    want = pc_calculate_condition(
+                        None,
+                        claripy.BVV(cond, bits),
+                        claripy.BVV(copy, bits),
+                        claripy.BVV(flags, bits),
+                        claripy.BVV(0, bits),
+                        claripy.BVV(0, bits),
+                        platform=arch,
+                    ).concrete_value
+                    # junk outside the six condition flags must not matter
+                    assert self._eval(r, flags | 0x202) == want, (arch, cond, hex(flags))
+
+    def test_flags_all_and_c(self):
+        for arch, all_name, c_name in (
+            ("AMD64", "amd64g_calculate_rflags_all", "amd64g_calculate_rflags_c"),
+            ("X86", "x86g_calculate_eflags_all", "x86g_calculate_eflags_c"),
+        ):
+            r_all = self._rewrite(arch, all_name, (), {100, 101, 102, 103})
+            r_c = self._rewrite(arch, c_name, (), {100, 101, 102, 103})
+            assert r_all is not None and r_c is not None
+            assert self._eval(r_all, 0xFFF) == 0x8D5 and self._eval(r_c, 0x41) == 1 and self._eval(r_c, 0x40) == 0
+
+    def test_partially_defined_thunk_is_kept(self):
+        # cc_ndep has a definition in the function
+        r = self._rewrite("AMD64", "amd64g_calculate_condition", (Expr.Const(0, 4, 64),), {100, 101, 102})
+        assert r is None
+
+
 if __name__ == "__main__":
     unittest.main()

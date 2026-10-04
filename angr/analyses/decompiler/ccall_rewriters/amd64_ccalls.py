@@ -48,6 +48,11 @@ class AMD64CCallRewriter(CCallRewriterBase):
         callee = self._original_callee(ccall)
         if callee in {"amd64g_create_mxcsr", "amd64g_create_fpucw"}:
             return self._rewrite_control_word_read(ccall, callee[len("amd64g_") :])
+        r = self._rewrite_livein_flags(
+            ccall, callee, "amd64g_", "amd64g_calculate_rflags_all", "amd64g_calculate_rflags_c"
+        )
+        if r is not None:
+            return r
         if ccall.callee == "amd64g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]

@@ -1207,6 +1207,31 @@ class TestFlagJoin:
         assert "a0 == 5" not in text, text
 
 
+class TestFlagsLiveIn:
+    """flags_livein_{amd64,i386}.o: a jcc/adc on flags no instruction in the function set reads the entry flags, so its
+    ccall becomes a __readeflags() bit test; a loop-head jcc whose flags are also set inside the loop keeps its ccall."""
+
+    @pytest.mark.parametrize(
+        "filename,func_name,cond",
+        [
+            ("flags_livein_amd64.o", "livein_je", r"if \(!\(__readeflags\(\) & 64\)\)"),
+            ("flags_livein_amd64.o", "livein_jle", r"!\(__readeflags\(\) & 64\) && !\("),
+            ("flags_livein_amd64.o", "livein_adc", r"__readeflags\(\) & 1"),
+            ("flags_livein_i386.o", "livein_jb", r"if \(!\(__readeflags\(\) & 1\)\)"),
+            ("flags_livein_i386.o", "livein_jnl", r"if \(__readeflags\(\) >> 7 & 1 \^ __readeflags\(\) >> 11 & 1\)"),
+        ],
+    )
+    def test_livein_flags(self, filename, func_name, cond):
+        text = _decompile_asm_func(filename, func_name)
+        assert "_ccall" not in text and "cc_" not in text, text
+        assert re.search(cond, text), text
+
+    def test_loop_flags_not_rewritten(self):
+        text = _decompile_asm_func("flags_livein_amd64.o", "partial_loop")
+        # the peeled first check reads the entry flags; the in-loop check merges them with dec's flags
+        assert "__readeflags()" in text and "_ccall(14, 27" in text, text
+
+
 class TestStackLoadAcrossSpUpdate:
     """`push eax; test byte [esp+1], imm; lea esp, [esp+4]; jne`: the load is inlined into the jump condition past the
     sp update, and must keep the offset of the esp value it was computed from (entry - 3, not entry + 1)."""

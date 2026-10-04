@@ -145,6 +145,26 @@ class HasVVarNotification(Exception):
 _HAS_CALL_EXPRS_WALKER = HasCallExprWalker()
 
 
+def _is_flags_read_expr(expr: Expression) -> bool:
+    """A value computed only from constants and argless __readeflags() calls (see the ccall rewriters)."""
+    if isinstance(expr, Call):
+        return expr.target == "__readeflags" and not expr.args
+    if isinstance(expr, Convert):
+        return _is_flags_read_expr(expr.operand)
+    if isinstance(expr, UnaryOp):
+        return _is_flags_read_expr(expr.operand)
+    if isinstance(expr, BinaryOp):
+        return all(isinstance(op, Const) or _is_flags_read_expr(op) for op in expr.operands) and not all(
+            isinstance(op, Const) for op in expr.operands
+        )
+    return False
+
+
+def _is_flags_read_assignment(stmt: Statement) -> bool:
+    """A flags read has no side effects: a dead one can be removed like any other dead assignment."""
+    return isinstance(stmt, Assignment) and _is_flags_read_expr(stmt.src)
+
+
 class HasRefVVarNotification(Exception):
     """
     Notifies the existence of a reference to a VirtualVariable.
@@ -538,6 +558,7 @@ class AILSimplifier(Analysis):
                     and (
                         isinstance(stmt.src, (VirtualVariable, Tmp, Call, Convert))
                         or (isinstance(stmt.src, Load) and isinstance(stmt.src.addr, Call))
+                        or (isinstance(stmt.src, BinaryOp) and _is_flags_read_expr(stmt.src))
                     )
                 ):
                     codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
@@ -2004,6 +2025,9 @@ class AILSimplifier(Analysis):
                 elif eq.is_weakassignment:
                     # variable =w something else
                     call = eq.atom1
+                elif isinstance(eq.atom1, Expression) and _is_flags_read_expr(eq.atom1):
+                    # a rewritten live-in flags test; folded only within its instruction (see below)
+                    call = eq.atom1
                 else:
                     continue
 
@@ -2061,6 +2085,19 @@ class AILSimplifier(Analysis):
                     # check the statement and make sure it's not a conditional jump
                     the_block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
                     if isinstance(the_block.statements[u.stmt_idx], ConditionalJump):
+                        continue
+
+                if isinstance(call, Expression) and _is_flags_read_expr(call):
+                    # a later instruction may change the flags
+                    def_ins = (
+                        addr_and_idx_to_block[(the_def.codeloc.block_addr, the_def.codeloc.block_idx)]
+                        .statements[the_def.codeloc.stmt_idx]
+                        .tags.get("ins_addr")
+                    )
+                    use_ins = (
+                        addr_and_idx_to_block[(u.block_addr, u.block_idx)].statements[u.stmt_idx].tags.get("ins_addr")
+                    )
+                    if def_ins is None or def_ins != use_ins:
                         continue
 
                 # check if the use and the definition is within the same supernode
@@ -2357,7 +2394,9 @@ class AILSimplifier(Analysis):
             if not users:
                 continue
             stmt = blocks[(codeloc.block_addr, codeloc.block_idx)].statements[codeloc.stmt_idx]
-            if self._statement_has_call_exprs(stmt) or isinstance(stmt, (DirtyStatement, SideEffectStatement)):
+            if (self._statement_has_call_exprs(stmt) and not _is_flags_read_assignment(stmt)) or isinstance(
+                stmt, (DirtyStatement, SideEffectStatement)
+            ):
                 # the statement survives for its side effects, so its uses still count
                 continue
             for used_vvar_id in users:
@@ -2521,7 +2560,7 @@ class AILSimplifier(Analysis):
                             simplified = True
                             continue
 
-                        if self._statement_has_call_exprs(stmt):
+                        if self._statement_has_call_exprs(stmt) and not _is_flags_read_assignment(stmt):
                             if codeloc in self._calls_to_remove:
                                 # it has a call and must be removed
                                 new_statements.append(NoOp(stmt.idx, ins_addr=stmt.tags.get("ins_addr", -1)))
@@ -2776,6 +2815,7 @@ class AILSimplifier(Analysis):
         def _handle_VEXCCallExpression(
             expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ) -> Expression:
+            nonlocal livein_vvar_ids
             r_expr = AILBlockRewriter._handle_VEXCCallExpression(  # pylint:disable=protected-access
                 walker,
                 expr_idx,
@@ -2784,12 +2824,21 @@ class AILSimplifier(Analysis):
                 stmt,
                 block,
             )
-            rewriter = rewriter_cls(r_expr, self.project, self._ail_manager, rename_ccalls=self._should_rename_ccalls)
+            if livein_vvar_ids is None:
+                livein_vvar_ids = self._livein_vvar_ids()
+            rewriter = rewriter_cls(
+                r_expr,
+                self.project,
+                self._ail_manager,
+                rename_ccalls=self._should_rename_ccalls,
+                livein_vvar_ids=livein_vvar_ids,
+            )
             if rewriter.result is not None:
                 _any_update.v = True
                 return rewriter.result
             return r_expr
 
+        livein_vvar_ids: set[int] | None = None
         walker.expr_handlers[VEXCCallExpression] = _handle_VEXCCallExpression
 
         updated = False
@@ -2804,6 +2853,26 @@ class AILSimplifier(Analysis):
                 updated = True
 
         return updated
+
+    def _livein_vvar_ids(self) -> set[int]:
+        """Ids of vvars that hold their function-entry value: no definition in the function, or a phi over such vvars
+        only."""
+        rd = self._compute_reaching_definitions()
+        livein = {vid for vid, loc in rd.all_vvar_definitions.items() if loc.is_extern}
+        # optimistic fixed point so that loop phis over a live-in value qualify
+        phis = {
+            vid: srcs
+            for vid, srcs in rd.phivarid_to_varids_with_unknown.items()
+            if vid in rd.phi_vvar_ids and None not in srcs
+        }
+        changed = True
+        while changed:
+            changed = False
+            for vid in list(phis):
+                if any(src not in livein and src not in phis for src in phis[vid]):
+                    del phis[vid]
+                    changed = True
+        return livein | set(phis)
 
     #
     # Rewriting dirty calls

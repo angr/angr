@@ -70,6 +70,9 @@ class X86CCallRewriter(CCallRewriterBase):
             return self._rewrite_fxam(ccall)
         if callee in {"x86g_create_mxcsr", "x86g_create_fpucw"}:
             return self._rewrite_control_word_read(ccall, callee[len("x86g_") :])
+        r = self._rewrite_livein_flags(ccall, callee, "x86g_", "x86g_calculate_eflags_all", "x86g_calculate_eflags_c")
+        if r is not None:
+            return r
         if callee == "x86g_calculate_condition":
             cond = ccall.operands[0]
             op = ccall.operands[1]
