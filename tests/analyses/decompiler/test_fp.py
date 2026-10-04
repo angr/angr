@@ -1651,3 +1651,11 @@ class TestClampThroughSlotPointers:
         assert re.search(r"double v\d+;  // \[bp-0xc\]", text), text
         assert re.search(r"v\d+ = 1\.0;", text), text
         assert "0x3ff0000000000000" not in text and "unsigned long long" not in text, text
+
+    def test_slot_written_by_int_immediate_is_double(self):
+        text = _decompile_asm_func("fp_clamp_ref_amd64.o", "clamp_ref_imm")
+        assert re.search(r"double v\d+;  // \[bp-0x10\]", text), text
+        assert re.search(r"v\d+ = 1\.0;", text), text
+        assert "0x3ff0000000000000" not in text, text
+        # the store goes through the pointer argument, not into the argument variable
+        assert re.search(r"\*\(\(double \*\)a\d\) = ", text), text
