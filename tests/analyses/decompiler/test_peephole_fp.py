@@ -916,6 +916,44 @@ class TestX87Fxam(unittest.TestCase):
         )
         self._assert_unary(self.opt.optimize(_cmp_const("CmpEQ", masked, 0x05)), "IsInf")
 
+    def test_status_word_stored_to_memory(self):
+        # fnstsw word [ebp-0xa0]; test byte [ebp-0x9f], 1
+        from angr.ailment.block import Block
+        from angr.ailment.expression import Load
+        from angr.ailment.statement import ConditionalJump, Store
+
+        ebp = Tmp(None, 9, 32)
+
+        def addr(off):
+            return BinaryOp(None, "Sub", [ebp, Const(None, off, 32)], False, bits=32)
+
+        fsw = BinaryOp(
+            None,
+            "Or",
+            [
+                Const(None, 0x3800, 16),
+                BinaryOp(
+                    None, "And", [Convert(None, 32, 16, False, _fxam(self.x)), Const(None, 0x4700, 16)], False, bits=16
+                ),
+            ],
+            False,
+            bits=16,
+        )
+        store = Store(None, addr(0xA0), fsw, 2, "Iend_LE")
+        load = Load(None, addr(0x9F), 1, "Iend_LE")
+        cond = _cmp_const("CmpNE", BinaryOp(None, "And", [load, Const(None, 1, 8)], False, bits=8), 0)
+        block = Block(0x1000, 8, statements=[store, ConditionalJump(None, cond, Const(None, 0x2000, 32), None)])
+        self._assert_unary(self.opt.optimize(cond, stmt_idx=1, block=block), "IsFinite", negated=True)
+
+        # an intervening store to an unrelated address may alias
+        other = Store(None, Tmp(None, 10, 32), Const(None, 0, 8), 1, "Iend_LE")
+        block = Block(0x1000, 8, statements=[store, other, ConditionalJump(None, cond, Const(None, 0x2000, 32), None)])
+        assert self.opt.optimize(cond, stmt_idx=2, block=block) is None
+        # a store that does not cover the loaded byte
+        short = Store(None, addr(0xA0), Convert(None, 16, 8, False, fsw), 1, "Iend_LE")
+        block = Block(0x1000, 8, statements=[short, ConditionalJump(None, cond, Const(None, 0x2000, 32), None)])
+        assert self.opt.optimize(cond, stmt_idx=1, block=block) is None
+
 
 class TestX86FPConditionCCall(unittest.TestCase):
     """x86g_calculate_condition over flags derived from an x87 status word."""

@@ -25,12 +25,19 @@ from angr.ailment.expression import (
     Expression,
     Extract,
     Insert,
+    Load,
+    Register,
     Reinterpret,
+    StackBaseOffset,
+    Tmp,
     UnaryOp,
     VEXCCallExpression,
     VirtualVariable,
 )
 from angr.ailment.manager import Manager
+from angr.ailment.statement import Assignment, Label, NoOp, Statement, Store
+
+from .block_walkers import HasCallExprWalker, HasCallNotification
 
 CMPF_GT = 0x00
 CMPF_LT = 0x01
@@ -85,14 +92,24 @@ class FswTable:
         return frozenset(o for o, vals in self.values.items() if pred(vals))
 
 
-class _KnownBitsEvaluator:
-    __slots__ = ("outcome", "source", "source_operands", "vvar_defs")
+LoadResolver = Callable[[Load], Expression | None]
 
-    def __init__(self, vvar_defs: dict[int, Expression] | None):
+
+class _KnownBitsEvaluator:
+    __slots__ = ("load_resolver", "outcome", "source", "source_operands", "tmp_defs", "vvar_defs")
+
+    def __init__(
+        self,
+        vvar_defs: dict[int, Expression] | None,
+        load_resolver: LoadResolver | None = None,
+        tmp_defs: dict[int, Expression] | None = None,
+    ):
         self.source: str | None = None
         self.source_operands: tuple[Expression, ...] = ()
         self.outcome = CMPF_GT
         self.vvar_defs = vvar_defs
+        self.load_resolver = load_resolver
+        self.tmp_defs = tmp_defs
 
     def _source_value(self, source: str, operands: tuple[Expression, ...], mask: int) -> _KnownBits:
         if self.source is None:
@@ -122,8 +139,18 @@ class _KnownBitsEvaluator:
                 return self.eval(self.vvar_defs[expr.varid], depth + 1)
             return _UNKNOWN
 
+        if isinstance(expr, Tmp):
+            if self.tmp_defs is not None and expr.tmp_idx in self.tmp_defs:
+                return self.eval(self.tmp_defs[expr.tmp_idx], depth + 1)
+            return _UNKNOWN
+
         if isinstance(expr, Convert):
             return self._eval_convert(expr, depth)
+
+        if isinstance(expr, Load):
+            if self.load_resolver is not None and (stored := self.load_resolver(expr)) is not None:
+                return self.eval(stored, depth + 1)
+            return _UNKNOWN
 
         if isinstance(expr, Extract):
             if not (isinstance(expr.offset, Const) and isinstance(expr.offset.value, int)):
@@ -246,13 +273,19 @@ class _KnownBitsEvaluator:
         return _UNKNOWN
 
 
-def evaluate_over_fsw(exprs: Sequence[Expression], vvar_defs: dict[int, Expression] | None = None) -> FswTable | None:
+def evaluate_over_fsw(
+    exprs: Sequence[Expression],
+    vvar_defs: dict[int, Expression] | None = None,
+    load_resolver: LoadResolver | None = None,
+    tmp_defs: dict[int, Expression] | None = None,
+) -> FswTable | None:
     """
     Evaluate integer expressions that depend on a single CmpF(a, b) or __fxam(x) for each of its outcomes.
 
+    :param load_resolver:   Maps a Load to the expression it reads (e.g., a status word stored earlier), or None.
     :return:    The table of values, or None if no source is found or any expression has unknown bits for some outcome.
     """
-    evaluator = _KnownBitsEvaluator(vvar_defs)
+    evaluator = _KnownBitsEvaluator(vvar_defs, load_resolver, tmp_defs)
     # the first pass finds the source
     for expr in exprs:
         evaluator.eval(expr)
@@ -390,3 +423,73 @@ def const_is_nan(const: Const) -> bool:
     if const.bits == 32:
         return (value >> 23) & 0xFF == 0xFF and value & ((1 << 23) - 1) != 0
     return False
+
+
+_HAS_CALL_WALKER = HasCallExprWalker()
+
+
+def _has_call(stmt: Statement) -> bool:
+    try:
+        _HAS_CALL_WALKER.walk_statement(stmt)
+    except HasCallNotification:
+        return True
+    return False
+
+
+def _split_addr(addr: Expression) -> tuple[Expression | None, int] | None:
+    """(base, offset) of an address; base None stands for the stack pointer at function entry."""
+    if isinstance(addr, StackBaseOffset):
+        return (None, addr.offset) if isinstance(addr.offset, int) else None
+    if (
+        isinstance(addr, BinaryOp)
+        and addr.op in {"Add", "Sub"}
+        and isinstance(addr.operands[1], Const)
+        and isinstance(addr.operands[1].value, int)
+    ):
+        c = addr.operands[1].value
+        return addr.operands[0], c if addr.op == "Add" else -c
+    return addr, 0
+
+
+def store_forwarder(statements: Sequence[Statement], stmt_idx: int) -> LoadResolver:
+    """
+    Resolve a Load in statement ``stmt_idx`` to the data of an earlier Store in the same block that fully covers it,
+    e.g. ``fnstsw word [ebp-0xa0]; test byte [ebp-0x9f], 0x41``. The search stops at any statement that may write
+    memory the Load could read.
+    """
+
+    def resolve(load: Load) -> Expression | None:
+        load_addr = _split_addr(load.addr)
+        if load_addr is None:
+            return None
+        load_base, load_off = load_addr
+        for stmt in reversed(statements[:stmt_idx]):
+            if isinstance(stmt, (Label, NoOp)):
+                continue
+            if isinstance(stmt, Assignment):
+                # a register write (before SSA) may change the address base
+                if isinstance(stmt.dst, Register) or _has_call(stmt):
+                    return None
+                continue
+            if not isinstance(stmt, Store) or stmt.guard is not None or _has_call(stmt):
+                return None
+            store_addr = _split_addr(stmt.addr)
+            if store_addr is None:
+                return None
+            store_base, store_off = store_addr
+            if (store_base is None) != (load_base is None) or (
+                store_base is not None and load_base is not None and not store_base.likes(load_base)
+            ):
+                return None
+            delta = load_off - store_off
+            if load_off + load.size <= store_off or store_off + stmt.size <= load_off:
+                # disjoint from the loaded bytes
+                continue
+            if delta < 0 or delta + load.size > stmt.size or stmt.endness != load.endness:
+                return None
+            if delta == 0 and load.size == stmt.size:
+                return stmt.data
+            return Extract(None, load.size * 8, stmt.data, Const(None, delta, 64), stmt.endness)
+        return None
+
+    return resolve

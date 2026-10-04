@@ -1,11 +1,37 @@
 from __future__ import annotations
 
-from angr.ailment.expression import ITE, BinaryOp, Const, Convert, Expression, Extract, Insert, UnaryOp, VirtualVariable
+from typing import NamedTuple
+
+from angr.ailment.expression import (
+    ITE,
+    BinaryOp,
+    Const,
+    Convert,
+    Expression,
+    Extract,
+    Insert,
+    Tmp,
+    UnaryOp,
+    VirtualVariable,
+)
 from angr.ailment.statement import Assignment
 from angr.ailment.utils import is_lsb_extract, is_lsb_overwrite
-from angr.analyses.decompiler.x87_fsw import const_is_nan, evaluate_over_fsw, fsw_predicate
+from angr.analyses.decompiler.x87_fsw import (
+    LoadResolver,
+    const_is_nan,
+    evaluate_over_fsw,
+    fsw_predicate,
+    store_forwarder,
+)
 
 from .base import PeepholeOptimizationExprBase
+
+
+class _FswContext(NamedTuple):
+    """Block context for evaluating status-word tests: Tmp definitions and earlier stores."""
+
+    tmp_defs: dict[int, Expression]
+    load_resolver: LoadResolver | None
 
 
 class X87CmpF(PeepholeOptimizationExprBase):
@@ -24,7 +50,7 @@ class X87CmpF(PeepholeOptimizationExprBase):
     NAME = "Simplifying CmpF on x87"
     expr_classes = (BinaryOp, ITE, UnaryOp)
 
-    def optimize(self, expr: BinaryOp | ITE | UnaryOp, *, block=None, **kwargs):
+    def optimize(self, expr: BinaryOp | ITE | UnaryOp, *, stmt_idx: int | None = None, block=None, **kwargs):
         if isinstance(expr, UnaryOp):
             # IsNaN(const) once a constant operand has been propagated in
             if expr.op == "IsNaN" and isinstance(expr.operand, Const):
@@ -34,13 +60,20 @@ class X87CmpF(PeepholeOptimizationExprBase):
         # see through Tmp/VVar indirections (common on AMD64 where CmpF
         # results are assigned to temporaries before bit manipulation).
         vvar_defs: dict[int, object] = {}
+        tmp_defs: dict[int, Expression] = {}
         if block is not None:
             for stmt in block.statements:
-                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                    vvar_defs[stmt.dst.varid] = stmt.src
+                if isinstance(stmt, Assignment):
+                    if isinstance(stmt.dst, VirtualVariable):
+                        vvar_defs[stmt.dst.varid] = stmt.src
+                    elif isinstance(stmt.dst, Tmp):
+                        tmp_defs[stmt.dst.tmp_idx] = stmt.src
         if isinstance(expr, ITE):
             return self._optimize_ite(expr, vvar_defs)
-        return self._optimize_binop(expr, vvar_defs)
+        load_resolver = (
+            store_forwarder(block.statements, stmt_idx) if block is not None and stmt_idx is not None else None
+        )
+        return self._optimize_binop(expr, vvar_defs, _FswContext(tmp_defs, load_resolver))
 
     @staticmethod
     def _resolve(expr, vvar_defs: dict, depth: int = 3):
@@ -149,7 +182,7 @@ class X87CmpF(PeepholeOptimizationExprBase):
             return inner.operand.likes(a) or inner.operand.likes(b)
         return False
 
-    def _optimize_binop(self, expr: BinaryOp, vvar_defs: dict | None = None):
+    def _optimize_binop(self, expr: BinaryOp, vvar_defs: dict | None = None, ctx: _FswContext | None = None):
         vd = vvar_defs or {}
         if expr.op == "CmpUN":
             if expr.operands[0].likes(expr.operands[1]):
@@ -195,9 +228,9 @@ class X87CmpF(PeepholeOptimizationExprBase):
                 op = "CmpEQ" if expr.op == "CmpEQ" else "CmpNE"
                 return BinaryOp(expr.idx, op, list(cmpf_operands), False, floating_point=True, **expr.tags)
 
-        return self._optimize_by_evaluation(expr, vd)
+        return self._optimize_by_evaluation(expr, vd, ctx or _FswContext({}, None))
 
-    def _optimize_by_evaluation(self, expr: BinaryOp, vvar_defs: dict) -> Expression | None:
+    def _optimize_by_evaluation(self, expr: BinaryOp, vvar_defs: dict, ctx: _FswContext) -> Expression | None:
         """
         Evaluate the expression for each CmpF or fxam outcome (sees through fnstsw/sahf bit shuffling) and rebuild it
         as a comparison or classification test when it is a test against a constant or a 0/1-valued bit test.
@@ -205,7 +238,7 @@ class X87CmpF(PeepholeOptimizationExprBase):
         if expr.op in ("CmpEQ", "CmpNE"):
             if not (isinstance(expr.operands[1], Const) and isinstance(expr.operands[1].value, int)):
                 return None
-            table = evaluate_over_fsw([expr.operands[0]], vvar_defs)
+            table = evaluate_over_fsw([expr.operands[0]], vvar_defs, ctx.load_resolver, ctx.tmp_defs)
             if table is None:
                 return None
             const_val = expr.operands[1].value
@@ -213,7 +246,7 @@ class X87CmpF(PeepholeOptimizationExprBase):
             return fsw_predicate(table, true_set, expr.idx, self.manager, expr.bits, expr.tags)
 
         if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value in (1, 4, 0x40):
-            table = evaluate_over_fsw([expr], vvar_defs)
+            table = evaluate_over_fsw([expr], vvar_defs, ctx.load_resolver, ctx.tmp_defs)
             if table is None or any(vals[0] not in (0, 1) for vals in table.values.values()):
                 return None
             true_set = table.true_set(lambda vals: vals[0] == 1)

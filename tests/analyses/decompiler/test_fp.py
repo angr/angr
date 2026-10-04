@@ -1100,8 +1100,8 @@ class TestX87StatusWordIdioms:
         assert expected in text, text
 
 
-class TestX87Fxam:
-    """fxam status bits fold into classification tests."""
+class TestX87FxamAndStoredStatusWord:
+    """fxam status bits fold into classification tests; a status word stored by fnstsw and reloaded is folded too."""
 
     @pytest.mark.parametrize(
         "func_name,cond,negated",
@@ -1112,6 +1112,9 @@ class TestX87Fxam:
             ("fxam_isnormal", "isnormal(a0)", "!isnormal(a0)"),
             ("fxam_signbit", "signbit(a0)", "!signbit(a0)"),
             ("fxam_notfinite_sahf", "!isfinite(a0)", "isfinite(a0)"),
+            ("fxam_mem_notfinite", "!isfinite(a0)", "isfinite(a0)"),
+            ("ftst_mem_le", "a0 <= 0.0", "a0 > 0.0"),
+            ("fcomp_local_lt", "a0 < a1", "a0 >= a1"),
         ],
     )
     def test_branches(self, func_name, cond, negated):
